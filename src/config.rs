@@ -165,6 +165,21 @@ impl Config {
         if let Some(v) = o.share_prob {
             self.share_prob = v;
         }
+        if let Some(v) = o.max_flops_per_module {
+            self.max_flops_per_module = v;
+        }
+        if let Some(v) = o.min_mux_arms {
+            self.min_mux_arms = v;
+        }
+        if let Some(v) = o.max_mux_arms {
+            self.max_mux_arms = v;
+        }
+        if let Some(v) = o.flop_qfeedback_prob {
+            self.flop_qfeedback_prob = v;
+        }
+        if let Some(v) = o.flop_mux_encoding_prob {
+            self.flop_mux_encoding_prob = v;
+        }
     }
 }
 
@@ -179,4 +194,9 @@ pub struct Overrides {
     pub max_depth: Option<u32>,
     pub flop_prob: Option<f64>,
     pub share_prob: Option<f64>,
+    pub max_flops_per_module: Option<u32>,
+    pub min_mux_arms: Option<u32>,
+    pub max_mux_arms: Option<u32>,
+    pub flop_qfeedback_prob: Option<f64>,
+    pub flop_mux_encoding_prob: Option<f64>,
 }

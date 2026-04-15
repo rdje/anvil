@@ -15,6 +15,11 @@ src/
 ├── main.rs           CLI entry point. Parses Cli (clap), constructs Config,
 │                     runs Generator, writes stdout or per-file output with
 │                     manifest.json. Owns no domain logic.
+│                     CLI flags cover every Phase 1/2 motif knob:
+│                     structure (min/max-inputs/outputs/width, max-depth),
+│                     sequential (flop-prob, max-flops-per-module,
+│                     min/max-mux-arms, flop-qfeedback-prob,
+│                     flop-mux-encoding-prob), sharing (share-prob).
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
 │

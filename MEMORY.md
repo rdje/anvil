@@ -2,14 +2,15 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
-- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. **Phase 2 (Signal sharing / DAG cones) in progress.**
-- **Last completed slice:** per-operand DAG-sharing wired into `build_cone`. New `try_share` helper picks an existing matching-width pool entry (with deps, honoring `exclude`); on None, falls back to normal recursion. `share_prob` default raised from `0.0` to `0.3`. New unit test `share_prob_high_shares_internal_gates` verifies the DAG mechanism produces internal-gate fanout ≥ 2 across a 32-seed sweep. Total: 21 unit + 2 integration = 23 tests. See `CHANGES.md` entry `2026-04-15-0010`.
+- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
+- **Last completed slice:** CLI flag coverage extended for Phase 1/2 motif knobs. Added `--max-flops-per-module`, `--min-mux-arms`, `--max-mux-arms`, `--flop-qfeedback-prob`, `--flop-mux-encoding-prob`. Users can now exercise every flop motif combination from the CLI without writing a JSON config. See `CHANGES.md` entry `2026-04-15-0011`.
 - **Next up:**
-  1. Verilator-lint smoke run, ideally sweeping `share_prob ∈ {0.0, 0.3, 0.9}` per the Phase 2 exit criterion. Blocked on Verilator availability.
-  2. Consider adding a `--share-prob` CLI flag (currently only accessible via `--config` JSON). Small ergonomic improvement.
-  3. After Verilator-lint green at multiple `share_prob` settings: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
+  1. Verilator-lint smoke run, ideally sweeping `share_prob ∈ {0.0, 0.3, 0.9}` and the two flop styles (one-hot / encoded) per the Phase 2 exit criterion. Blocked on Verilator availability.
+  2. After Verilator-lint green at multiple `share_prob` settings: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
+  3. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot` (currently covered only indirectly by the integration sweep).
 
 ## Recent commits
+- `6ba646b` — Phase 2 start: per-operand DAG-cone sharing.
 - `c8043c3` — Inline unit tests for cone helpers and SV emitter.
 - `4eb5daa` — Per-gate width/arity validator + inline unit tests.
 - `f2a3d81` — Elevate mdBook to equal-standing live doc in session recovery.

@@ -43,6 +43,16 @@ struct Cli {
     flop_prob: Option<f64>,
     #[arg(long)]
     share_prob: Option<f64>,
+    #[arg(long)]
+    max_flops_per_module: Option<u32>,
+    #[arg(long)]
+    min_mux_arms: Option<u32>,
+    #[arg(long)]
+    max_mux_arms: Option<u32>,
+    #[arg(long)]
+    flop_qfeedback_prob: Option<f64>,
+    #[arg(long)]
+    flop_mux_encoding_prob: Option<f64>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -113,5 +123,10 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_depth: cli.max_depth,
         flop_prob: cli.flop_prob,
         share_prob: cli.share_prob,
+        max_flops_per_module: cli.max_flops_per_module,
+        min_mux_arms: cli.min_mux_arms,
+        max_mux_arms: cli.max_mux_arms,
+        flop_qfeedback_prob: cli.flop_qfeedback_prob,
+        flop_mux_encoding_prob: cli.flop_mux_encoding_prob,
     }
 }

@@ -3,7 +3,40 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0011 — CLI coverage for all Phase 1/2 motif knobs
+
+**What changed**
+- `src/main.rs`:
+  - New CLI flags on `Cli`: `--max-flops-per-module`, `--min-mux-arms`, `--max-mux-arms`, `--flop-qfeedback-prob`, `--flop-mux-encoding-prob`.
+  - `cli_overrides` function threads the new flags into `anvil::config::Overrides`.
+- `src/config.rs`:
+  - `Overrides` struct gains five new `Option<_>` fields matching the new CLI flags.
+  - `Config::apply_cli_overrides` handles each new override.
+
+**Why**
+Every Phase 1/2 motif knob now has a dedicated CLI flag. Previously, exercising flop motifs required editing a JSON config file and passing `--config`, which is enough friction to discourage casual experimentation and to make CLI-based reproducibility less pleasant. After this slice, a user can force any combination — e.g., encoded-mux-only QFeedback flops with M ≤ 3 — in a single command line.
+
+This is the "Consider adding a `--share-prob` CLI flag" item from the prior `MEMORY.md` next-up list, broadened to include all the other Phase 1/2 motif knobs that were similarly JSON-only.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (23 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- `cargo run -- --help` surfaces all five new flags with their expected names.
+- End-to-end check: `cargo run -- --seed 1 --max-depth 2 --max-inputs 2 --flop-prob 1.0 --flop-mux-encoding-prob 0.0 --max-mux-arms 2` produces the one-hot replicate-AND pattern (confirming `--flop-mux-encoding-prob 0.0` is actually honored).
+
+**Impact**
+- Phase 1/2 motif exploration is now CLI-native.
+- Removes one friction point before the Verilator-lint smoke run: that smoke run will ultimately need to sweep both `share_prob` and the flop encoding probability to satisfy Phase 2's exit criterion, and CLI-driven sweeps are far easier to script than JSON-config-driven ones.
+
+**Files touched**
+`src/main.rs`, `src/config.rs`, `MEMORY.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0010 — Phase 2 start: per-operand DAG-cone sharing
+
+**Commit hash:** `6ba646b`
 
 **What changed**
 - `src/gen/cone.rs`:
@@ -46,8 +79,6 @@ The mechanism is intentionally minimal: two lines in `build_cone` plus one helpe
 
 **Files touched**
 `src/gen/cone.rs`, `src/config.rs`, `book/src/sharing.md`, `ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
