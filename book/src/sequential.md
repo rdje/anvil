@@ -211,11 +211,11 @@ of the M 1-bit select bits is a **recursion point**:
 build_flop_d(width N, kind):
     M = pick_M()                              // 0 or 2..=max_mux_arms
     if M == 0:
-        return build_cone_with_retry(N, exclude=Q)
+        return build_cone_with_retry(N)    # Q can be a leaf freely
     arms = []
     for i in 0..M:
-        data_i = build_cone_with_retry(N, exclude=Q)   // recursion point
-        sel_i  = build_cone_with_retry(1, exclude=Q)   // recursion point
+        data_i = build_cone_with_retry(N)  # Q can appear any number of times
+        sel_i  = build_cone_with_retry(1)  # Q can appear any number of times
         arms.push(data_i, sel_i)
     return assemble(arms, kind, Q)
 ```
@@ -232,18 +232,26 @@ design contract). When the contract is violated, multiple data paths
 OR together — which is exactly what the gate structure produces. There
 is no extra logic in the generator to enforce one-hot at runtime.
 
-### No Q→D feedback through the mux datapath
+### Q-feedback in the D-cone is freely permitted
 
-The M data inputs and the M select bits (and, when M = 0, the direct
-D-cone) are forbidden from terminating at this flop's own Q. The
-Q-feedback path, when present, is the *single* dedicated
-all-zeros-select term — never threaded through a mux arm or through a
-select bit. (Other flops' Qs remain valid leaves; only *this* flop's
-own Q is excluded from *this* flop's D-construction.)
+A flop's own Q may appear **any number of times** as a leaf inside
+any of its data, select, or direct-D sub-cones. Q→D feedback through
+arbitrary combinational logic is a legal synchronous pattern —
+counters, toggles, accumulators, state machines all work this way.
+The clock edge breaks the loop temporally: `Q[n+1]` depends on
+`Q[n]` plus possibly other inputs.
 
-Enforced by an `exclude: Option<NodeId>` parameter threaded through
-the cone recursion. `pick_terminal` filters the signal pool to skip
-the excluded node before terminal selection.
+This is independent of the explicit Q-feedback mux term in
+`FlopKind::QFeedback`. The mux term fires when *no* select asserts
+and is a structured fall-through path. The Q-in-sub-cone freedom
+just makes Q a normal shareable leaf during cone construction.
+
+Combinational self-reference within the Q→D logic is still impossible
+— that is Rule 1 (Combinational no-loop) in the
+[Structural Rules catalog](structural-rules.md).
+
+See Rule 2 in the [Structural Rules catalog](structural-rules.md) for
+the authoritative statement.
 
 ## Reset value selection
 

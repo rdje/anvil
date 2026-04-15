@@ -3,7 +3,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** mdBook user-facing expansion. Added `getting-started.md`, `tutorial.md` (9 progressive examples), `recipes.md` (9 use-case cookbook entries). Rewrote `introduction.md` as a welcoming entry point (who is this for, five-minute pitch, what makes anvil different). Restructured `SUMMARY.md` into five parts: Using anvil / How It Works / Correctness / Motif Catalogue / Reference. Fixed obsolete `multilingual` field in `book.toml`; `mdbook build book` now succeeds and produces `book/book-out/`. See `CHANGES.md` entry `2026-04-15-0013`.
+- **Last completed slice:** Q-feedback rule relaxation and the birth of the structural-rules catalog. Per user direction, a flop's own Q is now freely reachable in its own D-cone sub-cones (any number of times). `exclude = Some(q_node)` dropped from the three flop drainer sites. New `book/src/structural-rules.md` chapter codifies this and every other load-bearing generator invariant (13 rules today). `DEVELOPMENT_NOTES.md` and `CODEBASE_ANALYSIS.md` now point to the catalog instead of inlining rules. See `CHANGES.md` entry `2026-04-15-0014`.
 - **Next up:**
   1. Verilator-lint smoke run (still blocked on Verilator availability). Sweep `share_prob ∈ {0.0, 0.3, 0.9}` and both flop styles for Phase 2 exit.
   2. After Verilator-lint green: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
@@ -11,6 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. Optional book polish: add a "Tools this project uses" section linking to Verilator/Yosys for downstream smoke tests; add a FAQ chapter as questions accumulate.
 
 ## Recent commits
+- `bac6060` — mdBook becomes user-facing: Getting Started, Tutorial, Recipes.
 - `62fdeaa` — mdBook staleness refresh: knobs, IR, algorithm, architecture.
 - `c9ec12c` — CLI coverage for all Phase 1/2 motif knobs.
 - `6ba646b` — Phase 2 start: per-operand DAG-cone sharing.

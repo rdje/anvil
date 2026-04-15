@@ -18,6 +18,7 @@
 # Correctness Guarantees
 
 - [Generation by Construction](by-construction.md)
+- [Structural Rules (catalog)](structural-rules.md)
 - [Synthesizability as a Subset Constraint](synthesizability.md)
 - [Non-Triviality and Dependency Tracking](non-triviality.md)
 

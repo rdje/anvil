@@ -75,7 +75,14 @@ pub fn drain_flop_worklist(
         let width = m.flops[flop_id as usize].width;
         let kind = m.flops[flop_id as usize].kind;
         let q_node = m.flops[flop_id as usize].q;
-        let exclude = Some(q_node);
+        // Q-feedback is freely permitted in this flop's D-cone: this
+        // flop's own Q may appear any number of times as a leaf in any
+        // data / select / direct-D sub-cone. The clock edge breaks the
+        // loop temporally, so Q→D feedback is a legal sequential pattern.
+        // Combinational self-reference is impossible by construction
+        // (pool entries pre-date each recursion call — arena-index
+        // monotonicity).
+        let exclude: Option<NodeId> = None;
 
         let m_arms = pick_mux_arm_count(g);
         if m_arms == 0 {
@@ -110,7 +117,8 @@ fn drain_flop_one_hot(
     q_node: NodeId,
     m_arms: u32,
 ) -> (NodeId, FlopMux) {
-    let exclude = Some(q_node);
+    // Q may appear in sub-cones (see drain_flop_worklist note).
+    let exclude: Option<NodeId> = None;
     let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
     for _ in 0..m_arms {
         let data = build_cone_with_retry(g, m, pool, worklist, width, exclude);
@@ -131,7 +139,8 @@ fn drain_flop_encoded(
     q_node: NodeId,
     m_arms: u32,
 ) -> (NodeId, FlopMux) {
-    let exclude = Some(q_node);
+    // Q may appear in sub-cones (see drain_flop_worklist note).
+    let exclude: Option<NodeId> = None;
     let sel_width = ceil_log2(m_arms);
     let sel = build_cone_with_retry(g, m, pool, worklist, sel_width, exclude);
 

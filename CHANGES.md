@@ -3,7 +3,91 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0014 — Q-feedback rule relaxation + structural-rules catalog
+
+**What changed**
+- **Rule change (code):** `src/gen/cone.rs` — three sites in
+  `drain_flop_worklist`, `drain_flop_one_hot`, `drain_flop_encoded`
+  now pass `exclude = None` to `build_cone_with_retry` for the D
+  sub-cones. Previously they passed `Some(q_node)`, forbidding the
+  flop's own Q from being a leaf in its data/select/direct-D
+  sub-cones. Q-feedback through arbitrary combinational logic in the
+  D-cone is now freely permitted. The clock edge breaks the loop
+  temporally; this matches standard synchronous feedback patterns
+  (counters, toggles, accumulators, state machines).
+- **Combinational no-loop preserved:** Rule 1 — a combinational gate
+  output cannot appear upstream in its own fanin cone — is
+  unchanged. It is enforced by arena-index monotonicity (pool entries
+  pre-date each recursion step), not by the `exclude` parameter.
+- **New durable artifact:** `book/src/structural-rules.md`. A
+  catalog of 13 load-bearing generator invariants, each stated with
+  its rationale, its "enforced where" location, and cross-references
+  to the relevant code. Expected to grow as new rules become
+  invariants (Phase 3+ placeholders already listed).
+- **`book/src/SUMMARY.md`:** new chapter added to *Correctness
+  Guarantees* section between "Generation by Construction" and
+  "Synthesizability".
+- **`book/src/sequential.md`:** retired the "No Q→D feedback through
+  the mux datapath" section. Replaced with "Q-feedback in the D-cone
+  is freely permitted" pointing to Structural Rules Rules 2 and 3.
+  Pseudocode updated to drop the `exclude=Q` parameter.
+- **`DEVELOPMENT_NOTES.md`:** the old "Q-exclusion contract" core
+  design decision replaced with "Q-feedback freedom (revised)" that
+  references the new catalog. Added a "Structural rules catalog"
+  core decision establishing the book chapter as the durable source
+  of truth — recaps point to it, do not duplicate rule text.
+- **`CODEBASE_ANALYSIS.md`:** the `drain_flop_worklist` bullet
+  updated to reflect `exclude = None` and to point to Rules 2 and 3.
+  Added a pointer stating the full invariant catalog lives in the
+  book.
+
+**Why**
+Per user direction: "Flop's Q output may be loopback to any input
+and any number of times to inputs in the flop's D fanin cone."
+Combined with the pre-existing QFeedback mux term (orthogonal), this
+makes every legal synchronous feedback pattern expressible. The
+previous Q-exclusion contract was an over-constraint I had inferred
+from an earlier, tighter phrasing; the user has since clarified that
+Q-in-sub-cones is intended.
+
+Separately, the user asked that these kinds of rules make their way
+into the book and into live docs, with an accumulating catalog as
+the project matures. The `structural-rules.md` chapter is that
+catalog. It is now the canonical location for every load-bearing
+invariant. Inline rule restatements in short-form docs should point
+to the catalog, not duplicate it — duplication leads to drift.
+
+**Validation**
+- Q-in-sub-cone working end-to-end: at `--seed 2 --max-depth 3
+  --max-inputs 2 --max-outputs 1 --flop-prob 1.0 --max-flops 1
+  --min-mux-arms 2 --max-mux-arms 2 --flop-mux-encoding-prob 0.0
+  --share-prob 0.5`, the emitted SV contains `assign w_4 = r_0 + r_0`
+  — the flop's Q (`r_0`) appears twice in a gate in its own D cone.
+- `cargo check --all-targets`, `cargo test` (23 tests), `cargo
+  clippy --all-targets -- -D warnings`, `cargo fmt --all --check`:
+  all clean.
+- Integration sweep of 20 seeds still passes with the relaxed rule.
+
+**Impact**
+- Generated RTL now exhibits real synchronous feedback patterns
+  (counters, accumulators, state-returning logic) rather than only
+  pass-through or clean-data registers.
+- The book gains a durable, growing catalog of structural rules that
+  a future session can scan to understand every invariant without
+  archaeologizing commits.
+- Future rule additions have a natural home. No more inline
+  restatement and drift.
+
+**Files touched**
+`src/gen/cone.rs`, `book/src/structural-rules.md` (new), `book/src/SUMMARY.md`, `book/src/sequential.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0013 — mdBook becomes user-facing: Getting Started, Tutorial, Recipes
+
+**Commit hash:** `bac6060`
 
 **What changed**
 - **`book/src/getting-started.md`** (new): installation, first module (with full annotated SV output), reading the output line-by-line, reproducibility explanation, batch generation via `--out`, dumping effective knobs. Ends with a pointer to Tutorial / Recipes / Knobs / Core Idea.
@@ -38,8 +122,6 @@ The user-facing chapters are copy-pasteable, progress by one concept per example
 
 **Files touched**
 `book/src/getting-started.md` (new), `book/src/tutorial.md` (new), `book/src/recipes.md` (new), `book/src/introduction.md` (rewritten), `book/src/SUMMARY.md` (restructured), `book/book.toml` (obsolete field removed), `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
