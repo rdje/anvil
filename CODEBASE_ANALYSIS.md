@@ -27,9 +27,11 @@ src/
 │   │                 Flop, ResetKind, DepSet, Design.
 │   │                 Phase 1: PrimaryInput/Constant/FlopQ/Gate node kinds.
 │   │                 Flop/FlopQ exist but are unused until Phase 2.
-│   └── validate.rs   Module invariant checker (operand defined,
-│                     drive count == 1, flop D filled, dep-set non-empty).
-│                     Width-rule per-gate validation: TODO.
+│   └── validate.rs   Module invariant checker: operand defined,
+│                     drive count == 1, flop D filled, dep-set non-empty,
+│                     per-gate arity + operand-width + output-width rules
+│                     for every GateOp variant. Has inline unit tests
+│                     covering valid and invalid hand-built IRs.
 │
 ├── gen/
 │   ├── mod.rs        Generator struct (rng + cfg), generate_module(),
@@ -116,19 +118,19 @@ In `ir::validate::validate`:
 - Each output port has exactly one drive.
 - Every flop has a `d` set.
 - Output-cone root has non-empty dep-set.
-- **Missing:** per-gate operand-width validation (marked TODO; Phase 1 work).
+- Per-gate arity: each `GateOp` variant has a fixed or variadic-with-min operand count.
+- Per-gate operand widths: `And/Or/Xor/Add/Sub/Mul` / `Not` require operand width == output width; `Mux` requires sel 1-bit + two data operands at output width; `Eq/Neq/Lt/Gt/Le/Ge` require equal-width operands + 1-bit output; `RedAnd/RedOr/RedXor` require 1-bit output; `Shl/Shr` require value operand at output width (shift amount unconstrained); `Slice{hi,lo}` requires `hi >= lo`, `out_w == hi-lo+1`, source width > `hi`; `Concat` requires sum of operand widths == output width.
 
 ## Testing surface
 
 - `tests/pipeline.rs` — 20-seed cross-seed generation + validation + reproducibility.
-- No unit tests yet inside source modules. Phase 1 work to add them.
-- No external smoke tests wired up. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
+- `src/ir/validate.rs` — inline `#[cfg(test)] mod tests` with 8 unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
+- No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)
 
-- `gen::cone::input_widths_for` for `Slice` and `Concat` returns placeholder widths. `Slice` and `Concat` are not currently selectable in `pick_gate` (only used by `make_width_adapter`, which constructs them directly with correct widths). Properly wire `input_widths_for` when Phase 4 makes them pickable.
-- `emit::sv::render_gate` for `Concat` joins operand names with commas (correct SV); the IR currently stores no per-operand width because the adapter only ever uses a single replicated source. When variadic Concat with mixed widths becomes a real motif (Phase 4), the IR will need per-operand width.
-- `ir::validate::validate` does not check per-gate operand widths. This is the most important missing safety net and is the next Phase 1 task.
+- `gen::cone::input_widths_for` for `Slice` and `Concat` returns placeholder widths. `Slice` and `Concat` are not currently selectable in `pick_gate` (only used by `make_width_adapter` and the flop-mux assembly, which construct them directly with correct widths). Properly wire `input_widths_for` when Phase 3 makes them pickable.
+- `emit::sv::render_gate` for `Concat` joins operand names with commas (correct SV); the IR does not currently distinguish per-operand widths in storage because every current producer of `Concat` either replicates a single source or concatenates uniform-width bits. When variadic `Concat` with mixed widths becomes a real motif, the IR shape is still adequate (widths are a property of each operand node, not of the `Concat` itself), but a generator-side helper will need to compose such shapes carefully.
 
 ## Build hygiene
 - `cargo fmt --all --check` — clean.

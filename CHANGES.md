@@ -3,7 +3,67 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0008 — Per-gate width/arity validator + inline unit tests
+
+**What changed**
+- `src/ir/validate.rs`:
+  - Replaced the TODO `// 5. Gate operand widths agree with declared output width rules.` with a full per-gate shape checker. Every `GateOp` variant has explicit arity and width rules:
+    - `And / Or / Xor / Add / Sub / Mul` — 2 operands, each width = output width.
+    - `Not` — 1 operand, width = output width.
+    - `Mux` — 3 operands, `[sel 1-bit, a out_w, b out_w]`.
+    - `Eq / Neq / Lt / Gt / Le / Ge` — 2 operands, equal width, output = 1-bit.
+    - `RedAnd / RedOr / RedXor` — 1 operand of any width, output = 1-bit.
+    - `Shl / Shr` — 2 operands, value operand width = output width, shift amount unconstrained.
+    - `Slice { hi, lo }` — 1 operand, `hi >= lo`, `out_w == hi - lo + 1`, source width > `hi`.
+    - `Concat` — variadic (>= 1 operand), `out_w == sum(operand widths)`.
+  - New richer `ValidateError` variants: `GateArity`, `GateOperandWidth`, `GateOutputWidth`, `GateOperandsMustMatch`. Old `OperandWidth` and `WidthMismatch` variants retired.
+  - New inline `#[cfg(test)] mod tests` (8 tests):
+    - `accepts_minimal_valid_module`
+    - `rejects_and_operand_width_mismatch`
+    - `rejects_mux_non_1bit_selector`
+    - `rejects_eq_output_not_1bit`
+    - `rejects_concat_sum_mismatch`
+    - `rejects_slice_out_of_bounds`
+    - `rejects_not_wrong_arity`
+    - `accepts_concat_variadic_replicate` (the N-copy pattern used by the width adapter and flop-mux assembly).
+- `CODEBASE_ANALYSIS.md`:
+  - Module map for `validate.rs` updated to note the width-rule checker and inline unit tests.
+  - "Invariants currently enforced" / `ir::validate::validate` section now enumerates the per-gate width contract.
+  - "Testing surface" entry for `src/ir/validate.rs` added.
+  - "Known weaknesses": removed the now-closed "validator does not check per-gate operand widths" item.
+- `DEVELOPMENT_NOTES.md`:
+  - Testing-strategy section gains a paragraph on the validator's new role: an active safety net specifically designed to catch width bugs in the hand-constructed flop-mux assembly code (where gate-building does not go through the recursion).
+- `MEMORY.md`:
+  - Next-up list updated to reflect the closed validator task.
+  - Recent-commits list gains `f2a3d81` (the previous commit).
+  - Known-gaps list retires the per-gate validator TODO.
+
+**Why**
+Phase 1's exit criteria call for a working, audited single-module generator. Without a per-gate width validator, generator bugs in the hand-constructed flop-mux assembly (where gates like `Mux`, `And`, `Eq`, `Concat` are built by hand rather than via the recursion's `input_widths_for`) could emit subtly malformed IR that happens to parse but violates SV semantics. The width validator catches these at the IR level, before the emitter or any downstream tool ever sees them.
+
+The inline unit tests pin the validator's behavior: each rejection class has a dedicated test so future changes to the width rules cannot silently drop a case.
+
+**Validation**
+- `cargo check --all-targets`: clean.
+- `cargo test`: 8 new unit tests + 2 pipeline integration tests = 10 total, all pass.
+- `cargo clippy --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Pipeline sweep of 20 seeds passes with the stricter validator active, confirming the generator is currently producing width-correct IR and the validator is an *active* (not drift-prone) safety net.
+
+**Impact**
+- Generator bugs that produce width-mismatched gates are now caught at validation time with specific, actionable error messages (node id, op, operand index, expected vs got widths).
+- Phase 1 exit is one step closer: the remaining Phase 1 tasks are in-source unit tests for `cone.rs` / `sv.rs` and the Verilator/Yosys smoke run.
+
+**Files touched**
+`src/ir/validate.rs`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0007 — Elevate mdBook to equal-standing live doc in session recovery
+
+**Commit hash:** `f2a3d81`
 
 **What changed**
 - `SESSION_BOOTSTRAP.md`: reworded the mdBook entry in the bootstrap reading order. The book is now described explicitly as a live doc, not reference material, with language stating that a session skipping the book will make locally-correct but globally-wrong decisions.
@@ -27,8 +87,6 @@ This slice makes the mdBook's recovery role explicit in three places (`SESSION_B
 
 **Files touched**
 `SESSION_BOOTSTRAP.md`, `COMMIT.md`, `README.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

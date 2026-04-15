@@ -2,15 +2,15 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
-- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress with both one-hot and encoded-select flop mux motifs.
-- **Last completed slice:** encoded-select flop mux variant added alongside one-hot. Chained ternary over `Eq(sel, k)`, `ceil(log2(M))`-bit select bus, per-flop choice via `flop_mux_encoding_prob`. `FlopMux` enum (None / OneHot / Encoded) replaces the old `arms` field. See `CHANGES.md` entry `2026-04-15-0005`.
+- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress; core safety net now active.
+- **Last completed slice:** per-gate arity + operand-width + output-width validation in `src/ir/validate.rs`, with 8 inline unit tests covering valid modules and each rejection class. Pipeline sweep of 20 seeds still passes, confirming the generator produces width-correct IR and the validator is an active (not drift-prone) safety net. See `CHANGES.md` entry `2026-04-15-0008`.
 - **Next up:**
-  1. Per-gate operand width validation in `src/ir/validate.rs` (still TODO; the most important missing safety net).
-  2. Unit tests inside `src/ir/types.rs`, `src/gen/cone.rs`, `src/emit/sv.rs` (today only `tests/pipeline.rs` exercises the stack).
-  3. Verilator-lint smoke when `verilator` is locally available, or wire CI to provide it.
-  4. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
+  1. More unit tests inside `src/gen/cone.rs` and `src/emit/sv.rs` (emitter round-trips on hand-built IRs; cone helpers like `make_width_adapter`, `assemble_flop_d_encoded`).
+  2. Verilator-lint smoke when `verilator` is locally available, or wire CI to provide it.
+  3. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
 
 ## Recent commits
+- `f2a3d81` — Elevate mdBook to equal-standing live doc in session recovery.
 - `a1a9ea9` — Live-doc catch-up + tighten commit workflow (12-item checklist).
 - `10090c2` — Encoded-select flop mux (chained ternary) alongside one-hot.
 - `47675df` — M-to-1 one-hot mux flops with two motifs (ZeroDefault, QFeedback).
@@ -29,7 +29,6 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) not yet met locally; tools missing.
-- Per-gate operand-width validator: TODO in `src/ir/validate.rs`.
 - Concat / Slice are used by the adapter and the flop emitter, but `input_widths_for(Concat|Slice, ...)` is still a placeholder. They are not selectable by `pick_gate` in Phase 1, so the placeholder is dead code today.
 - Sharing (DAG cones), structured ops (case, for-loop), hierarchy, parameterization: not started.
 
