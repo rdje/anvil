@@ -658,3 +658,145 @@ fn node_deps(m: &Module, id: NodeId) -> DepSet {
         Node::Gate { deps, .. } => deps.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+
+    #[test]
+    fn ceil_log2_expected_values() {
+        // Guard against 2^k >= n invariant.
+        assert_eq!(ceil_log2(1), 1);
+        assert_eq!(ceil_log2(2), 1);
+        assert_eq!(ceil_log2(3), 2);
+        assert_eq!(ceil_log2(4), 2);
+        assert_eq!(ceil_log2(5), 3);
+        assert_eq!(ceil_log2(8), 3);
+        assert_eq!(ceil_log2(9), 4);
+        for n in 2..64u32 {
+            let bits = ceil_log2(n);
+            assert!(
+                (1u32 << bits) >= n,
+                "ceil_log2({n}) = {bits}, but 2^{bits} = {} < {n}",
+                1u32 << bits
+            );
+        }
+    }
+
+    fn make_generator(flop_prob: f64) -> Generator {
+        let cfg = Config {
+            seed: 42,
+            flop_prob,
+            ..Config::default()
+        };
+        Generator::new(cfg)
+    }
+
+    #[test]
+    fn pick_mux_arm_count_never_returns_one() {
+        let mut g = make_generator(0.0);
+        for _ in 0..10_000 {
+            let m = pick_mux_arm_count(&mut g);
+            assert_ne!(m, 1, "pick_mux_arm_count must never return 1");
+            assert!(m == 0 || (2..=g.cfg.max_mux_arms).contains(&m));
+        }
+    }
+
+    fn scaffold_module_with_input(width: u32) -> (Module, SignalPool, NodeId, DepSet) {
+        let mut m = Module::default();
+        m.inputs.push(crate::ir::Port {
+            id: 0,
+            name: "a".into(),
+            width,
+            dir: crate::ir::Direction::In,
+        });
+        let node_id = 0;
+        m.nodes.push(Node::PrimaryInput { port: 0, width });
+        let deps = DepSet::from_port(0);
+        let mut pool = SignalPool::new();
+        pool.add(node_id, width, deps.clone());
+        (m, pool, node_id, deps)
+    }
+
+    #[test]
+    fn width_adapter_identity() {
+        let (mut m, mut pool, src, deps) = scaffold_module_with_input(8);
+        let out = make_width_adapter(&mut m, &mut pool, src, 8, deps, 8);
+        assert_eq!(out, src, "src==target must be a passthrough");
+        assert_eq!(m.nodes.len(), 1, "no nodes should be added on identity");
+    }
+
+    #[test]
+    fn width_adapter_slice_shrinks() {
+        let (mut m, mut pool, src, deps) = scaffold_module_with_input(16);
+        let out = make_width_adapter(&mut m, &mut pool, src, 16, deps, 8);
+        assert_ne!(out, src);
+        match &m.nodes[out as usize] {
+            Node::Gate {
+                op: GateOp::Slice { hi, lo },
+                operands,
+                width,
+                ..
+            } => {
+                assert_eq!(*hi, 7);
+                assert_eq!(*lo, 0);
+                assert_eq!(*width, 8);
+                assert_eq!(operands, &vec![src]);
+            }
+            other => panic!("expected Slice, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn width_adapter_concat_expands_exact_multiple() {
+        let (mut m, mut pool, src, deps) = scaffold_module_with_input(4);
+        // target = 16 = 4 * 4, so a single Concat with 4 copies suffices.
+        let out = make_width_adapter(&mut m, &mut pool, src, 4, deps, 16);
+        match &m.nodes[out as usize] {
+            Node::Gate {
+                op: GateOp::Concat,
+                operands,
+                width,
+                ..
+            } => {
+                assert_eq!(*width, 16);
+                assert_eq!(operands.len(), 4);
+                assert!(operands.iter().all(|&id| id == src));
+            }
+            other => panic!("expected Concat, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn width_adapter_concat_then_slice_non_multiple() {
+        let (mut m, mut pool, src, deps) = scaffold_module_with_input(3);
+        // target = 8, copies = ceil(8/3) = 3, concat width = 9, then slice to 8.
+        let out = make_width_adapter(&mut m, &mut pool, src, 3, deps, 8);
+        // The outermost node should be a Slice of width 8.
+        match &m.nodes[out as usize] {
+            Node::Gate {
+                op: GateOp::Slice { hi, lo },
+                width,
+                ..
+            } => {
+                assert_eq!(*hi, 7);
+                assert_eq!(*lo, 0);
+                assert_eq!(*width, 8);
+            }
+            other => panic!("expected outer Slice, got {other:?}"),
+        }
+        // And a Concat of width 9 should exist somewhere in the module.
+        let has_concat_9 = m.nodes.iter().any(|n| {
+            matches!(
+                n,
+                Node::Gate {
+                    op: GateOp::Concat,
+                    width: 9,
+                    ..
+                }
+            )
+        });
+        assert!(has_concat_9, "expected a 9-bit Concat as the Slice source");
+    }
+}

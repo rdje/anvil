@@ -3,7 +3,47 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0009 — Inline unit tests for cone helpers and SV emitter
+
+**What changed**
+- `src/gen/cone.rs`: added `#[cfg(test)] mod tests` with 6 tests:
+  - `ceil_log2_expected_values` — hand-picked values plus a 62-value sweep asserting the `2^ceil_log2(n) >= n` invariant.
+  - `pick_mux_arm_count_never_returns_one` — 10K draws confirming the `M ∈ {0, 2..=max}` discipline is structurally enforced, not accidentally.
+  - `width_adapter_identity` — passthrough when src == target, no IR nodes added.
+  - `width_adapter_slice_shrinks` — src > target emits a `Slice{hi: target-1, lo: 0}` with correct operand.
+  - `width_adapter_concat_expands_exact_multiple` — src < target and src divides target emits a single Concat with the right number of copies.
+  - `width_adapter_concat_expands_non_multiple` — src < target and non-multiple emits Concat + Slice; outer node is a Slice of target width; a 9-bit Concat exists as its source (example: 3-bit src, 8-bit target, copies = 3, concat_width = 9, slice to 8).
+- `src/emit/sv.rs`: added `#[cfg(test)] mod tests` with 6 tests on hand-built IRs:
+  - `emits_module_header_and_endmodule` — module declaration shape + port typing + passthrough assign.
+  - `omits_clk_rst_n_when_no_flops` — even when `Module.clock` and `Module.reset` are set, clk/rst_n are absent from the port list if `m.flops.is_empty()`.
+  - `emits_always_ff_with_single_clk_and_async_rst_n` — canonical `always_ff @(posedge clk or negedge rst_n)` header, `if (!rst_n)` active-low reset branch, `r_0 <= 4'h0;` reset value, `r_0 <= a;` clocked assignment, output wired to Q.
+  - `constant_and_operators_rendered` — `{W}'h{hex}` constant form, `a & b` for And, `w_3 ^ 8'h5a` for Xor with a constant operand.
+  - `slice_and_concat_rendered` — `a[3:0]` for Slice, `{a, a}` for a 2-copy Concat.
+  - `mux_rendered_with_ternary` — `(s) ? (a) : (b)` for Mux.
+- `CODEBASE_ANALYSIS.md`: "Testing surface" section now enumerates all three inline test modules with counts; total is 22 tests.
+- `MEMORY.md`: Current state, next-up, and recent commits refreshed. Phase 1's remaining exit gate is now just the Verilator-lint smoke run.
+
+**Why**
+The validator landed in the previous slice plus the 22-seed integration sweep cover "does the output validate?" — but the individual helpers (`make_width_adapter`, `ceil_log2`, `pick_mux_arm_count`) and the emitter's per-form rendering had no direct pin. A regression in, say, the `ceil_log2` function or the `always_ff` emitter shape would only be caught indirectly (or not at all, in the emitter's case, since a change to the `always_ff` header text would still validate). Direct unit tests convert those implicit regressions into visible test failures.
+
+**Validation**
+- `cargo test`: 20 unit + 2 integration = 22 tests, all pass.
+- `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+
+**Impact**
+- Phase 1 exit gate reduced to just "Verilator-lint pass on a representative seed range." All Rust-side checks are in place.
+- Future refactors of cone helpers or the emitter will fail tests loudly rather than silently drift.
+
+**Files touched**
+`src/gen/cone.rs`, `src/emit/sv.rs`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0008 — Per-gate width/arity validator + inline unit tests
+
+**Commit hash:** `4eb5daa`
 
 **What changed**
 - `src/ir/validate.rs`:
@@ -56,8 +96,6 @@ The inline unit tests pin the validator's behavior: each rejection class has a d
 
 **Files touched**
 `src/ir/validate.rs`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

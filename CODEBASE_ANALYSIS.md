@@ -124,7 +124,10 @@ In `ir::validate::validate`:
 ## Testing surface
 
 - `tests/pipeline.rs` — 20-seed cross-seed generation + validation + reproducibility.
-- `src/ir/validate.rs` — inline `#[cfg(test)] mod tests` with 8 unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
+- `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
+- `src/gen/cone.rs` — 6 inline unit tests covering `ceil_log2` correctness (incl. 62-value sweep), `pick_mux_arm_count` never returning 1 (10K draws), and `make_width_adapter` edge cases: identity (src == target), shrink (Slice), expand exact-multiple (single Concat), expand non-multiple (Concat + Slice).
+- `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
+- Total: 20 unit tests + 2 integration = **22 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)

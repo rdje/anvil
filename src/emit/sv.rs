@@ -169,3 +169,194 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module) -> String {
         Shr => format!("{} >> {}", a(0), a(1)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{
+        DepSet, Direction, Flop, FlopKind, FlopMux, GateOp, Module, Node, Port, ResetKind,
+    };
+
+    fn port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
+        Port {
+            id,
+            name: name.into(),
+            width,
+            dir,
+        }
+    }
+
+    #[test]
+    fn emits_module_header_and_endmodule() {
+        let mut m = Module {
+            name: "m_test".into(),
+            ..Module::default()
+        };
+        let a = port(0, "a", 4, Direction::In);
+        let o = port(1, "o", 4, Direction::Out);
+        m.inputs.push(a.clone());
+        m.outputs.push(o.clone());
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        m.drives.push((1, 0));
+        let sv = to_sv(&m);
+        assert!(sv.contains("module m_test ("));
+        assert!(sv.contains("endmodule"));
+        assert!(sv.contains("input  logic [3:0] a"));
+        assert!(sv.contains("output logic [3:0] o"));
+        assert!(sv.contains("assign o = a;"));
+    }
+
+    #[test]
+    fn omits_clk_rst_n_when_no_flops() {
+        // clk/rst_n are declared as input ports in the IR, but the emitter
+        // must hide them when the module has zero flops.
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 4, Direction::In));
+        m.outputs.push(port(3, "o", 4, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 });
+        m.drives.push((3, 0));
+        let sv = to_sv(&m);
+        assert!(
+            !sv.contains("clk"),
+            "clk must be omitted when module has no flops:\n{sv}"
+        );
+        assert!(
+            !sv.contains("rst_n"),
+            "rst_n must be omitted when module has no flops"
+        );
+        assert!(sv.contains("input  logic [3:0] a"));
+    }
+
+    #[test]
+    fn emits_always_ff_with_single_clk_and_async_rst_n() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 4, Direction::In));
+        m.outputs.push(port(3, "o", 4, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        // PrimaryInput node for `a`, FlopQ node for the flop.
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // node 0
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // node 1
+        m.flops.push(Flop {
+            id: 0,
+            width: 4,
+            d: Some(0), // D := a (the PrimaryInput)
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, 1)); // o := Q
+        let sv = to_sv(&m);
+        assert!(sv.contains("input  logic  clk"), "clk input missing:\n{sv}");
+        assert!(sv.contains("input  logic  rst_n"), "rst_n input missing");
+        assert!(
+            sv.contains("always_ff @(posedge clk or negedge rst_n)"),
+            "canonical always_ff header missing"
+        );
+        assert!(sv.contains("if (!rst_n)"), "active-low reset guard missing");
+        assert!(sv.contains("r_0 <= 4'h0;"), "reset branch missing");
+        assert!(sv.contains("r_0 <= a;"), "active-clock assignment missing");
+        assert!(sv.contains("assign o = r_0;"), "output wiring to Q missing");
+    }
+
+    #[test]
+    fn constant_and_operators_rendered() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.outputs.push(port(2, "o", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0x5a,
+        }); // 2
+            // w_3 = a & b
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 3
+            // w_4 = w_3 ^ 8'h5a
+        m.nodes.push(Node::Gate {
+            op: GateOp::Xor,
+            operands: vec![3, 2],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 4
+        m.drives.push((2, 4));
+        let sv = to_sv(&m);
+        assert!(sv.contains("assign w_3 = a & b;"));
+        assert!(sv.contains("assign w_4 = w_3 ^ 8'h5a;"));
+        assert!(sv.contains("assign o = w_4;"));
+    }
+
+    #[test]
+    fn slice_and_concat_rendered() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "o", 16, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::Gate {
+            op: GateOp::Slice { hi: 3, lo: 0 },
+            operands: vec![0],
+            width: 4,
+            deps: DepSet::from_port(0),
+        }); // 1
+        m.nodes.push(Node::Gate {
+            op: GateOp::Concat,
+            operands: vec![0, 0],
+            width: 16,
+            deps: DepSet::from_port(0),
+        }); // 2
+        m.drives.push((1, 2));
+        let sv = to_sv(&m);
+        assert!(sv.contains("assign w_1 = a[3:0];"));
+        assert!(sv.contains("assign w_2 = {a, a};"));
+    }
+
+    #[test]
+    fn mux_rendered_with_ternary() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "s", 1, Direction::In));
+        m.inputs.push(port(1, "a", 4, Direction::In));
+        m.inputs.push(port(2, "b", 4, Direction::In));
+        m.outputs.push(port(3, "o", 4, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // 1
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // 2
+        m.nodes.push(Node::Gate {
+            op: GateOp::Mux,
+            operands: vec![0, 1, 2],
+            width: 4,
+            deps: DepSet::from_port(0),
+        }); // 3
+        m.drives.push((3, 3));
+        let sv = to_sv(&m);
+        assert!(sv.contains("assign w_3 = (s) ? (a) : (b);"));
+    }
+}
