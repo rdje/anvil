@@ -3,7 +3,44 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0018 — Log the constants-roles clarification in the book + two corrections
+
+**What changed**
+- `book/src/structural-rules.md`: added a new "Roles of constants in RTL" section to the preamble (right after "Operators vs blocks"). Three distinct roles — coefficient, shift amount, comparand — each with its own scope, constraints, and motif family. Explicitly lists why flattening them into a single mechanism would break the semantic structure.
+- Within that new section, two corrections the user surfaced:
+  - **Shifts:** both variable-amount (`a << count` with `count` a signal) and constant-amount (`a << 2`) are legal SV. `anvil` today always emits variable-amount; real designs overwhelmingly use constant. A bias knob is on the roadmap so defaults match prevalence. Both modes coexist.
+  - **Comparisons:** the RHS of a comparison can be *another signal* (signal-vs-signal, the default today) OR a *constant comparand* (threshold/sentinel pattern). The comparand motif is *additive* — it does not replace signal-vs-signal comparisons.
+- `MEMORY.md` next-up list rewritten to reflect both corrections precisely:
+  - Shift-motif next-up is now framed as a constant-vs-variable bias (not "replace variable with constant").
+  - Comparison-motif next-up is now framed as an additive constant-comparand option alongside the existing signal-vs-signal default.
+- `DEVELOPMENT_NOTES.md`: added "Roles of constants in RTL" to the core design decisions recap, pointing to the new book section.
+
+**Why**
+The user asked that the coefficient/shift-amount/comparand clarification be logged in the book, not just in the CHANGES / MEMORY ledgers. They also caught two follow-on imprecisions in my prior framing:
+
+1. I had implicitly suggested shifts should switch from variable-amount to constant-amount. The user correctly pointed out that we can (and do) do `a << b` with `b` a signal, and the question is bias — both modes have a place.
+2. I had implicitly suggested all comparands are constants. The user correctly pointed out that the RHS of a comparison can be (and routinely is) another signal.
+
+Both corrections are now in the doctrine alongside the original distinction. Future implementation of these motifs will follow the corrected framing.
+
+**Validation**
+- Documentation-only slice; no source touched.
+- `cargo check`, `cargo test` (27 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean.
+
+**Impact**
+- The book's `structural-rules.md` is now the durable reference for the three constant roles. Short-form docs point to it.
+- A session recovering cold from `git log + live docs` has precise, corrected guidance for the next three motif slices (coefficients, shift-amount bias, constant comparands).
+
+**Files touched**
+`book/src/structural-rules.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0017 — Doctrinal fix: coefficient / shift amount / comparand are distinct motifs
+
+**Commit hash:** `dde27a2`
 
 **What changed**
 - `MEMORY.md` next-up list split the prior lumped "coefficient as general arithmetic motif" entry into three distinct motif families:
@@ -30,8 +67,6 @@ Lumping all three under "coefficient" conflates three distinct motifs. The corre
 
 **Files touched**
 `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

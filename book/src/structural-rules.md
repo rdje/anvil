@@ -40,6 +40,84 @@ generalization strategies from getting conflated — N-arity is one
 concrete pattern; block-motif generalization is a different,
 structurally richer activity.
 
+## Roles of constants in RTL
+
+Integer literals appear as operands in many places in real RTL, but
+the *semantic role* of the constant differs — and the vocabulary
+should follow the role, not the syntax. Three distinct roles, each
+with its own motif family, constraints, and (future) knobs. Do not
+collapse them under a single "constant_prob" knob.
+
+### Coefficient — arithmetic weight
+
+- **Operators:** `Add`, `Sub`, `Mul`.
+- **Role:** multiplicative weight in a linear combination.
+  `y = s1*c1 + s2*c2 + ... + sn*cn`.
+- **Shape:** each term is a compound `Mul(signal, non-zero-constant)`.
+- **Constraints:** for Add, `ci ≠ 0` (a zero weight kills the term
+  and makes it structurally dead). Sub and Mul get their own
+  constraints per their algebra.
+- **Scope note:** "coefficient" is arithmetic vocabulary. It does
+  not apply to shifts, comparisons, or any other op family.
+
+### Shift amount — structural parameter
+
+- **Operators:** `Shl`, `Shr`.
+- **Role:** how far to shift. A structural parameter of the shift
+  op, not a weight. Even though `a << 2` is arithmetically `a * 4`,
+  the RTL representation and the synthesis cost are distinct —
+  constant-amount shifts are a wire reroute; variable-amount shifts
+  synthesize to a barrel shifter.
+- **Two modes, both legal:**
+  - **Constant shift amount:** `a << 2`. Dominant pattern in real
+    designs. Cheap in hardware.
+  - **Variable shift amount:** `a << count`, where `count` is a
+    signal. Legal SV; synthesizes to a barrel shifter; expensive.
+- **Today:** `anvil` always emits variable-amount shifts (the shift
+  amount is an 8-bit signal recursively generated). A bias knob
+  toward constant shift amounts is on the roadmap so defaults match
+  real-design prevalence.
+- **Scope note:** "shift amount" is shift-op vocabulary. Not a
+  coefficient; not a comparand.
+
+### Comparand — threshold / sentinel
+
+- **Operators:** `Eq`, `Neq`, `Lt`, `Gt`, `Le`, `Ge`.
+- **Role:** the value being compared against. A threshold, a target,
+  a sentinel — `a == 7`, `x < LIMIT`.
+- **Two sources for a comparison's RHS, both legal:**
+  - **Another signal:** `a == b`, `x < y`. Signal-vs-signal
+    comparison. The default today — both operands come from
+    recursive `build_cone`.
+  - **A comparand (constant):** `a == 7`, `x >= LIMIT`. Threshold /
+    sentinel pattern. Not yet emitted by `anvil`; on the roadmap.
+- **No zero-exclusion:** comparing to zero (`a == 0`, `a < 0`) is
+  common and meaningful. Unlike coefficients, a zero comparand does
+  not kill the operation.
+- **Scope note:** "comparand" is comparison vocabulary. It is one of
+  two sources for the comparison's RHS; the other source is another
+  signal. The comparand motif *adds to* signal-vs-signal
+  comparisons; it does not replace them.
+
+### Why the distinction matters
+
+Flattening all three into a single "constant-as-operand" mechanism
+would:
+
+- Apply Add's `ci ≠ 0` constraint to shift amounts and comparands
+  where zero is fine.
+- Use the same integer range for all three, even though coefficients
+  are typically small, shift amounts are bounded by the operand
+  width, and comparands span the full operand width.
+- Lose the shift-amount "structural parameter vs signal operand"
+  distinction, so there would be no way to bias toward the
+  realistic constant-amount case.
+- Lose the comparison "RHS is signal or constant" distinction, so
+  the default (signal-vs-signal) would compete with the motif
+  (constant comparand) instead of coexisting.
+
+Three distinct motif families keep the semantic structure explicit.
+
 The rules below are grouped by what they govern:
 
 - **Combinational integrity:** Rules 1, 8, 10, 14 — no combinational

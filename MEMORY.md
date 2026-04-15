@@ -7,14 +7,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
   1. **Linear-combination ADD motif (coefficients):** `y = s1*c1 + s2*c2 + ... + sn*cn` where `n` and each `ci` are randomized, `ci ≠ 0` (zero coefficient kills its term). Compound motif: each ADD term is itself a Mul(signal, non-zero constant). Similar shapes to follow for Sub and Mul with their own constraints per user guidance. Knob family: `coefficient_prob`, `min_coefficient`, `max_coefficient`. **Arithmetic only** — coefficients are multiplicative weights, not constants-in-general.
-  2. **Shift amounts as a distinct motif:** `a << 2`, `x >> 3`. The shift amount is a *structural parameter* of the shift op (how far to shift), not a coefficient. Separate knob family: `const_shift_amount_prob`, `min_shift_amount`, `max_shift_amount`. Typical range `[0, W-1]` for a W-bit shift.
-  3. **Comparands as a distinct motif:** `a == 7`, `x < LIMIT`. The constant is a *threshold / sentinel / target value*, not a weight. Separate knob family: `const_comparand_prob`, plus range derived from operand width. No zero-exclusion (comparing to zero is common and meaningful).
-  4. Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies — do not collapse into a single `constant_prob` knob. Each has its own semantic role and constraints. See `book/src/structural-rules.md` vocabulary discipline.
+  2. **Shift amounts — constant-vs-variable bias:** shifts `Shl/Shr` today always emit variable-amount (`a << count` with `count` an 8-bit signal — synthesizes to a barrel shifter, expensive in hardware). Real designs overwhelmingly use constant shift amounts (`a << 2` — wire reroute, cheap). Add a bias: per-shift probability (`const_shift_amount_prob`) of emitting a constant shift amount in range `[0, W-1]` instead of a signal. Both modes coexist under a knob. Variable-amount remains legal and useful for barrel-shifter stress.
+  3. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal (`a == b`, `x < y`) because both operands come from `build_cone`. Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`) instead of another signal. The comparand motif is *additive* — signal-vs-signal remains the default and dominant shape; comparands add threshold/sentinel patterns on top. No zero-exclusion.
+  4. Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies with distinct constraints — see `book/src/structural-rules.md` "Roles of constants in RTL". Do not collapse into a single `constant_prob` knob.
   3. Verilator-lint smoke run (still blocked on Verilator availability). Sweep `share_prob ∈ {0.0, 0.3, 0.9}` and both flop styles for Phase 2 exit.
   4. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`.
   5. Optional book polish: FAQ chapter as questions accumulate.
 
 ## Recent commits
+- `dde27a2` — Doctrinal fix: coefficient / shift amount / comparand are distinct motifs.
 - `0564a49` — M-to-1 combinational mux as a first-class block.
 - `b91188d` — N-arity for associative operators + operators-vs-blocks doctrine.
 - `6cbcbff` — Q-feedback rule relaxation + structural-rules catalog.
