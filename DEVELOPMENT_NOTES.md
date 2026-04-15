@@ -11,6 +11,8 @@ These are documented in detail in the mdBook. They are restated here only as anc
 
 - **Recursion is the core principle.** Every non-trivial generation step is a recursive descent over the typed circuit graph. Iteration is the exception, used only where termination or ordering genuinely require it (e.g., the flop worklist drainer, the per-output driver loop). When in doubt, recurse. See `book/src/core-idea.md` "The single guiding principle".
 - **Synchronous-design discipline.** Every module is fully synchronous to a single clock domain: one `clk` (posedge), one `rst_n` (async, active-low), every flop emitted into one `always_ff` block. Enforced by construction — there is no IR field for per-flop clock or per-flop reset polarity. See `book/src/sequential.md` "Synchronous-design discipline".
+- **Flop-D mux motifs.** Every flop's D input is constructed from one of: M=0 (direct cone), M≥2 OneHot (OR-of-masked arms), M≥2 Encoded (chained ternary over `Eq(sel, k)`). M=1 is excluded by design; it collapses to a wire. The style (OneHot vs Encoded) and kind (ZeroDefault vs QFeedback) are chosen per-flop and orthogonal — four motif variants plus the M=0 plain register. See `book/src/sequential.md` "Flop motifs".
+- **Q-exclusion contract.** A flop's own Q is forbidden from being a leaf in any of its own data or select sub-cones (including the M=0 direct D-cone). The *only* legal Q→D feedback path is the explicit all-zeros-select term (OneHot + QFeedback) or the `sel==0`/fall-through term (Encoded + QFeedback). Enforced by an `exclude: Option<NodeId>` parameter threaded through `build_cone_with_retry` → `build_cone` → `pick_terminal`. Other flops' Qs remain valid leaves.
 - **Circuit IR over annotated EBNF.** The generator builds a typed circuit graph and emits SV from it. See `book/src/why-not-grammar.md`.
 - **Generation by construction, not generate-then-filter.** Validity is structural; the validator is a safety net, not a gate. See `book/src/by-construction.md`.
 - **Synthesizability is a subset constraint.** The gate set, flop pattern, and emitter cover only the synthesizable subset. There is no mode that emits non-synthesizable constructs. See `book/src/synthesizability.md`.
@@ -32,6 +34,18 @@ Probability that, when a cone reaches a leaf decision and the signal pool has ma
 ### `gate_*_weight` defaults
 3:2:1:1:1 (bitwise:arith:struct:compare:reduce). Bitwise dominates because bitwise gates are the most type-flexible and produce the widest cones. Comparisons are weighted lower because they collapse the width to 1, which limits downstream cone depth. These are gut-feel; replace with measurements when phase-1 sweeps land.
 
+### `flop_mux_encoding_prob = 0.5`
+Default chosen to give equal motif exposure to OneHot and Encoded styles across a random seed sweep. If post-synthesis metrics show that one style dominates as a bug-finding target, bias the default. The knob also allows users to run workloads stressing only one style for targeted testing.
+
+### `flop_qfeedback_prob = 0.5`
+Default 50/50. No empirical data yet. Real designs probably lean heavier on QFeedback (hold-on-no-write is far more common than zero-on-no-write), but generating the less-common pattern is precisely where random generation earns its keep. Revisit with data.
+
+### QFeedback-in-Encoded: replace `data_0` with Q
+Alternative considered: add Q as an extra (M+1)th entry encoded with the largest select value. **Rejected** because:
+- It would require the sel bus to be one bit wider than `ceil(log2(M))` whenever M is a power of 2, breaking the clean "M mux entries ⇔ `ceil(log2(M))`-bit sel" invariant.
+- The "slot 0 is Q" convention mirrors common RTL idioms where the zero-index / reset state is treated specially.
+- It keeps M as the single knob for mux entry count across both styles.
+
 ---
 
 ## Rejected alternatives
@@ -52,6 +66,24 @@ Considered: a Rust evaluator that walks the IR with concrete input vectors and p
 - Non-triviality is cheaper to enforce by dep-set tracking + structural rules; multi-vector evaluation is overkill for that use case.
 
 Users who want differential testing can run Verilator/Icarus/Yosys against the output; that is downstream work, not `anvil`'s job.
+
+### `always_comb` + `case` for encoded-mux flop D
+
+Considered for the Encoded-style flop D: emit an `always_comb` block with a `case (sel)` statement driving D. **Rejected** in favor of a chained ternary over `Eq(sel, k)` because:
+
+- The emitter already handles `Mux` and `Eq` as ordinary `GateOp` variants; nothing new is required.
+- `case` would require introducing procedural block emission (`always_comb`) and name-binding for the case target, which is a bigger scope than a uniform expression-level SV emitter.
+- Synthesis tools produce the same netlist from both forms for well-formed one-cycle muxes; the readability difference only matters to a human reader.
+
+If a future motif (e.g., FSM state encoding) genuinely requires `case`, revisit then.
+
+### M = 1 mux arm
+
+Excluded from `pick_mux_arm_count` by design. A 1-arm mux is algebraically `sel ? data_0 : 0` (ZeroDefault) or `sel ? data_0 : Q` (QFeedback) — in either case a trivially-simplified shape that adds no motif diversity over what a simple 2-arm mux or an M=0 direct cone already covers. Allowing M=1 would bloat the generator's decision space without expanding the generated-SV distribution meaningfully.
+
+### `#![allow(clippy::too_many_arguments)]` in `src/gen/cone.rs`
+
+The cone-recursion helpers legitimately thread 5–8 context references (`Generator`, `Module`, `SignalPool`, `FlopWorklist`, `width`, `depth`, `exclude`, sometimes more). Packaging them into a `Ctx` struct would help readability but also forces mutable-borrow juggling that fragments the code with no semantic benefit. The lint is silenced at the module level rather than per-function to avoid the ceremony of annotating every helper. Not recommended for modules outside `gen/cone.rs`.
 
 ### Generate-then-validate (filter loop)
 Considered: emit random IR with looser invariants, then run the validator and discard rejected outputs. **Rejected** because:

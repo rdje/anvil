@@ -11,6 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
 
 ## Recent commits
+- `10090c2` — Encoded-select flop mux (chained ternary) alongside one-hot.
 - `47675df` — M-to-1 one-hot mux flops with two motifs (ZeroDefault, QFeedback).
 - `4317c82` — Fold flops into the cone recursion (single-clock synchronous design).
 - `c4668a2` — Elevate "recursion is the core principle" to load-bearing status.
@@ -22,6 +23,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - The lazy adapter currently picks the *widest* pool entry with deps. Random-among-eligible may give better motif coverage; revisit after Phase 1 metrics.
 - `flop_prob` default `0.15` is a guess; calibrate after the first synthesis smoke run that reports flop counts vs gate counts.
 - `max_flops_per_module` cap of `32` is conservative. May raise once metrics show generation time is not bottlenecked by D-cone draining.
+- `flop_mux_encoding_prob` default `0.5` is equal-motif; no empirical data yet. Bias once synthesis metrics show which style catches more bugs.
+- Ternary-over-`case` for the Encoded mux SV form — see `DEVELOPMENT_NOTES.md` rejected-alternatives; revisit when/if FSM motifs force procedural block emission.
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) not yet met locally; tools missing.

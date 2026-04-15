@@ -3,7 +3,45 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0006 — Live-doc catch-up: capture flop-mux rationale + tighten commit workflow
+
+**What changed**
+- `DEVELOPMENT_NOTES.md`:
+  - Added "Flop-D mux motifs" and "Q-exclusion contract" to the Core design decisions recap.
+  - Added rejected alternative: `always_comb` + `case` for Encoded-mux flop D (why chained ternary wins).
+  - Added rejected alternative: M = 1 mux arm (why it's excluded by design).
+  - Added gotcha: module-level `#![allow(clippy::too_many_arguments)]` in `src/gen/cone.rs` with rationale.
+  - Added calibration notes for `flop_mux_encoding_prob = 0.5` and `flop_qfeedback_prob = 0.5`.
+  - Documented the QFeedback-in-Encoded design choice (replace `data_0` with Q) and the rejected alternative (extra (M+1)th entry).
+- `MEMORY.md`:
+  - Recent-commits list updated with `10090c2`.
+  - Open-questions list updated with the `flop_mux_encoding_prob` calibration entry and the ternary-vs-case revisit trigger.
+- `COMMIT.md`:
+  - Added a non-negotiable 12-item pre-commit checklist. Every item is listed explicitly. The checklist makes skipping any live-doc update a visible workflow violation rather than a silent drift.
+
+**Why**
+Prior to this slice, the last two commits (`47675df` and `10090c2`) landed load-bearing design rationale — why M=1 is excluded, why chained ternary over `case`, why the Q-exclusion contract — that was captured in `CHANGES.md` and `book/src/sequential.md` but not in `DEVELOPMENT_NOTES.md`, which is the contributor-facing design-decision ledger. `MEMORY.md`'s recent-commits list was also one commit behind. The user flagged the slippage.
+
+The fix has two parts: (1) a factual catch-up of the missed content, and (2) a structural fix to the commit workflow itself — an explicit 12-item pre-commit checklist in `COMMIT.md` that makes every live-doc gate impossible to skip implicitly.
+
+**Validation**
+- Documentation-only slice; no source changes.
+- `cargo check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean (no code touched).
+
+**Impact**
+- Future sessions can reconstruct the full design rationale from `DEVELOPMENT_NOTES.md` alone, without having to archaeologize across commit messages.
+- The pre-commit checklist makes workflow compliance auditable: each item is either affirmatively satisfied or the commit does not proceed.
+
+**Files touched**
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`, `COMMIT.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0005 — Encoded-select flop mux (chained ternary) alongside one-hot
+
+**Commit hash:** `10090c2`
 
 **What changed**
 - `src/ir/types.rs`:
@@ -36,8 +74,6 @@ The user asked for an encoded-select variant alongside the existing one-hot, wit
 
 **Files touched**
 `src/ir/types.rs`, `src/config.rs`, `src/gen/cone.rs`, `book/src/sequential.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

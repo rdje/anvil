@@ -18,6 +18,29 @@ This file defines the exact commit workflow that must be followed after completi
 
 A commit that does not include amendments to both `CHANGES.md` and `MEMORY.md` is a workflow violation. Stop and amend before proceeding.
 
+## Non-negotiable pre-commit checklist
+
+Before running `git commit`, walk through **every item** below explicitly. Do not paraphrase. Do not skip. State the answer out loud (in the response to the user) for each item that is load-bearing for the slice.
+
+1. **Code hygiene** — all four green?
+   - [ ] `cargo check --all-targets`
+   - [ ] `cargo test`
+   - [ ] `cargo clippy --all-targets -- -D warnings`
+   - [ ] `cargo fmt --all --check`
+2. **`CHANGES.md`** — new entry at the top, with What/Why/Validation/Impact/Files touched. Previous entry has the landed commit hash filled in.
+3. **`MEMORY.md`** — Current state refreshed. Next-up refreshed. Open questions refreshed if the slice introduced calibration assumptions or rejected alternatives with knobs. Recent-commits list updated with the *previous* commit's hash (the one being superseded by this slice).
+4. **`DEVELOPMENT_NOTES.md`** — Did the slice introduce any of: new design decision, rejected alternative, non-obvious gotcha, new invariant, or a new calibration knob? If yes, append an entry. **If the last commit touched `src/` and `DEVELOPMENT_NOTES.md` has not been updated in that same commit or since, you are likely skipping this step — audit.**
+5. **`CODEBASE_ANALYSIS.md`** — Did the slice change module boundaries, add/remove helpers, change enforced invariants, add/remove knobs, change the phase coverage map, or change the testing surface? If yes, amend.
+6. **`ROADMAP.md`** — Did a phase label change (`done`/`mostly done`/`in progress`/`not started`)? Did an exit criterion change? Did phases get renumbered? If yes, amend.
+7. **`USER_GUIDE.md`** — Did any CLI flag, knob default, or user-visible behavior change? If yes, amend.
+8. **`README.md`** — Did the project objective, ramp-up flow, key paths, or CLI surface change materially? If yes, amend.
+9. **`book/src/*.md`** — Did the slice change a documented concept (algorithm, IR, knobs, synthesizability, non-triviality, sequential motifs, hierarchy)? If yes, amend the relevant chapter(s).
+10. **`git status`** — Only the files intended for this slice are staged. No accidental swaps of `Cargo.lock`, no accidental `target/` inclusions, no staged `git_message_brief.txt`.
+11. **Commit message** — `git_message_brief.txt` is written, concise, has the co-author trailer, and is untracked.
+12. **Post-commit** — `truncate -s 0 git_message_brief.txt` is run so the next slice starts with an empty scratchpad.
+
+If any item cannot be affirmatively answered, the commit does not proceed. No exceptions. No "I'll catch it in the next commit." No partial workflow runs.
+
 ## Files involved and exact role
 - `git_message_brief.txt`
   - **Git-untracked.** Listed in `.gitignore`.
