@@ -137,11 +137,27 @@ pub enum FlopKind {
     QFeedback,
 }
 
-/// One arm of a flop's input mux: a data sub-cone + a 1-bit select sub-cone.
+/// One arm of a flop's one-hot input mux: a data sub-cone + a 1-bit select.
 #[derive(Debug, Clone)]
 pub struct MuxArm {
     pub data: NodeId,
     pub sel: NodeId,
+}
+
+/// How a flop's D input is constructed. Populated by
+/// `drain_flop_worklist` alongside `Flop.d`.
+#[derive(Debug, Clone)]
+pub enum FlopMux {
+    /// M = 0. D is a direct recursive cone (no mux structure).
+    None,
+    /// M = 2..=max. One select bit per arm; D = OR of masked arms.
+    OneHot(Vec<MuxArm>),
+    /// M = 2..=max. One select bus of width ceil(log2(M)) indexes one
+    /// of M data inputs via a chained ternary. For `FlopKind::QFeedback`
+    /// the slot at index 0 is routed from Q instead of a recursive cone,
+    /// so `data.len() == M - 1` in that case (indices 1..M-1); for
+    /// `FlopKind::ZeroDefault`, `data.len() == M`.
+    Encoded { sel: NodeId, data: Vec<NodeId> },
 }
 
 #[derive(Debug, Clone)]
@@ -153,9 +169,7 @@ pub struct Flop {
     pub reset_val: u128,
     pub reset_kind: ResetKind,
     pub kind: FlopKind,
-    /// M arms, each contributing one data path + one one-hot select bit.
-    /// Filled by `drain_flop_worklist` along with `d`.
-    pub arms: Vec<MuxArm>,
+    pub mux: FlopMux,
 }
 
 /// Set of primary-input port ids (plus virtual ids for flops) that a node

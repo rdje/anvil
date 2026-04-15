@@ -36,6 +36,7 @@ pub struct Config {
     pub min_mux_arms: u32,
     pub max_mux_arms: u32,
     pub flop_qfeedback_prob: f64,
+    pub flop_mux_encoding_prob: f64,
 
     // Hierarchy (Phase 5+)
     pub hierarchy_depth: u32,
@@ -63,6 +64,7 @@ impl Default for Config {
             min_mux_arms: 1,
             max_mux_arms: 4,
             flop_qfeedback_prob: 0.5,
+            flop_mux_encoding_prob: 0.5,
             terminal_reuse_prob: 0.3,
             constant_prob: 0.1,
             library_prob: 0.5,
@@ -126,6 +128,7 @@ impl Config {
             ("constant_prob", self.constant_prob),
             ("library_prob", self.library_prob),
             ("flop_qfeedback_prob", self.flop_qfeedback_prob),
+            ("flop_mux_encoding_prob", self.flop_mux_encoding_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

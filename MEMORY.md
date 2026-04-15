@@ -2,8 +2,8 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
-- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress with full flop motif support.
-- **Last completed slice:** M-to-1 one-hot mux on flop D, two kinds (ZeroDefault / QFeedback), M ∈ {0, 2..=max_mux_arms}. Each data and select sub-cone is a recursion point with this flop's Q excluded. See `CHANGES.md` entry `2026-04-15-0004`.
+- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress with both one-hot and encoded-select flop mux motifs.
+- **Last completed slice:** encoded-select flop mux variant added alongside one-hot. Chained ternary over `Eq(sel, k)`, `ceil(log2(M))`-bit select bus, per-flop choice via `flop_mux_encoding_prob`. `FlopMux` enum (None / OneHot / Encoded) replaces the old `arms` field. See `CHANGES.md` entry `2026-04-15-0005`.
 - **Next up:**
   1. Per-gate operand width validation in `src/ir/validate.rs` (still TODO; the most important missing safety net).
   2. Unit tests inside `src/ir/types.rs`, `src/gen/cone.rs`, `src/emit/sv.rs` (today only `tests/pipeline.rs` exercises the stack).
@@ -11,6 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
 
 ## Recent commits
+- `47675df` — M-to-1 one-hot mux flops with two motifs (ZeroDefault, QFeedback).
 - `4317c82` — Fold flops into the cone recursion (single-clock synchronous design).
 - `c4668a2` — Elevate "recursion is the core principle" to load-bearing status.
 - `5f6022f` — Initial scaffold + Phase 1 cone-adapter hardening.

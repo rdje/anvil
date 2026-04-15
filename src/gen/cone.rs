@@ -5,8 +5,12 @@
 //! - D opens a *new* cone, queued on the worklist for later draining.
 //! - The same `build_cone` function constructs both.
 
+#![allow(clippy::too_many_arguments)]
+
 use super::{pool::SignalPool, Generator};
-use crate::ir::{DepSet, Flop, FlopId, FlopKind, GateOp, Module, MuxArm, Node, NodeId, ResetKind};
+use crate::ir::{
+    DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, Module, MuxArm, Node, NodeId, ResetKind,
+};
 use rand::Rng;
 
 /// Worklist of flops whose D-input cone has not yet been built.
@@ -75,26 +79,83 @@ pub fn drain_flop_worklist(
 
         let m_arms = pick_mux_arm_count(g);
         if m_arms == 0 {
-            // No mux: D is a direct recursive cone of width N.
             let d_node = build_cone_with_retry(g, m, pool, worklist, width, exclude);
-            // If this flop is QFeedback with M==0, the contract degenerates to
-            // "D is whatever the cone produces" — there is no all-zeros-select
-            // term to fall back to. Both kinds collapse to the same shape here.
             m.flops[flop_id as usize].d = Some(d_node);
-            m.flops[flop_id as usize].arms = Vec::new();
+            m.flops[flop_id as usize].mux = FlopMux::None;
             continue;
         }
 
-        let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
-        for _ in 0..m_arms {
-            let data = build_cone_with_retry(g, m, pool, worklist, width, exclude);
-            let sel = build_cone_with_retry(g, m, pool, worklist, 1, exclude);
-            arms.push(MuxArm { data, sel });
+        let encoded = g.rng.gen_bool(g.cfg.flop_mux_encoding_prob.min(1.0));
+        if encoded {
+            let (d_node, mux) =
+                drain_flop_encoded(g, m, pool, worklist, width, kind, q_node, m_arms);
+            m.flops[flop_id as usize].d = Some(d_node);
+            m.flops[flop_id as usize].mux = mux;
+        } else {
+            let (d_node, mux) =
+                drain_flop_one_hot(g, m, pool, worklist, width, kind, q_node, m_arms);
+            m.flops[flop_id as usize].d = Some(d_node);
+            m.flops[flop_id as usize].mux = mux;
         }
+    }
+}
 
-        let d_node = assemble_flop_d(m, pool, width, &arms, kind, q_node);
-        m.flops[flop_id as usize].arms = arms;
-        m.flops[flop_id as usize].d = Some(d_node);
+fn drain_flop_one_hot(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    kind: FlopKind,
+    q_node: NodeId,
+    m_arms: u32,
+) -> (NodeId, FlopMux) {
+    let exclude = Some(q_node);
+    let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
+    for _ in 0..m_arms {
+        let data = build_cone_with_retry(g, m, pool, worklist, width, exclude);
+        let sel = build_cone_with_retry(g, m, pool, worklist, 1, exclude);
+        arms.push(MuxArm { data, sel });
+    }
+    let d_node = assemble_flop_d_one_hot(m, pool, width, &arms, kind, q_node);
+    (d_node, FlopMux::OneHot(arms))
+}
+
+fn drain_flop_encoded(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    kind: FlopKind,
+    q_node: NodeId,
+    m_arms: u32,
+) -> (NodeId, FlopMux) {
+    let exclude = Some(q_node);
+    let sel_width = ceil_log2(m_arms);
+    let sel = build_cone_with_retry(g, m, pool, worklist, sel_width, exclude);
+
+    // For QFeedback the slot at index 0 is Q, not a recursive cone.
+    // For ZeroDefault all M slots are recursive cones.
+    let datas: Vec<NodeId> = match kind {
+        FlopKind::ZeroDefault => (0..m_arms)
+            .map(|_| build_cone_with_retry(g, m, pool, worklist, width, exclude))
+            .collect(),
+        FlopKind::QFeedback => (1..m_arms)
+            .map(|_| build_cone_with_retry(g, m, pool, worklist, width, exclude))
+            .collect(),
+    };
+
+    let d_node = assemble_flop_d_encoded(m, pool, width, sel, sel_width, &datas, kind, q_node);
+    (d_node, FlopMux::Encoded { sel, data: datas })
+}
+
+/// Ceiling of log2(n). Defined so that `2^ceil_log2(n) >= n` for n >= 1.
+fn ceil_log2(n: u32) -> u32 {
+    if n <= 1 {
+        1
+    } else {
+        32 - (n - 1).leading_zeros()
     }
 }
 
@@ -121,7 +182,7 @@ fn pick_mux_arm_count(g: &mut Generator) -> u32 {
 /// Build the gate tree for D from M one-hot mux arms.
 /// `D = OR_i ({N{sel_i}} & data_i)` (Kind1)
 /// `D = OR_i ({N{sel_i}} & data_i) | ({N{none_selected}} & Q)` (Kind2)
-fn assemble_flop_d(
+fn assemble_flop_d_one_hot(
     m: &mut Module,
     pool: &mut SignalPool,
     width: u32,
@@ -142,6 +203,100 @@ fn assemble_flop_d(
         term_nodes.push(term);
     }
     or_reduce_terms(m, pool, &term_nodes, width)
+}
+
+/// Build the gate tree for D from an encoded-select mux.
+///
+/// ZeroDefault: `D = (sel==0)? data_0 : (sel==1)? data_1 : ... : (sel==M-1)? data_{M-1} : 0`.
+/// QFeedback:   `D = (sel==0)? Q      : (sel==1)? data_1 : ... : (sel==M-1)? data_{M-1} : Q`.
+///
+/// When M is not a power of 2, `sel` can take values outside `[0, M)`;
+/// the final else-branch (0 or Q) handles those.
+fn assemble_flop_d_encoded(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    sel: NodeId,
+    sel_width: u32,
+    datas: &[NodeId],
+    kind: FlopKind,
+    q_node: NodeId,
+) -> NodeId {
+    let fall_through: NodeId = match kind {
+        FlopKind::ZeroDefault => make_constant(m, pool, width, 0),
+        FlopKind::QFeedback => q_node,
+    };
+    // Iterate indices 0..M in reverse, wrapping the previous tail in a Mux.
+    // For QFeedback, index 0 uses Q (not datas[0]); datas has length M-1
+    // and corresponds to indices 1..M.
+    let m_arms = match kind {
+        FlopKind::ZeroDefault => datas.len() as u32,
+        FlopKind::QFeedback => datas.len() as u32 + 1,
+    };
+    let mut tail = fall_through;
+    for idx_rev in 0..m_arms {
+        let idx = m_arms - 1 - idx_rev;
+        let eq = make_eq_const(m, pool, sel, sel_width, idx as u128);
+        let data_node = match kind {
+            FlopKind::ZeroDefault => datas[idx as usize],
+            FlopKind::QFeedback => {
+                if idx == 0 {
+                    q_node
+                } else {
+                    datas[(idx - 1) as usize]
+                }
+            }
+        };
+        tail = make_mux(m, pool, eq, data_node, tail, width);
+    }
+    tail
+}
+
+fn make_constant(m: &mut Module, pool: &mut SignalPool, width: u32, value: u128) -> NodeId {
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Constant { width, value });
+    pool.add(node_id, width, DepSet::new());
+    node_id
+}
+
+fn make_eq_const(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    operand: NodeId,
+    operand_width: u32,
+    value: u128,
+) -> NodeId {
+    let const_node = make_constant(m, pool, operand_width, value);
+    let deps = node_deps(m, operand);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Eq,
+        operands: vec![operand, const_node],
+        width: 1,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, 1, deps);
+    node_id
+}
+
+fn make_mux(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    sel: NodeId,
+    a: NodeId,
+    b: NodeId,
+    width: u32,
+) -> NodeId {
+    let deps = DepSet::union(&[&node_deps(m, sel), &node_deps(m, a), &node_deps(m, b)]);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Mux,
+        operands: vec![sel, a, b],
+        width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, width, deps);
+    node_id
 }
 
 /// `{N{bit}}` — replicate a 1-bit signal to N bits via Concat. If N == 1,
@@ -302,7 +457,7 @@ fn build_flop_leaf(
         // module's single CLK (posedge) and single RST_N (async, active-low).
         reset_kind: ResetKind::Async,
         kind,
-        arms: Vec::new(),
+        mux: FlopMux::None,
     });
     let virtual_deps = DepSet::from_flop_virtual(flop_id);
     pool.add(q_node_id, width, virtual_deps);

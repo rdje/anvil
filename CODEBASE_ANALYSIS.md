@@ -41,17 +41,20 @@ src/
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 drain_flop_worklist, build_cone (all carry an
 │   │                 `exclude: Option<NodeId>` for Q-feedback isolation).
+│   │                 Per-flop drain: drain_flop_one_hot, drain_flop_encoded.
 │   │                 Helpers: build_flop_leaf, pick_reset_value,
 │   │                 pick_mux_arm_count (M ∈ {0, 2..=max}),
-│   │                 assemble_flop_d (one-hot mux + optional Q-feedback
-│   │                 term), replicate_to_width, make_and,
+│   │                 ceil_log2, assemble_flop_d_one_hot, assemble_flop_d_encoded,
+│   │                 make_constant, make_eq_const, make_mux,
+│   │                 replicate_to_width, make_and,
 │   │                 make_none_selected, or_reduce_terms, pick_terminal
 │   │                 (with lazy width-adapter fallback and exclusion
 │   │                 filter), make_width_adapter, pick_gate,
 │   │                 input_widths_for, violates_anti_collapse, node_deps.
-│   │                 Q is a leaf in the current cone; D opens an
-│   │                 M-arm one-hot mux (or a direct cone when M=0)
-│   │                 via the worklist.
+│   │                 Q is a leaf in the current cone; D opens either
+│   │                 a direct cone (M=0), a one-hot OR-of-masks mux
+│   │                 (M>=2, OneHot), or a chained-ternary encoded
+│   │                 mux (M>=2, Encoded) via the worklist.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.
@@ -96,10 +99,14 @@ In code (constructors / generator):
 - `gen::cone::make_width_adapter` produces a Slice (when source > target), a single Concat (when source × N == target), or Concat-then-Slice (when source × N > target). Deps propagate from the source.
 - `gen::cone::violates_anti_collapse` rejects `x ^ x`, `x - x`, `x == x`, `x != x`, `mux(s, a, a)`.
 - `gen::cone::pick_gate` only offers comparison ops when the parent target width is 1.
-- `gen::cone::build_flop_leaf` allocates `Flop` (with random `FlopKind`) and `FlopQ` together; `Flop.q` always points at the new `FlopQ` node; `Flop.d` and `Flop.arms` are filled later by `drain_flop_worklist`.
+- `gen::cone::build_flop_leaf` allocates `Flop` (with random `FlopKind`) and `FlopQ` together; `Flop.q` always points at the new `FlopQ` node; `Flop.d` and `Flop.mux` are filled later by `drain_flop_worklist`.
 - All flops use `ResetKind::Async` unconditionally (single-CLK / single-RST_N synchronous discipline).
 - `pick_mux_arm_count` returns M from {0, 2, 3, ..., max_mux_arms}. M = 1 is excluded by design.
-- `drain_flop_worklist` constructs each flop's D as either (a) a direct recursive cone when M=0, or (b) `OR_i({N{sel_i}} & data_i)` (+ `{N{none_selected}} & Q` for `QFeedback`) when M >= 2. All sub-cones forbid this flop's Q from being a leaf via the `exclude` parameter.
+- `drain_flop_worklist` constructs each flop's D as one of:
+  - (a) a direct recursive cone when M=0;
+  - (b) one-hot mux `OR_i({N{sel_i}} & data_i)` (+ `{N{none_selected}} & Q` for `QFeedback`) for the OneHot style;
+  - (c) encoded-select chained-ternary mux over `Eq(sel, k)` with a fall-through of 0 (ZeroDefault) or Q (QFeedback) for the Encoded style. QFeedback+Encoded replaces `data_0` with Q.
+  The style is picked per-flop via `cfg.flop_mux_encoding_prob`. All sub-cones forbid this flop's Q from being a leaf via the `exclude` parameter.
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
 - `gen::cone::pick_node_kind` (inline in `build_cone`) gates flop selection on `m.flops.len() < cfg.max_flops_per_module` to bound generation cost.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.

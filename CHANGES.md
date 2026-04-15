@@ -3,7 +3,47 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0005 — Encoded-select flop mux (chained ternary) alongside one-hot
+
+**What changed**
+- `src/ir/types.rs`:
+  - Replaced `Flop.arms: Vec<MuxArm>` with `Flop.mux: FlopMux`.
+  - `FlopMux` enum: `None` (M=0), `OneHot(Vec<MuxArm>)`, `Encoded { sel: NodeId, data: Vec<NodeId> }`.
+- `src/config.rs`:
+  - New knob `flop_mux_encoding_prob` (default `0.5`): per-flop probability of using the encoded-select style instead of one-hot.
+- `src/gen/cone.rs`:
+  - New `drain_flop_encoded`: builds one select sub-cone of width `ceil(log2(M))` and M (or M-1 for QFeedback) data sub-cones, assembles D as a chained ternary over `Eq(sel, k)` with a `0` or `Q` fall-through.
+  - New `drain_flop_one_hot`: extracts the previous one-hot assembly into its own function.
+  - New `assemble_flop_d_encoded`, `make_constant`, `make_eq_const`, `make_mux`, `ceil_log2` helpers.
+  - Renamed `assemble_flop_d` → `assemble_flop_d_one_hot`.
+  - Per-flop dispatch in `drain_flop_worklist`: picks encoded or one-hot via `cfg.flop_mux_encoding_prob`.
+  - Module-level `#![allow(clippy::too_many_arguments)]` to silence the lint on helpers that legitimately thread many context refs.
+- `book/src/sequential.md`: documents both encoding styles, the 2×2 style-kind matrix, and the QFeedback+Encoded special case where index 0 is replaced by Q.
+- `USER_GUIDE.md`: documents `--flop-mux-encoding-prob`.
+- `CODEBASE_ANALYSIS.md`: module map, helper list, and invariants updated for the new drain path.
+- `MEMORY.md`: state, next-up, recent commits refreshed.
+
+**Why**
+The user asked for an encoded-select variant alongside the existing one-hot, with the Q-feedback case routing Q on `sel == 0` and on out-of-range values. Both styles correspond to real synchronous-design shapes (one-hot for arbitration-driven register banks, encoded for opcode/address/state-selected registers) and exercise different synthesis paths. Picking per-flop preserves motif diversity within a single generated module.
+
+**Validation**
+- `cargo check`, `cargo test` (2 tests pass, ~2s for 20-seed sweep), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- Visual inspection with `--seed 5 --max-depth 2 --flop-prob 1.0` shows chained ternaries in the output: `(eq_k) ? data_k : (eq_{k-1}) ? data_{k-1} : ... : fall_through`, confirming the encoded-mux assembly.
+
+**Impact**
+- Phase 1 now emits two distinct flop motifs. Motif diversity is no longer bound by encoding style.
+- The `FlopMux` enum carries introspective information about each flop's mux shape, useful for future debugging/inspection tooling even though it is not load-bearing for emission today.
+
+**Files touched**
+`src/ir/types.rs`, `src/config.rs`, `src/gen/cone.rs`, `book/src/sequential.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0004 — M-to-1 one-hot mux flops with two motifs
+
+**Commit hash:** `47675df`
 
 **What changed**
 - `src/ir/types.rs`:
@@ -51,8 +91,6 @@ This produces RTL that resembles real synchronous datapath idioms (one-hot-contr
 
 **Files touched**
 `src/ir/types.rs`, `src/config.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `book/src/sequential.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
