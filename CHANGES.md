@@ -3,7 +3,41 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0017 — Doctrinal fix: coefficient / shift amount / comparand are distinct motifs
+
+**What changed**
+- `MEMORY.md` next-up list split the prior lumped "coefficient as general arithmetic motif" entry into three distinct motif families:
+  1. **Coefficients** — multiplicative weights in arithmetic linear combinations (Add/Sub/Mul). `ci ≠ 0` for Add. Knob family `coefficient_*`.
+  2. **Shift amounts** — structural parameters of shift ops. Typical range `[0, W-1]`. Knob family `shift_amount_*`.
+  3. **Comparands** — thresholds / sentinels for comparisons. No zero-exclusion. Knob family `comparand_*`.
+- Added an explicit reminder that the three are semantically distinct and should not be collapsed into a single `constant_prob` knob.
+
+**Why**
+In the prior slice's next-up list I wrote "Generalize coefficient-as-arithmetic-motif to Sub/Mul/Shift/Compare". User (rightly) pushed back: coefficient is arithmetic vocabulary (a multiplicative weight in a linear combination). It is not the correct word for:
+- Shift amounts (`a << 2`): the `2` is a structural parameter of the shift op, not a weight. Yes, `a << 2` is arithmetically `a * 4`, but in representation and synthesis cost they are distinct.
+- Comparands (`a == 7`): the `7` is a threshold / sentinel / target value, not a weight.
+
+Lumping all three under "coefficient" conflates three distinct motifs. The correction preserves the vocabulary discipline the project has been accumulating (operators vs blocks, arity vs ports, etc.).
+
+**Validation**
+- Documentation-only slice; no source touched.
+- `cargo check`, `cargo test` (27 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean.
+
+**Impact**
+- The next-up list now correctly decomposes the work into three separate motif families with their own knobs and constraints.
+- A session that crashes between here and the first motif-family implementation recovers with accurate guidance rather than the lumped-and-wrong original.
+- Vocabulary discipline accumulates: "coefficient" joins "arity" and "port" as terms with restricted, precise meaning.
+
+**Files touched**
+`MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0016 — M-to-1 combinational mux as a first-class block
+
+**Commit hash:** `0564a49`
 
 **What changed**
 - `src/config.rs`: two new knobs.
@@ -96,8 +130,6 @@ compound gate tree, same as the flop D-mux.
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `book/src/algorithm.md`, `book/src/tutorial.md`, `book/src/recipes.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
