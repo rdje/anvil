@@ -17,7 +17,14 @@ pub enum ConstructionStrategy {
     Sequential,
     /// Build cones per-output in a random permutation of declaration order.
     Shuffled,
-    // Interleaved and GraphFirst will be added as their implementations land.
+    /// Build signal-level frames across all cones from one global work
+    /// queue, popping a random frame each step. Cones grow in lockstep
+    /// so each cone's leaves see gates built by other cones' earlier
+    /// frames. Near-symmetric within-module sharing. Blocks (flop,
+    /// comb-mux) still build synchronously within one frame step; flop
+    /// D-cones are drained synchronously at the end (as today).
+    Interleaved,
+    // GraphFirst will be added when its implementation lands.
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

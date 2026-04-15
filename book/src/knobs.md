@@ -77,8 +77,9 @@ instead of creating fresh logic.
   to order cone construction across outputs. Current values:
   - `sequential` (default): declaration order, one output at a time.
   - `shuffled`: random permutation of declaration order per seed.
+  - `interleaved`: output cones interleaved via a global frame queue.
 
-  Planned future values: `interleaved`, `graph-first`. See
+  Planned future value: `graph-first`. See
   `book/src/construction-strategies.md` for the full four-way
   comparison and rationale.
 

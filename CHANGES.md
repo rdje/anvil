@@ -3,7 +3,53 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0022 — `interleaved` construction strategy: frame state machine
+
+**What changed**
+- `src/config.rs`: new `ConstructionStrategy::Interleaved` variant.
+- `src/gen/cone.rs`: new frame state machine at module level.
+  - Types: `Dest` (Output(idx) | Slot { frame_id, slot }), `SignalFrame` (pending signal construction at given width/depth/exclude with a Dest), `GateFrame` (in-flight gate waiting on N operand slots).
+  - Public entry: `build_outputs_interleaved(g, m, pool, worklist) -> Vec<NodeId>`. Seeds the queue with one `SignalFrame` per output, pops a random frame each step, processes it.
+  - `process_signal_frame`: mirrors `build_cone`'s decision tree. force_leaf → `pick_terminal` → deliver. Flop → `build_flop_leaf` (synchronous block) → deliver. Comb-mux → `build_comb_mux` (synchronous block) → deliver. Operator gate → allocate a `GateFrame` in the in-flight table + enqueue N child `SignalFrame`s (with per-operand share check reusing `try_share`).
+  - `deliver`: writes the resolved NodeId to the Dest. For `Slot`, decrements pending; when pending hits 0, the `GateFrame` fires (same anti-collapse check, same dep-set union, same pool.add), and its own Dest is then resolved (recursively).
+- `src/gen/module.rs`: `generate_leaf_module` dispatches on strategy. For `Interleaved`, delegates to `cone::build_outputs_interleaved`. For `Sequential` / `Shuffled`, uses the existing recursive `build_cone_with_retry` path.
+- `tests/pipeline.rs`:
+  - `all_strategies_produce_valid_modules` extended to cover `Interleaved`.
+  - New `interleaved_reproducibility` — same seed + Interleaved = byte-identical output twice.
+  - New `interleaved_differs_from_sequential` — on a 3-output seed, the emitted SV differs between strategies.
+- `book/src/construction-strategies.md` and `book/src/knobs.md`: implementation status flipped to "implemented" for `interleaved`; scope note clarifying that block internals are not interleaved in this slice (only output-cone frames).
+- `USER_GUIDE.md`: `--construction-strategy` row updated to list `interleaved` as supported.
+- `CODEBASE_ANALYSIS.md`: `cone.rs` module map expanded to document the frame machine; `config.rs` lists the three variants; `module.rs` describes the dispatch.
+- `MEMORY.md` / `CHANGES.md`: per workflow.
+
+**Why**
+Per the user's direction that construction-order asymmetry is a construction artifact and not a design property, `interleaved` was the next milestone after `shuffled`. The frame state machine achieves near-symmetric per-module sharing for output-cone construction: by the time any given cone picks its deeper leaves, many other cones have already contributed gates to the pool. Declaration-order bias is gone; within-module ordering is still present for *block internals* (flop D-cones, comb-mux sub-cones built depth-first within one frame step) but much weaker than in `sequential` or `shuffled`.
+
+Scope was deliberately kept to output-cone frames — block internals remain synchronous — because folding blocks into the frame machine adds meaningful complexity without buying proportional symmetry (flop Qs enter the pool when flops are allocated, so cross-flop sharing works regardless). Full symmetry awaits `graph-first`.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 7 integration = 32 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- End-to-end: `cargo run -- --seed 42 --min-outputs 3 --max-outputs 3 --construction-strategy interleaved` produces a valid ~4k-line module. Diffing against `sequential` on the same seed shows different internal shape; IR validator accepts both.
+
+**Impact**
+- Three of four construction strategies now implemented.
+- Users can pick `interleaved` for realistic cross-output sharing without waiting for `graph-first`.
+- `build_outputs_interleaved` is a self-contained alternative entry point; the recursive `build_cone` path is untouched.
+
+**Known limitations (documented)**
+- Block internals (flop D-cones, comb-mux sub-cones) still build depth-first. Full symmetry including blocks is the `graph-first` target.
+- The `interleaved` path does not have a retry-on-trivial mechanism equivalent to `build_cone_with_retry`. If an output cone ends up with an empty dep-set it will fail validation. In practice this has not been observed under default knobs; the validator catches it if it happens.
+
+**Files touched**
+`src/config.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `tests/pipeline.rs`, `book/src/construction-strategies.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0021 — Construction-strategy machinery + `shuffled` strategy landed
+
+**Commit hash:** `2d038a9`
 
 **What changed**
 - `src/config.rs`: new `ConstructionStrategy` enum with `Sequential` and `Shuffled` variants. Derives `Serialize`, `Deserialize`, `clap::ValueEnum`; uses kebab-case for both serde and clap. New `Config.construction_strategy` field (default `Sequential`). Threaded through `Overrides` and `apply_cli_overrides`.
@@ -38,8 +84,6 @@ Landing `Sequential` + `Shuffled` together in one slice is one coherent task —
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/module.rs`, `tests/pipeline.rs`, `book/src/construction-strategies.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

@@ -92,6 +92,7 @@ fn all_strategies_produce_valid_modules() {
     for strategy in [
         ConstructionStrategy::Sequential,
         ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
     ] {
         for seed in 0..10u64 {
             let cfg = Config {
@@ -108,4 +109,53 @@ fn all_strategies_produce_valid_modules() {
             });
         }
     }
+}
+
+#[test]
+fn interleaved_reproducibility() {
+    let cfg = Config {
+        seed: 42,
+        min_outputs: 3,
+        max_outputs: 3,
+        construction_strategy: ConstructionStrategy::Interleaved,
+        ..Config::default()
+    };
+    let a = anvil::emit::to_sv(&Generator::new(cfg.clone()).generate_module());
+    let b = anvil::emit::to_sv(&Generator::new(cfg).generate_module());
+    assert_eq!(
+        a, b,
+        "interleaved strategy must still be byte-identical for same seed"
+    );
+}
+
+#[test]
+fn interleaved_differs_from_sequential() {
+    // Same construction knobs, same seed; different strategy should
+    // produce different emitted SV on a multi-output seed because the
+    // order in which gates are created is fundamentally different
+    // (global frame-queue pops vs declaration-order depth-first).
+    let base = Config {
+        seed: 42,
+        min_outputs: 3,
+        max_outputs: 3,
+        ..Config::default()
+    };
+    let seq_sv = anvil::emit::to_sv(
+        &Generator::new(Config {
+            construction_strategy: ConstructionStrategy::Sequential,
+            ..base.clone()
+        })
+        .generate_module(),
+    );
+    let ileaved_sv = anvil::emit::to_sv(
+        &Generator::new(Config {
+            construction_strategy: ConstructionStrategy::Interleaved,
+            ..base
+        })
+        .generate_module(),
+    );
+    assert_ne!(
+        seq_sv, ileaved_sv,
+        "interleaved must produce different output from sequential"
+    );
 }

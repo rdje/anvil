@@ -88,37 +88,50 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     let mut worklist: FlopWorklist = Vec::new();
 
-    // Build an output cone per primary output. The iteration order over
-    // outputs is governed by `cfg.construction_strategy`:
+    // Build an output cone per primary output. The iteration order / the
+    // overall scheduling is governed by `cfg.construction_strategy`:
     //
-    // - `Sequential`: declaration order (0, 1, ..., n_out-1).
-    // - `Shuffled`: a random permutation drawn from the seeded RNG.
+    // - `Sequential`: declaration order (0, 1, ..., n_out-1), depth-first.
+    // - `Shuffled`: random permutation of output order, depth-first per cone.
+    // - `Interleaved`: one global frame queue; cones grow in lockstep.
     //
     // Cones are recorded in `m.drives` in declaration order regardless —
     // this affects only which output's cone sees the richest pool at
-    // leaf-selection time, not the emission order. See
+    // leaf-selection time, not the SV emission order. See
     // `book/src/construction-strategies.md`.
-    let build_order: Vec<usize> = match g.cfg.construction_strategy {
-        ConstructionStrategy::Sequential => (0..m.outputs.len()).collect(),
-        ConstructionStrategy::Shuffled => {
-            let mut idxs: Vec<usize> = (0..m.outputs.len()).collect();
-            idxs.shuffle(&mut g.rng);
-            idxs
+    let per_output_drive: Vec<NodeId> = match g.cfg.construction_strategy {
+        ConstructionStrategy::Sequential | ConstructionStrategy::Shuffled => {
+            let build_order: Vec<usize> = match g.cfg.construction_strategy {
+                ConstructionStrategy::Sequential => (0..m.outputs.len()).collect(),
+                ConstructionStrategy::Shuffled => {
+                    let mut idxs: Vec<usize> = (0..m.outputs.len()).collect();
+                    idxs.shuffle(&mut g.rng);
+                    idxs
+                }
+                ConstructionStrategy::Interleaved => unreachable!(),
+            };
+            let mut slots: Vec<Option<NodeId>> = vec![None; m.outputs.len()];
+            for idx in build_order {
+                let out = m.outputs[idx].clone();
+                let cone_root = cone::build_cone_with_retry(
+                    g,
+                    &mut m,
+                    &mut pool,
+                    &mut worklist,
+                    out.width,
+                    None,
+                );
+                slots[idx] = Some(cone_root);
+            }
+            slots.into_iter().map(|s| s.expect("drive root")).collect()
+        }
+        ConstructionStrategy::Interleaved => {
+            cone::build_outputs_interleaved(g, &mut m, &mut pool, &mut worklist)
         }
     };
 
-    let mut per_output_drive: Vec<Option<NodeId>> = vec![None; m.outputs.len()];
-    for idx in build_order {
-        let out = m.outputs[idx].clone();
-        let cone_root =
-            cone::build_cone_with_retry(g, &mut m, &mut pool, &mut worklist, out.width, None);
-        per_output_drive[idx] = Some(cone_root);
-    }
     for (idx, root) in per_output_drive.into_iter().enumerate() {
-        m.drives.push((
-            m.outputs[idx].id,
-            root.expect("every output must have a drive root"),
-        ));
+        m.drives.push((m.outputs[idx].id, root));
     }
 
     // Drain the flop worklist: each pending flop's D-cone is built with

@@ -166,8 +166,14 @@ All three strategies preserve the structural rules catalog:
 - `shuffled` — **implemented**. Builds cones in a seeded random
   permutation of declaration order. CLI:
   `--construction-strategy shuffled`.
-- `interleaved` — planned. Moderate rework of `build_cone` into an
-  explicit frame state machine.
+- `interleaved` — **implemented**. Frame state machine: output cones
+  share one global work queue; each step pops a random `SignalFrame`
+  and processes it. Gates pending more operands live in an in-flight
+  table; when the last operand resolves, the gate finalizes. CLI:
+  `--construction-strategy interleaved`. **Scope note:** block
+  internals (flop D-cones, comb-mux sub-cones) still build
+  depth-first; only *output-cone* frames interleave. Full symmetry
+  (including block internals) awaits `graph-first`.
 - `graph-first` — planned. Architectural shift from per-output cones
   to a pool-first DAG. Becomes the default when it lands.
 

@@ -66,6 +66,217 @@ pub fn build_cone_with_retry(
 ///
 /// The drain may itself enqueue more flops; the loop handles that
 /// until quiescence.
+// ------------------------------------------------------------------
+// Interleaved construction: frame state machine for output cones.
+// See book/src/construction-strategies.md.
+// ------------------------------------------------------------------
+
+#[derive(Clone, Copy)]
+enum Dest {
+    Output(usize),
+    Slot { frame_id: usize, slot: usize },
+}
+
+struct SignalFrame {
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+    dest: Dest,
+}
+
+struct GateFrame {
+    op: GateOp,
+    operands: Vec<Option<NodeId>>,
+    pending: usize,
+    width: u32,
+    dest: Dest,
+}
+
+/// Build every output cone via a global frame queue. At each step a
+/// random `SignalFrame` is popped and processed: blocks (flop,
+/// comb-mux) and leaf terminals resolve immediately; operator gates
+/// push a `GateFrame` into the in-flight table and enqueue one
+/// `SignalFrame` per operand slot. When a gate's last operand
+/// resolves, the gate finalizes — the `Node::Gate` is created, added
+/// to the pool, and its result is delivered to the gate's own
+/// destination (possibly another gate slot, recursing).
+///
+/// Flop D-cones are *not* interleaved here — they are queued on
+/// `worklist` and drained synchronously after all output frames are
+/// processed, the same as under `Sequential` and `Shuffled`. That is
+/// the "near-symmetric" scope: output-cone construction interleaves,
+/// flop D-cones are built depth-first per flop. Full symmetry awaits
+/// `graph-first`.
+pub fn build_outputs_interleaved(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) -> Vec<NodeId> {
+    let n_out = m.outputs.len();
+    let mut per_output_drive: Vec<Option<NodeId>> = vec![None; n_out];
+    let mut signal_queue: Vec<SignalFrame> = (0..n_out)
+        .map(|idx| SignalFrame {
+            width: m.outputs[idx].width,
+            depth: 0,
+            exclude: None,
+            dest: Dest::Output(idx),
+        })
+        .collect();
+    let mut gate_frames: Vec<Option<GateFrame>> = Vec::new();
+
+    while !signal_queue.is_empty() {
+        let i = g.rng.gen_range(0..signal_queue.len());
+        let frame = signal_queue.swap_remove(i);
+        process_signal_frame(
+            g,
+            m,
+            pool,
+            worklist,
+            frame,
+            &mut signal_queue,
+            &mut gate_frames,
+            &mut per_output_drive,
+        );
+    }
+
+    per_output_drive
+        .into_iter()
+        .map(|r| r.expect("interleaved: every output must have a drive root"))
+        .collect()
+}
+
+fn process_signal_frame(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    frame: SignalFrame,
+    signal_queue: &mut Vec<SignalFrame>,
+    gate_frames: &mut Vec<Option<GateFrame>>,
+    per_output_drive: &mut [Option<NodeId>],
+) {
+    let leaf_prob = (frame.depth as f64) / (g.cfg.max_depth as f64);
+    let force_leaf = frame.depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
+
+    if force_leaf {
+        let node = pick_terminal(g, m, pool, frame.width, frame.exclude);
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    // Flop block: allocates a Flop and enqueues its D-cone on the worklist.
+    // The FlopQ node is returned immediately and the frame resolves.
+    let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
+    if flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0)) {
+        let node = build_flop_leaf(g, m, pool, worklist, frame.width);
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    // Comb-mux block: builds its internal sub-cones depth-first within
+    // this frame step. Block placement interleaves with other cones;
+    // block internals do not. This matches the "near-symmetric" scope.
+    if g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0)) {
+        let node = build_comb_mux(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        );
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    // Operator gate: push a GateFrame into the in-flight table, enqueue
+    // one SignalFrame per operand slot. The gate finalizes when its
+    // last operand resolves (see `deliver`).
+    let op = pick_gate(g, frame.width);
+    let operand_widths = input_widths_for(op, frame.width, &g.cfg, &mut g.rng);
+    let n_ops = operand_widths.len();
+    let frame_id = gate_frames.len();
+    gate_frames.push(Some(GateFrame {
+        op,
+        operands: vec![None; n_ops],
+        pending: n_ops,
+        width: frame.width,
+        dest: frame.dest,
+    }));
+    for (slot, w) in operand_widths.into_iter().enumerate() {
+        // DAG-sharing fork (Rule 16 / share_prob): same as recursive path.
+        let shared = if g.rng.gen_bool(g.cfg.share_prob.min(1.0)) {
+            try_share(g, pool, w, frame.exclude)
+        } else {
+            None
+        };
+        if let Some(shared_id) = shared {
+            deliver(
+                g,
+                m,
+                pool,
+                shared_id,
+                Dest::Slot { frame_id, slot },
+                gate_frames,
+                per_output_drive,
+            );
+        } else {
+            signal_queue.push(SignalFrame {
+                width: w,
+                depth: frame.depth + 1,
+                exclude: frame.exclude,
+                dest: Dest::Slot { frame_id, slot },
+            });
+        }
+    }
+}
+
+fn deliver(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    node: NodeId,
+    dest: Dest,
+    gate_frames: &mut Vec<Option<GateFrame>>,
+    per_output_drive: &mut [Option<NodeId>],
+) {
+    match dest {
+        Dest::Output(idx) => {
+            per_output_drive[idx] = Some(node);
+        }
+        Dest::Slot { frame_id, slot } => {
+            let gf = gate_frames[frame_id].as_mut().expect("gate frame live");
+            gf.operands[slot] = Some(node);
+            gf.pending -= 1;
+            if gf.pending == 0 {
+                let gf = gate_frames[frame_id].take().unwrap();
+                let operands: Vec<NodeId> = gf.operands.into_iter().map(|o| o.unwrap()).collect();
+
+                // Structural anti-collapse: same check as recursive path.
+                if violates_anti_collapse(gf.op, &operands, m) {
+                    let fallback = pick_terminal(g, m, pool, gf.width, None);
+                    deliver(g, m, pool, fallback, gf.dest, gate_frames, per_output_drive);
+                    return;
+                }
+
+                let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+                let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+                let node_id = m.nodes.len() as NodeId;
+                m.nodes.push(Node::Gate {
+                    op: gf.op,
+                    operands,
+                    width: gf.width,
+                    deps: deps.clone(),
+                });
+                pool.add(node_id, gf.width, deps);
+                deliver(g, m, pool, node_id, gf.dest, gate_frames, per_output_drive);
+            }
+        }
+    }
+}
+
 pub fn drain_flop_worklist(
     g: &mut Generator,
     m: &mut Module,

@@ -26,7 +26,7 @@ src/
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy,
 │                     ConstructionStrategy enum (clap::ValueEnum +
-│                     serde) with Sequential and Shuffled variants.
+│                     serde): Sequential, Shuffled, Interleaved.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports types::* and the validate module.
@@ -45,12 +45,13 @@ src/
 │   │                 generate_design() (Phase 5+ stub).
 │   ├── module.rs     Leaf-module top-level generator: pick port counts,
 │   │                 pick widths, seed signal pool with primary inputs,
-│   │                 build a cone per primary output. Output build
-│   │                 order governed by cfg.construction_strategy:
-│   │                 Sequential (declaration order) or Shuffled
-│   │                 (random permutation). Drives recorded in
-│   │                 declaration order regardless.
-│   ├── cone.rs       Fanin-cone recursion (combinational + sequential).
+│   │                 build a cone per primary output. Dispatches on
+│   │                 cfg.construction_strategy: Sequential/Shuffled
+│   │                 use the recursive build_cone_with_retry path;
+│   │                 Interleaved delegates to
+│   │                 cone::build_outputs_interleaved (frame machine).
+│   │                 Drives recorded in declaration order regardless.
+│   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 drain_flop_worklist, build_cone.
 │   │                 build_cone branches: flop block (build_flop_leaf),
@@ -78,6 +79,12 @@ src/
 │   │                 DAG sharing: per-operand `share_prob` decides
 │   │                 share-vs-recurse; internal gates enter the pool
 │   │                 as they are built.
+│   │                 Interleaved strategy: build_outputs_interleaved
+│   │                 + process_signal_frame + deliver with a
+│   │                 SignalFrame queue and a GateFrame in-flight
+│   │                 table. Gates finalize when their last operand
+│   │                 resolves. Blocks (flop, comb-mux) still build
+│   │                 synchronously within one frame step.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.
