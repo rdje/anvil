@@ -37,12 +37,16 @@ src/
 │   ├── module.rs     Leaf-module top-level generator: pick port counts,
 │   │                 pick widths, seed signal pool with primary inputs,
 │   │                 build a cone per primary output.
-│   ├── cone.rs       Fanin-cone recursion.
-│   │                 Public: build_cone_with_retry, build_cone.
-│   │                 Helpers: pick_terminal (with lazy width-adapter
-│   │                 fallback), make_width_adapter, pick_gate,
-│   │                 input_widths_for, violates_anti_collapse, node_deps.
-│   │                 Phase 1 only: no flop branch (flop_prob defaults to 0).
+│   ├── cone.rs       Fanin-cone recursion (combinational + sequential).
+│   │                 Public: FlopWorklist alias, build_cone_with_retry,
+│   │                 drain_flop_worklist, build_cone.
+│   │                 Helpers: build_flop_leaf (allocates Flop + FlopQ,
+│   │                 enqueues D-cone), pick_reset_value, pick_terminal
+│   │                 (with lazy width-adapter fallback),
+│   │                 make_width_adapter, pick_gate, input_widths_for,
+│   │                 violates_anti_collapse, node_deps.
+│   │                 Q is a leaf in the current cone; D opens a new
+│   │                 sub-cone via the worklist.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.
@@ -69,13 +73,12 @@ main  →  lib  →  gen  →  ir
 | Phase | Status        | Code touched | Notes |
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | `cargo check`, `cargo test`, `cargo clippy -D warnings`, `cargo fmt --check` all clean locally. |
-| 1 — Combinational MVP        | in progress  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs` | Cone recursion functional with lazy width-adapter; remaining: per-gate width validator, unit tests, Verilator/Yosys smoke. |
-| 2 — Sequential               | not started  | `gen/cone.rs`, `emit/sv.rs`, `ir/types.rs` (Flop already typed) | Flop worklist + `always_ff` emitter. |
-| 3 — Sharing                  | not started  | `gen/cone.rs`, `gen/pool.rs` | `share_prob` knob exists; recursion hook absent. |
-| 4 — Structured combinational | not started  | `gen/cone.rs`, `emit/sv.rs` | New GateOp variants + emitter arms. |
-| 5 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
-| 6 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
-| 7 — Advanced motifs          | not started  | various | Memories, FSMs, optional multi-clock. |
+| 1 — Single-module MVP        | in progress  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). Remaining: per-gate width validator, unit tests, Verilator/Yosys smoke. |
+| 2 — Sharing                  | not started  | `gen/cone.rs`, `gen/pool.rs` | `share_prob` knob exists; recursion hook absent. |
+| 3 — Structured combinational | not started  | `gen/cone.rs`, `emit/sv.rs` | New GateOp variants + emitter arms. |
+| 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
+| 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
+| 6 — Advanced motifs          | not started  | various | Memories, FSMs, optional multi-clock. |
 
 ## Invariants currently enforced
 
@@ -88,6 +91,10 @@ In code (constructors / generator):
 - `gen::cone::make_width_adapter` produces a Slice (when source > target), a single Concat (when source × N == target), or Concat-then-Slice (when source × N > target). Deps propagate from the source.
 - `gen::cone::violates_anti_collapse` rejects `x ^ x`, `x - x`, `x == x`, `x != x`, `mux(s, a, a)`.
 - `gen::cone::pick_gate` only offers comparison ops when the parent target width is 1.
+- `gen::cone::build_flop_leaf` allocates `Flop` and `FlopQ` together; `Flop.q` always points at the new `FlopQ` node; `Flop.d` is filled later by `drain_flop_worklist`.
+- All flops use `ResetKind::Async` unconditionally (single-CLK / single-RST_N synchronous discipline).
+- `gen::cone::pick_node_kind` (inline in `build_cone`) gates flop selection on `m.flops.len() < cfg.max_flops_per_module` to bound generation cost.
+- `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 
 In `ir::validate::validate`:
 - Operand `NodeId`s in range.

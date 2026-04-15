@@ -1,11 +1,16 @@
 //! Fanin cone recursion. See `book/src/algorithm.md` for the full spec.
 //!
-//! Phase 1 scope: combinational only, tree-shaped (no sharing beyond
-//! primary inputs), no flops. Structural anti-collapse rules apply.
+//! Combinational + sequential. Recursion is the core principle:
+//! - Q is a leaf in the *current* cone (terminates the descent).
+//! - D opens a *new* cone, queued on the worklist for later draining.
+//! - The same `build_cone` function constructs both.
 
 use super::{pool::SignalPool, Generator};
-use crate::ir::{DepSet, GateOp, Module, Node, NodeId};
+use crate::ir::{DepSet, Flop, FlopId, GateOp, Module, Node, NodeId, ResetKind};
 use rand::Rng;
+
+/// Worklist of flops whose D-input cone has not yet been built.
+pub type FlopWorklist = Vec<FlopId>;
 
 /// Retry loop around `build_cone` that rejects trivial (empty dep-set)
 /// roots. Bounded to avoid pathological infinite retries; if we exceed
@@ -14,28 +19,47 @@ pub fn build_cone_with_retry(
     g: &mut Generator,
     m: &mut Module,
     pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
     width: u32,
 ) -> NodeId {
     const MAX_RETRIES: u32 = 4;
     for _ in 0..MAX_RETRIES {
-        let snapshot = (m.nodes.len(), pool.clone());
-        let node = build_cone(g, m, pool, width, 0);
+        let snapshot = (m.nodes.len(), m.flops.len(), pool.clone(), worklist.clone());
+        let node = build_cone(g, m, pool, worklist, width, 0);
         let deps = node_deps(m, node);
         if !deps.is_empty() {
             return node;
         }
         // Rewind and retry.
         m.nodes.truncate(snapshot.0);
-        *pool = snapshot.1;
+        m.flops.truncate(snapshot.1);
+        *pool = snapshot.2;
+        *worklist = snapshot.3;
     }
-    // Final attempt without retry budget.
-    build_cone(g, m, pool, width, 0)
+    build_cone(g, m, pool, worklist, width, 0)
+}
+
+/// Drain the flop worklist: for each pending flop, recursively build
+/// its D cone. The drain may itself push new flops; the loop handles
+/// that until quiescence.
+pub fn drain_flop_worklist(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) {
+    while let Some(flop_id) = worklist.pop() {
+        let width = m.flops[flop_id as usize].width;
+        let d_node = build_cone_with_retry(g, m, pool, worklist, width);
+        m.flops[flop_id as usize].d = Some(d_node);
+    }
 }
 
 pub fn build_cone(
     g: &mut Generator,
     m: &mut Module,
     pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
     width: u32,
     depth: u32,
 ) -> NodeId {
@@ -46,28 +70,26 @@ pub fn build_cone(
         return pick_terminal(g, m, pool, width);
     }
 
-    // Pick a gate category, then a specific op.
+    // Recursion fork: gate vs flop. Flop is allowed up to a per-module cap.
+    let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
+    let pick_flop = flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0));
+    if pick_flop {
+        return build_flop_leaf(g, m, pool, worklist, width);
+    }
+
     let op = pick_gate(g, width);
     let operand_widths = input_widths_for(op, width, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
     for w in operand_widths {
-        operands.push(build_cone(g, m, pool, w, depth + 1));
+        operands.push(build_cone(g, m, pool, worklist, w, depth + 1));
     }
 
-    // Structural anti-collapse: reject obvious patterns by regenerating.
     if violates_anti_collapse(op, &operands, m) {
-        // Fall back to a terminal rather than looping.
         return pick_terminal(g, m, pool, width);
     }
 
-    let deps = DepSet::union(
-        &operands
-            .iter()
-            .map(|id| node_deps(m, *id))
-            .collect::<Vec<_>>()
-            .iter()
-            .collect::<Vec<_>>(),
-    );
+    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
 
     let node_id = m.nodes.len() as NodeId;
     m.nodes.push(Node::Gate {
@@ -80,8 +102,52 @@ pub fn build_cone(
     node_id
 }
 
+/// Allocate a flop and a `FlopQ` node. The Q is returned (and added to
+/// the pool) as the leaf for the current cone. The flop's D-cone is
+/// queued for later construction by `drain_flop_worklist`.
+fn build_flop_leaf(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+) -> NodeId {
+    let flop_id = m.flops.len() as FlopId;
+    let q_node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::FlopQ {
+        flop: flop_id,
+        width,
+    });
+    let reset_val = pick_reset_value(g, width);
+    m.flops.push(Flop {
+        id: flop_id,
+        width,
+        d: None,
+        q: q_node_id,
+        reset_val,
+        // Fully synchronous design discipline: every flop uses the
+        // module's single CLK (posedge) and single RST_N (async, active-low).
+        reset_kind: ResetKind::Async,
+    });
+    let virtual_deps = DepSet::from_flop_virtual(flop_id);
+    pool.add(q_node_id, width, virtual_deps);
+    worklist.push(flop_id);
+    q_node_id
+}
+
+fn pick_reset_value(g: &mut Generator, width: u32) -> u128 {
+    // Bias toward zero (most common in real designs).
+    let r = g.rng.gen_range(0..4);
+    if r < 2 || width >= 128 {
+        0
+    } else if r == 2 {
+        (1u128 << width) - 1 // all ones
+    } else {
+        g.rng.gen::<u128>() & ((1u128 << width) - 1)
+    }
+}
+
 fn pick_terminal(g: &mut Generator, m: &mut Module, pool: &mut SignalPool, width: u32) -> NodeId {
-    // 1. Prefer matching-width pool entries with non-empty deps.
     let with_deps: Vec<_> = pool
         .of_width(width)
         .filter(|e| !e.deps.is_empty())
@@ -92,15 +158,12 @@ fn pick_terminal(g: &mut Generator, m: &mut Module, pool: &mut SignalPool, width
         return with_deps[idx];
     }
 
-    // 2. Fall back to any matching-width entry (may be a constant).
     let any_match: Vec<_> = pool.of_width(width).map(|e| e.node).collect();
     if !any_match.is_empty() {
         let idx = g.rng.gen_range(0..any_match.len());
         return any_match[idx];
     }
 
-    // 3. No matching width. Build a width-adapter from the best pool entry
-    //    with non-empty deps. This preserves dep-set propagation.
     let source: Option<(NodeId, u32, DepSet)> = pool
         .iter()
         .filter(|e| !e.deps.is_empty())
@@ -110,8 +173,6 @@ fn pick_terminal(g: &mut Generator, m: &mut Module, pool: &mut SignalPool, width
         return make_width_adapter(m, pool, src_node, src_width, src_deps, width);
     }
 
-    // 4. Last resort: emit a constant. The cone-root non-triviality check
-    //    will reject this and the retry loop will regenerate.
     let value = if width >= 128 {
         0
     } else {
@@ -150,7 +211,6 @@ fn make_width_adapter(
         pool.add(node_id, target_width, src_deps);
         return node_id;
     }
-    // src_width < target_width: replicate via Concat, then slice if needed.
     let copies = target_width.div_ceil(src_width);
     let concat_width = copies * src_width;
     let concat_id = m.nodes.len() as NodeId;
@@ -180,11 +240,9 @@ fn make_width_adapter(
 
 fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     use GateOp::*;
-    // Phase 1 gate menu. Weights from config.
     let bitwise: &[GateOp] = &[And, Or, Xor, Not];
     let arith: &[GateOp] = &[Add, Sub];
     let structured: &[GateOp] = &[Mux];
-    // Comparisons only legal when target_width == 1
     let compare: &[GateOp] = if target_width == 1 {
         &[Eq, Neq, Lt]
     } else {
@@ -204,7 +262,7 @@ fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
         .map(|(wt, _)| *wt)
         .sum();
     if total == 0 {
-        return And; // degenerate but legal
+        return And;
     }
     let mut pick = g.rng.gen_range(0..total);
     for (wt, gs) in buckets.iter() {
@@ -226,7 +284,6 @@ fn input_widths_for(op: GateOp, out_w: u32, rng: &mut impl Rng) -> Vec<u32> {
         Not => vec![out_w],
         Mux => vec![1, out_w, out_w],
         Eq | Neq | Lt | Gt | Le | Ge => {
-            // Output is 1. Pick an internal operand width.
             let w = rng.gen_range(1..=8);
             vec![w, w]
         }
@@ -236,7 +293,7 @@ fn input_widths_for(op: GateOp, out_w: u32, rng: &mut impl Rng) -> Vec<u32> {
         }
         Shl | Shr => vec![out_w, 8],
         Slice { .. } => vec![out_w.saturating_add(1)],
-        Concat => vec![out_w], // placeholder; real concat is variadic
+        Concat => vec![out_w],
     }
 }
 

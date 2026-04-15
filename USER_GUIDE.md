@@ -49,9 +49,10 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--min-width`           | 1        | Minimum port width in bits                      |
 | `--max-width`           | 32       | Maximum port width                              |
 | `--max-depth`           | 6        | Maximum cone recursion depth                    |
-| `--flop-prob`           | 0.0      | Probability a cone node becomes a flop (Phase 2)|
-| `--share-prob`          | 0.0      | Probability of reusing an existing wire (Phase 3)|
-| `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 5)                |
+| `--flop-prob`           | 0.15     | Probability a cone node becomes a flop          |
+| `--max-flops-per-module`| 32       | Hard cap on flops emitted per module            |
+| `--share-prob`          | 0.0      | Probability of reusing an existing wire (Phase 2)|
+| `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
 | `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |
 | `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |

@@ -31,6 +31,9 @@ pub struct Config {
     pub gate_compare_weight: u32,
     pub gate_reduce_weight: u32,
 
+    // Sequential bounds
+    pub max_flops_per_module: u32,
+
     // Hierarchy (Phase 5+)
     pub hierarchy_depth: u32,
     pub num_leaf_modules: u32,
@@ -51,8 +54,9 @@ impl Default for Config {
             max_width: 32,
             max_depth: 6,
             max_nodes_per_module: 1000,
-            flop_prob: 0.0,
+            flop_prob: 0.15,
             share_prob: 0.0,
+            max_flops_per_module: 32,
             terminal_reuse_prob: 0.3,
             constant_prob: 0.1,
             library_prob: 0.5,

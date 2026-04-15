@@ -1,8 +1,49 @@
 # Sequential Logic: Flops and Cone Boundaries
 
-A flop changes the structure of the generation algorithm in one
-specific way: it terminates the current combinational cone and opens
-a new one.
+Flops are part of the same fanin-cone recursion as combinational logic
+— they are not a later phase. The recursion principle handles them
+naturally:
+
+- **Q is a leaf in the *current* cone.** When the recursion picks
+  "this signal is driven by a flop," the flop's Q output terminates
+  the descent for this cone, exactly like a primary input does.
+- **D opens a *new* cone.** The flop's D input becomes a fresh sub-cone
+  rooted at D, queued on a worklist for later construction by the same
+  `build_cone` function. That sub-cone may itself contain flops; their
+  Ds get queued in turn.
+- **The worklist drains to quiescence.** The main loop pops flops one
+  at a time and recursively builds their D-cones until no flops remain
+  pending.
+
+This is why we did not split sequential into a later phase: it is the
+same recursion with one extra choice in the node-kind picker.
+
+## Synchronous-design discipline
+
+Every module is **fully synchronous to a single clock domain**:
+
+- One `clk` input port (1 bit, posedge).
+- One `rst_n` input port (1 bit, async, active-low).
+- *Every* flop in the module uses these two ports — no per-flop clock
+  selection, no per-flop reset polarity choice, no mixed sync/async.
+- All flops emit into a single `always_ff @(posedge clk or negedge rst_n)`
+  block per module.
+
+Multi-clock and CDC-safe handshakes are deferred to a much later phase
+(Phase 6) and are optional even then.
+
+## Why this discipline
+
+A real synchronous digital design — the kind that ships in silicon —
+has exactly this shape: one clock, one reset, all sequential elements
+clocked together. Generating anything else risks producing modules
+that are technically synthesizable but structurally unrealistic, and
+that exercise tooling paths (CDC checks, mixed-edge timing) that are
+out of scope for `anvil`'s mission.
+
+Forcing the discipline by construction — there is no IR field for
+per-flop clock or per-flop reset polarity — guarantees that no random
+choice can violate it.
 
 ## Cone boundaries
 
@@ -59,8 +100,8 @@ controlled by the `--share-prob` knob.
 
 ## Clock and reset
 
-Phase 2 uses exactly one clock and one reset, declared as ports of
-the module:
+Exactly one clock and one reset, declared as ports of the module
+whenever the module contains at least one flop:
 
 ```systemverilog
 module mod_42_0007 (
@@ -71,12 +112,28 @@ module mod_42_0007 (
     output logic [7:0]  o_0,
     ...
 );
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            r_0 <= 8'h0;
+            ...
+        end else begin
+            r_0 <= w_42;
+            ...
+        end
+    end
 ```
 
-Every flop uses `clk`. Every flop with a reset uses `rst_n`. Reset
-kind (sync vs async, present vs absent) is chosen per flop.
+Every flop uses `clk` (posedge). Every flop uses `rst_n`
+(async, active-low). Reset value is chosen per flop, biased toward 0.
+There is no per-flop choice of clock domain or reset polarity — see
+"Synchronous-design discipline" above.
 
-Multi-clock and CDC are explicitly out of scope until Phase 7 (and
+When a module happens to be generated with zero flops, the `clk` and
+`rst_n` ports are omitted from the port list. This avoids spurious
+"unused input" lint warnings on the combinational-only outputs.
+
+Multi-clock and CDC are explicitly out of scope until Phase 6 (and
 optional even then).
 
 ## Combinational cycles
@@ -96,6 +153,6 @@ breaks the loop temporally.
 
 Reset values are chosen randomly per flop, with a bias toward zero
 (zero is by far the most common reset value in real designs). The
-distribution: 50% zero, 25% all-ones, 25% other random value.
+current distribution: 50% zero, 25% all-ones, 25% other random value.
 
 This is a knob if it ever needs tuning, but the default is sensible.

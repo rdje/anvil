@@ -3,7 +3,70 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0003 — Fold flops into the cone recursion (single-clock synchronous discipline)
+
+**What changed**
+- `src/gen/cone.rs`:
+  - New `FlopWorklist` type alias (`Vec<FlopId>`).
+  - `build_cone` now decides between `Gate` and `Flop` at each non-leaf node, gated by `cfg.flop_prob` and `cfg.max_flops_per_module`.
+  - New `build_flop_leaf`: allocates a `Flop`, pushes a `FlopQ` node, queues the flop for D-cone construction, returns Q as the leaf for the current cone.
+  - New `drain_flop_worklist`: pops queued flops one at a time, recursively builds each D-cone with `build_cone_with_retry` (which itself may push more flops); loops to quiescence.
+  - `build_cone_with_retry` now also snapshots/rewinds `m.flops` and the worklist.
+  - All flops use `ResetKind::Async` unconditionally (single-CLK / single-RST_N discipline).
+  - New `pick_reset_value` (50% zero, 25% all-ones, 25% random).
+- `src/gen/module.rs`:
+  - Reserves port id 0 for `clk` and 1 for `rst_n`. Sets `Module.clock` and `Module.reset`. Excludes them from the signal pool so cones cannot terminate at them.
+  - Drains the flop worklist after building all output cones.
+- `src/emit/sv.rs`:
+  - Emits `logic [W-1:0] r_<id>;` for every flop.
+  - Emits a single `always_ff @(posedge clk or negedge rst_n)` block containing all flops, with reset-branch initializing every flop and else-branch sequencing every flop's D.
+  - Conditionally omits `clk`/`rst_n` from the port list when the module has no flops.
+- `src/config.rs`:
+  - `flop_prob` default raised to `0.15` (was `0.0`).
+  - New knob `max_flops_per_module` (default `32`) capping flop count to bound generation time.
+- `book/src/sequential.md`:
+  - Reframed: flops are part of the same cone recursion, not a later phase.
+  - New "Synchronous-design discipline" section spelling out the single-CLK / single-RST_N async constraint.
+  - Updated example `always_ff` block.
+- `ROADMAP.md`:
+  - Phase 1 collapsed: combinational + sequential together. Old Phase 3/5/7 renumbered to new Phase 2/4/6.
+- `USER_GUIDE.md`:
+  - Updated `flop_prob` default.
+  - Documented `max_flops_per_module` knob.
+- `DEVELOPMENT_NOTES.md`:
+  - Added "Synchronous-design discipline" as a core design decision.
+- `CODEBASE_ANALYSIS.md`:
+  - Updated module map for new cone helpers.
+  - Updated phase coverage map (collapse + renumber).
+  - Documented new construction-time invariants (flop allocation, single-clock, clk/rst_n exclusion from pool).
+- `MEMORY.md`:
+  - Recorded `c4668a2`.
+  - Refreshed current state, next-up, open questions, known gaps.
+
+**Why**
+The user pointed out that artificially deferring flops to a later phase contradicts the recursion-as-core-principle stance: Q is just another leaf, D is just another sub-cone, the worklist is the same iterative shell that drives output cones. Folding sequential into Phase 1 also unlocks meaningful synthesis testing — purely combinational random RTL is far less representative of real designs than mixed sequential/combinational.
+
+The single-CLK / single-RST_N (async, active-low) constraint matches real fully-synchronous design practice. Enforcing it by construction (no IR field for per-flop clock or polarity) means no random choice can violate it.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (2 tests pass), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- `cargo run -- --seed 7`: produces a module with `always_ff @(posedge clk or negedge rst_n)`, all flops in one block, async-reset to per-flop reset values.
+- IR validator passes across the 20-seed sweep with flops enabled.
+
+**Impact**
+- Phase 1 is now a meaningful single-module MVP rather than a combinational stub.
+- Generated RTL now includes registered state, which is far more representative for downstream synthesis tooling.
+
+**Files touched**
+`src/config.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `src/emit/sv.rs`, `book/src/sequential.md`, `ROADMAP.md`, `USER_GUIDE.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0002 — Elevate "recursion is the core principle" to load-bearing status
+
+**Commit hash:** `c4668a2`
 
 **What changed**
 - `README.md`: rewrote the project-objective section as **three** load-bearing principles, with recursion as the first. Recursion is now stated explicitly as the default algorithmic shape for any non-trivial generation step.
@@ -23,8 +86,6 @@ The user explicitly stated: "By design, anvil shall be heavily recursive — rec
 
 **Files touched**
 `README.md`, `book/src/core-idea.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
