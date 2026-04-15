@@ -33,6 +33,9 @@ pub struct Config {
 
     // Sequential bounds
     pub max_flops_per_module: u32,
+    pub min_mux_arms: u32,
+    pub max_mux_arms: u32,
+    pub flop_qfeedback_prob: f64,
 
     // Hierarchy (Phase 5+)
     pub hierarchy_depth: u32,
@@ -57,6 +60,9 @@ impl Default for Config {
             flop_prob: 0.15,
             share_prob: 0.0,
             max_flops_per_module: 32,
+            min_mux_arms: 1,
+            max_mux_arms: 4,
+            flop_qfeedback_prob: 0.5,
             terminal_reuse_prob: 0.3,
             constant_prob: 0.1,
             library_prob: 0.5,
@@ -86,6 +92,8 @@ pub enum ConfigError {
     DepthTooSmall,
     #[error("min_width must be >= 1")]
     WidthTooSmall,
+    #[error("invalid mux arms range: min={0}, max={1} (need 1 <= min <= max)")]
+    MuxArmsRange(u32, u32),
 }
 
 impl Config {
@@ -105,12 +113,19 @@ impl Config {
         if self.max_depth < 1 {
             return Err(ConfigError::DepthTooSmall);
         }
+        if self.min_mux_arms < 1 || self.max_mux_arms < self.min_mux_arms {
+            return Err(ConfigError::MuxArmsRange(
+                self.min_mux_arms,
+                self.max_mux_arms,
+            ));
+        }
         for (name, value) in [
             ("flop_prob", self.flop_prob),
             ("share_prob", self.share_prob),
             ("terminal_reuse_prob", self.terminal_reuse_prob),
             ("constant_prob", self.constant_prob),
             ("library_prob", self.library_prob),
+            ("flop_qfeedback_prob", self.flop_qfeedback_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

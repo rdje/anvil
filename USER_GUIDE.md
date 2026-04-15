@@ -51,6 +51,9 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-depth`           | 6        | Maximum cone recursion depth                    |
 | `--flop-prob`           | 0.15     | Probability a cone node becomes a flop          |
 | `--max-flops-per-module`| 32       | Hard cap on flops emitted per module            |
+| `--min-mux-arms`        | 1        | Minimum M for the M-to-1 one-hot mux on flop D  |
+| `--max-mux-arms`        | 4        | Maximum M for the M-to-1 one-hot mux on flop D  |
+| `--flop-qfeedback-prob` | 0.5      | Probability of Q→D feedback when no select fires|
 | `--share-prob`          | 0.0      | Probability of reusing an existing wire (Phase 2)|
 | `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |

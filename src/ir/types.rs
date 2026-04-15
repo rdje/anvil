@@ -127,6 +127,23 @@ pub enum ResetKind {
     Async,
 }
 
+/// The two supported flop motifs. Both have a one-hot M-to-1 mux on D.
+/// They differ in what D becomes when no select bit is asserted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlopKind {
+    /// When all M selects are 0, D = 0 (the flop loads zero next cycle).
+    ZeroDefault,
+    /// When all M selects are 0, D = Q (the flop holds its current value).
+    QFeedback,
+}
+
+/// One arm of a flop's input mux: a data sub-cone + a 1-bit select sub-cone.
+#[derive(Debug, Clone)]
+pub struct MuxArm {
+    pub data: NodeId,
+    pub sel: NodeId,
+}
+
 #[derive(Debug, Clone)]
 pub struct Flop {
     pub id: FlopId,
@@ -135,6 +152,10 @@ pub struct Flop {
     pub q: NodeId,
     pub reset_val: u128,
     pub reset_kind: ResetKind,
+    pub kind: FlopKind,
+    /// M arms, each contributing one data path + one one-hot select bit.
+    /// Filled by `drain_flop_worklist` along with `d`.
+    pub arms: Vec<MuxArm>,
 }
 
 /// Set of primary-input port ids (plus virtual ids for flops) that a node

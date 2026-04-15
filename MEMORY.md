@@ -2,9 +2,8 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
-- **Phase:** Phase 0 done. Phase 1 (Single-module MVP — combinational + sequential) in progress.
-- **Last completed slice:** flops folded into the cone recursion. Single CLK (posedge) + single RST_N (async, active-low) shared by every flop in the module. `always_ff` block emitted. All four checks clean. See `CHANGES.md` entry `2026-04-15-0003`.
-- **Roadmap reorg:** the original Phase 1 (combinational only) and Phase 2 (sequential) collapsed into one Phase 1. Old Phase 3/5/7 renumbered to new Phase 2/4/6.
+- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress with full flop motif support.
+- **Last completed slice:** M-to-1 one-hot mux on flop D, two kinds (ZeroDefault / QFeedback), M ∈ {0, 2..=max_mux_arms}. Each data and select sub-cone is a recursion point with this flop's Q excluded. See `CHANGES.md` entry `2026-04-15-0004`.
 - **Next up:**
   1. Per-gate operand width validation in `src/ir/validate.rs` (still TODO; the most important missing safety net).
   2. Unit tests inside `src/ir/types.rs`, `src/gen/cone.rs`, `src/emit/sv.rs` (today only `tests/pipeline.rs` exercises the stack).
@@ -12,6 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
 
 ## Recent commits
+- `4317c82` — Fold flops into the cone recursion (single-clock synchronous design).
 - `c4668a2` — Elevate "recursion is the core principle" to load-bearing status.
 - `5f6022f` — Initial scaffold + Phase 1 cone-adapter hardening.
 

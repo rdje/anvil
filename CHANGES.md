@@ -3,7 +3,62 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0004 — M-to-1 one-hot mux flops with two motifs
+
+**What changed**
+- `src/ir/types.rs`:
+  - New `FlopKind` enum: `ZeroDefault` (D = 0 when no select fires) and `QFeedback` (D = Q when no select fires).
+  - New `MuxArm { data: NodeId, sel: NodeId }` representing one arm of a flop's input mux.
+  - `Flop` gains `kind: FlopKind` and `arms: Vec<MuxArm>` fields.
+- `src/gen/cone.rs`:
+  - `build_cone_with_retry` and `build_cone` gain an `exclude: Option<NodeId>` parameter threaded into `pick_terminal`. Used to forbid this flop's own Q from being a leaf in any of its data or select sub-cones.
+  - `pick_mux_arm_count` returns M from {0, 2, 3, ..., max_mux_arms}. M = 1 excluded by design (a 1-arm mux is a wire).
+  - `drain_flop_worklist` rewritten:
+    - For M = 0: D = recursive cone of width N (no mux).
+    - For M >= 2: build M data sub-cones (width N) + M select sub-cones (1-bit), every one a recursion point. Assemble `D = OR_i({N{sel_i}} & data_i)`, plus `({N{~(OR sel_i)}} & Q)` for `QFeedback`.
+  - New helpers: `assemble_flop_d`, `replicate_to_width` (N-fold Concat of a 1-bit signal), `make_and`, `make_none_selected`, `or_reduce_terms`.
+  - `build_flop_leaf` picks a random `FlopKind` per flop (`flop_qfeedback_prob` knob).
+- `src/config.rs`:
+  - New knobs: `min_mux_arms` (default 1, becomes effective floor of 2 inside `pick_mux_arm_count`), `max_mux_arms` (default 4), `flop_qfeedback_prob` (default 0.5).
+  - `Config::validate` checks the mux-arm range and the new probability.
+  - New error variant `MuxArmsRange`.
+- `src/gen/module.rs`: passes `None` exclusion for output cones.
+- `book/src/sequential.md`: documents M=0 vs M>=2 cases, both flop kinds, and the Q-exclusion contract enforced via `exclude: Option<NodeId>`.
+- `USER_GUIDE.md`: documents `--min-mux-arms`, `--max-mux-arms`, `--flop-qfeedback-prob` knobs.
+- `CODEBASE_ANALYSIS.md`: module map updated for new helpers; invariants list updated.
+- `MEMORY.md`: state, next-up, recent commits refreshed.
+
+**Why**
+The user specified the precise flop motif `anvil` should generate:
+1. M ∈ {0, 2, 3, ...}. M = 0 means no mux, D recurses directly.
+2. For M >= 2: each of the M data inputs (width N) is a recursion point; each of the M 1-bit select bits is a recursion point. Selects are one-hot (a design contract, not enforced).
+3. Two kinds: `ZeroDefault` (D = 0 on no-select) and `QFeedback` (D = Q on no-select).
+4. The flop's own Q is forbidden from feeding any of its data or select sub-cones — the *only* permitted Q→D path is the explicit Q-feedback term in `QFeedback`.
+
+This produces RTL that resembles real synchronous datapath idioms (one-hot-controlled register banks, holding registers, etc.) rather than generic register-of-arbitrary-cone shapes.
+
+**Validation**
+- `cargo check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- Visual inspection of `seed=3, max-depth=2, flop-prob=1.0` confirms:
+  - `assign w_X = {bit, bit, ..., bit};` (replicate sel_i to N bits)
+  - `assign w_Y = w_X & data_i;` (mask)
+  - `assign w_Z = w_A | w_B;` (OR-reduce arm terms)
+  - For `QFeedback`: extra `~(OR of sels)` term ANDed with Q.
+
+**Impact**
+- Generated flop motifs now match a real-world synchronous-design pattern.
+- Tests run slower (~3-4s for the 20-seed sweep vs ~0.04s previously) due to the M+M sub-cone fan-out per flop. Tolerable; tunable via `max_mux_arms` and `max_flops_per_module`.
+
+**Files touched**
+`src/ir/types.rs`, `src/config.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `book/src/sequential.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0003 — Fold flops into the cone recursion (single-clock synchronous discipline)
+
+**Commit hash:** `4317c82`
 
 **What changed**
 - `src/gen/cone.rs`:
@@ -59,8 +114,6 @@ The single-CLK / single-RST_N (async, active-low) constraint matches real fully-
 
 **Files touched**
 `src/config.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `src/emit/sv.rs`, `book/src/sequential.md`, `ROADMAP.md`, `USER_GUIDE.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

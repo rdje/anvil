@@ -88,7 +88,8 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     // Build an output cone per primary output.
     for out in m.outputs.clone() {
-        let cone_root = cone::build_cone_with_retry(g, &mut m, &mut pool, &mut worklist, out.width);
+        let cone_root =
+            cone::build_cone_with_retry(g, &mut m, &mut pool, &mut worklist, out.width, None);
         m.drives.push((out.id, cone_root));
     }
 
