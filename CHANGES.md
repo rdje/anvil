@@ -3,7 +3,34 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0002 — Elevate "recursion is the core principle" to load-bearing status
+
+**What changed**
+- `README.md`: rewrote the project-objective section as **three** load-bearing principles, with recursion as the first. Recursion is now stated explicitly as the default algorithmic shape for any non-trivial generation step.
+- `book/src/core-idea.md`: prepended a "The single guiding principle: recursion" section before the existing thesis. States that recursion is the default; iteration is the exception (flop worklist, per-output driver loop) and exists only to *kick off* recursive cone construction. Anchors the correctness argument: each recursive call carries its own constraints, which is what makes "valid by construction" hold.
+- `DEVELOPMENT_NOTES.md`: added recursion as the first entry in the "Core design decisions" recap, with a pointer to the new book section.
+- `MEMORY.md`: recorded `5f6022f` (the previous slice's commit hash).
+
+**Why**
+The user explicitly stated: "By design, anvil shall be heavily recursive — recursion is its core principle." The design as implemented already follows this, but the docs only hinted at it. Elevating it to first-class status ensures future contributors do not casually replace recursion with iteration in places where the recursion structure is what guarantees invariant preservation.
+
+**Validation**
+- Docs-only slice; no code changes.
+- `cargo check`, `cargo test`: still clean (no source touched).
+
+**Impact**
+- Future PRs that introduce iterative scaffolding around generation logic should now expect to justify the choice against the "recursion is the default" principle.
+
+**Files touched**
+`README.md`, `book/src/core-idea.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0001 — Initial scaffold + Phase 1 cone-adapter hardening
+
+**Commit hash:** `5f6022f`
 
 **What changed**
 - Created Cargo project `anvil` with binary + library targets.
@@ -64,5 +91,3 @@ The lazy adapter fixes a Phase 1 bug surfaced on the first `cargo test` run: whe
 
 **Files touched**
 All files in the repository (initial creation), plus subsequent edits to `src/gen/cone.rs`, `src/gen/pool.rs`, `tests/pipeline.rs`, `examples/generate_one.rs`.
-
-**Commit hash:** _to be filled in after first commit_

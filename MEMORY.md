@@ -11,7 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. After above: declare Phase 1 done in `ROADMAP.md` and start Phase 2 (sequential).
 
 ## Recent commits
-_First commit pending. Repository will be initialized as part of this commit. Hash to be added here in the next slice's MEMORY update._
+- `5f6022f` — Initial scaffold + Phase 1 cone-adapter hardening.
 
 ## Open questions / deferred decisions
 - Async vs sync reset mix ratio — knob exists (`use_async_reset: bool`); may want a probability instead when Phase 2 lands.

@@ -4,9 +4,10 @@ Single entry point for the project.
 ## Project objective
 `anvil` is a constrained-random generator of **synthesizable SystemVerilog RTL**. It produces syntactically valid, semantically correct, synthesizable, and functionally non-trivial modules by building a typed circuit graph via fanin-cone recursion and emitting SV from it.
 
-**Two non-negotiable properties:**
-1. **Every emitted module is valid by construction**. No generate-then-filter. No post-hoc repair. If a generator output fails semantic validation or synthesis, that is a generator bug, not expected behavior.
-2. **Every output is reproducible**. Byte-identical output for the same `(seed, knobs)` pair, across platforms, forever. Seeded ChaCha8; no `thread_rng`; no wall-clock entropy; no hash-map iteration order in output paths.
+**Three load-bearing principles:**
+1. **Recursion is the core algorithm.** The generator answers one question — *"what drives this signal?"* — and recurses. Every level of abstraction (gate, cone, module, hierarchy) is the same recursion with a richer choice set. Iteration is the exception; recursion is the default. Anything that can be expressed as a recursive descent over a typed circuit graph should be.
+2. **Every emitted module is valid by construction.** No generate-then-filter. No post-hoc repair. If a generator output fails semantic validation or synthesis, that is a generator bug, not expected behavior.
+3. **Every output is reproducible.** Byte-identical output for the same `(seed, knobs)` pair, across platforms, forever. Seeded ChaCha8; no `thread_rng`; no wall-clock entropy; no hash-map iteration order in output paths.
 
 See `ROADMAP.md` for the phased scope (combinational → sequential → sharing → hierarchy → parameterization).
 
