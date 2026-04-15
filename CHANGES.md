@@ -3,7 +3,47 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0020 — Construction-strategies chapter: 4 named strategies, graph-first planned default
+
+**What changed**
+- **NEW `book/src/construction-strategies.md`**. Dedicated chapter under "How It Works" documenting four named strategies for module construction:
+  - **`sequential`** — current behavior: per-output cone recursion in declaration order. Baseline; has declaration-order bias and within-module ordering asymmetry.
+  - **`shuffled`** — per-output cone recursion in a random permutation of declaration order. Removes declaration-order bias; within-module asymmetry randomized per seed.
+  - **`interleaved`** — frames from all cones interleaved via a random-pop work queue; cones grow in lockstep. Near-symmetric within-module sharing.
+  - **`graph-first`** — no per-output cone recursion at all. Grow a gate pool with no output attribution; pick drive-roots from the pool at the end. True symmetric sharing. **Planned default** once implementation lands.
+  Chapter covers: why this is a knob (it shapes the output distribution), per-strategy complexity and tradeoffs, a comparison table, rule-interaction summary (Rules 1, 9, 16 all preserved across strategies), and implementation status.
+- `book/src/SUMMARY.md`: new chapter added under "How It Works" after `algorithm.md`.
+- `book/src/algorithm.md`: strategy note near the top referencing the new chapter so readers know the pseudocode describes `sequential` specifically.
+- `book/src/sharing.md`: cross-output sharing section updated to call out the sequential-order asymmetry as a construction artifact and point to the new chapter.
+- `MEMORY.md`: next-up list reorganized. Construction-strategies machinery is now item 1 (land the knob and implement sequencing); the motif slices (coefficients / shift-amount bias / comparands) follow. Recent-commits list gains `126411d`.
+- `DEVELOPMENT_NOTES.md`: new core design decision entry "Construction strategies" pointing to the book chapter. Captures the load-bearing framing: strategy is how-we-build, not what-we-emit; each strategy has its own output distribution properties.
+
+**Why**
+User flagged that declaration-order asymmetry is a construction artifact, not a design property, and asked for true symmetric sharing. The discussion surfaced three alternatives (shuffled / interleaved / graph-first). User then noted the current behavior deserves a name too — hence four strategies, not three.
+
+The chapter codifies all four as a first-class design choice: what strategy the generator uses is a *per-run knob*, not a hidden implementation detail. Users who want reproducibility of prior outputs pin to `sequential`; users who want maximum realistic sharing use `graph-first` (the planned default). The knob stays unimplemented until the machinery lands, but the doctrine is now fixed.
+
+User's choice of `graph-first` as the default is aligned with the project's overall framing (think in terms of the object — a DAG — not the construction order). `sequential` and `shuffled` keep a per-output-cone construction idiom that is a human-friendly fiction; `graph-first` drops the fiction in favor of the DAG.
+
+**Validation**
+- Documentation-only slice; no source touched.
+- `mdbook build book` succeeds with the new chapter rendered.
+- `cargo check`, `cargo test` (27 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean.
+
+**Impact**
+- The book now documents an explicit four-way knob that governs a major axis of generator behavior. Future sessions have clear guidance on the implementation sequence and which strategy becomes default.
+- The cone-per-output construction idiom remains valid for `sequential`/`shuffled`/`interleaved` but is explicitly retrospective (not construction-time) for `graph-first`. This is doctrine now, not just my preference.
+
+**Files touched**
+`book/src/construction-strategies.md` (new), `book/src/SUMMARY.md`, `book/src/algorithm.md`, `book/src/sharing.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0019 — Rule 16: cross-output sharing via the module-wide signal pool
+
+**Commit hash:** `126411d`
 
 **What changed**
 - `book/src/structural-rules.md`: new Rule 16 "Cross-output sharing via the module-wide signal pool". States that there is no per-output isolation — gates built while constructing output A's cone are immediately available as leaves / DAG-sharing candidates in output B's cone and in every flop's D-cone. Calls out the ordering asymmetry (outputs built in declaration order; later outputs see more sharing candidates) and the combinational-no-loop preservation (Rule 1 holds cross-cone because arena-index monotonicity is module-wide, not per cone).
@@ -26,8 +66,6 @@ The ordering asymmetry (output 0 sees fewer candidates than output N-1) is worth
 
 **Files touched**
 `book/src/structural-rules.md`, `book/src/sharing.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

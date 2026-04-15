@@ -3,6 +3,13 @@
 The heart of `anvil`. Written as pseudocode; the Rust implementation in
 `src/gen/cone.rs` is a direct transcription.
 
+> **Strategy note:** the pseudocode below describes the current
+> `sequential` construction strategy — cones built one output at a
+> time in declaration order. See
+> [Construction Strategies](construction-strategies.md) for the
+> three planned alternatives (`shuffled`, `interleaved`,
+> `graph-first`) and the rationale for picking among them.
+
 ## Module-level generation
 
 ```

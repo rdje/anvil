@@ -13,6 +13,7 @@
 - [The Core Idea](core-idea.md)
 - [Why Not a Grammar?](why-not-grammar.md)
 - [The Fanin Cone Algorithm](algorithm.md)
+- [Construction Strategies](construction-strategies.md)
 - [The Circuit IR](ir.md)
 
 # Correctness Guarantees

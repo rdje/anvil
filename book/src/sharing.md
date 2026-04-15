@@ -97,13 +97,18 @@ while constructing output 0's cone is immediately eligible as a leaf
 or a DAG-sharing candidate inside output 1's cone, output 2's cone,
 and any flop D-cone drained later. There is no per-cone isolation.
 
-Outputs are built in declaration order, so later-declared outputs
-see more sharing candidates than earlier ones. This is an artifact
-of the implementation but matches real-design patterns (later logic
-often consumes earlier-computed intermediates).
+The current `sequential` construction strategy builds outputs in
+declaration order, so later-declared outputs see more sharing
+candidates than earlier ones. That asymmetry is a construction
+artifact, not a design choice. Three alternative strategies —
+`shuffled`, `interleaved`, `graph-first` — are planned for
+future releases; the default will flip to `graph-first` which
+eliminates the asymmetry entirely. See
+[Construction Strategies](construction-strategies.md) for the full
+comparison.
 
 See Rule 16 in the [Structural Rules catalog](structural-rules.md)
-for the authoritative statement.
+for the authoritative statement on cross-cone sharing.
 
 ## No cycles possible
 
