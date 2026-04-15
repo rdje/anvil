@@ -3,7 +3,39 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0024 — Sub coefficient constraint: `ck > 0` for all k
+
+**What changed**
+- `book/src/structural-rules.md` "Roles of constants in RTL" → Coefficient subsection: expanded with per-op shapes and constraints.
+  - Add: `y = s1*c1 + ... + sn*cn`, `ci ≠ 0` for all i (non-zero; positive or negative both legal).
+  - Sub: `y = s1*c1 - s2*c2 - ... - sn*cn` (left-associative), **`ci > 0` for all i** (strictly positive). Rationale in-line: a negative `ci` on a `- sk*ck` term flips to `+ sk*|ck|` — an Add contribution disguised as a Sub term. Zero kills the term. Strictly positive preserves subtractive character.
+  - Mul: shape + constraints TBD (pending user spec).
+- `MEMORY.md` next-up item 1 rewritten to carry the per-op constraints, not just the Add shape.
+- `DEVELOPMENT_NOTES.md` "Roles of constants in RTL" core-decision entry extended with the per-op constraint summary.
+
+**Why**
+User: "This 'Linear-combination ADD motif' shall also be true for SUB too. ck > 0 for all k." The distinction between Add's `ci ≠ 0` (non-zero) and Sub's `ci > 0` (strictly positive) is semantic, not arbitrary — negative coefficients inside a subtractive chain mean the term is an Add contribution rather than a Sub one, which defeats the purpose of generating a Sub-shaped motif.
+
+Logging the clarification now so the next-up motif slice implements the correct per-op constraints without rediscovering them.
+
+**Validation**
+- Documentation-only slice; no source touched.
+- `cargo check`, `cargo test` (35 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean.
+
+**Impact**
+- Coefficient motif implementation now has precise per-op specs for Add and Sub ahead of implementation. Mul remains under-specified until you weigh in.
+- Structural-rules catalog's coefficient section is now the durable reference for the per-op constraint set.
+
+**Files touched**
+`book/src/structural-rules.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0023 — `graph-first` strategy landed, becomes the new default
+
+**Commit hash:** `4085401`
 
 **What changed**
 - `src/config.rs`:
@@ -45,8 +77,6 @@ Landing `graph-first` completes the four-strategy commitment. Users who want the
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `src/gen/module.rs`, `tests/pipeline.rs`, `book/src/construction-strategies.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

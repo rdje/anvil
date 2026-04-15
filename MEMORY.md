@@ -7,7 +7,11 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **All four construction strategies now implemented.** The planned implementation sequence from slices 0020–0023 is complete.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
-  1. **Linear-combination ADD motif (coefficients):** `y = s1*c1 + s2*c2 + ... + sn*cn` where `n` and each `ci` are randomized, `ci ≠ 0` (zero coefficient kills its term). Compound motif: each ADD term is itself a Mul(signal, non-zero constant). Similar shapes for Sub and Mul with their own constraints per user guidance. Knob family: `coefficient_prob`, `min_coefficient`, `max_coefficient`. **Arithmetic only** — coefficients are multiplicative weights. See `book/src/structural-rules.md` "Roles of constants in RTL".
+  1. **Linear-combination coefficient motif for arithmetic:** compound motif where each operator-term is `Mul(signal, constant)`.
+     - **Add:** `y = s1*c1 + s2*c2 + ... + sn*cn`, `ci ≠ 0` for all i (non-zero; can be positive or negative).
+     - **Sub (left-assoc):** `y = s1*c1 - s2*c2 - ... - sn*cn`, `ci > 0` for all i (strictly positive; negative would flip to Add contribution, zero kills term).
+     - **Mul:** shape + constraints TBD (pending user spec).
+     - Knob family: `coefficient_prob`, `min_coefficient`, `max_coefficient`. **Arithmetic only** — coefficients are multiplicative weights. See `book/src/structural-rules.md` "Roles of constants in RTL".
   2. **Shift amounts — constant-vs-variable bias:** shifts `Shl/Shr` today always emit variable-amount (`a << count` with `count` an 8-bit signal — barrel shifter, expensive). Real designs use constant shift amounts predominantly (`a << 2` — wire reroute, cheap). Add a per-shift probability (`const_shift_amount_prob`) of emitting a constant shift amount in `[0, W-1]` instead of a signal. Both modes coexist.
   3. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal (`a == b`, `x < y`). Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive — signal-vs-signal remains the default; comparands add threshold/sentinel patterns on top. No zero-exclusion.
   4. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs for Phase 2 exit.
@@ -15,6 +19,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies with distinct constraints — see `book/src/structural-rules.md` "Roles of constants in RTL". Do not collapse into a single `constant_prob` knob.
 
 ## Recent commits
+- `4085401` — graph-first strategy landed; becomes the new default.
 - `6d2da98` — Interleaved construction strategy: frame state machine.
 - `2d038a9` — Construction-strategy machinery + shuffled strategy landed.
 - `8eb03f0` — Construction-strategies chapter: 4 named strategies, graph-first default.

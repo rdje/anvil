@@ -51,12 +51,25 @@ collapse them under a single "constant_prob" knob.
 ### Coefficient — arithmetic weight
 
 - **Operators:** `Add`, `Sub`, `Mul`.
-- **Role:** multiplicative weight in a linear combination.
-  `y = s1*c1 + s2*c2 + ... + sn*cn`.
-- **Shape:** each term is a compound `Mul(signal, non-zero-constant)`.
-- **Constraints:** for Add, `ci ≠ 0` (a zero weight kills the term
-  and makes it structurally dead). Sub and Mul get their own
-  constraints per their algebra.
+- **Role:** multiplicative weight in a linear combination. Each term
+  of the form `signal * coefficient`.
+- **Shapes:** compound motif. Each term is `Mul(signal, constant)`;
+  the terms are then combined by the top-level operator.
+  - **Add:** `y = s1*c1 + s2*c2 + ... + sn*cn`.
+  - **Sub (left-associative):** `y = s1*c1 - s2*c2 - ... - sn*cn`.
+  - **Mul:** shape TBD (pending spec).
+- **Per-op constraints on `ck`:**
+  - **Add:** `ci ≠ 0` for all i. A zero weight kills its term and
+    makes it structurally dead. Non-zero can be positive *or*
+    negative — negative coefficients are legitimate Add contributions
+    (`s + (-1)*t = s - t` but expressed as a single Add-with-negative-
+    coefficient term).
+  - **Sub:** `ci > 0` for all i — strictly positive. Negative `ci`
+    on a `- sk*ck` term would flip the sign to `+ sk*|ck|`, which is
+    an Add contribution masquerading as a Sub term. Zero kills the
+    term. Strictly positive preserves the subtractive character of
+    the chain.
+  - **Mul:** TBD.
 - **Scope note:** "coefficient" is arithmetic vocabulary. It does
   not apply to shifts, comparisons, or any other op family.
 
