@@ -1,7 +1,11 @@
 //! Core IR types. Every constructor is responsible for preserving its
 //! structural invariants (width consistency, dep-set correctness,
-//! operand arity). The validator in `validate.rs` is a development-time
+//! operand count). The validator in `validate.rs` is a development-time
 //! safety net, not a production gate.
+//!
+//! Vocabulary: "arity" is used only for operators (associative primitives
+//! like `And`, `Add`). Blocks (`Mux`, `Flop`) have "ports" or "arms", not
+//! arity. See `book/src/structural-rules.md` "Operators vs blocks".
 
 use std::collections::BTreeSet;
 

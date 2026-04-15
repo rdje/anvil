@@ -160,22 +160,27 @@ pick_terminal(width, exclude):
 
 ## Width rules per gate
 
-| Gate            | Output width W | Input widths             |
-|-----------------|----------------|--------------------------|
-| `and/or/xor`    | W              | [W, W]                   |
-| `not`           | W              | [W]                      |
-| `+/-/*`         | W              | [W, W]                   |
-| `==/!=/</>/</>` | W = 1          | [K, K] for chosen K      |
-| `mux`           | W              | [1, W, W]                |
-| `slice[hi:lo]`  | W = hi-lo+1    | [K] for K > hi           |
-| `concat`        | W = sum(Wᵢ)    | [W₁, W₂, …]              |
-| unary reduction | W = 1          | [K] for chosen K         |
-| `<</>>`         | W              | [W, any]                 |
+| Gate              | Output width W | Input widths                                |
+|-------------------|----------------|---------------------------------------------|
+| `and/or/xor/+/*`  | W              | [W, W, ...] (N ≥ 2; associative — Rule 14)  |
+| `-`               | W              | [W, W] (strictly 2-arity; not associative)  |
+| `not`             | W              | [W]                                         |
+| `==/!=/</>/</>`   | W = 1          | [K, K] for chosen K                         |
+| `mux`             | W              | [1, W, W]                                   |
+| `slice[hi:lo]`    | W = hi-lo+1    | [K] for K > hi                              |
+| `concat`          | W = sum(Wᵢ)    | [W₁, W₂, …]                                 |
+| unary reduction   | W = 1          | [K] for chosen K                            |
+| `<</>>`           | W              | [W, any]                                    |
 
 Comparisons and reductions are the only ops where the parent width
 does not directly determine input widths; for those, the generator
 picks an internal operand width K freely. Shifts accept any-width
 shift amounts.
+
+The associative operators (`and/or/xor/+/*`) pick an arity N randomly
+from `[cfg.min_gate_arity, cfg.max_gate_arity]` each time they are
+chosen. See `book/src/structural-rules.md` Rule 14 for the full
+operator-vs-block framing.
 
 These rules are enforced both at construction (by
 `input_widths_for`) and at validation (by

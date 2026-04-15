@@ -8,6 +8,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use super::{pool::SignalPool, Generator};
+use crate::config::Config;
 use crate::ir::{
     DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, Module, MuxArm, Node, NodeId, ResetKind,
 };
@@ -410,7 +411,7 @@ pub fn build_cone(
     }
 
     let op = pick_gate(g, width);
-    let operand_widths = input_widths_for(op, width, &mut g.rng);
+    let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
     for w in operand_widths {
         // DAG-sharing fork (Phase 2): with probability share_prob, terminate
@@ -643,10 +644,22 @@ fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     And
 }
 
-fn input_widths_for(op: GateOp, out_w: u32, rng: &mut impl Rng) -> Vec<u32> {
+fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) -> Vec<u32> {
     use GateOp::*;
     match op {
-        And | Or | Xor | Add | Sub | Mul => vec![out_w, out_w],
+        // N-arity associative operators: And/Or/Xor/Add/Mul. N picked from
+        // [min_gate_arity, max_gate_arity]; all operands width == out_w.
+        // N = 2 recovers the classic binary gate.
+        //
+        // Sub is NOT associative — (a - b) - c ≠ a - (b - c). It stays
+        // strictly 2-arity. Chains like `a - b - c` can still arise in
+        // emitted output because multiple 2-arity Sub gates cascade, but
+        // the IR represents each subtraction as its own binary node.
+        And | Or | Xor | Add | Mul => {
+            let n = rng.gen_range(cfg.min_gate_arity..=cfg.max_gate_arity);
+            vec![out_w; n as usize]
+        }
+        Sub => vec![out_w, out_w],
         Not => vec![out_w],
         Mux => vec![1, out_w, out_w],
         Eq | Neq | Lt | Gt | Le | Ge => {

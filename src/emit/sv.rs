@@ -142,14 +142,24 @@ fn node_ref(id: NodeId, m: &Module) -> String {
 fn render_gate(op: GateOp, operands: &[NodeId], m: &Module) -> String {
     use GateOp::*;
     let a = |i: usize| node_ref(operands[i], m);
+    let joined = |sep: &str| -> String {
+        operands
+            .iter()
+            .map(|id| node_ref(*id, m))
+            .collect::<Vec<_>>()
+            .join(sep)
+    };
     match op {
-        And => format!("{} & {}", a(0), a(1)),
-        Or => format!("{} | {}", a(0), a(1)),
-        Xor => format!("{} ^ {}", a(0), a(1)),
-        Not => format!("~{}", a(0)),
-        Add => format!("{} + {}", a(0), a(1)),
+        // N-arity associative ops: join operand refs with the infix symbol.
+        // For N = 2 this recovers the classic binary form.
+        And => joined(" & "),
+        Or => joined(" | "),
+        Xor => joined(" ^ "),
+        Add => joined(" + "),
+        Mul => joined(" * "),
+        // Sub is strictly 2-arity (not associative).
         Sub => format!("{} - {}", a(0), a(1)),
-        Mul => format!("{} * {}", a(0), a(1)),
+        Not => format!("~{}", a(0)),
         Eq => format!("{} == {}", a(0), a(1)),
         Neq => format!("{} != {}", a(0), a(1)),
         Lt => format!("{} < {}", a(0), a(1)),

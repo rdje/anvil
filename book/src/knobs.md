@@ -71,6 +71,16 @@ instead of creating fresh logic.
   `pick_terminal` (the always-prefer-matching-width policy there
   supersedes it); retained for future tuning.
 
+### Operator N-arity
+
+- `min_gate_arity / max_gate_arity` — range for N, the arity of
+  associative operators (`And`, `Or`, `Xor`, `Add`, `Mul`) when they
+  are picked by `build_cone`. Each operator emission draws
+  `N = rand(min_gate_arity..=max_gate_arity)` independently.
+  Defaults `2, 4`. `Sub` is strictly 2-arity (not associative) and
+  is not affected by this range. See Rule 14 in
+  `book/src/structural-rules.md`.
+
 ### Motif mix and termination
 
 - `constant_prob` — probability of emitting a constant terminal when

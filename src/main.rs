@@ -53,6 +53,10 @@ struct Cli {
     flop_qfeedback_prob: Option<f64>,
     #[arg(long)]
     flop_mux_encoding_prob: Option<f64>,
+    #[arg(long)]
+    min_gate_arity: Option<u32>,
+    #[arg(long)]
+    max_gate_arity: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -128,5 +132,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_mux_arms: cli.max_mux_arms,
         flop_qfeedback_prob: cli.flop_qfeedback_prob,
         flop_mux_encoding_prob: cli.flop_mux_encoding_prob,
+        min_gate_arity: cli.min_gate_arity,
+        max_gate_arity: cli.max_gate_arity,
     }
 }

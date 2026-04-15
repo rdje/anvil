@@ -3,7 +3,108 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0015 — N-arity for associative operators + operators-vs-blocks doctrine
+
+**What changed**
+- `src/config.rs`: new knobs `min_gate_arity` (default 2) and
+  `max_gate_arity` (default 4). `Config::validate` enforces `min >= 2`
+  and `max >= min`. New `ConfigError::GateArityRange`. Overrides and
+  `apply_cli_overrides` updated. Comment on the knob explicitly states
+  that arity applies to operators only (And/Or/Xor/Add/Mul), not to
+  blocks; Sub is excluded because it is not associative.
+- `src/main.rs`: new CLI flags `--min-gate-arity` and
+  `--max-gate-arity`, threaded into `Overrides`.
+- `src/gen/cone.rs`: `input_widths_for` now returns N-wide operand
+  lists for `And`, `Or`, `Xor`, `Add`, `Mul` (N drawn from the new
+  knob range). `Sub` remains strictly 2-arity (documented inline with
+  the reason: subtraction is not associative, so N-arity chains
+  `a - b - c` come from cascaded 2-arity nodes, not a single N-arity
+  Sub). Added `use crate::config::Config` so `input_widths_for` can
+  read the new range.
+- `src/emit/sv.rs`: `render_gate` uses a `joined(sep)` helper to emit
+  any-arity infix expressions for the associative ops (`a & b & c`,
+  `a + b + c + d`, etc.). `Sub` retained as the explicit 2-operand
+  form.
+- `src/ir/validate.rs`: `check_gate_shape` accepts `operands.len() >= 2`
+  for the associative ops, exactly 2 for `Sub`. Added 3 tests:
+  - `accepts_nary_and_with_three_operands`
+  - `rejects_and_with_fewer_than_two_operands`
+  - `rejects_nary_add_operand_width_mismatch` (4-way Add with one
+    mismatched-width operand)
+- `src/ir/types.rs`: header doc comment updated; "operand arity"
+  replaced with "operand count", plus a vocabulary-discipline note
+  pointing to the book's operators-vs-blocks preamble.
+- `book/src/structural-rules.md`:
+  - New "Operators vs blocks" preamble up front. Explicit vocabulary
+    discipline: *arity* is operator vocabulary only; *ports / arms /
+    port count* is block vocabulary. Rules grouped by what they
+    govern (combinational integrity / flop block / future mux block
+    / correctness guarantees).
+  - New Rule 14 "Operator N-arity for associative operators". States
+    which ops are associative (And/Or/Xor/Add/Mul), which are not
+    (Sub, comparisons, shifts), and why operator arity is a
+    different kind of generalization than block port-counts.
+  - Rule 10 width table updated: associative ops show `[W, W, ...] (N ≥ 2)`;
+    Sub shown separately as strictly 2-arity.
+  - Mux entry in the unary/special-arity list rewritten to state
+    explicitly that Mux is a block with *ports*, not arity.
+- `book/src/algorithm.md`: width-rules table matches the catalog.
+  Added a sentence explaining that the associative operators draw
+  arity from `cfg.min_gate_arity..=cfg.max_gate_arity`.
+- `book/src/knobs.md`: new "Operator N-arity" subsection documenting
+  the two knobs with the operators-only framing.
+- `USER_GUIDE.md`: two new CLI flags in the knobs table.
+- `DEVELOPMENT_NOTES.md`: new "Operators vs blocks" entry in the core
+  design decisions recap. Points to the book preamble + Rule 14.
+- `CODEBASE_ANALYSIS.md`: invariants list gains the operator N-arity
+  entry with a cross-reference.
+- `MEMORY.md` / `CHANGES.md`: per workflow. Next-up list re-prioritized
+  to queue up the M-to-1 combinational mux block and the linear-
+  combination ADD coefficient motif that the user introduced during
+  this slice's discussion.
+
+**Why**
+Per user direction: let logic and arithmetic operators have random
+arity N ≥ 2 so the generator emits `a & b & c`, `w + x + y + z`, etc.
+Not just 2-input trees. This is straightforward for associative ops
+— grouping doesn't matter algebraically — but doesn't apply to Sub,
+which the user flagged mid-slice. Sub was removed from the associative
+set accordingly.
+
+The deeper outcome of this slice is the operators-vs-blocks doctrine
+that the user made explicit during discussion. Arity is the correct
+word for operators; blocks have ports / arms / port count. Conflating
+the two obscures the fact that operator generalization (N-arity) and
+block generalization (enumerating motif shapes) are fundamentally
+different activities. The book's rule catalog now opens with that
+distinction so future rules land in the right category.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (24 unit + 2 integration =
+  26 tests), `cargo clippy --all-targets -- -D warnings`,
+  `cargo fmt --all --check`: all clean.
+- End-to-end: `cargo run -- --seed 3 --max-depth 3 --max-inputs 3
+  --max-outputs 1 --flop-prob 0 --share-prob 0 --min-gate-arity 3
+  --max-gate-arity 4` produces assign statements like
+  `w_4 = w_2 + w_3 + w_3 + w_3` and `w_5 = w_2 + w_3 + w_2 + w_4`,
+  confirming N-arity in emitted SV.
+
+**Impact**
+- Generated RTL now exhibits N-arity associative operators — closer
+  to typical hand-written logic and arithmetic shapes.
+- The operators-vs-blocks doctrine is now load-bearing and feeds
+  straight into the next two slices' scope.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `src/emit/sv.rs`, `src/ir/validate.rs`, `src/ir/types.rs`, `book/src/structural-rules.md`, `book/src/algorithm.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0014 — Q-feedback rule relaxation + structural-rules catalog
+
+**Commit hash:** `6cbcbff`
 
 **What changed**
 - **Rule change (code):** `src/gen/cone.rs` — three sites in
@@ -80,8 +181,6 @@ to the catalog, not duplicate it — duplication leads to drift.
 
 **Files touched**
 `src/gen/cone.rs`, `book/src/structural-rules.md` (new), `book/src/SUMMARY.md`, `book/src/sequential.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

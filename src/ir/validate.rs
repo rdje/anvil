@@ -121,8 +121,27 @@ fn check_gate_shape(
     };
 
     match op {
-        // Bitwise + arithmetic: 2 operands, all width = out_w.
-        And | Or | Xor | Add | Sub | Mul => {
+        // N-arity associative operators (N >= 2). Every operand's width
+        // matches the output width. N = 2 recovers the classic binary form.
+        // Sub is handled separately because subtraction is not associative.
+        And | Or | Xor | Add | Mul => {
+            if operands.len() < 2 {
+                return Err(arity_err(">= 2"));
+            }
+            for i in 0..operands.len() {
+                if w(i) != out_w {
+                    return Err(ValidateError::GateOperandWidth {
+                        node: id,
+                        op,
+                        operand_idx: i,
+                        expected: out_w,
+                        got: w(i),
+                    });
+                }
+            }
+        }
+        // Sub is strictly 2-arity (not associative).
+        Sub => {
             if operands.len() != 2 {
                 return Err(arity_err("2"));
             }
@@ -446,6 +465,75 @@ mod tests {
         add_output(&mut m, "o", 4, not_id);
         let err = validate(&m).expect_err("wrong-arity Not must be rejected");
         assert!(matches!(err, ValidateError::GateArity { .. }));
+    }
+
+    #[test]
+    fn accepts_nary_and_with_three_operands() {
+        // N-arity associative op: 3-way And with all operands at width 4.
+        let mut m = empty_module();
+        let (pa, na) = add_input(&mut m, "a", 4);
+        let (pb, nb) = add_input(&mut m, "b", 4);
+        let (pc, nc) = add_input(&mut m, "c", 4);
+        let deps = DepSet::union(&[
+            &DepSet::from_port(pa),
+            &DepSet::from_port(pb),
+            &DepSet::from_port(pc),
+        ]);
+        let and_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![na, nb, nc],
+            width: 4,
+            deps,
+        });
+        add_output(&mut m, "o", 4, and_id);
+        validate(&m).expect("3-way And must validate");
+    }
+
+    #[test]
+    fn rejects_and_with_fewer_than_two_operands() {
+        // And with a single operand is below the N >= 2 floor.
+        let mut m = empty_module();
+        let (pa, na) = add_input(&mut m, "a", 4);
+        let and_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![na],
+            width: 4,
+            deps: DepSet::from_port(pa),
+        });
+        add_output(&mut m, "o", 4, and_id);
+        let err = validate(&m).expect_err("1-op And must be rejected");
+        assert!(matches!(err, ValidateError::GateArity { .. }));
+    }
+
+    #[test]
+    fn rejects_nary_add_operand_width_mismatch() {
+        // 4-way Add where one operand has wrong width.
+        let mut m = empty_module();
+        let (pa, na) = add_input(&mut m, "a", 8);
+        let (pb, nb) = add_input(&mut m, "b", 8);
+        let (pc, nc) = add_input(&mut m, "c", 4); // wrong
+        let (pd, nd) = add_input(&mut m, "d", 8);
+        let deps = DepSet::union(&[
+            &DepSet::from_port(pa),
+            &DepSet::from_port(pb),
+            &DepSet::from_port(pc),
+            &DepSet::from_port(pd),
+        ]);
+        let add_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![na, nb, nc, nd],
+            width: 8,
+            deps,
+        });
+        add_output(&mut m, "o", 8, add_id);
+        let err = validate(&m).expect_err("4-way Add with width mismatch must be rejected");
+        assert!(matches!(
+            err,
+            ValidateError::GateOperandWidth { operand_idx: 2, .. }
+        ));
     }
 
     #[test]

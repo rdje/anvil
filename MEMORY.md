@@ -3,14 +3,17 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** Q-feedback rule relaxation and the birth of the structural-rules catalog. Per user direction, a flop's own Q is now freely reachable in its own D-cone sub-cones (any number of times). `exclude = Some(q_node)` dropped from the three flop drainer sites. New `book/src/structural-rules.md` chapter codifies this and every other load-bearing generator invariant (13 rules today). `DEVELOPMENT_NOTES.md` and `CODEBASE_ANALYSIS.md` now point to the catalog instead of inlining rules. See `CHANGES.md` entry `2026-04-15-0014`.
+- **Last completed slice:** N-arity for associative operators. `And`, `Or`, `Xor`, `Add`, `Mul` now emit with N random operands (N ∈ [`cfg.min_gate_arity`, `cfg.max_gate_arity`]); all N operands share the output width. `Sub` is *not* associative and stays strictly 2-arity. New CLI flags `--min-gate-arity`, `--max-gate-arity`. `Config.min_gate_arity=2`, `max_gate_arity=4` defaults. `book/src/structural-rules.md` gains Rule 14 and a new "Operators vs blocks" preamble that codifies the vocabulary: operators have **arity**, blocks have **ports** / **arms**. 3 new validator tests. See `CHANGES.md` entry `2026-04-15-0015`.
+- **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
-  1. Verilator-lint smoke run (still blocked on Verilator availability). Sweep `share_prob ∈ {0.0, 0.3, 0.9}` and both flop styles for Phase 2 exit.
-  2. After Verilator-lint green: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
-  3. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`.
-  4. Optional book polish: add a "Tools this project uses" section linking to Verilator/Yosys for downstream smoke tests; add a FAQ chapter as questions accumulate.
+  1. **M-to-1 combinational mux block.** Promote the flop-D mux assembly helpers (`assemble_flop_d_one_hot`, `assemble_flop_d_encoded`) into general combinational motifs; `build_cone`'s gate picker can emit M-to-1 muxes (OneHot or Encoded) directly. Drops Q-feedback axis (combinational muxes have no Q).
+  2. **Coefficients as arithmetic motif.** Literals as first-class operands for arithmetic operators: `a + 7`, `3 * b`, `x << 2`, `a == LIMIT`. New knobs: `coefficient_prob`, `min_coefficient`, `max_coefficient`. Biased per op: Mul tilts signal×constant; Add/Sub tilts signals±small-constant; shifts take a constant amount.
+  3. Verilator-lint smoke run (still blocked on Verilator availability). Sweep `share_prob ∈ {0.0, 0.3, 0.9}` and both flop styles for Phase 2 exit.
+  4. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`.
+  5. Optional book polish: FAQ chapter as questions accumulate.
 
 ## Recent commits
+- `6cbcbff` — Q-feedback rule relaxation + structural-rules catalog.
 - `bac6060` — mdBook becomes user-facing: Getting Started, Tutorial, Recipes.
 - `62fdeaa` — mdBook staleness refresh: knobs, IR, algorithm, architecture.
 - `c9ec12c` — CLI coverage for all Phase 1/2 motif knobs.

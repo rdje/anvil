@@ -31,6 +31,13 @@ pub struct Config {
     pub gate_compare_weight: u32,
     pub gate_reduce_weight: u32,
 
+    // Operator arity for the associative operators (And/Or/Xor/Add/Mul).
+    // N = rand(min_gate_arity, max_gate_arity), inclusive.
+    // Arity only applies to operators — blocks (mux, flop) have ports,
+    // not arity. Sub is strictly 2-arity (not associative).
+    pub min_gate_arity: u32,
+    pub max_gate_arity: u32,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -60,6 +67,8 @@ impl Default for Config {
             max_nodes_per_module: 1000,
             flop_prob: 0.15,
             share_prob: 0.3,
+            min_gate_arity: 2,
+            max_gate_arity: 4,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -96,6 +105,8 @@ pub enum ConfigError {
     WidthTooSmall,
     #[error("invalid mux arms range: min={0}, max={1} (need 1 <= min <= max)")]
     MuxArmsRange(u32, u32),
+    #[error("invalid gate arity range: min={0}, max={1} (need 2 <= min <= max)")]
+    GateArityRange(u32, u32),
 }
 
 impl Config {
@@ -119,6 +130,12 @@ impl Config {
             return Err(ConfigError::MuxArmsRange(
                 self.min_mux_arms,
                 self.max_mux_arms,
+            ));
+        }
+        if self.min_gate_arity < 2 || self.max_gate_arity < self.min_gate_arity {
+            return Err(ConfigError::GateArityRange(
+                self.min_gate_arity,
+                self.max_gate_arity,
             ));
         }
         for (name, value) in [
@@ -180,6 +197,12 @@ impl Config {
         if let Some(v) = o.flop_mux_encoding_prob {
             self.flop_mux_encoding_prob = v;
         }
+        if let Some(v) = o.min_gate_arity {
+            self.min_gate_arity = v;
+        }
+        if let Some(v) = o.max_gate_arity {
+            self.max_gate_arity = v;
+        }
     }
 }
 
@@ -199,4 +222,6 @@ pub struct Overrides {
     pub max_mux_arms: Option<u32>,
     pub flop_qfeedback_prob: Option<f64>,
     pub flop_mux_encoding_prob: Option<f64>,
+    pub min_gate_arity: Option<u32>,
+    pub max_gate_arity: Option<u32>,
 }
