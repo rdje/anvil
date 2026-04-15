@@ -3,8 +3,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** N-arity anti-collapse + OR-reduce dedup (Rule 8 extended). See `CHANGES.md` entry `2026-04-16-0033`. `violates_anti_collapse` now catches duplicates at any arity for And/Or/Xor via a new `has_duplicate_operand` helper; Add/Mul deliberately exempt. `or_reduce_terms` dedups its input terms before chaining Ors; `make_none_selected` routes through it. Book Rule 8 rewritten. 32 unit + 15 integration = 47 tests. Spot-check across 8 seeds shows zero `x OP x` self-operand chains. Third and final source-of-generation root-cause fix from the defect catalogue.
-- **Prior slice:** Dep-bearing source at elaboration-sensitive positions (Rule 20). See `CHANGES.md` entry `2026-04-16-0032`.
+- **Last completed slice:** Typed per-kind naming in emitted SV (Rule 12 revised). See `CHANGES.md` entry `2026-04-16-0034`. Emitter rewrites: `build_names` assigns each gate `<kind>_<per-kind-counter>` (`and_0`, `mux_3`, `xor_7`, …); flops are `flop_<id>`; the name table threads through `node_ref` / `render_gate`; non-gate nodes resolve as before. Every gate is declared (`wire [W:0] <kind>_N;`) and assigned (`assign <kind>_N = <expr>;`) in the emitter's walk; every flop is declared and assigned likewise inside `always_ff`. Book Rule 12 rewritten. Emitter unit tests updated. 32 unit + 15 integration = 47 tests. Block-level naming deferred (no IR-level block identity today).
+- **Prior slice:** N-arity anti-collapse + OR-reduce dedup (Rule 8 extended). See `CHANGES.md` entry `2026-04-16-0033`.
 - **Doctrinal anchor:** user reinforced that generation must be rule-based (construction-time rules only, no post-hoc filters). Tree-shake / validator-as-gate are off the table. See `feedback_rules_first_generation.md` in session memory. This slice is the template: rule in catalog, invariant in picker.
 - **Prior slice:** Rule 18 proposal + sample-output defect catalogue (docs only). See `CHANGES.md` entry `2026-04-15-0030`. New `priority_encoder_prob` knob (default 0.05) + CLI flag. `pick_priority_encoder_n` finds an N ∈ `[min_mux_arms, max_mux_arms]` with `ceil_log2(N) == target_width`, returns None if none fits. `assemble_priority_encoder` emits a chained ternary `req_0 ? 0 : req_1 ? 1 : ... : 0`. `build_priority_encoder_recursive` and `build_priority_encoder_pool` dispatch helpers. Three dispatch sites (build_cone / process_signal_frame / grow_pool_one_unit) with applicability-check-then-fall-through semantics. Book Rule 17 added. 1 new integration test. 29 unit + 15 integration = 44 tests. See `CHANGES.md` entry `2026-04-15-0029`.
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
@@ -19,6 +19,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   6. Blocked on external tooling: Verilator-lint smoke, Yosys smoke.
 
 ## Recent commits
+- `3544a0c` — N-arity anti-collapse + OR-reduce dedup (Rule 8 extended).
 - `6a9daf5` — Dep-bearing source at elaboration-sensitive positions (Rule 20).
 - `92d43f8` — Coefficient fits operand width (Rule 19).
 - `e6850fc` — Rule 18 proposal + sample-output defect catalogue (docs only).

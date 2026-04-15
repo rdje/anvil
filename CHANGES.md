@@ -3,6 +3,61 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0034 — Typed per-kind naming in emitted SV (Rule 12 revised)
+
+**What changed**
+- `src/emit/sv.rs`:
+  - `build_names(m) -> Vec<Option<String>>`: single-pass walk that
+    assigns each `Node::Gate` a name `<kind>_<counter>` with the
+    counter maintained per `GateOp` kind. Non-gate nodes get
+    `None`.
+  - `gate_kind_name(op) -> &'static str`: canonical lowercase
+    prefix for each `GateOp` variant (`and`, `or`, `xor`, `not`,
+    `add`, `sub`, `mul`, `eq`, `neq`, `lt`, `gt`, `le`, `ge`,
+    `mux`, `slice`, `concat`, `red_and`, `red_or`, `red_xor`,
+    `shl`, `shr`).
+  - `flop_name(id) -> String`: `flop_<id>`.
+  - `node_ref` / `render_gate` threaded with the `&[Option<String>]`
+    name table. Non-gate nodes resolve as before (primary input
+    port name, literal constant, flop Q = `flop_<id>`).
+- Emitter unit tests updated to the new naming: `flop_0` replaces
+  `r_0`; gate references become `and_0`, `xor_0`, `mux_0`,
+  `slice_0`, `concat_0`.
+- `book/src/structural-rules.md`: Rule 12 rewritten — table now
+  shows `<gate_kind>_N` and `flop_N`; lists all kind prefixes;
+  explains per-kind counter rationale; documents SV identifier
+  legality for gate-primitive-prefixed names (`and_0` is a legal
+  identifier distinct from the `and` keyword).
+
+**Why**
+Per user direction — generated SV must be inspectable at a glance.
+The opaque `w_<NodeId>` scheme collapsed all structural variety
+into a uniform wire name; `<kind>_<counter>` makes the gate mix
+visible and aligns emitted SV with the `GateOp` taxonomy already
+used in the IR.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit + 15 integration = **47 tests, all passing**.
+- Spot-check: `cargo run -- --seed 42` now emits
+  `flop_0 … flop_9`, `and_0 … and_N`, `slice_0`, `mux_0`, `concat_0`
+  and similar. No `w_<N>` / `r_<N>` identifiers remain.
+
+**Impact**
+- **Breaking for downstream tools that parsed the old `w_` / `r_`
+  naming.** No users yet; the change is internal to a pre-release
+  generator.
+- Reproducibility contract holds: names are a deterministic
+  function of declaration order, which is itself a deterministic
+  function of `(seed, knobs)`.
+- No IR or generator changes — naming is emission-time only.
+- Block-level names (`priority_encoder_0`, `comb_mux_N`) are
+  deferred: today blocks decompose into gate chains at
+  construction time with no IR-level block identity to attach a
+  name to. Follow-up slice if needed.
+
+---
+
 ## 2026-04-16-0033 — N-arity anti-collapse + OR-reduce dedup (Rule 8 extended)
 
 **What changed**

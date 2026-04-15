@@ -408,19 +408,42 @@ structural.
 **Rule:** Generated names are deterministic, uniform, and collision-free
 within a module.
 
-| Pattern   | Meaning                                        |
-|-----------|------------------------------------------------|
-| `clk`     | Clock input (emitted only when module has flops) |
-| `rst_n`   | Async active-low reset (emitted only with flops) |
-| `i_N`     | Primary data input, `N` counts from 0          |
-| `o_N`     | Primary output, `N` counts from 0              |
-| `w_N`     | Internal gate wire, `N` is the `NodeId`        |
-| `r_N`     | Flop register, `N` is the `FlopId`             |
+| Pattern             | Meaning                                                                    |
+|---------------------|----------------------------------------------------------------------------|
+| `clk`               | Clock input (emitted only when module has flops)                           |
+| `rst_n`             | Async active-low reset (emitted only with flops)                           |
+| `i_N`               | Primary data input, `N` counts from 0                                      |
+| `o_N`               | Primary output, `N` counts from 0                                          |
+| `<gate_kind>_N`     | Internal gate wire. `<gate_kind>` is the lowercase `GateOp` name; `N` counts per-kind from 0. |
+| `flop_N`            | Flop register, `N` is the `FlopId`                                         |
+
+`<gate_kind>` values: `and`, `or`, `xor`, `not`, `add`, `sub`, `mul`,
+`eq`, `neq`, `lt`, `gt`, `le`, `ge`, `mux`, `slice`, `concat`,
+`red_and`, `red_or`, `red_xor`, `shl`, `shr`. Each kind maintains its
+own counter within a module, so `and_0`, `or_0`, `mux_0` can coexist
+in the same module without collision. The per-kind counter is
+assigned during emission by a one-pass walk (`build_names`) over
+`m.nodes` in declaration order, so names are a pure function of
+declaration order — reproducible from the same `(seed, knobs)`.
+
+**Why per-kind and not global:** reading generated SV should make the
+structural shape of the module visible at a glance. A declaration
+block full of `and_0 … and_12; mux_0 … mux_3; flop_0 … flop_9;`
+tells you immediately what kind of logic dominates. An opaque
+`w_0 … w_47` hides it.
+
+**SV identifier legality:** although `and`, `or`, `xor`, `not` are
+reserved gate-primitive keywords in SystemVerilog, identifiers like
+`and_0` are lexed as a single identifier (longest-match) and are
+distinct from the reserved words. The names are legal, synthesizable,
+and unambiguous.
 
 Same `(seed, knobs)` → byte-identical names.
 
-**Where enforced:** `src/emit/sv.rs` — `node_ref`, wire-declaration
-loop, flop-declaration loop.
+**Where enforced:** `src/emit/sv.rs` — `build_names` (per-kind
+counter assignment), `gate_kind_name` (kind → prefix mapping),
+`flop_name` (flop id → `flop_N`), `node_ref` (single source of truth
+for cross-reference), wire-declaration loop, flop-declaration loop.
 
 ---
 

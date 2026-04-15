@@ -132,8 +132,12 @@ src/
 └── emit/
     ├── mod.rs        Re-exports to_sv.
     └── sv.rs         IR → String pretty-printer. Assumes invariants hold.
-                      No validation. No formatting choice beyond fixed
-                      4-space indent and stable name scheme.
+                      No validation. Fixed 4-space indent. Naming:
+                      build_names walks m.nodes once, assigns each
+                      Gate node a `<kind>_<per-kind-counter>` name
+                      (and_0, mux_3, etc.); flops are flop_<id>;
+                      non-gate nodes resolve via node_ref. See Rule 12
+                      in book/src/structural-rules.md.
 ```
 
 ## Dependency direction
