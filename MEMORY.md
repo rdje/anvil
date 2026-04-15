@@ -3,22 +3,22 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** `graph-first` construction strategy landed and is now the default. No per-output cone recursion — three-phase construction: grow a gate pool by `graph_first_pool_size` top-level units with operands picked from the pool (no recursion), drain flop D-cones via pool-only picks (reusing `assemble_flop_d_*` for mux-tree assembly), pick output drive-roots via `pick_terminal`. New `ConstructionStrategy::GraphFirst` variant, `graph_first_pool_size` knob (default 32), CLI flag `--graph-first-pool-size`. `Config::default()` flipped to `GraphFirst`. Three new integration tests: `graph_first_is_default`, `graph_first_reproducibility`, `graph_first_differs_from_sequential`; `all_strategies_produce_valid_modules` extended. 25 unit + 10 integration = 35 tests total. See `CHANGES.md` entry `2026-04-15-0023`.
-- **All four construction strategies now implemented.** The planned implementation sequence from slices 0020–0023 is complete.
+- **Last completed slice:** linear-combination coefficient motif for Add/Sub/Mul landed. `coefficient_prob` (default 0.2), `min_coefficient` (1), `max_coefficient` (15) knobs added with CLI flags. When `pick_gate` returns Add/Sub/Mul and the probability fires, a compound tree is built:
+  - Add: `y = Σ (sᵢ*cᵢ)` — N Mul nodes + one N-arity Add (per-term coefficients).
+  - Sub (left-assoc): `y = (s1*c1) - (s2*c2) - … - (sn*cn)` — N Mul nodes + N-1 chained 2-arity Subs.
+  - Mul: `y = c * s1 * s2 * … * sN` — single N+1-arity Mul with a leading constant; `c == 1` forces `N >= 2`.
+
+  Dispatched from three sites: `build_cone` (sequential/shuffled/interleaved block internals), `process_signal_frame` (interleaved top-level), `grow_pool_one_unit` (graph-first). Signal picking is pool-only for graph-first, recursive for the others. Also added `Mul` to `pick_gate`'s arith bucket (previously absent). 2 new integration tests (`coefficient_motif_emits_compound_shapes`, `coefficient_motif_across_all_strategies`). 25 unit + 12 integration = 37 tests. See `CHANGES.md` entry `2026-04-15-0025`.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
-  1. **Linear-combination coefficient motif for arithmetic:** compound motif where each operator-term is `Mul(signal, constant)`.
-     - **Add:** `y = s1*c1 + s2*c2 + ... + sn*cn`, `ci ≠ 0` for all i (non-zero; can be positive or negative).
-     - **Sub (left-assoc):** `y = s1*c1 - s2*c2 - ... - sn*cn`, `ci > 0` for all i (strictly positive; negative would flip to Add contribution, zero kills term).
-     - **Mul:** shape + constraints TBD (pending user spec).
-     - Knob family: `coefficient_prob`, `min_coefficient`, `max_coefficient`. **Arithmetic only** — coefficients are multiplicative weights. See `book/src/structural-rules.md` "Roles of constants in RTL".
-  2. **Shift amounts — constant-vs-variable bias:** shifts `Shl/Shr` today always emit variable-amount (`a << count` with `count` an 8-bit signal — barrel shifter, expensive). Real designs use constant shift amounts predominantly (`a << 2` — wire reroute, cheap). Add a per-shift probability (`const_shift_amount_prob`) of emitting a constant shift amount in `[0, W-1]` instead of a signal. Both modes coexist.
-  3. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal (`a == b`, `x < y`). Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive — signal-vs-signal remains the default; comparands add threshold/sentinel patterns on top. No zero-exclusion.
-  4. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs for Phase 2 exit.
-  5. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter as questions accumulate.
+  1. **Shift amounts — constant-vs-variable bias:** shifts `Shl/Shr` today always emit variable-amount (`a << count` with `count` an 8-bit signal — barrel shifter, expensive). Real designs use constant shift amounts predominantly. Add a per-shift probability (`const_shift_amount_prob`) of emitting a constant shift amount in `[0, W-1]` instead of a signal. Both modes coexist.
+  2. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal. Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive. No zero-exclusion.
+  3. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs.
+  4. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter as questions accumulate.
   - Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies with distinct constraints — see `book/src/structural-rules.md` "Roles of constants in RTL". Do not collapse into a single `constant_prob` knob.
 
 ## Recent commits
+- `b0f84fd` — Sub coefficient constraint: ck > 0 for all k.
 - `4085401` — graph-first strategy landed; becomes the new default.
 - `6d2da98` — Interleaved construction strategy: frame state machine.
 - `2d038a9` — Construction-strategy machinery + shuffled strategy landed.

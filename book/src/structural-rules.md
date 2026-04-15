@@ -53,23 +53,33 @@ collapse them under a single "constant_prob" knob.
 - **Operators:** `Add`, `Sub`, `Mul`.
 - **Role:** multiplicative weight in a linear combination. Each term
   of the form `signal * coefficient`.
-- **Shapes:** compound motif. Each term is `Mul(signal, constant)`;
-  the terms are then combined by the top-level operator.
-  - **Add:** `y = s1*c1 + s2*c2 + ... + sn*cn`.
-  - **Sub (left-associative):** `y = s1*c1 - s2*c2 - ... - sn*cn`.
-  - **Mul:** shape TBD (pending spec).
-- **Per-op constraints on `ck`:**
-  - **Add:** `ci ≠ 0` for all i. A zero weight kills its term and
-    makes it structurally dead. Non-zero can be positive *or*
-    negative — negative coefficients are legitimate Add contributions
-    (`s + (-1)*t = s - t` but expressed as a single Add-with-negative-
-    coefficient term).
-  - **Sub:** `ci > 0` for all i — strictly positive. Negative `ci`
+- **Shapes:** compound motif.
+  - **Add:** `y = (s1*c1) + (s2*c2) + ... + (sn*cn)`. N `Mul` nodes +
+    one N-arity `Add`. Per-term coefficients.
+  - **Sub (left-associative):** `y = (s1*c1) - (s2*c2) - ... - (sn*cn)`.
+    N `Mul` nodes + N-1 chained 2-arity `Sub` nodes. Per-term
+    coefficients.
+  - **Mul:** `y = c * s1 * s2 * ... * sn`. A *single* coefficient c
+    multiplying all N signals. One N+1-arity `Mul` node whose
+    operands are `[const, s1, s2, ..., sn]`. All operands at the
+    same width W (`bits(s1) == bits(s2) == ... == W`).
+- **Per-op constraints on coefficients:**
+  - **Add:** `ci ≠ 0` for all i (non-zero; a zero weight kills its
+    term and makes it structurally dead). Anvil's implementation
+    draws `ci` from `[min_coefficient, max_coefficient]` (strictly
+    positive); signed-negative coefficients would be expressible as a
+    future extension but today the generator uses positive values.
+  - **Sub:** `ci > 0` for all i — strictly positive. A negative `ci`
     on a `- sk*ck` term would flip the sign to `+ sk*|ck|`, which is
     an Add contribution masquerading as a Sub term. Zero kills the
     term. Strictly positive preserves the subtractive character of
     the chain.
-  - **Mul:** TBD.
+  - **Mul:** `c >= 1`. If `c == 1`, at least 2 signals are required
+    (otherwise `1 * s1 = s1` is structurally dead). When `c >= 2`,
+    a single signal is fine (`c * s1` is a scaled signal).
+- **Knobs:** `coefficient_prob` (per-op probability of emitting the
+  compound form instead of the standard operator; default 0.2),
+  `min_coefficient` (default 1), `max_coefficient` (default 15).
 - **Scope note:** "coefficient" is arithmetic vocabulary. It does
   not apply to shifts, comparisons, or any other op family.
 

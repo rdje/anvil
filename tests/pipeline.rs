@@ -149,6 +149,92 @@ fn graph_first_reproducibility() {
 }
 
 #[test]
+fn coefficient_motif_emits_compound_shapes() {
+    // With coefficient_prob = 1.0 every Add/Sub/Mul emission takes the
+    // linear-combination compound form. On a non-trivial seed sweep
+    // we expect to see:
+    //   - signal*const 2-arity Mul patterns (feeding Add/Sub roots)
+    //   - N-arity Add of product terms (top-level Add compound)
+    //   - chained 2-arity Sub of product terms (top-level Sub compound)
+    //   - N+1-arity Mul with a front constant (top-level Mul compound)
+    // Over a multi-seed sweep at least one seed produces a Mul with a
+    // leading constant operand like `<width>'h<hex> * ...`. This
+    // confirms the motif dispatches on Mul as well as Add/Sub.
+    let mut saw_front_const_mul = false;
+    for seed in 0..16u64 {
+        let cfg = Config {
+            seed,
+            coefficient_prob: 1.0,
+            min_outputs: 2,
+            max_outputs: 2,
+            graph_first_pool_size: 48,
+            construction_strategy: ConstructionStrategy::GraphFirst,
+            ..Config::default()
+        };
+        let m = Generator::new(cfg).generate_module();
+        let sv = anvil::emit::to_sv(&m);
+        // Look for `<width>'h... * w_` — a constant operand at the start
+        // of a multi-operand Mul expression.
+        for line in sv.lines() {
+            if let Some(assign_rhs) = line.trim().strip_prefix("assign ") {
+                // Very loose pattern: "N'h<hex> * w_" or "N'h<hex> * i_"
+                // early in an expression suggests a front-coefficient Mul.
+                if assign_rhs.contains("'h")
+                    && assign_rhs.contains(" * ")
+                    && assign_rhs.matches(" * ").count() >= 2
+                {
+                    // Heuristic: if the first operand after '=' is a
+                    // constant literal and there are >= 2 '*' operators,
+                    // this is a front-coef Mul.
+                    if let Some(eq_rhs) = assign_rhs.split_once('=').map(|(_, r)| r.trim_start()) {
+                        if eq_rhs.starts_with(|c: char| c.is_ascii_digit())
+                            && eq_rhs.contains("'h")
+                        {
+                            saw_front_const_mul = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if saw_front_const_mul {
+            break;
+        }
+    }
+    assert!(
+        saw_front_const_mul,
+        "expected at least one Mul compound (c * s1 * s2 ...) across the seed sweep"
+    );
+}
+
+#[test]
+fn coefficient_motif_across_all_strategies() {
+    // Every strategy must produce valid modules with coefficient_prob=1.0.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                coefficient_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "coefficient_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+        }
+    }
+}
+
+#[test]
 fn graph_first_differs_from_sequential() {
     let base = Config {
         seed: 42,

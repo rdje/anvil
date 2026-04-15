@@ -104,6 +104,17 @@ instead of creating fresh logic.
   `max_mux_arms` knobs (shared with flop D-muxes).
 - No Q-feedback knob for comb muxes — they have no state.
 
+### Coefficient motif (linear combinations)
+
+- `coefficient_prob` — per-op probability (when `build_cone` picks
+  `Add`, `Sub`, or `Mul`) of emitting the linear-combination
+  compound form instead of a standard operator. Default `0.2`.
+  Shapes: Add `y = Σ sᵢ·cᵢ`, Sub `y = s1·c1 − s2·c2 − … − sn·cn`,
+  Mul `y = c · s1 · s2 · … · sn`. See
+  `book/src/structural-rules.md` "Roles of constants in RTL".
+- `min_coefficient / max_coefficient` — strictly-positive integer
+  range for the drawn coefficients. Defaults `1, 15`.
+
 ### Operator N-arity
 
 - `min_gate_arity / max_gate_arity` — range for N, the arity of

@@ -3,7 +3,71 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0025 — Linear-combination coefficient motif for Add / Sub / Mul
+
+**What changed**
+- `src/config.rs`: three new knobs —
+  - `coefficient_prob` (default 0.2): per-op probability that Add/Sub/Mul emits the linear-combination compound form instead of a standard operator.
+  - `min_coefficient` (default 1) and `max_coefficient` (default 15): strictly-positive integer coefficient range.
+  - New `ConfigError::CoefficientRange`; validation enforces `1 <= min <= max`.
+  - Overrides and `apply_cli_overrides` wired for all three.
+- `src/main.rs`: CLI flags `--coefficient-prob`, `--min-coefficient`, `--max-coefficient`.
+- `src/gen/cone.rs`:
+  - Added `Mul` to `pick_gate`'s arith bucket (was absent — so the Mul compound could never previously fire).
+  - New helpers: `make_mul`, `make_sub`, `make_nary_add`, `make_nary_mul`, `pick_coefficient`, `pick_linear_combination_arity`, `pick_mul_coefficient_and_arity`.
+  - New assemblers: `assemble_add_linear_combination` (N Mul + one N-ary Add), `assemble_sub_linear_combination` (N Mul + N-1 chained 2-ary Sub), `assemble_mul_linear_combination` (one N+1-ary Mul with leading constant).
+  - New dispatchers: `build_linear_combination_recursive` (signals via `build_cone`) and `build_linear_combination_pool` (signals via `pick_terminal`).
+  - Three dispatch sites inserted:
+    - `build_cone` (sequential/shuffled paths): after `pick_gate`, before operand loop.
+    - `process_signal_frame` (interleaved): after `pick_gate`, before frame/operand enqueue. Compound tree built synchronously within the frame step (like blocks).
+    - `grow_pool_one_unit` (graph-first): after `pick_gate`, before standard operand pool-pick loop.
+- `tests/pipeline.rs`:
+  - New `coefficient_motif_emits_compound_shapes`: 16-seed sweep at `coefficient_prob=1.0` must produce at least one front-constant Mul expression (`<W>'h<hex> * w_...`).
+  - New `coefficient_motif_across_all_strategies`: all four construction strategies × 5 seeds × `coefficient_prob=1.0` must produce valid IR.
+- `book/src/structural-rules.md` "Roles of constants in RTL" → Coefficient subsection updated with:
+  - Mul shape `y = c * s1 * s2 * … * sn` spelled out.
+  - `c >= 1`; `c == 1` forces `N >= 2`.
+  - Knob list (`coefficient_prob`, `min_coefficient`, `max_coefficient`).
+- `book/src/knobs.md`: new "Coefficient motif (linear combinations)" subsection.
+- `USER_GUIDE.md`: three new CLI flag rows.
+- `CODEBASE_ANALYSIS.md`: `cone.rs` module map extended with the new helpers, assemblers, and dispatchers.
+- `MEMORY.md`: last-completed-slice refreshed; next-up list trimmed — coefficient motif done, shift-amount bias is now item 1.
+
+**Why**
+Per user direction: arithmetic operators benefit from a compound linear-combination motif that emits realistic RTL idioms (`3*a + 2*b + c` for Add, `a*5 - b*3` for Sub, `c * s1 * s2 * s3` for Mul). Constants in this role are **coefficients** (multiplicative weights), distinct from shift amounts or comparands. Per-op constraints:
+- Add: `ci ≠ 0` (non-zero). Implementation uses positive-only.
+- Sub: `ci > 0` (strictly positive). Negative would flip to Add contribution.
+- Mul: single `c >= 1` scalar multiplier; `c == 1` forces `N >= 2` to avoid the dead `1 * s1 = s1` case.
+
+This lands the first of three constant-role motifs (coefficients → shift amounts → comparands) the project committed to. Each has its own knob family per "do not collapse into a single `constant_prob` knob" doctrine.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 12 integration = 37 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- End-to-end spot check at `--coefficient-prob 1.0`:
+  - `assign w_9 = 11'h2 * w_7 * w_7;` (Mul compound, c=2, 2 signals)
+  - `assign w_12 = 26'hc * w_10 * w_10 * w_10 * w_10;` (Mul compound, c=12, 4 signals)
+  - `assign w_49 = 5'hf * w_30 * w_32 * w_47;` (Mul compound, c=15, 3 distinct signals)
+  - `assign w_32 = w_30 * 5'h8; w_34 = w_30 * 5'hc; ... w_44 = w_39 + w_41 + w_43;` (Add compound terms + N-ary sum)
+  - `assign w_22 = w_15 - w_17; w_23 = w_22 - w_19; w_24 = w_23 - w_21;` (Sub compound chain)
+
+**Impact**
+- Generated RTL now routinely contains realistic arithmetic datapath idioms (scaled-sum accumulators, weighted differences, product chains with constant multipliers).
+- `Mul` is now selectable by `pick_gate` (previously omitted from the menu). This also means the non-coefficient Mul path can now emit binary multipliers even when the coefficient motif doesn't fire.
+- Three planned constant-role motifs: one done, two to go (shift amounts, comparands).
+
+**Known simplification**
+- Add's theoretical `ci ≠ 0` allows negative coefficients; the implementation draws positive-only from `[min_coefficient, max_coefficient]`. Signed-negative coefficients are a future extension. Sub's `ci > 0` and Mul's `c >= 1` are honored exactly.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0024 — Sub coefficient constraint: `ck > 0` for all k
+
+**Commit hash:** `b0f84fd`
 
 **What changed**
 - `book/src/structural-rules.md` "Roles of constants in RTL" → Coefficient subsection: expanded with per-op shapes and constraints.
@@ -28,8 +92,6 @@ Logging the clarification now so the next-up motif slice implements the correct 
 
 **Files touched**
 `book/src/structural-rules.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

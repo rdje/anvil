@@ -69,6 +69,19 @@ pub struct Config {
     pub min_gate_arity: u32,
     pub max_gate_arity: u32,
 
+    // Coefficient motif: when `build_cone` picks Add or Sub, with
+    // probability `coefficient_prob` replace the standard operand
+    // recursion with a linear-combination compound:
+    //   Add: y = s1*c1 + s2*c2 + ... + sN*cN
+    //   Sub: y = s1*c1 - s2*c2 - ... - sN*cN  (left-associative)
+    // Each ck is a strictly positive integer drawn from
+    // [min_coefficient, max_coefficient]. N is drawn from
+    // [min_gate_arity, max_gate_arity]. See `book/src/structural-rules.md`
+    // "Roles of constants in RTL".
+    pub coefficient_prob: f64,
+    pub min_coefficient: u32,
+    pub max_coefficient: u32,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -113,6 +126,9 @@ impl Default for Config {
             share_prob: 0.3,
             min_gate_arity: 2,
             max_gate_arity: 4,
+            coefficient_prob: 0.2,
+            min_coefficient: 1,
+            max_coefficient: 15,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -155,6 +171,8 @@ pub enum ConfigError {
     MuxArmsRange(u32, u32),
     #[error("invalid gate arity range: min={0}, max={1} (need 2 <= min <= max)")]
     GateArityRange(u32, u32),
+    #[error("invalid coefficient range: min={0}, max={1} (need 1 <= min <= max)")]
+    CoefficientRange(u32, u32),
 }
 
 impl Config {
@@ -186,6 +204,12 @@ impl Config {
                 self.max_gate_arity,
             ));
         }
+        if self.min_coefficient < 1 || self.max_coefficient < self.min_coefficient {
+            return Err(ConfigError::CoefficientRange(
+                self.min_coefficient,
+                self.max_coefficient,
+            ));
+        }
         for (name, value) in [
             ("flop_prob", self.flop_prob),
             ("share_prob", self.share_prob),
@@ -196,6 +220,7 @@ impl Config {
             ("flop_mux_encoding_prob", self.flop_mux_encoding_prob),
             ("comb_mux_prob", self.comb_mux_prob),
             ("comb_mux_encoding_prob", self.comb_mux_encoding_prob),
+            ("coefficient_prob", self.coefficient_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -265,6 +290,15 @@ impl Config {
         if let Some(v) = o.graph_first_pool_size {
             self.graph_first_pool_size = v;
         }
+        if let Some(v) = o.coefficient_prob {
+            self.coefficient_prob = v;
+        }
+        if let Some(v) = o.min_coefficient {
+            self.min_coefficient = v;
+        }
+        if let Some(v) = o.max_coefficient {
+            self.max_coefficient = v;
+        }
     }
 }
 
@@ -290,4 +324,7 @@ pub struct Overrides {
     pub comb_mux_encoding_prob: Option<f64>,
     pub construction_strategy: Option<ConstructionStrategy>,
     pub graph_first_pool_size: Option<u32>,
+    pub coefficient_prob: Option<f64>,
+    pub min_coefficient: Option<u32>,
+    pub max_coefficient: Option<u32>,
 }

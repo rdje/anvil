@@ -94,6 +94,13 @@ src/
 │   │                 build_comb_mux_pool_only +
 │   │                 drain_flop_worklist_pool_only. No recursion
 │   │                 anywhere — every sub-cone is a pool pick.
+│   │                 Coefficient motif: when pick_gate returns
+│   │                 Add/Sub/Mul and coefficient_prob fires,
+│   │                 build_linear_combination_{recursive,pool}
+│   │                 assembles a compound tree via
+│   │                 assemble_add_linear_combination /
+│   │                 assemble_sub_linear_combination /
+│   │                 assemble_mul_linear_combination.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.

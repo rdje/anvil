@@ -161,6 +161,17 @@ fn grow_pool_one_unit(
     }
 
     let op = pick_gate(g, width);
+
+    // Coefficient motif (pool-only signal picks). Same doctrine as the
+    // recursive path: Add/Sub/Mul with coefficient_prob probability
+    // becomes a linear-combination compound.
+    if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
+        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+    {
+        build_linear_combination_pool(g, m, pool, op, width);
+        return true;
+    }
+
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     for _ in 0..4 {
         let operands: Vec<NodeId> = operand_widths
@@ -382,6 +393,28 @@ fn process_signal_frame(
     // one SignalFrame per operand slot. The gate finalizes when its
     // last operand resolves (see `deliver`).
     let op = pick_gate(g, frame.width);
+
+    // Coefficient motif: Add/Sub/Mul with coefficient_prob becomes a
+    // compound linear-combination tree. Built synchronously within
+    // this frame step (the tree itself is atomic; its signal leaves
+    // come from recursive build_cone just like block internals).
+    if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
+        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+    {
+        let node = build_linear_combination_recursive(
+            g,
+            m,
+            pool,
+            worklist,
+            op,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        );
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
     let operand_widths = input_widths_for(op, frame.width, &g.cfg, &mut g.rng);
     let n_ops = operand_widths.len();
     let frame_id = gate_frames.len();
@@ -738,6 +771,241 @@ fn make_and(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
     node_id
 }
 
+fn make_mul(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
+    let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Mul,
+        operands: vec![a, b],
+        width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, width, deps);
+    node_id
+}
+
+fn make_sub(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
+    let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Sub,
+        operands: vec![a, b],
+        width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, width, deps);
+    node_id
+}
+
+/// N-arity Add with all operands at `width`. N must be >= 2.
+fn make_nary_add(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], width: u32) -> NodeId {
+    debug_assert!(operands.len() >= 2);
+    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Add,
+        operands: operands.to_vec(),
+        width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, width, deps);
+    node_id
+}
+
+/// N-arity Mul with all operands at `width`. N must be >= 2.
+fn make_nary_mul(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], width: u32) -> NodeId {
+    debug_assert!(operands.len() >= 2);
+    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op: GateOp::Mul,
+        operands: operands.to_vec(),
+        width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, width, deps);
+    node_id
+}
+
+/// Draw a strictly positive coefficient from the configured range.
+fn pick_coefficient(g: &mut Generator) -> u128 {
+    let coef_min = g.cfg.min_coefficient.max(1);
+    let coef_max = g.cfg.max_coefficient.max(coef_min);
+    g.rng.gen_range(coef_min..=coef_max) as u128
+}
+
+/// Pick the term count N for the Add/Sub linear-combination motif.
+/// Drawn from `[min_gate_arity, max_gate_arity]`.
+fn pick_linear_combination_arity(g: &mut Generator) -> u32 {
+    let min_n = g.cfg.min_gate_arity;
+    let max_n = g.cfg.max_gate_arity.max(min_n);
+    g.rng.gen_range(min_n..=max_n)
+}
+
+/// For Mul: pick coefficient and signal count jointly. `c == 1` forces
+/// `n >= 2` (otherwise `1 * s1 = s1` is structurally dead). Returns
+/// `(coef, n_signals)`.
+fn pick_mul_coefficient_and_arity(g: &mut Generator) -> (u128, u32) {
+    let coef = pick_coefficient(g);
+    let min_n = if coef == 1 {
+        g.cfg.min_gate_arity.max(2)
+    } else {
+        g.cfg.min_gate_arity.max(1)
+    };
+    let max_n = g.cfg.max_gate_arity.max(min_n);
+    let n = g.rng.gen_range(min_n..=max_n);
+    (coef, n)
+}
+
+/// Assemble `y = (s1*c1) + (s2*c2) + ... + (sn*cn)` — N `Mul` nodes
+/// plus one N-arity `Add`. Coefficients drawn per-term.
+fn assemble_add_linear_combination(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    signals: &[NodeId],
+) -> NodeId {
+    debug_assert!(!signals.is_empty());
+    let mut terms: Vec<NodeId> = Vec::with_capacity(signals.len());
+    for &s in signals {
+        let coef = pick_coefficient(g);
+        let const_node = make_constant(m, pool, width, coef);
+        terms.push(make_mul(m, pool, s, const_node, width));
+    }
+    if terms.len() == 1 {
+        return terms[0];
+    }
+    make_nary_add(m, pool, &terms, width)
+}
+
+/// Assemble `y = (s1*c1) - (s2*c2) - ... - (sn*cn)` — N `Mul` nodes
+/// plus `N-1` chained 2-arity `Sub` nodes (left-associative).
+/// Coefficients strictly positive per-term.
+fn assemble_sub_linear_combination(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    signals: &[NodeId],
+) -> NodeId {
+    debug_assert!(!signals.is_empty());
+    let mut terms: Vec<NodeId> = Vec::with_capacity(signals.len());
+    for &s in signals {
+        let coef = pick_coefficient(g);
+        let const_node = make_constant(m, pool, width, coef);
+        terms.push(make_mul(m, pool, s, const_node, width));
+    }
+    if terms.len() == 1 {
+        return terms[0];
+    }
+    let mut acc = terms[0];
+    for &t in &terms[1..] {
+        acc = make_sub(m, pool, acc, t, width);
+    }
+    acc
+}
+
+/// Assemble `y = c * s1 * s2 * ... * sN` as a single N+1-arity `Mul`
+/// node. Caller supplies the pre-drawn coefficient (must be >= 1) and
+/// signal list (must have `>= 2` entries when `c == 1`).
+fn assemble_mul_linear_combination(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    coef: u128,
+    signals: &[NodeId],
+) -> NodeId {
+    debug_assert!(!signals.is_empty());
+    debug_assert!(
+        coef != 1 || signals.len() >= 2,
+        "c == 1 requires >= 2 signals"
+    );
+    let const_node = make_constant(m, pool, width, coef);
+    let mut operands: Vec<NodeId> = Vec::with_capacity(signals.len() + 1);
+    operands.push(const_node);
+    operands.extend_from_slice(signals);
+    make_nary_mul(m, pool, &operands, width)
+}
+
+/// Dispatch for the coefficient motif when signal picking is via the
+/// recursive `build_cone` path (sequential / shuffled / interleaved
+/// block-internals). Selects N (and coefficient for Mul), builds
+/// signals recursively, then calls the appropriate assembler.
+fn build_linear_combination_recursive(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    op: GateOp,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> NodeId {
+    match op {
+        GateOp::Add => {
+            let n = pick_linear_combination_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
+                .collect();
+            assemble_add_linear_combination(g, m, pool, width, &signals)
+        }
+        GateOp::Sub => {
+            let n = pick_linear_combination_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
+                .collect();
+            assemble_sub_linear_combination(g, m, pool, width, &signals)
+        }
+        GateOp::Mul => {
+            let (coef, n) = pick_mul_coefficient_and_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
+                .collect();
+            assemble_mul_linear_combination(m, pool, width, coef, &signals)
+        }
+        _ => unreachable!("build_linear_combination_recursive: op must be Add/Sub/Mul"),
+    }
+}
+
+/// Dispatch for the coefficient motif when signal picking is pool-only
+/// (graph-first strategy). Same shapes as the recursive variant, but
+/// signals come from `pick_terminal` instead of `build_cone`.
+fn build_linear_combination_pool(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    op: GateOp,
+    width: u32,
+) -> NodeId {
+    match op {
+        GateOp::Add => {
+            let n = pick_linear_combination_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| pick_terminal(g, m, pool, width, None))
+                .collect();
+            assemble_add_linear_combination(g, m, pool, width, &signals)
+        }
+        GateOp::Sub => {
+            let n = pick_linear_combination_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| pick_terminal(g, m, pool, width, None))
+                .collect();
+            assemble_sub_linear_combination(g, m, pool, width, &signals)
+        }
+        GateOp::Mul => {
+            let (coef, n) = pick_mul_coefficient_and_arity(g);
+            let signals: Vec<NodeId> = (0..n)
+                .map(|_| pick_terminal(g, m, pool, width, None))
+                .collect();
+            assemble_mul_linear_combination(m, pool, width, coef, &signals)
+        }
+        _ => unreachable!("build_linear_combination_pool: op must be Add/Sub/Mul"),
+    }
+}
+
 /// `none_selected = ~(sel_0 | sel_1 | ... | sel_{M-1})`.
 /// 1-bit output, 1 when no select is asserted.
 fn make_none_selected(m: &mut Module, pool: &mut SignalPool, arms: &[MuxArm]) -> NodeId {
@@ -816,6 +1084,17 @@ pub fn build_cone(
     }
 
     let op = pick_gate(g, width);
+
+    // Coefficient motif: when the picked op is Add / Sub / Mul and the
+    // per-op probability fires, emit a linear-combination compound tree
+    // (see `book/src/structural-rules.md` "Roles of constants in RTL").
+    // Signals are picked via the usual recursive path.
+    if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
+        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+    {
+        return build_linear_combination_recursive(g, m, pool, worklist, op, width, depth, exclude);
+    }
+
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
     for w in operand_widths {
@@ -1097,7 +1376,7 @@ fn make_width_adapter(
 fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     use GateOp::*;
     let bitwise: &[GateOp] = &[And, Or, Xor, Not];
-    let arith: &[GateOp] = &[Add, Sub];
+    let arith: &[GateOp] = &[Add, Sub, Mul];
     let structured: &[GateOp] = &[Mux];
     let compare: &[GateOp] = if target_width == 1 {
         &[Eq, Neq, Lt]

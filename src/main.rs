@@ -70,6 +70,18 @@ struct Cli {
     /// grown in the pool by the `graph-first` strategy.
     #[arg(long)]
     graph_first_pool_size: Option<u32>,
+    /// Per-op probability (when build_cone picks Add / Sub / Mul) of
+    /// emitting the linear-combination compound motif instead of a
+    /// standard operator. See `book/src/structural-rules.md` "Roles of
+    /// constants in RTL".
+    #[arg(long)]
+    coefficient_prob: Option<f64>,
+    /// Minimum coefficient value for the linear-combination motif.
+    #[arg(long)]
+    min_coefficient: Option<u32>,
+    /// Maximum coefficient value for the linear-combination motif.
+    #[arg(long)]
+    max_coefficient: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -151,5 +163,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         comb_mux_encoding_prob: cli.comb_mux_encoding_prob,
         construction_strategy: cli.construction_strategy,
         graph_first_pool_size: cli.graph_first_pool_size,
+        coefficient_prob: cli.coefficient_prob,
+        min_coefficient: cli.min_coefficient,
+        max_coefficient: cli.max_coefficient,
     }
 }
