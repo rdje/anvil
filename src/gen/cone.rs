@@ -403,11 +403,18 @@ pub fn build_cone(
         return pick_terminal(g, m, pool, width, exclude);
     }
 
-    // Recursion fork: gate vs flop. Flop is allowed up to a per-module cap.
+    // Recursion fork: flop block, comb-mux block, or operator gate.
+    // Blocks take priority over operator gates. Ordering between flop
+    // and comb-mux is first-come by their independent probability rolls.
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
     let pick_flop = flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0));
     if pick_flop {
         return build_flop_leaf(g, m, pool, worklist, width);
+    }
+
+    let pick_comb_mux = g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0));
+    if pick_comb_mux {
+        return build_comb_mux(g, m, pool, worklist, width, depth, exclude);
     }
 
     let op = pick_gate(g, width);
@@ -451,6 +458,90 @@ pub fn build_cone(
 /// Allocate a flop and a `FlopQ` node. The Q is returned (and added to
 /// the pool) as the leaf for the current cone. The flop's D-cone is
 /// queued for later construction by `drain_flop_worklist`.
+/// Build an M-to-1 combinational mux block.
+///
+/// A *block* (not an operator — see `book/src/structural-rules.md`):
+/// ports are M data inputs (width W) + 1 select (1-bit × M for
+/// OneHot, ceil(log2(M))-bit for Encoded). No Q-feedback axis because
+/// combinational muxes have no state.
+///
+/// When no select asserts (OneHot) or select is out of range
+/// (Encoded, when M is not a power of 2), output is 0.
+fn build_comb_mux(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+
+    let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
+    if encoded {
+        build_comb_mux_encoded(g, m, pool, worklist, width, depth, exclude, n_arms)
+    } else {
+        build_comb_mux_one_hot(g, m, pool, worklist, width, depth, exclude, n_arms)
+    }
+}
+
+fn build_comb_mux_one_hot(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+    n_arms: u32,
+) -> NodeId {
+    let mut arms: Vec<MuxArm> = Vec::with_capacity(n_arms as usize);
+    for _ in 0..n_arms {
+        let data = build_cone(g, m, pool, worklist, width, depth + 1, exclude);
+        let sel = build_cone(g, m, pool, worklist, 1, depth + 1, exclude);
+        arms.push(MuxArm { data, sel });
+    }
+    // Assemble D = OR_i({W{sel_i}} & data_i). No Q-feedback term —
+    // combinational muxes have no state, so "no select fires" yields 0.
+    let mut term_nodes: Vec<NodeId> = Vec::with_capacity(arms.len());
+    for arm in &arms {
+        let mask = replicate_to_width(m, pool, arm.sel, width);
+        let term = make_and(m, pool, mask, arm.data, width);
+        term_nodes.push(term);
+    }
+    or_reduce_terms(m, pool, &term_nodes, width)
+}
+
+fn build_comb_mux_encoded(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+    n_arms: u32,
+) -> NodeId {
+    let sel_width = ceil_log2(n_arms);
+    let sel = build_cone(g, m, pool, worklist, sel_width, depth + 1, exclude);
+    let mut datas: Vec<NodeId> = Vec::with_capacity(n_arms as usize);
+    for _ in 0..n_arms {
+        datas.push(build_cone(g, m, pool, worklist, width, depth + 1, exclude));
+    }
+    // Assemble chained ternary: (sel==0)? data_0 : (sel==1)? data_1 : ... : 0.
+    let fall_through = make_constant(m, pool, width, 0);
+    let mut tail = fall_through;
+    for idx_rev in 0..n_arms {
+        let idx = n_arms - 1 - idx_rev;
+        let eq = make_eq_const(m, pool, sel, sel_width, idx as u128);
+        tail = make_mux(m, pool, eq, datas[idx as usize], tail, width);
+    }
+    tail
+}
+
 fn build_flop_leaf(
     g: &mut Generator,
     m: &mut Module,
@@ -824,6 +915,42 @@ mod tests {
                 assert!(operands.iter().all(|&id| id == src));
             }
             other => panic!("expected Concat, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn comb_mux_block_produces_valid_output() {
+        // Force every non-leaf recursion point into a comb-mux block.
+        // Verify it still produces an IR-valid module (width rules
+        // correct, no trivial outputs, etc.) across a seed sweep.
+        let base = Config {
+            comb_mux_prob: 1.0,
+            flop_prob: 0.0,
+            share_prob: 0.0,
+            max_depth: 3,
+            min_inputs: 3,
+            max_inputs: 3,
+            min_outputs: 2,
+            max_outputs: 2,
+            min_width: 4,
+            max_width: 8,
+            min_mux_arms: 2,
+            max_mux_arms: 3,
+            ..Config::default()
+        };
+        for seed in 0..10u64 {
+            for enc_prob in [0.0, 1.0] {
+                let cfg = Config {
+                    seed,
+                    comb_mux_encoding_prob: enc_prob,
+                    ..base.clone()
+                };
+                let mut gen = Generator::new(cfg);
+                let m = gen.generate_module();
+                crate::ir::validate::validate(&m).unwrap_or_else(|e| {
+                    panic!("seed {seed} enc={enc_prob} comb-mux: validation failed: {e}")
+                });
+            }
         }
     }
 

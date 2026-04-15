@@ -69,6 +69,22 @@ to use the encoded-select (chained-ternary) style. `--max-mux-arms 8`
 gives enough arms that `ceil(log2(M))` select widths of 2 and 3 both
 appear.
 
+## "I want combinational muxes, not just flop D-muxes"
+
+The same OneHot / Encoded styles used for flop D-muxes are available
+as first-class combinational blocks. Crank `--comb-mux-prob` to make
+them show up routinely:
+
+```bash
+anvil --seed 5 --max-depth 5 --comb-mux-prob 0.4 \
+      --comb-mux-encoding-prob 0.5 \
+      --min-mux-arms 2 --max-mux-arms 4
+```
+
+`--comb-mux-prob 0.4` means ~40% of non-leaf recursion points
+become M-to-1 combinational muxes. Use `--comb-mux-encoding-prob
+0.0` to force OneHot only, `1.0` for Encoded only.
+
 ## "I want stress on the one-hot mux OR-tree"
 
 The mirror of the previous recipe:

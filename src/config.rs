@@ -44,6 +44,8 @@ pub struct Config {
     pub max_mux_arms: u32,
     pub flop_qfeedback_prob: f64,
     pub flop_mux_encoding_prob: f64,
+    pub comb_mux_prob: f64,
+    pub comb_mux_encoding_prob: f64,
 
     // Hierarchy (Phase 5+)
     pub hierarchy_depth: u32,
@@ -74,6 +76,8 @@ impl Default for Config {
             max_mux_arms: 4,
             flop_qfeedback_prob: 0.5,
             flop_mux_encoding_prob: 0.5,
+            comb_mux_prob: 0.1,
+            comb_mux_encoding_prob: 0.5,
             terminal_reuse_prob: 0.3,
             constant_prob: 0.1,
             library_prob: 0.5,
@@ -146,6 +150,8 @@ impl Config {
             ("library_prob", self.library_prob),
             ("flop_qfeedback_prob", self.flop_qfeedback_prob),
             ("flop_mux_encoding_prob", self.flop_mux_encoding_prob),
+            ("comb_mux_prob", self.comb_mux_prob),
+            ("comb_mux_encoding_prob", self.comb_mux_encoding_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -203,6 +209,12 @@ impl Config {
         if let Some(v) = o.max_gate_arity {
             self.max_gate_arity = v;
         }
+        if let Some(v) = o.comb_mux_prob {
+            self.comb_mux_prob = v;
+        }
+        if let Some(v) = o.comb_mux_encoding_prob {
+            self.comb_mux_encoding_prob = v;
+        }
     }
 }
 
@@ -224,4 +236,6 @@ pub struct Overrides {
     pub flop_mux_encoding_prob: Option<f64>,
     pub min_gate_arity: Option<u32>,
     pub max_gate_arity: Option<u32>,
+    pub comb_mux_prob: Option<f64>,
+    pub comb_mux_encoding_prob: Option<f64>,
 }

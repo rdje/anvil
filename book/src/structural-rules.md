@@ -47,10 +47,10 @@ The rules below are grouped by what they govern:
 - **Block: flop:** Rules 2, 3, 4, 5, 6, 7 — Q-feedback, mux-term,
   clk/rst_n visibility, single-clock discipline, single-drive, M
   arity exclusions.
-- **Block: mux (combinational, future):** placeholder — will land
-  as its own rule family when M-to-1 combinational muxes become a
-  first-class motif (today, M-to-1 muxes exist only as compound gate
-  trees inside flop D-inputs; see Rules 2–3).
+- **Block: mux (combinational):** Rule 15 — M-to-1 mux with
+  OneHot or Encoded select; no Q-feedback axis (combinational muxes
+  have no state). Built as a compound gate tree like the flop D-mux
+  helpers, minus the Q-feedback terms.
 - **Correctness guarantees:** Rules 9, 11, 12, 13 — non-triviality;
   synthesizable subset; deterministic naming; reproducibility.
 
@@ -299,6 +299,43 @@ output.
 RNG construction point. Tests: `tests/pipeline.rs::reproducibility`.
 
 ---
+
+---
+
+## 15 — M-to-1 combinational mux block
+
+**Rule:** A combinational mux is a *block* (not an operator) with
+ports: M data inputs (width W) plus a select. Two encoding styles
+are supported, chosen per-mux via `comb_mux_encoding_prob`:
+
+- **OneHot:** M independent 1-bit select signals, one per data arm.
+  D = `OR_i({W{sel_i}} & data_i)`. When no select asserts, D = 0.
+- **Encoded:** a single `ceil(log2(M))`-bit select bus.
+  D = `(sel==0)? data_0 : (sel==1)? data_1 : ... : (sel==M-1)? data_{M-1} : 0`.
+  When M is not a power of 2 and sel is out of range, D = 0.
+
+M is drawn from `[max(2, min_mux_arms), max_mux_arms]`. M = 1 is
+excluded (Rule 7 rationale). M = 0 is excluded for combinational
+muxes — unlike flops where M = 0 means "direct-D with no mux", a
+combinational mux has no fall-back semantic without state.
+
+**No Q-feedback axis:** combinational muxes have no state, so there
+is no `QFeedback` kind. Any Q-feedback-style pattern arises only
+when a flop's D-cone contains a comb mux whose inputs reference the
+flop's Q — which is permitted freely by Rule 2.
+
+**Block, not operator:** the Mux has ports (data_0..data_{M-1}, sel),
+not arity. M is a port count parameter, not an N-arity. The per-mux
+encoding choice (OneHot vs Encoded) and the per-mux M are structural
+parameters enumerating *motif shapes* — see the "Operators vs blocks"
+preamble.
+
+**Where enforced:** `src/gen/cone.rs` — `build_comb_mux`,
+`build_comb_mux_one_hot`, `build_comb_mux_encoded`. The same helpers
+`replicate_to_width`, `make_and`, `or_reduce_terms`, `make_eq_const`,
+`make_mux`, `make_constant` as the flop D-mux path, minus the
+Q-feedback terms. Validator: `check_gate_shape` verifies each
+emitted primitive (And, Or, Eq, Mux, Concat) independently.
 
 ---
 

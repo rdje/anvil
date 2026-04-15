@@ -46,8 +46,13 @@ src/
 │   │                 build a cone per primary output.
 │   ├── cone.rs       Fanin-cone recursion (combinational + sequential).
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
-│   │                 drain_flop_worklist, build_cone (all carry an
-│   │                 `exclude: Option<NodeId>` for Q-feedback isolation).
+│   │                 drain_flop_worklist, build_cone.
+│   │                 build_cone branches: flop block (build_flop_leaf),
+│   │                 comb-mux block (build_comb_mux / *_one_hot /
+│   │                 *_encoded), operator gate (pick_gate +
+│   │                 input_widths_for). Both block branches pick
+│   │                 style and arms via the shared min/max_mux_arms
+│   │                 knob.
 │   │                 Per-flop drain: drain_flop_one_hot, drain_flop_encoded.
 │   │                 Helpers: build_flop_leaf, pick_reset_value,
 │   │                 pick_mux_arm_count (M ∈ {0, 2..=max}),
@@ -62,7 +67,8 @@ src/
 │   │                 Q is a leaf in the current cone; D opens either
 │   │                 a direct cone (M=0), a one-hot OR-of-masks mux
 │   │                 (M>=2, OneHot), or a chained-ternary encoded
-│   │                 mux (M>=2, Encoded) via the worklist.
+│   │                 mux (M>=2, Encoded) via the worklist. Comb muxes
+│   │                 use the same two shapes minus any Q-feedback term.
 │   │                 DAG sharing: per-operand `share_prob` decides
 │   │                 share-vs-recurse; internal gates enter the pool
 │   │                 as they are built.

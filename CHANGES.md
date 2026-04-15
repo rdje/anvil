@@ -3,6 +3,104 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0016 — M-to-1 combinational mux as a first-class block
+
+**What changed**
+- `src/config.rs`: two new knobs.
+  - `comb_mux_prob` (default `0.1`): probability that a non-leaf
+    recursion point becomes an M-to-1 combinational mux block
+    instead of an operator gate. Flop block takes priority; comb-mux
+    block takes priority over operator gate.
+  - `comb_mux_encoding_prob` (default `0.5`): per-mux probability of
+    the Encoded style (chained ternary over `Eq(sel, k)` with a
+    `ceil(log2(M))`-bit select bus) vs the OneHot style (M 1-bit
+    select signals, OR of masked arms).
+  - Both threaded into `Overrides`, `apply_cli_overrides`, and the
+    probability-range validation loop.
+- `src/main.rs`: two new CLI flags `--comb-mux-prob` and
+  `--comb-mux-encoding-prob`.
+- `src/gen/cone.rs`:
+  - `build_cone` adds a new branch between the flop branch and the
+    operator gate branch: if `rand() < comb_mux_prob`, dispatch to
+    `build_comb_mux`.
+  - New `build_comb_mux` — picks M from `[max(2, min_mux_arms),
+    max_mux_arms]` (M=0 and M=1 excluded: no sensible fall-back for
+    stateless muxes, 1-arm mux is a wire), picks encoding style via
+    `comb_mux_encoding_prob`, dispatches to the style-specific helper.
+  - New `build_comb_mux_one_hot` — recursively builds M (data, sel)
+    arms, then assembles `D = OR_i({W{sel_i}} & data_i)` using the
+    same `replicate_to_width` / `make_and` / `or_reduce_terms`
+    primitives as the flop D-mux one-hot path. No Q-feedback term.
+  - New `build_comb_mux_encoded` — recursively builds one
+    `ceil(log2(M))`-bit select sub-cone + M data sub-cones, then
+    assembles a chained ternary via `make_eq_const` / `make_mux`
+    with a zero fall-through.
+  - New inline unit test `comb_mux_block_produces_valid_output`:
+    10 seeds × 2 encoding styles = 20 modules, all pass IR
+    validation with `comb_mux_prob = 1.0`.
+- `book/src/structural-rules.md`:
+  - New Rule 15 "M-to-1 combinational mux block" codifying both
+    shapes, the M range, the "no Q-feedback axis" constraint, and
+    the block-vs-operator framing (muxes have ports, not arity).
+  - "Operators vs blocks" preamble updated: the future-placeholder
+    entry for "Block: mux (combinational)" is replaced with a
+    pointer to Rule 15.
+- `book/src/knobs.md`: new "Combinational mux block" subsection
+  documenting the two knobs with cross-references to Rule 15.
+- `book/src/algorithm.md`: `build_cone` pseudocode gains the comb-mux
+  branch in its correct dispatch position (after flop, before operator).
+- `book/src/tutorial.md`: new Example 9 "Combinational M-to-1 mux
+  block" with actual captured SV excerpt showing the chained-ternary
+  form; Example 10 (was 9) "Mixing everything" follows.
+- `book/src/recipes.md`: new entry "I want combinational muxes, not
+  just flop D-muxes" with a tuned knob combo.
+- `USER_GUIDE.md`: two new CLI flags added to the knob table.
+- `CODEBASE_ANALYSIS.md`: module map for `cone.rs` updated to list
+  the three new build_comb_mux helpers and the new dispatch branch
+  in `build_cone`.
+- `MEMORY.md` / `CHANGES.md`: per workflow.
+
+**Why**
+Per user direction: promote the M-to-1 mux to a first-class
+combinational motif. Prior to this slice, M-to-1 muxes existed only
+as compound gate trees buried inside flop D-input construction;
+combinational logic could only emit 2:1 muxes via `GateOp::Mux`.
+Real designs use M-to-1 muxes extensively in combinational datapaths
+(selectors, bus steering, priority encoders). Making them a
+first-class block motif closes a large expressiveness gap.
+
+This slice is also a direct application of the operators-vs-blocks
+doctrine established in the prior slice: Mux is a block, so its
+generalization is a *structural* motif (port counts, encoding
+style), not an arity bump. No new `GateOp` variant — the mux is a
+compound gate tree, same as the flop D-mux.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 2 integration =
+  27 tests, was 26), `cargo clippy --all-targets -- -D warnings`,
+  `cargo fmt --all --check`: all clean.
+- End-to-end: `cargo run -- --comb-mux-prob 1.0
+  --comb-mux-encoding-prob 0.0 ...` emits the one-hot OR-of-masks
+  shape; with `--comb-mux-encoding-prob 1.0` the same knobs produce
+  the chained-ternary shape with a `20'h0` fall-through (no
+  Q-feedback).
+
+**Impact**
+- M-to-1 combinational muxes are now routinely emitted. Generated SV
+  shape distribution is closer to real-world datapath idioms.
+- Phase 2 still in progress; Verilator-lint smoke now needs to
+  also cover `comb_mux_prob` settings as well as `share_prob` and
+  the flop styles.
+- The prior conceptual plan "land M-to-1 combinational mux block"
+  from the previous slice's next-up list is complete.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `book/src/algorithm.md`, `book/src/tutorial.md`, `book/src/recipes.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0015 — N-arity for associative operators + operators-vs-blocks doctrine
 
 **What changed**
@@ -97,8 +195,6 @@ distinction so future rules land in the right category.
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `src/emit/sv.rs`, `src/ir/validate.rs`, `src/ir/types.rs`, `book/src/structural-rules.md`, `book/src/algorithm.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

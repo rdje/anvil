@@ -71,6 +71,20 @@ instead of creating fresh logic.
   `pick_terminal` (the always-prefer-matching-width policy there
   supersedes it); retained for future tuning.
 
+### Combinational mux block
+
+- `comb_mux_prob` — probability that a non-leaf recursion point
+  becomes an M-to-1 combinational mux block (instead of an operator
+  gate). Default `0.1`. Ordering: flop takes priority if it also
+  rolls; comb mux takes priority over operator.
+- `comb_mux_encoding_prob` — per-mux probability of the Encoded
+  style (chained ternary over `Eq(sel, k)`, `ceil(log2(M))`-bit
+  select bus) vs the OneHot style (M 1-bit select signals, OR of
+  masked arms). Default `0.5`.
+- M (arm count) range reuses the block-level `min_mux_arms` /
+  `max_mux_arms` knobs (shared with flop D-muxes).
+- No Q-feedback knob for comb muxes — they have no state.
+
 ### Operator N-arity
 
 - `min_gate_arity / max_gate_arity` — range for N, the arity of

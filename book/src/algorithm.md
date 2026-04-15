@@ -61,6 +61,11 @@ build_cone(width, depth, exclude):
        AND rand() < flop_prob:
         return build_flop_leaf(width)           # enqueues this flop
 
+    # Comb-mux block branch: M-to-1 combinational mux, OneHot or Encoded.
+    # No Q-feedback (no state). See structural-rules.md Rule 15.
+    if rand() < comb_mux_prob:
+        return build_comb_mux(width, depth, exclude)
+
     # Gate branch.
     op = pick_gate(width)
     operand_widths = input_widths_for(op, width)

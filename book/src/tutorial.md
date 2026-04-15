@@ -190,7 +190,35 @@ The distinction matters:
 - **High `share_prob`** → tight DAGs with realistic fanout; stresses
   synthesis on common-subexpression elimination.
 
-## Example 9 — Mixing everything
+## Example 9 — Combinational M-to-1 mux block
+
+```bash
+cargo run --release -- --seed 3 --max-depth 2 --max-inputs 3 --max-outputs 1 \
+                      --flop-prob 0 --share-prob 0 \
+                      --comb-mux-prob 1.0 --comb-mux-encoding-prob 1.0 \
+                      --min-mux-arms 2 --max-mux-arms 3
+```
+
+Forcing `--comb-mux-prob 1.0` turns every non-leaf recursion point
+into a combinational mux. With `--comb-mux-encoding-prob 1.0` the
+style is Encoded (chained ternary over equality checks). Excerpt:
+
+```systemverilog
+    assign w_6  = w_2 == 1'h1;
+    assign w_7  = (w_6) ? (w_3) : (20'h0);   // (sel==1) ? data_1 : 0
+    assign w_9  = w_2 == 1'h0;
+    assign w_10 = (w_9) ? (w_3) : (w_7);     // (sel==0) ? data_0 : prev
+```
+
+Swap `--comb-mux-encoding-prob 0.0` and the same module emits the
+OneHot shape instead: `{W{sel_i}} & data_i` terms OR'd together, no
+chained ternaries.
+
+Combinational muxes have no Q-feedback — the fall-through is always
+`0` (visible as `20'h0` above). The flop D-mux path is where
+Q-feedback lives; see [Sequential Logic](sequential.md).
+
+## Example 10 — Mixing everything
 
 ```bash
 cargo run --release -- \

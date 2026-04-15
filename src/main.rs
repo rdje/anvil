@@ -57,6 +57,10 @@ struct Cli {
     min_gate_arity: Option<u32>,
     #[arg(long)]
     max_gate_arity: Option<u32>,
+    #[arg(long)]
+    comb_mux_prob: Option<f64>,
+    #[arg(long)]
+    comb_mux_encoding_prob: Option<f64>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -134,5 +138,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         flop_mux_encoding_prob: cli.flop_mux_encoding_prob,
         min_gate_arity: cli.min_gate_arity,
         max_gate_arity: cli.max_gate_arity,
+        comb_mux_prob: cli.comb_mux_prob,
+        comb_mux_encoding_prob: cli.comb_mux_encoding_prob,
     }
 }
