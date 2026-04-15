@@ -3,7 +3,47 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0027 — Constant comparand motif: third and final constant-role motif
+
+**What changed**
+- `src/config.rs`: three new knobs.
+  - `const_comparand_prob` (default 0.3): per-comparison probability the RHS is a constant literal instead of a recursive signal cone.
+  - `min_comparand` (0), `max_comparand` (255): value range, clamped to `[0, 2^K - 1]` for the chosen internal operand width K.
+  - Threaded through `Overrides`, `apply_cli_overrides`, and the probability-range validation loop.
+- `src/main.rs`: three new CLI flags.
+- `src/gen/cone.rs`:
+  - New helpers: `pick_comparison_operand_width` (matches `input_widths_for`'s 1..=8 draw), `pick_comparand_value` (clamped range draw), `build_comparison_const_comparand` (emits `lhs_signal OP const` with 1-bit output), `is_comparison_op` (predicate).
+  - Three dispatch sites after `pick_gate` returns a comparison op: `build_cone` (recursive LHS), `process_signal_frame` (interleaved recursive LHS), `grow_pool_one_unit` (graph-first pool-only LHS).
+- `tests/pipeline.rs`: new `const_comparand_across_all_strategies_is_valid` — `const_comparand_prob = 1.0` × all four strategies × 5 seeds, all IR-valid.
+- `book/src/structural-rules.md`: "Roles of constants in RTL" → Comparand subsection updated. Previous "Not yet emitted by anvil" note retired.
+- `book/src/knobs.md`: new "Comparand motif" subsection.
+- `USER_GUIDE.md`: three new CLI flag rows.
+- `CODEBASE_ANALYSIS.md`: `cone.rs` module map extended.
+- `MEMORY.md`: current-state refreshed; next-up list trimmed (all three constant-role motifs done). Recent commits list gains `2da9d3d`.
+
+**Why**
+Third and final constant-role motif from the catalog. Comparisons in real RTL frequently have constant RHS (`state == IDLE`, `counter >= LIMIT`, `error_code != 0`) — a threshold / sentinel / target pattern, not a coefficient. Per the vocabulary-discipline doctrine the motif has its own knob family, distinct from coefficients and shift amounts.
+
+The motif is *additive* to signal-vs-signal comparisons: when the coin doesn't fire, the existing path emits both operands as recursive signals. Users who want purely-signal comparisons pin `--const-comparand-prob 0.0`; users who want threshold-stress pin `1.0`.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 14 integration = 39 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- End-to-end: on seed 1 with `--const-comparand-prob 1.0 --max-width 1`, emitted SV contains `assign w_10 = w_7 == 2'h3;`, `assign w_24 = w_22 == 8'h7a;`, etc.
+
+**Impact**
+- All three constant-role motifs implemented. The generator now emits realistic RTL idioms across the three semantic roles for integer literals.
+- Phase 1/2 feature work is effectively done; remaining exit gate is the Verilator-lint smoke run across construction strategies and motif probabilities.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0026 — Constant shift-amount motif + Shl/Shr added to pick_gate
+
+**Commit hash:** `2da9d3d`
 
 **What changed**
 - `src/config.rs`: four new knobs.
@@ -44,8 +84,6 @@ The knob set is its own family — distinct from `coefficient_prob` and (future)
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

@@ -127,6 +127,16 @@ instead of creating fresh logic.
 - `gate_shift_weight` — relative weight for the shifts bucket (Shl,
   Shr) in `pick_gate`. Default `1`. Shifts are disabled at width 1.
 
+### Comparand motif
+
+- `const_comparand_prob` — per-comparison probability the RHS is a
+  constant literal instead of a recursive signal cone. Additive to
+  signal-vs-signal comparisons (the default remains signal-vs-signal
+  when the coin doesn't fire). Default `0.3`. LHS is always a signal.
+- `min_comparand / max_comparand` — range for the constant RHS,
+  clamped to `[0, 2^K - 1]` for the chosen internal operand width K.
+  Defaults `0, 255`.
+
 ### Operator N-arity
 
 - `min_gate_arity / max_gate_arity` — range for N, the arity of

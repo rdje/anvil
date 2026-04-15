@@ -97,6 +97,17 @@ pub struct Config {
     // Relative weight for the shifts (Shl/Shr) bucket in `pick_gate`.
     pub gate_shift_weight: u32,
 
+    // Comparand motif: when `build_cone` picks a comparison op
+    // (Eq/Neq/Lt/Gt/Le/Ge), with probability `const_comparand_prob`
+    // the RHS operand is a constant literal drawn from
+    // [min_comparand, max_comparand] (clamped to fit the chosen
+    // internal operand width K). Additive to signal-vs-signal
+    // comparisons — the LHS is still a signal. No zero-exclusion.
+    // See `book/src/structural-rules.md` "Roles of constants in RTL".
+    pub const_comparand_prob: f64,
+    pub min_comparand: u32,
+    pub max_comparand: u32,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -148,6 +159,9 @@ impl Default for Config {
             min_shift_amount: 0,
             max_shift_amount: 7,
             gate_shift_weight: 1,
+            const_comparand_prob: 0.3,
+            min_comparand: 0,
+            max_comparand: 255,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -241,6 +255,7 @@ impl Config {
             ("comb_mux_encoding_prob", self.comb_mux_encoding_prob),
             ("coefficient_prob", self.coefficient_prob),
             ("const_shift_amount_prob", self.const_shift_amount_prob),
+            ("const_comparand_prob", self.const_comparand_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -331,6 +346,15 @@ impl Config {
         if let Some(v) = o.gate_shift_weight {
             self.gate_shift_weight = v;
         }
+        if let Some(v) = o.const_comparand_prob {
+            self.const_comparand_prob = v;
+        }
+        if let Some(v) = o.min_comparand {
+            self.min_comparand = v;
+        }
+        if let Some(v) = o.max_comparand {
+            self.max_comparand = v;
+        }
     }
 }
 
@@ -363,4 +387,7 @@ pub struct Overrides {
     pub min_shift_amount: Option<u32>,
     pub max_shift_amount: Option<u32>,
     pub gate_shift_weight: Option<u32>,
+    pub const_comparand_prob: Option<f64>,
+    pub min_comparand: Option<u32>,
+    pub max_comparand: Option<u32>,
 }

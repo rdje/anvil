@@ -250,6 +250,34 @@ fn const_shift_amount_appears_in_output() {
 }
 
 #[test]
+fn const_comparand_across_all_strategies_is_valid() {
+    // const_comparand_prob = 1.0: every comparison picks a constant
+    // RHS. Verify all four strategies still produce IR-valid modules.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                const_comparand_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "const_comparand_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+        }
+    }
+}
+
+#[test]
 fn coefficient_motif_across_all_strategies() {
     // Every strategy must produce valid modules with coefficient_prob=1.0.
     for strategy in [

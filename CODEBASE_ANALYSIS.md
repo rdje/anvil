@@ -109,6 +109,15 @@ src/
 │   │                 Shl/Shr added to pick_gate's new shifts bucket
 │   │                 (weight gate_shift_weight, default 1);
 │   │                 disabled at target_width == 1.
+│   │                 Constant comparand motif: when pick_gate returns
+│   │                 a comparison op (Eq/Neq/Lt/Gt/Le/Ge) and
+│   │                 const_comparand_prob fires,
+│   │                 build_comparison_const_comparand emits
+│   │                 `lhs_signal OP const` — LHS from the usual path,
+│   │                 RHS a literal drawn from
+│   │                 [min_comparand, max_comparand] clamped to
+│   │                 [0, 2^K-1]. Additive to signal-vs-signal
+│   │                 comparisons.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.

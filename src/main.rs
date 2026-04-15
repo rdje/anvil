@@ -96,6 +96,18 @@ struct Cli {
     /// Relative weight for Shl/Shr in pick_gate.
     #[arg(long)]
     gate_shift_weight: Option<u32>,
+    /// Per-comparison probability that the RHS is a constant
+    /// comparand instead of a recursive signal cone. Additive to
+    /// signal-vs-signal comparisons.
+    #[arg(long)]
+    const_comparand_prob: Option<f64>,
+    /// Minimum constant comparand value.
+    #[arg(long)]
+    min_comparand: Option<u32>,
+    /// Maximum constant comparand value (clamped to 2^K - 1 for the
+    /// chosen internal operand width K).
+    #[arg(long)]
+    max_comparand: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -184,5 +196,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         min_shift_amount: cli.min_shift_amount,
         max_shift_amount: cli.max_shift_amount,
         gate_shift_weight: cli.gate_shift_weight,
+        const_comparand_prob: cli.const_comparand_prob,
+        min_comparand: cli.min_comparand,
+        max_comparand: cli.max_comparand,
     }
 }

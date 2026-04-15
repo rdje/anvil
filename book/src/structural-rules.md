@@ -122,7 +122,10 @@ collapse them under a single "constant_prob" knob.
     comparison. The default today — both operands come from
     recursive `build_cone`.
   - **A comparand (constant):** `a == 7`, `x >= LIMIT`. Threshold /
-    sentinel pattern. Not yet emitted by `anvil`; on the roadmap.
+    sentinel pattern. Emitted per the `const_comparand_prob` knob
+    (default 0.3). LHS is a recursive / pool signal cone of the
+    chosen internal operand width K; RHS is a constant drawn from
+    `[min_comparand, max_comparand]` clamped to `[0, 2^K - 1]`.
 - **No zero-exclusion:** comparing to zero (`a == 0`, `a < 0`) is
   common and meaningful. Unlike coefficients, a zero comparand does
   not kill the operation.

@@ -182,6 +182,16 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    // Constant comparand motif (pool-only). LHS is a pool pick of
+    // internal operand width K; RHS is a literal constant. Output
+    // is 1-bit.
+    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+        let k = pick_comparison_operand_width(g);
+        let lhs = pick_terminal(g, m, pool, k, None);
+        build_comparison_const_comparand(g, m, pool, op, lhs, k);
+        return true;
+    }
+
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     for _ in 0..4 {
         let operands: Vec<NodeId> = operand_widths
@@ -441,6 +451,15 @@ fn process_signal_frame(
             frame.exclude,
         );
         let node = build_shift_const_amount(g, m, pool, op, value, frame.width);
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    // Constant comparand motif: comparison with const_comparand_prob.
+    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+        let k = pick_comparison_operand_width(g);
+        let lhs = build_cone(g, m, pool, worklist, k, frame.depth + 1, frame.exclude);
+        let node = build_comparison_const_comparand(g, m, pool, op, lhs, k);
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
     }
@@ -1040,6 +1059,60 @@ fn build_shift_const_amount(
     node_id
 }
 
+/// Pick the internal operand width K for a comparison. Matches
+/// `input_widths_for`'s draw range (1..=8).
+fn pick_comparison_operand_width(g: &mut Generator) -> u32 {
+    g.rng.gen_range(1..=8)
+}
+
+/// Draw a constant comparand value for a K-bit comparison operand.
+/// Clamped to `[0, 2^K - 1]` to fit the operand width.
+fn pick_comparand_value(g: &mut Generator, operand_width: u32) -> u128 {
+    let width_max: u128 = if operand_width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << operand_width) - 1
+    };
+    let hi = u128::from(g.cfg.max_comparand).min(width_max);
+    let lo = u128::from(g.cfg.min_comparand).min(hi);
+    g.rng.gen_range(lo..=hi)
+}
+
+/// Build a comparison with a constant RHS: `lhs_signal OP const`.
+/// Output is always 1-bit (comparisons reduce to a flag).
+fn build_comparison_const_comparand(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    op: GateOp,
+    lhs: NodeId,
+    operand_width: u32,
+) -> NodeId {
+    debug_assert!(matches!(
+        op,
+        GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+    ));
+    let value = pick_comparand_value(g, operand_width);
+    let const_node = make_constant(m, pool, operand_width, value);
+    let deps = node_deps(m, lhs);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op,
+        operands: vec![lhs, const_node],
+        width: 1,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, 1, deps);
+    node_id
+}
+
+fn is_comparison_op(op: GateOp) -> bool {
+    matches!(
+        op,
+        GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+    )
+}
+
 /// Dispatch for the coefficient motif when signal picking is pool-only
 /// (graph-first strategy). Same shapes as the recursive variant, but
 /// signals come from `pick_terminal` instead of `build_cone`.
@@ -1173,6 +1246,15 @@ pub fn build_cone(
     {
         let value = build_cone(g, m, pool, worklist, width, depth + 1, exclude);
         return build_shift_const_amount(g, m, pool, op, value, width);
+    }
+
+    // Constant comparand motif: when the picked op is a comparison
+    // and the per-comparison probability fires, emit `lhs OP const`
+    // instead of recursing on both operands.
+    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+        let k = pick_comparison_operand_width(g);
+        let lhs = build_cone(g, m, pool, worklist, k, depth + 1, exclude);
+        return build_comparison_const_comparand(g, m, pool, op, lhs, k);
     }
 
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);

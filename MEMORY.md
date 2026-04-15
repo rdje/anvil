@@ -3,15 +3,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** constant shift-amount motif for Shl/Shr landed. `const_shift_amount_prob` (default 0.8 — real designs bias heavily toward constant), `min_shift_amount` (0), `max_shift_amount` (7), `gate_shift_weight` (1) knobs + CLI flags. When `pick_gate` returns Shl/Shr and the probability fires, `build_shift_const_amount` emits `value_signal OP const` with a literal amount clamped to `[0, W-1]` for a W-bit value. Otherwise variable-amount (barrel shifter) via the existing 8-bit shift-amount signal cone. Also added Shl/Shr to `pick_gate`'s new shifts bucket (previously omitted — same pattern as the earlier Mul fix). Disabled at `target_width == 1`. 1 new integration test `const_shift_amount_appears_in_output`. 25 unit + 13 integration = 38 tests. See `CHANGES.md` entry `2026-04-15-0026`.
+- **Last completed slice:** constant comparand motif for comparison ops landed. `const_comparand_prob` (default 0.3), `min_comparand` (0), `max_comparand` (255) knobs + CLI flags. When `pick_gate` returns a comparison (Eq/Neq/Lt/Gt/Le/Ge) and the probability fires, `build_comparison_const_comparand` emits `lhs_signal OP const` — LHS a recursive/pool signal cone of internal width K, RHS a literal drawn from the range and clamped to `[0, 2^K-1]`. Additive to signal-vs-signal — when the coin doesn't fire, both operands are signals as before. No zero-exclusion. 1 new integration test `const_comparand_across_all_strategies_is_valid`. 25 unit + 14 integration = 39 tests. See `CHANGES.md` entry `2026-04-15-0027`.
+- **All three constant-role motifs now implemented:** coefficients ✅, shift amounts ✅, comparands ✅.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
-  1. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal. Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive — signal-vs-signal remains the default; comparands add threshold/sentinel patterns on top. No zero-exclusion.
-  2. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs.
-  3. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter as questions accumulate.
-  - Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies with distinct constraints — see `book/src/structural-rules.md` "Roles of constants in RTL". Do not collapse into a single `constant_prob` knob.
+  1. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs; this is the remaining Phase 1/2 exit gate.
+  2. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter in the book as questions accumulate.
+  3. Phase 3+ features (not yet scoped): structured combinational ops (case/casez, priority encoders, for-loop unrolled logic), hierarchy, parameterization, memories, FSMs. See `ROADMAP.md`.
 
 ## Recent commits
+- `2da9d3d` — Constant shift-amount motif + Shl/Shr added to pick_gate.
 - `7290e3d` — Linear-combination coefficient motif for Add / Sub / Mul.
 - `b0f84fd` — Sub coefficient constraint: ck > 0 for all k.
 - `4085401` — graph-first strategy landed; becomes the new default.
