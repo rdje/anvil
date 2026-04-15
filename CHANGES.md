@@ -3,6 +3,49 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0031 — Coefficient fits operand width (Rule 19)
+
+**What changed**
+- `src/gen/cone.rs`:
+  - `pick_coefficient(g)` → `pick_coefficient(g, width)`. The picker
+    now narrows the draw range to
+    `[max(min_coefficient, 1), min(max_coefficient, 2^W − 1)]` so a
+    coefficient can never overflow the `W`-bit `Constant` node it
+    will be emitted as.
+  - `pick_mul_coefficient_and_arity(g)` → `(g, width)`, threads
+    through.
+  - All three callers (`assemble_add_linear_combination`,
+    `assemble_sub_linear_combination`, the `Mul` arms of
+    `build_linear_combination_recursive` /
+    `build_linear_combination_pool`) pass their local `width`.
+  - New unit test `pick_coefficient_respects_target_width` pins the
+    width-aware clamp across widths 1, 2, 4, 8 (200 iterations).
+- `book/src/structural-rules.md`: new Rule 19 "Coefficient fits
+  operand width" with motivation, enforcement, and edge case
+  (`width = 1` → coefficient is always 1).
+
+**Why**
+Sample module `mod_1_0000` contained `1'h6`, a 6 in a 1-bit literal —
+the emitter truncates it to `1'h0`. Root cause: `pick_coefficient`
+drew from `[min_coefficient, max_coefficient]` without reference to
+the operand width. This slice fixes the bug at the root (the
+picker) rather than with a post-hoc filter, per the user's "rule-
+based generation" doctrine.
+
+**Tests**
+- All four cargo gates green.
+- 30 unit (+1 new) + 15 integration = **45 tests, all passing**.
+
+**Impact**
+- Default config paths unaffected for `width ≥ 4` (unclamped range
+  fits). Width-1 paths now emit `1'h1` constants instead of
+  truncating larger values. Width-2/3 paths see slightly tighter
+  distributions.
+- No CLI or config-surface change (range knobs still exist and
+  still accept their original values; clamping is silent per-call).
+
+---
+
 ## 2026-04-15-0030 — Rule 18 proposal + sample-output defect catalogue (docs only)
 
 **What changed**

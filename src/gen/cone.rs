@@ -903,11 +903,21 @@ fn make_nary_mul(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], wid
     node_id
 }
 
-/// Draw a strictly positive coefficient from the configured range.
-fn pick_coefficient(g: &mut Generator) -> u128 {
-    let coef_min = g.cfg.min_coefficient.max(1);
-    let coef_max = g.cfg.max_coefficient.max(coef_min);
-    g.rng.gen_range(coef_min..=coef_max) as u128
+/// Draw a strictly positive coefficient from the configured range,
+/// clamped to fit the target operand width. The returned value is
+/// guaranteed to satisfy `1 <= c <= 2^width - 1`, so it always fits in
+/// a `width`-bit constant literal without truncation.
+fn pick_coefficient(g: &mut Generator, width: u32) -> u128 {
+    let width_max: u128 = if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    };
+    let coef_min = u128::from(g.cfg.min_coefficient.max(1)).min(width_max);
+    let coef_max = u128::from(g.cfg.max_coefficient.max(g.cfg.min_coefficient.max(1)))
+        .min(width_max)
+        .max(coef_min);
+    g.rng.gen_range(coef_min..=coef_max)
 }
 
 /// Pick the term count N for the Add/Sub linear-combination motif.
@@ -921,8 +931,8 @@ fn pick_linear_combination_arity(g: &mut Generator) -> u32 {
 /// For Mul: pick coefficient and signal count jointly. `c == 1` forces
 /// `n >= 2` (otherwise `1 * s1 = s1` is structurally dead). Returns
 /// `(coef, n_signals)`.
-fn pick_mul_coefficient_and_arity(g: &mut Generator) -> (u128, u32) {
-    let coef = pick_coefficient(g);
+fn pick_mul_coefficient_and_arity(g: &mut Generator, width: u32) -> (u128, u32) {
+    let coef = pick_coefficient(g, width);
     let min_n = if coef == 1 {
         g.cfg.min_gate_arity.max(2)
     } else {
@@ -945,7 +955,7 @@ fn assemble_add_linear_combination(
     debug_assert!(!signals.is_empty());
     let mut terms: Vec<NodeId> = Vec::with_capacity(signals.len());
     for &s in signals {
-        let coef = pick_coefficient(g);
+        let coef = pick_coefficient(g, width);
         let const_node = make_constant(m, pool, width, coef);
         terms.push(make_mul(m, pool, s, const_node, width));
     }
@@ -968,7 +978,7 @@ fn assemble_sub_linear_combination(
     debug_assert!(!signals.is_empty());
     let mut terms: Vec<NodeId> = Vec::with_capacity(signals.len());
     for &s in signals {
-        let coef = pick_coefficient(g);
+        let coef = pick_coefficient(g, width);
         let const_node = make_constant(m, pool, width, coef);
         terms.push(make_mul(m, pool, s, const_node, width));
     }
@@ -1034,7 +1044,7 @@ fn build_linear_combination_recursive(
             assemble_sub_linear_combination(g, m, pool, width, &signals)
         }
         GateOp::Mul => {
-            let (coef, n) = pick_mul_coefficient_and_arity(g);
+            let (coef, n) = pick_mul_coefficient_and_arity(g, width);
             let signals: Vec<NodeId> = (0..n)
                 .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
                 .collect();
@@ -1254,7 +1264,7 @@ fn build_linear_combination_pool(
             assemble_sub_linear_combination(g, m, pool, width, &signals)
         }
         GateOp::Mul => {
-            let (coef, n) = pick_mul_coefficient_and_arity(g);
+            let (coef, n) = pick_mul_coefficient_and_arity(g, width);
             let signals: Vec<NodeId> = (0..n)
                 .map(|_| pick_terminal(g, m, pool, width, None))
                 .collect();
@@ -2175,5 +2185,39 @@ mod tests {
             )
         });
         assert!(has_concat_9, "expected a 9-bit Concat as the Slice source");
+    }
+
+    /// `pick_coefficient` must never return a value that overflows the
+    /// target operand width, even when `max_coefficient` is larger than
+    /// `2^width - 1`. Regression guard against the `1'h6` bug observed
+    /// in sample output.
+    #[test]
+    fn pick_coefficient_respects_target_width() {
+        let cfg = Config {
+            seed: 0xC0FFEE,
+            min_coefficient: 1,
+            max_coefficient: 15,
+            ..Config::default()
+        };
+        let mut g = Generator::new(cfg);
+        for _ in 0..200 {
+            let c1 = pick_coefficient(&mut g, 1);
+            assert_eq!(c1, 1, "width=1: only legal coefficient is 1, got {c1}");
+            let c2 = pick_coefficient(&mut g, 2);
+            assert!(
+                (1..=3).contains(&c2),
+                "width=2: coef must be in [1,3], got {c2}"
+            );
+            let c4 = pick_coefficient(&mut g, 4);
+            assert!(
+                (1..=15).contains(&c4),
+                "width=4: coef must be in [1,15], got {c4}"
+            );
+            let c8 = pick_coefficient(&mut g, 8);
+            assert!(
+                (1..=15).contains(&c8),
+                "width=8: coef bounded by max_coefficient=15, got {c8}"
+            );
+        }
     }
 }

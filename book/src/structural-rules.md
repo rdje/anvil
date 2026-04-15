@@ -470,6 +470,39 @@ B-gate that comes later.
 
 ---
 
+## 19 — Coefficient fits operand width
+
+**Rule:** Every constant coefficient drawn by the linear-combination
+motif (`y = Σ sᵢ·cᵢ` / `y = s₁·c₁ − …` / `y = c · s₁ · s₂ · …`)
+must satisfy `1 ≤ c ≤ 2^W − 1`, where `W` is the operand width at
+which the `Constant` node is emitted. The coefficient range
+`[min_coefficient, max_coefficient]` is clamped down to fit `W` at
+the point of generation, not at validation time.
+
+**Motivation:** a literal whose value does not fit its declared
+width is either truncated by the emitter (`1'h6` → `1'h0`, the real
+observed bug in sample output) or expanded silently — either way
+the generated constant no longer means what the coefficient motif
+says it means. A constant that does not fit is a signal created
+for no reason: it has no semantic value beyond "something the RNG
+happened to draw." The rule forces coefficients to be drawn
+*knowing* the target width.
+
+**Construction-time enforcement:** `pick_coefficient(g, width)`
+owns the clamping. It narrows the draw range to
+`[max(min_coefficient, 1), min(max_coefficient, 2^W − 1)]` and
+never returns a value outside it. The validator does not need a
+corresponding check because the picker cannot emit an ill-sized
+coefficient.
+
+**Edge case — width = 1.** The only legal coefficient is 1.
+Add/Sub collapse to `y = s₁ ± s₂ ± …` (coefficient-free); Mul at
+`c = 1` already forces `n ≥ 2` via
+`pick_mul_coefficient_and_arity`, so `y = s₁ · s₂ · …` is the only
+shape.
+
+---
+
 ## 18 — No orphan gates *(proposed; not yet enforced)*
 
 **Rule:** Every `Node::Gate` appearing in the emitted module must be
