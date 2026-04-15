@@ -71,6 +71,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--const-comparand-prob`| 0.3      | Per-comparison probability of a constant RHS (additive)|
 | `--min-comparand`       | 0        | Min constant comparand value                          |
 | `--max-comparand`       | 255      | Max constant comparand (clamped to 2^K - 1)           |
+| `--priority-encoder-prob`| 0.05    | Per-emission probability of a priority-encoder block (N 1-bit reqs → log2(N)-bit index)|
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |

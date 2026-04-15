@@ -108,6 +108,14 @@ pub struct Config {
     pub min_comparand: u32,
     pub max_comparand: u32,
 
+    // Priority-encoder block: takes N 1-bit request signals and emits
+    // a ceil(log2(N))-bit index of the highest-priority asserted bit
+    // (lowest-indexed). Emitted as a chained ternary. N is drawn from
+    // `[min_mux_arms, max_mux_arms]` constrained to have
+    // `ceil(log2(N))` == the caller's target width. See
+    // `book/src/structural-rules.md`.
+    pub priority_encoder_prob: f64,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -162,6 +170,7 @@ impl Default for Config {
             const_comparand_prob: 0.3,
             min_comparand: 0,
             max_comparand: 255,
+            priority_encoder_prob: 0.05,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -256,6 +265,7 @@ impl Config {
             ("coefficient_prob", self.coefficient_prob),
             ("const_shift_amount_prob", self.const_shift_amount_prob),
             ("const_comparand_prob", self.const_comparand_prob),
+            ("priority_encoder_prob", self.priority_encoder_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -355,6 +365,9 @@ impl Config {
         if let Some(v) = o.max_comparand {
             self.max_comparand = v;
         }
+        if let Some(v) = o.priority_encoder_prob {
+            self.priority_encoder_prob = v;
+        }
     }
 }
 
@@ -390,4 +403,5 @@ pub struct Overrides {
     pub const_comparand_prob: Option<f64>,
     pub min_comparand: Option<u32>,
     pub max_comparand: Option<u32>,
+    pub priority_encoder_prob: Option<f64>,
 }

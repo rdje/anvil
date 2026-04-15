@@ -160,6 +160,14 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    // Priority-encoder block (pool-only). Skip if no N compatible with
+    // target width.
+    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0))
+        && build_priority_encoder_pool(g, m, pool, width).is_some()
+    {
+        return true;
+    }
+
     let op = pick_gate(g, width);
 
     // Coefficient motif (pool-only signal picks). Same doctrine as the
@@ -407,6 +415,23 @@ fn process_signal_frame(
         );
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
+    }
+
+    // Priority-encoder block: compatible only when the frame's target
+    // width matches ceil_log2(N) for some N in the block-arity range.
+    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0)) {
+        if let Some(node) = build_priority_encoder_recursive(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        ) {
+            deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+            return;
+        }
     }
 
     // Operator gate: push a GateFrame into the in-flight table, enqueue
@@ -1106,6 +1131,96 @@ fn build_comparison_const_comparand(
     node_id
 }
 
+/// Find an N (number of request inputs) for a priority-encoder block
+/// such that `ceil_log2(N) == target_width`, constrained to the
+/// configured `[min_mux_arms, max_mux_arms]` range. Returns None if
+/// no N in range produces an output matching `target_width`.
+fn pick_priority_encoder_n(g: &mut Generator, target_width: u32) -> Option<u32> {
+    if target_width == 0 {
+        return None;
+    }
+    // For W-bit output, N is in [2^(W-1) + 1 .. 2^W], except W=1 where
+    // N=2 (ceil_log2(2) == 1).
+    let n_min = if target_width == 1 {
+        2
+    } else {
+        (1u32 << (target_width - 1)) + 1
+    };
+    let n_max = if target_width >= 32 {
+        u32::MAX
+    } else {
+        1u32 << target_width
+    };
+    let knob_min = g.cfg.min_mux_arms.max(2);
+    let knob_max = g.cfg.max_mux_arms.max(knob_min);
+    let eff_min = n_min.max(knob_min);
+    let eff_max = n_max.min(knob_max);
+    if eff_min > eff_max {
+        return None;
+    }
+    Some(g.rng.gen_range(eff_min..=eff_max))
+}
+
+/// Assemble a priority encoder as a chained ternary:
+///   `y = req_0 ? 0 : req_1 ? 1 : ... : req_{N-1} ? N-1 : 0`
+/// The fall-through 0 when no request is asserted. All request bits
+/// are 1-bit signals; the output is `target_width`-bit.
+fn assemble_priority_encoder(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    target_width: u32,
+    req_bits: &[NodeId],
+) -> NodeId {
+    debug_assert!(!req_bits.is_empty());
+    let n = req_bits.len() as u32;
+    let fall_through = make_constant(m, pool, target_width, 0);
+    let mut tail = fall_through;
+    for idx_rev in 0..n {
+        let idx = n - 1 - idx_rev;
+        let index_const = make_constant(m, pool, target_width, u128::from(idx));
+        tail = make_mux(
+            m,
+            pool,
+            req_bits[idx as usize],
+            index_const,
+            tail,
+            target_width,
+        );
+    }
+    tail
+}
+
+/// Build a priority-encoder block via recursive signal picking for
+/// the request bits. Returns None if the caller's target width is
+/// incompatible with any N in the configured block-arity range.
+fn build_priority_encoder_recursive(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    target_width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> Option<NodeId> {
+    let n = pick_priority_encoder_n(g, target_width)?;
+    let req_bits: Vec<NodeId> = (0..n)
+        .map(|_| build_cone(g, m, pool, worklist, 1, depth + 1, exclude))
+        .collect();
+    Some(assemble_priority_encoder(m, pool, target_width, &req_bits))
+}
+
+/// Pool-only variant for the graph-first strategy.
+fn build_priority_encoder_pool(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    target_width: u32,
+) -> Option<NodeId> {
+    let n = pick_priority_encoder_n(g, target_width)?;
+    let req_bits: Vec<NodeId> = (0..n).map(|_| pick_terminal(g, m, pool, 1, None)).collect();
+    Some(assemble_priority_encoder(m, pool, target_width, &req_bits))
+}
+
 fn is_comparison_op(op: GateOp) -> bool {
     matches!(
         op,
@@ -1224,6 +1339,16 @@ pub fn build_cone(
     let pick_comb_mux = g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0));
     if pick_comb_mux {
         return build_comb_mux(g, m, pool, worklist, width, depth, exclude);
+    }
+
+    // Priority-encoder block: compatible only when target width matches
+    // ceil_log2(N) for some N in the block-arity range.
+    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0)) {
+        if let Some(node) =
+            build_priority_encoder_recursive(g, m, pool, worklist, width, depth, exclude)
+        {
+            return node;
+        }
     }
 
     let op = pick_gate(g, width);
@@ -1727,14 +1852,15 @@ mod tests {
         let (mut m, mut pool) = fixture_with_inputs(2, 4, 2);
         let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::ZeroDefault);
         // PrimaryInput nodes: 0 (data0 w=4), 1 (data1 w=4), 2 (sel0 1b), 3 (sel1 1b).
-        let arms = vec![
-            MuxArm { data: 0, sel: 2 },
-            MuxArm { data: 1, sel: 3 },
-        ];
+        let arms = vec![MuxArm { data: 0, sel: 2 }, MuxArm { data: 1, sel: 3 }];
         let d = assemble_flop_d_one_hot(&mut m, &mut pool, 4, &arms, FlopKind::ZeroDefault, q);
         match &m.nodes[d as usize] {
             Node::Gate { op, width, .. } => {
-                assert_eq!(*op, GateOp::Or, "top-level of OneHot ZeroDefault should be Or");
+                assert_eq!(
+                    *op,
+                    GateOp::Or,
+                    "top-level of OneHot ZeroDefault should be Or"
+                );
                 assert_eq!(*width, 4);
             }
             other => panic!("expected Gate, got {other:?}"),
@@ -1746,10 +1872,7 @@ mod tests {
         // QFeedback adds an extra `{W{~(OR sels)}} & Q` term to the OR-reduce.
         let (mut m, mut pool) = fixture_with_inputs(2, 4, 2);
         let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::QFeedback);
-        let arms = vec![
-            MuxArm { data: 0, sel: 2 },
-            MuxArm { data: 1, sel: 3 },
-        ];
+        let arms = vec![MuxArm { data: 0, sel: 2 }, MuxArm { data: 1, sel: 3 }];
         let pre_len = m.nodes.len();
         let d = assemble_flop_d_one_hot(&mut m, &mut pool, 4, &arms, FlopKind::QFeedback, q);
         // Top-level is still an Or (OR-reduce over arm terms + Q-feedback term).
@@ -1775,7 +1898,10 @@ mod tests {
                 }
             )
         });
-        assert!(has_not, "QFeedback OneHot should emit a Not for ~(OR of sels)");
+        assert!(
+            has_not,
+            "QFeedback OneHot should emit a Not for ~(OR of sels)"
+        );
     }
 
     #[test]
@@ -1785,16 +1911,8 @@ mod tests {
         let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::ZeroDefault);
         // Nodes: 0=data0, 1=data1, 2=sel (1 bit), 3=Q.
         let datas = vec![0, 1];
-        let d = assemble_flop_d_encoded(
-            &mut m,
-            &mut pool,
-            4,
-            2,
-            1,
-            &datas,
-            FlopKind::ZeroDefault,
-            q,
-        );
+        let d =
+            assemble_flop_d_encoded(&mut m, &mut pool, 4, 2, 1, &datas, FlopKind::ZeroDefault, q);
         // Top-level of the chained ternary is a Mux.
         match &m.nodes[d as usize] {
             Node::Gate { op, width, .. } => {

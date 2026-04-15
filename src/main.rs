@@ -108,6 +108,10 @@ struct Cli {
     /// chosen internal operand width K).
     #[arg(long)]
     max_comparand: Option<u32>,
+    /// Per-emission probability of a priority-encoder block at a
+    /// compatible target width.
+    #[arg(long)]
+    priority_encoder_prob: Option<f64>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -199,5 +203,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         const_comparand_prob: cli.const_comparand_prob,
         min_comparand: cli.min_comparand,
         max_comparand: cli.max_comparand,
+        priority_encoder_prob: cli.priority_encoder_prob,
     }
 }

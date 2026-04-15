@@ -118,6 +118,13 @@ src/
 │   │                 [min_comparand, max_comparand] clamped to
 │   │                 [0, 2^K-1]. Additive to signal-vs-signal
 │   │                 comparisons.
+│   │                 Priority-encoder block: when
+│   │                 priority_encoder_prob fires at a compatible
+│   │                 target width (ceil_log2(N) == W for some N in
+│   │                 [min_mux_arms, max_mux_arms]), emits a chained
+│   │                 ternary over N 1-bit requests:
+│   │                 req_0 ? 0 : req_1 ? 1 : ... : 0. Skipped (fall
+│   │                 through to gate path) when no compatible N.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.

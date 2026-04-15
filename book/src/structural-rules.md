@@ -164,6 +164,9 @@ The rules below are grouped by what they govern:
   OneHot or Encoded select; no Q-feedback axis (combinational muxes
   have no state). Built as a compound gate tree like the flop D-mux
   helpers, minus the Q-feedback terms.
+- **Block: priority encoder:** Rule 17 — N 1-bit request signals →
+  `ceil(log2(N))`-bit index of the highest-priority asserted bit.
+  Chained-ternary emission.
 - **Module-wide sharing:** Rule 16 — the signal pool is
   module-scoped, not per-output. Gates built for output A's cone are
   freely available as operands / shared leaves in output B's cone
@@ -464,6 +467,37 @@ in output A's cone can be an operand of a gate in output B's cone
 because A's gate has a lower `NodeId`. The reverse cannot happen — B
 cannot reference an A-gate not yet constructed, nor can A reference a
 B-gate that comes later.
+
+---
+
+## 17 — Priority-encoder block
+
+**Rule:** A priority-encoder block takes N 1-bit request signals and
+emits a `ceil(log2(N))`-bit output that is the index of the highest-
+priority asserted request (lowest-indexed by convention). Emitted as
+a chained ternary:
+`y = req_0 ? 0 : req_1 ? 1 : ... : req_{N-1} ? N-1 : 0`.
+
+- **N** is drawn from `[min_mux_arms, max_mux_arms]` *constrained* to
+  values where `ceil_log2(N) == target_width`. For target width 1:
+  N = 2. For target width W >= 2: N ∈ [2^(W-1)+1, 2^W].
+- If no valid N exists in the arity range for the current target
+  width, the block dispatch is skipped and the generator falls
+  through to the usual operator-gate path.
+- Fall-through (no request asserted): output = 0. This is a design
+  convention — in real RTL, priority encoders typically also emit a
+  "valid" flag; `anvil` omits that today.
+
+**Block, not operator:** ports are N request inputs + one
+log-width output. N is a port count, not arity. Emitted as a
+compound gate tree — each priority level is a Mux node, chained
+left-to-right from highest-index fall-through up to index-0-wins.
+
+**Where enforced:** `src/gen/cone.rs` —
+`pick_priority_encoder_n` (applicability check),
+`assemble_priority_encoder` (chained-ternary assembly),
+`build_priority_encoder_recursive` / `build_priority_encoder_pool`
+(dispatch for the three construction strategies).
 
 ---
 

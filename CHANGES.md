@@ -3,7 +3,90 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0029 — Priority-encoder block (Rule 17)
+
+**What changed**
+- `src/config.rs`: new `priority_encoder_prob` knob (default 0.05).
+  New `CoefficientRange`-style error handling for the probability
+  (via the existing probability-range loop). Threaded through
+  `Overrides` and `apply_cli_overrides`.
+- `src/main.rs`: new CLI flag `--priority-encoder-prob`.
+- `src/gen/cone.rs`:
+  - `pick_priority_encoder_n(g, target_width) -> Option<u32>`: finds an
+    N ∈ `[min_mux_arms, max_mux_arms]` with
+    `ceil_log2(N) == target_width`. Returns None if none fits the range.
+  - `assemble_priority_encoder(m, pool, target_width, req_bits) -> NodeId`:
+    emits the chained ternary `req_0 ? 0 : req_1 ? 1 : ... : 0`.
+    Every priority level becomes one `Mux` node; the output width is
+    `target_width`.
+  - `build_priority_encoder_recursive` / `build_priority_encoder_pool`:
+    dispatch helpers that source request bits via `build_cone` or
+    `pick_terminal` respectively.
+  - Three dispatch sites (`build_cone`, `process_signal_frame`,
+    `grow_pool_one_unit`) call the appropriate build helper. Dispatch
+    has applicability-check-then-fall-through semantics: if no N
+    matches the target width, the block roll is wasted and the code
+    continues to the usual operator gate path.
+- `tests/pipeline.rs`: new
+  `priority_encoder_block_across_all_strategies_is_valid` — all four
+  strategies × 5 seeds × `priority_encoder_prob = 1.0` must produce
+  IR-valid modules. Uses `max_depth = 3` to bound test runtime under
+  heavy PE recursion.
+- `book/src/structural-rules.md`:
+  - New Rule 17 describing the priority-encoder block: shape,
+    applicability constraint (`ceil_log2(N) == W`), fall-through
+    convention, and the place it lives in the generator.
+  - Operators-vs-blocks preamble gains an entry for the priority-
+    encoder block.
+- `book/src/knobs.md`: new "Priority-encoder block" subsection.
+- `USER_GUIDE.md`: `--priority-encoder-prob` row added.
+- `CODEBASE_ANALYSIS.md`: `cone.rs` module map extended.
+- `MEMORY.md`: last-completed-slice refreshed; next-up list
+  re-scoped per user direction ("close all small-to-medium first")
+  into case/casez → memories → FSMs → motif-trait refactor, with
+  hierarchy / parameterization deferred.
+
+**Why**
+Per user direction to "close all small to medium first" ahead of
+the large Phase 3+ items (hierarchy, parameterization). Priority
+encoder is the smallest self-contained block motif on the list —
+clean shape, single-output-width applicability check, no Q-feedback
+or mux-style variant axes. Also a classic synthesizer idiom
+(arbitration, interrupt-level encoding, one-hot-to-binary
+conversion) worth exercising.
+
+**Doctrinal note.** User observed mid-slice that every new block
+follows the same pattern (knob, assembly helper, three dispatch
+sites, tests, docs) and asked whether a motif library is feasible.
+Agreed in principle; deferred until we have 6-8 concrete block
+motifs to factor from (currently mux, flop-mux-family, comb-mux,
+priority-encoder, with case/casez/memories/FSMs planned next).
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (29 unit + 15
+  integration = 44 tests), `cargo clippy --all-targets -- -D
+  warnings`, `cargo fmt --all --check`: all clean.
+- End-to-end at `--priority-encoder-prob 1.0`: emitted SV contains
+  chained ternaries like
+  `assign w_18 = (w_3) ? (3'h0) : (w_16);`
+  `assign w_16 = (w_3) ? (3'h1) : (w_14);`
+  `... assign w_6 = (w_3) ? (3'h6) : (3'h0);` — full 7-level PE.
+
+**Impact**
+- First Phase 3+ block motif landed.
+- Pattern for the remaining small-to-medium motifs (case/casez,
+  memories, FSMs) is now well-established.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0028 — Flop-assembler unit tests + FAQ chapter
+
+**Commit hash:** `06b5a52`
 
 **What changed**
 - `src/gen/cone.rs`: 4 new inline unit tests for the flop-D assembly helpers.

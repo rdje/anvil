@@ -3,22 +3,19 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** 4 new inline unit tests for the flop-mux assemblers (`assemble_flop_d_one_hot_zero_default_top_is_or`, `assemble_flop_d_one_hot_qfeedback_includes_q_term`, `assemble_flop_d_encoded_zero_default_top_is_mux`, `assemble_flop_d_encoded_qfeedback_fallthrough_is_q`) + test fixture helpers `fixture_with_inputs` and `alloc_flop`. New `book/src/faq.md` chapter with 12 Q&A entries covering the vocabulary/doctrine questions that have come up in the design (operators-vs-blocks, coefficient-vs-shift-amount-vs-comparand, Q-feedback, cross-output sharing, reproducibility, non-goals, synthesizability). Added to SUMMARY.md under Reference. 29 unit + 14 integration = 43 tests. See `CHANGES.md` entry `2026-04-15-0028`.
-- **Status:** all three constant-role motifs implemented (coefficients ✅, shift amounts ✅, comparands ✅). Verilator-lint smoke is blocked (no Verilator available). Phase 1/2 feature work done in practice.
+- **Last completed slice:** priority-encoder block — first of the Phase 3 small-to-medium motifs. New `priority_encoder_prob` knob (default 0.05) + CLI flag. `pick_priority_encoder_n` finds an N ∈ `[min_mux_arms, max_mux_arms]` with `ceil_log2(N) == target_width`, returns None if none fits. `assemble_priority_encoder` emits a chained ternary `req_0 ? 0 : req_1 ? 1 : ... : 0`. `build_priority_encoder_recursive` and `build_priority_encoder_pool` dispatch helpers. Three dispatch sites (build_cone / process_signal_frame / grow_pool_one_unit) with applicability-check-then-fall-through semantics. Book Rule 17 added. 1 new integration test. 29 unit + 15 integration = 44 tests. See `CHANGES.md` entry `2026-04-15-0029`.
+- **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
-- **Next up (per user direction: switch to Phase 3+ since Verilator is unavailable):**
-  1. **Phase 3+ entry point.** The roadmap lists: structured combinational ops (case/casez, priority encoders, shifts-already-done, for-loop unrolled logic), hierarchy (module instantiation, library/on-demand sub-module sourcing), parameterization (parameter-dependent widths), memories (inferrable patterns), FSMs (explicit state encodings), optional multi-clock. User needs to scope the first Phase 3+ slice. Candidates ranked by independent value and complexity:
-     a) **Hierarchy (Phase 4 per ROADMAP)** — single biggest expressiveness gain. Module instantiation means anvil can emit realistic multi-module designs. Largest slice among the candidates.
-     b) **Case / casez structured combinational blocks (Phase 3)** — compound block motif, adds case-statement idiom to generated output. Medium slice.
-     c) **Priority encoder block (Phase 3)** — specific motif. Small slice.
-     d) **Memories (Phase 6)** — inferrable read/write patterns. Medium slice.
-     e) **FSMs (Phase 6)** — explicit state-encoding block with transition logic. Medium-large slice.
-     f) **Parameterization (Phase 5)** — parameter-dependent widths, generate-loops. Large slice touching the IR.
-  2. Blocked on external tooling:
-     - Verilator-lint smoke run (no Verilator available).
-     - Yosys smoke run (not attempted).
+- **Next up (closing small-to-medium Phase 3+ motifs first, per user direction):**
+  1. **case/casez structured combinational blocks (medium).** A block that takes a select signal (1..N bit wide) and emits `always_comb case (sel) ... endcase` (or equivalent chained-ternary if we stay in expression land). Similar to the encoded mux but the emitted SV uses a `case` statement with explicit branches. Distinct synthesizer code path from chained-ternary muxes.
+  2. **Memories (medium).** Inferrable single-port / simple-dual-port memory patterns (`reg [W-1:0] mem [0:DEPTH-1]` with an always_ff block driving read/write). Knob for depth range.
+  3. **FSMs (medium-large).** Explicit state encoding (binary / one-hot / gray), transition logic, optional output logic. The first real multi-part block motif.
+  4. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
+  5. Large-scope deferred: hierarchy (a), parameterization (f).
+  6. Blocked on external tooling: Verilator-lint smoke, Yosys smoke.
 
 ## Recent commits
+- `06b5a52` — Flop-assembler unit tests + FAQ chapter.
 - `1211120` — Constant comparand motif: third and final constant-role motif.
 - `2da9d3d` — Constant shift-amount motif + Shl/Shr added to pick_gate.
 - `7290e3d` — Linear-combination coefficient motif for Add / Sub / Mul.

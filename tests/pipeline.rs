@@ -250,6 +250,39 @@ fn const_shift_amount_appears_in_output() {
 }
 
 #[test]
+fn priority_encoder_block_across_all_strategies_is_valid() {
+    // priority_encoder_prob = 1.0 with a reasonable arm range. All four
+    // strategies must produce IR-valid modules; the PE's dispatch
+    // helper gracefully falls through when target width isn't
+    // compatible with any N in the arity range.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                priority_encoder_prob: 1.0,
+                min_mux_arms: 3,
+                max_mux_arms: 5,
+                max_depth: 3, // keep test runtime bounded under PE recursion
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "priority_encoder_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+        }
+    }
+}
+
+#[test]
 fn const_comparand_across_all_strategies_is_valid() {
     // const_comparand_prob = 1.0: every comparison picks a constant
     // RHS. Verify all four strategies still produce IR-valid modules.
