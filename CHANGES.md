@@ -3,6 +3,54 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0033 — N-arity anti-collapse + OR-reduce dedup (Rule 8 extended)
+
+**What changed**
+- `src/gen/cone.rs`:
+  - `violates_anti_collapse` now catches duplicates at any arity
+    for idempotent / self-inverse operators (`And`, `Or`, `Xor`).
+    Helper `has_duplicate_operand` does the operand-multiset
+    distinctness check (O(N²), N bounded by `max_gate_arity`).
+    `Add` and `Mul` deliberately remain exempt (duplicates are
+    algebraically meaningful).
+  - `or_reduce_terms` deduplicates input terms before building
+    the 2-arity `Or` chain, so identical per-arm products do not
+    produce `x | x` gates.
+  - `make_none_selected` (QFeedback one-hot fall-through) now
+    routes through `or_reduce_terms`, inheriting the dedup.
+  - New unit test `anti_collapse_catches_nary_duplicates` pins
+    the broadened check on Xor/And/Or at arities 3 and 4 (with
+    and without duplicates) and confirms Add/Mul are not
+    flagged.
+- `book/src/structural-rules.md`: Rule 8 rewritten to state the
+  N-arity rule explicitly; lists the exempt ops (Add, Mul); notes
+  the downstream dedup in `or_reduce_terms` / `make_none_selected`.
+
+**Why**
+Sample module `mod_1_0000` contained `w_21 = i_2 ^ i_2 ^ i_2 ^ i_2`
+(constant 0) and multiple identical one-hot arms producing
+downstream `w_A | w_A` gates. The pairwise `operands[0] ==
+operands[1]` check in the old `violates_anti_collapse` did not cover
+these. Root-cause fix per the rule-based-generation doctrine.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit (+1 new) + 15 integration = **47 tests, all passing**.
+- Spot-check across 8 seeds (1, 2, 3, 42, 100, 777, 9999, 12345):
+  zero self-operand chains (`x OP x`) in generated SV. Seed 100
+  previously emitted `w_120 = w_104 | w_104` from
+  `make_none_selected`; now clean.
+
+**Impact**
+- Default config paths produce strictly higher-entropy gate
+  operand lists: `And`/`Or`/`Xor` never repeat an operand. The
+  pick-retry path absorbs the rare case where the picker
+  re-selects a duplicate; after retry exhaustion it falls back to
+  `pick_terminal`.
+- No CLI or config-surface change.
+
+---
+
 ## 2026-04-16-0032 — Dep-bearing source at elaboration-sensitive positions (Rule 20)
 
 **What changed**

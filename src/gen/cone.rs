@@ -1280,19 +1280,8 @@ fn build_linear_combination_pool(
 /// 1-bit output, 1 when no select is asserted.
 fn make_none_selected(m: &mut Module, pool: &mut SignalPool, arms: &[MuxArm]) -> NodeId {
     debug_assert!(!arms.is_empty());
-    let mut acc = arms[0].sel;
-    for arm in &arms[1..] {
-        let deps = DepSet::union(&[&node_deps(m, acc), &node_deps(m, arm.sel)]);
-        let node_id = m.nodes.len() as NodeId;
-        m.nodes.push(Node::Gate {
-            op: GateOp::Or,
-            operands: vec![acc, arm.sel],
-            width: 1,
-            deps: deps.clone(),
-        });
-        pool.add(node_id, 1, deps);
-        acc = node_id;
-    }
+    let sels: Vec<NodeId> = arms.iter().map(|a| a.sel).collect();
+    let acc = or_reduce_terms(m, pool, &sels, 1);
     let acc_deps = node_deps(m, acc);
     let node_id = m.nodes.len() as NodeId;
     m.nodes.push(Node::Gate {
@@ -1307,8 +1296,16 @@ fn make_none_selected(m: &mut Module, pool: &mut SignalPool, arms: &[MuxArm]) ->
 
 fn or_reduce_terms(m: &mut Module, pool: &mut SignalPool, terms: &[NodeId], width: u32) -> NodeId {
     debug_assert!(!terms.is_empty());
-    let mut acc = terms[0];
-    for &t in &terms[1..] {
+    // Dedup in first-occurrence order. `x | x = x` at any scale.
+    // When all terms are identical the reduce is a single passthrough.
+    let mut unique: Vec<NodeId> = Vec::with_capacity(terms.len());
+    for &t in terms {
+        if !unique.contains(&t) {
+            unique.push(t);
+        }
+    }
+    let mut acc = unique[0];
+    for &t in &unique[1..] {
         let deps = DepSet::union(&[&node_deps(m, acc), &node_deps(m, t)]);
         let node_id = m.nodes.len() as NodeId;
         m.nodes.push(Node::Gate {
@@ -1804,10 +1801,34 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
 fn violates_anti_collapse(op: GateOp, operands: &[NodeId], _m: &Module) -> bool {
     use GateOp::*;
     match op {
-        Xor | Sub | Eq | Neq if operands.len() == 2 => operands[0] == operands[1],
+        // Idempotent / self-inverse operators at any arity: any
+        // duplicate operand produces a degenerate result
+        // (`x & x = x`, `x | x = x`, `x ^ x = 0`). Checked as
+        // operand-multiset distinctness across the whole operand
+        // list, not just pairwise.
+        And | Or | Xor => has_duplicate_operand(operands),
+        // Sub is 2-arity only. `x - x = 0`.
+        Sub if operands.len() == 2 => operands[0] == operands[1],
+        // Comparisons are 2-arity. `x == x = 1`, `x != x = 0`.
+        Eq | Neq if operands.len() == 2 => operands[0] == operands[1],
+        // Mux: (sel, data_true, data_false). `mux(s, a, a) = a`.
         Mux if operands.len() == 3 => operands[1] == operands[2],
         _ => false,
     }
+}
+
+/// True iff any `NodeId` appears more than once in `operands`.
+/// O(N²) in operand count — acceptable because N is bounded by
+/// `cfg.max_gate_arity` (typically ≤ 8).
+fn has_duplicate_operand(operands: &[NodeId]) -> bool {
+    for i in 0..operands.len() {
+        for j in (i + 1)..operands.len() {
+            if operands[i] == operands[j] {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// DAG-sharing operand picker. Returns an existing pool entry of the
@@ -2240,6 +2261,43 @@ mod tests {
             )
         });
         assert!(has_concat_9, "expected a 9-bit Concat as the Slice source");
+    }
+
+    /// `violates_anti_collapse` must catch N-arity duplicates on
+    /// idempotent / self-inverse operators, not just pairwise 2-arity
+    /// cases. Regression guard for the `i_2 ^ i_2 ^ i_2 ^ i_2 = 0`
+    /// defect observed in sample output.
+    #[test]
+    fn anti_collapse_catches_nary_duplicates() {
+        use GateOp::*;
+        let m = Module::default();
+        // Xor/And/Or with any duplicate operand at any arity.
+        for op in [Xor, And, Or] {
+            assert!(
+                violates_anti_collapse(op, &[7, 7, 7, 7], &m),
+                "{op:?}: 4-repeat not caught"
+            );
+            assert!(
+                violates_anti_collapse(op, &[1, 2, 1], &m),
+                "{op:?}: 3-arity with duplicate not caught"
+            );
+            assert!(
+                violates_anti_collapse(op, &[3, 4, 5, 3], &m),
+                "{op:?}: 4-arity with single duplicate not caught"
+            );
+            assert!(
+                !violates_anti_collapse(op, &[1, 2, 3, 4], &m),
+                "{op:?}: all-distinct flagged falsely"
+            );
+        }
+        // Add / Mul: duplicates are algebraically meaningful, not
+        // collapses. `x + x = 2x`, `x * x = x²`.
+        for op in [Add, Mul] {
+            assert!(
+                !violates_anti_collapse(op, &[1, 1, 1], &m),
+                "{op:?}: duplicates incorrectly flagged as collapse"
+            );
+        }
     }
 
     /// `pick_terminal_dep_bearing` must never return a dep-empty node

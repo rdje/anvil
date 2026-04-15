@@ -301,17 +301,36 @@ time. The check is on `NodeId` equality, which catches both pure-tree
 self-reference and sharing-induced self-reference (same pool entry
 picked for multiple operands).
 
-- `x ^ x` → 0
-- `x - x` → 0
-- `x == x` → 1
-- `x != x` → 0
-- `mux(s, a, a)` → a (trivial)
+- **Idempotent / self-inverse N-arity operators** — `And`, `Or`,
+  `Xor` at any arity: any `NodeId` may appear at most once in the
+  operand list. Duplicate operands collapse the gate
+  (`x & x = x`, `x | x = x`, `x ^ x = 0`, `x ^ x ^ x ^ x = 0`).
+  The check is operand-multiset distinctness, not just pairwise.
+- **Sub (2-arity):** `x - x = 0` — operands must differ.
+- **Eq, Neq (2-arity):** `x == x = 1`, `x != x = 0` — operands
+  must differ.
+- **Mux:** `mux(s, a, a) = a` — data_true and data_false must
+  differ.
+
+Add and Mul are deliberately **not** on this list: `x + x = 2x`
+and `x * x = x²` are algebraically meaningful, not collapses.
 
 When a forbidden shape is detected, the generator falls back to
 `pick_terminal` rather than emitting the degenerate gate.
 
 **Where enforced:** `src/gen/cone.rs` — `violates_anti_collapse` in
-`build_cone`.
+`build_cone` (recursive path), `process_signal_frame` (interleaved
+path), and `grow_pool_one_unit` (graph-first path). The helper
+`has_duplicate_operand` performs the N-arity distinctness check
+(O(N²) in operand count, N bounded by `max_gate_arity`).
+
+**Downstream dedup:** `or_reduce_terms` (used by one-hot mux
+assembly) deduplicates its input terms before building the
+`Or`-chain, because identical per-arm product terms are
+structurally possible when arms share the same sel+data. The
+`make_none_selected` helper routes through `or_reduce_terms`, so
+the `~(sel_0 | sel_1 | … | sel_{M-1})` collapse is caught the
+same way.
 
 **Not caught:** algebraic identities deeper in the tree (`(a+b) - b`,
 `(a & b) | (a & ~b)`, etc.). A real synthesizer will fold those

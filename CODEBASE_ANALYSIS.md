@@ -168,7 +168,7 @@ In code (constructors / generator):
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.
 - `gen::cone::build_cone` consults `cfg.share_prob` per operand: with that probability it calls `try_share` to return an existing matching-width pool entry (with deps, honoring `exclude`); otherwise it recurses. Fresh `Gate` nodes enter the pool on creation, so later operand decisions in the same call chain can share them.
 - `gen::cone::make_width_adapter` produces a Slice (when source > target), a single Concat (when source × N == target), or Concat-then-Slice (when source × N > target). Deps propagate from the source.
-- `gen::cone::violates_anti_collapse` rejects `x ^ x`, `x - x`, `x == x`, `x != x`, `mux(s, a, a)`.
+- `gen::cone::violates_anti_collapse` rejects (a) any duplicate operand in N-arity `And`/`Or`/`Xor` via `has_duplicate_operand` (O(N²), N bounded by `max_gate_arity`); (b) `x - x`, `x == x`, `x != x` at 2-arity; (c) `mux(s, a, a)`. `Add` and `Mul` are deliberately exempt. `or_reduce_terms` dedups input terms before chaining Ors; `make_none_selected` routes through it. See `book/src/structural-rules.md` Rule 8.
 - `gen::cone::pick_gate` only offers comparison ops when the parent target width is 1.
 - `gen::cone::build_flop_leaf` allocates `Flop` (with random `FlopKind`) and `FlopQ` together; `Flop.q` always points at the new `FlopQ` node; `Flop.d` and `Flop.mux` are filled later by `drain_flop_worklist`.
 - All flops use `ResetKind::Async` unconditionally (single-CLK / single-RST_N synchronous discipline).
@@ -200,7 +200,7 @@ In `ir::validate::validate`:
 - `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
 - `src/gen/cone.rs` — 11 inline unit tests. Prior 7 (`ceil_log2`, `pick_mux_arm_count`, 4 width-adapter cases, DAG-sharing sanity, comb-mux-block) plus 4 new flop-assembler tests covering OneHot/ZeroDefault, OneHot/QFeedback, Encoded/ZeroDefault, Encoded/QFeedback — with `fixture_with_inputs` / `alloc_flop` shared helpers.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
-- Total: 31 unit tests + 15 integration = **46 tests, all passing**.
+- Total: 32 unit tests + 15 integration = **47 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)
