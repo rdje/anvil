@@ -3,7 +3,57 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0010 — Phase 2 start: per-operand DAG-cone sharing
+
+**What changed**
+- `src/gen/cone.rs`:
+  - `build_cone` operand loop now consults `cfg.share_prob` per operand. With that probability it calls the new `try_share` helper; on `Some(node)` the operand terminates at that existing pool entry, on `None` it falls back to normal recursion.
+  - New `try_share(g, pool, width, exclude)` helper: returns a random matching-width pool entry with non-empty deps, honoring the `exclude` filter used for flop Q-exclusion.
+  - New unit test `share_prob_high_shares_internal_gates`: a 32-seed sweep at `share_prob=0.9` must produce at least one Gate (not just a primary input) with fanout ≥ 2. This verifies the non-leaf DAG mechanism actually fires and is not masked by leaf-level reuse.
+- `src/config.rs`: `share_prob` default raised from `0.0` to `0.3`, making DAG-ish cones the generator's default shape.
+- `book/src/sharing.md` rewritten:
+  - States that tree-and-DAG is a per-operand decision, not a global mode. The generator mixes both freely.
+  - Explains the distinction between leaf-level reuse (always on) and non-leaf sharing (controlled by `share_prob`).
+  - Includes the `try_share`/`build_cone` pseudocode.
+  - Documents the anti-collapse guards still applying post-share.
+- `ROADMAP.md`: Phase 2 status flipped to `in progress`. Exit criterion extended to cover Verilator-lint on `share_prob ∈ {0.0, 0.3, 0.9}`.
+- `USER_GUIDE.md`: `--share-prob` default updated to 0.3; description rewritten as per-operand probability.
+- `CODEBASE_ANALYSIS.md`:
+  - Module map for `cone.rs` gains `try_share` and the DAG-sharing summary.
+  - Phase coverage map: Phase 2 now `in progress`.
+  - Invariants-enforced list gains the `share_prob` / `try_share` entry.
+  - Testing surface: 7 cone unit tests (was 6), total 23 (was 22).
+- `DEVELOPMENT_NOTES.md`: calibration section gains a `share_prob = 0.3` entry explaining the default and clarifying that `share_prob = 0.0` is not pure tree (leaf-level reuse via `pick_terminal` is always on).
+- `MEMORY.md`: Current state, next-up, recent commits, known-gaps all refreshed.
+
+**Why**
+Phase 2 per user direction: enable DAG cones. User framing: "tree or DAG, randomly picked per recursion point" — exactly what a per-operand `share_prob` coin gives. For this slice we set `share_prob = 0.3` as the default so the generator produces DAG-shaped cones by default; users who want pure-tree or maximally-shared modes set `share_prob` explicitly to 0.0 or ~1.0.
+
+The mechanism is intentionally minimal: two lines in `build_cone` plus one helper. The pool already contained every `Gate` node on creation from Phase 1 work, so the infrastructure was in place; what was missing was the non-leaf hook to consult it.
+
+**Validation**
+- `cargo check --all-targets`: clean.
+- `cargo test`: 21 unit + 2 integration = 23 tests, all pass.
+- `cargo clippy --all-targets -- -D warnings`: clean.
+- `cargo fmt --all --check`: clean.
+- Pipeline sweep of 20 seeds passes with DAG-sharing on by default — no multi-driver violations, no IR-validation failures, no empty dep-sets. The lazy-adapter path continues to operate when widths don't match any pool entry.
+- New `share_prob_high_shares_internal_gates` unit test passes.
+
+**Impact**
+- Generated SV now routinely has internal gate fanout > 1: one wire drives multiple consumers. This is the first motif-diversity step that makes `anvil` output resemble real hand-written RTL rather than pure random trees.
+- Phase 2 exit gate is now Verilator-lint on representative `share_prob` values, identical in form to the Phase 1 Verilator gate — both block on tooling availability.
+- The `share_prob = 0.0` → pure tree framing in `book/src/sharing.md` is corrected: pure tree is impossible because leaf-level reuse is always on. The book now reflects that nuance.
+
+**Files touched**
+`src/gen/cone.rs`, `src/config.rs`, `book/src/sharing.md`, `ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0009 — Inline unit tests for cone helpers and SV emitter
+
+**Commit hash:** `c8043c3`
 
 **What changed**
 - `src/gen/cone.rs`: added `#[cfg(test)] mod tests` with 6 tests:
@@ -36,8 +86,6 @@ The validator landed in the previous slice plus the 22-seed integration sweep co
 
 **Files touched**
 `src/gen/cone.rs`, `src/emit/sv.rs`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

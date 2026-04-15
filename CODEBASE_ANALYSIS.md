@@ -49,14 +49,18 @@ src/
 │   │                 ceil_log2, assemble_flop_d_one_hot, assemble_flop_d_encoded,
 │   │                 make_constant, make_eq_const, make_mux,
 │   │                 replicate_to_width, make_and,
-│   │                 make_none_selected, or_reduce_terms, pick_terminal
-│   │                 (with lazy width-adapter fallback and exclusion
-│   │                 filter), make_width_adapter, pick_gate,
+│   │                 make_none_selected, or_reduce_terms,
+│   │                 try_share (DAG-sharing operand picker),
+│   │                 pick_terminal (with lazy width-adapter fallback
+│   │                 and exclusion filter), make_width_adapter, pick_gate,
 │   │                 input_widths_for, violates_anti_collapse, node_deps.
 │   │                 Q is a leaf in the current cone; D opens either
 │   │                 a direct cone (M=0), a one-hot OR-of-masks mux
 │   │                 (M>=2, OneHot), or a chained-ternary encoded
 │   │                 mux (M>=2, Encoded) via the worklist.
+│   │                 DAG sharing: per-operand `share_prob` decides
+│   │                 share-vs-recurse; internal gates enter the pool
+│   │                 as they are built.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.
@@ -84,7 +88,7 @@ main  →  lib  →  gen  →  ir
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | `cargo check`, `cargo test`, `cargo clippy -D warnings`, `cargo fmt --check` all clean locally. |
 | 1 — Single-module MVP        | in progress  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). Remaining: per-gate width validator, unit tests, Verilator/Yosys smoke. |
-| 2 — Sharing                  | not started  | `gen/cone.rs`, `gen/pool.rs` | `share_prob` knob exists; recursion hook absent. |
+| 2 — Sharing                  | in progress  | `gen/cone.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built; DAG-cone mechanism verified by `share_prob_high_shares_internal_gates` unit test. |
 | 3 — Structured combinational | not started  | `gen/cone.rs`, `emit/sv.rs` | New GateOp variants + emitter arms. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
@@ -98,6 +102,7 @@ In code (constructors / generator):
 - `gen::module::generate_leaf_module` produces port counts within knob ranges.
 - `gen::cone::build_cone_with_retry` retries up to 4× on empty-dep-set cone roots.
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.
+- `gen::cone::build_cone` consults `cfg.share_prob` per operand: with that probability it calls `try_share` to return an existing matching-width pool entry (with deps, honoring `exclude`); otherwise it recurses. Fresh `Gate` nodes enter the pool on creation, so later operand decisions in the same call chain can share them.
 - `gen::cone::make_width_adapter` produces a Slice (when source > target), a single Concat (when source × N == target), or Concat-then-Slice (when source × N > target). Deps propagate from the source.
 - `gen::cone::violates_anti_collapse` rejects `x ^ x`, `x - x`, `x == x`, `x != x`, `mux(s, a, a)`.
 - `gen::cone::pick_gate` only offers comparison ops when the parent target width is 1.
@@ -125,9 +130,9 @@ In `ir::validate::validate`:
 
 - `tests/pipeline.rs` — 20-seed cross-seed generation + validation + reproducibility.
 - `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
-- `src/gen/cone.rs` — 6 inline unit tests covering `ceil_log2` correctness (incl. 62-value sweep), `pick_mux_arm_count` never returning 1 (10K draws), and `make_width_adapter` edge cases: identity (src == target), shrink (Slice), expand exact-multiple (single Concat), expand non-multiple (Concat + Slice).
+- `src/gen/cone.rs` — 7 inline unit tests covering `ceil_log2` correctness (incl. 62-value sweep), `pick_mux_arm_count` never returning 1 (10K draws), `make_width_adapter` edge cases (identity, shrink-via-Slice, expand exact-multiple via single Concat, expand non-multiple via Concat+Slice), and DAG-sharing sanity (`share_prob_high_shares_internal_gates` — 32-seed sweep at share_prob=0.9 must produce at least one Gate with fanout >= 2).
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
-- Total: 20 unit tests + 2 integration = **22 tests, all passing**.
+- Total: 21 unit tests + 2 integration = **23 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)

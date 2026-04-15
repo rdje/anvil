@@ -1,31 +1,47 @@
 # Signal Sharing: Trees Become DAGs
 
-In Phase 1, every cone is a tree: each internal signal has exactly one
-consumer. This is the simplest correct generator but produces
-unrealistic, bloated RTL — every gate's output is used once, then
-forgotten.
+`anvil` supports both tree-shaped and DAG-shaped cones, with the
+choice made **per recursion point**. A single module can mix both
+freely: some operands recurse to create fresh logic (tree-local), some
+terminate at existing signals (DAG-local). The same module can look
+tree-ish in one sub-cone and DAG-ish in the next.
 
-Real designs are DAGs. A wire is computed once and read many times.
-Phase 3 adds this.
+The `share_prob` knob controls the per-operand decision. Two extreme
+settings collapse the behavior to a single mode across the whole run:
+
+- `share_prob = 0.0` — no non-leaf sharing. The only reuse comes from
+  `pick_terminal`'s leaf-level pool picks (always on). Internal gates
+  have exactly one consumer each. Cones are tree-ish.
+- `share_prob = 1.0` — every operand that *can* be shared is shared.
+  Fresh gates are created only when no matching-width pool entry
+  exists with non-empty deps. Cones are maximally-DAG-ish.
+
+In between, each value mixes both shapes per recursion point. That is
+Phase 2's guiding principle: "tree or DAG" is not a global mode choice
+— it is a local decision made wherever the recursion needs an operand.
 
 ## The mechanism
 
-The `SignalPool` already exists from Phase 1 (it holds primary inputs
-and flop-Qs for terminal selection). In Phase 3, every gate output
-also enters the pool. When `pick_terminal` is called during cone
-recursion, with probability `share_prob` it picks an existing pool
-entry of the right width instead of creating fresh logic via gate
-recursion.
+The `SignalPool` holds every signal with a declared width and a known
+dep-set: primary inputs, flop-Qs, and every `Gate` node as it is
+created. During `build_cone`, when the recursion needs an operand at
+width W, it rolls the `share_prob` coin:
 
 ```
-pick_terminal(rng, knobs, width, pool):
-    candidates = pool.signals_of_width(width)
-    if not candidates.empty() and rand() < knobs.share_prob:
-        return pick_one(candidates)   // SHARING
-    ...                                // fall through to other terminals
+for w in operand_widths:
+    if rand() < share_prob and try_share(pool, w, exclude) is Some(node):
+        operands.push(node)          # SHARING — terminate at pool entry
+    else:
+        operands.push(build_cone(w)) # RECURSE — create fresh logic
 ```
 
-That's the whole feature. Two lines of logic; the rest is bookkeeping.
+`try_share` returns a random matching-width pool entry with non-empty
+deps, honoring the Q-exclusion contract used for flop D-cones.
+
+This is the *non-leaf* sharing path. It complements the *leaf* sharing
+that has been present since Phase 1 (when recursion hits `max_depth`
+or rolls a forced-leaf coin, `pick_terminal` picks from the same
+pool). Together they cover every operand position.
 
 ## Dep-set propagation through sharing
 
@@ -37,9 +53,8 @@ of how many consumers a node has.
 
 ## Knob calibration
 
-`share_prob` of 0.0 produces pure trees (Phase 1 behavior). 1.0 would
-produce maximum sharing — almost no fresh logic per cone, just
-combinations of pool entries. Useful range is 0.2–0.5.
+The default is `share_prob = 0.3`: every operand has a 30% chance of
+being shared. Useful range is 0.2–0.7.
 
 Higher sharing means:
 
@@ -59,8 +74,9 @@ Lower sharing means:
 The non-triviality structural rules still apply post-sharing:
 
 - A gate cannot have the same node as both inputs of `xor`, `sub`,
-  `==`, etc. — even if that node is shared from the pool. The check
-  is on `NodeId` equality, which catches sharing-induced collapses.
+  `==`, `!=` — even if that node is shared from the pool. The check
+  is on `NodeId` equality, which catches sharing-induced collapses at
+  gate-assembly time.
 - Mux arms cannot be the same node.
 
 Without these, sharing would *increase* the rate of trivial collapse
@@ -73,6 +89,11 @@ generated independently. If two cones both build `(i_0 + i_1)` from
 scratch, they remain two separate gates. Common-subexpression
 elimination is the synthesizer's job, not the generator's.
 
-If you want pre-deduplicated output for some reason, run a
-canonicalization pass over the IR after generation. `anvil` does not
-ship one; it would be a reasonable contribution.
+## No cycles possible
+
+The pool only contains signals that *already exist* when an operand
+decision is made. The gate currently being assembled is added to the
+pool *after* its operands are resolved. Therefore no gate can
+transitively reference itself through sharing. Flop-Q-to-D feedback
+is the only legal cycle, and it is gated by the existing Q-exclusion
+contract (see `book/src/sequential.md`).

@@ -55,7 +55,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-mux-arms`        | 4        | Maximum M for the M-to-1 one-hot mux on flop D  |
 | `--flop-qfeedback-prob` | 0.5      | Probability of Q→D feedback when no select fires|
 | `--flop-mux-encoding-prob` | 0.5   | Probability an encoded-select mux is used (vs one-hot)|
-| `--share-prob`          | 0.0      | Probability of reusing an existing wire (Phase 2)|
+| `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
 | `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |

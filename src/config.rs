@@ -59,7 +59,7 @@ impl Default for Config {
             max_depth: 6,
             max_nodes_per_module: 1000,
             flop_prob: 0.15,
-            share_prob: 0.0,
+            share_prob: 0.3,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,

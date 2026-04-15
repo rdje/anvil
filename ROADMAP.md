@@ -39,15 +39,20 @@ recursion (Q is a leaf, D opens a new sub-cone, worklist drains).
 and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops.
 
-## Phase 2 — Signal sharing (DAG cones)
+## Phase 2 — Signal sharing (DAG cones) (in progress)
 
 - Signal pool of already-created internal wires.
-- Probability knob for "reuse existing signal" vs "recurse to create new."
+- Per-operand `share_prob` decision: recurse (tree) or reuse (DAG).
+  Mixing is the default — a single gate's operands can freely combine
+  shared and freshly-built sub-cones.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
+- Anti-collapse rules still apply post-share (no `x ^ x` even when both
+  operands come from pool reuse).
 
 **Exit criteria:** generator produces cones with controlled sharing
-factor; synthesis still succeeds; no multi-driver violations.
+factor; synthesis still succeeds; no multi-driver violations; Verilator
+lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}.
 
 ## Phase 3 — Structured combinational ops
 

@@ -404,7 +404,20 @@ pub fn build_cone(
     let operand_widths = input_widths_for(op, width, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
     for w in operand_widths {
-        operands.push(build_cone(g, m, pool, worklist, w, depth + 1, exclude));
+        // DAG-sharing fork (Phase 2): with probability share_prob, terminate
+        // this operand at an existing matching-width pool entry instead of
+        // recursing to create fresh logic. Falls back to recursion if no
+        // shareable candidate exists. Share/recurse is decided per-operand,
+        // so a single gate's operands can mix shared and freshly-built sub-cones.
+        let share = g.rng.gen_bool(g.cfg.share_prob.min(1.0));
+        let shared = if share {
+            try_share(g, pool, w, exclude)
+        } else {
+            None
+        };
+        let operand =
+            shared.unwrap_or_else(|| build_cone(g, m, pool, worklist, w, depth + 1, exclude));
+        operands.push(operand);
     }
 
     if violates_anti_collapse(op, &operands, m) {
@@ -650,6 +663,30 @@ fn violates_anti_collapse(op: GateOp, operands: &[NodeId], _m: &Module) -> bool 
     }
 }
 
+/// DAG-sharing operand picker. Returns an existing pool entry of the
+/// requested width with non-empty deps, honoring the `exclude` filter.
+/// None if no shareable candidate exists — the caller falls back to
+/// normal recursion.
+fn try_share(
+    g: &mut Generator,
+    pool: &SignalPool,
+    width: u32,
+    exclude: Option<NodeId>,
+) -> Option<NodeId> {
+    let candidates: Vec<NodeId> = pool
+        .of_width(width)
+        .filter(|e| Some(e.node) != exclude)
+        .filter(|e| !e.deps.is_empty())
+        .map(|e| e.node)
+        .collect();
+    if candidates.is_empty() {
+        None
+    } else {
+        let idx = g.rng.gen_range(0..candidates.len());
+        Some(candidates[idx])
+    }
+}
+
 fn node_deps(m: &Module, id: NodeId) -> DepSet {
     match &m.nodes[id as usize] {
         Node::PrimaryInput { port, .. } => DepSet::from_port(*port),
@@ -766,6 +803,64 @@ mod tests {
             }
             other => panic!("expected Concat, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn share_prob_high_shares_internal_gates() {
+        // With high share_prob the non-leaf sharing path fires. Statistically,
+        // across a handful of seeds, at least one run must show an internal
+        // *Gate* (not a primary input) being consumed as an operand by 2+
+        // other gates. This is the Phase 2 DAG-cone mechanism working —
+        // without it, an internal gate has exactly one consumer (its parent).
+        //
+        // The test sweeps seeds rather than asserting on one, because
+        // `try_share` picks uniformly over pool entries (which include
+        // primary inputs and adapter nodes) and may not hit a mid-tree
+        // gate on a given seed. Over a small sweep it reliably does.
+        let base = Config {
+            share_prob: 0.9,
+            flop_prob: 0.0,
+            max_depth: 6,
+            min_inputs: 4,
+            max_inputs: 4,
+            min_outputs: 4,
+            max_outputs: 4,
+            // Same width everywhere so the pool has many matching candidates.
+            min_width: 4,
+            max_width: 4,
+            ..Config::default()
+        };
+        let found_gate_sharing = (0..32u64).any(|seed| {
+            let cfg = Config {
+                seed,
+                ..base.clone()
+            };
+            let mut gen = Generator::new(cfg);
+            let m = gen.generate_module();
+            let fanout = count_gate_fanout(&m);
+            m.nodes
+                .iter()
+                .enumerate()
+                .any(|(idx, n)| matches!(n, Node::Gate { .. }) && fanout[idx] >= 2)
+        });
+        assert!(
+            found_gate_sharing,
+            "high share_prob must produce at least one Gate with fanout >= 2 \
+             across a 32-seed sweep (internal-gate sharing is the DAG-cone mechanism)"
+        );
+    }
+
+    /// For each node index, how many other gates reference it as an operand.
+    fn count_gate_fanout(m: &Module) -> Vec<u32> {
+        let mut fanout = vec![0u32; m.nodes.len()];
+        for node in &m.nodes {
+            if let Node::Gate { operands, .. } = node {
+                for &op in operands {
+                    fanout[op as usize] += 1;
+                }
+            }
+        }
+        fanout
     }
 
     #[test]

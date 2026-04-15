@@ -2,14 +2,15 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
-- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) in progress; Rust-side test surface now broad.
-- **Last completed slice:** inline unit tests for `src/gen/cone.rs` (6 tests: `ceil_log2`, `pick_mux_arm_count`, `make_width_adapter` edge cases) and `src/emit/sv.rs` (6 tests: module header, conditional clk/rst_n, always_ff shape, operator/constant rendering, Slice/Concat, Mux ternary). Total: 20 unit + 2 integration = 22 tests. See `CHANGES.md` entry `2026-04-15-0009`.
+- **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. **Phase 2 (Signal sharing / DAG cones) in progress.**
+- **Last completed slice:** per-operand DAG-sharing wired into `build_cone`. New `try_share` helper picks an existing matching-width pool entry (with deps, honoring `exclude`); on None, falls back to normal recursion. `share_prob` default raised from `0.0` to `0.3`. New unit test `share_prob_high_shares_internal_gates` verifies the DAG mechanism produces internal-gate fanout ≥ 2 across a 32-seed sweep. Total: 21 unit + 2 integration = 23 tests. See `CHANGES.md` entry `2026-04-15-0010`.
 - **Next up:**
-  1. Verilator-lint smoke when `verilator` is locally available, or wire CI to provide it. This is the remaining Phase 1 exit gate.
-  2. After Verilator-lint green: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
-  3. Optional hardening before Phase 2: inline unit tests for `assemble_flop_d_encoded` and `assemble_flop_d_one_hot` (currently only exercised indirectly through the integration sweep).
+  1. Verilator-lint smoke run, ideally sweeping `share_prob ∈ {0.0, 0.3, 0.9}` per the Phase 2 exit criterion. Blocked on Verilator availability.
+  2. Consider adding a `--share-prob` CLI flag (currently only accessible via `--config` JSON). Small ergonomic improvement.
+  3. After Verilator-lint green at multiple `share_prob` settings: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
 
 ## Recent commits
+- `c8043c3` — Inline unit tests for cone helpers and SV emitter.
 - `4eb5daa` — Per-gate width/arity validator + inline unit tests.
 - `f2a3d81` — Elevate mdBook to equal-standing live doc in session recovery.
 - `a1a9ea9` — Live-doc catch-up + tighten commit workflow (12-item checklist).
@@ -31,7 +32,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) not yet met locally; tools missing.
 - Concat / Slice are used by the adapter and the flop emitter, but `input_widths_for(Concat|Slice, ...)` is still a placeholder. They are not selectable by `pick_gate` in Phase 1, so the placeholder is dead code today.
-- Sharing (DAG cones), structured ops (case, for-loop), hierarchy, parameterization: not started.
+- Structured ops (case, for-loop), hierarchy, parameterization: not started.
 
 ## Session handoff notes
 - All design decisions discussed so far are captured in `book/src/core-idea.md`, `book/src/why-not-grammar.md`, `book/src/non-triviality.md`, and `book/src/non-goals.md`. Read those before proposing structural changes.
