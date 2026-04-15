@@ -34,7 +34,7 @@ Before running `git commit`, walk through **every item** below explicitly. Do no
 6. **`ROADMAP.md`** — Did a phase label change (`done`/`mostly done`/`in progress`/`not started`)? Did an exit criterion change? Did phases get renumbered? If yes, amend.
 7. **`USER_GUIDE.md`** — Did any CLI flag, knob default, or user-visible behavior change? If yes, amend.
 8. **`README.md`** — Did the project objective, ramp-up flow, key paths, or CLI surface change materially? If yes, amend.
-9. **`book/src/*.md`** — Did the slice change a documented concept (algorithm, IR, knobs, synthesizability, non-triviality, sequential motifs, hierarchy)? If yes, amend the relevant chapter(s).
+9. **`book/src/*.md`** — The mdBook is a live doc of equal standing, carrying load-bearing design context. Did the slice change a documented concept (algorithm, IR, knobs, synthesizability, non-triviality, sequential motifs, hierarchy, core idea, non-goals)? If yes, amend the relevant chapter(s). **If the slice added a new design decision or rejected alternative that deserves permanence beyond the commit message, add it to the book — short-form docs and commit messages are not adequate substitutes for a session that recovers cold.**
 10. **`git status`** — Only the files intended for this slice are staged. No accidental swaps of `Cargo.lock`, no accidental `target/` inclusions, no staged `git_message_brief.txt`.
 11. **Commit message** — `git_message_brief.txt` is written, concise, has the co-author trailer, and is untracked.
 12. **Post-commit** — `truncate -s 0 git_message_brief.txt` is run so the next slice starts with an empty scratchpad.
@@ -70,8 +70,8 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
 - `README.md`
   - Project entry point. Update when objective, ramp-up flow, key paths, or CLI surface change materially.
 - `book/` (mdBook)
-  - A live doc. The content evolves with the project.
-  - Update the relevant chapter when the code change affects a concept the book describes (algorithm, IR, knobs, synthesizability, non-triviality, hierarchy, etc.).
+  - **A live doc of equal standing to the short-form files above.** The mdBook carries the deepest design context in the project: the core idea, the algorithm, the IR, the motifs, the rejected alternatives, the non-goals. For session recovery, the mdBook is load-bearing — a new AI or contributor that skims short-form docs and skips the book will make decisions that are locally coherent but globally wrong.
+  - The content evolves with the project. Update the relevant chapter whenever a code change affects a concept the book describes (algorithm, IR, knobs, synthesizability, non-triviality, sequential motifs, hierarchy, etc.).
   - Do **not** modify `book/src/core-idea.md`, `book/src/non-goals.md`, or `book/src/why-not-grammar.md` casually — those capture load-bearing design decisions; changes need explicit justification in `DEVELOPMENT_NOTES.md`.
 - `COMMIT.md` (this file)
   - Canonical commit workflow reference. Updated only when the workflow itself changes.

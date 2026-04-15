@@ -11,6 +11,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   4. After above: declare Phase 1 done and start Phase 2 (signal sharing / DAG cones).
 
 ## Recent commits
+- `a1a9ea9` — Live-doc catch-up + tighten commit workflow (12-item checklist).
 - `10090c2` — Encoded-select flop mux (chained ternary) alongside one-hot.
 - `47675df` — M-to-1 one-hot mux flops with two motifs (ZeroDefault, QFeedback).
 - `4317c82` — Fold flops into the cone recursion (single-clock synchronous design).
