@@ -59,7 +59,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-gate-arity`      | 4        | Max arity N for associative operators                 |
 | `--comb-mux-prob`       | 0.1      | Probability a non-leaf node becomes an M-to-1 comb mux|
 | `--comb-mux-encoding-prob` | 0.5   | Per-mux probability of Encoded vs OneHot (comb muxes) |
-| `--construction-strategy` | sequential | Strategy: `sequential` | `shuffled` | `interleaved` (planned: `graph-first`) |
+| `--construction-strategy` | graph-first | Strategy: `sequential` | `shuffled` | `interleaved` | `graph-first` (default) |
+| `--graph-first-pool-size` | 32       | Target top-level units for `graph-first` strategy    |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |

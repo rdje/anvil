@@ -108,7 +108,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
                     idxs.shuffle(&mut g.rng);
                     idxs
                 }
-                ConstructionStrategy::Interleaved => unreachable!(),
+                _ => unreachable!(),
             };
             let mut slots: Vec<Option<NodeId>> = vec![None; m.outputs.len()];
             for idx in build_order {
@@ -127,6 +127,9 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         }
         ConstructionStrategy::Interleaved => {
             cone::build_outputs_interleaved(g, &mut m, &mut pool, &mut worklist)
+        }
+        ConstructionStrategy::GraphFirst => {
+            cone::build_graph_first(g, &mut m, &mut pool, &mut worklist)
         }
     };
 

@@ -93,6 +93,7 @@ fn all_strategies_produce_valid_modules() {
         ConstructionStrategy::Sequential,
         ConstructionStrategy::Shuffled,
         ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
     ] {
         for seed in 0..10u64 {
             let cfg = Config {
@@ -109,6 +110,70 @@ fn all_strategies_produce_valid_modules() {
             });
         }
     }
+}
+
+#[test]
+fn graph_first_is_default() {
+    // The default strategy is now GraphFirst. Omitting the flag and
+    // explicitly passing graph-first must produce byte-identical output.
+    let default_cfg = Config {
+        seed: 42,
+        ..Config::default()
+    };
+    let explicit_cfg = Config {
+        seed: 42,
+        construction_strategy: ConstructionStrategy::GraphFirst,
+        ..Config::default()
+    };
+    let a = anvil::emit::to_sv(&Generator::new(default_cfg).generate_module());
+    let b = anvil::emit::to_sv(&Generator::new(explicit_cfg).generate_module());
+    assert_eq!(
+        a, b,
+        "default strategy must be GraphFirst (byte-identical output)"
+    );
+}
+
+#[test]
+fn graph_first_reproducibility() {
+    let cfg = Config {
+        seed: 42,
+        construction_strategy: ConstructionStrategy::GraphFirst,
+        ..Config::default()
+    };
+    let a = anvil::emit::to_sv(&Generator::new(cfg.clone()).generate_module());
+    let b = anvil::emit::to_sv(&Generator::new(cfg).generate_module());
+    assert_eq!(
+        a, b,
+        "graph-first strategy must be byte-identical for same seed"
+    );
+}
+
+#[test]
+fn graph_first_differs_from_sequential() {
+    let base = Config {
+        seed: 42,
+        min_outputs: 3,
+        max_outputs: 3,
+        ..Config::default()
+    };
+    let seq_sv = anvil::emit::to_sv(
+        &Generator::new(Config {
+            construction_strategy: ConstructionStrategy::Sequential,
+            ..base.clone()
+        })
+        .generate_module(),
+    );
+    let gf_sv = anvil::emit::to_sv(
+        &Generator::new(Config {
+            construction_strategy: ConstructionStrategy::GraphFirst,
+            ..base
+        })
+        .generate_module(),
+    );
+    assert_ne!(
+        seq_sv, gf_sv,
+        "graph-first must produce different output from sequential"
+    );
 }
 
 #[test]

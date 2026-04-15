@@ -92,6 +92,193 @@ struct GateFrame {
     dest: Dest,
 }
 
+// ------------------------------------------------------------------
+// Graph-first construction: no per-output cone recursion. Grow a
+// gate pool with no output attribution; operands of each new unit
+// are picked from the existing pool. Flop D-cones resolved after
+// pool growth using pool-only picks. Output drive-roots picked from
+// the pool at the end. See book/src/construction-strategies.md.
+// ------------------------------------------------------------------
+
+/// Grow a gate pool and pick drive-roots for each output from it.
+/// Returns the drive-root NodeId per output, in declaration order.
+pub fn build_graph_first(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) -> Vec<NodeId> {
+    // Phase 1 — grow the pool by `graph_first_pool_size` top-level
+    // units. A unit is one operator gate, one flop (with deferred D),
+    // or one comb-mux block. Comb-mux and flop-mux assembly internally
+    // creates multiple primitive gates; those are NOT counted toward
+    // the pool size target. The counter only advances on successful
+    // unit emission; skipped emissions (e.g., anti-collapse rejects)
+    // do not advance it but consume an iteration budget to prevent
+    // pathological infinite loops.
+    let target = g.cfg.graph_first_pool_size.max(1) as usize;
+    let mut emitted: usize = 0;
+    let mut iterations: usize = 0;
+    let iter_budget = target.saturating_mul(8);
+    while emitted < target && iterations < iter_budget {
+        iterations += 1;
+        if grow_pool_one_unit(g, m, pool, worklist) {
+            emitted += 1;
+        }
+    }
+
+    // Phase 2 — resolve flop D-cones using pool-only picks. By this
+    // point the pool is fully grown, so every flop has the full pool
+    // to pick its D-mux operands from. Q-feedback is permitted freely
+    // (Rule 2) — `exclude` is None throughout.
+    drain_flop_worklist_pool_only(g, m, pool, worklist);
+
+    // Phase 3 — pick a drive-root for each output from the pool.
+    // `pick_terminal` handles the adapter fallback when no matching-
+    // width entry exists.
+    (0..m.outputs.len())
+        .map(|i| pick_terminal(g, m, pool, m.outputs[i].width, None))
+        .collect()
+}
+
+fn grow_pool_one_unit(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) -> bool {
+    let width = g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width);
+
+    let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
+    if flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0)) {
+        build_flop_leaf(g, m, pool, worklist, width);
+        return true;
+    }
+
+    if g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0)) {
+        build_comb_mux_pool_only(g, m, pool, width);
+        return true;
+    }
+
+    let op = pick_gate(g, width);
+    let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
+    for _ in 0..4 {
+        let operands: Vec<NodeId> = operand_widths
+            .iter()
+            .map(|w| pick_terminal(g, m, pool, *w, None))
+            .collect();
+        if !violates_anti_collapse(op, &operands, m) {
+            let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+            let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+            let node_id = m.nodes.len() as NodeId;
+            m.nodes.push(Node::Gate {
+                op,
+                operands,
+                width,
+                deps: deps.clone(),
+            });
+            pool.add(node_id, width, deps);
+            return true;
+        }
+    }
+    false
+}
+
+/// Pool-only comb-mux assembly (mirrors `build_comb_mux` but
+/// sub-cones are pool picks instead of recursive builds).
+fn build_comb_mux_pool_only(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+
+    let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
+    if encoded {
+        let sel_width = ceil_log2(n_arms);
+        let sel = pick_terminal(g, m, pool, sel_width, None);
+        let datas: Vec<NodeId> = (0..n_arms)
+            .map(|_| pick_terminal(g, m, pool, width, None))
+            .collect();
+        let fall_through = make_constant(m, pool, width, 0);
+        let mut tail = fall_through;
+        for idx_rev in 0..n_arms {
+            let idx = n_arms - 1 - idx_rev;
+            let eq = make_eq_const(m, pool, sel, sel_width, idx as u128);
+            tail = make_mux(m, pool, eq, datas[idx as usize], tail, width);
+        }
+        tail
+    } else {
+        let mut arms: Vec<MuxArm> = Vec::with_capacity(n_arms as usize);
+        for _ in 0..n_arms {
+            let data = pick_terminal(g, m, pool, width, None);
+            let sel = pick_terminal(g, m, pool, 1, None);
+            arms.push(MuxArm { data, sel });
+        }
+        let mut term_nodes: Vec<NodeId> = Vec::with_capacity(arms.len());
+        for arm in &arms {
+            let mask = replicate_to_width(m, pool, arm.sel, width);
+            term_nodes.push(make_and(m, pool, mask, arm.data, width));
+        }
+        or_reduce_terms(m, pool, &term_nodes, width)
+    }
+}
+
+/// Pool-only flop D-cone drain (mirrors `drain_flop_worklist` but
+/// operand sub-cones are pool picks). Reuses `assemble_flop_d_one_hot`
+/// and `assemble_flop_d_encoded` for the mux-tree assembly.
+fn drain_flop_worklist_pool_only(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) {
+    while let Some(flop_id) = worklist.pop() {
+        let width = m.flops[flop_id as usize].width;
+        let kind = m.flops[flop_id as usize].kind;
+        let q_node = m.flops[flop_id as usize].q;
+        let exclude: Option<NodeId> = None;
+
+        let m_arms = pick_mux_arm_count(g);
+        if m_arms == 0 {
+            let d_node = pick_terminal(g, m, pool, width, exclude);
+            m.flops[flop_id as usize].d = Some(d_node);
+            m.flops[flop_id as usize].mux = FlopMux::None;
+            continue;
+        }
+
+        let encoded = g.rng.gen_bool(g.cfg.flop_mux_encoding_prob.min(1.0));
+        if encoded {
+            let sel_width = ceil_log2(m_arms);
+            let sel = pick_terminal(g, m, pool, sel_width, exclude);
+            let datas: Vec<NodeId> = match kind {
+                FlopKind::ZeroDefault => (0..m_arms)
+                    .map(|_| pick_terminal(g, m, pool, width, exclude))
+                    .collect(),
+                FlopKind::QFeedback => (1..m_arms)
+                    .map(|_| pick_terminal(g, m, pool, width, exclude))
+                    .collect(),
+            };
+            let d = assemble_flop_d_encoded(m, pool, width, sel, sel_width, &datas, kind, q_node);
+            m.flops[flop_id as usize].d = Some(d);
+            m.flops[flop_id as usize].mux = FlopMux::Encoded { sel, data: datas };
+        } else {
+            let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
+            for _ in 0..m_arms {
+                let data = pick_terminal(g, m, pool, width, exclude);
+                let sel = pick_terminal(g, m, pool, 1, exclude);
+                arms.push(MuxArm { data, sel });
+            }
+            let d = assemble_flop_d_one_hot(m, pool, width, &arms, kind, q_node);
+            m.flops[flop_id as usize].d = Some(d);
+            m.flops[flop_id as usize].mux = FlopMux::OneHot(arms);
+        }
+    }
+}
+
 /// Build every output cone via a global frame queue. At each step a
 /// random `SignalFrame` is popped and processed: blocks (flop,
 /// comb-mux) and leaf terminals resolve immediately; operator gates

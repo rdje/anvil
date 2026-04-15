@@ -139,10 +139,10 @@ the fiction where it no longer helps.
 
 | Strategy       | Declaration-order bias | Within-module symmetry  | Implementation cost |
 |----------------|------------------------|-------------------------|---------------------|
-| `sequential`   | present (systematic)   | asymmetric (systematic) | already implemented |
-| `shuffled`     | removed                | asymmetric (randomized) | trivial             |
-| `interleaved`  | removed                | near-symmetric          | moderate            |
-| `graph-first`  | removed                | symmetric               | high (planned default) |
+| `sequential`   | present (systematic)   | asymmetric (systematic) | implemented     |
+| `shuffled`     | removed                | asymmetric (randomized) | implemented     |
+| `interleaved`  | removed                | near-symmetric          | implemented     |
+| `graph-first`  | removed                | symmetric               | **default**     |
 
 ## Interaction with existing rules
 
@@ -161,8 +161,7 @@ All three strategies preserve the structural rules catalog:
 
 ## Implementation status
 
-- `sequential` — **implemented**. Current default. CLI:
-  `--construction-strategy sequential`.
+- `sequential` — **implemented**. CLI: `--construction-strategy sequential`.
 - `shuffled` — **implemented**. Builds cones in a seeded random
   permutation of declaration order. CLI:
   `--construction-strategy shuffled`.
@@ -172,15 +171,23 @@ All three strategies preserve the structural rules catalog:
   table; when the last operand resolves, the gate finalizes. CLI:
   `--construction-strategy interleaved`. **Scope note:** block
   internals (flop D-cones, comb-mux sub-cones) still build
-  depth-first; only *output-cone* frames interleave. Full symmetry
-  (including block internals) awaits `graph-first`.
-- `graph-first` — planned. Architectural shift from per-output cones
-  to a pool-first DAG. Becomes the default when it lands.
+  depth-first; only *output-cone* frames interleave.
+- `graph-first` — **implemented and now the default**. No per-output
+  cone recursion. Three phases: (1) grow a pool of `graph_first_pool_size`
+  top-level units (operator gate / flop / comb-mux block, chosen per
+  the usual probabilities); each new unit's operands are picked from
+  the existing pool via `pick_terminal` (adapter fallback included);
+  (2) drain the flop worklist with pool-only picks for every data /
+  select / direct-D sub-cone; (3) pick a drive-root for each output
+  from the pool. No recursion anywhere. Every sub-cone is a pool
+  pick. Full module-wide symmetric sharing including through block
+  internals. CLI: `--construction-strategy graph-first`.
+  Additional knob: `--graph-first-pool-size` (default 32).
 
-When `graph-first` lands, the `construction_strategy` knob default
-will flip, and a user who wants prior behavior pins to
-`--construction-strategy sequential`. Reproducibility of any
-previously-generated output against its original seed + knobs is
-guaranteed because the effective knobs are recorded in the manifest.
+The default is now `graph-first`. Users who want prior behavior pin
+`--construction-strategy sequential` (or `shuffled` / `interleaved`).
+Reproducibility of any previously-generated output against its
+original seed + knobs is guaranteed because the effective knobs are
+recorded in the manifest.
 
 See `MEMORY.md` next-up list for the current implementation sequence.

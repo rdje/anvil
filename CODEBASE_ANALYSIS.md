@@ -26,7 +26,9 @@ src/
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy,
 │                     ConstructionStrategy enum (clap::ValueEnum +
-│                     serde): Sequential, Shuffled, Interleaved.
+│                     serde): Sequential, Shuffled, Interleaved,
+│                     GraphFirst (default). graph_first_pool_size
+│                     knob controls GraphFirst pool growth size.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports types::* and the validate module.
@@ -49,8 +51,10 @@ src/
 │   │                 cfg.construction_strategy: Sequential/Shuffled
 │   │                 use the recursive build_cone_with_retry path;
 │   │                 Interleaved delegates to
-│   │                 cone::build_outputs_interleaved (frame machine).
-│   │                 Drives recorded in declaration order regardless.
+│   │                 cone::build_outputs_interleaved (frame machine);
+│   │                 GraphFirst (default) delegates to
+│   │                 cone::build_graph_first. Drives recorded in
+│   │                 declaration order regardless.
 │   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 drain_flop_worklist, build_cone.
@@ -85,6 +89,11 @@ src/
 │   │                 table. Gates finalize when their last operand
 │   │                 resolves. Blocks (flop, comb-mux) still build
 │   │                 synchronously within one frame step.
+│   │                 GraphFirst strategy (default):
+│   │                 build_graph_first + grow_pool_one_unit +
+│   │                 build_comb_mux_pool_only +
+│   │                 drain_flop_worklist_pool_only. No recursion
+│   │                 anywhere — every sub-cone is a pool pick.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.

@@ -13,7 +13,7 @@ use thiserror::Error;
 #[serde(rename_all = "kebab-case")]
 #[clap(rename_all = "kebab-case")]
 pub enum ConstructionStrategy {
-    /// Build cones per-output in declaration order. The current default.
+    /// Build cones per-output in declaration order.
     Sequential,
     /// Build cones per-output in a random permutation of declaration order.
     Shuffled,
@@ -24,7 +24,14 @@ pub enum ConstructionStrategy {
     /// comb-mux) still build synchronously within one frame step; flop
     /// D-cones are drained synchronously at the end (as today).
     Interleaved,
-    // GraphFirst will be added when its implementation lands.
+    /// No per-output cone recursion. Grow a gate pool of top-level
+    /// units (operator gate / flop / comb-mux block), each with
+    /// operands picked from the current pool (no recursion). Flop
+    /// D-cones are resolved after pool growth using pool-only picks.
+    /// Output drive-roots picked from the pool at the end. True
+    /// module-wide symmetric sharing including through block
+    /// internals. This is the default.
+    GraphFirst,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +88,13 @@ pub struct Config {
     // How to schedule cone construction across outputs. See
     // `book/src/construction-strategies.md`.
     pub construction_strategy: ConstructionStrategy,
+
+    /// Target number of top-level units (operator gate / flop /
+    /// comb-mux block) grown in the pool by the `GraphFirst`
+    /// strategy. Only consulted when `construction_strategy ==
+    /// GraphFirst`. Does not count the internal primitive gates
+    /// generated inside comb-mux assembly or flop-mux assembly.
+    pub graph_first_pool_size: u32,
 }
 
 impl Default for Config {
@@ -117,7 +131,8 @@ impl Default for Config {
             hierarchy_depth: 0,
             num_leaf_modules: 0,
             use_async_reset: true,
-            construction_strategy: ConstructionStrategy::Sequential,
+            construction_strategy: ConstructionStrategy::GraphFirst,
+            graph_first_pool_size: 32,
         }
     }
 }
@@ -247,6 +262,9 @@ impl Config {
         if let Some(v) = o.construction_strategy {
             self.construction_strategy = v;
         }
+        if let Some(v) = o.graph_first_pool_size {
+            self.graph_first_pool_size = v;
+        }
     }
 }
 
@@ -271,4 +289,5 @@ pub struct Overrides {
     pub comb_mux_prob: Option<f64>,
     pub comb_mux_encoding_prob: Option<f64>,
     pub construction_strategy: Option<ConstructionStrategy>,
+    pub graph_first_pool_size: Option<u32>,
 }

@@ -62,11 +62,14 @@ struct Cli {
     comb_mux_prob: Option<f64>,
     #[arg(long)]
     comb_mux_encoding_prob: Option<f64>,
-    /// Construction strategy: sequential (current default) or shuffled
-    /// (random permutation of output build order). Planned future values:
-    /// interleaved, graph-first.
+    /// Construction strategy: sequential, shuffled, interleaved, or
+    /// graph-first (default). See `book/src/construction-strategies.md`.
     #[arg(long, value_enum)]
     construction_strategy: Option<ConstructionStrategy>,
+    /// Target number of top-level units (gate / flop / comb-mux block)
+    /// grown in the pool by the `graph-first` strategy.
+    #[arg(long)]
+    graph_first_pool_size: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -147,5 +150,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         comb_mux_prob: cli.comb_mux_prob,
         comb_mux_encoding_prob: cli.comb_mux_encoding_prob,
         construction_strategy: cli.construction_strategy,
+        graph_first_pool_size: cli.graph_first_pool_size,
     }
 }
