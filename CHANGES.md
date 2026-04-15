@@ -3,7 +3,37 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0019 — Rule 16: cross-output sharing via the module-wide signal pool
+
+**What changed**
+- `book/src/structural-rules.md`: new Rule 16 "Cross-output sharing via the module-wide signal pool". States that there is no per-output isolation — gates built while constructing output A's cone are immediately available as leaves / DAG-sharing candidates in output B's cone and in every flop's D-cone. Calls out the ordering asymmetry (outputs built in declaration order; later outputs see more sharing candidates) and the combinational-no-loop preservation (Rule 1 holds cross-cone because arena-index monotonicity is module-wide, not per cone).
+- "Operators vs blocks" preamble's grouping list updated with a "Module-wide sharing: Rule 16" entry.
+- `book/src/sharing.md`: new "Cross-output and cross-cone sharing" section that names the behavior and points to Rule 16.
+
+**Why**
+User flagged: "Nodes inside the fanin cone of one top level output can be used as inputs of gates/blocks in the fanin cone of another top level output. I guess you are already allowing that." The behavior was already in place (the `SignalPool` is constructed once per module and shared across all cone builds), but it was implicit — a reader would have to infer it from the code rather than find it in the rule catalog. Making it Rule 16 closes the gap.
+
+The ordering asymmetry (output 0 sees fewer candidates than output N-1) is worth documenting explicitly so a reader isn't surprised when output 0 tends to have more standalone logic than later outputs.
+
+**Validation**
+- Documentation-only slice; no source touched.
+- `cargo check`, `cargo test` (27 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all still clean.
+- Behavior claim verified against code: `src/gen/module.rs::generate_leaf_module` constructs exactly one `SignalPool` and threads it by `&mut` through every `build_cone_with_retry` call; `src/gen/cone.rs::pick_terminal` and `try_share` iterate the pool with no cone-identity filter.
+
+**Impact**
+- The structural rules catalog is more complete. A reader coming cold can now see explicitly that the generator does not isolate output cones from each other.
+- The book's sharing chapter now points to Rule 16 for the authoritative statement.
+
+**Files touched**
+`book/src/structural-rules.md`, `book/src/sharing.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0018 — Log the constants-roles clarification in the book + two corrections
+
+**Commit hash:** `8ff1d84`
 
 **What changed**
 - `book/src/structural-rules.md`: added a new "Roles of constants in RTL" section to the preamble (right after "Operators vs blocks"). Three distinct roles — coefficient, shift amount, comparand — each with its own scope, constraints, and motif family. Explicitly lists why flattening them into a single mechanism would break the semantic structure.
@@ -33,8 +63,6 @@ Both corrections are now in the doctrine alongside the original distinction. Fut
 
 **Files touched**
 `book/src/structural-rules.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

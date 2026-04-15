@@ -15,6 +15,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   5. Optional book polish: FAQ chapter as questions accumulate.
 
 ## Recent commits
+- `8ff1d84` — Log constants-roles clarification in the book + two corrections.
 - `dde27a2` — Doctrinal fix: coefficient / shift amount / comparand are distinct motifs.
 - `0564a49` — M-to-1 combinational mux as a first-class block.
 - `b91188d` — N-arity for associative operators + operators-vs-blocks doctrine.

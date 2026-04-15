@@ -129,6 +129,10 @@ The rules below are grouped by what they govern:
   OneHot or Encoded select; no Q-feedback axis (combinational muxes
   have no state). Built as a compound gate tree like the flop D-mux
   helpers, minus the Q-feedback terms.
+- **Module-wide sharing:** Rule 16 — the signal pool is
+  module-scoped, not per-output. Gates built for output A's cone are
+  freely available as operands / shared leaves in output B's cone
+  and in every flop's D-cone.
 - **Correctness guarantees:** Rules 9, 11, 12, 13 — non-triviality;
   synthesizable subset; deterministic naming; reproducibility.
 
@@ -377,6 +381,54 @@ output.
 RNG construction point. Tests: `tests/pipeline.rs::reproducibility`.
 
 ---
+
+---
+
+## 16 — Cross-output sharing via the module-wide signal pool
+
+**Rule:** Internal signals created while building output A's fanin
+cone (or any flop's D-cone) are freely available as leaves and
+DAG-sharing candidates inside output B's cone (or any later flop's
+D-cone). There is **no per-output isolation**. The signal pool is
+module-scoped, not cone-scoped.
+
+**Why it holds by construction:** `generate_leaf_module` constructs a
+single `SignalPool` before building any cones, seeded with primary
+data inputs. That pool is passed by `&mut` to every
+`build_cone_with_retry` call (each output cone, each flop D-cone).
+Every `Node::Gate` is added to the pool when constructed. So every
+subsequent `pick_terminal` / `try_share` call sees the full history
+of gates built so far in the module.
+
+**Practical effect:**
+
+- Realistic RTL shapes. Real designs routinely share intermediate
+  signals across multiple outputs — an ALU's operand-decode logic
+  feeds multiple result paths; a state encoder feeds multiple
+  downstream datapaths.
+- No multi-driver risk. Cross-output sharing means *multiple
+  consumers* of the same signal — that is fine. The rule forbidden
+  is multiple drivers (Rule 6 — one `drives` entry per output port).
+- Asymmetric ordering: outputs are built in declaration order
+  (`0, 1, ..., n_out-1`). Output `0` sees only primary inputs as
+  sharing candidates; output `n_out-1` sees primary inputs plus every
+  gate built during outputs `0..n_out-1` plus every gate built in
+  flop D-cones drained so far. This is a by-product of the
+  implementation, not a rule; it matches real-design patterns where
+  later-declared logic often references earlier-computed
+  intermediates.
+
+**Where enforced:** `src/gen/module.rs` — one `SignalPool` for the
+whole module, threaded through every cone build. `src/gen/cone.rs` —
+`pick_terminal` and `try_share` iterate the pool with no cone-identity
+filter.
+
+**Combinational no-loop still holds cross-cone:** Rule 1 (arena-index
+monotonicity) applies across the whole module, not per cone. A gate
+in output A's cone can be an operand of a gate in output B's cone
+because A's gate has a lower `NodeId`. The reverse cannot happen — B
+cannot reference an A-gate not yet constructed, nor can A reference a
+B-gate that comes later.
 
 ---
 

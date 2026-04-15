@@ -89,6 +89,22 @@ generated independently. If two cones both build `(i_0 + i_1)` from
 scratch, they remain two separate gates. Common-subexpression
 elimination is the synthesizer's job, not the generator's.
 
+## Cross-output and cross-cone sharing
+
+Every cone in a module — each primary output's cone and each flop's
+D-cone — shares the same module-wide `SignalPool`. A gate built
+while constructing output 0's cone is immediately eligible as a leaf
+or a DAG-sharing candidate inside output 1's cone, output 2's cone,
+and any flop D-cone drained later. There is no per-cone isolation.
+
+Outputs are built in declaration order, so later-declared outputs
+see more sharing candidates than earlier ones. This is an artifact
+of the implementation but matches real-design patterns (later logic
+often consumes earlier-computed intermediates).
+
+See Rule 16 in the [Structural Rules catalog](structural-rules.md)
+for the authoritative statement.
+
 ## No cycles possible
 
 The pool only contains signals that *already exist* when an operand
