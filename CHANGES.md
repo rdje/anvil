@@ -3,7 +3,49 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0021 — Construction-strategy machinery + `shuffled` strategy landed
+
+**What changed**
+- `src/config.rs`: new `ConstructionStrategy` enum with `Sequential` and `Shuffled` variants. Derives `Serialize`, `Deserialize`, `clap::ValueEnum`; uses kebab-case for both serde and clap. New `Config.construction_strategy` field (default `Sequential`). Threaded through `Overrides` and `apply_cli_overrides`.
+- `src/main.rs`: new CLI flag `--construction-strategy <sequential|shuffled>` via `value_enum`. Imports the enum through the public `anvil::config::ConstructionStrategy` path.
+- `src/gen/module.rs`: `generate_leaf_module` dispatches on `cfg.construction_strategy`.
+  - `Sequential`: outputs built in declaration order (`0, 1, ..., n_out-1`). Current behavior preserved exactly.
+  - `Shuffled`: a random permutation of the output indices is drawn from the seeded RNG and used as the build order.
+  - Either way, drives are recorded in declaration order in `m.drives`, so SV port/assign emission is unaffected by build order. Only *which pool state each output's leaf-selection sees* changes.
+- `tests/pipeline.rs`: three new integration tests.
+  - `shuffled_reproducibility` — same seed + `Shuffled` strategy produces byte-identical output twice.
+  - `shuffled_differs_from_sequential` — on a 4-output seed, `Shuffled` produces different SV than `Sequential`, confirming the knob actually changes output.
+  - `all_strategies_produce_valid_modules` — both strategies × 10 seeds = 20 modules all pass `ir::validate`.
+- `book/src/construction-strategies.md`: "Implementation status" section updated — `sequential` and `shuffled` now marked implemented; `interleaved` and `graph-first` still planned.
+- `book/src/knobs.md`: new "Construction strategy" subsection documenting the knob and its values.
+- `USER_GUIDE.md`: `--construction-strategy` added to the CLI flags table.
+- `CODEBASE_ANALYSIS.md`: module-map entries for `config.rs` and `gen/module.rs` updated to reflect the new enum and the strategy-dispatching build-order logic.
+- `MEMORY.md`: next-up list retires the "add the machinery" and "land shuffled" items; items 1 and 2 are now `interleaved` and `graph-first` respectively. Current-state snapshot refreshed. Recent commits list gains `8eb03f0`.
+
+**Why**
+User said the asymmetry of sequential declaration-order construction is a construction artifact, not a design property, and asked for all four strategies supported with `graph-first` as the eventual default. This slice lands the knob infrastructure plus the cheapest of the four alternative strategies (`Shuffled`), giving an immediate user-visible improvement (declaration-order bias removed) without the architectural rewrite that `Interleaved` / `GraphFirst` require.
+
+Landing `Sequential` + `Shuffled` together in one slice is one coherent task — the knob has at least one non-trivial value from day one, rather than being a placeholder with only a single option. Future slices add `Interleaved` and then `GraphFirst` + default-flip.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 5 integration = 30 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- `cargo run -- --help` shows `--construction-strategy <CONSTRUCTION_STRATEGY>` with the clap-generated description.
+- End-to-end: `cargo run -- --seed 42 --min-outputs 4 --max-outputs 4 --construction-strategy shuffled` produces a valid module; diffing against the `sequential` run on the same seed shows different internal shape (different gates, different sharing pattern) while the port list remains in declaration order.
+
+**Impact**
+- Users can now pick between `sequential` and `shuffled` at the CLI. The declaration-order bias is no longer mandatory.
+- The knob scaffolding is in place for the two remaining strategies; adding them is a matter of extending the `ConstructionStrategy` enum and adding a match arm in `generate_leaf_module` (plus for `graph-first`, a new `build_module_graph_first` path).
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/module.rs`, `tests/pipeline.rs`, `book/src/construction-strategies.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0020 — Construction-strategies chapter: 4 named strategies, graph-first planned default
+
+**Commit hash:** `8eb03f0`
 
 **What changed**
 - **NEW `book/src/construction-strategies.md`**. Dedicated chapter under "How It Works" documenting four named strategies for module construction:
@@ -36,8 +78,6 @@ User's choice of `graph-first` as the default is aligned with the project's over
 
 **Files touched**
 `book/src/construction-strategies.md` (new), `book/src/SUMMARY.md`, `book/src/algorithm.md`, `book/src/sharing.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

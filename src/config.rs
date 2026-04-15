@@ -3,6 +3,23 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Strategy for constructing a module's internal logic.
+///
+/// See `book/src/construction-strategies.md` for the full comparison.
+/// Only `Sequential` and `Shuffled` are implemented today; `Interleaved`
+/// and `GraphFirst` will land in later slices. When `GraphFirst` lands
+/// it becomes the default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+#[clap(rename_all = "kebab-case")]
+pub enum ConstructionStrategy {
+    /// Build cones per-output in declaration order. The current default.
+    Sequential,
+    /// Build cones per-output in a random permutation of declaration order.
+    Shuffled,
+    // Interleaved and GraphFirst will be added as their implementations land.
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub seed: u64,
@@ -53,6 +70,10 @@ pub struct Config {
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
+
+    // How to schedule cone construction across outputs. See
+    // `book/src/construction-strategies.md`.
+    pub construction_strategy: ConstructionStrategy,
 }
 
 impl Default for Config {
@@ -89,6 +110,7 @@ impl Default for Config {
             hierarchy_depth: 0,
             num_leaf_modules: 0,
             use_async_reset: true,
+            construction_strategy: ConstructionStrategy::Sequential,
         }
     }
 }
@@ -215,6 +237,9 @@ impl Config {
         if let Some(v) = o.comb_mux_encoding_prob {
             self.comb_mux_encoding_prob = v;
         }
+        if let Some(v) = o.construction_strategy {
+            self.construction_strategy = v;
+        }
     }
 }
 
@@ -238,4 +263,5 @@ pub struct Overrides {
     pub max_gate_arity: Option<u32>,
     pub comb_mux_prob: Option<f64>,
     pub comb_mux_encoding_prob: Option<f64>,
+    pub construction_strategy: Option<ConstructionStrategy>,
 }

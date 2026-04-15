@@ -161,16 +161,18 @@ All three strategies preserve the structural rules catalog:
 
 ## Implementation status
 
-- `sequential` — implemented. Current behavior and current default.
-- `shuffled` — planned. Zero-risk incremental improvement over
-  `sequential`; first strategy to land.
+- `sequential` — **implemented**. Current default. CLI:
+  `--construction-strategy sequential`.
+- `shuffled` — **implemented**. Builds cones in a seeded random
+  permutation of declaration order. CLI:
+  `--construction-strategy shuffled`.
 - `interleaved` — planned. Moderate rework of `build_cone` into an
   explicit frame state machine.
 - `graph-first` — planned. Architectural shift from per-output cones
   to a pool-first DAG. Becomes the default when it lands.
 
-At that point the `construction_strategy` knob defaults to
-`graph-first` and a user who wants the current behavior pins to
+When `graph-first` lands, the `construction_strategy` knob default
+will flip, and a user who wants prior behavior pins to
 `--construction-strategy sequential`. Reproducibility of any
 previously-generated output against its original seed + knobs is
 guaranteed because the effective knobs are recorded in the manifest.

@@ -1,3 +1,4 @@
+use anvil::config::ConstructionStrategy;
 use anvil::{Config, Generator};
 use clap::Parser;
 use std::path::PathBuf;
@@ -61,6 +62,11 @@ struct Cli {
     comb_mux_prob: Option<f64>,
     #[arg(long)]
     comb_mux_encoding_prob: Option<f64>,
+    /// Construction strategy: sequential (current default) or shuffled
+    /// (random permutation of output build order). Planned future values:
+    /// interleaved, graph-first.
+    #[arg(long, value_enum)]
+    construction_strategy: Option<ConstructionStrategy>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -140,5 +146,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_gate_arity: cli.max_gate_arity,
         comb_mux_prob: cli.comb_mux_prob,
         comb_mux_encoding_prob: cli.comb_mux_encoding_prob,
+        construction_strategy: cli.construction_strategy,
     }
 }

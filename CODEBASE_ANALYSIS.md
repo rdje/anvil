@@ -24,7 +24,9 @@ src/
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
-│                     CLI Overrides struct, ConfigError taxonomy.
+│                     CLI Overrides struct, ConfigError taxonomy,
+│                     ConstructionStrategy enum (clap::ValueEnum +
+│                     serde) with Sequential and Shuffled variants.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports types::* and the validate module.
@@ -43,7 +45,11 @@ src/
 │   │                 generate_design() (Phase 5+ stub).
 │   ├── module.rs     Leaf-module top-level generator: pick port counts,
 │   │                 pick widths, seed signal pool with primary inputs,
-│   │                 build a cone per primary output.
+│   │                 build a cone per primary output. Output build
+│   │                 order governed by cfg.construction_strategy:
+│   │                 Sequential (declaration order) or Shuffled
+│   │                 (random permutation). Drives recorded in
+│   │                 declaration order regardless.
 │   ├── cone.rs       Fanin-cone recursion (combinational + sequential).
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 drain_flop_worklist, build_cone.

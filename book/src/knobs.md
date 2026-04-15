@@ -71,6 +71,17 @@ instead of creating fresh logic.
   `pick_terminal` (the always-prefer-matching-width policy there
   supersedes it); retained for future tuning.
 
+### Construction strategy
+
+- `construction_strategy` — which strategy `build_leaf_module` uses
+  to order cone construction across outputs. Current values:
+  - `sequential` (default): declaration order, one output at a time.
+  - `shuffled`: random permutation of declaration order per seed.
+
+  Planned future values: `interleaved`, `graph-first`. See
+  `book/src/construction-strategies.md` for the full four-way
+  comparison and rationale.
+
 ### Combinational mux block
 
 - `comb_mux_prob` — probability that a non-leaf recursion point

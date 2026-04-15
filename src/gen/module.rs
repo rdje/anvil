@@ -6,7 +6,9 @@ use super::{
     pool::SignalPool,
     Generator,
 };
-use crate::ir::{DepSet, Direction, Module, Node, Port, PortId};
+use crate::config::ConstructionStrategy;
+use crate::ir::{DepSet, Direction, Module, Node, NodeId, Port, PortId};
+use rand::seq::SliceRandom;
 use rand::Rng;
 
 const CLK_NAME: &str = "clk";
@@ -86,11 +88,37 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     let mut worklist: FlopWorklist = Vec::new();
 
-    // Build an output cone per primary output.
-    for out in m.outputs.clone() {
+    // Build an output cone per primary output. The iteration order over
+    // outputs is governed by `cfg.construction_strategy`:
+    //
+    // - `Sequential`: declaration order (0, 1, ..., n_out-1).
+    // - `Shuffled`: a random permutation drawn from the seeded RNG.
+    //
+    // Cones are recorded in `m.drives` in declaration order regardless —
+    // this affects only which output's cone sees the richest pool at
+    // leaf-selection time, not the emission order. See
+    // `book/src/construction-strategies.md`.
+    let build_order: Vec<usize> = match g.cfg.construction_strategy {
+        ConstructionStrategy::Sequential => (0..m.outputs.len()).collect(),
+        ConstructionStrategy::Shuffled => {
+            let mut idxs: Vec<usize> = (0..m.outputs.len()).collect();
+            idxs.shuffle(&mut g.rng);
+            idxs
+        }
+    };
+
+    let mut per_output_drive: Vec<Option<NodeId>> = vec![None; m.outputs.len()];
+    for idx in build_order {
+        let out = m.outputs[idx].clone();
         let cone_root =
             cone::build_cone_with_retry(g, &mut m, &mut pool, &mut worklist, out.width, None);
-        m.drives.push((out.id, cone_root));
+        per_output_drive[idx] = Some(cone_root);
+    }
+    for (idx, root) in per_output_drive.into_iter().enumerate() {
+        m.drives.push((
+            m.outputs[idx].id,
+            root.expect("every output must have a drive root"),
+        ));
     }
 
     // Drain the flop worklist: each pending flop's D-cone is built with
