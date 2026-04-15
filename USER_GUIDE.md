@@ -1,0 +1,97 @@
+# User Guide
+
+## Installation
+
+```bash
+git clone <repo> anvil
+cd anvil
+cargo build --release
+```
+
+The binary lands at `target/release/anvil`.
+
+## Basic usage
+
+Generate a single module to stdout:
+
+```bash
+anvil --seed 42
+```
+
+Generate 100 modules into a directory:
+
+```bash
+anvil --seed 42 --count 100 --out ./generated
+```
+
+Each module lands in its own `.sv` file named by seed and index, e.g.
+`generated/mod_42_0007.sv`. A `manifest.json` in the output directory
+records the seed, knobs, and per-module summary (port counts, widths,
+node count, flop count).
+
+## Reproducibility
+
+Every output is deterministic in `(seed, knobs)`. Running the same
+command twice produces byte-identical files. To reproduce a specific
+module, pass the exact seed reported in `manifest.json`.
+
+## Knobs
+
+Knobs control the shape and complexity of generated modules. Pass them
+as CLI flags or via a JSON config file (`--config knobs.json`).
+
+| Flag                    | Default  | Meaning                                         |
+|-------------------------|----------|-------------------------------------------------|
+| `--min-inputs`          | 2        | Minimum primary input count per module          |
+| `--max-inputs`          | 8        | Maximum primary input count                     |
+| `--min-outputs`         | 1        | Minimum primary output count                    |
+| `--max-outputs`         | 4        | Maximum primary output count                    |
+| `--min-width`           | 1        | Minimum port width in bits                      |
+| `--max-width`           | 32       | Maximum port width                              |
+| `--max-depth`           | 6        | Maximum cone recursion depth                    |
+| `--flop-prob`           | 0.0      | Probability a cone node becomes a flop (Phase 2)|
+| `--share-prob`          | 0.0      | Probability of reusing an existing wire (Phase 3)|
+| `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 5)                |
+| `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
+| `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |
+| `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
+
+## Output layout
+
+```
+generated/
+├── manifest.json            # seed, knobs, per-module metadata
+├── mod_42_0000.sv           # generated modules
+├── mod_42_0001.sv
+└── ...
+```
+
+## Downstream verification
+
+`anvil` does not ship an oracle or simulator. To sanity-check output:
+
+**Verilator elaboration:**
+```bash
+verilator --lint-only generated/mod_42_0000.sv
+```
+
+**Yosys synthesis:**
+```bash
+yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth; stat"
+```
+
+Both should succeed on every generated file. If one fails, that's a bug
+in `anvil` — file an issue with the seed and knobs from `manifest.json`.
+
+## Use as a library
+
+```rust
+use anvil::{Config, Generator};
+
+let cfg = Config::default().with_seed(42);
+let mut gen = Generator::new(cfg);
+let module = gen.generate_module();
+println!("{}", anvil::emit::to_sv(&module));
+```
+
+See `examples/` for more patterns.

@@ -1,0 +1,7 @@
+/target
+/book/book-out
+Cargo.lock
+*.swp
+
+# Untracked commit-message scratchpad. See COMMIT.md.
+git_message_brief.txt

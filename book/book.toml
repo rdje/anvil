@@ -1,0 +1,20 @@
+[book]
+title = "anvil — Design & Rationale"
+authors = ["anvil contributors"]
+description = "The thinking behind the constrained-random synthesizable RTL generator"
+language = "en"
+multilingual = false
+src = "src"
+
+[build]
+build-dir = "book-out"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = ""
+edit-url-template = ""
+
+[output.html.fold]
+enable = true
+level = 1
