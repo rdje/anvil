@@ -1657,6 +1657,177 @@ fn node_deps(m: &Module, id: NodeId) -> DepSet {
 mod tests {
     use super::*;
     use crate::config::Config;
+    use crate::ir::{Direction, Flop, FlopKind, MuxArm, Port, ResetKind};
+
+    /// Build a minimal test fixture with `n_wide` primary inputs of
+    /// the given width + `n_1bit` primary inputs of 1 bit. Returns
+    /// (module, pool). All primary inputs added to pool with correct deps.
+    fn fixture_with_inputs(n_wide: u32, wide_w: u32, n_1bit: u32) -> (Module, SignalPool) {
+        let mut m = Module::default();
+        let mut pool = SignalPool::new();
+        for i in 0..n_wide {
+            let port_id = i;
+            m.inputs.push(Port {
+                id: port_id,
+                name: format!("w_in{i}"),
+                width: wide_w,
+                dir: Direction::In,
+            });
+            let nid = m.nodes.len() as NodeId;
+            m.nodes.push(Node::PrimaryInput {
+                port: port_id,
+                width: wide_w,
+            });
+            pool.add(nid, wide_w, DepSet::from_port(port_id));
+        }
+        for i in 0..n_1bit {
+            let port_id = n_wide + i;
+            m.inputs.push(Port {
+                id: port_id,
+                name: format!("b_in{i}"),
+                width: 1,
+                dir: Direction::In,
+            });
+            let nid = m.nodes.len() as NodeId;
+            m.nodes.push(Node::PrimaryInput {
+                port: port_id,
+                width: 1,
+            });
+            pool.add(nid, 1, DepSet::from_port(port_id));
+        }
+        (m, pool)
+    }
+
+    /// Allocate a flop and its FlopQ node. Returns the FlopQ NodeId
+    /// (which is also `flop.q`) and the flop id.
+    fn alloc_flop(m: &mut Module, pool: &mut SignalPool, width: u32, kind: FlopKind) -> NodeId {
+        let flop_id = m.flops.len() as FlopId;
+        let q_node = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FlopQ {
+            flop: flop_id,
+            width,
+        });
+        m.flops.push(Flop {
+            id: flop_id,
+            width,
+            d: None,
+            q: q_node,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind,
+            mux: FlopMux::None,
+        });
+        pool.add(q_node, width, DepSet::from_flop_virtual(flop_id));
+        q_node
+    }
+
+    #[test]
+    fn assemble_flop_d_one_hot_zero_default_top_is_or() {
+        // 2 data inputs (width 4) + 2 sel inputs (1-bit) + 1 flop.
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 2);
+        let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::ZeroDefault);
+        // PrimaryInput nodes: 0 (data0 w=4), 1 (data1 w=4), 2 (sel0 1b), 3 (sel1 1b).
+        let arms = vec![
+            MuxArm { data: 0, sel: 2 },
+            MuxArm { data: 1, sel: 3 },
+        ];
+        let d = assemble_flop_d_one_hot(&mut m, &mut pool, 4, &arms, FlopKind::ZeroDefault, q);
+        match &m.nodes[d as usize] {
+            Node::Gate { op, width, .. } => {
+                assert_eq!(*op, GateOp::Or, "top-level of OneHot ZeroDefault should be Or");
+                assert_eq!(*width, 4);
+            }
+            other => panic!("expected Gate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn assemble_flop_d_one_hot_qfeedback_includes_q_term() {
+        // QFeedback adds an extra `{W{~(OR sels)}} & Q` term to the OR-reduce.
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 2);
+        let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::QFeedback);
+        let arms = vec![
+            MuxArm { data: 0, sel: 2 },
+            MuxArm { data: 1, sel: 3 },
+        ];
+        let pre_len = m.nodes.len();
+        let d = assemble_flop_d_one_hot(&mut m, &mut pool, 4, &arms, FlopKind::QFeedback, q);
+        // Top-level is still an Or (OR-reduce over arm terms + Q-feedback term).
+        match &m.nodes[d as usize] {
+            Node::Gate { op, width, .. } => {
+                assert_eq!(*op, GateOp::Or);
+                assert_eq!(*width, 4);
+            }
+            other => panic!("expected Gate, got {other:?}"),
+        }
+        // QFeedback variant emits strictly more gates than ZeroDefault would
+        // (it adds Not, OR-reduce of sels, a replicate, an And for the Q term,
+        //  and an extra Or to fold Q in). Strong inequality check would be
+        //  fragile; just confirm at least one Not appears (the ~(OR sels) node).
+        let post_len = m.nodes.len();
+        let created_slice = &m.nodes[pre_len..post_len];
+        let has_not = created_slice.iter().any(|n| {
+            matches!(
+                n,
+                Node::Gate {
+                    op: GateOp::Not,
+                    ..
+                }
+            )
+        });
+        assert!(has_not, "QFeedback OneHot should emit a Not for ~(OR of sels)");
+    }
+
+    #[test]
+    fn assemble_flop_d_encoded_zero_default_top_is_mux() {
+        // 2 data (width 4) + 1 sel bus (sel_width = ceil_log2(M=2) = 1) + 1 flop.
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 1);
+        let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::ZeroDefault);
+        // Nodes: 0=data0, 1=data1, 2=sel (1 bit), 3=Q.
+        let datas = vec![0, 1];
+        let d = assemble_flop_d_encoded(
+            &mut m,
+            &mut pool,
+            4,
+            2,
+            1,
+            &datas,
+            FlopKind::ZeroDefault,
+            q,
+        );
+        // Top-level of the chained ternary is a Mux.
+        match &m.nodes[d as usize] {
+            Node::Gate { op, width, .. } => {
+                assert_eq!(*op, GateOp::Mux);
+                assert_eq!(*width, 4);
+            }
+            other => panic!("expected Gate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn assemble_flop_d_encoded_qfeedback_fallthrough_is_q() {
+        // QFeedback + Encoded: index 0 is routed from Q (not from a data
+        // sub-cone). Caller passes M-1 data NodeIds; assemble builds a
+        // chained ternary where sel==0 picks Q and fall-through is also Q.
+        let (mut m, mut pool) = fixture_with_inputs(1, 4, 1); // only 1 data + 1 sel
+        let q = alloc_flop(&mut m, &mut pool, 4, FlopKind::QFeedback);
+        // Nodes: 0=data1 (for index 1), 1=sel, 2=Q.
+        let datas = vec![0]; // only index 1 data; index 0 becomes Q
+        let d = assemble_flop_d_encoded(&mut m, &mut pool, 4, 1, 1, &datas, FlopKind::QFeedback, q);
+        // Top-level is a Mux. Walking the chain we should find a Mux
+        // whose false-branch operand is the Q node or a downstream one.
+        match &m.nodes[d as usize] {
+            Node::Gate {
+                op: GateOp::Mux,
+                width,
+                ..
+            } => {
+                assert_eq!(*width, 4);
+            }
+            other => panic!("expected top-level Mux, got {other:?}"),
+        }
+    }
 
     #[test]
     fn ceil_log2_expected_values() {

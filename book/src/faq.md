@@ -1,0 +1,166 @@
+# FAQ
+
+Common questions about how `anvil` works and why. For the
+authoritative specifications, see the [Structural Rules
+catalog](structural-rules.md). For the algorithmic details, see
+[The Fanin Cone Algorithm](algorithm.md) and
+[Construction Strategies](construction-strategies.md).
+
+## Why is `Sub` not N-arity?
+
+N-arity only makes sense for **associative** operators — grouping
+doesn't matter, so `a ⊕ b ⊕ c` is well-defined regardless of how
+you parenthesize. `Sub` is not associative: `(a − b) − c ≠ a − (b − c)`.
+SV's left-associative parse makes `a - b - c` mean `((a - b) - c)`,
+but that's a parse convention, not algebra. `anvil` keeps Sub
+strictly 2-arity in the IR; if you want `a - b - c` in the output,
+it comes from a cascade of two 2-arity Sub nodes.
+
+`And`, `Or`, `Xor`, `Add`, `Mul` are associative and N-arity by the
+configured `[min_gate_arity, max_gate_arity]` range.
+
+## Why do operators have "arity" but blocks have "ports"?
+
+Operators (associative primitives) generalize by **arity** — the
+count of same-shape operands. Blocks (functional units with
+structure: mux, flop, memory) generalize by **ports** — port
+counts, encoding choices, feedback topology, reset kind. The two
+are fundamentally different kinds of generalization.
+
+Say "arity" only for operators. Say "ports" / "arms" for blocks.
+The vocabulary discipline keeps generalization strategies from
+getting conflated. See `structural-rules.md` "Operators vs blocks".
+
+## How can a flop's Q appear inside its own D-cone without violating the no-loop rule?
+
+Rule 1 (Combinational no-loop) concerns purely-combinational paths
+— a gate's output transitively feeding back into its own input
+through other gates only. Rule 2 permits Q→D feedback because the
+flop breaks the loop **temporally**: `Q[n+1] = f(Q[n], …)` is the
+definition of synchronous state, not a violation of anything. Arena-
+index monotonicity still holds for the combinational pieces;
+the flop is the only node type whose output logically feeds its
+input, and it does so across a clock edge.
+
+## What's the difference between "coefficient", "shift amount", and "comparand"?
+
+All three are integer literals appearing as operands. They look the
+same syntactically but have distinct **semantic roles**:
+
+- **Coefficient** (arithmetic): a multiplicative weight in a linear
+  combination. `3*a + 2*b + c`. Applies to `Add`, `Sub`, `Mul` with
+  per-op constraints.
+- **Shift amount** (shifts): a structural parameter of `Shl`/`Shr`
+  telling you how far to shift. `a << 2`. Not a coefficient — even
+  though `a << 2` is arithmetically `a * 4`, the RTL representation
+  and synthesis cost are different (wire reroute vs multiplier).
+- **Comparand** (comparisons): a threshold / sentinel value on the
+  RHS of a comparison. `a == 7`, `x < LIMIT`. Not a coefficient —
+  "what are we comparing against," not "how much are we scaling."
+
+Each has its own knob family (`coefficient_*`, `const_shift_amount_*`,
+`const_comparand_*`). Do not collapse them into a single
+`constant_prob` knob — doing so loses the semantic distinctions.
+See [Roles of constants in RTL](structural-rules.md).
+
+## Why four construction strategies instead of just the default?
+
+The four strategies (`sequential`, `shuffled`, `interleaved`,
+`graph-first`) differ in *when* gates are created relative to each
+other, and therefore in *how symmetric* cross-output sharing is.
+`graph-first` (the default) gives true symmetric sharing; the other
+three are stepping stones with different tradeoffs:
+
+- `sequential` is the original behavior — useful for reproducing
+  output generated against older `anvil` versions.
+- `shuffled` kills the declaration-order bias with one line of code.
+- `interleaved` achieves near-symmetric sharing without the
+  architectural shift of `graph-first`.
+
+All four are supported as a per-run knob so users can pin to any
+strategy for specific testing needs.
+
+## Can output J's cone reference a gate from output I's cone, regardless of declaration order?
+
+Yes. The signal pool is module-scoped, not cone-scoped (Rule 16).
+In `graph-first`, there are no per-output cones during construction
+— the pool is grown flat and drive-roots are picked from it. In
+`shuffled`/`interleaved`, cones do have construction-order
+asymmetry, but any gate created before the current pick is
+available regardless of which output's cone created it.
+
+## How do I reproduce a specific generated module?
+
+Every invocation is deterministic in `(seed, knobs)`. Run
+`anvil --dump-config > knobs.json` to capture effective knobs, then
+replay with `anvil --config knobs.json --seed <seed>`. The output
+manifest (`manifest.json` in the `--out` directory) records both
+the seed and the effective knobs per batch so any module can be
+reproduced from its entry alone.
+
+## Can `anvil` generate testbenches, assertions, or coverage?
+
+No. `anvil` generates DUT code only. Testbenches require semantic
+understanding of the DUT (what inputs are legal, what outputs
+mean). A random testbench for a random DUT tests nothing. See
+[What We Explicitly Do Not Do](non-goals.md) for the full list.
+
+## Is the generated SystemVerilog synthesizable?
+
+Yes, by construction. The gate set and the flop pattern are a
+strict subset of synthesizable SV. There is no mode that emits
+`initial` blocks, delays, dynamic arrays, or other
+non-synthesizable constructs — those constructs don't exist in the
+IR or the emitter. See
+[Synthesizability as a Subset Constraint](synthesizability.md).
+
+## Is the generated logic meaningful?
+
+No, and that's the point. The circuits are *structurally* valid
+and *functionally* non-trivial (every output depends on at least
+one input), but the specific function is random — `a + (b ^ c) * 3`
+or similar, with no design intent. `anvil` is for **stress-testing
+tools** (parsers, elaborators, simulators, synthesizers, formal
+equivalence checkers), not for generating real designs.
+
+If you need RTL that *does* something meaningful, you hire an
+engineer.
+
+## What SystemVerilog language standard does `anvil` target?
+
+The **synthesizable subset**. Emitted constructs are accepted by
+Verilator, Yosys, Vivado, Design Compiler, and Synopsys VCS in
+synthesis / elaboration / lint modes. `anvil` does not target a
+specific IEEE standard version; the subset chosen is conservative
+enough to work across the common tool landscape.
+
+## Why does my module have `clk` and `rst_n` even though my outputs look purely combinational?
+
+When the generator emits at least one flop, `clk` and `rst_n` are
+declared as input ports (shared by every flop in the module — see
+Rule 5, single-clock synchronous discipline). If you want purely
+combinational output, pass `--flop-prob 0.0`. Then `clk` and
+`rst_n` are omitted from the port list.
+
+## The same seed produced different output after I upgraded `anvil`
+
+`anvil` guarantees byte-identical output for a given `(seed, knobs)`
+across platforms and time — but *not* across versions. A generator
+change (new motif, changed default, bug fix) shifts the RNG
+consumption pattern and produces different output for the same
+seed. Record the `anvil` version alongside the seed and knobs when
+you need to replay a specific module across a version boundary.
+
+## Anything I should know about generated modules being fed back to Verilator / Yosys?
+
+Nothing beyond the usual tool invocation. `anvil` output is
+directly consumable:
+
+```bash
+verilator --lint-only anvil_output.sv
+yosys -p "read_verilog -sv anvil_output.sv; synth; stat"
+```
+
+Both should succeed on every generated module. If one fails, it is
+a generator bug — file an issue with the seed, effective knobs,
+and the failing output.

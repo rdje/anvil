@@ -32,5 +32,6 @@
 # Reference
 
 - [Knobs and Reproducibility](knobs.md)
+- [FAQ](faq.md)
 - [Architecture of the Rust Implementation](architecture.md)
 - [What We Explicitly Do Not Do](non-goals.md)

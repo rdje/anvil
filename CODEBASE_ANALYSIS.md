@@ -189,9 +189,9 @@ In `ir::validate::validate`:
 
 - `tests/pipeline.rs` — 20-seed cross-seed generation + validation + reproducibility.
 - `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
-- `src/gen/cone.rs` — 7 inline unit tests covering `ceil_log2` correctness (incl. 62-value sweep), `pick_mux_arm_count` never returning 1 (10K draws), `make_width_adapter` edge cases (identity, shrink-via-Slice, expand exact-multiple via single Concat, expand non-multiple via Concat+Slice), and DAG-sharing sanity (`share_prob_high_shares_internal_gates` — 32-seed sweep at share_prob=0.9 must produce at least one Gate with fanout >= 2).
+- `src/gen/cone.rs` — 11 inline unit tests. Prior 7 (`ceil_log2`, `pick_mux_arm_count`, 4 width-adapter cases, DAG-sharing sanity, comb-mux-block) plus 4 new flop-assembler tests covering OneHot/ZeroDefault, OneHot/QFeedback, Encoded/ZeroDefault, Encoded/QFeedback — with `fixture_with_inputs` / `alloc_flop` shared helpers.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
-- Total: 21 unit tests + 2 integration = **23 tests, all passing**.
+- Total: 29 unit tests + 14 integration = **43 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)

@@ -3,7 +3,43 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0028 — Flop-assembler unit tests + FAQ chapter
+
+**What changed**
+- `src/gen/cone.rs`: 4 new inline unit tests for the flop-D assembly helpers.
+  - `assemble_flop_d_one_hot_zero_default_top_is_or` — verifies the OneHot/ZeroDefault emission produces an OR-rooted tree of width W.
+  - `assemble_flop_d_one_hot_qfeedback_includes_q_term` — verifies the QFeedback variant adds a Not for `~(OR of sels)` and preserves the OR root.
+  - `assemble_flop_d_encoded_zero_default_top_is_mux` — verifies the Encoded/ZeroDefault chained-ternary top-level is a Mux of width W.
+  - `assemble_flop_d_encoded_qfeedback_fallthrough_is_q` — verifies QFeedback+Encoded with M=2 still builds a Mux-rooted tree when index 0 is Q.
+  - New test-fixture helpers `fixture_with_inputs` (n wide + n 1-bit primary inputs seeded into pool) and `alloc_flop` (register a flop + FlopQ node). Reusable across future flop-assembler tests.
+- `book/src/faq.md` (new): 12-entry FAQ chapter answering vocabulary/doctrine questions that have come up during design discussion. Topics: Sub non-associativity, operators-vs-blocks vocabulary, Q-feedback-vs-combinational-no-loop, coefficient vs shift-amount vs comparand roles, four construction strategies rationale, cross-output sharing, reproducibility, testbench non-goal, synthesizability guarantee, "meaningful logic" disclaimer, SV language standard targeting, clk/rst_n port emission, version-to-version reproducibility, Verilator/Yosys invocation.
+- `book/src/SUMMARY.md`: FAQ added to Reference section.
+- `CODEBASE_ANALYSIS.md`: testing surface updated — 11 cone unit tests (was 7), 43 total (was 39).
+- `MEMORY.md`: last-completed slice refreshed; next-up list re-scoped per user direction ("switch to Phase 3+ since Verilator unavailable") with 6 ranked candidate scopes.
+
+**Why**
+Per `MEMORY.md` next-up item (2): the flop-D assembly helpers were previously covered only indirectly by the pipeline integration sweep. Direct unit tests give faster feedback on their top-level shape invariants and pin the expected emission forms (OR root for OneHot, Mux root for Encoded, extra Not for QFeedback+OneHot). Tests are shape-level rather than exact-node-count to stay robust under future refactor.
+
+The FAQ chapter consolidates the doctrine questions that accumulated across ~15 slices of vocabulary / design / rule-catalog work. It's the user-facing entry point for "why is `anvil` shaped this way" without having to dig through the structural-rules catalog or commit history.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (29 unit + 14 integration = 43 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- `mdbook build book` succeeds with the new FAQ chapter rendered.
+
+**Impact**
+- Flop-assembler regressions now caught at the unit level, not just when the pipeline sweep happens to fail.
+- Book gains a welcoming "why" entry point. Users arriving cold have a fast path to understanding anvil's doctrine without reading the full structural-rules catalog.
+
+**Files touched**
+`src/gen/cone.rs`, `book/src/faq.md` (new), `book/src/SUMMARY.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0027 — Constant comparand motif: third and final constant-role motif
+
+**Commit hash:** `1211120`
 
 **What changed**
 - `src/config.rs`: three new knobs.
@@ -36,8 +72,6 @@ The motif is *additive* to signal-vs-signal comparisons: when the coin doesn't f
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 
