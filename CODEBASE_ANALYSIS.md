@@ -101,6 +101,14 @@ src/
 │   │                 assemble_add_linear_combination /
 │   │                 assemble_sub_linear_combination /
 │   │                 assemble_mul_linear_combination.
+│   │                 Constant shift-amount motif: when pick_gate
+│   │                 returns Shl/Shr and const_shift_amount_prob
+│   │                 fires, build_shift_const_amount emits
+│   │                 `value OP const` with a pick_shift_amount
+│   │                 literal clamped to [0, W-1].
+│   │                 Shl/Shr added to pick_gate's new shifts bucket
+│   │                 (weight gate_shift_weight, default 1);
+│   │                 disabled at target_width == 1.
 │   └── pool.rs       SignalPool: list of (node, width, deps) entries.
 │                     Methods: add, of_width, iter, is_empty.
 │                     Cloneable for snapshot/rewind during retry.

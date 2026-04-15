@@ -3,7 +3,55 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0026 — Constant shift-amount motif + Shl/Shr added to pick_gate
+
+**What changed**
+- `src/config.rs`: four new knobs.
+  - `const_shift_amount_prob` (default 0.8): per-shift probability the amount operand is a constant literal instead of a variable-amount signal (barrel shifter).
+  - `min_shift_amount` (default 0) / `max_shift_amount` (default 7): range for the drawn constant amount, clamped to `[0, W-1]` for a W-bit value.
+  - `gate_shift_weight` (default 1): relative weight for the shifts bucket in `pick_gate`.
+  - Threaded through `Overrides`, `apply_cli_overrides`, and the probability-range validation loop.
+- `src/main.rs`: four new CLI flags.
+- `src/gen/cone.rs`:
+  - `pick_gate` now has a fifth bucket (`shifts: &[Shl, Shr]`) with weight `gate_shift_weight`. Shifts are disabled at `target_width == 1` (shift on a 1-bit value is trivial).
+  - New helpers: `pick_shift_amount` (draws from `[min_shift_amount, max_shift_amount]` clamped to `[0, value_width-1]`), `build_shift_const_amount` (emits `value OP const` — a single 2-operand Shl/Shr node with a compact-width constant).
+  - Three dispatch sites after `pick_gate` returns Shl/Shr:
+    - `build_cone` (sequential / shuffled / interleaved-block-internal paths): value from recursive `build_cone`.
+    - `process_signal_frame` (interleaved top-level): value from recursive `build_cone` at `depth+1`.
+    - `grow_pool_one_unit` (graph-first): value from `pick_terminal`.
+- `tests/pipeline.rs`: new `const_shift_amount_appears_in_output` — 32-seed sweep at `const_shift_amount_prob = 1.0, gate_shift_weight = 10` must produce at least one `<< N'hX` or `>> N'hX` emission.
+- `book/src/structural-rules.md`: "Roles of constants in RTL" → Shift Amount subsection updated with the knob list and the implementation site; previous "today always variable-amount" note retired.
+- `book/src/knobs.md`: new "Shift-amount motif" subsection.
+- `USER_GUIDE.md`: four new CLI flag rows.
+- `CODEBASE_ANALYSIS.md`: `cone.rs` module map extended.
+- `MEMORY.md` / `CHANGES.md`: per workflow.
+
+**Why**
+Per MEMORY next-up item 1 and the roles-of-constants doctrine. Shifts in real RTL are predominantly constant-amount (wire reroutes, cheap) rather than variable-amount barrel shifters. The default probability is set high (0.8) to match that prevalence; users wanting to stress barrel-shifter synthesis can lower it to 0.0 for purely variable amounts.
+
+Adding Shl/Shr to `pick_gate` fixes a longstanding absence — the shifts were defined in `GateOp` and `input_widths_for` but never selectable. Same pattern as the earlier Mul fix (slice `2026-04-15-0025`).
+
+The knob set is its own family — distinct from `coefficient_prob` and (future) `const_comparand_prob`. Per the vocabulary-discipline doctrine, "shift amount" is a structural parameter, not a coefficient.
+
+**Validation**
+- `cargo check --all-targets`, `cargo test` (25 unit + 13 integration = 38 tests), `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`: all clean.
+- End-to-end spot check at `--const-shift-amount-prob 1.0`: emitted SV contains `w_X >> 3'h5`, `w_X << 2'h3`, `w_X << 1'h0`, etc. Both operator directions and a range of amounts observed.
+
+**Impact**
+- Generated RTL now routinely includes constant-amount shifts — the dominant pattern in real datapaths (scaling by powers of two, alignment, field extraction).
+- Barrel-shifter stress is still reachable by pinning `--const-shift-amount-prob 0.0`.
+- Two of three constant-role motifs now implemented (coefficients ✅, shift amounts ✅); comparands remain.
+
+**Files touched**
+`src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0025 — Linear-combination coefficient motif for Add / Sub / Mul
+
+**Commit hash:** `7290e3d`
 
 **What changed**
 - `src/config.rs`: three new knobs —
@@ -60,8 +108,6 @@ This lands the first of three constant-role motifs (coefficients → shift amoun
 
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

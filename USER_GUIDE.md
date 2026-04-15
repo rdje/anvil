@@ -64,6 +64,10 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--coefficient-prob`    | 0.2      | Per-op probability of linear-combination compound motif (Add/Sub/Mul)|
 | `--min-coefficient`     | 1        | Min coefficient (strictly positive)                   |
 | `--max-coefficient`     | 15       | Max coefficient                                       |
+| `--const-shift-amount-prob` | 0.8  | Per-shift probability the shift amount is a constant  |
+| `--min-shift-amount`    | 0        | Min constant shift amount                             |
+| `--max-shift-amount`    | 7        | Max constant shift amount (clamped to W-1)            |
+| `--gate-shift-weight`   | 1        | Relative weight for the Shl/Shr bucket in pick_gate   |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |

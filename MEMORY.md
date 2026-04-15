@@ -3,21 +3,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** linear-combination coefficient motif for Add/Sub/Mul landed. `coefficient_prob` (default 0.2), `min_coefficient` (1), `max_coefficient` (15) knobs added with CLI flags. When `pick_gate` returns Add/Sub/Mul and the probability fires, a compound tree is built:
-  - Add: `y = Σ (sᵢ*cᵢ)` — N Mul nodes + one N-arity Add (per-term coefficients).
-  - Sub (left-assoc): `y = (s1*c1) - (s2*c2) - … - (sn*cn)` — N Mul nodes + N-1 chained 2-arity Subs.
-  - Mul: `y = c * s1 * s2 * … * sN` — single N+1-arity Mul with a leading constant; `c == 1` forces `N >= 2`.
-
-  Dispatched from three sites: `build_cone` (sequential/shuffled/interleaved block internals), `process_signal_frame` (interleaved top-level), `grow_pool_one_unit` (graph-first). Signal picking is pool-only for graph-first, recursive for the others. Also added `Mul` to `pick_gate`'s arith bucket (previously absent). 2 new integration tests (`coefficient_motif_emits_compound_shapes`, `coefficient_motif_across_all_strategies`). 25 unit + 12 integration = 37 tests. See `CHANGES.md` entry `2026-04-15-0025`.
+- **Last completed slice:** constant shift-amount motif for Shl/Shr landed. `const_shift_amount_prob` (default 0.8 — real designs bias heavily toward constant), `min_shift_amount` (0), `max_shift_amount` (7), `gate_shift_weight` (1) knobs + CLI flags. When `pick_gate` returns Shl/Shr and the probability fires, `build_shift_const_amount` emits `value_signal OP const` with a literal amount clamped to `[0, W-1]` for a W-bit value. Otherwise variable-amount (barrel shifter) via the existing 8-bit shift-amount signal cone. Also added Shl/Shr to `pick_gate`'s new shifts bucket (previously omitted — same pattern as the earlier Mul fix). Disabled at `target_width == 1`. 1 new integration test `const_shift_amount_appears_in_output`. 25 unit + 13 integration = 38 tests. See `CHANGES.md` entry `2026-04-15-0026`.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up:**
-  1. **Shift amounts — constant-vs-variable bias:** shifts `Shl/Shr` today always emit variable-amount (`a << count` with `count` an 8-bit signal — barrel shifter, expensive). Real designs use constant shift amounts predominantly. Add a per-shift probability (`const_shift_amount_prob`) of emitting a constant shift amount in `[0, W-1]` instead of a signal. Both modes coexist.
-  2. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal. Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive. No zero-exclusion.
-  3. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs.
-  4. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter as questions accumulate.
+  1. **Comparands additive to signal-vs-signal comparisons:** today all comparisons are signal-vs-signal. Add a motif: per-comparison probability (`const_comparand_prob`) that the RHS is a constant comparand (`a == 7`, `x >= LIMIT`). Additive — signal-vs-signal remains the default; comparands add threshold/sentinel patterns on top. No zero-exclusion.
+  2. Verilator-lint smoke run (blocked on Verilator availability). Sweep across construction strategies and key probability knobs.
+  3. Optional: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`; FAQ chapter as questions accumulate.
   - Note: "coefficient" / "shift amount" / "comparand" are distinct vocabularies with distinct constraints — see `book/src/structural-rules.md` "Roles of constants in RTL". Do not collapse into a single `constant_prob` knob.
 
 ## Recent commits
+- `7290e3d` — Linear-combination coefficient motif for Add / Sub / Mul.
 - `b0f84fd` — Sub coefficient constraint: ck > 0 for all k.
 - `4085401` — graph-first strategy landed; becomes the new default.
 - `6d2da98` — Interleaved construction strategy: frame state machine.

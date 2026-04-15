@@ -172,6 +172,16 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    // Constant shift-amount motif (pool-only). Value operand is a
+    // pool pick; shift amount is a literal constant.
+    if matches!(op, GateOp::Shl | GateOp::Shr)
+        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+    {
+        let value = pick_terminal(g, m, pool, width, None);
+        build_shift_const_amount(g, m, pool, op, value, width);
+        return true;
+    }
+
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     for _ in 0..4 {
         let operands: Vec<NodeId> = operand_widths
@@ -411,6 +421,26 @@ fn process_signal_frame(
             frame.depth,
             frame.exclude,
         );
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    // Constant shift-amount motif: Shl/Shr with const_shift_amount_prob.
+    // Built synchronously within this frame step; the value operand
+    // comes from a recursive build_cone call.
+    if matches!(op, GateOp::Shl | GateOp::Shr)
+        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+    {
+        let value = build_cone(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth + 1,
+            frame.exclude,
+        );
+        let node = build_shift_const_amount(g, m, pool, op, value, frame.width);
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
     }
@@ -970,6 +1000,46 @@ fn build_linear_combination_recursive(
     }
 }
 
+/// Pick a constant shift amount for a W-bit shift. Drawn uniformly
+/// from `[min_shift_amount, max_shift_amount]` clamped to `[0, W-1]`.
+/// A shift by `>= W` on an unsigned W-bit value is always zero; we
+/// restrict to in-range amounts so the shift has semantic weight.
+fn pick_shift_amount(g: &mut Generator, value_width: u32) -> u128 {
+    let max_meaningful = value_width.saturating_sub(1);
+    let lo = g.cfg.min_shift_amount.min(max_meaningful);
+    let hi = g.cfg.max_shift_amount.min(max_meaningful).max(lo);
+    u128::from(g.rng.gen_range(lo..=hi))
+}
+
+/// Build a shift (`Shl`/`Shr`) with a constant shift amount:
+/// `value_signal OP constant`. The shift-amount constant width is
+/// chosen small (just enough to hold the value) — typically 1..8 bits.
+fn build_shift_const_amount(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    op: GateOp,
+    value_node: NodeId,
+    value_width: u32,
+) -> NodeId {
+    debug_assert!(matches!(op, GateOp::Shl | GateOp::Shr));
+    let amount = pick_shift_amount(g, value_width);
+    // Choose a compact constant width: enough bits to hold `amount`.
+    // `leading_zeros` on a u128 returns in 0..=128.
+    let const_width = (128u32 - amount.max(1).leading_zeros()).max(1);
+    let const_node = make_constant(m, pool, const_width, amount);
+    let deps = node_deps(m, value_node);
+    let node_id = m.nodes.len() as NodeId;
+    m.nodes.push(Node::Gate {
+        op,
+        operands: vec![value_node, const_node],
+        width: value_width,
+        deps: deps.clone(),
+    });
+    pool.add(node_id, value_width, deps);
+    node_id
+}
+
 /// Dispatch for the coefficient motif when signal picking is pool-only
 /// (graph-first strategy). Same shapes as the recursive variant, but
 /// signals come from `pick_terminal` instead of `build_cone`.
@@ -1093,6 +1163,16 @@ pub fn build_cone(
         && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
     {
         return build_linear_combination_recursive(g, m, pool, worklist, op, width, depth, exclude);
+    }
+
+    // Constant shift-amount motif: when the picked op is Shl/Shr and
+    // the per-shift probability fires, emit `value OP const` with a
+    // literal shift amount instead of a barrel shifter.
+    if matches!(op, GateOp::Shl | GateOp::Shr)
+        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+    {
+        let value = build_cone(g, m, pool, worklist, width, depth + 1, exclude);
+        return build_shift_const_amount(g, m, pool, op, value, width);
     }
 
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
@@ -1383,13 +1463,18 @@ fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     } else {
         &[]
     };
+    // Shifts only make sense on multi-bit signals (shifting a 1-bit
+    // value by >= 1 always yields 0 for unsigned; a shift-by-0 is a
+    // wire). Keep them out of the pool at width 1.
+    let shifts: &[GateOp] = if target_width > 1 { &[Shl, Shr] } else { &[] };
 
     let w = &g.cfg;
-    let buckets: [(u32, &[GateOp]); 4] = [
+    let buckets: [(u32, &[GateOp]); 5] = [
         (w.gate_bitwise_weight, bitwise),
         (w.gate_arith_weight, arith),
         (w.gate_struct_weight, structured),
         (w.gate_compare_weight, compare),
+        (w.gate_shift_weight, shifts),
     ];
     let total: u32 = buckets
         .iter()

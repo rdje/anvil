@@ -187,8 +187,7 @@ fn coefficient_motif_emits_compound_shapes() {
                     // constant literal and there are >= 2 '*' operators,
                     // this is a front-coef Mul.
                     if let Some(eq_rhs) = assign_rhs.split_once('=').map(|(_, r)| r.trim_start()) {
-                        if eq_rhs.starts_with(|c: char| c.is_ascii_digit())
-                            && eq_rhs.contains("'h")
+                        if eq_rhs.starts_with(|c: char| c.is_ascii_digit()) && eq_rhs.contains("'h")
                         {
                             saw_front_const_mul = true;
                             break;
@@ -204,6 +203,49 @@ fn coefficient_motif_emits_compound_shapes() {
     assert!(
         saw_front_const_mul,
         "expected at least one Mul compound (c * s1 * s2 ...) across the seed sweep"
+    );
+}
+
+#[test]
+fn const_shift_amount_appears_in_output() {
+    // With const_shift_amount_prob = 1.0, every Shl/Shr picked by
+    // pick_gate emits `value << const` / `value >> const`. Verify at
+    // least one seed produces such a pattern. We bias gate_shift_weight
+    // so shifts are frequently picked.
+    let mut saw_shift_const = false;
+    for seed in 0..32u64 {
+        let cfg = Config {
+            seed,
+            const_shift_amount_prob: 1.0,
+            gate_shift_weight: 10,
+            min_outputs: 2,
+            max_outputs: 2,
+            min_width: 4,
+            max_width: 8,
+            graph_first_pool_size: 48,
+            construction_strategy: ConstructionStrategy::GraphFirst,
+            ..Config::default()
+        };
+        let m = Generator::new(cfg).generate_module();
+        let sv = anvil::emit::to_sv(&m);
+        for line in sv.lines() {
+            // "<< N'hX" or ">> N'hX" immediately after the shift operator
+            if line.contains(" << ") && line.contains("'h") {
+                saw_shift_const = true;
+                break;
+            }
+            if line.contains(" >> ") && line.contains("'h") {
+                saw_shift_const = true;
+                break;
+            }
+        }
+        if saw_shift_const {
+            break;
+        }
+    }
+    assert!(
+        saw_shift_const,
+        "expected at least one constant-shift-amount emission across the 32-seed sweep"
     );
 }
 

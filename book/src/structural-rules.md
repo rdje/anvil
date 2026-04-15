@@ -96,10 +96,19 @@ collapse them under a single "constant_prob" knob.
     designs. Cheap in hardware.
   - **Variable shift amount:** `a << count`, where `count` is a
     signal. Legal SV; synthesizes to a barrel shifter; expensive.
-- **Today:** `anvil` always emits variable-amount shifts (the shift
-  amount is an 8-bit signal recursively generated). A bias knob
-  toward constant shift amounts is on the roadmap so defaults match
-  real-design prevalence.
+- **Knobs:** `const_shift_amount_prob` (per-shift probability the
+  amount is a constant instead of a variable-amount signal; default
+  `0.8` biasing toward real-design prevalence), `min_shift_amount`
+  (default 0), `max_shift_amount` (default 7, clamped to `W-1` for
+  a W-bit value to keep the shift semantically meaningful).
+- **Where enforced:** `src/gen/cone.rs` — `build_shift_const_amount`
+  emits `value_signal OP const` when the coin fires; otherwise the
+  existing `input_widths_for(Shl|Shr, ...)` variable-amount path
+  runs. Dispatched from `build_cone`, `process_signal_frame`, and
+  `grow_pool_one_unit` right after `pick_gate`.
+- Shifts are now pickable by `pick_gate` via a new `gate_shift_weight`
+  bucket (default weight 1). They are disabled at `target_width == 1`
+  (a 1-bit shift is always either the value or zero, both trivial).
 - **Scope note:** "shift amount" is shift-op vocabulary. Not a
   coefficient; not a comparand.
 

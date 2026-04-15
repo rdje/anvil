@@ -82,6 +82,20 @@ struct Cli {
     /// Maximum coefficient value for the linear-combination motif.
     #[arg(long)]
     max_coefficient: Option<u32>,
+    /// Per-shift probability that the shift amount is a constant
+    /// literal instead of a recursively-generated signal (barrel
+    /// shifter). Real designs bias heavily toward constant.
+    #[arg(long)]
+    const_shift_amount_prob: Option<f64>,
+    /// Minimum constant shift amount.
+    #[arg(long)]
+    min_shift_amount: Option<u32>,
+    /// Maximum constant shift amount. Clamped to `W-1` for a W-bit value.
+    #[arg(long)]
+    max_shift_amount: Option<u32>,
+    /// Relative weight for Shl/Shr in pick_gate.
+    #[arg(long)]
+    gate_shift_weight: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -166,5 +180,9 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         coefficient_prob: cli.coefficient_prob,
         min_coefficient: cli.min_coefficient,
         max_coefficient: cli.max_coefficient,
+        const_shift_amount_prob: cli.const_shift_amount_prob,
+        min_shift_amount: cli.min_shift_amount,
+        max_shift_amount: cli.max_shift_amount,
+        gate_shift_weight: cli.gate_shift_weight,
     }
 }

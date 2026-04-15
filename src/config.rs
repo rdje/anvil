@@ -82,6 +82,21 @@ pub struct Config {
     pub min_coefficient: u32,
     pub max_coefficient: u32,
 
+    // Shift-amount motif: when `build_cone` picks `Shl` or `Shr`, the
+    // shift-amount operand is either a recursive signal sub-cone
+    // (variable-amount shift — barrel shifter in hardware) or a
+    // constant literal drawn from [min_shift_amount, max_shift_amount]
+    // clamped to [0, W-1] for a W-bit value. Real designs
+    // overwhelmingly use constant shift amounts, so the default
+    // biases strongly toward constant. See
+    // `book/src/structural-rules.md` "Roles of constants in RTL".
+    pub const_shift_amount_prob: f64,
+    pub min_shift_amount: u32,
+    pub max_shift_amount: u32,
+
+    // Relative weight for the shifts (Shl/Shr) bucket in `pick_gate`.
+    pub gate_shift_weight: u32,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -129,6 +144,10 @@ impl Default for Config {
             coefficient_prob: 0.2,
             min_coefficient: 1,
             max_coefficient: 15,
+            const_shift_amount_prob: 0.8,
+            min_shift_amount: 0,
+            max_shift_amount: 7,
+            gate_shift_weight: 1,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -221,6 +240,7 @@ impl Config {
             ("comb_mux_prob", self.comb_mux_prob),
             ("comb_mux_encoding_prob", self.comb_mux_encoding_prob),
             ("coefficient_prob", self.coefficient_prob),
+            ("const_shift_amount_prob", self.const_shift_amount_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -299,6 +319,18 @@ impl Config {
         if let Some(v) = o.max_coefficient {
             self.max_coefficient = v;
         }
+        if let Some(v) = o.const_shift_amount_prob {
+            self.const_shift_amount_prob = v;
+        }
+        if let Some(v) = o.min_shift_amount {
+            self.min_shift_amount = v;
+        }
+        if let Some(v) = o.max_shift_amount {
+            self.max_shift_amount = v;
+        }
+        if let Some(v) = o.gate_shift_weight {
+            self.gate_shift_weight = v;
+        }
     }
 }
 
@@ -327,4 +359,8 @@ pub struct Overrides {
     pub coefficient_prob: Option<f64>,
     pub min_coefficient: Option<u32>,
     pub max_coefficient: Option<u32>,
+    pub const_shift_amount_prob: Option<f64>,
+    pub min_shift_amount: Option<u32>,
+    pub max_shift_amount: Option<u32>,
+    pub gate_shift_weight: Option<u32>,
 }

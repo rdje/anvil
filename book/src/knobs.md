@@ -115,6 +115,18 @@ instead of creating fresh logic.
 - `min_coefficient / max_coefficient` — strictly-positive integer
   range for the drawn coefficients. Defaults `1, 15`.
 
+### Shift-amount motif
+
+- `const_shift_amount_prob` — per-shift probability that `Shl`/`Shr`
+  emits `value << const` / `value >> const` (constant amount) instead
+  of `value << signal` (barrel shifter). Default `0.8` — real designs
+  overwhelmingly use constant amounts.
+- `min_shift_amount / max_shift_amount` — range for the drawn
+  constant shift amount, clamped to `[0, W-1]` for a W-bit value.
+  Defaults `0, 7`.
+- `gate_shift_weight` — relative weight for the shifts bucket (Shl,
+  Shr) in `pick_gate`. Default `1`. Shifts are disabled at width 1.
+
 ### Operator N-arity
 
 - `min_gate_arity / max_gate_arity` — range for N, the arity of
