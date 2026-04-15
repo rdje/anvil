@@ -3,7 +3,49 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0013 — mdBook becomes user-facing: Getting Started, Tutorial, Recipes
+
+**What changed**
+- **`book/src/getting-started.md`** (new): installation, first module (with full annotated SV output), reading the output line-by-line, reproducibility explanation, batch generation via `--out`, dumping effective knobs. Ends with a pointer to Tutorial / Recipes / Knobs / Core Idea.
+- **`book/src/tutorial.md`** (new): 9 progressive examples, each with the exact command and an excerpt of the generated SV. Progression: minimal combinational → deeper cones → multi-output → flops with direct D (M=0) → one-hot mux on D → encoded-select mux on D → Q-feedback variant → DAG-shaped cones → everything mixed. Opens with a "logic is deliberately nonsensical, that's the point" disclaimer so users aren't confused when the first `a + a + a` appears.
+- **`book/src/recipes.md`** (new): 9 "I want to do X" cookbook entries — minimal smoke-test corpus, fanout stress, flop-heavy, encoded-mux stress, one-hot-mux stress, narrow/wide-data stress, reproduce a module, parser-only stress, formal-equivalence sizing. Each recipe states the goal, gives the CLI command, explains which knobs matter.
+- **`book/src/introduction.md`** (rewritten): now leads with what anvil is (not with the "problem" section) and who it's for. Adds a five-minute pitch (command + output). Describes what makes anvil different (vs grammar fuzzers vs hand-written suites). Ends with a "what you'll find in this book" outline and a clear invitation to jump to Getting Started.
+- **`book/src/SUMMARY.md`** (restructured): five parts —
+  - *Using anvil* (Getting Started, Tutorial, Recipes) — leads the book.
+  - *How It Works* (Core Idea, Why Not a Grammar?, Algorithm, IR).
+  - *Correctness Guarantees* (By Construction, Synthesizability, Non-Triviality).
+  - *Motif Catalogue* (Sequential, Sharing, Hierarchy).
+  - *Reference* (Knobs, Architecture, Non-Goals).
+  Users arrive at the welcoming part first; contributors find design content in the middle; everyone finds reference material at the end.
+- **`book/book.toml`**: removed obsolete `multilingual = false` field that mdbook 0.4.51 now rejects. Updated book title and description to reflect the book's dual user/design role.
+
+**Why**
+Per user direction: "the book is the user facing surface to the project... documentation is key to attract and retain users... top-notch and littered with examples with increasing complexity. We should not scare users."
+
+Prior to this slice the book was correct and thorough but relentlessly design-focused. A user arriving at the book's first page would land on "The Core Idea" — a philosophical argument about circuit-graph IRs vs EBNF — before ever seeing a single command. That is backward for a tool that people need to actually run. This slice fixes the on-ramp.
+
+The user-facing chapters are copy-pasteable, progress by one concept per example, and show real generated SV at each step (not hypothetical snippets). The SV fragments in Tutorial were captured from actual `cargo run --` invocations during authoring.
+
+**Validation**
+- `mdbook build book` succeeds and produces `book/book-out/` with all chapters rendered.
+- All code gates remain clean (no source touched): `cargo check`, `cargo test` (23 tests), `cargo clippy -- -D warnings`, `cargo fmt --check`.
+- Cross-read new chapters against the code (`src/main.rs` CLI flags, `src/config.rs` defaults, `src/gen/cone.rs` flop motifs) to verify every command in the Tutorial and every recipe in Recipes actually works with the currently-implemented flags.
+
+**Impact**
+- The book is now the intended first-stop for users, not just contributors.
+- Every user-exposed feature (`CLI flags`, flop motifs, DAG sharing, reproducibility) has at least one worked example.
+- Design chapters remain for anyone who wants them — just accessible via a clearly-labeled "How It Works" section rather than as the book's opening.
+
+**Files touched**
+`book/src/getting-started.md` (new), `book/src/tutorial.md` (new), `book/src/recipes.md` (new), `book/src/introduction.md` (rewritten), `book/src/SUMMARY.md` (restructured), `book/book.toml` (obsolete field removed), `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0012 — mdBook staleness refresh: knobs, IR, algorithm, architecture
+
+**Commit hash:** `62fdeaa`
 
 **What changed**
 - `book/src/knobs.md`:
@@ -59,8 +101,6 @@ The user additionally asked that the book serve as the user-facing surface — w
 
 **Files touched**
 `book/src/knobs.md`, `book/src/ir.md`, `book/src/algorithm.md`, `book/src/architecture.md`, `MEMORY.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

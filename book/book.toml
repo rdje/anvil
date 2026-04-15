@@ -1,9 +1,8 @@
 [book]
-title = "anvil — Design & Rationale"
+title = "anvil — User Guide & Design Rationale"
 authors = ["anvil contributors"]
-description = "The thinking behind the constrained-random synthesizable RTL generator"
+description = "Random synthesizable SystemVerilog — using anvil, why it is the way it is, and the motif catalogue."
 language = "en"
-multilingual = false
 src = "src"
 
 [build]

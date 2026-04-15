@@ -21,7 +21,7 @@ See `ROADMAP.md` for the phased scope (combinational → sequential → sharing 
 7. `MEMORY.md`: compact, operational continuity/handoff snapshot with git hashes.
 8. `CHANGES.md`: fully detailed description of completed changes.
 9. `COMMIT.md`: canonical commit workflow.
-10. `book/`: mdBook — a live doc of equal standing with the short-form files. Carries the deepest design context (core idea, algorithm, IR, motifs, rejected alternatives, non-goals). Recovery requires reading it.
+10. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
 
