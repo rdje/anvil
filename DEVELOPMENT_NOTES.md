@@ -134,6 +134,58 @@ Same principle for the IR validator (`src/ir/validate.rs`): if it rejects real g
 
 ---
 
+## Generation-time defects observed in sample output (pending fixes)
+
+Cataloguing real defects observed in sample module `mod_1_0000`
+(3 outputs, 10-level fanin, default knobs, graph-first strategy).
+These are generator bugs — not SV-emitter or validator bugs.
+Enumerated here so the next session can fix them at the root.
+
+- **Constant-select muxes.** Every `wN = (2'h2 == 2'hK) ? ... : ...`
+  in the sample is a mux whose select is a *literal* comparison of
+  two literals. The select folds at elaboration. Root cause: the
+  encoded-mux assembler feeds the select-side recursion through
+  the same `pick_terminal` path that can terminate on a constant
+  leaf, and the one-hot-mux assembler similarly accepts a constant
+  for the per-arm select bit. Fix: in mux-select position, forbid
+  constant termination — require a non-constant signal source.
+- **N-arity self-cancellation.** `w_21 = i_2 ^ i_2 ^ i_2 ^ i_2 = 0`.
+  The N-arity operator expansion re-picks the same pool entry for
+  every operand, and `Xor` of even repetitions is zero. Fix: the
+  anti-collapse check must look at operand *multiset equality* for
+  idempotent / self-inverse operators, not just dep-set
+  non-emptiness. (And for `And`/`Or` the same issue produces
+  `x & x & x = x` which is a structural collapse, not a zero, but
+  still a motif violation.)
+- **Coefficient width overflow.** `1'h6` appears — a 6 encoded in a
+  1-bit literal, which truncates to 0. Root cause: the linear-
+  combination coefficient generator picks the coefficient value
+  independently of the operand width. Fix: clamp the coefficient to
+  `bits ≤ operand_width`, or widen the literal to the operand width
+  and let the top bits be real.
+- **Dead wires.** `w_17`, `w_26`, `w_27`, `w_29` are declared and
+  assigned but never read. Graph-first speculative pool growth is
+  the source; Rule 18 (proposed) addresses this.
+- **Stranded flop.** `r_3 <= r_3` — a flop whose D is its own Q and
+  whose Q is never read. A no-op. Rule 18 covers this too, as long
+  as "consumer" is defined to exclude the flop's own Q feedback.
+- **Structurally-identical one-hot arms.** `w_8`, `w_10`, `w_12`,
+  `w_14` are all `{w_6,...} & w_5`, meaning four arms of the one-
+  hot mux have the same per-arm product. OR-reducing identical
+  arms collapses to just the arm value. Fix: in one-hot assembly,
+  require per-arm *data* distinctness (or require the per-arm
+  select to differ; the current issue is that all arms share the
+  same broadcast select bit `w_6`).
+
+All six share a theme the user articulated: signals are being
+created without a *reason to exist*. The fixes are three-category:
+(1) tighten anti-collapse (operand-multiset check); (2) position-
+dependent leaf rules (no const in mux select); (3) width-aware
+constant generation. Rule 18 addresses the orthogonal
+"unconsumed output" axis.
+
+---
+
 ## File-level conventions
 
 - Every Rust source file starts with a doc comment explaining its scope.

@@ -470,6 +470,46 @@ B-gate that comes later.
 
 ---
 
+## 18 — No orphan gates *(proposed; not yet enforced)*
+
+**Rule:** Every `Node::Gate` appearing in the emitted module must be
+reachable from at least one consumer: an output drive-root, a flop's
+D input, a flop's Q that is itself read by another live node, or an
+operand of another emitted live gate. Gates not reachable from a
+consumer must not appear in the emitted SV.
+
+**Motivation:** a signal with no reader serves no purpose. It is an
+artifact of speculative construction, not a real piece of the
+circuit. Orphaned gates bloat the emitted output, confuse anyone
+reading the SV, and waste generator work.
+
+**Status:** *Proposed, pending enforcement decision.* Observable in
+current output — the graph-first strategy grows a gate pool
+speculatively and many pool entries never get picked as operands or
+drive-roots. Sample modules generated at default knobs routinely
+contain ~10% orphaned wires plus occasional stranded flops (a flop
+whose Q is never read). See `DEVELOPMENT_NOTES.md` "Generation-time
+defects observed in sample output (pending fixes)" for the concrete
+catalogue.
+
+**Two enforcement paths under consideration:**
+- **(α) Construction-time:** only create a gate when a specific
+  consumer is already waiting for it. `sequential` / `shuffled` /
+  `interleaved` already do this. `graph-first` would need to change
+  from speculative pool growth to demand-driven growth — which may
+  collapse it into something close to `interleaved`.
+- **(β) Emission-time (tree-shake):** leave graph-first as-is
+  internally; post-generation compute the live set (transitive
+  fanin from every output drive-root and flop D/Q) and emit only
+  nodes in that set. Orphans are created during generation but
+  never written to SV.
+
+Option (β) is the low-friction first step; option (α) is the
+architecturally-clean answer but may require rethinking graph-first.
+Decision deferred to the next session per user direction.
+
+---
+
 ## 17 — Priority-encoder block
 
 **Rule:** A priority-encoder block takes N 1-bit request signals and

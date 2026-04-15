@@ -3,6 +3,39 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0030 — Rule 18 proposal + sample-output defect catalogue (docs only)
+
+**What changed**
+- `book/src/structural-rules.md`: add Rule 18 "No orphan gates"
+  (proposed, not yet enforced). Documents the rule, motivation,
+  status, and the two enforcement paths under consideration:
+  (α) construction-time demand-driven vs (β) emission-time
+  tree-shake. Decision deferred.
+- `DEVELOPMENT_NOTES.md`: new section "Generation-time defects
+  observed in sample output (pending fixes)" cataloguing six
+  concrete defects seen in sample module `mod_1_0000`:
+  constant-select muxes, N-arity self-cancellation
+  (`i_2^i_2^i_2^i_2 = 0`), coefficient width overflow (`1'h6`),
+  dead wires, stranded flop (`r_3<=r_3`), structurally-identical
+  one-hot arms. Attributes each to a root cause and sketches a
+  fix. Three categories: anti-collapse operand-multiset, position-
+  dependent leaf rules, width-aware coefficient generation — plus
+  the orthogonal orphan-gate axis covered by Rule 18.
+
+**Why**
+User flagged the anomalies in a generated sample module and framed
+the issue philosophically: "when block or gate is created it is
+before it needs to be used, connected somewhere... some of those
+signals are created with no proper reason." This slice captures the
+observations so the next session can fix the defects at the root
+rather than rediscovering them.
+
+**Tests**
+No code changed. `cargo fmt / build / clippy / test` unchanged from
+the previous commit.
+
+---
+
 ## 2026-04-15-0029 — Priority-encoder block (Rule 17)
 
 **What changed**
