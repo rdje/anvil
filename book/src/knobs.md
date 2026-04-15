@@ -15,13 +15,13 @@ Mechanism:
   output (use `BTreeMap` or sorted-`Vec` where iteration matters).
 - The RNG is *not* sub-seeded per module — instead it is consumed
   serially. This means generating module N requires generating modules
-  0..N first if you want exact reproduction. To reproduce a single
+  `0..N` first if you want exact reproduction. To reproduce a single
   module standalone, the manifest records its individual seed (derived
   from the master seed by a deterministic stream-position scheme).
 
 ## Knob taxonomy
 
-Knobs fall into three categories:
+Knobs fall into four categories:
 
 ### Structural knobs (shape)
 
@@ -31,55 +31,115 @@ Control the size and topology of generated modules.
 - `min_outputs / max_outputs` — primary output port count range.
 - `min_width / max_width` — port and internal-wire width range.
 - `max_depth` — maximum cone recursion depth.
-- `num_leaf_modules` — pool size for hierarchical mode.
-- `hierarchy_depth` — max sub-module nesting.
+- `max_nodes_per_module` — hard cap on node count; currently a safety
+  ceiling, not hit in practice.
+- `num_leaf_modules` — pool size for hierarchical mode (Phase 4).
+- `hierarchy_depth` — max sub-module nesting (Phase 4).
 
-### Probability knobs (mix)
+### Sequential knobs (flops and mux motifs)
 
-Control which choices are favored at each decision point.
+Control flop emission and D-input mux shape.
 
-- `flop_prob` — probability that a cone node becomes a flop.
-- `share_prob` — probability of reusing an existing pool signal at a
-  terminal selection point.
-- `library_prob` — probability of picking from the existing module
-  pool vs generating a fresh sub-module on demand.
-- `terminal_reuse_prob` — probability of reusing a pool signal even
-  outside of explicit sharing decisions.
-- `constant_prob` — probability of emitting a constant terminal.
-- `gate_*_weight` — relative weights for gate categories (bitwise,
-  arithmetic, structured, comparison, reduction).
+- `flop_prob` — per-non-leaf-node probability that a cone node becomes
+  a flop. Default `0.15`.
+- `max_flops_per_module` — hard cap on flops per module. Default `32`.
+  Once hit, `build_cone` no longer considers the Flop branch.
+- `min_mux_arms / max_mux_arms` — range for M, the number of mux arms
+  on a flop's D input. Effective minimum is 2 (M=1 is excluded by
+  design). Defaults `1, 4`.
+- `flop_qfeedback_prob` — per-flop probability of the `QFeedback`
+  kind (D = Q when no select fires) vs `ZeroDefault` (D = 0 when no
+  select fires). Default `0.5`.
+- `flop_mux_encoding_prob` — per-flop probability of the Encoded mux
+  style (chained ternary over `Eq(sel, k)`) vs the OneHot style
+  (OR-of-masked arms). Default `0.5`.
+- `use_async_reset` — currently unused; flops are always async-reset
+  by the single-CLK / single-RST_N discipline. Retained as a knob in
+  case future work enables sync-reset as an option.
 
-### Termination knobs (recursion control)
+### Sharing knobs (tree vs DAG)
 
-Control how the cone recursion ends.
+Control how often cone recursion terminates at an existing signal
+instead of creating fresh logic.
 
-- `leaf_prob_growth` — how fast the per-node leaf probability rises
-  with depth. Linear: `min(1.0, depth / max_depth)` is the default.
-- `max_nodes_per_module` — hard cap; if exceeded, force termination.
+- `share_prob` — per-operand probability of DAG-sharing (reuse an
+  existing matching-width pool entry) at non-leaf decision points.
+  Default `0.3`. See `sharing.md` for the tree-vs-DAG-per-recursion
+  semantics.
+- `terminal_reuse_prob` — probability of reusing a pool signal at
+  forced-leaf decision points. Not currently consulted by
+  `pick_terminal` (the always-prefer-matching-width policy there
+  supersedes it); retained for future tuning.
+
+### Motif mix and termination
+
+- `constant_prob` — probability of emitting a constant terminal when
+  no matching-width signal exists. Default `0.1`.
+- `gate_*_weight` — relative weights for gate categories when picking
+  a gate at a non-leaf recursion point. Defaults bitwise `3`, arith
+  `2`, struct `1`, compare `1`, reduce `1`.
+- Termination: there is no explicit `leaf_prob_growth` knob —
+  `build_cone` uses a linear `depth / max_depth` ramp, forcing a leaf
+  at `max_depth`.
+
+### Hierarchy knobs (Phase 4+)
+
+- `library_prob` — probability of picking from the pre-generated
+  module pool vs generating a fresh sub-module on demand.
 
 ## Knob defaults
 
-Sensible defaults aim for "interesting but not overwhelming" output:
-
 ```rust
 Config {
-    min_inputs: 2, max_inputs: 8,
+    seed: 0,
+    // Structure
+    min_inputs: 2,  max_inputs: 8,
     min_outputs: 1, max_outputs: 4,
-    min_width: 1, max_width: 32,
+    min_width: 1,   max_width: 32,
     max_depth: 6,
-    flop_prob: 0.0,           // Phase 2 enables
-    share_prob: 0.0,          // Phase 3 enables
-    hierarchy_depth: 0,       // Phase 5 enables
-    library_prob: 0.5,
+    max_nodes_per_module: 1000,
+    // Sequential
+    flop_prob: 0.15,
+    max_flops_per_module: 32,
+    min_mux_arms: 1, max_mux_arms: 4,
+    flop_qfeedback_prob: 0.5,
+    flop_mux_encoding_prob: 0.5,
+    use_async_reset: true,
+    // Sharing
+    share_prob: 0.3,
     terminal_reuse_prob: 0.3,
+    // Mix
     constant_prob: 0.1,
     gate_bitwise_weight: 3,
-    gate_arith_weight: 2,
-    gate_struct_weight: 1,
-    leaf_prob_growth: Linear,
-    max_nodes_per_module: 1000,
+    gate_arith_weight:   2,
+    gate_struct_weight:  1,
+    gate_compare_weight: 1,
+    gate_reduce_weight:  1,
+    // Hierarchy (Phase 4+)
+    hierarchy_depth: 0,
+    num_leaf_modules: 0,
+    library_prob: 0.5,
 }
 ```
+
+## CLI coverage
+
+Every motif knob above that affects Phase 1/2 output has a dedicated
+CLI flag, so all combinations are reachable without writing a config
+file:
+
+```
+--seed, --count, --out, --config, --dump-config
+--min-inputs, --max-inputs, --min-outputs, --max-outputs
+--min-width, --max-width, --max-depth
+--flop-prob, --max-flops-per-module
+--min-mux-arms, --max-mux-arms
+--flop-qfeedback-prob, --flop-mux-encoding-prob
+--share-prob
+```
+
+Knobs without a CLI flag today (gate weights, `constant_prob`,
+`library_prob`, hierarchy fields) are reachable via `--config FILE`.
 
 ## Knob serialization
 
@@ -94,7 +154,7 @@ overrides) lets users save and replay configurations:
 
 ```bash
 anvil --seed 42 --max-depth 8 --dump-config > my-knobs.json
-anvil --config my-knobs.json --seed 42  # identical to previous
+anvil --config my-knobs.json --seed 42  # byte-identical to previous
 ```
 
 The manifest file in the output directory records the effective knobs

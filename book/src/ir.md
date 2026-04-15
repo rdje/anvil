@@ -1,7 +1,7 @@
 # The Circuit IR
 
-The IR is the circuit. Everything else — generator, emitter, future
-validators — operates on it.
+The IR is the circuit. Everything else — generator, emitter, validator —
+operates on it.
 
 ## Core types
 
@@ -10,18 +10,18 @@ pub struct Module {
     pub name:    String,
     pub inputs:  Vec<Port>,
     pub outputs: Vec<Port>,
-    pub clock:   Option<PortId>,   // Phase 2+
-    pub reset:   Option<PortId>,   // Phase 2+
-    pub nodes:   Arena<Node>,      // all internal signals
-    pub flops:   Vec<Flop>,        // Phase 2+
-    pub drives:  Vec<(PortId, NodeId)>, // which node drives each output
+    pub clock:   Option<PortId>,
+    pub reset:   Option<PortId>,
+    pub nodes:   Vec<Node>,                // arena of internal signals
+    pub flops:   Vec<Flop>,
+    pub drives:  Vec<(PortId, NodeId)>,    // which node drives each output
 }
 
 pub struct Port {
     pub id:    PortId,
     pub name:  String,
     pub width: u32,
-    pub dir:   Direction, // In | Out
+    pub dir:   Direction,                  // In | Out
 }
 
 pub enum Node {
@@ -53,63 +53,118 @@ pub enum GateOp {
     Shl, Shr,                // [value, amount]
 }
 
+pub enum ResetKind { None, Sync, Async }   // always Async today
+
+pub enum FlopKind {
+    ZeroDefault,             // D = 0   when no select fires
+    QFeedback,               // D = Q   when no select fires
+}
+
+pub struct MuxArm {
+    pub data: NodeId,
+    pub sel:  NodeId,        // 1-bit in OneHot; not used for Encoded
+}
+
+pub enum FlopMux {
+    None,                                         // M = 0 — no mux
+    OneHot(Vec<MuxArm>),                          // M >= 2, one-hot select
+    Encoded { sel: NodeId, data: Vec<NodeId> },   // M >= 2, encoded select
+}
+
 pub struct Flop {
-    pub id:        FlopId,
-    pub width:     u32,
-    pub d:         Option<NodeId>,  // filled after D-cone generation
-    pub q:         NodeId,           // the FlopQ node
-    pub reset_val: u128,
-    pub reset_kind: ResetKind,       // Sync | Async | None
+    pub id:         FlopId,
+    pub width:      u32,
+    pub d:          Option<NodeId>,               // filled by drain
+    pub q:          NodeId,                       // the FlopQ node
+    pub reset_val:  u128,
+    pub reset_kind: ResetKind,
+    pub kind:       FlopKind,
+    pub mux:        FlopMux,                      // filled by drain
 }
 ```
 
-## Why an arena
+## Why a flat `Vec<Node>`
 
-`Arena<Node>` stores nodes contiguously, hands out `NodeId` indices,
-and allows cheap sharing (fanout). A naïve tree representation with
-`Box<Node>` children would force copying when a wire feeds multiple
-consumers; the arena lets many `NodeId` references point at the same
-node.
+`Module.nodes` is a simple `Vec<Node>` indexed by `NodeId: u32`. This
+serves two purposes simultaneously:
 
-This matters for Phase 3 (sharing) but is worth building in from Phase 1
-— the extra complexity is small and retrofitting is annoying.
+1. **Arena semantics** — many `NodeId` references can point at the same
+   node, enabling cheap DAG sharing (a wire computed once, consumed
+   many times). A naïve tree `Box<Node>` representation would force
+   copies for fanout.
+2. **Serde-friendly** — the IR serializes to JSON one-shot without
+   dealing with arena rehydration.
+
+Indices are stable for the lifetime of a `Module` because we only ever
+push, never remove. The bounded retry in `build_cone_with_retry`
+rewinds by `Vec::truncate`, which is safe because no other code holds
+`NodeId`s referring to the rewound region.
 
 ## Dependency sets
 
 ```rust
-pub struct DepSet(BitSet);   // indexed by PrimaryInput::port
+pub struct DepSet(BTreeSet<u32>);
 ```
 
-Every `Node::Gate` caches its `DepSet` at construction time. The cache
-avoids recomputing dep-sets during the non-triviality check and during
-future optimizations (e.g., detecting shared sub-cones).
+Indexed by primary-input `PortId` (plus virtual ids for flops, tagged
+with the high bit set to live in a disjoint numeric space).
 
-`FlopQ` is treated as a virtual dep source — its deps are the union of
-its D-cone's deps, but for the purpose of the *current* combinational
-cone's non-triviality, a flop-Q reference contributes one dep.
+Every `Node::Gate` caches its `DepSet` at construction time. The cache
+avoids recomputing dep-sets during the non-triviality check and keeps
+dep-set propagation cheap through arbitrarily deep gate trees.
+
+`FlopQ` is treated as a virtual dep source — its deps are
+`{virtual_id(flop)}`. For the *current* combinational cone's
+non-triviality, a flop-Q reference contributes one dep; the flop's
+D-cone enforces its own non-triviality separately when drained.
 
 ## Invariants
 
-Enforced by IR constructors (not checked after the fact):
+Enforced by generator constructors (invariant-preserving by
+construction), and **also** checked by `ir::validate::validate` as a
+development-time safety net.
 
-1. `Gate.operands[i].width == expected_input_width(op, Gate.width, i)`
-2. `Gate.deps == union(operands[i].deps)` — plus the flop virtual
-   contribution for any `FlopQ` in the operand set.
+In the generator:
+
+1. `Gate.operands[i].width` matches the per-op rule (see
+   `book/src/algorithm.md`).
+2. `Gate.deps == union(operands[i].deps)`.
 3. Every `NodeId` referenced as an operand exists in `Module.nodes`.
 4. Every `PortId` in `drives` is an output port.
 5. Each output port appears in `drives` exactly once.
 6. Each `Flop::d` is filled before emission (worklist drained).
+7. Each flop's `mux` matches its assembled D shape.
 
-Violation of any of these is a generator bug, not invalid user input.
-The constructors `panic!` on violation to catch generator bugs loudly
-during development.
+In `validate.rs`:
+
+- All of the above.
+- Per-gate **arity**: each `GateOp` variant has a fixed or
+  variadic-with-min operand count.
+- Per-gate **output width**: `Eq`-family gates produce 1-bit;
+  `Slice` produces `hi - lo + 1`; `Concat` produces the sum of
+  operand widths; others match output-width from operand widths.
+- Per-gate **operand widths**: `Mux` sel is 1-bit, arms match output
+  width; comparisons require equal operand widths; `Slice` source
+  width must exceed `hi`; bitwise/arithmetic operands equal output
+  width; etc.
+
+Violation of any of these is a generator bug. The constructors do
+not panic; the validator rejects with a rich error variant (node id,
+op, operand index, expected vs got widths).
 
 ## Emitter contract
 
-The emitter is a pure function `Module -> String`. It assumes all
-invariants hold. It does not validate. It does not reject anything.
-If the IR is valid, the emitted SV is valid.
+The emitter (`emit::to_sv`) is a pure function `Module -> String`. It
+assumes all invariants hold. It does not validate. It does not reject
+anything. If the IR is valid, the emitted SV is valid.
 
-Name generation is deterministic: `i_0`, `i_1`, … for inputs;
-`o_0`, `o_1`, … for outputs; `w_0`, `w_1`, … for internal wires;
-`r_0`, `r_1`, … for flops. This makes diffs between seeds readable.
+Name generation is deterministic:
+
+- `clk`, `rst_n` — clock and async-reset input ports (emitted only
+  when `!m.flops.is_empty()`).
+- `i_0`, `i_1`, … — primary data inputs.
+- `o_0`, `o_1`, … — primary outputs.
+- `w_0`, `w_1`, … — internal gate wires (indexed by `NodeId`).
+- `r_0`, `r_1`, … — flop registers (indexed by `FlopId`).
+
+Deterministic names make diffs between seeds readable.

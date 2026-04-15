@@ -3,7 +3,70 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-15-0012 — mdBook staleness refresh: knobs, IR, algorithm, architecture
+
+**What changed**
+- `book/src/knobs.md`:
+  - Rewrote the knob taxonomy into four categories: Structural, Sequential, Sharing, Mix/Termination, Hierarchy.
+  - Added every sequential knob that was missing: `max_flops_per_module`, `min_mux_arms`, `max_mux_arms`, `flop_qfeedback_prob`, `flop_mux_encoding_prob`, `use_async_reset`.
+  - Updated defaults block to match current `Config::default()` (was showing Phase-0 defaults like `flop_prob: 0.0`, `share_prob: 0.0`).
+  - Added a "CLI coverage" section listing every flag so users know what's reachable without a config file.
+- `book/src/ir.md`:
+  - Added `FlopKind`, `FlopMux`, `MuxArm` types to the core-types block.
+  - Updated `Flop` to include `kind` and `mux` fields.
+  - Clarified `Module.nodes` is `Vec<Node>` (not `Arena<Node>`) with arena *semantics* via `NodeId` indexing.
+  - Removed "Phase 2+" annotations on clock/reset/flops (now live).
+  - Fixed "Phase 3 (sharing)" reference (now Phase 2 after renumber).
+  - Rewrote the Invariants section to distinguish what's enforced by construction vs by the per-gate width validator in `ir::validate::validate`.
+  - Added the validator's rich error categories (per-gate arity, operand widths, output widths).
+  - Updated name-generation section to cover clk/rst_n.
+- `book/src/algorithm.md`:
+  - Module-level pseudocode now shows clk/rst_n port reservation and the exclusion of those ports from the signal pool.
+  - Cone recursion pseudocode shows the DAG-sharing fork (`rand() < share_prob` → `try_share`) and the `exclude` parameter for Q-isolation.
+  - New "Flop worklist drain" section covering M ∈ {0, 2..=max}, per-flop FlopKind choice, per-flop mux style choice (one-hot vs encoded), with cross-references to `sequential.md`.
+  - Terminal selection pseudocode rewritten to match current behavior: prefer dep-bearing matching-width entries, fall back to any matching-width, then lazy width-adapter, then constant as last resort.
+  - Width-rules table: added `Shl/Shr` row.
+  - Anti-collapse section: clarified `NodeId` equality catches sharing-induced self-reference.
+- `book/src/architecture.md`:
+  - Crate-layout comments updated: `main.rs` notes CLI coverage; `validate.rs` notes unit tests; `cone.rs` notes DAG sharing and flop-mux assembly; removed placeholder `hierarchy.rs # Phase 5+` (not in source yet; will land in Phase 4).
+  - Renumbered "Phase 5" references to Phase 4.
+  - Key-types block updated with `FlopKind`, `FlopMux`, and the `kind`/`mux` fields on `Flop`.
+  - Testing-strategy section replaced placeholder with concrete counts: 8 validator tests, 7 cone tests, 6 emitter tests, 2 integration = 23 total.
+  - CLI section replaced "..." placeholder with the full flag surface and defaults.
+- `MEMORY.md` and `CHANGES.md` updated per the mandatory pre-commit docs.
+
+**Why**
+The user flagged that several book chapters had gone stale relative to recent code slices. Specifically:
+- `knobs.md` still showed `flop_prob: 0.0` and `share_prob: 0.0` as defaults, which is contradicted by `Config::default()` (0.15 and 0.3 respectively) and would mislead anyone reading the book to understand tunable ranges.
+- `ir.md` did not document the new `FlopKind`, `FlopMux`, `MuxArm` types at all, and still described clock/reset/flops as "Phase 2+" aspirations rather than live features.
+- `algorithm.md` showed an outdated pseudocode with `pick_node_kind(gate | flop | terminal)` and a `terminal_reuse_prob` / `constant_prob` coin-flip that doesn't match the current `pick_terminal` implementation.
+- `architecture.md` referenced Phase 5 for hierarchy (now Phase 4 after the renumbering in commit `4317c82`), had a `...` placeholder in the CLI section, and listed no test counts.
+
+This slice closes those gaps. The book's design chapters now match the code at commit `c9ec12c`.
+
+**Validation**
+- Documentation-only slice; no source changes.
+- `cargo check`, `cargo test` (23 tests), `cargo clippy -- -D warnings`, `cargo fmt --check`: all still clean (no code touched).
+- Cross-read each updated chapter against the corresponding source file to verify no dangling references to removed/renamed types.
+
+**Impact**
+- A contributor reading the book to understand anvil's IR or algorithm now gets a faithful current-state picture.
+- The knob defaults in `knobs.md` match what `cargo run -- --dump-config` actually prints.
+- Phase numbering is consistent across the book, `ROADMAP.md`, and `CODEBASE_ANALYSIS.md`.
+
+**Follow-up (flagged in next-up)**
+The user additionally asked that the book serve as the user-facing surface — with progressive examples and a welcoming on-ramp, not just design reference. The existing chapters are correct but contributor-oriented. A follow-up slice will add Getting Started, Tutorial (progressive examples), and Recipes chapters, and restructure `SUMMARY.md` to lead with user material.
+
+**Files touched**
+`book/src/knobs.md`, `book/src/ir.md`, `book/src/algorithm.md`, `book/src/architecture.md`, `MEMORY.md`, `CHANGES.md`.
+
+**Commit hash:** _to be filled in after this commit_
+
+---
+
 ## 2026-04-15-0011 — CLI coverage for all Phase 1/2 motif knobs
+
+**Commit hash:** `c9ec12c`
 
 **What changed**
 - `src/main.rs`:
@@ -29,8 +92,6 @@ This is the "Consider adding a `--share-prob` CLI flag" item from the prior `MEM
 
 **Files touched**
 `src/main.rs`, `src/config.rs`, `MEMORY.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`.
-
-**Commit hash:** _to be filled in after this commit_
 
 ---
 

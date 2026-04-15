@@ -3,13 +3,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) effectively feature-complete pending Verilator-lint smoke. Phase 2 (Signal sharing / DAG cones) in progress with default-on.
-- **Last completed slice:** CLI flag coverage extended for Phase 1/2 motif knobs. Added `--max-flops-per-module`, `--min-mux-arms`, `--max-mux-arms`, `--flop-qfeedback-prob`, `--flop-mux-encoding-prob`. Users can now exercise every flop motif combination from the CLI without writing a JSON config. See `CHANGES.md` entry `2026-04-15-0011`.
+- **Last completed slice:** mdBook staleness audit and refresh. `knobs.md`, `ir.md`, `algorithm.md`, `architecture.md` all rewritten to match current state: flop mux motifs (OneHot/Encoded, FlopKind, FlopMux, MuxArm), per-operand DAG sharing via `share_prob`, clk/rst_n reservation in module generation, per-gate width validator, CLI coverage for all Phase 1/2 knobs, renumbered phase references. See `CHANGES.md` entry `2026-04-15-0012`.
 - **Next up:**
-  1. Verilator-lint smoke run, ideally sweeping `share_prob ∈ {0.0, 0.3, 0.9}` and the two flop styles (one-hot / encoded) per the Phase 2 exit criterion. Blocked on Verilator availability.
-  2. After Verilator-lint green at multiple `share_prob` settings: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
-  3. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot` (currently covered only indirectly by the integration sweep).
+  1. **User-facing book expansion** (explicit user direction): new chapters for Getting Started, Tutorial (progressive examples), and Recipes (cookbook). Restructure `SUMMARY.md` to lead with user material, then design, then reference. Book is the user-facing surface, not just a design ledger.
+  2. Verilator-lint smoke run (still blocked on Verilator availability). Sweep `share_prob ∈ {0.0, 0.3, 0.9}` and both flop styles for Phase 2 exit.
+  3. After Verilator-lint green: declare Phase 2 done and start Phase 3 (structured combinational ops: case/casez, priority encoders, shifts, for-loop unrolled logic).
+  4. Optional pre-Phase-3 polish: unit tests for `assemble_flop_d_encoded` / `assemble_flop_d_one_hot`.
 
 ## Recent commits
+- `c9ec12c` — CLI coverage for all Phase 1/2 motif knobs.
 - `6ba646b` — Phase 2 start: per-operand DAG-cone sharing.
 - `c8043c3` — Inline unit tests for cone helpers and SV emitter.
 - `4eb5daa` — Per-gate width/arity validator + inline unit tests.
