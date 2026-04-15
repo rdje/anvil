@@ -470,6 +470,58 @@ B-gate that comes later.
 
 ---
 
+## 20 — Dep-bearing source required at elaboration-sensitive positions
+
+**Rule:** At positions where a dep-empty (constant) source would
+cause the surrounding logic to fold at elaboration time, the
+terminal picker must return a node whose dep-set is non-empty —
+i.e., the node is transitively driven by a primary input or a flop
+Q. The positions covered today are:
+
+- **Mux select.** The `sel` operand of a one-hot or encoded mux
+  (comb or flop). A constant select makes the mux degenerate to
+  one fixed arm.
+- **Priority-encoder request bits.** Each `req_i` in
+  `req_0 ? 0 : req_1 ? 1 : … : 0`. Constant request bits degrade
+  the block to a fixed value.
+- **Const-comparand LHS.** The signal side of `lhs == K` /
+  `lhs < K` / …. A constant LHS folds the entire comparison to a
+  single bit at elaboration.
+- **Const-shift-amount value.** The value side of `v << K`. A
+  constant value folds the shift to a literal.
+
+**Motivation:** a signal generated "without a proper reason" is,
+in practice, a signal that does not carry a dependency on any
+primary input or flop Q. Every downstream consumer of such a
+signal reduces to a literal at elaboration, and the generator has
+spent work producing nothing observable. The rule is a concrete
+restatement of the "signals must have a reason to exist" principle
+applied to the specific positions where elaboration-time folding
+is the failure mode.
+
+**Construction-time enforcement:**
+`pick_terminal_dep_bearing(g, m, pool, width, exclude)` is the
+picker used at these positions. It admits only:
+1. A randomly-chosen dep-bearing matching-width pool entry, or
+2. A width-adapter (Slice / replicating Concat) from the widest
+   dep-bearing pool entry of any width.
+
+Tiers 2 (any matching-width) and 4 (fresh constant) of the general
+`pick_terminal` are excluded. The picker panics if the pool has no
+dep-bearing entry at all — an invariant violation, since primary
+inputs are always seeded with non-empty deps at module start.
+
+**Scope (today):** the pool-mode dispatch paths
+(`graph-first` / `pool_only` helpers) — where the defect was
+directly observed. The recursive and interleaved paths construct
+selects via `build_cone` and rely on depth budget to spawn
+real logic; they do not currently terminate select sub-cones on a
+constant except at depth-exhaustion edge cases. If those paths
+start producing folded selects, the fix is to thread a
+`require_deps` flag through `build_cone` recursion.
+
+---
+
 ## 19 — Coefficient fits operand width
 
 **Rule:** Every constant coefficient drawn by the linear-combination

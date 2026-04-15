@@ -185,7 +185,7 @@ fn grow_pool_one_unit(
     if matches!(op, GateOp::Shl | GateOp::Shr)
         && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
     {
-        let value = pick_terminal(g, m, pool, width, None);
+        let value = pick_terminal_dep_bearing(g, m, pool, width, None);
         build_shift_const_amount(g, m, pool, op, value, width);
         return true;
     }
@@ -195,7 +195,7 @@ fn grow_pool_one_unit(
     // is 1-bit.
     if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
         let k = pick_comparison_operand_width(g);
-        let lhs = pick_terminal(g, m, pool, k, None);
+        let lhs = pick_terminal_dep_bearing(g, m, pool, k, None);
         build_comparison_const_comparand(g, m, pool, op, lhs, k);
         return true;
     }
@@ -238,7 +238,7 @@ fn build_comb_mux_pool_only(
     let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
     if encoded {
         let sel_width = ceil_log2(n_arms);
-        let sel = pick_terminal(g, m, pool, sel_width, None);
+        let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, None);
         let datas: Vec<NodeId> = (0..n_arms)
             .map(|_| pick_terminal(g, m, pool, width, None))
             .collect();
@@ -254,7 +254,7 @@ fn build_comb_mux_pool_only(
         let mut arms: Vec<MuxArm> = Vec::with_capacity(n_arms as usize);
         for _ in 0..n_arms {
             let data = pick_terminal(g, m, pool, width, None);
-            let sel = pick_terminal(g, m, pool, 1, None);
+            let sel = pick_terminal_dep_bearing(g, m, pool, 1, None);
             arms.push(MuxArm { data, sel });
         }
         let mut term_nodes: Vec<NodeId> = Vec::with_capacity(arms.len());
@@ -292,7 +292,7 @@ fn drain_flop_worklist_pool_only(
         let encoded = g.rng.gen_bool(g.cfg.flop_mux_encoding_prob.min(1.0));
         if encoded {
             let sel_width = ceil_log2(m_arms);
-            let sel = pick_terminal(g, m, pool, sel_width, exclude);
+            let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, exclude);
             let datas: Vec<NodeId> = match kind {
                 FlopKind::ZeroDefault => (0..m_arms)
                     .map(|_| pick_terminal(g, m, pool, width, exclude))
@@ -308,7 +308,7 @@ fn drain_flop_worklist_pool_only(
             let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
             for _ in 0..m_arms {
                 let data = pick_terminal(g, m, pool, width, exclude);
-                let sel = pick_terminal(g, m, pool, 1, exclude);
+                let sel = pick_terminal_dep_bearing(g, m, pool, 1, exclude);
                 arms.push(MuxArm { data, sel });
             }
             let d = assemble_flop_d_one_hot(m, pool, width, &arms, kind, q_node);
@@ -1227,7 +1227,9 @@ fn build_priority_encoder_pool(
     target_width: u32,
 ) -> Option<NodeId> {
     let n = pick_priority_encoder_n(g, target_width)?;
-    let req_bits: Vec<NodeId> = (0..n).map(|_| pick_terminal(g, m, pool, 1, None)).collect();
+    let req_bits: Vec<NodeId> = (0..n)
+        .map(|_| pick_terminal_dep_bearing(g, m, pool, 1, None))
+        .collect();
     Some(assemble_priority_encoder(m, pool, target_width, &req_bits))
 }
 
@@ -1614,6 +1616,59 @@ fn pick_terminal(
     m.nodes.push(Node::Constant { width, value });
     pool.add(node_id, width, DepSet::new());
     node_id
+}
+
+/// Strict variant of `pick_terminal`: guaranteed to return a
+/// dep-bearing node (transitively driven by a primary input or flop Q).
+/// Use at positions where a constant source would make the surrounding
+/// logic fold at elaboration time — mux selects, priority-encoder
+/// request bits, LHS of the constant-comparand comparison, value
+/// operand of the constant-shift-amount motif. See Rule 20 in
+/// `book/src/structural-rules.md`.
+///
+/// Tiers (subset of `pick_terminal`):
+/// 1. Random dep-bearing matching-width pool entry.
+/// 2. Width-adapter from the widest dep-bearing pool entry of any
+///    width.
+///
+/// Panics if the pool contains no dep-bearing entry at all. Since
+/// primary inputs are always added to the pool with non-empty deps,
+/// this is unreachable in normal generator flow.
+fn pick_terminal_dep_bearing(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    exclude: Option<NodeId>,
+) -> NodeId {
+    let not_excluded = |e: &&crate::gen::pool::PoolEntry| Some(e.node) != exclude;
+
+    let with_deps: Vec<_> = pool
+        .of_width(width)
+        .filter(not_excluded)
+        .filter(|e| !e.deps.is_empty())
+        .map(|e| e.node)
+        .collect();
+    if !with_deps.is_empty() {
+        let idx = g.rng.gen_range(0..with_deps.len());
+        return with_deps[idx];
+    }
+
+    let source: Option<(NodeId, u32, DepSet)> = pool
+        .iter()
+        .filter(not_excluded)
+        .filter(|e| !e.deps.is_empty())
+        .max_by_key(|e| e.width)
+        .map(|e| (e.node, e.width, e.deps.clone()));
+    if let Some((src_node, src_width, src_deps)) = source {
+        return make_width_adapter(m, pool, src_node, src_width, src_deps, width);
+    }
+
+    panic!(
+        "pick_terminal_dep_bearing: pool has no dep-bearing entry; \
+         generator invariant violated (primary inputs should always \
+         be present in the pool with non-empty deps)"
+    );
 }
 
 /// Build a Slice or replicating Concat (+ Slice) that adapts a source
@@ -2185,6 +2240,32 @@ mod tests {
             )
         });
         assert!(has_concat_9, "expected a 9-bit Concat as the Slice source");
+    }
+
+    /// `pick_terminal_dep_bearing` must never return a dep-empty node
+    /// (a constant). Regression guard for the `2'h2 == 2'h2` constant-
+    /// select defect observed in sample output.
+    #[test]
+    fn pick_terminal_dep_bearing_rejects_constants() {
+        let cfg = Config {
+            seed: 0xDEADBEEF,
+            ..Config::default()
+        };
+        let mut g = Generator::new(cfg);
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 0);
+        // Pollute the pool with a dep-empty constant of the target width.
+        let const_id = make_constant(&mut m, &mut pool, 4, 5);
+        for _ in 0..100 {
+            let picked = pick_terminal_dep_bearing(&mut g, &mut m, &mut pool, 4, None);
+            assert_ne!(
+                picked, const_id,
+                "dep-bearing picker returned the dep-empty constant"
+            );
+            assert!(
+                !node_deps(&m, picked).is_empty(),
+                "dep-bearing picker returned a node with empty deps"
+            );
+        }
     }
 
     /// `pick_coefficient` must never return a value that overflows the

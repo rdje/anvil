@@ -3,6 +3,55 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0032 — Dep-bearing source at elaboration-sensitive positions (Rule 20)
+
+**What changed**
+- `src/gen/cone.rs`: new `pick_terminal_dep_bearing(g, m, pool,
+  width, exclude)` helper. Two-tier picker: (1) random dep-bearing
+  matching-width pool entry; (2) width-adapter from widest
+  dep-bearing pool entry of any width. Panics if the pool has no
+  dep-bearing entry at all (invariant — primary inputs are always
+  seeded with non-empty deps).
+- Seven pool-mode call sites migrated from `pick_terminal` to
+  `pick_terminal_dep_bearing`:
+  - `grow_pool_one_unit`: const-shift value operand, const-comparand
+    LHS.
+  - `build_comb_mux_pool_only`: encoded sel, one-hot per-arm sel.
+  - `drain_flop_worklist_pool_only`: encoded sel, one-hot per-arm
+    sel.
+  - `build_priority_encoder_pool`: request bits.
+- New unit test `pick_terminal_dep_bearing_rejects_constants` (100
+  iterations against a pool polluted with a matching-width
+  dep-empty constant).
+- `book/src/structural-rules.md`: new Rule 20 "Dep-bearing source
+  required at elaboration-sensitive positions" with the four
+  positions covered, motivation, and enforcement.
+
+**Why**
+Sample module `mod_1_0000` contained `w_35 = 2'h2 == 2'h2` — a
+comparison with both operands literal, folding to a constant 1 at
+elaboration. Root cause: the comparison's LHS picker
+(`pick_terminal`) permits dep-empty pool entries in its tier-2
+fallback and, at tier 4, emits a fresh constant. The same hazard
+applies to mux selects and priority-encoder request bits. Fixed at
+the root per the user's rule-based-generation doctrine.
+
+**Tests**
+- All four cargo gates green.
+- 31 unit (+1 new) + 15 integration = **46 tests, all passing**.
+- Spot-check across six seeds (1, 2, 3, 42, 100, 777): zero
+  literal-vs-literal comparison lines in generated SV (was several
+  per module before).
+
+**Impact**
+- Default config paths produce muxes, priority encoders, comparisons,
+  and shifts whose selects / LHS / value sides are now always
+  dep-bearing signals (primary input or flop Q, possibly adapted by
+  Slice/Concat).
+- No CLI or config-surface change.
+
+---
+
 ## 2026-04-15-0031 — Coefficient fits operand width (Rule 19)
 
 **What changed**
