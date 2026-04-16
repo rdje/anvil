@@ -3,6 +3,69 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0057 — Algorithm chapter refresh: strategies, Rule 2, Rule 18, CSE, motif dispatch (docs only)
+
+**What changed**
+- `book/src/algorithm.md`:
+  - Strategy note rewritten. Was: "current `sequential`; three
+    *planned* alternatives." Now: all three strategies landed;
+    default is `interleaved`; `graph-first` retired as a silent
+    alias (pointer to the construction-strategies chapter's
+    retirement rationale).
+  - `build_cone` pseudocode expanded:
+    - New branches for `priority_encoder_prob`, linear-combination
+      motif (`coefficient_prob`), const-shift motif
+      (`const_shift_amount_prob`), const-comparand motif
+      (`const_comparand_prob`). These were all implemented but
+      missing from the pseudocode.
+    - Added the snapshot/rollback around operand construction
+      (Rule 18 α enforcement). Rejected gates restore state so
+      operand sub-trees don't orphan.
+    - Final node creation goes through `intern_gate` (Rules 21 +
+      21b — CSE + commutative normalization). Pool add gated on
+      `is_new`.
+  - Flop-drain pseudocode: corrected `exclude = Some(q_node)`
+    (old "Q-exclusion contract") to `exclude = None` with a
+    comment pointing to Rule 2 (Q-feedback freedom). The
+    Q-exclusion was relaxed in slice `6cbcbff`.
+  - Retry-loop section: now mentions that the snapshot also
+    restores `gate_instances` / `const_instances` — the CSE
+    dedup tables — and explains the failure mode when they are
+    not (pointer to `DEVELOPMENT_NOTES.md`).
+  - Anti-collapse section: old 5-line rule list replaced with
+    the full current set:
+    - Idempotent N-arity (And/Or/Xor) multiset-distinctness.
+    - 2-arity algebraic degeneracy (Sub/Eq/Neq).
+    - Mux duplicate-arm (gated on `mux_arm_duplication_rate`).
+    - Add/Mul duplicate (gated on `operand_duplication_rate`).
+    - `factorization_level`-dependent relaxation (cse / none).
+    - Note that rejection restores snapshot (Rule 18).
+    - Pointer to the factorization ladder for future layers.
+
+**Why**
+Audit found the algorithm chapter predated every major
+2026-04-15 → 2026-04-17 slice touching `build_cone`:
+snapshot/rollback (`b78550d`), CSE via intern_gate (`f425657`),
+commutative normalization (`c9c2f98`), motif dispatch (already
+landed when the chapter was written but only partially
+described), and the Rule 2 Q-feedback relaxation (`6cbcbff`).
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- The algorithm chapter is now a faithful pseudocode
+  transcription of `src/gen/cone.rs` as it stands today. A
+  reader can hold them side-by-side without discovering
+  discrepancies.
+- The anti-collapse section now reflects the
+  `factorization_level` dial and the three duplication-rate
+  knobs — ties the chapter back into the knob catalog.
+
+---
+
 ## 2026-04-17-0056 — Book audit: last `w_N`/`r_N` naming remnants (docs only)
 
 **What changed**

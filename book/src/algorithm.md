@@ -3,12 +3,16 @@
 The heart of `anvil`. Written as pseudocode; the Rust implementation in
 `src/gen/cone.rs` is a direct transcription.
 
-> **Strategy note:** the pseudocode below describes the current
+> **Strategy note:** the pseudocode below describes the
 > `sequential` construction strategy — cones built one output at a
-> time in declaration order. See
+> time in declaration order. It is the simplest recursion shape and
+> the right starting point for understanding the generator. The
+> default strategy is `interleaved` (a global frame queue driving
+> all output cones in lockstep); `shuffled` is the same per-output
+> recursion in random order. The retired `graph-first` is a silent
+> alias for `interleaved`. See
 > [Construction Strategies](construction-strategies.md) for the
-> three planned alternatives (`shuffled`, `interleaved`,
-> `graph-first`) and the rationale for picking among them.
+> full comparison and retirement rationale.
 
 ## Module-level generation
 
@@ -73,8 +77,35 @@ build_cone(width, depth, exclude):
     if rand() < comb_mux_prob:
         return build_comb_mux(width, depth, exclude)
 
+    # Priority-encoder block branch: chained ternary over N 1-bit
+    # request bits. Skipped if no N ∈ [min_mux_arms, max_mux_arms]
+    # satisfies ceil_log2(N) == width. See Rule 17.
+    if rand() < priority_encoder_prob:
+        result = try_build_priority_encoder(width, depth, exclude)
+        if result is Some(node): return node
+
     # Gate branch.
     op = pick_gate(width)
+
+    # Motif dispatch: coefficient / const-shift / const-comparand.
+    # Each is a specialised compound form that replaces the generic
+    # recursion for its op family. See structural-rules.md Rules
+    # 19 (coefficient), 20 (dep-bearing source required in the
+    # position variants).
+    if op in {Add, Sub, Mul} AND rand() < coefficient_prob:
+        return build_linear_combination(op, width, depth, exclude)
+    if op in {Shl, Shr} AND rand() < const_shift_amount_prob:
+        return build_shift_const_amount(op, width, depth, exclude)
+    if is_comparison(op) AND rand() < const_comparand_prob:
+        return build_comparison_const_comparand(op, depth, exclude)
+
+    # Snapshot construction state before operand construction (Rule 18
+    # enforcement). If the composed gate fails anti-collapse, we roll
+    # back — operand sub-trees built for the rejected gate vanish from
+    # the IR so they don't orphan.
+    snap = Snapshot::of(m.nodes, m.flops, pool, worklist,
+                       m.gate_instances, m.const_instances)
+
     operand_widths = input_widths_for(op, width)
     operands = []
     for w in operand_widths:
@@ -87,13 +118,20 @@ build_cone(width, depth, exclude):
                 continue
         operands.push(build_cone(w, depth + 1, exclude))
 
-    # Structural anti-collapse: reject obvious identity patterns.
+    # Structural anti-collapse (Rule 8 extended): reject operand
+    # multisets that degenerate algebraically. The check depends on
+    # factorization_level — see below. On rejection, restore snapshot
+    # and fall back to pick_terminal.
     if violates_anti_collapse(op, operands):
+        snap.restore()
         return pick_terminal(width, exclude)
 
-    node = Gate { op, operands, width, deps = union(operand deps) }
-    m.nodes.push(node)
-    pool.add(node, width, deps)                 # new gate is shareable
+    # `intern_gate` enforces Rule 21 (CSE) + Rule 21b (commutative
+    # normalization for And/Or/Xor/Add/Mul) + AST-instance cap. The
+    # same (op, sorted_operands, width) returns the same NodeId.
+    (node, is_new) = m.intern_gate(op, operands, width, deps)
+    if is_new:
+        pool.add(node, width, deps)             # new gate is shareable
     return node
 ```
 
@@ -102,11 +140,20 @@ build_cone(width, depth, exclude):
 `build_cone_with_retry` wraps `build_cone` with a bounded retry
 (currently 4) that rejects trivial (empty dep-set) cone roots. On
 rejection, the IR mutation is rolled back via `Vec::truncate` on
-`m.nodes` and `m.flops`, and the pool + worklist are restored from
-a clone. After the retry budget is exhausted, the last attempt is
-accepted (the validator will then reject the whole module if it is
-truly trivial — but this has never been observed in practice with
-current defaults).
+`m.nodes` and `m.flops`, and the pool, worklist, `gate_instances`,
+and `const_instances` tables are restored from a clone.
+
+After the retry budget is exhausted, the last attempt is accepted
+(the validator will then reject the whole module if it is truly
+trivial — but this has never been observed in practice with current
+defaults).
+
+Note the full snapshot: the dedup tables (`gate_instances`,
+`const_instances`) must be restored alongside `m.nodes` or stale
+entries would point at truncated NodeIds. A later `intern_gate` call
+would then return a node of a different kind than its key promised.
+This is a load-bearing invariant — see `DEVELOPMENT_NOTES.md`
+"Construction-time CSE" for the failure mode.
 
 ## Flop worklist drain
 
@@ -123,7 +170,10 @@ drain_flop_worklist():
         width    = m.flops[flop_id].width
         kind     = m.flops[flop_id].kind
         q_node   = m.flops[flop_id].q
-        exclude  = Some(q_node)       # Q-exclusion contract
+        # Rule 2 (Q-feedback freedom): the flop's own Q may appear
+        # freely as a leaf in any of its data / select / direct-D
+        # sub-cones. No Q-exclusion — pass exclude = None.
+        exclude  = None
         M        = pick_mux_arm_count()
 
         if M == 0:
@@ -217,16 +267,39 @@ when the flop's D-cone is built).
 ## Structural anti-collapse rules
 
 Cheap to enforce during generation; catch the obvious constant-folding
-cases:
+cases. The exact rule set depends on `factorization_level`:
 
-- `a ^ a`, `a - a`, `a == a`, `a != a` — forbidden (operand `NodeId`
-  equality check). Covers both pure-tree self-reference and
-  sharing-induced self-reference (same pool entry picked twice).
-- `mux(s, a, a)` — forbidden (identical data arms).
+At the default level (`e-graph`, currently equivalent to
+`commutative`):
 
-These do not catch algebraic identities deeper in the tree
+- **Idempotent / self-inverse N-arity ops** (`And`, `Or`, `Xor`):
+  any duplicate `NodeId` in the operand list is forbidden
+  (`x & x = x`, `x | x = x`, `x ^ x = 0` at any arity). Operand-
+  multiset distinctness, not just pairwise.
+- **`Sub` (2-arity):** `x - x = 0` forbidden.
+- **`Eq` / `Neq`:** `x == x = 1`, `x != x = 0` forbidden.
+- **`Mux`:** `mux(s, a, a) = a` forbidden (gated on
+  `mux_arm_duplication_rate`).
+- **`Add` / `Mul`:** operand duplicates *allowed by default but
+  gated* on `operand_duplication_rate`. At rate 0.0 (default), no
+  duplicates. At rate 1.0, `x + x = 2x` and `x * x = x²` pass
+  through. Duplicates are algebraically meaningful here, so the
+  user opts in.
+
+Lowering `factorization_level` relaxes these rules. At level
+`cse`, only the 2-operand algebraic-degeneracy cases (`Sub` /
+`Eq` / `Neq`) fire — the rest are permitted (and picked up by
+syntactic CSE at the AST-key level). At level `none` no
+anti-collapse rules fire and the dedup path is bypassed entirely.
+
+On rejection, `build_cone` restores its pre-operand-construction
+snapshot and falls back to `pick_terminal`. This prevents the
+rejected sub-trees from becoming orphans (Rule 18) — every gate in
+the final IR has a consumer by construction.
+
+These rules do not catch algebraic identities deeper in the tree
 (`(a + b) - b`, etc.). Those survive and show up in the output. The
-philosophy is: prevent the *obvious* collapses cheaply; accept that
-the remaining output may still contain algebraic redundancy. A real
-synthesizer will fold it away; the surrounding cone retains its
-non-trivial structure.
+factorization ladder reserves `associative`, `constant-fold`,
+`peephole`, and `e-graph` levels for future slices that close the
+algebraic-equivalence gap; today's generator tops out at
+`commutative`.
