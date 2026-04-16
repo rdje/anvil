@@ -92,6 +92,7 @@ shift. Examples:
 - Raising `max_depth` should raise `max_gate_depth` monotonically.
 - Raising `priority_encoder_prob` should raise `num_priority_encoder_blocks` monotonically.
 - Raising `comb_mux_encoding_prob` should shift the `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio toward the knob value.
+- `nested_associative_operand_count` measures how many operand slots on `And`/`Or`/`Xor`/`Add`/`Mul` gates would be absorbed by the not-yet-implemented `Associative` factorization layer. A non-zero count at default knobs is expected today; it will drop once that layer lands.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `factorization_level=none` → gate count grows (no CSE); `=cse` and above
   shrinks it.

@@ -130,6 +130,21 @@ pub struct Metrics {
     /// Keyed by depth value.
     pub gate_depth_histogram: BTreeMap<usize, usize>,
 
+    // --- Factorization-ladder telemetry -------------------------
+    /// Count of operand slots on associative gates
+    /// (`And`/`Or`/`Xor`/`Add`/`Mul`) whose operand is itself a
+    /// `Node::Gate` of the same op and width. This is the number
+    /// of operand slots the not-yet-implemented *associative
+    /// flattening* layer would absorb: `Add([a, Add(b, c), d])`
+    /// counts 1 (the middle slot), flattening to `Add([a, b, c, d])`.
+    ///
+    /// The metric is post-hoc: it examines the finalized IR, not
+    /// construction-time events. Running the generator over a
+    /// seed sweep and summing this metric tells you how much
+    /// flattening a future `Associative` layer would actually
+    /// collapse — justifying (or not) the cost of implementing it.
+    pub nested_associative_operand_count: usize,
+
     // --- Block-build counters -----------------------------------
     /// Number of priority-encoder block instances built in this
     /// module. Measures the `priority_encoder_prob` knob directly.
@@ -305,6 +320,40 @@ pub fn compute(m: &Module) -> Metrics {
     out.num_priority_encoder_blocks = m.priority_encoder_built;
     out.num_comb_muxes_one_hot = m.comb_mux_one_hot_built;
     out.num_comb_muxes_encoded = m.comb_mux_encoded_built;
+
+    // Associative-flattening-opportunities scan. For every
+    // associative gate, count operands that are themselves a gate
+    // of the same op and width — those are the slots the
+    // not-yet-implemented `Associative` factorization layer would
+    // flatten away.
+    for node in &m.nodes {
+        if let Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } = node
+        {
+            if !matches!(
+                op,
+                GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+            ) {
+                continue;
+            }
+            for &operand_id in operands {
+                if let Node::Gate {
+                    op: inner_op,
+                    width: inner_w,
+                    ..
+                } = &m.nodes[operand_id as usize]
+                {
+                    if inner_op == op && inner_w == width {
+                        out.nested_associative_operand_count += 1;
+                    }
+                }
+            }
+        }
+    }
 
     out
 }

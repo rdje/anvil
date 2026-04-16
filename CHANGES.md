@@ -3,6 +3,60 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0063 — Associative-flattening opportunity metric (informational, pre-implementation)
+
+**What changed**
+- `src/metrics.rs`: new `Metrics::nested_associative_operand_count:
+  usize`. Post-hoc walk counts every operand slot on an associative
+  gate (`And`/`Or`/`Xor`/`Add`/`Mul`) whose operand is itself a
+  `Node::Gate` of the same op and width — i.e., a slot the
+  not-yet-implemented `Associative` factorization layer would
+  absorb.
+- `book/src/knobs.md`: knob-effectiveness map gains an entry for
+  `operand_duplication_rate` (previously missing) and extends the
+  `factorization_level` entry with the new metric.
+- `USER_GUIDE.md`: knob-effects bullet list gains an entry for
+  the new metric.
+- `CODEBASE_ANALYSIS.md`: `metrics.rs` one-liner extended.
+
+**Why**
+The factorization ladder has three implemented layers (CSE,
+operand-uniqueness, commutative) and four aspirational ones
+(Associative, ConstantFold, Peephole, EGraph). Before investing
+in the full `Associative` implementation — which involves
+non-trivial design (finalization pass vs construction-time;
+NodeId compaction vs leaving orphans; pool coordination) — this
+slice measures *how much flattening would actually happen*, so
+the cost/benefit is data-driven rather than speculative.
+
+**Tests**
+- All four cargo gates green.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+- Seed sweep at default knobs:
+
+  ```
+  seed=1     num_gates=1999 nested_associative_operand_count=261 (13%)
+  seed=42    num_gates=2368 nested_associative_operand_count=373 (16%)
+  seed=100   num_gates=2311 nested_associative_operand_count=266 (12%)
+  seed=777   num_gates=2861 nested_associative_operand_count=386 (13%)
+  seed=9999  num_gates=20   nested_associative_operand_count=1   (5%)
+  ```
+
+  **10–16% of operand slots on associative gates would be
+  absorbed by flattening.** Meaningful reduction target; the
+  Associative slice is worth queuing.
+
+**Impact**
+- No behaviour change.
+- Factorization-level effectiveness-map entry goes from
+  qualitative ("`num_gates` shift across dial") to quantitative
+  (concrete opportunity count).
+- Data to justify (or postpone) the full Associative
+  implementation.
+
+---
+
 ## 2026-04-17-0062 — FAQ chapter refresh: strategies + full-factorization Q (docs only)
 
 **What changed**

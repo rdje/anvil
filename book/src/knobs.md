@@ -471,6 +471,8 @@ which are bugs worth investigating.
 | `gate_*_weight`               | `gates_by_kind` bucket shares                              |
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
+| `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
+| `factorization_level`         | `num_gates` (shrinks from `none` to `cse` → `commutative`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future
