@@ -595,6 +595,18 @@ peephole rules (future) → e-graph equivalence (theoretical
 ceiling). Each layer tightens the NodeId-identity contract;
 we land them incrementally as defects demand.
 
+**The syntactic-vs-semantic boundary.** What the currently-
+implemented layers (CSE, operand-uniqueness, commutative)
+guarantee is that **two syntactically identical expressions
+share one node**. The aspirational layers above extend the
+contract toward **two semantically equivalent expressions share
+one node** — a strictly harder problem that synthesis tools
+themselves solve incompletely. Full factorization in the
+semantic sense is an asymptote: we climb toward it one layer at
+a time, confident that each layer tightens the identity contract
+without sacrificing reproducibility or construction-time
+correctness.
+
 ## 21c — Factorization level (user-controllable dial)
 
 **Rule:** `Config::factorization_level` is a single knob that

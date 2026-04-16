@@ -3,6 +3,46 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0065 — Syntactic-vs-semantic-identity framing in the factorization-ladder narrative (docs only)
+
+**What changed**
+- `book/src/structural-rules.md` (Rule 21b, the "Position in the
+  factorization ladder" paragraph): new follow-up paragraph
+  making the syntactic-vs-semantic identity distinction
+  explicit. What today's implemented layers guarantee is that
+  **two syntactically identical expressions share one node**.
+  The aspirational layers above extend the contract toward
+  **two semantically equivalent expressions share one node** — a
+  strictly harder problem that synthesis tools themselves solve
+  incompletely.
+- `book/src/non-triviality.md` (the "Factorization ladder"
+  sub-section of "Algebraic residue"): same framing mirrored,
+  tied to the local narrative about what anti-collapse rules
+  catch and what they don't.
+
+**Why**
+A durable framing surfaced in the conversation: the contract
+we actually ship today is *syntactic* identity; the goal is
+*semantic* identity; the asymptote matters because synthesis
+tools themselves solve semantic equivalence incompletely.
+Recording the framing in the book makes it survive session loss
+and sets reader expectations appropriately — neither overclaim
+nor underclaim what the `NodeId = expression identity` doctrine
+delivers in the current build.
+
+**Tests**
+- No code changed.
+- 57 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Readers learning about the factorization ladder now have a
+  single-sentence summary of where we are vs where we aim, and
+  an honest acknowledgment that the ceiling is an asymptote
+  the synthesis industry itself hasn't closed.
+
+---
+
 ## 2026-04-17-0064 — Regression tests pinning three doctrine-level invariants
 
 **What changed**

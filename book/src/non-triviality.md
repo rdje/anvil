@@ -112,6 +112,15 @@ automatically activates them for users already at higher
 levels (the default is `e-graph`, which `effective()` clamps
 down to the highest implemented layer today).
 
+**Syntactic vs semantic identity.** What's already implemented
+covers the promise that **two syntactically identical
+expressions share one node** — same AST key, same commutative
+permutation, one NodeId. The ladder above extends that toward
+**two semantically equivalent expressions share one node** — a
+strictly harder problem that synthesis tools themselves solve
+incompletely. We climb toward it one layer at a time rather than
+trying to land the theoretical ceiling in one leap.
+
 See `book/src/structural-rules.md` Rule 21c for the dial, and
 `DEVELOPMENT_NOTES.md` "Full factorization doctrine" for the
 `NodeId = expression identity` framing.
