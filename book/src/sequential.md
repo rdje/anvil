@@ -115,10 +115,10 @@ module mod_42_0007 (
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            r_0 <= 8'h0;
+            flop_0 <= 8'h0;
             ...
         end else begin
-            r_0 <= w_42;
+            flop_0 <= add_3;
             ...
         end
     end
@@ -128,6 +128,11 @@ Every flop uses `clk` (posedge). Every flop uses `rst_n`
 (async, active-low). Reset value is chosen per flop, biased toward 0.
 There is no per-flop choice of clock domain or reset polarity — see
 "Synchronous-design discipline" above.
+
+(Flop names are `flop_<id>` per Rule 12; the D-driving wire is a
+gate named `<kind>_<N>` — `add_3` above stands in for whatever op
+the generator picked. See [Rule 12](structural-rules.md) for the
+full naming contract.)
 
 When a module happens to be generated with zero flops, the `clk` and
 `rst_n` ports are omitted from the port list. This avoids spurious

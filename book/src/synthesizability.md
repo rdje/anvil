@@ -37,14 +37,18 @@ Exactly one canonical flop template:
 ```systemverilog
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n)
-        r_0 <= <reset_val>;
+        flop_0 <= <reset_val>;
     else
-        r_0 <= <d_signal>;
+        flop_0 <= <d_signal>;
 end
 ```
 
-(Or the sync-reset variant, or the no-reset variant, chosen per flop
-at generation time.) No other `always_ff` shapes are generated.
+Every flop in a module shares this single block with `clk` and
+`rst_n` — one async-active-low reset, posedge clock, per
+[Rule 5 (Single-clock / single-reset discipline)](structural-rules.md).
+No sync-reset or no-reset variants are generated; per-flop clock or
+reset polarity doesn't exist in the IR. No other `always_ff` shapes
+are emitted.
 
 ## Memories (future, Phase 7)
 

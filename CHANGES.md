@@ -3,6 +3,49 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0056 — Book audit: last `w_N`/`r_N` naming remnants (docs only)
+
+**What changed**
+- `book/src/introduction.md`: five-minute pitch replaced. The old
+  snippet was hand-written with `w_2 / w_3 / w_4` names that
+  never matched current output even under the old opaque scheme.
+  New snippet is a real seed-20 output: 23 lines, a single
+  `flop_0` hold-register with canonical `always_ff` block,
+  showing Rule 12 naming (`flop_<id>`) in action. Added a brief
+  paragraph pointing at the `<kind>_<N>` / `flop_<id>`
+  convention.
+- `book/src/sequential.md`: clock-and-reset SV snippet refreshed
+  from `r_0 <= 8'h0` / `r_0 <= w_42` to `flop_0 <= 8'h0` /
+  `flop_0 <= add_3`. Added a parenthetical pointing to Rule 12
+  for the naming scheme.
+- `book/src/synthesizability.md`: canonical flop template's
+  `r_0` → `flop_0`. Also corrected an aspirational footnote
+  ("or the sync-reset variant, or the no-reset variant, chosen
+  per flop at generation time") — this never shipped. Replaced
+  with the actual discipline per Rule 5 (single-clock /
+  single-reset, async active-low, one `always_ff` block per
+  module).
+
+**Why**
+Grep of `book/src/` for `\bw_[0-9]+|\br_[0-9]+` (the retired
+opaque-naming pattern) found three remaining files. After this
+slice, the only remaining match is `w_0 … w_47` in Rule 12's
+motivation paragraph where the old naming is deliberately
+contrasted with the current scheme — intentional.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Book's flop-related SV excerpts now all match current output.
+- The `synthesizability.md` correction removes a misleading
+  aspirational claim (sync-reset / no-reset variants) and
+  aligns with the actual Rule 5 discipline.
+
+---
+
 ## 2026-04-17-0055 — Construction-strategies chapter: graph-first retirement + interleaved-as-default (docs only)
 
 **What changed**
