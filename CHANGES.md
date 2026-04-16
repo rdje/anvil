@@ -3,6 +3,55 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0059 — By-construction chapter: validator tense + Rule 18 exemplar + retry grandfather clause (docs only)
+
+**What changed**
+- `book/src/by-construction.md`:
+  - "Validator is a safety net" section: tense correction. Was
+    "`anvil` will likely include an IR validator" — factually
+    stale since `src/ir/validate.rs` has shipped with an inline
+    test suite covering every rejection class. Now stated as
+    present-tense reality with a note on the CI failure-conversion.
+  - New sub-section "Exemplar: Rule 18 (no orphan gates)" — the
+    cleanest illustration of by-construction discipline in action.
+    Records the α vs β decision (β rejected as generate-then-filter),
+    names the mechanism (build_cone snapshot/rollback +
+    process_signal_frame existing-operand fallback), and cites the
+    current empirical result (0 orphans across 4 strategies × 6
+    seeds).
+  - New sub-section "Grandfather clause: bounded retry" — makes
+    explicit that the *one* retry-and-discard pattern in the
+    generator (`build_cone_with_retry` on empty-dep cone roots) is
+    bounded, snapshots state between attempts, and differs from
+    "generate-then-filter" in that the rejected attempt leaves
+    zero trace in the IR. Any other retry-and-filter pattern would
+    be a design regression.
+
+**Why**
+by-construction.md is a doctrinal chapter (not on the don't-touch
+list — that's core-idea / non-goals / why-not-grammar). Current
+text predated Rule 18 α enforcement (slice `b78550d`), the CSE
+snapshot-table fix (`f425657`), and the validator's actual
+shipping; adding the Rule 18 exemplar strengthens the thesis
+rather than changing it, and the tense/grandfather-clause edits
+are factual corrections.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- A reader meeting the by-construction doctrine for the first
+  time now sees both the principle and the freshest concrete
+  example of the principle being applied.
+- The grandfather-clause explicit statement makes the one
+  "retry-and-discard" pattern in the codebase (bounded retry
+  of empty-dep cone roots) unambiguously doctrine-compliant,
+  which forestalls future arguments for relaxing the rule.
+
+---
+
 ## 2026-04-17-0058 — Architecture chapter refresh: align with current workspace reality (docs only)
 
 **What changed**

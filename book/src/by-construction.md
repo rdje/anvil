@@ -35,15 +35,55 @@ can see that every code path preserves the invariants by definition.
 
 ## The validator is a safety net, not a gate
 
-`anvil` will likely include an IR validator (`src/ir/validate.rs`).
-Its purpose is not to reject generator output — it is to catch
-generator bugs during development. If the validator ever fails on
-real generator output in production use, that is a bug filed against
+`anvil` ships an IR validator (`src/ir/validate.rs`) with an inline
+test suite covering every rejection class (per-gate arity, operand
+widths, output drive count, flop D filled, output-cone dep-set
+non-empty, …). Its purpose is not to reject generator output — it
+is to catch generator bugs during development. If the validator
+ever fails on real generator output, that is a bug filed against
 the generator, not expected behavior.
 
-In CI, every test runs the validator after generation and fails the
-build if it rejects anything. This converts invariant violations from
-silent bugs into loud test failures.
+In CI (`cargo test`), every integration test runs the validator
+after generation and fails the build if it rejects anything. This
+converts invariant violations from silent bugs into loud test
+failures.
+
+### Exemplar: Rule 18 (no orphan gates)
+
+The cleanest illustration of the doctrine in action is Rule 18 ("no
+orphan gates in the emitted module"). Two enforcement paths were
+considered:
+
+- **(α) Construction-time:** only create a gate when a specific
+  consumer is already waiting for it. When a proposed gate fails
+  anti-collapse, the operand sub-trees that were speculatively
+  built for it are rolled back from `m.nodes` so they can't leak
+  as orphans.
+- **(β) Emission-time tree-shake:** let the generator produce
+  orphans, compute the live set at emission time, emit only the
+  live set.
+
+β was rejected — it's a generate-then-filter step, violating the
+contract. α was adopted: `build_cone` snapshots
+`m.nodes` / `m.flops` / pool / worklist / `gate_instances` /
+`const_instances` before operand construction and restores on
+anti-collapse rejection; `process_signal_frame` (the interleaved
+frame machine) uses one of the existing operand NodeIds as the
+fallback instead of creating a new node. Zero orphans across 4
+strategies × 6 seeds at default knobs.
+
+See `DEVELOPMENT_NOTES.md` "Rule 18 α construction-time" for the
+decision record.
+
+### Grandfather clause: bounded retry
+
+Exactly one construction-time retry exists in the generator:
+`build_cone_with_retry` rejects empty-dep-set cone roots and
+retries up to 4× before accepting the last attempt. The retry is
+bounded and restores a full snapshot on each attempt — it is not
+"generate-then-filter" but "generate, fail-fast, retry with fresh
+randomness." Any other retry-and-filter pattern in the generator
+would be a design regression.
 
 ## Why not just validate after generation?
 
