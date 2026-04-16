@@ -63,6 +63,19 @@ pub struct Module {
     /// Factorization level — which layers of the dedup chain are
     /// active. See `Config::factorization_level`. Default `Full`.
     pub factorization_level: crate::config::FactorizationLevel,
+
+    // --- Block-build live counters ------------------------------
+    /// Number of priority-encoder block instances successfully
+    /// built in this module (via `build_priority_encoder_*`).
+    /// Exposed via `Metrics::num_priority_encoder_blocks`.
+    pub priority_encoder_built: u32,
+    /// Number of one-hot-style combinational mux blocks built
+    /// (comb-mux assembly path only; flop-mux one-hot is tracked
+    /// separately under `flops_mux_one_hot`).
+    pub comb_mux_one_hot_built: u32,
+    /// Number of encoded-style combinational mux blocks built
+    /// (chained-ternary form).
+    pub comb_mux_encoded_built: u32,
 }
 
 impl Module {

@@ -3,6 +3,72 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0052 — Block counters: priority_encoder + comb_mux_encoding (closes the last pending effectiveness-map entries)
+
+**What changed**
+- `src/ir/types.rs`: three new live-counter fields on `Module`:
+  - `priority_encoder_built: u32`
+  - `comb_mux_one_hot_built: u32`
+  - `comb_mux_encoded_built: u32`
+  Each is a per-module tally incremented at the block-build site.
+- `src/gen/cone.rs`: increments at four sites:
+  - `build_priority_encoder_recursive` — increments once the
+    assemble succeeds.
+  - `build_priority_encoder_pool` — same.
+  - `build_comb_mux` — increments either the `one_hot` or
+    `encoded` counter based on the `comb_mux_encoding_prob` coin
+    before dispatching to the assembly helper.
+  - `build_comb_mux_pool_only` — same counter pair inside its own
+    encoded/one-hot branches.
+- `src/metrics.rs`: three new `Metrics` fields
+  (`num_priority_encoder_blocks`, `num_comb_muxes_one_hot`,
+  `num_comb_muxes_encoded`) populated from the Module counters.
+- `book/src/knobs.md` effectiveness map:
+  - `priority_encoder_prob` → concrete metric.
+  - `comb_mux_prob` → sum-of-two-counters (plus
+    `num_muxes_2to1` still applicable).
+  - `comb_mux_encoding_prob` → ratio of encoded / total comb muxes.
+  - **No *pending* entries remain.** Closing paragraph rewritten.
+- `USER_GUIDE.md`: knob-effects bullet list extended with the two
+  new rate knobs' expected shifts.
+- `CODEBASE_ANALYSIS.md`: `metrics.rs` one-liner extended.
+
+**Why**
+Two entries still marked *pending* on the effectiveness map:
+`priority_encoder_prob` and `comb_mux_encoding_prob`. Both
+required detecting block shape after the block had lowered to
+a chain of gates, which is brittle post-hoc. The better fix is a
+live counter at the block-build site — cheap, accurate, and
+matches the "construction-time measurement" doctrine.
+
+**Tests**
+- All four cargo gates green.
+- 54 tests pass.
+- Demo sweeps at seed 42:
+
+  ```
+  priority-encoder-prob=0.0:  num_priority_encoder_blocks=0
+  priority-encoder-prob=0.05: num_priority_encoder_blocks=49
+  priority-encoder-prob=0.2:  num_priority_encoder_blocks=221
+  priority-encoder-prob=0.5:  num_priority_encoder_blocks=454
+
+  comb-mux-encoding-prob=0.0 (--comb-mux-prob 0.4): one_hot=2229, encoded=0
+  comb-mux-encoding-prob=0.5 (--comb-mux-prob 0.4): one_hot=887,  encoded=859
+  comb-mux-encoding-prob=1.0 (--comb-mux-prob 0.4): one_hot=0,    encoded=959
+  ```
+
+  Clean monotone for `priority_encoder_prob`; near-even split at
+  `comb_mux_encoding_prob=0.5` (887/859 ≈ 50.8%/49.2%).
+
+**Impact**
+- Every knob in the catalog now has a concrete, measurable
+  effect. The "every knob must be measurable" doctrine (Rule:
+  knob measurement) is empirically satisfied across the full
+  knob set.
+- No behaviour change.
+
+---
+
 ## 2026-04-16-0051 — Combinational-depth metrics (closes another pending effectiveness-map entry)
 
 **What changed**

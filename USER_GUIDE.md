@@ -90,6 +90,8 @@ shift. Examples:
 - Raising `max_ast_instances` should raise `max_gate_ast_multiplicity`.
 - Raising `max_gate_arity` should raise `max_operand_count_by_kind["add"]` exactly.
 - Raising `max_depth` should raise `max_gate_depth` monotonically.
+- Raising `priority_encoder_prob` should raise `num_priority_encoder_blocks` monotonically.
+- Raising `comb_mux_encoding_prob` should shift the `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio toward the knob value.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `factorization_level=none` → gate count grows (no CSE); `=cse` and above
   shrinks it.

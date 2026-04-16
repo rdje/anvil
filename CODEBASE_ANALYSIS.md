@@ -42,9 +42,10 @@ src/
 │                     gate_operand_count_histogram +
 │                     max_gate_operand_count +
 │                     max_operand_count_by_kind, gate_depth_histogram
-│                     + max_gate_depth }. Serde-serializable;
-│                     embedded in manifest.json and printed with
-│                     --metrics flag.
+│                     + max_gate_depth, num_priority_encoder_blocks,
+│                     num_comb_muxes_one_hot + num_comb_muxes_encoded
+│                     }. Serde-serializable; embedded in
+│                     manifest.json and printed with --metrics flag.
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy.

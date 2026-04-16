@@ -351,9 +351,9 @@ which are bugs worth investigating.
 | `share_prob`                  | `num_shared_nodes`, `max_fanout`, `avg_fanout`             |
 | `construction_strategy`       | all structural metrics shift — compare runs at same seed   |
 | `graph_first_pool_size`       | `num_gates` (GraphFirst only)                              |
-| `priority_encoder_prob`       | per-kind `mux` chains — today indistinguishable; pending block metric |
-| `comb_mux_prob`               | `num_muxes_2to1` (includes encoded chains)                 |
-| `comb_mux_encoding_prob`      | (pending: flop-shape metric doesn't cover comb muxes yet)  |
+| `priority_encoder_prob`       | `num_priority_encoder_blocks` — live counter, monotone in the knob |
+| `comb_mux_prob`               | `num_muxes_2to1`, `num_comb_muxes_one_hot` + `num_comb_muxes_encoded` (sum) |
+| `comb_mux_encoding_prob`      | `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio — converges to the knob over large sweeps |
 | `coefficient_prob`            | `gates_by_kind["mul"]` uptick (each coefficient → `Mul`)   |
 | `min_coefficient` / `max_coefficient` | `constants_by_width` distribution                  |
 | `const_shift_amount_prob`     | `gates_by_kind["shl"]` / `gates_by_kind["shr"]` constants  |
@@ -366,8 +366,7 @@ which are bugs worth investigating.
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
 
-Entries marked *pending* are knobs whose effect is not yet
-captured by a structural metric. Each is a known gap — either
-the metric will be added in a future slice, or the knob will be
-shown not to need a dedicated metric because its effect is
-subsumed by one already in the table.
+All knobs now have a concrete metric (or metric ratio) that
+measures their effect. No *pending* entries remain. Future
+additions will extend this table, not shrink its
+pending-coverage.

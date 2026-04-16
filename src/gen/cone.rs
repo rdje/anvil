@@ -271,6 +271,7 @@ fn build_comb_mux_pool_only(
 
     let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
     if encoded {
+        m.comb_mux_encoded_built += 1;
         let sel_width = ceil_log2(n_arms);
         let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, None);
         let datas: Vec<NodeId> = pick_datas_with_dup_cap(g, m, pool, width, n_arms as usize, None);
@@ -283,6 +284,7 @@ fn build_comb_mux_pool_only(
         }
         tail
     } else {
+        m.comb_mux_one_hot_built += 1;
         let datas = pick_datas_with_dup_cap(g, m, pool, width, n_arms as usize, None);
         let mut arms: Vec<MuxArm> = Vec::with_capacity(n_arms as usize);
         for data in datas {
@@ -1297,7 +1299,9 @@ fn build_priority_encoder_recursive(
     let req_bits: Vec<NodeId> = (0..n)
         .map(|_| build_cone(g, m, pool, worklist, 1, depth + 1, exclude))
         .collect();
-    Some(assemble_priority_encoder(m, pool, target_width, &req_bits))
+    let root = assemble_priority_encoder(m, pool, target_width, &req_bits);
+    m.priority_encoder_built += 1;
+    Some(root)
 }
 
 /// Pool-only variant for the graph-first strategy.
@@ -1311,7 +1315,9 @@ fn build_priority_encoder_pool(
     let req_bits: Vec<NodeId> = (0..n)
         .map(|_| pick_terminal_dep_bearing(g, m, pool, 1, None))
         .collect();
-    Some(assemble_priority_encoder(m, pool, target_width, &req_bits))
+    let root = assemble_priority_encoder(m, pool, target_width, &req_bits);
+    m.priority_encoder_built += 1;
+    Some(root)
 }
 
 fn is_comparison_op(op: GateOp) -> bool {
@@ -1545,8 +1551,10 @@ fn build_comb_mux(
 
     let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
     if encoded {
+        m.comb_mux_encoded_built += 1;
         build_comb_mux_encoded(g, m, pool, worklist, width, depth, exclude, n_arms)
     } else {
+        m.comb_mux_one_hot_built += 1;
         build_comb_mux_one_hot(g, m, pool, worklist, width, depth, exclude, n_arms)
     }
 }

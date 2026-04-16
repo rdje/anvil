@@ -129,6 +129,19 @@ pub struct Metrics {
     /// Histogram of per-gate combinational depth across all gates.
     /// Keyed by depth value.
     pub gate_depth_histogram: BTreeMap<usize, usize>,
+
+    // --- Block-build counters -----------------------------------
+    /// Number of priority-encoder block instances built in this
+    /// module. Measures the `priority_encoder_prob` knob directly.
+    pub num_priority_encoder_blocks: u32,
+    /// Number of combinational one-hot-style mux blocks built.
+    /// Together with `num_comb_muxes_encoded` measures the
+    /// `comb_mux_encoding_prob` knob (the ratio should converge
+    /// to the knob value over large seed sweeps).
+    pub num_comb_muxes_one_hot: u32,
+    /// Number of combinational encoded-style (chained-ternary)
+    /// mux blocks built.
+    pub num_comb_muxes_encoded: u32,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -287,6 +300,11 @@ pub fn compute(m: &Module) -> Metrics {
         .map(|v| v.len())
         .max()
         .unwrap_or(0);
+
+    // Block-build counters (populated live during construction).
+    out.num_priority_encoder_blocks = m.priority_encoder_built;
+    out.num_comb_muxes_one_hot = m.comb_mux_one_hot_built;
+    out.num_comb_muxes_encoded = m.comb_mux_encoded_built;
 
     out
 }
