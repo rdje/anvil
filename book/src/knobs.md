@@ -360,7 +360,7 @@ which are bugs worth investigating.
 | `gate_shift_weight`           | `gates_by_kind["shl"]` + `gates_by_kind["shr"]`            |
 | `const_comparand_prob`        | `gates_by_kind["eq"]` with width-1 constants               |
 | `min_comparand` / `max_comparand` | `constants_by_width` at the comparison operand width   |
-| `min_gate_arity` / `max_gate_arity` | per-gate operand lengths (pending metric)            |
+| `min_gate_arity` / `max_gate_arity` | `max_operand_count_by_kind["add"]` / `["mul"]` / `["and"]` / `["or"]` / `["xor"]`; full histogram in `gate_operand_count_histogram` |
 | `constant_prob`               | `num_constants` / `num_gates`                              |
 | `gate_*_weight`               | `gates_by_kind` bucket shares                              |
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |

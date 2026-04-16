@@ -3,6 +3,56 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0049 — Operand-arity metrics (closes a pending effectiveness-map entry)
+
+**What changed**
+- `src/metrics.rs`:
+  - New `Metrics::gate_operand_count_histogram: BTreeMap<usize,
+    usize>` — count of gates per operand-count value.
+  - New `Metrics::max_gate_operand_count: usize` — the largest
+    operand list observed on any single gate.
+  - New `Metrics::max_operand_count_by_kind:
+    BTreeMap<String, usize>` — per-`GateOp`-kind ceiling,
+    distinguishing e.g. `add`'s arity (bounded by
+    `max_gate_arity`) from `concat`'s arity (driven by
+    replicate-to-width).
+  - `compute()` populates all three during the existing single
+    walk over `m.nodes`; no new passes.
+- `book/src/knobs.md`: effectiveness-map entry for
+  `min_gate_arity` / `max_gate_arity` moves from *pending* to
+  concrete metric names.
+
+**Why**
+The knob-effectiveness map had `min_gate_arity` / `max_gate_arity`
+marked *pending*. Per the measurement doctrine ("no knob is
+privileged"), every knob needs a metric. This slice provides one.
+
+**Tests**
+- All four cargo gates green.
+- 54 tests pass.
+- Demo sweep at seed 42:
+  ```
+  max-gate-arity=2: max_gate_operand_count=8  (add max=2, mul max=3)
+  max-gate-arity=4: max_gate_operand_count=27 (add max=4, mul max=5)
+  max-gate-arity=6: max_gate_operand_count=11 (add max=6, mul max=7)
+  max-gate-arity=8: max_gate_operand_count=27 (add max=8, mul max=9)
+  ```
+  - `add` max tracks the knob exactly.
+  - `mul` max is `knob + 1` because the Mul linear-combination
+    motif prepends a coefficient operand.
+  - `max_gate_operand_count` top end is driven by `concat`
+    (replicate-to-width can produce 27-operand concats
+    regardless of the gate-arity knob) — exactly the reason a
+    per-kind breakdown is useful.
+
+**Impact**
+- No behavioral change. Observability gain only.
+- The effectiveness map moves one more knob off the *pending*
+  list; remaining gaps: `max_depth`, `priority_encoder_prob`,
+  `comb_mux_encoding_prob`.
+
+---
+
 ## 2026-04-16-0048 — Close residual Add/Mul/And duplicate operands at default knobs
 
 **What changed**

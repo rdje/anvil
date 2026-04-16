@@ -93,6 +93,22 @@ pub struct Metrics {
     /// routed to existing instances.
     pub max_gate_ast_multiplicity: usize,
     pub max_constant_ast_multiplicity: usize,
+
+    // --- Operand-arity distribution -----------------------------
+    /// Histogram of operator-gate arity (operand count) across all
+    /// `Node::Gate`s. Keyed by operand count. Reveals the effective
+    /// range of the `min_gate_arity` / `max_gate_arity` knobs.
+    /// Non-operator nodes (comparisons, mux, slice, concat, reductions,
+    /// shifts) with their fixed or variadic-positional arities are
+    /// included too — all gate operand counts contribute.
+    pub gate_operand_count_histogram: BTreeMap<usize, usize>,
+    /// Maximum operand count observed on any single gate. For
+    /// N-arity operators this is bounded above by `max_gate_arity`.
+    pub max_gate_operand_count: usize,
+    /// Per-op operand-count stats. Useful for distinguishing
+    /// `Add`/`Mul` arity (bounded by `max_gate_arity`) from `Concat`
+    /// arity (can be much larger, driven by mux-arm widths).
+    pub max_operand_count_by_kind: BTreeMap<String, usize>,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -132,7 +148,18 @@ pub fn compute(m: &Module) -> Metrics {
             Node::Gate { op, operands, .. } => {
                 out.num_gates += 1;
                 let kind = gate_kind_name(*op).to_string();
-                *out.gates_by_kind.entry(kind).or_insert(0) += 1;
+                *out.gates_by_kind.entry(kind.clone()).or_insert(0) += 1;
+
+                // Operand-arity histogram + per-kind max.
+                let arity = operands.len();
+                *out.gate_operand_count_histogram.entry(arity).or_insert(0) += 1;
+                if arity > out.max_gate_operand_count {
+                    out.max_gate_operand_count = arity;
+                }
+                let entry = out.max_operand_count_by_kind.entry(kind).or_insert(0);
+                if arity > *entry {
+                    *entry = arity;
+                }
 
                 if matches!(op, GateOp::Mux) && operands.len() == 3 {
                     out.num_muxes_2to1 += 1;
