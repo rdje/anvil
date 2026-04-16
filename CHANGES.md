@@ -3,6 +3,61 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0041 — Friendly docs: quick ref, naming refresh, recipe examples (docs only)
+
+**What changed**
+- `book/src/getting-started.md`:
+  - Refresh the sample module output to match current typed-per-
+    kind naming (`slice_0`, `add_0`, `mul_0` — was `w_2`, `w_3`,
+    `w_4`). Added `--construction-strategy sequential` to the
+    starter command so the output stays small.
+  - New paragraph explaining the naming scheme briefly with a
+    pointer to Rule 12.
+- `book/src/knobs.md`:
+  - New reassuring opening: "you don't need to read this
+    top-to-bottom". Points new readers at the Recipes chapter
+    first.
+  - New "Quick reference" table covering the ~13 knobs most users
+    actually touch, with defaults and one-line descriptions.
+- `book/src/recipes.md`: six new recipes covering the knobs and
+  workflows that landed in this session:
+  - "I want to see fewer redundant expressions" (strict CSE —
+    the default).
+  - "I want duplicated expressions anyway" (bounded duplication
+    via `--max-ast-instances`).
+  - "I want pathological mux shapes" (arm duplication via
+    `--mux-arm-duplication-rate`).
+  - "I want to verify a knob is doing something" (the metric-
+    grep workflow).
+  - "I want to sweep a knob and compare" (shell loop + jq,
+    with a real `--flop-prob` sweep as the example).
+  - "I want to trace what the generator is doing" (--trace
+    levels with sample output).
+
+**Why**
+Per user direction: the knobs+metrics+tracing information that
+landed in the last several slices needs to be user-facing and
+*not scary*. The getting-started sample was out of date (old
+`w_N` naming); the knobs reference didn't tell newcomers it's
+a catalog they can skim, not a syllabus; the recipes chapter
+didn't cover any of the new knobs.
+
+**Tests**
+- No code changed; no test impact.
+- `mdbook build book` succeeds.
+- 50 tests unchanged.
+- The `--flop-prob` sweep values in the recipe were verified
+  against real CLI output at seed 42.
+
+**Impact**
+- New reader's path: README → SESSION_BOOTSTRAP → book
+  Getting Started → Tutorial → Recipes. All four now show
+  current naming, current knobs, current workflows.
+- Every landed knob now has a recipe or quick-reference entry
+  somewhere in the book — no knob is orphaned in code only.
+
+---
+
 ## 2026-04-16-0040 — Knob measurement doctrine + effectiveness map (docs only)
 
 **What changed**

@@ -1,5 +1,37 @@
 # Knobs and Reproducibility
 
+This chapter is the full catalog. You don't need to read it
+top-to-bottom — it's organised as a reference. **Most users only
+touch 2–4 knobs for their scenario.** The [Recipes](recipes.md)
+chapter has ready-made combinations for common tasks; start
+there if you just want a working command.
+
+## Quick reference
+
+The full catalog is below. This table is a scannable summary of
+the knobs you're most likely to touch day-to-day:
+
+| Knob                          | Default  | What it controls                                      |
+|-------------------------------|----------|-------------------------------------------------------|
+| `--seed`                      | 0        | RNG seed. Same seed + same knobs = identical output.  |
+| `--count`                     | 1        | How many modules to generate in one run.              |
+| `--min-inputs` / `--max-inputs` | 2 / 8  | Primary input port count range.                       |
+| `--min-outputs` / `--max-outputs` | 1 / 4 | Primary output port count range.                     |
+| `--min-width` / `--max-width` | 1 / 32   | Port and internal-wire width range.                   |
+| `--max-depth`                 | 6        | Maximum cone recursion depth.                         |
+| `--flop-prob`                 | 0.15     | Probability that a recursion point becomes a flop.    |
+| `--share-prob`                | 0.3      | Probability of sharing an existing signal vs recursing. |
+| `--construction-strategy`     | graph-first | How module logic is constructed (see below).      |
+| `--max-ast-instances`         | 1        | How many times one AST may be named (1 = strict CSE). |
+| `--mux-arm-duplication-rate`  | 0.0      | Probability N-to-1 mux arms may share the same signal. |
+| `--trace <level>`             | off      | Generation trace: off / low / medium / high / debug.  |
+| `--metrics`                   | off      | Print per-module metrics JSON to stderr.              |
+
+Everything else is available for fine control — see the categories
+below. All knobs can also be set via a JSON file with `--config`,
+and the effective merge of defaults + CLI overrides is printed by
+`--dump-config`.
+
 ## Measurement doctrine
 
 **No knob is privileged.** Every knob introduced in `anvil` is

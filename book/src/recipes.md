@@ -190,6 +190,134 @@ anvil --seed 1 --count 200 --out ./equiv/ \
 Equivalence flows usually don't scale to very deep cones; this recipe
 keeps each module small enough to finish quickly.
 
+## "I want to see fewer redundant expressions" (strict CSE)
+
+This is the default. Every unique AST is named once, no matter
+how many consumers reference it. A comparison like
+`slice_17 == 2'h2` becomes a single `eq_0` — downstream muxes
+that need the result just reference `eq_0` instead of creating
+their own copy.
+
+```bash
+anvil --seed 42
+# --max-ast-instances 1 is the default.
+```
+
+To verify this is in effect, look at the metrics block:
+
+```bash
+anvil --seed 42 --metrics 2>&1 >/dev/null | grep ast_multiplicity
+# max_gate_ast_multiplicity: 1
+# max_constant_ast_multiplicity: 1
+```
+
+`max_gate_ast_multiplicity: 1` means no AST is named more than
+once.
+
+## "I want duplicated expressions anyway" (bounded duplication)
+
+Downstream synthesis tools sometimes have special handling for
+redundant subexpressions. To exercise that path, raise the cap:
+
+```bash
+anvil --seed 42 --max-ast-instances 5 --metrics 2>&1 >/dev/null | grep ast_multiplicity
+# max_gate_ast_multiplicity: 3       ← higher than 1: CSE relaxed
+# max_constant_ast_multiplicity: 4
+```
+
+Set `--max-ast-instances 4294967295` to effectively turn CSE off
+entirely.
+
+## "I want pathological mux shapes" (arm duplication)
+
+The default forbids `(s) ? (x) : (x)` muxes (both arms on the
+same signal — semantically a no-op). To emit them anyway for
+stress testing:
+
+```bash
+# 50% chance of a duplicate arm being accepted.
+anvil --seed 42 --mux-arm-duplication-rate 0.5
+
+# Full relaxation — arms may all be connected to the same data.
+anvil --seed 42 --mux-arm-duplication-rate 1.0
+```
+
+Verify with metrics:
+
+```bash
+anvil --seed 42 --mux-arm-duplication-rate 1.0 --metrics 2>&1 >/dev/null \
+      | grep -E "num_muxes_(2to1|degenerate)"
+# num_muxes_2to1: 11         ← total 2-to-1 muxes
+# num_muxes_degenerate: 1    ← of which one has (s)?(x):(x)
+```
+
+At the default (0.0) `num_muxes_degenerate` is always 0.
+
+## "I want to verify a knob is doing something"
+
+Every knob has a metric — see the
+["Knob effectiveness map"](knobs.md#knob-effectiveness-map) at
+the bottom of the knobs chapter. The pattern is: run at default,
+run at a boundary value, grep the metric.
+
+```bash
+# Default flop count for seed 42:
+anvil --seed 42 --metrics 2>&1 >/dev/null | grep num_flops
+
+# Crank flops up:
+anvil --seed 42 --flop-prob 0.5 --metrics 2>&1 >/dev/null | grep num_flops
+
+# Expect num_flops to increase.
+```
+
+If a knob doesn't shift its metric, something's off — either the
+knob is masked by another knob, has an unintended default, or
+isn't actually wired. File an issue with the two metric dumps.
+
+## "I want to sweep a knob and compare"
+
+The metrics block is JSON; use `jq` or a short script:
+
+```bash
+for fp in 0.0 0.1 0.3 0.5 0.7; do
+  anvil --seed 42 --flop-prob $fp --metrics 2>&1 >/dev/null \
+        | jq -r "\"flop-prob=$fp num_flops=\\(.num_flops) num_nodes=\\(.num_nodes)\""
+done
+```
+
+Sample output (seed 42, other knobs at defaults):
+
+```
+flop-prob=0.0 num_flops=0  num_nodes=106
+flop-prob=0.1 num_flops=6  num_nodes=131
+flop-prob=0.3 num_flops=14 num_nodes=150
+flop-prob=0.5 num_flops=22 num_nodes=191
+flop-prob=0.7 num_flops=29 num_nodes=223
+```
+
+Clean monotone — the knob does what it says.
+
+## "I want to trace what the generator is doing"
+
+Turn on the trace. Levels go off → low → medium → high → debug:
+
+```bash
+# Module milestones + warnings only (quiet).
+anvil --seed 42 --trace low 2>log && head log
+```
+
+```
+INFO generate_leaf_module{index=0 seed=42}: 🚀 build module n_in=5 n_out=4 strategy=GraphFirst
+WARN build_graph_first: 🔁 anti-collapse hit, retrying operand pick op=Xor attempt=0
+INFO ✍️ emit SV gates=120 flops=10 inputs=5 outputs=4
+INFO ✅ module done nodes=154 flops=10 drives=4
+```
+
+Raise to `medium` or `high` for phase-by-phase and per-decision
+events. `--trace-file path.log` routes output to a file instead
+of stderr. See [USER_GUIDE.md](../../USER_GUIDE.md#tracing-and-debugging)
+for the level table and emoji legend.
+
 ## Request a new recipe
 
 If your use case doesn't fit the above, the knob reference in
