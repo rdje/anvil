@@ -58,41 +58,63 @@ that is driven by constants, so the whole circuit is reactive.
 ## Structural anti-collapse rules
 
 Cheap, local rules during generation prevent the obvious dead-logic
-patterns:
+patterns. The current rule set, as enforced by
+`violates_anti_collapse` in `src/gen/cone.rs`:
 
-| Pattern            | Why it collapses         | Rule                                |
-|--------------------|--------------------------|-------------------------------------|
-| `a ^ a`            | = 0                      | Forbid identical XOR operands       |
-| `a & 0`            | = 0                      | Forbid all-zero AND mask            |
-| `a | all_ones`     | = all_ones               | Forbid all-ones OR mask             |
-| `a & all_ones`     | = a (trivial)            | Forbid all-ones AND mask            |
-| `a | 0`            | = a (trivial)            | Forbid all-zero OR mask             |
-| `mux(s, a, a)`     | = a                      | Forbid identical mux arms           |
-| `a - a`            | = 0                      | Forbid identical SUB operands       |
-| `a == a`           | = 1                      | Forbid identical comparison operands|
-| shift by 0         | = a (trivial)            | Minimum shift amount = 1            |
+| Pattern                                | Why it collapses         | Rule                                                     |
+|----------------------------------------|--------------------------|----------------------------------------------------------|
+| `And/Or/Xor` with duplicate operand    | `x & x = x`, `x ^ x = 0` | Forbidden at any arity via operand-multiset distinctness |
+| `Add/Mul` with duplicate operand       | `x + x = 2x`, `x * x = x²` (meaningful, but optional) | Forbidden by default (`operand_duplication_rate = 0.0`); opt in with the knob |
+| `Sub` with equal operands (2-arity)    | `x - x = 0`              | Forbidden                                                |
+| `Eq/Neq` with equal operands (2-arity) | `x == x = 1`, `x != x = 0` | Forbidden                                              |
+| `Mux(s, a, a)`                         | = `a`                    | Forbidden by default (`mux_arm_duplication_rate = 0.0`); opt in with the knob |
 
-These rules are checked during operand selection, before the gate is
-added to the IR. The cost is tiny; the benefit is that the
-most-obvious collapse patterns are structurally impossible.
+Rules are checked after operand selection, *before* the gate is
+committed to the IR. On rejection, `build_cone` restores its
+pre-operand-construction snapshot and falls back to `pick_terminal`
+— the operand sub-trees built for the rejected gate vanish from
+the IR (Rule 18 α, ensuring no orphan gates).
+
+**Factorization-level gating:** the rules above apply at
+`factorization_level ≥ OperandUnique` (the default, effectively
+`e-graph`). At level `cse` only the 2-operand algebraic-degeneracy
+cases (`Sub` / `Eq` / `Neq`) fire. At level `none` the dedup path
+is bypassed entirely and no anti-collapse checks run.
+
+See [Structural Rules](structural-rules.md) Rule 8 for the
+authoritative catalog entry.
 
 ## Algebraic residue
 
-No amount of structural rules catches algebraic identities like:
+Local anti-collapse rules catch patterns inside one gate. They do
+not catch algebraic identities spanning multiple gates:
 
 - `(a + b) - b == a`
 - `(a & b) | (a & ~b) == a`
-- `(a << 2) | (a << 2) == a << 2`
+- `(a + 1) + 1 == a + 2`  (associativity across the tree)
 
-These require symbolic reasoning over the expression tree. `anvil`
-does not attempt it. A real synthesizer will fold such patterns, and
-the result will be smaller than expected — but not trivially constant,
-because the surrounding cone still references independent inputs.
+These require symbolic reasoning over the expression tree. A real
+synthesizer will fold such patterns; the result will be smaller
+than expected — but not trivially constant, because the surrounding
+cone still references independent inputs.
 
-If this becomes a problem in practice (observed by post-synthesis
-analysis), the fix is to add a cheap canonicalizer that rewrites
-obvious identities and then re-checks dep-sets. For v1 we accept the
-residue.
+**Factorization ladder.** `anvil` has started climbing this
+ladder. The implemented layers — syntactic CSE (Rule 21),
+operand uniqueness (Rule 8 extended), and commutative
+normalization (Rule 21b) — together close the *within-gate*
+duplication surface: same AST ⇒ same NodeId, no duplicate
+operands (at default knobs), `a+b` and `b+a` share identity.
+
+The remaining aspirational layers in `FactorizationLevel` —
+`Associative`, `ConstantFold`, `Peephole`, `EGraph` — are not
+yet implemented. When they land, the `factorization_level` dial
+automatically activates them for users already at higher
+levels (the default is `e-graph`, which `effective()` clamps
+down to the highest implemented layer today).
+
+See `book/src/structural-rules.md` Rule 21c for the dial, and
+`DEVELOPMENT_NOTES.md` "Full factorization doctrine" for the
+`NodeId = expression identity` framing.
 
 ## Why not use the oracle to filter?
 

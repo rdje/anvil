@@ -3,6 +3,60 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0060 — Non-triviality chapter: anti-collapse rule table + factorization-ladder framing (docs only)
+
+**What changed**
+- `book/src/non-triviality.md`:
+  - Anti-collapse rules table (the heart of the chapter)
+    rewritten to match actual `violates_anti_collapse` in
+    `src/gen/cone.rs`. Old table listed rules that were never
+    implemented (`a & 0`, `a | all_ones`, `a & all_ones`,
+    `a | 0`, "minimum shift amount = 1") and missed the
+    current reality (N-arity operand-multiset distinctness,
+    `operand_duplication_rate` / `mux_arm_duplication_rate`
+    gating). New table has five rows covering the actual
+    implementation plus a paragraph on the factorization-level
+    gating (rules relax at level `cse` / `none`).
+  - New snapshot-restore note under the table: explains the
+    Rule 18 α connection — on anti-collapse rejection,
+    `build_cone` rolls back its pre-operand-construction
+    snapshot so the rejected sub-tree doesn't orphan.
+  - "Algebraic residue" section reframed. Old text: "the fix is
+    to add a cheap canonicalizer". New text: "anvil has started
+    climbing this ladder" — points at CSE / operand-uniqueness /
+    commutative landed, and notes the four aspirational
+    FactorizationLevel layers (Associative / ConstantFold /
+    Peephole / EGraph) still to implement. Cross-links to
+    Rule 21c and DEVELOPMENT_NOTES.
+
+**Why**
+Per book doctrine. `non-triviality.md` predated:
+- Rule 8 extension (slice `3544a0c`) — N-arity duplicate check.
+- Rule 18 α enforcement (`b78550d`) — snapshot/rollback.
+- Rule 21 CSE (`f425657`).
+- Rule 21b commutative normalization (`c9c2f98`).
+- Rule 21c factorization dial (`c9c2f98`).
+- Rule 22 mux-arm duplication knob (`d2aefba`).
+- `operand_duplication_rate` knob (`5a9b477`).
+
+Most of what the chapter described as "future canonicalizer" has
+now landed — the framing was stale.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Readers learning about anti-collapse see the current enforcement
+  surface and its knob-driven relaxations, not the
+  never-implemented aspirational table.
+- The factorization-ladder narrative ties this chapter to
+  `structural-rules.md` Rule 21c and the knobs chapter's dial,
+  reinforcing the single doctrine across the book.
+
+---
+
 ## 2026-04-17-0059 — By-construction chapter: validator tense + Rule 18 exemplar + retry grandfather clause (docs only)
 
 **What changed**
