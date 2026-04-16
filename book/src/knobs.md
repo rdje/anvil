@@ -21,11 +21,12 @@ the knobs you're most likely to touch day-to-day:
 | `--max-depth`                 | 6        | Maximum cone recursion depth.                         |
 | `--flop-prob`                 | 0.15     | Probability that a recursion point becomes a flop.    |
 | `--share-prob`                | 0.3      | Probability of sharing an existing signal vs recursing. |
-| `--construction-strategy`     | graph-first | How module logic is constructed (see below).      |
+| `--construction-strategy`     | interleaved | How module logic is constructed (see below).     |
 | `--factorization-level`       | e-graph  | Dial along the sharing chain: none / cse / operand-unique / commutative / associative / constant-fold / peephole / e-graph. |
 | `--max-ast-instances`         | 1        | How many times one AST may be named (1 = strict CSE). |
 | `--mux-arm-duplication-rate`  | 0.0      | Probability N-to-1 mux arms may share the same signal. |
-| `--trace <level>`             | off      | Generation trace: off / low / medium / high / debug.  |
+| `--operand-duplication-rate`  | 0.0      | Probability `Add`/`Mul` operand lists may repeat (0.0 = strict). |
+| `--trace <level>`             | none     | Generation trace: none / low / medium / high / debug. |
 | `--metrics`                   | off      | Print per-module metrics JSON to stderr.              |
 
 Everything else is available for fine control — see the categories
@@ -249,12 +250,25 @@ instead of creating fresh logic.
   arms distinct (best-effort). `1.0` = no constraint. See Rule 22
   in `book/src/structural-rules.md`.
 
+- `operand_duplication_rate` — probability that an operator gate's
+  operand list may contain the same `NodeId` twice (applies to
+  `Add` and `Mul`; `And`/`Or`/`Xor` are *always* strict regardless
+  because duplicates collapse algebraically). Range `[0.0, 1.0]`.
+  Default `0.0` = strict operand uniqueness (full factorization).
+  `1.0` = duplicates unrestricted — opt in to exercise
+  `x + x = 2x` / `x * x = x²` shapes in downstream tools. See
+  `book/src/structural-rules.md` Rule 8 + Rule 21c.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `library_prob` — probability of picking from the pre-generated
   module pool vs generating a fresh sub-module on demand.
 
 ## Knob defaults
+
+The canonical source of truth is `Config::default()` in
+`src/config.rs`. Run `anvil --dump-config` to see the effective
+knob set for your build.
 
 ```rust
 Config {
@@ -275,6 +289,8 @@ Config {
     // Sharing
     share_prob: 0.3,
     terminal_reuse_prob: 0.3,
+    // Operator arity
+    min_gate_arity: 2, max_gate_arity: 4,
     // Mix
     constant_prob: 0.1,
     gate_bitwise_weight: 3,
@@ -282,6 +298,29 @@ Config {
     gate_struct_weight:  1,
     gate_compare_weight: 1,
     gate_reduce_weight:  1,
+    // Coefficient motif (linear combinations)
+    coefficient_prob: 0.2,
+    min_coefficient: 1, max_coefficient: 15,
+    // Shift motif
+    const_shift_amount_prob: 0.8,
+    min_shift_amount: 0, max_shift_amount: 7,
+    gate_shift_weight: 1,
+    // Comparand motif
+    const_comparand_prob: 0.3,
+    min_comparand: 0, max_comparand: 255,
+    // Blocks
+    priority_encoder_prob: 0.05,
+    comb_mux_prob: 0.1,
+    comb_mux_encoding_prob: 0.5,
+    // Construction strategy
+    construction_strategy: ConstructionStrategy::Interleaved,
+    graph_first_pool_size: 32,  // legacy; GraphFirst aliased to Interleaved
+    // Factorization ladder (default: full = e-graph, clamps to
+    // highest implemented layer — Commutative today)
+    factorization_level: FactorizationLevel::EGraph,
+    max_ast_instances: 1,
+    mux_arm_duplication_rate: 0.0,
+    operand_duplication_rate: 0.0,
     // Hierarchy (Phase 4+)
     hierarchy_depth: 0,
     num_leaf_modules: 0,
@@ -291,22 +330,89 @@ Config {
 
 ## CLI coverage
 
-Every motif knob above that affects Phase 1/2 output has a dedicated
+Every motif knob that affects the generator output has a dedicated
 CLI flag, so all combinations are reachable without writing a config
-file:
+file. The canonical list comes from `anvil --help`; the snapshot below
+is accurate as of this commit.
 
+### Run control
 ```
 --seed, --count, --out, --config, --dump-config
---min-inputs, --max-inputs, --min-outputs, --max-outputs
---min-width, --max-width, --max-depth
+--trace <none|low|medium|high|debug>, --trace-file <path>
+--metrics
+```
+
+### Structure
+```
+--min-inputs, --max-inputs
+--min-outputs, --max-outputs
+--min-width, --max-width
+--max-depth
+```
+
+### Sequential
+```
 --flop-prob, --max-flops-per-module
 --min-mux-arms, --max-mux-arms
 --flop-qfeedback-prob, --flop-mux-encoding-prob
+```
+
+### Sharing
+```
 --share-prob
 ```
 
-Knobs without a CLI flag today (gate weights, `constant_prob`,
-`library_prob`, hierarchy fields) are reachable via `--config FILE`.
+### Operator arity (N-ary for And/Or/Xor/Add/Mul)
+```
+--min-gate-arity, --max-gate-arity
+```
+
+### Coefficient motif (linear combinations)
+```
+--coefficient-prob
+--min-coefficient, --max-coefficient
+```
+
+### Shift motif
+```
+--const-shift-amount-prob
+--min-shift-amount, --max-shift-amount
+--gate-shift-weight
+```
+
+### Comparand motif
+```
+--const-comparand-prob
+--min-comparand, --max-comparand
+```
+
+### Blocks
+```
+--priority-encoder-prob
+--comb-mux-prob, --comb-mux-encoding-prob
+```
+
+### Construction strategy
+```
+--construction-strategy <sequential|shuffled|interleaved|graph-first>
+--graph-first-pool-size
+```
+
+### Factorization ladder
+```
+--factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>
+--max-ast-instances
+--mux-arm-duplication-rate
+--operand-duplication-rate
+```
+
+### Not yet exposed via CLI (reachable via `--config FILE`)
+- `gate_bitwise_weight` / `gate_arith_weight` / `gate_struct_weight` / `gate_compare_weight` / `gate_reduce_weight` — gate-category pick weights.
+- `constant_prob` — fallback constant emission probability.
+- `terminal_reuse_prob` — reserved for future tuning.
+- `use_async_reset` — unused (flops are always async-reset by discipline).
+- Hierarchy fields (`hierarchy_depth`, `num_leaf_modules`, `library_prob`) — Phase 4+.
+- `max_nodes_per_module` — safety ceiling, not typically tuned.
 
 ## Knob serialization
 

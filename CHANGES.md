@@ -3,6 +3,68 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0053 — Knobs chapter alignment with actual config + CLI surface (docs only)
+
+**What changed**
+- `book/src/knobs.md`:
+  - Quick Reference table: added missing `--operand-duplication-rate`
+    row; fixed stale `construction-strategy` default
+    (`graph-first` → `interleaved`); fixed `--trace` default
+    (`off` → `none`).
+  - Knob catalog body: added the missing `operand_duplication_rate`
+    entry in the Factorization sub-section (it had landed in slice
+    `5a9b477` but was never documented in the book).
+  - Defaults block: refreshed to mirror `Config::default()`
+    exactly — ~20 knobs were previously missing (`min_gate_arity`,
+    `max_gate_arity`, `coefficient_prob`, `min/max_coefficient`,
+    `const_shift_amount_prob`, `min/max_shift_amount`,
+    `gate_shift_weight`, `const_comparand_prob`, `min/max_comparand`,
+    `priority_encoder_prob`, `comb_mux_prob`,
+    `comb_mux_encoding_prob`, `construction_strategy`,
+    `graph_first_pool_size`, `factorization_level`,
+    `max_ast_instances`, `mux_arm_duplication_rate`,
+    `operand_duplication_rate`).
+  - CLI coverage section: rewritten. Old list covered only
+    structural + sequential + share knobs; now 44 flags
+    organised by category (Run control / Structure /
+    Sequential / Sharing / Operator arity / Coefficient /
+    Shift / Comparand / Blocks / Construction strategy /
+    Factorization). Explicit list of knobs NOT yet exposed
+    via CLI.
+
+**Why**
+User directive: *"Make sure these knobs are thoroughly
+documented in the book too."* Audit showed the
+`operand_duplication_rate` knob (landed in `5a9b477`) was not
+in the book catalog; the defaults block had ~20 missing
+entries; the CLI coverage block listed only the original Phase
+1 subset.
+
+**Validation**
+A script that grep-extracts every `--flag` mention from the
+book's CLI-coverage section and compares against `anvil --help`
+reports:
+```
+flags named in book:  44
+flags in --help:      45
+book-only (broken):   []
+help-only (undoc'd):  ['--version']   ← clap boilerplate, expected
+```
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Book's knob catalog now matches the shipping CLI 1:1.
+- A reader opening `book/src/knobs.md` sees every flag they
+  can pass on the command line, with defaults and intended
+  effect. Session-recovery resilience restored for the knobs
+  chapter.
+
+---
+
 ## 2026-04-16-0052 — Block counters: priority_encoder + comb_mux_encoding (closes the last pending effectiveness-map entries)
 
 **What changed**
