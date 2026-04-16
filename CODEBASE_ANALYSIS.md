@@ -27,6 +27,14 @@ src/
 │                     stderr or file; stdout stays byte-clean.
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
+│                     Also exposes the `metrics` module.
+│
+├── metrics.rs        Post-hoc structural metrics. compute(&Module) →
+│                     Metrics { size, gates_by_kind, constants_by_width,
+│                     mux/concat shape counts, fanout stats, flop
+│                     distribution, AST-instance saturation }. Serde-
+│                     serializable; embedded in manifest.json and
+│                     printed with --metrics flag.
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy,
@@ -209,7 +217,7 @@ In `ir::validate::validate`:
 - `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
 - `src/gen/cone.rs` — 11 inline unit tests. Prior 7 (`ceil_log2`, `pick_mux_arm_count`, 4 width-adapter cases, DAG-sharing sanity, comb-mux-block) plus 4 new flop-assembler tests covering OneHot/ZeroDefault, OneHot/QFeedback, Encoded/ZeroDefault, Encoded/QFeedback — with `fixture_with_inputs` / `alloc_flop` shared helpers.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
-- Total: 32 unit tests + 15 integration = **47 tests, all passing**.
+- Total: 35 unit tests + 15 integration = **50 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)

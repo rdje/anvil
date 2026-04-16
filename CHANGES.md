@@ -3,6 +3,73 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0039 — Structural metrics (per-module observability)
+
+**What changed**
+- New module `src/metrics.rs` with `Metrics` struct and
+  `metrics::compute(m: &Module) -> Metrics`. Post-hoc walk over a
+  generated module — no generator instrumentation required. Fields:
+  - Size: `num_inputs`, `num_outputs`, `num_nodes`, `num_gates`,
+    `num_constants`, `num_primary_inputs`, `num_flop_q_refs`,
+    `num_flops`.
+  - Per-kind distribution: `gates_by_kind` (BTreeMap<kind, count>),
+    `constants_by_width`.
+  - Constants: `constants_zero`, `constants_all_ones`,
+    `constants_other`.
+  - Mux shape: `num_muxes_2to1`, `num_muxes_degenerate`.
+  - Concat shape: `num_concats_replication` (all operands
+    identical → `{N{expr}}`) vs `num_concats_heterogeneous`.
+  - Sharing / fanout: `num_shared_nodes` (fanout ≥ 2),
+    `max_fanout`, `avg_fanout`.
+  - Flops: `flops_zero_default`, `flops_qfeedback`,
+    `flops_mux_none`, `flops_mux_one_hot`, `flops_mux_encoded`.
+  - AST-instance saturation: `max_gate_ast_multiplicity`,
+    `max_constant_ast_multiplicity`.
+- `src/main.rs`: new CLI flag `--metrics`. For the single-module
+  path it prints metrics JSON to stderr. For multi-module runs
+  the metrics block is always embedded in `manifest.json` per
+  entry (replacing the tiny `{file, name, inputs, outputs, nodes}`
+  summary).
+- 3 new unit tests in `metrics` module (empty, per-kind, flop
+  shape).
+- `USER_GUIDE.md`: new "Metrics" section with CLI examples and a
+  list of typical sweep-verify workflows.
+
+**Why**
+User directive: "every aspect of what is generated, every knob
+related generated shall be able to measure the effectiveness of
+the knobs." Metrics give us empirical grounding — without them
+we can't tell whether `mux_arm_duplication_rate = 0.0` actually
+produces 0 degenerate muxes, or whether `max_ast_instances = 5`
+lets expressions reach the cap, or whether `flop_prob = 0.15`
+produces the expected flop-density. Now each is a grep away.
+
+**Scope chosen (post-hoc, structural only)**
+Live counters (probability rolls fired/missed, anti-collapse
+retries, terminal-tier picks) are deliberately deferred — they
+need instrumentation at every decision site, ~40 edit points.
+Most are already surfaced as `--trace high` events; aggregating
+them into counters is a future extension if the post-hoc
+structural metrics aren't sufficient.
+
+**Tests**
+- All four cargo gates green.
+- 35 unit (+3 new) + 15 integration = **50 tests, all passing**.
+- Demonstrated observability: at seed 42 default,
+  `num_muxes_degenerate = 0` (matches Rule 22 at rate 0.0);
+  at `--mux-arm-duplication-rate 1.0`, it jumps to 1.
+  `max_gate_ast_multiplicity = 1` at default; at
+  `--max-ast-instances 5`, rises to 3 with 29 more nodes in
+  the module.
+
+**Impact**
+- New public API: `anvil::metrics::{Metrics, compute}`.
+- `manifest.json` shape changed: `inputs`/`outputs`/`nodes`
+  summary replaced with a full `metrics` field. Consumers of the
+  old shape need to update.
+
+---
+
 ## 2026-04-16-0038 — Mux arm-duplication rate (Rule 22)
 
 **What changed**

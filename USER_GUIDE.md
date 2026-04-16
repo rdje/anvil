@@ -57,6 +57,38 @@ Emojis mark milestone / retry / fallback events (`🚀 start`,
 `✅ done`, `🔁 retry`, `❌ exhausted`, `⚠️ fallback`, `✍️ emit`,
 `🧱 block`, `🔧 operator`, `🍃 leaf`).
 
+## Metrics
+
+Every generated module is measurable. A post-hoc walk produces a
+JSON metrics block covering size (nodes, gates, flops, constants),
+per-kind gate distribution, constant width/value distribution,
+mux shape (2-to-1 count, degenerate count), concat shape
+(replication vs heterogeneous), sharing (num shared nodes, max
+and average fanout), flop kind and mux-shape distribution, and
+AST-instance saturation (how close we came to the
+`max_ast_instances` cap).
+
+```bash
+# Dump metrics to stderr alongside the SV to stdout.
+anvil --seed 42 --metrics 2> metrics.json
+
+# Multi-module runs: metrics are always embedded in manifest.json.
+anvil --seed 42 --count 100 --out ./generated
+# → ./generated/manifest.json has metrics per module.
+```
+
+Typical use: sweep a knob over a few values, grep the metrics
+block, verify the knob is producing the intended distribution
+shift. Examples:
+
+- `mux_arm_duplication_rate=0.0` → `num_muxes_degenerate` should be 0.
+- Raising `max_ast_instances` should raise `max_gate_ast_multiplicity`.
+- Raising `flop_prob` should raise `num_flops` / `num_nodes`.
+
+Live counters (probability rolls fired vs missed, anti-collapse
+retries, terminal-tier picks) are not yet collected — the
+`--trace high` output surfaces most of them on a per-event basis.
+
 ## Reproducibility
 
 Every output is deterministic in `(seed, knobs)`. Running the same

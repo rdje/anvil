@@ -160,6 +160,13 @@ struct Cli {
     /// Route trace output to a file instead of stderr.
     #[arg(long)]
     trace_file: Option<PathBuf>,
+
+    /// Print per-module metrics (JSON) to stderr in addition to
+    /// writing them into manifest.json for multi-file runs. Always
+    /// recorded in the manifest; this flag only affects stderr
+    /// visibility.
+    #[arg(long)]
+    metrics: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -188,22 +195,28 @@ fn main() -> anyhow::Result<()> {
     match (&cli.out, cli.count) {
         (None, 1) => {
             let m = gen.generate_module();
+            let metrics = anvil::metrics::compute(&m);
             print!("{}", anvil::emit::to_sv(&m));
+            if cli.metrics {
+                eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+            }
         }
         (Some(dir), n) => {
             std::fs::create_dir_all(dir)?;
             let mut manifest = Vec::new();
             for i in 0..n {
                 let m = gen.generate_module();
+                let metrics = anvil::metrics::compute(&m);
                 let fname = format!("mod_{}_{:04}.sv", cli.seed, i);
                 std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
                 manifest.push(serde_json::json!({
                     "file": fname,
                     "name": m.name,
-                    "inputs": m.inputs.len(),
-                    "outputs": m.outputs.len(),
-                    "nodes": m.nodes.len(),
+                    "metrics": metrics,
                 }));
+                if cli.metrics {
+                    eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                }
             }
             std::fs::write(
                 dir.join("manifest.json"),

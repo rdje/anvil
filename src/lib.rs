@@ -9,6 +9,7 @@ pub mod config;
 pub mod emit;
 pub mod gen;
 pub mod ir;
+pub mod metrics;
 
 pub use config::Config;
 pub use gen::Generator;
