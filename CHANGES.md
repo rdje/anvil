@@ -3,6 +3,64 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0038 — Mux arm-duplication rate (Rule 22)
+
+**What changed**
+- `src/config.rs`: new knob `mux_arm_duplication_rate: f64` with
+  range `[0.0, 1.0]`; default `0.0` = all arms of any N-to-1 mux
+  must be distinct signals. Threaded through `Overrides` and
+  `apply_cli_overrides`.
+- `src/main.rs`: new CLI flag `--mux-arm-duplication-rate <F>`.
+- `src/ir/types.rs`: `Module.mux_arm_duplication_rate` field.
+  `generate_leaf_module` initialises from config (clamped to
+  `[0.0, 1.0]`).
+- `src/gen/cone.rs`:
+  - New helper `pick_datas_with_dup_cap(g, m, pool, width, count,
+    exclude)`: picks `count` arm signals; on a duplicate candidate,
+    keeps with probability `mux_arm_duplication_rate`, otherwise
+    re-picks (bounded 8-try budget). Used at all pool-mode mux
+    assembly sites: encoded/one-hot comb-mux, encoded/one-hot
+    flop-D drain.
+  - `make_mux`: at rate `0.0`, `a == b` collapses the layer to
+    return `a` directly (the 2-to-1 case). At any rate `> 0.0`,
+    the mux is emitted as-is — the upstream caller has already
+    decided whether duplication is permitted for this arm.
+- `book/src/structural-rules.md`: new Rule 22 "Mux arm-duplication
+  rate" with motivation, construction-time enforcement, and knob
+  semantics.
+
+**Why**
+User flagged `mux_9 = (eq_0) ? (flop_0) : (flop_0)` as a
+pathological form: a mux with both data arms connected to the
+same signal is structurally redundant (equivalent to the data
+signal alone). Rule 8 already forbade the 2-to-1 case at the
+`Mux` gate level, but `make_mux` bypassed the anti-collapse
+check when called from the chained-ternary assembly. The
+broader N-to-1 generalisation — "m arms out of M share the same
+data" — was uncontrolled until this slice.
+
+The knob exists because the pathological form is genuine
+downstream-tool input: we want to emit it *on request* (for
+stress testing) but not by default.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit + 15 integration = **47 tests, all passing**.
+- Verified knob behavior at seed 42:
+  - Default (rate = 0.0): 17 ternary expressions, **0** with
+    the degenerate `(X)?(Y):(Y)` shape.
+  - `--mux-arm-duplication-rate 1.0`: 11 ternary expressions,
+    **1** degenerate (chained-ternary layers collapse more
+    often when arms repeat → fewer total mux nodes).
+
+**Impact**
+- Default output no longer contains any `(s)?(x):(x) = x`
+  redundant-mux lines. Module semantics unchanged.
+- At high rates, downstream synthesis tools see redundant-arm
+  patterns for stress coverage.
+
+---
+
 ## 2026-04-16-0037 — Construction-time CSE with tunable AST-instance cap (Rule 21)
 
 **What changed**

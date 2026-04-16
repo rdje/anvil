@@ -512,6 +512,53 @@ B-gate that comes later.
 
 ---
 
+## 22 — Mux arm-duplication rate
+
+**Rule:** The arms of an N-to-1 mux are picked under a
+probabilistic uniqueness constraint governed by
+`mux_arm_duplication_rate` ∈ `[0.0, 1.0]`. At each arm pick, if
+the candidate signal duplicates one already picked for this mux,
+it is kept with probability `mux_arm_duplication_rate` and
+rejected (re-pick) otherwise. Rate `0.0` (default) → every arm
+is a distinct signal; rate `1.0` → no constraint (arms may all
+be connected to the same data).
+
+**Motivation:** a mux with multiple arms connected to the same
+data is structurally redundant — at best synthesizer-folded, at
+worst confusing to readers. The degenerate 2-to-1 form
+`(s)?(x):(x) = x` is the Rule 8 case; the N-to-1 generalisation
+is "m of the M arms share the same signal." The knob keeps the
+pathological form reachable for stress-testing downstream tools
+without making it the default.
+
+**Construction-time enforcement:**
+`pick_datas_with_dup_cap(g, m, pool, width, count, exclude)` is
+the picker used at every N-to-1 mux assembly site (pool-mode
+and, in future, recursive-mode). It tracks the set of already-
+picked NodeIds; on a duplicate candidate it flips
+`gen_bool(rate)` — keep-or-retry — with a bounded 8-try budget.
+After the budget, the candidate is accepted (best-effort)
+rather than looping forever when the pool is too small to
+satisfy uniqueness. The 2-to-1 `make_mux` special-cases
+`a == b`: at rate `0.0` it collapses the layer (returns `a`
+directly); at any rate `> 0.0` the caller's probabilistic
+decision stands and the mux is emitted.
+
+**Knob semantics:**
+- `mux_arm_duplication_rate = 0.0` (default): all mux arms
+  distinct (best-effort). `make_mux(s, a, a)` skips the layer.
+- `mux_arm_duplication_rate = 1.0`: arm duplication
+  unconstrained. `make_mux(s, a, a)` emits the degenerate
+  ternary verbatim.
+- Intermediate: probabilistic — expected duplication rate
+  approximates the knob value over large seed sweeps.
+
+**Where enforced:** `src/gen/cone.rs` —
+`pick_datas_with_dup_cap` (pool-mode N-to-1 paths),
+`make_mux` (2-to-1 gate + chained-ternary tail layers).
+
+---
+
 ## 21 — AST-instance cap (construction-time CSE)
 
 **Rule:** Each unique AST — `(op, operands, width)` for gates, or

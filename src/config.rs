@@ -143,6 +143,24 @@ pub struct Config {
     /// generated inside comb-mux assembly or flop-mux assembly.
     pub graph_first_pool_size: u32,
 
+    /// Rate at which arms of an N-to-1 mux are permitted to share
+    /// the same data signal. `0.0` (default) = every arm must be
+    /// a distinct signal; `1.0` = no constraint (all arms may be
+    /// connected to the same data); intermediate values permit
+    /// duplication probabilistically.
+    ///
+    /// At each arm pick, if the candidate signal would duplicate
+    /// a signal already picked for this mux, it is kept with
+    /// probability `mux_arm_duplication_rate` and rejected
+    /// (pick again) otherwise. Bounded retries — after an 8-try
+    /// budget the candidate is accepted regardless to avoid
+    /// pathological re-pick loops when the pool is too small.
+    ///
+    /// Applies uniformly to 2-to-1 `Mux` gates, N-to-1 one-hot
+    /// muxes, and N-to-1 encoded chained-ternary muxes (comb and
+    /// flop-D variants).
+    pub mux_arm_duplication_rate: f64,
+
     /// Maximum number of times a given AST (gate expression /
     /// constant) may be materialised as a named node in one module.
     /// Default 1 → strict uniqueness (CSE): an expression is named
@@ -204,6 +222,7 @@ impl Default for Config {
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::GraphFirst,
             graph_first_pool_size: 32,
+            mux_arm_duplication_rate: 0.0,
             max_ast_instances: 1,
         }
     }
@@ -385,6 +404,9 @@ impl Config {
         if let Some(v) = o.max_ast_instances {
             self.max_ast_instances = v;
         }
+        if let Some(v) = o.mux_arm_duplication_rate {
+            self.mux_arm_duplication_rate = v;
+        }
     }
 }
 
@@ -422,4 +444,5 @@ pub struct Overrides {
     pub max_comparand: Option<u32>,
     pub priority_encoder_prob: Option<f64>,
     pub max_ast_instances: Option<u32>,
+    pub mux_arm_duplication_rate: Option<f64>,
 }

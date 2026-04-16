@@ -51,6 +51,10 @@ pub struct Module {
     /// (CSE). Larger values permit N copies of the same expression;
     /// `u32::MAX` effectively disables deduplication.
     pub max_ast_instances: u32,
+    /// Rate at which N-to-1 mux arms may share the same data. See
+    /// `Config::mux_arm_duplication_rate`. Default 0.0 = all arms
+    /// distinct; 1.0 = no constraint.
+    pub mux_arm_duplication_rate: f64,
 }
 
 impl Module {

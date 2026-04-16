@@ -273,9 +273,7 @@ fn build_comb_mux_pool_only(
     if encoded {
         let sel_width = ceil_log2(n_arms);
         let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, None);
-        let datas: Vec<NodeId> = (0..n_arms)
-            .map(|_| pick_terminal(g, m, pool, width, None))
-            .collect();
+        let datas: Vec<NodeId> = pick_datas_with_dup_cap(g, m, pool, width, n_arms as usize, None);
         let fall_through = make_constant(m, pool, width, 0);
         let mut tail = fall_through;
         for idx_rev in 0..n_arms {
@@ -285,9 +283,9 @@ fn build_comb_mux_pool_only(
         }
         tail
     } else {
+        let datas = pick_datas_with_dup_cap(g, m, pool, width, n_arms as usize, None);
         let mut arms: Vec<MuxArm> = Vec::with_capacity(n_arms as usize);
-        for _ in 0..n_arms {
-            let data = pick_terminal(g, m, pool, width, None);
+        for data in datas {
             let sel = pick_terminal_dep_bearing(g, m, pool, 1, None);
             arms.push(MuxArm { data, sel });
         }
@@ -327,21 +325,18 @@ fn drain_flop_worklist_pool_only(
         if encoded {
             let sel_width = ceil_log2(m_arms);
             let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, exclude);
-            let datas: Vec<NodeId> = match kind {
-                FlopKind::ZeroDefault => (0..m_arms)
-                    .map(|_| pick_terminal(g, m, pool, width, exclude))
-                    .collect(),
-                FlopKind::QFeedback => (1..m_arms)
-                    .map(|_| pick_terminal(g, m, pool, width, exclude))
-                    .collect(),
+            let n_data_slots = match kind {
+                FlopKind::ZeroDefault => m_arms as usize,
+                FlopKind::QFeedback => (m_arms - 1) as usize,
             };
+            let datas = pick_datas_with_dup_cap(g, m, pool, width, n_data_slots, exclude);
             let d = assemble_flop_d_encoded(m, pool, width, sel, sel_width, &datas, kind, q_node);
             m.flops[flop_id as usize].d = Some(d);
             m.flops[flop_id as usize].mux = FlopMux::Encoded { sel, data: datas };
         } else {
+            let datas = pick_datas_with_dup_cap(g, m, pool, width, m_arms as usize, exclude);
             let mut arms: Vec<MuxArm> = Vec::with_capacity(m_arms as usize);
-            for _ in 0..m_arms {
-                let data = pick_terminal(g, m, pool, width, exclude);
+            for data in datas {
                 let sel = pick_terminal_dep_bearing(g, m, pool, 1, exclude);
                 arms.push(MuxArm { data, sel });
             }
@@ -836,6 +831,17 @@ fn make_mux(
     b: NodeId,
     width: u32,
 ) -> NodeId {
+    // 2-to-1 arm-duplication guard. At the default rate 0.0, `a == b`
+    // produces the degenerate `(sel)?(x):(x) = x`; skip the mux layer
+    // and return `x` directly. A rate of 1.0 permits the pathological
+    // form unconditionally. (Probabilistic middle-ground values are
+    // enforced upstream at arm-pick time; by the time we reach here
+    // the caller has already decided whether it's OK for a == b, so
+    // the only case we still reject at this layer is rate == 0.0.)
+    // See `book/src/structural-rules.md` Rule 8 + Rule 22.
+    if a == b && m.mux_arm_duplication_rate <= 0.0 {
+        return a;
+    }
     let deps = DepSet::union(&[&node_deps(m, sel), &node_deps(m, a), &node_deps(m, b)]);
     let (node_id, is_new) = m.intern_gate(GateOp::Mux, vec![sel, a, b], width, deps.clone());
     if is_new {
@@ -1628,6 +1634,39 @@ fn pick_terminal(
         pool.add(node_id, width, DepSet::new());
     }
     node_id
+}
+
+/// Pick `count` data signals of the given `width` for the arms of an
+/// N-to-1 mux, honoring `m.mux_arm_duplication_rate`. At each pick,
+/// if the candidate would duplicate a signal already picked for this
+/// mux, it is kept with probability `mux_arm_duplication_rate` and
+/// rejected (re-pick) otherwise. Rate 0.0 → every arm distinct;
+/// rate 1.0 → no constraint. Bounded retry budget (8 tries) — after
+/// exhaustion the candidate is accepted, to avoid pathological
+/// re-pick loops when the pool is too small to satisfy uniqueness.
+fn pick_datas_with_dup_cap(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    count: usize,
+    exclude: Option<NodeId>,
+) -> Vec<NodeId> {
+    use std::collections::HashSet;
+    let rate = m.mux_arm_duplication_rate.clamp(0.0, 1.0);
+    let mut picked: HashSet<NodeId> = HashSet::new();
+    let mut arms: Vec<NodeId> = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut candidate = pick_terminal(g, m, pool, width, exclude);
+        let mut tries = 0u32;
+        while picked.contains(&candidate) && !g.rng.gen_bool(rate) && tries < 8 {
+            candidate = pick_terminal(g, m, pool, width, exclude);
+            tries += 1;
+        }
+        picked.insert(candidate);
+        arms.push(candidate);
+    }
+    arms
 }
 
 /// Strict variant of `pick_terminal`: guaranteed to return a

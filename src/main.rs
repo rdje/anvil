@@ -145,6 +145,12 @@ struct Cli {
     #[arg(long)]
     max_ast_instances: Option<u32>,
 
+    /// Probability that arms of an N-to-1 mux are permitted to share
+    /// the same data signal. `0.0` (default) = every arm distinct;
+    /// `1.0` = no constraint.
+    #[arg(long)]
+    mux_arm_duplication_rate: Option<f64>,
+
     /// Trace verbosity. Output goes to stderr (or --trace-file).
     /// `off` (default) compiles to near-zero overhead; higher levels
     /// are instrumentation-only, non-reproducibility-sensitive.
@@ -278,5 +284,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_comparand: cli.max_comparand,
         priority_encoder_prob: cli.priority_encoder_prob,
         max_ast_instances: cli.max_ast_instances,
+        mux_arm_duplication_rate: cli.mux_arm_duplication_rate,
     }
 }
