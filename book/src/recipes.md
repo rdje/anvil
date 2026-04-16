@@ -297,6 +297,58 @@ flop-prob=0.7 num_flops=29 num_nodes=223
 
 Clean monotone — the knob does what it says.
 
+## "I want to see how the factorization dial affects output"
+
+The `--factorization-level` knob is a single dial along the
+sharing chain. Sweep it and see what each layer changes:
+
+```bash
+for lvl in none cse operand-unique commutative e-graph; do
+  gates=$(anvil --seed 42 --factorization-level $lvl --metrics 2>&1 >/dev/null \
+    | jq -r .num_gates)
+  printf "%-16s gates=%s\n" "$lvl" "$gates"
+done
+```
+
+Sample output at seed 42:
+
+```
+none             gates=1961
+cse              gates=1776
+operand-unique   gates=2368
+commutative      gates=2368
+e-graph          gates=2368    ← default (theoretical ceiling)
+```
+
+Walking the differences:
+
+- **`none` → `cse`** (1961 → 1776): syntactic CSE collapses
+  duplicate AST nodes. Gates drop because repeated expressions
+  now share a single `NodeId`.
+- **`cse` → `operand-unique`** (1776 → 2368): Rule 8 starts
+  rejecting `x + x`, `x & x`, etc. The rejection retries
+  produce different random paths, so the module takes more
+  gates to satisfy the output drives. The knob makes output
+  **larger but cleaner**.
+- **`operand-unique` → `commutative`**: at this seed, no
+  observable change — the generator's operand-picking paths
+  rarely produce both `a+b` and `b+a` in the same module. The
+  layer still matters for correctness (tighter
+  NodeId-as-identity contract).
+- **`commutative` → `associative` / `constant-fold` /
+  `peephole` / `e-graph`**: identical today. These levels are
+  aspirational anchors; future slices will implement them. A
+  user already at `e-graph` will automatically benefit — no
+  config migration.
+
+Default is `e-graph` (the theoretical ceiling). The generator
+activates every layer it knows how to implement; `effective()`
+clamps down to the highest implemented layer so aspirational
+levels never error.
+
+Use `--factorization-level none` when you explicitly want to
+stress a downstream CSE pass on un-deduped input.
+
 ## "I want to trace what the generator is doing"
 
 Turn on the trace. Levels go off → low → medium → high → debug:

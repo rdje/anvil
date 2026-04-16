@@ -3,6 +3,28 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0047 — Recipe: "I want to see how the factorization dial affects output" (docs only)
+
+**What changed**
+- `book/src/recipes.md`: new recipe walking a user through the
+  `--factorization-level` dial with a real shell sweep, captured
+  output at seed 42, and a layer-by-layer explanation of the
+  deltas.
+
+**Why**
+Per user book doctrine — "littered with examples." The
+factorization dial landed in the previous slice with catalog docs
+in `knobs.md` and the rule text in `structural-rules.md`, but
+there was no paste-and-run recipe for a user who wants to *see*
+the knob. This slice provides one.
+
+**Tests**
+- No code changed.
+- `mdbook build book` succeeds.
+- 54 tests unchanged.
+
+---
+
 ## 2026-04-16-0046 — Commutative normalization + factorization-level dial
 
 **What changed**
