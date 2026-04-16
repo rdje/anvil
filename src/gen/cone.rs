@@ -1293,23 +1293,17 @@ fn build_linear_combination_pool(
     match op {
         GateOp::Add => {
             let n = pick_linear_combination_arity(g);
-            let signals: Vec<NodeId> = (0..n)
-                .map(|_| pick_terminal(g, m, pool, width, None))
-                .collect();
+            let signals = pick_signals_with_dup_rate(g, m, pool, width, n as usize, None);
             assemble_add_linear_combination(g, m, pool, width, &signals)
         }
         GateOp::Sub => {
             let n = pick_linear_combination_arity(g);
-            let signals: Vec<NodeId> = (0..n)
-                .map(|_| pick_terminal(g, m, pool, width, None))
-                .collect();
+            let signals = pick_signals_with_dup_rate(g, m, pool, width, n as usize, None);
             assemble_sub_linear_combination(g, m, pool, width, &signals)
         }
         GateOp::Mul => {
             let (coef, n) = pick_mul_coefficient_and_arity(g, width);
-            let signals: Vec<NodeId> = (0..n)
-                .map(|_| pick_terminal(g, m, pool, width, None))
-                .collect();
+            let signals = pick_signals_with_dup_rate(g, m, pool, width, n as usize, None);
             assemble_mul_linear_combination(m, pool, width, coef, &signals)
         }
         _ => unreachable!("build_linear_combination_pool: op must be Add/Sub/Mul"),
@@ -1722,6 +1716,36 @@ fn pick_datas_with_dup_cap(
     arms
 }
 
+/// Pick `count` operator-gate operand signals honouring
+/// `m.operand_duplication_rate`. Mirrors `pick_datas_with_dup_cap`
+/// but reads the operand-duplication knob instead of the mux-arm
+/// knob. At rate 0.0 (default) retries duplicates up to 8 tries;
+/// at rate 1.0 accepts duplicates freely.
+fn pick_signals_with_dup_rate(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    count: usize,
+    exclude: Option<NodeId>,
+) -> Vec<NodeId> {
+    use std::collections::HashSet;
+    let rate = m.operand_duplication_rate.clamp(0.0, 1.0);
+    let mut picked: HashSet<NodeId> = HashSet::new();
+    let mut arms: Vec<NodeId> = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut candidate = pick_terminal(g, m, pool, width, exclude);
+        let mut tries = 0u32;
+        while picked.contains(&candidate) && !g.rng.gen_bool(rate) && tries < 8 {
+            candidate = pick_terminal(g, m, pool, width, exclude);
+            tries += 1;
+        }
+        picked.insert(candidate);
+        arms.push(candidate);
+    }
+    arms
+}
+
 /// Strict variant of `pick_terminal`: guaranteed to return a
 /// dep-bearing node (transitively driven by a primary input or flop Q).
 /// Use at positions where a constant source would make the surrounding
@@ -1909,21 +1933,35 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
     }
 }
 
-fn violates_anti_collapse(op: GateOp, operands: &[NodeId], _m: &Module) -> bool {
+fn violates_anti_collapse(op: GateOp, operands: &[NodeId], m: &Module) -> bool {
     use GateOp::*;
     match op {
         // Idempotent / self-inverse operators at any arity: any
         // duplicate operand produces a degenerate result
-        // (`x & x = x`, `x | x = x`, `x ^ x = 0`). Checked as
-        // operand-multiset distinctness across the whole operand
-        // list, not just pairwise.
+        // (`x & x = x`, `x | x = x`, `x ^ x = 0`). ALWAYS checked,
+        // regardless of `operand_duplication_rate` — these are
+        // algebraic collapses, not stylistic choices.
         And | Or | Xor => has_duplicate_operand(operands),
-        // Sub is 2-arity only. `x - x = 0`.
+        // Add / Mul: duplicates ARE algebraically meaningful
+        // (`x + x = 2x`, `x * x = x²`), so whether to forbid them
+        // is a knob. Default `operand_duplication_rate = 0.0` →
+        // strict (no duplicates). Knob ≥ 1.0 → never reject.
+        // In between: not used (binary threshold; fold into the
+        // retry/rollback loop for bounded stochastic exposure).
+        // User opts in via `--operand-duplication-rate`.
+        Add | Mul if m.operand_duplication_rate < 1.0 => has_duplicate_operand(operands),
+        // Sub is 2-arity only. `x - x = 0` is algebraically
+        // degenerate — always rejected.
         Sub if operands.len() == 2 => operands[0] == operands[1],
         // Comparisons are 2-arity. `x == x = 1`, `x != x = 0`.
         Eq | Neq if operands.len() == 2 => operands[0] == operands[1],
-        // Mux: (sel, data_true, data_false). `mux(s, a, a) = a`.
-        Mux if operands.len() == 3 => operands[1] == operands[2],
+        // Mux: (sel, data_true, data_false). `mux(s, a, a) = a` —
+        // honour `mux_arm_duplication_rate`. A rate of 0.0 (default)
+        // makes the 2-to-1 layer collapse when data operands match;
+        // the specific 2-to-1 flag is checked in `make_mux`.
+        Mux if operands.len() == 3 && m.mux_arm_duplication_rate < 1.0 => {
+            operands[1] == operands[2]
+        }
         _ => false,
     }
 }
@@ -2401,12 +2439,25 @@ mod tests {
                 "{op:?}: all-distinct flagged falsely"
             );
         }
-        // Add / Mul: duplicates are algebraically meaningful, not
-        // collapses. `x + x = 2x`, `x * x = x²`.
+        // Add / Mul: under default `operand_duplication_rate = 0.0`
+        // (module default from `Module::default`), duplicates ARE
+        // flagged. User opts in by raising the rate toward 1.0 to
+        // allow `x + x = 2x` / `x * x = x²` shapes.
         for op in [Add, Mul] {
             assert!(
-                !violates_anti_collapse(op, &[1, 1, 1], &m),
-                "{op:?}: duplicates incorrectly flagged as collapse"
+                violates_anti_collapse(op, &[1, 1, 1], &m),
+                "{op:?}: duplicates must be flagged at default rate 0.0"
+            );
+        }
+        // With the knob at 1.0 the flag is disabled: duplicates pass.
+        let m_relaxed = Module {
+            operand_duplication_rate: 1.0,
+            ..Module::default()
+        };
+        for op in [Add, Mul] {
+            assert!(
+                !violates_anti_collapse(op, &[1, 1, 1], &m_relaxed),
+                "{op:?}: duplicates must pass at rate 1.0"
             );
         }
     }

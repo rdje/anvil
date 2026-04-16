@@ -30,6 +30,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         name: format!("mod_{}_{:04}", g.cfg.seed, index),
         max_ast_instances: g.cfg.max_ast_instances.max(1),
         mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
+        operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         ..Module::default()
     };
 

@@ -3,6 +3,62 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0045 — Operand-uniqueness knob (`--operand-duplication-rate`)
+
+**What changed**
+- `src/config.rs`: new knob `operand_duplication_rate: f64` in
+  `[0.0, 1.0]`, default `0.0`. Threaded through `Overrides` +
+  `apply_cli_overrides`. Applies to Add/Mul operand lists only —
+  And/Or/Xor are always strict (algebraic collapses). Comparisons,
+  Sub, Mux retain their 2-operand degenerate-shape rejection
+  governed by Rule 8 / Rule 22.
+- `src/main.rs`: CLI flag `--operand-duplication-rate <F>`.
+- `src/ir/types.rs`: `Module.operand_duplication_rate` field.
+- `src/gen/module.rs`: `generate_leaf_module` clamps + forwards
+  the config value to the module.
+- `src/gen/cone.rs`:
+  - `violates_anti_collapse` signature change: `_m` → `m`
+    (uses the module's knob fields).
+  - Add/Mul operand-list duplicates are now flagged when
+    `m.operand_duplication_rate < 1.0`.
+  - Mux degenerate data-arm shape uses `m.mux_arm_duplication_rate
+    < 1.0` (cleaner, same semantics).
+  - New helper `pick_signals_with_dup_rate` mirrors
+    `pick_datas_with_dup_cap` — used in
+    `build_linear_combination_pool` so pool-mode Add/Sub/Mul
+    signals are distinct.
+  - Existing anti-collapse test updated to assert Add/Mul
+    duplicates ARE flagged at default rate (was the inverse).
+- USER_GUIDE / Knobs references updated via follow-up book slice.
+
+**Why**
+User directive — "we need to opt in to allow duplicates; by
+default they are not allowed." Previously `Add` and `Mul` were
+Rule-8 exempt (duplicates algebraically meaningful), so you could
+get `mul = c * s * s * s * s` or `add = s + s + s` at default
+knobs. Now default is strict uniqueness; the user explicitly
+passes `--operand-duplication-rate 1.0` to exercise those shapes.
+
+**Tests**
+- All four cargo gates green.
+- 49 tests pass.
+- Empirical verification across 5 seeds:
+  - `rate=0.0` (default): 4374 gates, 4 with duplicate operands
+    (0.09%). Residuals come from the recursive linear-combination
+    path where `build_cone` recursion + CSE can collapse two
+    distinct sub-cones to the same NodeId; rewriting that path to
+    enforce uniqueness without introducing orphans is a deferred
+    follow-up.
+  - `rate=1.0`: 5184 gates, 56 duplicates (1.08%). Knob clearly
+    active.
+- No orphans introduced (Rule 18 still holds).
+
+**Impact**
+- Default output has `x + y + z` instead of `x + x + y`.
+- `x + x = 2x` / `x * x = x²` shapes reachable on demand.
+
+---
+
 ## 2026-04-16-0044 — `--trace debug` is now strictly more verbose than `high`; `off` → `none`
 
 **What changed**

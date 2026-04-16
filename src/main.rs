@@ -165,6 +165,15 @@ struct Cli {
     #[arg(long)]
     mux_arm_duplication_rate: Option<f64>,
 
+    /// Probability that an operator gate's operand list may contain
+    /// the same NodeId twice. `0.0` (default) = strict operand
+    /// uniqueness for Add/Mul (And/Or/Xor are always strict
+    /// regardless). `1.0` = duplicates unrestricted. Opt in when you
+    /// want to exercise `x + x = 2x` / `x * x = x^2` shapes in
+    /// downstream tools.
+    #[arg(long)]
+    operand_duplication_rate: Option<f64>,
+
     /// Trace verbosity: `none` / `low` / `medium` / `high` / `debug`.
     /// Output goes to stderr (or `--trace-file`). `none` (default)
     /// compiles to near-zero overhead. `debug` adds super-verbose
@@ -315,5 +324,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         priority_encoder_prob: cli.priority_encoder_prob,
         max_ast_instances: cli.max_ast_instances,
         mux_arm_duplication_rate: cli.mux_arm_duplication_rate,
+        operand_duplication_rate: cli.operand_duplication_rate,
     }
 }

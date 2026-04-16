@@ -55,6 +55,11 @@ pub struct Module {
     /// `Config::mux_arm_duplication_rate`. Default 0.0 = all arms
     /// distinct; 1.0 = no constraint.
     pub mux_arm_duplication_rate: f64,
+    /// Rate at which operator-gate operand lists may contain
+    /// duplicates. See `Config::operand_duplication_rate`. Default
+    /// 0.0 = strict operand uniqueness for Add/Mul (And/Or/Xor are
+    /// always strict); 1.0 = no constraint.
+    pub operand_duplication_rate: f64,
 }
 
 impl Module {

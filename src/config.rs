@@ -143,6 +143,20 @@ pub struct Config {
     /// generated inside comb-mux assembly or flop-mux assembly.
     pub graph_first_pool_size: u32,
 
+    /// Rate at which an operator gate's operand list may contain
+    /// duplicates (same `NodeId` appearing twice or more across the
+    /// N slots). Range `[0.0, 1.0]`. Default `0.0` — operand lists
+    /// are strictly distinct. `1.0` — duplicates unrestricted.
+    ///
+    /// Covers `Add` and `Mul` only: duplicates in `And` / `Or` / `Xor`
+    /// remain *always forbidden* (they collapse to `x` / `0`
+    /// algebraically regardless of the knob), and comparisons / `Sub`
+    /// / `Mux` keep their 2-operand degenerate-shape rejection. The
+    /// knob is about stylistic freedom for the algebraically-
+    /// meaningful dups: `x + x = 2x`, `x * x = x²`. Opt in to exercise
+    /// those shapes in downstream tools.
+    pub operand_duplication_rate: f64,
+
     /// Rate at which arms of an N-to-1 mux are permitted to share
     /// the same data signal. `0.0` (default) = every arm must be
     /// a distinct signal; `1.0` = no constraint (all arms may be
@@ -223,6 +237,7 @@ impl Default for Config {
             construction_strategy: ConstructionStrategy::Interleaved,
             graph_first_pool_size: 32,
             mux_arm_duplication_rate: 0.0,
+            operand_duplication_rate: 0.0,
             max_ast_instances: 1,
         }
     }
@@ -407,6 +422,9 @@ impl Config {
         if let Some(v) = o.mux_arm_duplication_rate {
             self.mux_arm_duplication_rate = v;
         }
+        if let Some(v) = o.operand_duplication_rate {
+            self.operand_duplication_rate = v;
+        }
     }
 }
 
@@ -445,4 +463,5 @@ pub struct Overrides {
     pub priority_encoder_prob: Option<f64>,
     pub max_ast_instances: Option<u32>,
     pub mux_arm_duplication_rate: Option<f64>,
+    pub operand_duplication_rate: Option<f64>,
 }
