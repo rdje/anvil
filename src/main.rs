@@ -137,6 +137,14 @@ struct Cli {
     #[arg(long)]
     priority_encoder_prob: Option<f64>,
 
+    /// Maximum number of times a given AST (gate expression / constant)
+    /// may be materialised as a named node in one module. Default 1 =
+    /// strict uniqueness (CSE). Higher N permits N copies; `u32::MAX`
+    /// effectively disables deduplication. See
+    /// `book/src/structural-rules.md`.
+    #[arg(long)]
+    max_ast_instances: Option<u32>,
+
     /// Trace verbosity. Output goes to stderr (or --trace-file).
     /// `off` (default) compiles to near-zero overhead; higher levels
     /// are instrumentation-only, non-reproducibility-sensitive.
@@ -269,5 +277,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         min_comparand: cli.min_comparand,
         max_comparand: cli.max_comparand,
         priority_encoder_prob: cli.priority_encoder_prob,
+        max_ast_instances: cli.max_ast_instances,
     }
 }

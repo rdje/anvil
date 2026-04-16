@@ -28,6 +28,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     let mut m = Module {
         name: format!("mod_{}_{:04}", g.cfg.seed, index),
+        max_ast_instances: g.cfg.max_ast_instances.max(1),
         ..Module::default()
     };
 

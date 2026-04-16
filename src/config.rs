@@ -142,6 +142,19 @@ pub struct Config {
     /// GraphFirst`. Does not count the internal primitive gates
     /// generated inside comb-mux assembly or flop-mux assembly.
     pub graph_first_pool_size: u32,
+
+    /// Maximum number of times a given AST (gate expression /
+    /// constant) may be materialised as a named node in one module.
+    /// Default 1 → strict uniqueness (CSE): an expression is named
+    /// exactly once and every consumer references that single node.
+    /// N > 1 → bounded duplication: up to N named copies before
+    /// callers are routed to the most-recent existing instance.
+    /// `u32::MAX` → effectively no deduplication.
+    ///
+    /// When debugging it can be useful to raise this knob to see how
+    /// much duplication the construction strategies would naturally
+    /// produce; for production seed sweeps, leave it at 1.
+    pub max_ast_instances: u32,
 }
 
 impl Default for Config {
@@ -191,6 +204,7 @@ impl Default for Config {
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::GraphFirst,
             graph_first_pool_size: 32,
+            max_ast_instances: 1,
         }
     }
 }
@@ -368,6 +382,9 @@ impl Config {
         if let Some(v) = o.priority_encoder_prob {
             self.priority_encoder_prob = v;
         }
+        if let Some(v) = o.max_ast_instances {
+            self.max_ast_instances = v;
+        }
     }
 }
 
@@ -404,4 +421,5 @@ pub struct Overrides {
     pub min_comparand: Option<u32>,
     pub max_comparand: Option<u32>,
     pub priority_encoder_prob: Option<f64>,
+    pub max_ast_instances: Option<u32>,
 }

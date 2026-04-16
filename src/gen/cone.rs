@@ -38,7 +38,12 @@ pub fn build_cone_with_retry(
 ) -> NodeId {
     const MAX_RETRIES: u32 = 4;
     for attempt in 0..MAX_RETRIES {
-        let snapshot = (m.nodes.len(), m.flops.len(), pool.clone(), worklist.clone());
+        let snap_nodes = m.nodes.len();
+        let snap_flops = m.flops.len();
+        let snap_pool = pool.clone();
+        let snap_worklist = worklist.clone();
+        let snap_gate_dedup = m.gate_instances.clone();
+        let snap_const_dedup = m.const_instances.clone();
         let node = build_cone(g, m, pool, worklist, width, 0, exclude);
         let deps = node_deps(m, node);
         if !deps.is_empty() {
@@ -46,10 +51,15 @@ pub fn build_cone_with_retry(
             return node;
         }
         warn!(attempt, "🔁 cone root empty-dep, retrying");
-        m.nodes.truncate(snapshot.0);
-        m.flops.truncate(snapshot.1);
-        *pool = snapshot.2;
-        *worklist = snapshot.3;
+        m.nodes.truncate(snap_nodes);
+        m.flops.truncate(snap_flops);
+        *pool = snap_pool;
+        *worklist = snap_worklist;
+        // Restore dedup tables so no stale entry points at a truncated
+        // NodeId (which would return a now-different node when a later
+        // call reuses that slot).
+        m.gate_instances = snap_gate_dedup;
+        m.const_instances = snap_const_dedup;
     }
     warn!("⚠️ cone retry budget exhausted, accepting last attempt");
     build_cone(g, m, pool, worklist, width, 0, exclude)
@@ -235,14 +245,10 @@ fn grow_pool_one_unit(
         if !violates_anti_collapse(op, &operands, m) {
             let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
             let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-            let node_id = m.nodes.len() as NodeId;
-            m.nodes.push(Node::Gate {
-                op,
-                operands,
-                width,
-                deps: deps.clone(),
-            });
-            pool.add(node_id, width, deps);
+            let (node_id, is_new) = m.intern_gate(op, operands, width, deps.clone());
+            if is_new {
+                pool.add(node_id, width, deps);
+            }
             return true;
         }
         warn!(?op, attempt, "🔁 anti-collapse hit, retrying operand pick");
@@ -591,14 +597,10 @@ fn deliver(
 
                 let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
                 let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-                let node_id = m.nodes.len() as NodeId;
-                m.nodes.push(Node::Gate {
-                    op: gf.op,
-                    operands,
-                    width: gf.width,
-                    deps: deps.clone(),
-                });
-                pool.add(node_id, gf.width, deps);
+                let (node_id, is_new) = m.intern_gate(gf.op, operands, gf.width, deps.clone());
+                if is_new {
+                    pool.add(node_id, gf.width, deps);
+                }
                 deliver(g, m, pool, node_id, gf.dest, gate_frames, per_output_drive);
             }
         }
@@ -803,9 +805,10 @@ fn assemble_flop_d_encoded(
 }
 
 fn make_constant(m: &mut Module, pool: &mut SignalPool, width: u32, value: u128) -> NodeId {
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Constant { width, value });
-    pool.add(node_id, width, DepSet::new());
+    let (node_id, is_new) = m.intern_constant(width, value);
+    if is_new {
+        pool.add(node_id, width, DepSet::new());
+    }
     node_id
 }
 
@@ -818,14 +821,10 @@ fn make_eq_const(
 ) -> NodeId {
     let const_node = make_constant(m, pool, operand_width, value);
     let deps = node_deps(m, operand);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Eq,
-        operands: vec![operand, const_node],
-        width: 1,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, 1, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Eq, vec![operand, const_node], 1, deps.clone());
+    if is_new {
+        pool.add(node_id, 1, deps);
+    }
     node_id
 }
 
@@ -838,14 +837,10 @@ fn make_mux(
     width: u32,
 ) -> NodeId {
     let deps = DepSet::union(&[&node_deps(m, sel), &node_deps(m, a), &node_deps(m, b)]);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Mux,
-        operands: vec![sel, a, b],
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Mux, vec![sel, a, b], width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
@@ -856,53 +851,42 @@ fn replicate_to_width(m: &mut Module, pool: &mut SignalPool, bit: NodeId, width:
         return bit;
     }
     let bit_deps = node_deps(m, bit);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Concat,
-        operands: vec![bit; width as usize],
+    let (node_id, is_new) = m.intern_gate(
+        GateOp::Concat,
+        vec![bit; width as usize],
         width,
-        deps: bit_deps.clone(),
-    });
-    pool.add(node_id, width, bit_deps);
+        bit_deps.clone(),
+    );
+    if is_new {
+        pool.add(node_id, width, bit_deps);
+    }
     node_id
 }
 
 fn make_and(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::And,
-        operands: vec![a, b],
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::And, vec![a, b], width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
 fn make_mul(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Mul,
-        operands: vec![a, b],
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Mul, vec![a, b], width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
 fn make_sub(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Sub,
-        operands: vec![a, b],
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Sub, vec![a, b], width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
@@ -911,14 +895,10 @@ fn make_nary_add(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], wid
     debug_assert!(operands.len() >= 2);
     let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
     let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Add,
-        operands: operands.to_vec(),
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Add, operands.to_vec(), width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
@@ -927,14 +907,10 @@ fn make_nary_mul(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], wid
     debug_assert!(operands.len() >= 2);
     let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
     let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Mul,
-        operands: operands.to_vec(),
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Mul, operands.to_vec(), width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
@@ -1118,14 +1094,11 @@ fn build_shift_const_amount(
     let const_width = (128u32 - amount.max(1).leading_zeros()).max(1);
     let const_node = make_constant(m, pool, const_width, amount);
     let deps = node_deps(m, value_node);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op,
-        operands: vec![value_node, const_node],
-        width: value_width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, value_width, deps);
+    let (node_id, is_new) =
+        m.intern_gate(op, vec![value_node, const_node], value_width, deps.clone());
+    if is_new {
+        pool.add(node_id, value_width, deps);
+    }
     node_id
 }
 
@@ -1165,14 +1138,10 @@ fn build_comparison_const_comparand(
     let value = pick_comparand_value(g, operand_width);
     let const_node = make_constant(m, pool, operand_width, value);
     let deps = node_deps(m, lhs);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op,
-        operands: vec![lhs, const_node],
-        width: 1,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, 1, deps);
+    let (node_id, is_new) = m.intern_gate(op, vec![lhs, const_node], 1, deps.clone());
+    if is_new {
+        pool.add(node_id, 1, deps);
+    }
     node_id
 }
 
@@ -1318,14 +1287,10 @@ fn make_none_selected(m: &mut Module, pool: &mut SignalPool, arms: &[MuxArm]) ->
     let sels: Vec<NodeId> = arms.iter().map(|a| a.sel).collect();
     let acc = or_reduce_terms(m, pool, &sels, 1);
     let acc_deps = node_deps(m, acc);
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Not,
-        operands: vec![acc],
-        width: 1,
-        deps: acc_deps.clone(),
-    });
-    pool.add(node_id, 1, acc_deps);
+    let (node_id, is_new) = m.intern_gate(GateOp::Not, vec![acc], 1, acc_deps.clone());
+    if is_new {
+        pool.add(node_id, 1, acc_deps);
+    }
     node_id
 }
 
@@ -1342,14 +1307,10 @@ fn or_reduce_terms(m: &mut Module, pool: &mut SignalPool, terms: &[NodeId], widt
     let mut acc = unique[0];
     for &t in &unique[1..] {
         let deps = DepSet::union(&[&node_deps(m, acc), &node_deps(m, t)]);
-        let node_id = m.nodes.len() as NodeId;
-        m.nodes.push(Node::Gate {
-            op: GateOp::Or,
-            operands: vec![acc, t],
-            width,
-            deps: deps.clone(),
-        });
-        pool.add(node_id, width, deps);
+        let (node_id, is_new) = m.intern_gate(GateOp::Or, vec![acc, t], width, deps.clone());
+        if is_new {
+            pool.add(node_id, width, deps);
+        }
         acc = node_id;
     }
     acc
@@ -1455,14 +1416,10 @@ pub fn build_cone(
     let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
     let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
 
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op,
-        operands,
-        width,
-        deps: deps.clone(),
-    });
-    pool.add(node_id, width, deps);
+    let (node_id, is_new) = m.intern_gate(op, operands, width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
     node_id
 }
 
@@ -1666,9 +1623,10 @@ fn pick_terminal(
     } else {
         g.rng.gen::<u128>() & ((1u128 << width) - 1)
     };
-    let node_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Constant { width, value });
-    pool.add(node_id, width, DepSet::new());
+    let (node_id, is_new) = m.intern_constant(width, value);
+    if is_new {
+        pool.add(node_id, width, DepSet::new());
+    }
     node_id
 }
 
@@ -1740,43 +1698,46 @@ fn make_width_adapter(
         return src_node;
     }
     if src_width > target_width {
-        let node_id = m.nodes.len() as NodeId;
-        m.nodes.push(Node::Gate {
-            op: GateOp::Slice {
+        let (node_id, is_new) = m.intern_gate(
+            GateOp::Slice {
                 hi: target_width - 1,
                 lo: 0,
             },
-            operands: vec![src_node],
-            width: target_width,
-            deps: src_deps.clone(),
-        });
-        pool.add(node_id, target_width, src_deps);
+            vec![src_node],
+            target_width,
+            src_deps.clone(),
+        );
+        if is_new {
+            pool.add(node_id, target_width, src_deps);
+        }
         return node_id;
     }
     let copies = target_width.div_ceil(src_width);
     let concat_width = copies * src_width;
-    let concat_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Concat,
-        operands: vec![src_node; copies as usize],
-        width: concat_width,
-        deps: src_deps.clone(),
-    });
-    pool.add(concat_id, concat_width, src_deps.clone());
+    let (concat_id, concat_is_new) = m.intern_gate(
+        GateOp::Concat,
+        vec![src_node; copies as usize],
+        concat_width,
+        src_deps.clone(),
+    );
+    if concat_is_new {
+        pool.add(concat_id, concat_width, src_deps.clone());
+    }
     if concat_width == target_width {
         return concat_id;
     }
-    let slice_id = m.nodes.len() as NodeId;
-    m.nodes.push(Node::Gate {
-        op: GateOp::Slice {
+    let (slice_id, slice_is_new) = m.intern_gate(
+        GateOp::Slice {
             hi: target_width - 1,
             lo: 0,
         },
-        operands: vec![concat_id],
-        width: target_width,
-        deps: src_deps.clone(),
-    });
-    pool.add(slice_id, target_width, src_deps);
+        vec![concat_id],
+        target_width,
+        src_deps.clone(),
+    );
+    if slice_is_new {
+        pool.add(slice_id, target_width, src_deps);
+    }
     slice_id
 }
 

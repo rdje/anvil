@@ -3,6 +3,70 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0037 — Construction-time CSE with tunable AST-instance cap (Rule 21)
+
+**What changed**
+- `src/ir/types.rs`:
+  - `Module` gains `gate_instances: HashMap<(GateOp, Vec<NodeId>, u32), Vec<NodeId>>`,
+    `const_instances: HashMap<(u32, u128), Vec<NodeId>>`, and
+    `max_ast_instances: u32`.
+  - New methods `Module::intern_gate(op, operands, width, deps) → (NodeId, is_new)`
+    and `Module::intern_constant(width, value) → (NodeId, is_new)`.
+    Cap behavior: create new if `vec.len() < max_ast_instances`,
+    else return `*vec.last()`.
+  - `GateOp` gains `Hash` derive.
+- `src/config.rs`: new knob `max_ast_instances: u32` (default 1 = strict CSE).
+  Threaded through `Overrides` and `apply_cli_overrides`.
+- `src/main.rs`: new CLI flag `--max-ast-instances <N>`.
+- `src/gen/module.rs`: `generate_leaf_module` sets
+  `m.max_ast_instances = g.cfg.max_ast_instances.max(1)`.
+- `src/gen/cone.rs`: every `m.nodes.push(Node::Gate|Constant)` site
+  migrated to `intern_gate` / `intern_constant`. Callers only
+  `pool.add` when `is_new = true`. Helpers: `make_constant`,
+  `make_eq_const`, `make_mux`, `make_and`, `make_mul`, `make_sub`,
+  `make_nary_add`, `make_nary_mul`, `replicate_to_width`,
+  `or_reduce_terms`, `make_width_adapter`, the deliver-path in
+  `process_signal_frame`, the operator-gate-creation block in
+  `grow_pool_one_unit`, `build_cone`, and `pick_terminal`'s fresh-
+  constant fallback.
+- Critical snapshot fix: `build_cone_with_retry` now snapshots and
+  restores `m.gate_instances` and `m.const_instances` alongside
+  `m.nodes` / `m.flops` / pool / worklist. Without this, a retry
+  rolls back the node vec but leaves stale dedup entries pointing
+  at truncated NodeIds, causing `intern_gate` to return nodes of
+  wrong kind/width on subsequent calls.
+- `book/src/structural-rules.md`: new Rule 21 "AST-instance cap
+  (construction-time CSE)" documenting the rule, motivation,
+  enforcement, and snapshot/rollback interaction.
+
+**Why**
+User flagged observable RHS duplication:
+`eq_4 = slice_17 == 2'h2; … eq_9 = slice_17 == 2'h2; …`.
+Construction-time hash-consing is the right answer — one RHS =
+one signal = one node. But blanket CSE is too opinionated for a
+stress-test generator, so the cap is a knob: default 1 (strict
+CSE), raise for bounded duplication, `u32::MAX` to disable.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit + 15 integration = **47 tests, all passing**.
+- Spot-check seed 42: `slice_17 == 2'h2` now appears exactly once
+  (`eq_0`). Downstream muxes reference `eq_0` instead of creating
+  copies. Verified knob behavior: at `--max-ast-instances 3`, Eq
+  count doubles from 6 to 12.
+
+**Impact**
+- **Structural change.** Modules generated under default knobs are
+  smaller (fewer nodes) and more shared. The SV is semantically
+  equivalent to the pre-CSE output for the same `(seed, knobs)`
+  only when `max_ast_instances = u32::MAX`. Otherwise output
+  differs and is denser.
+- Integration tests needed to account for the interaction between
+  dedup and retry rollback; the snapshot-restore of dedup tables
+  is the load-bearing piece.
+
+---
+
 ## 2026-04-16-0036 — Emit `{N{expr}}` replication for same-operand Concat
 
 **What changed**

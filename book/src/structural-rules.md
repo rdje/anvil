@@ -512,6 +512,51 @@ B-gate that comes later.
 
 ---
 
+## 21 — AST-instance cap (construction-time CSE)
+
+**Rule:** Each unique AST — `(op, operands, width)` for gates, or
+`(width, value)` for constants — may be materialised as a named
+node at most `max_ast_instances` times per module (default **1**,
+strict uniqueness). Callers that would create an `N+1`th instance
+of the same AST are routed to the most-recent existing node
+instead. Knob: `Config::max_ast_instances` /
+`--max-ast-instances`.
+
+**Motivation:** without dedup, a sub-expression like
+`slice_17 == 2'h2` can be computed dozens of times under different
+wire names (`eq_4`, `eq_9`, `eq_10`, …) — every copy describes the
+same circuit but uses wire capacity and obscures the module's
+structure. Under strict uniqueness (N = 1), **one RHS drives one
+signal**; downstream consumers reference that single node by name.
+Higher N is useful for driving synthesis tools with duplicated
+nets (cover more patterns) without abandoning the rule entirely.
+
+**Construction-time enforcement:** `Module::intern_gate` and
+`Module::intern_constant` own the cap. They maintain a per-key
+instance vector; on call, create a new node when
+`vec.len() < max_ast_instances`, otherwise return the last-created
+instance. All generator helpers (`make_constant`, `make_eq_const`,
+`make_mux`, `make_and`, `make_mul`, `make_nary_add`,
+`replicate_to_width`, `or_reduce_terms`, `make_width_adapter`, the
+`deliver` path in the interleaved frame machine, the gate-creation
+block in `grow_pool_one_unit`) route through `intern_*` rather
+than pushing `Node::Gate` / `Node::Constant` directly.
+
+**Snapshot / rollback interaction:** `build_cone_with_retry`
+rolls back `m.nodes`, `m.flops`, pool, and worklist on an empty-dep
+retry. The dedup tables (`gate_instances`, `const_instances`)
+must be snapshotted and restored alongside, or a stale entry would
+point at a truncated `NodeId` and a later call would silently
+return a now-different node (e.g. a Constant that was overwritten
+by an Eq at the same `NodeId`).
+
+**Knob semantics:**
+- `max_ast_instances = 1` (default): strict CSE, no duplicates.
+- `max_ast_instances = K` (K > 1): up to K copies of the same AST.
+- `max_ast_instances = u32::MAX`: effectively disables dedup.
+
+---
+
 ## 20 — Dep-bearing source required at elaboration-sensitive positions
 
 **Rule:** At positions where a dep-empty (constant) source would

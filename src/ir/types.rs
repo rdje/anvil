@@ -7,7 +7,7 @@
 //! like `And`, `Add`). Blocks (`Mux`, `Flop`) have "ports" or "arms", not
 //! arity. See `book/src/structural-rules.md` "Operators vs blocks".
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 pub type PortId = u32;
 pub type NodeId = u32;
@@ -40,6 +40,78 @@ pub struct Module {
     pub flops: Vec<Flop>,
     /// (output_port_id, driving_node_id)
     pub drives: Vec<(PortId, NodeId)>,
+    /// Construction-time AST-instance table: `(op, operands, width) →
+    /// Vec<NodeId>` tracks how many times this gate expression has
+    /// been created. Cap is `max_ast_instances`. See `Config` knob.
+    pub(crate) gate_instances: HashMap<(GateOp, Vec<NodeId>, u32), Vec<NodeId>>,
+    /// Construction-time AST-instance table for constants.
+    pub(crate) const_instances: HashMap<(u32, u128), Vec<NodeId>>,
+    /// Maximum number of times a given AST (gate or constant) may be
+    /// named (have its own `NodeId`). Default 1 = strict uniqueness
+    /// (CSE). Larger values permit N copies of the same expression;
+    /// `u32::MAX` effectively disables deduplication.
+    pub max_ast_instances: u32,
+}
+
+impl Module {
+    /// Intern a gate expression. If `(op, operands, width)` has already
+    /// been created `< max_ast_instances` times, create a new
+    /// `Node::Gate` and register it. Otherwise return the most recent
+    /// existing instance. Returns `(NodeId, is_new)` so callers can
+    /// gate their `pool.add` call on actual creation.
+    pub fn intern_gate(
+        &mut self,
+        op: GateOp,
+        operands: Vec<NodeId>,
+        width: u32,
+        deps: DepSet,
+    ) -> (NodeId, bool) {
+        let cap = self.max_ast_instances.max(1) as usize;
+        let key = (op, operands.clone(), width);
+        if let Some(vec) = self.gate_instances.get(&key) {
+            if vec.len() >= cap {
+                let existing = *vec.last().expect("cap >= 1 ensures vec is non-empty");
+                let existing_width = self.nodes[existing as usize].width();
+                debug_assert_eq!(
+                    existing_width, width,
+                    "intern_gate dedup returned node with wrong width: op={:?} key_width={} got_width={}",
+                    op, width, existing_width
+                );
+                return (existing, false);
+            }
+        }
+        let node_id = self.nodes.len() as NodeId;
+        self.nodes.push(Node::Gate {
+            op,
+            operands,
+            width,
+            deps,
+        });
+        self.gate_instances.entry(key).or_default().push(node_id);
+        (node_id, true)
+    }
+
+    /// Intern a constant. Same cap semantics as `intern_gate`.
+    pub fn intern_constant(&mut self, width: u32, value: u128) -> (NodeId, bool) {
+        let cap = self.max_ast_instances.max(1) as usize;
+        let key = (width, value);
+        if let Some(vec) = self.const_instances.get(&key) {
+            if vec.len() >= cap {
+                let existing = *vec.last().expect("cap >= 1 ensures vec is non-empty");
+                let existing_width = self.nodes[existing as usize].width();
+                debug_assert_eq!(
+                    existing_width, width,
+                    "intern_constant dedup returned node with wrong width: key_width={} got_width={}",
+                    width, existing_width
+                );
+                return (existing, false);
+            }
+        }
+        let node_id = self.nodes.len() as NodeId;
+        self.nodes.push(Node::Constant { width, value });
+        self.const_instances.entry(key).or_default().push(node_id);
+        (node_id, true)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +147,7 @@ impl Node {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GateOp {
     // Bitwise
     And,
