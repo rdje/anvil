@@ -3,6 +3,59 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0054 — Tutorial chapter refresh: naming scheme + re-captured examples (docs only)
+
+**What changed**
+- `book/src/tutorial.md`:
+  - New "Naming convention" lede paragraph introducing the
+    `<kind>_<N>` / `flop_<N>` scheme up front with a pointer to
+    Rule 12. New readers now know what `and_5`, `slice_2`,
+    `flop_1` mean before encountering them.
+  - Example 2's prose updated: `w_N` → `<kind>_N`.
+  - Example 4 (direct-D flop): sample SV re-captured from
+    current generator output — `r_0` → `flop_0`, `w_3 = a + a`
+    → `shl_0 = flop_0 << 1'h0` (the seed-5 run now produces a
+    shift, not an add; structural point unchanged). New bullet
+    explaining the shift-by-zero is a structural-not-meaningful
+    quirk.
+  - Example 5 (one-hot D mux): sample lines re-captured with
+    current typed naming and the canonical `{W{sel}} & data`
+    pattern annotated. Note added that CSE + limited-pool can
+    produce richer actual output than the illustrative excerpt.
+    Replication-syntax callout (`{8{slice_0}}` vs expanded list)
+    added.
+  - Example 6 (encoded D mux): re-captured verbatim from seed 11
+    output. Shows the full `slice_0` / `eq_0` / `mux_0` /
+    `eq_1` / `mux_1` / `always_ff` structure; bottom-up read
+    explanation updated.
+  - Example 8 (sharing): `w_N` → `<kind>_N` in the prose.
+  - Example 9 (comb-mux Encoded): re-captured. Shows the 3-arm
+    chained ternary with `slice_0` / `slice_1` as sel / data
+    and the `2'h0` fall-through; bottom-up read added.
+
+**Why**
+User directive: the book must be up-to-date with actual output.
+Audit found every SV excerpt in the Tutorial chapter used the
+retired `w_N` / `r_N` naming scheme (superseded by Rule 12
+typed-per-kind naming in slice `26f90a3`). Prose in
+Examples 2 and 8 also still used `w_N`.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+- Every sample SV excerpt was re-captured by running the
+  example's exact `cargo run` command against HEAD.
+
+**Impact**
+- Tutorial now faithful to shipping output. A reader following
+  the chapter step-by-step sees the commands and their real
+  output, not a historical snapshot.
+- Book doctrine (up-to-date / example-heavy / not scary /
+  progressive) reinforced.
+
+---
+
 ## 2026-04-16-0053 — Knobs chapter alignment with actual config + CLI surface (docs only)
 
 **What changed**
