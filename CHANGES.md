@@ -3,6 +3,48 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0040 — Knob measurement doctrine + effectiveness map (docs only)
+
+**What changed**
+- `book/src/knobs.md`:
+  - New opening section "Measurement doctrine": every knob is
+    subject to the same rule — its effect must be empirically
+    measurable via `Metrics` and/or `--trace`. No knob is
+    privileged. Three landing requirements: (1) a metric captures
+    the knob's effect; (2) the knob's section names the metric;
+    (3) a CLI spot-check at boundary values shows the metric
+    shifting.
+  - New sub-section "AST uniqueness / duplication" covering the
+    two recent knobs (`max_ast_instances`, `mux_arm_duplication_rate`)
+    with cross-references to Rules 21 and 22 in the structural-
+    rules catalog.
+  - New table at the bottom, "Knob effectiveness map" — one row
+    per knob listing the metric(s) that measure its effect.
+    Entries marked *pending* flag knobs whose effect the current
+    metric set does not yet capture (candidates for a follow-up
+    slice).
+- No code changed.
+
+**Why**
+Per user direction: the knobs + metrics design discussion from
+this session must land in durable docs, not just commit
+messages. The knobs chapter was already the canonical knob
+reference but lacked (a) the doctrinal line that no knob is
+privileged, (b) the two new knobs, (c) the explicit knob → metric
+mapping.
+
+**Tests**
+- No code changed; no test impact.
+- `mdbook build book` succeeds (HTML written to `book/book-out`).
+- 50 tests unchanged.
+
+**Impact**
+- Durable design record for the next session.
+- Explicit catalog of gaps (pending metrics) to address in
+  follow-up slices.
+
+---
+
 ## 2026-04-16-0039 — Structural metrics (per-module observability)
 
 **What changed**

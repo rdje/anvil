@@ -1,5 +1,29 @@
 # Knobs and Reproducibility
 
+## Measurement doctrine
+
+**No knob is privileged.** Every knob introduced in `anvil` is
+subject to the same rule: its effect on generated output must be
+empirically measurable, via the post-hoc metrics walker
+(`src/metrics.rs`) and/or the live trace output (`--trace`). A
+knob that exists but whose effect we cannot quantify is a knob
+we cannot tell is working, redundant, or mis-specified.
+
+Concretely, whenever a new knob lands:
+
+1. A field in `Metrics` (or an existing metric) must capture the
+   knob's intended effect.
+2. The knob's section in this chapter must name the metric that
+   measures it — see "Knob effectiveness map" at the bottom of
+   the page.
+3. A CLI spot-check (at default and at the boundary values 0.0 /
+   1.0 / min / max) should show the metric shifting in the
+   expected direction.
+
+If none of the existing metrics captures the knob's effect, add
+a metric. Landing a knob without its metric is a workflow
+violation.
+
 ## Reproducibility
 
 Every `anvil` invocation is deterministic in `(seed, knobs)`. The same
@@ -166,6 +190,25 @@ instead of creating fresh logic.
   `build_cone` uses a linear `depth / max_depth` ramp, forcing a leaf
   at `max_depth`.
 
+### AST uniqueness / duplication
+
+- `max_ast_instances` — maximum number of times a given AST
+  (`(op, operands, width)` for gates, `(width, value)` for
+  constants) may be materialised as a named node in one module.
+  Default `1` = strict uniqueness (construction-time CSE). See
+  Rule 21 in `book/src/structural-rules.md`. Values:
+  - `1` (default): one AST = one node. No `eq_0` / `eq_9` computing
+    the same thing.
+  - `K > 1`: up to K copies of the same AST before callers are
+    routed to the last-created instance.
+  - `u32::MAX`: effectively disables dedup.
+
+- `mux_arm_duplication_rate` — probability that an arm of an N-to-1
+  mux may be connected to a data signal already used by another
+  arm of the same mux. Range `[0.0, 1.0]`. Default `0.0` = all
+  arms distinct (best-effort). `1.0` = no constraint. See Rule 22
+  in `book/src/structural-rules.md`.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `library_prob` — probability of picking from the pre-generated
@@ -244,3 +287,47 @@ anvil --config my-knobs.json --seed 42  # byte-identical to previous
 The manifest file in the output directory records the effective knobs
 used for that generation run. Reproducing any output requires only
 the manifest entry, not the original CLI invocation.
+
+## Knob effectiveness map
+
+Per the measurement doctrine above, every knob has at least one
+metric that captures its effect. The table below is the contract:
+grep the metric, vary the knob across its range, confirm the
+metric moves in the expected direction. If it doesn't, the knob
+is either broken, masked by another knob, or redundant — all of
+which are bugs worth investigating.
+
+| Knob                          | Metric(s) that measure effectiveness                       |
+|-------------------------------|------------------------------------------------------------|
+| `min_inputs` / `max_inputs`   | `num_inputs`                                               |
+| `min_outputs` / `max_outputs` | `num_outputs`                                              |
+| `min_width` / `max_width`     | port widths (in `manifest.json`), `constants_by_width`     |
+| `max_depth`                   | (pending live counter); `max_fanout` as proxy today        |
+| `flop_prob`                   | `num_flops` / `num_gates`                                  |
+| `max_flops_per_module`        | `num_flops` saturation near the cap                        |
+| `min_mux_arms` / `max_mux_arms` | one-hot `MuxArm` list lengths (via flop-shape metric)    |
+| `flop_qfeedback_prob`         | `flops_qfeedback` / `flops_zero_default`                   |
+| `flop_mux_encoding_prob`      | `flops_mux_encoded` / `flops_mux_one_hot`                  |
+| `share_prob`                  | `num_shared_nodes`, `max_fanout`, `avg_fanout`             |
+| `construction_strategy`       | all structural metrics shift — compare runs at same seed   |
+| `graph_first_pool_size`       | `num_gates` (GraphFirst only)                              |
+| `priority_encoder_prob`       | per-kind `mux` chains — today indistinguishable; pending block metric |
+| `comb_mux_prob`               | `num_muxes_2to1` (includes encoded chains)                 |
+| `comb_mux_encoding_prob`      | (pending: flop-shape metric doesn't cover comb muxes yet)  |
+| `coefficient_prob`            | `gates_by_kind["mul"]` uptick (each coefficient → `Mul`)   |
+| `min_coefficient` / `max_coefficient` | `constants_by_width` distribution                  |
+| `const_shift_amount_prob`     | `gates_by_kind["shl"]` / `gates_by_kind["shr"]` constants  |
+| `gate_shift_weight`           | `gates_by_kind["shl"]` + `gates_by_kind["shr"]`            |
+| `const_comparand_prob`        | `gates_by_kind["eq"]` with width-1 constants               |
+| `min_comparand` / `max_comparand` | `constants_by_width` at the comparison operand width   |
+| `min_gate_arity` / `max_gate_arity` | per-gate operand lengths (pending metric)            |
+| `constant_prob`               | `num_constants` / `num_gates`                              |
+| `gate_*_weight`               | `gates_by_kind` bucket shares                              |
+| `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
+| `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
+
+Entries marked *pending* are knobs whose effect is not yet
+captured by a structural metric. Each is a known gap — either
+the metric will be added in a future slice, or the knob will be
+shown not to need a dedicated metric because its effect is
+subsumed by one already in the table.
