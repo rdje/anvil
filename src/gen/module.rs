@@ -10,13 +10,21 @@ use crate::config::ConstructionStrategy;
 use crate::ir::{DepSet, Direction, Module, Node, NodeId, Port, PortId};
 use rand::seq::SliceRandom;
 use rand::Rng;
+use tracing::{debug, info, instrument};
 
 const CLK_NAME: &str = "clk";
 const RST_N_NAME: &str = "rst_n";
 
+#[instrument(level = "info", skip(g), fields(seed = g.cfg.seed))]
 pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     let n_in = g.rng.gen_range(g.cfg.min_inputs..=g.cfg.max_inputs);
     let n_out = g.rng.gen_range(g.cfg.min_outputs..=g.cfg.max_outputs);
+    info!(
+        n_in,
+        n_out,
+        strategy = ?g.cfg.construction_strategy,
+        "🚀 build module"
+    );
 
     let mut m = Module {
         name: format!("mod_{}_{:04}", g.cfg.seed, index),
@@ -139,7 +147,17 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     // Drain the flop worklist: each pending flop's D-cone is built with
     // the same recursion, possibly enqueuing more flops.
+    debug!(
+        pending_flops = worklist.len(),
+        "drain flop worklist (recursive path)"
+    );
     cone::drain_flop_worklist(g, &mut m, &mut pool, &mut worklist);
 
+    info!(
+        nodes = m.nodes.len(),
+        flops = m.flops.len(),
+        drives = m.drives.len(),
+        "✅ module done"
+    );
     m
 }

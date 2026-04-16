@@ -1,7 +1,31 @@
 use anvil::config::ConstructionStrategy;
 use anvil::{Config, Generator};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
+use tracing::info;
+
+/// Trace verbosity (UVM-style). `off` disables tracing entirely.
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum TraceLevel {
+    Off,
+    Low,
+    Medium,
+    High,
+    Debug,
+}
+
+impl TraceLevel {
+    fn to_level_filter(self) -> tracing::level_filters::LevelFilter {
+        use tracing::level_filters::LevelFilter;
+        match self {
+            TraceLevel::Off => LevelFilter::OFF,
+            TraceLevel::Low => LevelFilter::INFO,
+            TraceLevel::Medium => LevelFilter::DEBUG,
+            TraceLevel::High => LevelFilter::TRACE,
+            TraceLevel::Debug => LevelFilter::TRACE,
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "anvil", version, about = "Random synthesizable RTL generator")]
@@ -112,10 +136,22 @@ struct Cli {
     /// compatible target width.
     #[arg(long)]
     priority_encoder_prob: Option<f64>,
+
+    /// Trace verbosity. Output goes to stderr (or --trace-file).
+    /// `off` (default) compiles to near-zero overhead; higher levels
+    /// are instrumentation-only, non-reproducibility-sensitive.
+    #[arg(long, value_enum, default_value_t = TraceLevel::Off)]
+    trace: TraceLevel,
+
+    /// Route trace output to a file instead of stderr.
+    #[arg(long)]
+    trace_file: Option<PathBuf>,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+
+    init_tracing(&cli)?;
 
     let mut cfg = if let Some(path) = &cli.config {
         let text = std::fs::read_to_string(path)?;
@@ -132,6 +168,7 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    info!(seed = cli.seed, count = cli.count, "🚀 anvil start");
     let mut gen = Generator::new(cfg.clone());
 
     match (&cli.out, cli.count) {
@@ -168,6 +205,34 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    info!("✅ anvil done");
+    Ok(())
+}
+
+/// Wire a `tracing` subscriber. Output is deterministic: no timestamps,
+/// no thread IDs, no ANSI colours — just `LEVEL module::path message`
+/// (plus any structured fields). This keeps trace output diffable
+/// across runs with the same `(seed, knobs)`.
+fn init_tracing(cli: &Cli) -> anyhow::Result<()> {
+    use tracing_subscriber::fmt;
+    let filter = cli.trace.to_level_filter();
+    let builder = fmt()
+        .with_max_level(filter)
+        .with_target(true)
+        .with_thread_ids(false)
+        .with_thread_names(false)
+        .with_ansi(false)
+        .without_time();
+    if let Some(path) = &cli.trace_file {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
+        builder.with_writer(std::sync::Mutex::new(file)).init();
+    } else {
+        builder.with_writer(std::io::stderr).init();
+    }
     Ok(())
 }
 

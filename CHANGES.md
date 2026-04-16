@@ -3,6 +3,73 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0035 — UVM-style tracing (`--trace` / `--trace-file`)
+
+**What changed**
+- `Cargo.toml`: adds `tracing` (with `release_max_level_info`) and
+  `tracing-subscriber`.
+- `src/main.rs`: new CLI flags `--trace <off|low|medium|high|debug>`
+  (default `off`) and `--trace-file <path>`. `init_tracing`
+  initialises a deterministic subscriber — no timestamps, no thread
+  IDs, no ANSI — with output to stderr (default) or a file. Level
+  mapping: `low = INFO`, `medium = DEBUG`, `high = TRACE`,
+  `debug = TRACE`.
+- `src/gen/module.rs`: `#[instrument(level="info")]` on
+  `generate_leaf_module`; milestone logs for module start/done with
+  n_in, n_out, strategy, final node/flop/drive counts.
+- `src/gen/cone.rs`: `#[instrument]` on `build_cone_with_retry` (debug),
+  `build_graph_first` (info), `grow_pool_one_unit` (trace),
+  `build_outputs_interleaved` (info), `process_signal_frame` (trace),
+  `build_cone` (trace), `drain_flop_worklist` (debug),
+  `build_comb_mux` (trace), `build_flop_leaf` (trace),
+  `pick_terminal` (trace), `pick_terminal_dep_bearing` (trace).
+  Explicit `trace!` / `debug!` / `warn!` at named control points:
+  motif dispatch forks (flop / comb-mux / priority-encoder / operator
+  gate, linear-combination, const-shift, const-comparand), retry /
+  fallback (cone retry, anti-collapse retry and exhaustion, terminal
+  tier 1/2/3/4 picks), leaf vs recursion decision. Emoji tags at
+  milestone / retry / fallback events only.
+- `src/emit/sv.rs`: `#[instrument(level="info")]` on `to_sv`; info-
+  level summary of gates/flops/inputs/outputs; debug-level dump of
+  per-kind counter totals from `build_names`. `build_names` now uses
+  `BTreeMap` instead of `HashMap` for deterministic counter-log
+  ordering (no iteration-order leak into trace output).
+- `USER_GUIDE.md`: new "Tracing and debugging" section with level
+  table, CLI examples, and emoji legend.
+
+**Why**
+Per user direction: generator debugging needs UVM-style graduated
+verbosity with broad coverage. The project's "by construction"
+contract makes *silent* bugs the main debugging hazard (wrong motif
+dispatch, unexpected retry / fallback paths, width-adapter surprises)
+— tracing at the named control points is the cheapest way to surface
+them without touching generator logic.
+
+**Non-negotiables honored**
+- Output goes to stderr (or file); stdout stays byte-clean for SV.
+- No wall-clock, no thread IDs, no ANSI, no hash-map iteration in
+  trace output. Verified: `diff` of `--trace off` vs `--trace high`
+  generated SV is empty for the same `(seed, knobs)`.
+- Release build compiles out below `info` via the
+  `release_max_level_info` feature flag.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit + 15 integration = **47 tests, all passing** with default
+  `--trace off`.
+- Reproducibility spot-check: `--trace off` and `--trace high` on
+  seed 42 produce byte-identical stdout.
+
+**Impact**
+- `--trace off` is the default — zero behavioral change for existing
+  users or CI.
+- Release builds compile out below `info`; `low` / default (off)
+  have near-zero overhead. `high` / `debug` add measurable overhead
+  and should not be used in seed sweeps.
+- No CLI flag was renamed; only additions.
+
+---
+
 ## 2026-04-16-0034 — Typed per-kind naming in emitted SV (Rule 12 revised)
 
 **What changed**

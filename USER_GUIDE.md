@@ -29,6 +29,34 @@ Each module lands in its own `.sv` file named by seed and index, e.g.
 records the seed, knobs, and per-module summary (port counts, widths,
 node count, flop count).
 
+## Tracing and debugging
+
+When diagnosing generator behavior — why a particular motif fired,
+which retries happened, which pool entry was picked — enable the
+built-in trace with `--trace <level>`:
+
+| Level    | What you see                                                    |
+|----------|-----------------------------------------------------------------|
+| `off`    | Silent (default). No overhead, no output.                       |
+| `low`    | Module start/done, strategy chosen, retry / fallback warnings.  |
+| `medium` | Phase transitions inside each strategy, flop drain milestones.  |
+| `high`   | Per-frame / per-cone events, motif dispatch, terminal-tier picks. |
+| `debug`  | Same as `high` today; reserved for future per-branch depth.     |
+
+Trace output goes to stderr (so stdout stays clean for generated SV)
+or to a file with `--trace-file <path>`:
+
+```bash
+anvil --seed 42 --trace medium 2> trace.log
+anvil --seed 42 --trace high --trace-file run.log
+```
+
+The trace format is deterministic: same `(seed, knobs)` produces the
+same trace bytes. No timestamps, no thread IDs, no ANSI colors.
+Emojis mark milestone / retry / fallback events (`🚀 start`,
+`✅ done`, `🔁 retry`, `❌ exhausted`, `⚠️ fallback`, `✍️ emit`,
+`🧱 block`, `🔧 operator`, `🍃 leaf`).
+
 ## Reproducibility
 
 Every output is deterministic in `(seed, knobs)`. Running the same

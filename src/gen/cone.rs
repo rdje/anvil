@@ -13,6 +13,7 @@ use crate::ir::{
     DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, Module, MuxArm, Node, NodeId, ResetKind,
 };
 use rand::Rng;
+use tracing::{debug, instrument, trace, warn};
 
 /// Worklist of flops whose D-input cone has not yet been built.
 pub type FlopWorklist = Vec<FlopId>;
@@ -26,6 +27,7 @@ pub type FlopWorklist = Vec<FlopId>;
 /// own Q from appearing in its data or select sub-cones (the only
 /// permitted Q→D path is the all-zeros-select feedback term in
 /// `FlopKind::QFeedback`).
+#[instrument(level = "debug", skip(g, m, pool, worklist))]
 pub fn build_cone_with_retry(
     g: &mut Generator,
     m: &mut Module,
@@ -35,18 +37,21 @@ pub fn build_cone_with_retry(
     exclude: Option<NodeId>,
 ) -> NodeId {
     const MAX_RETRIES: u32 = 4;
-    for _ in 0..MAX_RETRIES {
+    for attempt in 0..MAX_RETRIES {
         let snapshot = (m.nodes.len(), m.flops.len(), pool.clone(), worklist.clone());
         let node = build_cone(g, m, pool, worklist, width, 0, exclude);
         let deps = node_deps(m, node);
         if !deps.is_empty() {
+            debug!(attempt, node, "cone root dep-bearing ✅");
             return node;
         }
+        warn!(attempt, "🔁 cone root empty-dep, retrying");
         m.nodes.truncate(snapshot.0);
         m.flops.truncate(snapshot.1);
         *pool = snapshot.2;
         *worklist = snapshot.3;
     }
+    warn!("⚠️ cone retry budget exhausted, accepting last attempt");
     build_cone(g, m, pool, worklist, width, 0, exclude)
 }
 
@@ -102,12 +107,17 @@ struct GateFrame {
 
 /// Grow a gate pool and pick drive-roots for each output from it.
 /// Returns the drive-root NodeId per output, in declaration order.
+#[instrument(level = "info", skip(g, m, pool, worklist))]
 pub fn build_graph_first(
     g: &mut Generator,
     m: &mut Module,
     pool: &mut SignalPool,
     worklist: &mut FlopWorklist,
 ) -> Vec<NodeId> {
+    debug!(
+        target = g.cfg.graph_first_pool_size,
+        "graph-first: growing pool"
+    );
     // Phase 1 — grow the pool by `graph_first_pool_size` top-level
     // units. A unit is one operator gate, one flop (with deferred D),
     // or one comb-mux block. Comb-mux and flop-mux assembly internally
@@ -127,6 +137,13 @@ pub fn build_graph_first(
         }
     }
 
+    debug!(
+        emitted,
+        iterations,
+        pending_flops = worklist.len(),
+        "graph-first: pool grown, draining flops"
+    );
+
     // Phase 2 — resolve flop D-cones using pool-only picks. By this
     // point the pool is fully grown, so every flop has the full pool
     // to pick its D-mux operands from. Q-feedback is permitted freely
@@ -136,11 +153,13 @@ pub fn build_graph_first(
     // Phase 3 — pick a drive-root for each output from the pool.
     // `pick_terminal` handles the adapter fallback when no matching-
     // width entry exists.
+    debug!("graph-first: picking drive-roots");
     (0..m.outputs.len())
         .map(|i| pick_terminal(g, m, pool, m.outputs[i].width, None))
         .collect()
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
 fn grow_pool_one_unit(
     g: &mut Generator,
     m: &mut Module,
@@ -151,11 +170,13 @@ fn grow_pool_one_unit(
 
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
     if flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0)) {
+        trace!(width, "🧱 flop block");
         build_flop_leaf(g, m, pool, worklist, width);
         return true;
     }
 
     if g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0)) {
+        trace!(width, "🧱 comb-mux block");
         build_comb_mux_pool_only(g, m, pool, width);
         return true;
     }
@@ -165,10 +186,12 @@ fn grow_pool_one_unit(
     if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0))
         && build_priority_encoder_pool(g, m, pool, width).is_some()
     {
+        trace!(width, "🧱 priority-encoder block");
         return true;
     }
 
     let op = pick_gate(g, width);
+    trace!(?op, width, "🔧 operator gate");
 
     // Coefficient motif (pool-only signal picks). Same doctrine as the
     // recursive path: Add/Sub/Mul with coefficient_prob probability
@@ -176,6 +199,7 @@ fn grow_pool_one_unit(
     if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
         && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
     {
+        trace!(?op, "➕ linear-combination motif");
         build_linear_combination_pool(g, m, pool, op, width);
         return true;
     }
@@ -185,6 +209,7 @@ fn grow_pool_one_unit(
     if matches!(op, GateOp::Shl | GateOp::Shr)
         && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
     {
+        trace!(?op, "⏩ const-shift-amount motif");
         let value = pick_terminal_dep_bearing(g, m, pool, width, None);
         build_shift_const_amount(g, m, pool, op, value, width);
         return true;
@@ -194,6 +219,7 @@ fn grow_pool_one_unit(
     // internal operand width K; RHS is a literal constant. Output
     // is 1-bit.
     if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+        trace!(?op, "🔍 const-comparand motif");
         let k = pick_comparison_operand_width(g);
         let lhs = pick_terminal_dep_bearing(g, m, pool, k, None);
         build_comparison_const_comparand(g, m, pool, op, lhs, k);
@@ -201,7 +227,7 @@ fn grow_pool_one_unit(
     }
 
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
-    for _ in 0..4 {
+    for attempt in 0..4 {
         let operands: Vec<NodeId> = operand_widths
             .iter()
             .map(|w| pick_terminal(g, m, pool, *w, None))
@@ -219,7 +245,9 @@ fn grow_pool_one_unit(
             pool.add(node_id, width, deps);
             return true;
         }
+        warn!(?op, attempt, "🔁 anti-collapse hit, retrying operand pick");
     }
+    warn!(?op, "❌ anti-collapse retries exhausted, unit skipped");
     false
 }
 
@@ -333,6 +361,7 @@ fn drain_flop_worklist_pool_only(
 /// the "near-symmetric" scope: output-cone construction interleaves,
 /// flop D-cones are built depth-first per flop. Full symmetry awaits
 /// `graph-first`.
+#[instrument(level = "info", skip(g, m, pool, worklist))]
 pub fn build_outputs_interleaved(
     g: &mut Generator,
     m: &mut Module,
@@ -372,6 +401,11 @@ pub fn build_outputs_interleaved(
         .collect()
 }
 
+#[instrument(
+    level = "trace",
+    skip(g, m, pool, worklist, frame, signal_queue, gate_frames, per_output_drive),
+    fields(depth = frame.depth, width = frame.width)
+)]
 fn process_signal_frame(
     g: &mut Generator,
     m: &mut Module,
@@ -571,6 +605,7 @@ fn deliver(
     }
 }
 
+#[instrument(level = "debug", skip(g, m, pool, worklist))]
 pub fn drain_flop_worklist(
     g: &mut Generator,
     m: &mut Module,
@@ -1320,6 +1355,7 @@ fn or_reduce_terms(m: &mut Module, pool: &mut SignalPool, terms: &[NodeId], widt
     acc
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
 pub fn build_cone(
     g: &mut Generator,
     m: &mut Module,
@@ -1333,6 +1369,7 @@ pub fn build_cone(
     let force_leaf = depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
 
     if force_leaf {
+        trace!(depth, width, "🍃 leaf via pick_terminal");
         return pick_terminal(g, m, pool, width, exclude);
     }
 
@@ -1342,6 +1379,7 @@ pub fn build_cone(
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
     let pick_flop = flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0));
     if pick_flop {
+        trace!(depth, width, "🧱 flop block");
         return build_flop_leaf(g, m, pool, worklist, width);
     }
 
@@ -1440,6 +1478,7 @@ pub fn build_cone(
 ///
 /// When no select asserts (OneHot) or select is out of range
 /// (Encoded, when M is not a power of 2), output is 0.
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
 fn build_comb_mux(
     g: &mut Generator,
     m: &mut Module,
@@ -1515,6 +1554,7 @@ fn build_comb_mux_encoded(
     tail
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
 fn build_flop_leaf(
     g: &mut Generator,
     m: &mut Module,
@@ -1564,6 +1604,7 @@ fn pick_reset_value(g: &mut Generator, width: u32) -> u128 {
     }
 }
 
+#[instrument(level = "trace", skip(g, m, pool))]
 fn pick_terminal(
     g: &mut Generator,
     m: &mut Module,
@@ -1581,7 +1622,9 @@ fn pick_terminal(
         .collect();
     if !with_deps.is_empty() {
         let idx = g.rng.gen_range(0..with_deps.len());
-        return with_deps[idx];
+        let node = with_deps[idx];
+        trace!(tier = 1, node, "pick_terminal: dep-bearing pool entry");
+        return node;
     }
 
     let any_match: Vec<_> = pool
@@ -1591,7 +1634,13 @@ fn pick_terminal(
         .collect();
     if !any_match.is_empty() {
         let idx = g.rng.gen_range(0..any_match.len());
-        return any_match[idx];
+        let node = any_match[idx];
+        trace!(
+            tier = 2,
+            node,
+            "pick_terminal: any matching-width pool entry"
+        );
+        return node;
     }
 
     let source: Option<(NodeId, u32, DepSet)> = pool
@@ -1601,9 +1650,17 @@ fn pick_terminal(
         .max_by_key(|e| e.width)
         .map(|e| (e.node, e.width, e.deps.clone()));
     if let Some((src_node, src_width, src_deps)) = source {
+        trace!(
+            tier = 3,
+            src_node,
+            src_width,
+            target_width = width,
+            "pick_terminal: width-adapter fallback"
+        );
         return make_width_adapter(m, pool, src_node, src_width, src_deps, width);
     }
 
+    warn!(tier = 4, width, "⚠️ pick_terminal: fresh-constant fallback");
     let value = if width >= 128 {
         0
     } else {
@@ -1631,6 +1688,7 @@ fn pick_terminal(
 /// Panics if the pool contains no dep-bearing entry at all. Since
 /// primary inputs are always added to the pool with non-empty deps,
 /// this is unreachable in normal generator flow.
+#[instrument(level = "trace", skip(g, m, pool))]
 fn pick_terminal_dep_bearing(
     g: &mut Generator,
     m: &mut Module,

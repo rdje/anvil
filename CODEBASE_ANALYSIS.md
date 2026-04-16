@@ -5,7 +5,7 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 - **Workspace:** single crate `anvil` (no Cargo workspace; flat layout).
 - **Edition:** 2021.
 - **Targets:** one binary (`anvil`), one library (`anvil`), one example (`generate_one`), one integration test (`pipeline`).
-- **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`. `insta` (dev) reserved for snapshot tests.
+- **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** not yet pinned. Whatever stable Rust is current.
 
 ## Module map
@@ -20,6 +20,11 @@ src/
 │                     sequential (flop-prob, max-flops-per-module,
 │                     min/max-mux-arms, flop-qfeedback-prob,
 │                     flop-mux-encoding-prob), sharing (share-prob).
+│                     Tracing: init_tracing wires a deterministic
+│                     tracing-subscriber from --trace <level> +
+│                     --trace-file; TraceLevel maps low=INFO,
+│                     medium=DEBUG, high/debug=TRACE. Output to
+│                     stderr or file; stdout stays byte-clean.
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
 │
