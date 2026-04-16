@@ -3,6 +3,57 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0048 — Close residual Add/Mul/And duplicate operands at default knobs
+
+**What changed**
+- `src/gen/cone.rs`:
+  - `assemble_mul_linear_combination`: when
+    `operand_duplication_rate < 1.0`, dedupes the `signals` list
+    before building the N-ary `Mul`. `c * x * x * y` becomes
+    `c * x * y` (loses the x² factor — that's the user's
+    explicit no-duplicates contract). Preserves the `coef == 1 ⇒
+    n >= 2` invariant via a degenerate passthrough when
+    dedup produces a single signal.
+  - `assemble_add_linear_combination`: same post-Mul
+    dedup on the outer `Add`'s `terms` list. Two terms can
+    coincide when signal + coefficient both match (CSE-collapse);
+    we drop the duplicate.
+  - `make_and`: idempotent short-circuit `x & x = x` when
+    `factorization_level.effective() >= OperandUnique`. Closes
+    the last escape path — the one-hot-mux mask assembly can
+    produce `And(sel, data)` where `sel == data` via CSE at
+    width=1, which bypassed anti-collapse because `make_and`
+    calls `intern_gate` directly.
+- `src/config.rs`: `FactorizationLevel` default now written
+  via `#[default]` derive instead of hand-rolled `impl Default`
+  (clippy hint). Doc comments for the enum variants reworded to
+  avoid the `+ X` leading character that clippy parsed as a
+  bullet list.
+
+**Why**
+Previous audit showed 0.09% duplicate-operand Add/Mul/And gates
+at default `operand_duplication_rate = 0.0`. Per the user's full-
+factorization doctrine these should be exactly zero.
+
+**Tests**
+- All four cargo gates green.
+- 54 tests pass.
+- Orphan audit: 0 across 4 strategies × 6 seeds (Rule 18 holds).
+- Duplicate-operand audit:
+  - `rate=0.0` (default): 4633 gates, **0 duplicates (0.000%)**
+    — exactly zero, down from 0.09%.
+  - `rate=1.0`: 5336 gates, 57 duplicates (1.07%) — knob
+    still active.
+
+**Impact**
+- Syntactic factorization layer (CSE + operand-unique +
+  commutative) is now *complete* at default knobs — no operand
+  duplication anywhere across the tested seed range.
+- Next layer (associative flattening) can now be designed
+  without the noise of residual duplicates.
+
+---
+
 ## 2026-04-16-0047 — Recipe: "I want to see how the factorization dial affects output" (docs only)
 
 **What changed**

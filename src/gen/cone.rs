@@ -900,6 +900,16 @@ fn replicate_to_width(m: &mut Module, pool: &mut SignalPool, bit: NodeId, width:
 }
 
 fn make_and(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
+    // Idempotent: `x & x = x`. Skip the And layer at the default
+    // factorization level (operand-unique and above). This closes
+    // the make_and escape path that the one-hot-mux mask assembly
+    // can hit when `replicate_to_width(sel, 1) == arm.data` via
+    // CSE. At level `cse` / `none`, pass through — the user opted
+    // out of operand uniqueness.
+    use crate::config::FactorizationLevel;
+    if a == b && m.factorization_level.effective() >= FactorizationLevel::OperandUnique {
+        return a;
+    }
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
     let (node_id, is_new) = m.intern_gate(GateOp::And, vec![a, b], width, deps.clone());
     if is_new {
@@ -1006,6 +1016,15 @@ fn assemble_add_linear_combination(
         let const_node = make_constant(m, pool, width, coef);
         terms.push(make_mul(m, pool, s, const_node, width));
     }
+    // Under strict operand-uniqueness, dedup the Mul terms so the
+    // outer Add doesn't see duplicate NodeIds. Two terms can be
+    // identical when both the signal and the coefficient coincide
+    // (same signal by CSE + same random coef) → `make_mul` CSE-
+    // dedupes to one NodeId, appearing twice in `terms`.
+    if m.operand_duplication_rate < 1.0 {
+        let mut seen = std::collections::HashSet::new();
+        terms.retain(|t| seen.insert(*t));
+    }
     if terms.len() == 1 {
         return terms[0];
     }
@@ -1054,10 +1073,32 @@ fn assemble_mul_linear_combination(
         coef != 1 || signals.len() >= 2,
         "c == 1 requires >= 2 signals"
     );
+    // When operand-uniqueness is strict, dedup the signals list
+    // before interning. `c * x * x * y` becomes `c * x * y`, which
+    // is semantically different (loses the x² factor) but honours
+    // the user's explicit no-duplicates contract. At rate 1.0 the
+    // user opts in to the x² shape.
+    let deduped_signals: Vec<NodeId> = if m.operand_duplication_rate < 1.0 {
+        let mut seen = std::collections::HashSet::new();
+        signals
+            .iter()
+            .copied()
+            .filter(|s| seen.insert(*s))
+            .collect()
+    } else {
+        signals.to_vec()
+    };
+    // Preserve the `coef == 1 ⇒ n >= 2` invariant after dedup.
+    if coef == 1 && deduped_signals.len() < 2 {
+        // Only one distinct signal → `1 * x * x = x * x = x²`, which
+        // is degenerate under strict uniqueness. Fall through to the
+        // single signal passthrough.
+        return deduped_signals[0];
+    }
     let const_node = make_constant(m, pool, width, coef);
-    let mut operands: Vec<NodeId> = Vec::with_capacity(signals.len() + 1);
+    let mut operands: Vec<NodeId> = Vec::with_capacity(deduped_signals.len() + 1);
     operands.push(const_node);
-    operands.extend_from_slice(signals);
+    operands.extend_from_slice(&deduped_signals);
     make_nary_mul(m, pool, &operands, width)
 }
 

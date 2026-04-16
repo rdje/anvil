@@ -44,7 +44,17 @@ pub enum ConstructionStrategy {
 /// See `book/src/structural-rules.md` Rule 21b for the chain,
 /// motivation, and "NodeId = identity of an expression" doctrine.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, clap::ValueEnum,
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    clap::ValueEnum,
 )]
 #[serde(rename_all = "kebab-case")]
 pub enum FactorizationLevel {
@@ -58,20 +68,23 @@ pub enum FactorizationLevel {
     /// CSE + operand uniqueness. No same `NodeId` appears twice
     /// in one operator gate's operand list (per Rule 8 extended).
     OperandUnique,
-    /// + Commutative normalization. Operand lists of `And`/`Or`/
-    /// `Xor`/`Add`/`Mul` are sorted ascending before interning,
-    /// so `a + b` and `b + a` share identity (Rule 21b).
+    /// Commutative normalization on top of operand uniqueness.
+    /// Operand lists of `And`/`Or`/`Xor`/`Add`/`Mul` are sorted
+    /// ascending before interning, so `a + b` and `b + a` share
+    /// identity (Rule 21b).
     Commutative,
-    /// + Associative flattening. **Not yet implemented.** At this
-    /// level today the generator behaves as `commutative`; when
-    /// flattening lands, `(a+b)+c` and `a+(b+c)` will share
-    /// identity.
+    /// Associative flattening on top of commutative normalization.
+    /// **Not yet implemented.** At this level today the generator
+    /// behaves as `commutative`; when flattening lands, `(a+b)+c`
+    /// and `a+(b+c)` will share identity.
     Associative,
-    /// + Constant folding. **Not yet implemented.** `x + 0`,
-    /// `x * 1`, `x & 0`, `x | 1` will reduce at intern time.
+    /// Constant folding on top of associative flattening.
+    /// **Not yet implemented.** `x + 0`, `x * 1`, `x & 0`, `x | 1`
+    /// will reduce at intern time.
     ConstantFold,
-    /// + Peephole rewrite rules. **Not yet implemented.**
-    /// Identities like `(a + b) - b = a` fold at construction.
+    /// Peephole rewrite rules on top of constant folding. **Not yet
+    /// implemented.** Identities like `(a + b) - b = a` fold at
+    /// construction time.
     Peephole,
     /// Theoretical ceiling — full semantic equivalence via e-graph.
     /// **Default**, and the aspiration: every mathematically-
@@ -81,13 +94,8 @@ pub enum FactorizationLevel {
     /// Future slices add layers without requiring users to change
     /// their config — they progressively get tighter factorization
     /// "for free."
+    #[default]
     EGraph,
-}
-
-impl Default for FactorizationLevel {
-    fn default() -> Self {
-        FactorizationLevel::EGraph
-    }
 }
 
 impl FactorizationLevel {
