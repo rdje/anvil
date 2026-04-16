@@ -3,6 +3,56 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0055 — Construction-strategies chapter: graph-first retirement + interleaved-as-default (docs only)
+
+**What changed**
+- `book/src/construction-strategies.md`:
+  - Lede rewritten: "three strategies" (was four); default is
+    `interleaved` (was `graph-first`); graph-first noted as a
+    silent alias.
+  - `sequential` section: `*(current behavior)*` subtitle
+    dropped (no longer true).
+  - `interleaved` section: `*(default)*` subtitle added.
+  - `graph-first` dedicated section deleted and replaced with a
+    "Retired" section that explains *why* (Rule 18 orphan
+    violation, pointer to slice `b78550d`), *why not just fix
+    graph-first* (the demand-driven version IS interleaved),
+    and *what to use instead*.
+  - Comparison table: graph-first row removed; `interleaved`
+    marked as default.
+  - Interaction-with-rules section: updated Rule 9 bullet
+    (unified path via `build_cone_with_retry`); Rule 16
+    reworded ("strongest in interleaved"); **new Rule 18
+    bullet** making the zero-orphan construction contract
+    explicit and noting the snapshot/rollback + existing-
+    operand-fallback mechanics.
+  - Implementation status: graph-first marked retired; silent-
+    alias behavior documented; historical-reproducibility note
+    pointing to pre-`b78550d` commits.
+
+**Why**
+User doctrine: the book must be up-to-date. Audit found
+`construction-strategies.md` still described a four-strategy
+lineup with graph-first as default and lauded as "the most
+realistic shared-DAG output" — but graph-first was retired for
+producing 13–27 % orphan gates per module (slice `b78550d`)
+and is now a silent alias for interleaved.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Readers coming in cold see the actual strategy surface, the
+  retirement rationale (which is also a user-memorable lesson
+  about the "by construction" doctrine), and the clear
+  migration guidance.
+- `--construction-strategy graph-first` still works, so
+  existing configs / scripts are unaffected.
+
+---
+
 ## 2026-04-17-0054 — Tutorial chapter refresh: naming scheme + re-captured examples (docs only)
 
 **What changed**
