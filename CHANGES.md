@@ -3,6 +3,54 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0062 — FAQ chapter refresh: strategies + full-factorization Q (docs only)
+
+**What changed**
+- `book/src/faq.md`:
+  - "Why four construction strategies instead of just the default?"
+    → "Why three". graph-first removed from the canonical list,
+    retirement rationale + silent-alias behaviour noted with
+    cross-link to the construction-strategies chapter. Interleaved
+    described as the default.
+  - "Can output J's cone reference a gate from output I's cone?"
+    — stale `graph-first`-specific language replaced; added a
+    mention that Rule 21 CSE makes the cross-cone identity
+    automatic.
+  - New entry: **"What does 'full factorization' mean in the
+    book? Does `anvil` deduplicate expressions?"** Answers the
+    user doctrine. Names the three implemented layers (CSE,
+    operand uniqueness, commutative normalization) and the four
+    aspirational layers (Associative, ConstantFold, Peephole,
+    EGraph), with the `factorization_level` dial.
+
+**Why**
+FAQ chapter predated `graph-first` retirement (`b78550d`) and
+the factorization-ladder work (`f425657`, `c9c2f98`, `d2aefba`,
+`5a9b477`). A user landing on the FAQ first now sees the correct
+strategy story and a direct answer to the "does anvil dedupe?"
+question that the full-factorization doctrine prompts.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Closes the book audit. Every authored chapter now reflects
+  shipping code. A session that recovers cold from
+  `SESSION_BOOTSTRAP.md`'s reading order won't find drift
+  between the book's narrative and the generator's behaviour.
+
+**Book audit completion status**
+
+| Chapter | Status |
+|---|---|
+| introduction, getting-started, tutorial, recipes, knobs, construction-strategies, ir, algorithm, sequential, synthesizability, structural-rules, architecture, by-construction, non-triviality, sharing, faq | **Fresh** |
+| hierarchy.md | Phase 4+ — intentionally placeholder |
+| core-idea, non-goals, why-not-grammar | Doctrine — not casually edited |
+
+---
+
 ## 2026-04-17-0061 — Sharing chapter refresh: Rule 2 + Rule 18 + Rule 21 CSE (docs only)
 
 **What changed**

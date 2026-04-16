@@ -63,31 +63,72 @@ Each has its own knob family (`coefficient_*`, `const_shift_amount_*`,
 `constant_prob` knob — doing so loses the semantic distinctions.
 See [Roles of constants in RTL](structural-rules.md).
 
-## Why four construction strategies instead of just the default?
+## Why three construction strategies instead of just the default?
 
-The four strategies (`sequential`, `shuffled`, `interleaved`,
-`graph-first`) differ in *when* gates are created relative to each
-other, and therefore in *how symmetric* cross-output sharing is.
-`graph-first` (the default) gives true symmetric sharing; the other
-three are stepping stones with different tradeoffs:
+The three strategies (`sequential`, `shuffled`, `interleaved`)
+differ in *when* gates are created relative to each other, and
+therefore in *how symmetric* cross-output sharing is.
 
-- `sequential` is the original behavior — useful for reproducing
-  output generated against older `anvil` versions.
-- `shuffled` kills the declaration-order bias with one line of code.
-- `interleaved` achieves near-symmetric sharing without the
-  architectural shift of `graph-first`.
+- `interleaved` (default) gives near-symmetric cross-output
+  sharing via a single global frame queue driving all cones in
+  lockstep. Each cone's leaf-level picks see the full
+  module-wide pool.
+- `sequential` builds cones one output at a time in declaration
+  order — the original behavior, useful for reproducing output
+  generated against older `anvil` versions and for exercising
+  declaration-order-biased tooling.
+- `shuffled` is `sequential` with a random output-build order per
+  seed. Amortises the asymmetry across a seed sweep rather than
+  eliminating it.
 
-All four are supported as a per-run knob so users can pin to any
-strategy for specific testing needs.
+A fourth historical strategy, `graph-first`, was **retired** for
+producing 10–30% orphan gates per module (Rule 18 violation).
+`--construction-strategy graph-first` is accepted as a silent
+alias for `interleaved` for backward compatibility. See the
+[retirement rationale](construction-strategies.md#retired-graph-first).
 
 ## Can output J's cone reference a gate from output I's cone, regardless of declaration order?
 
-Yes. The signal pool is module-scoped, not cone-scoped (Rule 16).
-In `graph-first`, there are no per-output cones during construction
-— the pool is grown flat and drive-roots are picked from it. In
-`shuffled`/`interleaved`, cones do have construction-order
+Yes. The signal pool is module-scoped, not cone-scoped
+([Rule 16](structural-rules.md)). In `interleaved`, cones grow in
+lockstep so declaration order doesn't create asymmetry. In
+`sequential` / `shuffled`, cones have construction-order
 asymmetry, but any gate created before the current pick is
-available regardless of which output's cone created it.
+available regardless of which output's cone created it. And
+construction-time CSE ([Rule 21](structural-rules.md)) means two
+cones that independently build the same AST share a single
+`NodeId` automatically.
+
+## What does "full factorization" mean in the book? Does `anvil` deduplicate expressions?
+
+Yes. `NodeId` is the **identity** of an expression in the IR: two
+ASTs that are the same logically share one `NodeId`. This is
+enforced at construction time via `Module::intern_gate` /
+`intern_constant`, not as a post-hoc filter.
+
+Today's implementation covers the first three layers of the
+factorization ladder:
+
+1. **Syntactic CSE** (Rule 21) — same `(op, operands, width)` ⇒
+   same `NodeId`. `Add([a, b], 8)` built twice is one node.
+2. **Operand uniqueness** (Rule 8 extended) — no `NodeId` appears
+   twice in the operand list of a single gate (for `And`/`Or`/
+   `Xor` always; for `Add`/`Mul` gated on
+   `operand_duplication_rate`; for `Mux` on
+   `mux_arm_duplication_rate`).
+3. **Commutative normalization** (Rule 21b) — operands of
+   `And`/`Or`/`Xor`/`Add`/`Mul` are sorted before interning, so
+   `a + b` and `b + a` share identity.
+
+Four more layers are reserved as aspirational levels in
+`FactorizationLevel`: `Associative`, `ConstantFold`, `Peephole`,
+`EGraph` (the default). `effective()` clamps user requests down
+to the highest implemented layer, so a user at `e-graph` today
+gets `commutative`-level behaviour; future slices will
+automatically extend them without a config change.
+
+Dial: `--factorization-level <none|cse|operand-unique|commutative|
+associative|constant-fold|peephole|e-graph>`. See Rule 21c.
 
 ## How do I reproduce a specific generated module?
 
