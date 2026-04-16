@@ -5,25 +5,63 @@
 ```
 src/
 ├── main.rs          # CLI entry point (clap-derived); covers every
-│                    # Phase 1/2 motif knob as a dedicated flag.
+│                    # motif knob as a dedicated flag; wires the
+│                    # tracing-subscriber from --trace <level> and
+│                    # --trace-file.
 ├── lib.rs           # public API, re-exports Config, Generator, Module.
+│                    # Trace infrastructure: TRACE_DEBUG AtomicBool,
+│                    # set_trace_debug(bool), trace_verbose! macro
+│                    # (gates tracing::trace! behind the debug flag so
+│                    # --trace debug is strictly more verbose than high).
+├── metrics.rs       # Post-hoc structural metrics walker.
+│                    # compute(&Module) → Metrics { size, per-kind counts,
+│                    # fanout stats, depth histogram, block counters,
+│                    # AST-instance saturation, operand-arity distribution,
+│                    # ... }. Serde-serializable.
 ├── config.rs        # Config struct + serde + CLI overlay + validation.
+│                    # ConstructionStrategy enum (Sequential / Shuffled /
+│                    # Interleaved / GraphFirst — the last a silent alias
+│                    # for Interleaved). FactorizationLevel enum along
+│                    # the chain none → cse → operand-unique →
+│                    # commutative → associative → constant-fold →
+│                    # peephole → e-graph (default; effective() clamps
+│                    # aspirational levels to the highest implemented).
 ├── ir/
 │   ├── mod.rs       # re-exports.
-│   ├── types.rs     # Module, Port, Node, GateOp, Flop, FlopKind,
-│   │                # FlopMux, MuxArm, DepSet, Design.
+│   ├── types.rs     # Module, Port, Node, GateOp (with Hash derive),
+│   │                # Flop, FlopKind, FlopMux, MuxArm, DepSet, Design.
+│   │                # Module carries construction-time dedup tables
+│   │                # (gate_instances, const_instances) and per-module
+│   │                # knob mirrors (max_ast_instances,
+│   │                # mux_arm_duplication_rate,
+│   │                # operand_duplication_rate, factorization_level).
+│   │                # API: intern_gate() / intern_constant() perform
+│   │                # Rule 21 CSE + Rule 21b commutative normalization
+│   │                # and return (NodeId, is_new). Inline unit tests
+│   │                # pin the commutative / non-commutative contract.
 │   └── validate.rs  # invariant + per-gate shape checker; inline unit tests.
 ├── gen/
 │   ├── mod.rs       # Generator struct, public entry points.
 │   ├── cone.rs      # fanin-cone recursion (combinational + sequential);
 │   │                # DAG-sharing fork; flop-mux assembly (one-hot,
-│   │                # encoded); inline unit tests.
+│   │                # encoded); priority-encoder, comb-mux, linear-
+│   │                # combination, const-shift, const-comparand motifs;
+│   │                # snapshot/rollback for Rule 18 α enforcement;
+│   │                # interleaved frame machine with existing-operand
+│   │                # anti-collapse fallback; pick_terminal tiers
+│   │                # (+ pick_terminal_dep_bearing strict variant);
+│   │                # pick_datas_with_dup_cap / pick_signals_with_dup_rate
+│   │                # helpers; inline unit tests.
 │   ├── module.rs    # leaf-module generator (clk/rst_n reservation,
-│   │                # pool seeding, output cones, worklist drain).
+│   │                # pool seeding, output cones, worklist drain,
+│   │                # Rule 18 safety-net orphan audit).
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
-    └── sv.rs        # IR -> SystemVerilog; inline unit tests.
+    └── sv.rs        # IR -> SystemVerilog. Dumb serialiser per doctrine —
+                     # no filtering, no reachability checks. build_names
+                     # assigns each gate a <kind>_<N> name (Rule 12);
+                     # flops are flop_<id>. Inline unit tests.
 ```
 
 Phase 4 (hierarchy) will add `src/gen/hierarchy.rs`; it does not exist
@@ -52,13 +90,55 @@ be tested by inspecting the IR it produces without ever emitting SV.
 
 ```rust
 // ir/types.rs
-pub struct Module { ... }
+pub struct Module {
+    pub name: String,
+    pub inputs: Vec<Port>,
+    pub outputs: Vec<Port>,
+    pub clock: Option<PortId>,
+    pub reset: Option<PortId>,
+    pub nodes: Vec<Node>,
+    pub flops: Vec<Flop>,
+    pub drives: Vec<(PortId, NodeId)>,
+    // Construction-time CSE tables:
+    gate_instances:  HashMap<(GateOp, Vec<NodeId>, u32), Vec<NodeId>>,
+    const_instances: HashMap<(u32, u128),              Vec<NodeId>>,
+    // Per-module knob mirrors:
+    pub max_ast_instances:        u32,
+    pub mux_arm_duplication_rate: f64,
+    pub operand_duplication_rate: f64,
+    pub factorization_level:      FactorizationLevel,
+    // Block-build live counters:
+    pub priority_encoder_built:  u32,
+    pub comb_mux_one_hot_built:  u32,
+    pub comb_mux_encoded_built:  u32,
+}
+impl Module {
+    pub fn intern_gate(&mut self, op, operands, width, deps) -> (NodeId, bool);
+    pub fn intern_constant(&mut self, width, value) -> (NodeId, bool);
+}
+
 pub enum Node { PrimaryInput{..}, Constant{..}, FlopQ{..}, Gate{..} }
-pub enum GateOp { And, Or, Xor, Not, Add, Sub, ..., Mux, Slice{..}, ... }
+pub enum GateOp {
+    And, Or, Xor, Not,              // bitwise (Not is unary)
+    Add, Sub, Mul,                  // arithmetic
+    Eq, Neq, Lt, Gt, Le, Ge,        // comparisons (1-bit output)
+    Mux,                            // [sel, a, b]
+    Slice { hi: u32, lo: u32 },
+    Concat,                         // variadic
+    RedAnd, RedOr, RedXor,          // unary reductions (1-bit output)
+    Shl, Shr,                       // [value, amount]
+}
 pub enum FlopKind { ZeroDefault, QFeedback }
 pub enum FlopMux { None, OneHot(Vec<MuxArm>), Encoded { sel, data } }
-pub struct Flop { ..., kind: FlopKind, mux: FlopMux }
+pub struct Flop { id, width, d, q, reset_val, reset_kind, kind, mux }
 pub struct DepSet(BTreeSet<u32>);
+
+// config.rs
+pub enum ConstructionStrategy { Sequential, Shuffled, Interleaved, GraphFirst }
+pub enum FactorizationLevel {
+    None, Cse, OperandUnique, Commutative,
+    Associative, ConstantFold, Peephole, EGraph,
+}
 
 // gen/mod.rs
 pub struct Generator { rng: ChaCha8Rng, cfg: Config, ... }
@@ -68,8 +148,17 @@ impl Generator {
     pub fn generate_design(&mut self) -> Design;   // Phase 4+ stub
 }
 
+// metrics.rs
+pub struct Metrics { /* ~25 public fields; see module doc */ }
+pub fn compute(m: &Module) -> Metrics;
+
 // emit/sv.rs
 pub fn to_sv(m: &Module) -> String;
+
+// lib.rs
+pub fn set_trace_debug(enabled: bool);
+pub fn trace_debug_enabled() -> bool;
+#[macro_export] macro_rules! trace_verbose { ... }
 ```
 
 ## Testing strategy
@@ -79,19 +168,28 @@ Three layers:
 **Unit tests** live inline in each source module under
 `#[cfg(test)] mod tests { ... }`. Current counts:
 
+- `src/ir/types.rs` — 2 tests (commutative normalization +
+  non-commutative preservation).
 - `src/ir/validate.rs` — 8 tests (valid modules + each rejection
   class).
-- `src/gen/cone.rs` — 7 tests (`ceil_log2`, `pick_mux_arm_count`,
-  `make_width_adapter` edge cases, DAG-sharing sanity).
+- `src/gen/cone.rs` — 13 tests (`ceil_log2`, `pick_mux_arm_count`,
+  `make_width_adapter` edge cases, DAG-sharing sanity, four
+  flop-assembler shapes, N-arity anti-collapse, dep-bearing
+  terminal picker, coefficient-width clamping).
 - `src/emit/sv.rs` — 6 tests (module header, clk/rst_n omission,
   `always_ff` shape, operator + constant rendering, Slice/Concat,
   Mux ternary).
+- `src/metrics.rs` — 3 tests (empty module, per-kind gate
+  counting, per-shape flop counting).
+- Other unit tests total a few more; actual unit count fluctuates
+  as slices land. Run `cargo test --lib` for the current number.
 
-**Integration tests** in `tests/pipeline.rs` — 2 tests: cross-seed
-generation + IR validation across 20 seeds, and seed-reproducibility
-byte-identical output check.
+**Integration tests** in `tests/pipeline.rs` — 15 tests covering
+cross-seed generation + validation across all four strategy
+values, byte-identical reproducibility, coefficient / shift /
+comparand motifs at boundary rates, and priority-encoder shape.
 
-**Total: 23 tests, all passing.**
+**Total (current HEAD): 39 unit + 15 integration = 54 tests, all passing.**
 
 **External smoke tests** (not wired up yet) — will invoke Verilator
 and Yosys against generated output. These are the remaining Phase 1
@@ -116,38 +214,15 @@ generator bug, not a recoverable error.
 
 ## CLI
 
-Every Phase 1/2 motif knob has a dedicated flag:
+Every motif knob has a dedicated flag (44 total across structure /
+sequential / sharing / operator-arity / coefficient / shift /
+comparand / blocks / construction-strategy / factorization-ladder,
+plus the run-control flags `--seed`, `--count`, `--out`, `--config`,
+`--dump-config`, `--trace`, `--trace-file`, `--metrics`).
 
-```
-anvil [OPTIONS]
-
-Options:
-  --seed <SEED>                     RNG seed [default: 0]
-  --count <N>                       Number of modules [default: 1]
-  --out <DIR>                       Output directory (default: stdout)
-  --config <FILE>                   Load knobs from JSON
-  --dump-config                     Print effective knobs as JSON and exit
-
-  --min-inputs <N>                  [default: 2]
-  --max-inputs <N>                  [default: 8]
-  --min-outputs <N>                 [default: 1]
-  --max-outputs <N>                 [default: 4]
-  --min-width <N>                   [default: 1]
-  --max-width <N>                   [default: 32]
-  --max-depth <N>                   [default: 6]
-
-  --flop-prob <P>                   [default: 0.15]
-  --max-flops-per-module <N>        [default: 32]
-  --min-mux-arms <N>                [default: 1]   (effective floor is 2)
-  --max-mux-arms <N>                [default: 4]
-  --flop-qfeedback-prob <P>         [default: 0.5]
-  --flop-mux-encoding-prob <P>      [default: 0.5]
-
-  --share-prob <P>                  [default: 0.3]
-
-  -h, --help                        Print help
-  -V, --version                     Print version
-```
+The full categorised list lives in
+[Knobs and Reproducibility — CLI coverage](knobs.md#cli-coverage);
+`anvil --help` is the canonical source of truth.
 
 Piping stdout is valid for `count = 1` (no directory required). For
 `count > 1`, `--out` is required so that per-module files and the

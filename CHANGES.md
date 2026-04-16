@@ -3,6 +3,59 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0058 — Architecture chapter refresh: align with current workspace reality (docs only)
+
+**What changed**
+- `book/src/architecture.md`:
+  - Crate layout: added `src/metrics.rs` (missing since slice
+    `6fb5b9b`). Extended descriptions of `main.rs` (tracing wire-
+    up), `lib.rs` (TRACE_DEBUG + trace_verbose! macro), `config.rs`
+    (ConstructionStrategy + FactorizationLevel enums), `ir/types.rs`
+    (intern_gate / intern_constant API + dedup tables + per-module
+    knob mirrors + block-build counters), `gen/cone.rs` (motif
+    dispatch, snapshot/rollback, terminal picker variants, dup-cap
+    helpers), `gen/module.rs` (orphan audit), `emit/sv.rs`
+    (dumb-serialiser doctrine + typed naming).
+  - "Key types at a glance" rewritten:
+    - `Module` struct showing dedup tables, per-module knob
+      mirrors, block-build counters, and the `intern_gate` /
+      `intern_constant` method signatures.
+    - `GateOp` enum expanded with all variants (was
+      `..., Mux, Slice{..}, ...`).
+    - Added `ConstructionStrategy` and `FactorizationLevel` enums.
+    - Added `metrics::Metrics` + `compute` signatures.
+    - Added `lib.rs` trace infrastructure.
+  - Testing strategy: per-file unit counts updated (cone.rs 7→13,
+    types.rs 0→2, added metrics.rs 3 tests). Integration count
+    2→15. Total 23→54.
+  - CLI section: old 15-flag listing replaced with a pointer to
+    `knobs.md`'s categorised CLI-coverage section and a note that
+    `anvil --help` is canonical. Eliminates duplication and
+    drift risk.
+
+**Why**
+Per book doctrine (up-to-date). `architecture.md` predated 10+
+src-touching slices: metrics module, intern_gate API, dedup
+tables, FactorizationLevel, ConstructionStrategy enum, trace
+infrastructure, most cone.rs helpers, every new test, every new
+CLI flag. CODEBASE_ANALYSIS.md was already updated for these
+(slice `c0ba963`) but the book's mirror chapter had drifted.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- The architecture chapter now accurately describes the Rust
+  workspace at HEAD. A cold reader gets the same picture from
+  `book/src/architecture.md` as from `CODEBASE_ANALYSIS.md`.
+- CLI is canonicalised to one place (`knobs.md`) instead of
+  being duplicated in three (README, USER_GUIDE, knobs.md,
+  architecture.md). Drift risk reduced.
+
+---
+
 ## 2026-04-17-0057 — Algorithm chapter refresh: strategies, Rule 2, Rule 18, CSE, motif dispatch (docs only)
 
 **What changed**
