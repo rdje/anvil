@@ -3,6 +3,40 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0036 — Emit `{N{expr}}` replication for same-operand Concat
+
+**What changed**
+- `src/emit/sv.rs` `render_gate` for `GateOp::Concat`: when every
+  operand points at the same `NodeId`, emit the canonical SV
+  replication form `{N{expr}}` instead of the flat list
+  `{expr, expr, …, expr}`. Covers the `replicate_to_width` helper's
+  output in one-hot mux assembly (`{W{sel_i}} & data_i`).
+- Emitter unit test updated to expect `{2{a}}` instead of `{a, a}`.
+
+**Why**
+User flagged lines like
+`assign concat_15 = {eq_0, eq_0, …, eq_0};` (22 copies) as "uncontrolled."
+The logic is intentional (one-hot mask broadcast) but the expanded
+emission form hid the idiom. The replication form is synthesis-
+equivalent and matches the SV convention every synthesizer already
+recognizes.
+
+**Tests**
+- All four cargo gates green.
+- 32 unit + 15 integration = **47 tests, all passing**.
+- Spot-check seed 42: former 22-operand `concat_15 = {eq_0, eq_0, …}`
+  now emits as `concat_15 = {22{eq_0}}`. Gate count and module
+  semantics unchanged.
+
+**Impact**
+- No behavior change — only emission format. Byte-identical SV
+  structure modulo the replication shortcut.
+- Any downstream tool that parsed the flat-list form sees the
+  replication form now, which is standard SV and synthesized
+  identically.
+
+---
+
 ## 2026-04-16-0035 — UVM-style tracing (`--trace` / `--trace-file`)
 
 **What changed**

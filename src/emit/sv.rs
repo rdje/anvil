@@ -270,6 +270,15 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Mux => format!("({}) ? ({}) : ({})", a(0), a(1), a(2)),
         Slice { hi, lo } => format!("{}[{}:{}]", a(0), hi, lo),
         Concat => {
+            // If every operand points at the same NodeId, emit the
+            // canonical SystemVerilog replication form `{N{expr}}`
+            // instead of a flat list `{expr, expr, ..., expr}`. This
+            // is the idiom for broadcasting a 1-bit select across a
+            // W-bit mask (`{W{sel_i}} & data_i` in one-hot muxes).
+            // Synthesis-equivalent; purely a readability fix.
+            if operands.len() >= 2 && operands.iter().all(|id| *id == operands[0]) {
+                return format!("{{{}{{{}}}}}", operands.len(), a(0));
+            }
             let parts: Vec<_> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
             format!("{{{}}}", parts.join(", "))
         }
@@ -450,7 +459,7 @@ mod tests {
         m.drives.push((1, 2));
         let sv = to_sv(&m);
         assert!(sv.contains("assign slice_0 = a[3:0];"));
-        assert!(sv.contains("assign concat_0 = {a, a};"));
+        assert!(sv.contains("assign concat_0 = {2{a}};"));
     }
 
     #[test]
