@@ -3,6 +3,61 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0064 — Regression tests pinning three doctrine-level invariants
+
+**What changed**
+- `tests/pipeline.rs` gains three integration tests:
+  - **`zero_orphans_at_default_knobs`** — Rule 18 regression
+    guard. Generates modules across all four strategy values ×
+    6 seeds and asserts every `Node::Gate` has at least one
+    consumer (gate operand, flop field, or output drive).
+  - **`zero_duplicate_operands_at_default_knobs`** — Rule 8
+    extended regression guard. At `operand_duplication_rate =
+    0.0` (default), no `And`/`Or`/`Xor`/`Add`/`Mul` gate may
+    have a duplicate `NodeId` in its operand list. Checked
+    across 5 seeds.
+  - **`nested_associative_opportunities_exist_today`** —
+    informational guard. Asserts
+    `nested_associative_operand_count > 0` at seed 42 today
+    (Associative layer not implemented). When that layer lands,
+    this test should flip to `== 0` as direct validation that
+    flattening collapses the opportunity.
+- `CODEBASE_ANALYSIS.md`: test count updated 54 → 57.
+
+**Why**
+Each of the three assertions captures a doctrine-level
+invariant established in recent slices but not pinned by a
+test:
+
+- Rule 18 zero-orphans — enforced by build_cone
+  snapshot/rollback + process_signal_frame existing-operand
+  fallback. Slice `b78550d` validated manually across
+  strategies × seeds; now a test catches regressions
+  automatically.
+- Rule 8 zero-duplicates at default — enforced by
+  `violates_anti_collapse` + the post-assemble dedup in
+  linear-combination + `make_and` idempotent short-circuit.
+  Slice `9e18c89` drove the duplicate count to 0 at default;
+  now regression-guarded.
+- Associative-opportunity non-zero — direct complement to the
+  metric added in `99084a8`. Serves as a canary: when the
+  Associative layer lands and flips this to zero, the
+  implementation is working.
+
+**Tests**
+- All four cargo gates green.
+- **57 tests** pass (39 unit + 18 integration, +3 new).
+
+**Impact**
+- Future slices that break Rule 18 or the operand-uniqueness
+  contract now fail CI instead of being spotted by manual
+  `grep` audit.
+- The associative-flattening regression test flipping direction
+  is a simple, definite signal that the Associative layer has
+  landed and works.
+
+---
+
 ## 2026-04-17-0063 — Associative-flattening opportunity metric (informational, pre-implementation)
 
 **What changed**

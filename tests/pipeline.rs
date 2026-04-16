@@ -413,3 +413,144 @@ fn interleaved_differs_from_sequential() {
         "interleaved must produce different output from sequential"
     );
 }
+
+/// Regression guard for Rule 18 (no orphan gates). The generator
+/// must produce modules whose every `Node::Gate` has at least one
+/// consumer (other gate's operand, flop D / mux operand, or
+/// output drive). Measured across all four strategy values at
+/// several seeds.
+#[test]
+fn zero_orphans_at_default_knobs() {
+    use anvil::ir::{FlopMux, Node};
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    for strat in strategies {
+        for seed in [1u64, 42, 100, 777, 9999, 12345] {
+            let cfg = Config {
+                seed,
+                construction_strategy: strat,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+
+            // Mark every NodeId referenced by any gate operand,
+            // flop field, or output drive.
+            let mut used = vec![false; m.nodes.len()];
+            for node in &m.nodes {
+                if let Node::Gate { operands, .. } = node {
+                    for &op in operands {
+                        used[op as usize] = true;
+                    }
+                }
+            }
+            for f in &m.flops {
+                if let Some(d) = f.d {
+                    used[d as usize] = true;
+                }
+                match &f.mux {
+                    FlopMux::Encoded { sel, data } => {
+                        used[*sel as usize] = true;
+                        for d in data {
+                            used[*d as usize] = true;
+                        }
+                    }
+                    FlopMux::OneHot(arms) => {
+                        for arm in arms {
+                            used[arm.data as usize] = true;
+                            used[arm.sel as usize] = true;
+                        }
+                    }
+                    FlopMux::None => {}
+                }
+            }
+            for (_, root) in &m.drives {
+                used[*root as usize] = true;
+            }
+            let orphans: Vec<usize> = m
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
+                .map(|(i, _)| i)
+                .collect();
+            assert!(
+                orphans.is_empty(),
+                "strategy={:?} seed={}: {} orphan gate(s) at NodeIds {:?}",
+                strat,
+                seed,
+                orphans.len(),
+                orphans
+            );
+        }
+    }
+}
+
+/// Regression guard for the factorization chain at its
+/// currently-implemented ceiling (CSE + operand uniqueness +
+/// commutative). At the default `operand_duplication_rate = 0.0`,
+/// no gate of `And`/`Or`/`Xor`/`Add`/`Mul` may have a duplicate
+/// `NodeId` in its operand list.
+#[test]
+fn zero_duplicate_operands_at_default_knobs() {
+    use anvil::ir::{GateOp, Node};
+    for seed in [1u64, 42, 100, 777, 9999] {
+        let cfg = Config {
+            seed,
+            ..Config::default()
+        };
+        let m = Generator::new(cfg).generate_module();
+        for (idx, node) in m.nodes.iter().enumerate() {
+            if let Node::Gate { op, operands, .. } = node {
+                if !matches!(
+                    op,
+                    GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+                ) {
+                    continue;
+                }
+                let mut seen = std::collections::HashSet::new();
+                for &o in operands {
+                    assert!(
+                        seen.insert(o),
+                        "seed={} node={} op={:?}: duplicate operand NodeId {} in {:?}",
+                        seed,
+                        idx,
+                        op,
+                        o,
+                        operands
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Informational regression guard for the
+/// `nested_associative_operand_count` metric. At default knobs
+/// today (Associative layer NOT implemented), this count is
+/// non-zero. When the Associative layer lands in a future slice,
+/// this assertion will start failing — flip it to `== 0` then,
+/// as direct validation that flattening worked.
+#[test]
+fn nested_associative_opportunities_exist_today() {
+    // Seed 42 produced 373 opportunities at the time this test was
+    // added (slice 99084a8). Using a lower bound that still proves
+    // non-triviality without pinning the exact count (distribution
+    // can shift with generator evolution).
+    let cfg = Config {
+        seed: 42,
+        ..Config::default()
+    };
+    let m = Generator::new(cfg).generate_module();
+    let metrics = anvil::metrics::compute(&m);
+    assert!(
+        metrics.nested_associative_operand_count > 0,
+        "expected nested-associative opportunities at default knobs \
+         pre-Associative-layer; got {}. If the Associative layer just \
+         landed, this test should be updated to assert == 0.",
+        metrics.nested_associative_operand_count
+    );
+}
