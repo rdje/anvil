@@ -559,6 +559,103 @@ decision stands and the mux is emitted.
 
 ---
 
+## 21b — Commutative normalization
+
+**Rule:** For commutative operators (`And`, `Or`, `Xor`, `Add`,
+`Mul`), operand lists are sorted in ascending `NodeId` order
+before being used as the `intern_gate` key. Consequently,
+`a + b` and `b + a` share a single `NodeId` — they compute the
+same expression and so share identity per the full-factorization
+doctrine.
+
+**Why:** CSE keys on `(op, operands, width)`. Without
+normalization, `Add([a, b], 8)` and `Add([b, a], 8)` are
+distinct keys and would produce two NodeIds. Semantically
+they're the same expression. The rule closes that gap.
+
+**Scope:** strictly commutative ops only. Explicitly excluded:
+- `Sub` — `a - b ≠ b - a`.
+- `Mux` — operands have positional roles (sel, data_true,
+  data_false).
+- `Lt` / `Gt` / `Le` / `Ge` — order-sensitive. `Eq` / `Neq`
+  are commutative but kept un-normalized for uniformity with
+  the other comparison ops; could be split out if a future
+  defect demands it.
+- `Slice` / `Concat` / `Shl` / `Shr` — positional.
+- `Not` / reductions — unary.
+
+**Where enforced:** `src/ir/types.rs` `Module::intern_gate` —
+`operands.sort_unstable()` before key construction, gated by a
+`matches!` on the commutative set.
+
+**Position in the factorization ladder:** CSE (21) → operand-
+uniqueness (Rule 8 + knob) → commutative normalization (21b) →
+associative flattening (future) → constant folding (future) →
+peephole rules (future) → e-graph equivalence (theoretical
+ceiling). Each layer tightens the NodeId-identity contract;
+we land them incrementally as defects demand.
+
+## 21c — Factorization level (user-controllable dial)
+
+**Rule:** `Config::factorization_level` is a single knob that
+selects how far along the factorization chain the generator
+enforces `NodeId = expression identity`. Values in increasing
+order:
+
+`none → cse → operand-unique → commutative → associative →
+constant-fold → peephole → e-graph` (default).
+
+Each level implies all lower ones. Levels above the highest
+implemented layer (currently `commutative`) activate every
+implemented layer — they're aspirational anchors for the
+theoretical ceiling.
+
+**Doctrinal anchor:** the user's "full factorization" doctrine
+states that `NodeId` is the identity of an expression — two
+expressions that are the same in the mathematical or logical
+sense must share one `NodeId`; different expressions must have
+different `NodeId`s. `e-graph` is the theoretical ceiling where
+this holds for all semantic equivalences. Today we approximate
+it with syntactic CSE + operand-uniqueness + commutative
+normalization. Future slices will close the gap.
+
+**How each level gates behaviour:**
+
+| Level          | Enables                                                            |
+|----------------|--------------------------------------------------------------------|
+| `none`         | Nothing. Every `intern_gate` / `intern_constant` creates a fresh NodeId. |
+| `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. |
+| `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
+| `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |
+| `associative`  | + Associative flattening. *Not implemented yet.*                   |
+| `constant-fold` | + Constant folding. *Not implemented yet.*                        |
+| `peephole`    | + Peephole rewrite rules. *Not implemented yet.*                   |
+| `e-graph`    | Full semantic equivalence. *Not implemented yet.*                  |
+
+**Effective level:** `FactorizationLevel::effective()` clamps
+down to the highest implemented layer. A user requesting
+`e-graph` today gets `commutative`-level behaviour (all
+currently-implemented layers active), not an error. When
+associative flattening lands, the same `--factorization-level
+e-graph` invocation will automatically gain it — no config
+change required.
+
+**Where enforced:** `src/ir/types.rs` `intern_gate` /
+`intern_constant` gate commutative sort and dedup-bypass on
+`self.factorization_level.effective()`. `src/gen/cone.rs`
+`violates_anti_collapse` gates operand-uniqueness checks the
+same way.
+
+**Knob interactions:** `max_ast_instances`,
+`operand_duplication_rate`, and `mux_arm_duplication_rate`
+remain fine-grained overrides at their active levels. For
+example, at level `operand-unique` with
+`operand_duplication_rate = 1.0`, Add/Mul duplicates pass
+anyway (the rate overrides the level's default). The level is
+the coarse dial; the rates are fine tuning.
+
+---
+
 ## 21 — AST-instance cap (construction-time CSE)
 
 **Rule:** Each unique AST — `(op, operands, width)` for gates, or

@@ -34,6 +34,87 @@ pub enum ConstructionStrategy {
     GraphFirst,
 }
 
+/// Progressive factorization dial along the full chain:
+/// `none → cse → operand-unique → commutative → associative →
+/// constant-fold → peephole → e-graph`. Each level implies all
+/// lower ones. Default `e-graph` (theoretical ceiling — the
+/// generator activates every layer it knows how to implement;
+/// future slices add more without a config change).
+///
+/// See `book/src/structural-rules.md` Rule 21b for the chain,
+/// motivation, and "NodeId = identity of an expression" doctrine.
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, clap::ValueEnum,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum FactorizationLevel {
+    /// No dedup of any kind. Every `intern_gate` call creates a
+    /// fresh `NodeId`, even for identical ASTs. Useful for
+    /// debugging CSE-sensitive downstream tools.
+    None,
+    /// Syntactic CSE: `(op, operands, width)` identifies a node.
+    /// Same-key calls share `NodeId` (up to `max_ast_instances`).
+    Cse,
+    /// CSE + operand uniqueness. No same `NodeId` appears twice
+    /// in one operator gate's operand list (per Rule 8 extended).
+    OperandUnique,
+    /// + Commutative normalization. Operand lists of `And`/`Or`/
+    /// `Xor`/`Add`/`Mul` are sorted ascending before interning,
+    /// so `a + b` and `b + a` share identity (Rule 21b).
+    Commutative,
+    /// + Associative flattening. **Not yet implemented.** At this
+    /// level today the generator behaves as `commutative`; when
+    /// flattening lands, `(a+b)+c` and `a+(b+c)` will share
+    /// identity.
+    Associative,
+    /// + Constant folding. **Not yet implemented.** `x + 0`,
+    /// `x * 1`, `x & 0`, `x | 1` will reduce at intern time.
+    ConstantFold,
+    /// + Peephole rewrite rules. **Not yet implemented.**
+    /// Identities like `(a + b) - b = a` fold at construction.
+    Peephole,
+    /// Theoretical ceiling — full semantic equivalence via e-graph.
+    /// **Default**, and the aspiration: every mathematically-
+    /// equivalent expression shares one `NodeId`. Not yet
+    /// implemented; today this level activates every layer up to
+    /// the highest implemented one (currently `commutative`).
+    /// Future slices add layers without requiring users to change
+    /// their config — they progressively get tighter factorization
+    /// "for free."
+    EGraph,
+}
+
+impl Default for FactorizationLevel {
+    fn default() -> Self {
+        FactorizationLevel::EGraph
+    }
+}
+
+impl FactorizationLevel {
+    /// Highest layer that is actually implemented in the current
+    /// build. Levels above this are aspirational anchors; the
+    /// generator behaves as if the user requested the highest
+    /// implemented level instead.
+    pub fn highest_implemented() -> Self {
+        FactorizationLevel::Commutative
+    }
+
+    /// Effective level: clamps `self` down to the highest layer
+    /// that is actually implemented. Use this at every gating
+    /// site instead of comparing `self` directly, so a user
+    /// request like `EGraph` activates everything that works
+    /// today without misleading them into thinking e-graph
+    /// equivalence is live.
+    pub fn effective(self) -> Self {
+        let ceiling = Self::highest_implemented();
+        if self > ceiling {
+            ceiling
+        } else {
+            self
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub seed: u64,
@@ -175,6 +256,19 @@ pub struct Config {
     /// flop-D variants).
     pub mux_arm_duplication_rate: f64,
 
+    /// Factorization level — the coarse dial along the
+    /// sharing / dedup chain. `full` (default) enables every
+    /// implemented layer: syntactic CSE, operand uniqueness for
+    /// And/Or/Xor/Add/Mul, commutative normalization.
+    /// Lower settings disable individual layers in order. See
+    /// `book/src/structural-rules.md` Rule 21b.
+    ///
+    /// Fine-grained knobs (`max_ast_instances`,
+    /// `operand_duplication_rate`, `mux_arm_duplication_rate`)
+    /// remain in effect at their active level; the factorization
+    /// level gates whether a layer contributes at all.
+    pub factorization_level: FactorizationLevel,
+
     /// Maximum number of times a given AST (gate expression /
     /// constant) may be materialised as a named node in one module.
     /// Default 1 → strict uniqueness (CSE): an expression is named
@@ -238,6 +332,7 @@ impl Default for Config {
             graph_first_pool_size: 32,
             mux_arm_duplication_rate: 0.0,
             operand_duplication_rate: 0.0,
+            factorization_level: FactorizationLevel::EGraph,
             max_ast_instances: 1,
         }
     }
@@ -425,6 +520,9 @@ impl Config {
         if let Some(v) = o.operand_duplication_rate {
             self.operand_duplication_rate = v;
         }
+        if let Some(v) = o.factorization_level {
+            self.factorization_level = v;
+        }
     }
 }
 
@@ -464,4 +562,5 @@ pub struct Overrides {
     pub max_ast_instances: Option<u32>,
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,
+    pub factorization_level: Option<FactorizationLevel>,
 }

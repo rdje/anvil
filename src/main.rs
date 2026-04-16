@@ -1,4 +1,4 @@
-use anvil::config::ConstructionStrategy;
+use anvil::config::{ConstructionStrategy, FactorizationLevel};
 use anvil::{Config, Generator};
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
@@ -174,6 +174,14 @@ struct Cli {
     #[arg(long)]
     operand_duplication_rate: Option<f64>,
 
+    /// Factorization level along the sharing/dedup chain.
+    /// Values: `none` / `cse` / `operand-unique` / `commutative` /
+    /// `full` (default). Each step enables one more layer of
+    /// NodeId-as-expression-identity enforcement. See
+    /// `book/src/structural-rules.md` Rule 21b.
+    #[arg(long, value_enum)]
+    factorization_level: Option<FactorizationLevel>,
+
     /// Trace verbosity: `none` / `low` / `medium` / `high` / `debug`.
     /// Output goes to stderr (or `--trace-file`). `none` (default)
     /// compiles to near-zero overhead. `debug` adds super-verbose
@@ -325,5 +333,6 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_ast_instances: cli.max_ast_instances,
         mux_arm_duplication_rate: cli.mux_arm_duplication_rate,
         operand_duplication_rate: cli.operand_duplication_rate,
+        factorization_level: cli.factorization_level,
     }
 }

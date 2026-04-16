@@ -3,6 +3,76 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0046 — Commutative normalization + factorization-level dial
+
+**What changed**
+- `src/ir/types.rs` `Module::intern_gate`:
+  - Sorts operands of commutative ops (`And`/`Or`/`Xor`/`Add`/`Mul`)
+    before building the dedup key, so `a + b` and `b + a` share
+    a single NodeId. Gated on `factorization_level >=
+    Commutative`.
+  - New `None` fast path: every intern_gate / intern_constant
+    call bypasses the dedup table and creates a fresh node.
+    Useful for stress-testing downstream CSE.
+  - Two unit tests covering commutative-vs-non-commutative
+    interning.
+- `src/config.rs`:
+  - New enum `FactorizationLevel` with 8 levels:
+    `None → Cse → OperandUnique → Commutative → Associative →
+    ConstantFold → Peephole → EGraph` (default `EGraph`).
+  - `Config::factorization_level` field, threaded through
+    `Overrides` and `apply_cli_overrides`.
+  - `FactorizationLevel::highest_implemented()` returns
+    `Commutative` today; `effective()` clamps user requests
+    down to that ceiling so aspirational levels don't error.
+- `src/main.rs`: `--factorization-level <LEVEL>` CLI flag.
+- `src/ir/types.rs` `Module.factorization_level` mirror field.
+- `src/gen/module.rs`: wire from config.
+- `src/gen/cone.rs` `violates_anti_collapse`: operand-uniqueness
+  checks now gated on `factorization_level.effective() >=
+  OperandUnique`.
+- `book/src/structural-rules.md`:
+  - New Rule 21b "Commutative normalization".
+  - New Rule 21c "Factorization level" with the level table,
+    doctrinal anchor ("NodeId = expression identity"), and the
+    aspirational-anchor mechanism.
+- `book/src/knobs.md`: new catalog entry + quick-reference row.
+
+**Why**
+User coined "full factorization" as the doctrine: NodeId is the
+identity of an expression; no expression / sub-expression ever
+duplicated. User directive: "we need a knob to control where on
+the chain we want to be, default e-graph."
+
+**Tests**
+- All four cargo gates green.
+- 39 unit + 15 integration = **54 tests, all passing**.
+- Empirical dial at seed 42:
+
+```
+none             gates=1961     (no dedup — fresh node per call)
+cse              gates=1776     (syntactic CSE only)
+operand-unique   gates=2368     (+ Rule 8 operand uniqueness)
+commutative      gates=2368     (+ commutative sort)
+associative      gates=2368     (aspirational → commutative today)
+constant-fold    gates=2368     (aspirational → commutative today)
+peephole         gates=2368     (aspirational → commutative today)
+e-graph          gates=2368     (aspirational → commutative today; DEFAULT)
+```
+
+**Impact**
+- Default behaviour unchanged vs previous default (both land at
+  `commutative`).
+- Users can now dial *down* (for stress-testing) via
+  `--factorization-level none` or `cse`.
+- Aspirational levels (`associative`, `constant-fold`,
+  `peephole`, `e-graph`) compile without behavioural surprise
+  — when future slices implement them, users at those levels
+  automatically gain the tighter factorization. No config
+  migration needed.
+
+---
+
 ## 2026-04-16-0045 — Operand-uniqueness knob (`--operand-duplication-rate`)
 
 **What changed**

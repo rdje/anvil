@@ -60,6 +60,9 @@ pub struct Module {
     /// 0.0 = strict operand uniqueness for Add/Mul (And/Or/Xor are
     /// always strict); 1.0 = no constraint.
     pub operand_duplication_rate: f64,
+    /// Factorization level — which layers of the dedup chain are
+    /// active. See `Config::factorization_level`. Default `Full`.
+    pub factorization_level: crate::config::FactorizationLevel,
 }
 
 impl Module {
@@ -71,10 +74,45 @@ impl Module {
     pub fn intern_gate(
         &mut self,
         op: GateOp,
-        operands: Vec<NodeId>,
+        mut operands: Vec<NodeId>,
         width: u32,
         deps: DepSet,
     ) -> (NodeId, bool) {
+        use crate::config::FactorizationLevel;
+
+        // Commutative normalization (layer Commutative and above):
+        // sort operands for commutative ops so `a + b` and `b + a`
+        // share identity. Disabled at lower factorization levels.
+        if self.factorization_level.effective() >= FactorizationLevel::Commutative
+            && matches!(
+                op,
+                GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+            )
+        {
+            operands.sort_unstable();
+        }
+
+        // Level = None bypasses dedup entirely: every call creates
+        // a fresh NodeId. Useful for stress-testing downstream CSE.
+        if self.factorization_level.effective() == FactorizationLevel::None {
+            let node_id = self.nodes.len() as NodeId;
+            let n = operands.len();
+            self.nodes.push(Node::Gate {
+                op,
+                operands,
+                width,
+                deps,
+            });
+            crate::trace_verbose!(
+                node = node_id,
+                ?op,
+                width,
+                n_operands = n,
+                "🔗 intern_gate new (level=none, dedup bypassed)"
+            );
+            return (node_id, true);
+        }
+
         let cap = self.max_ast_instances.max(1) as usize;
         let key = (op, operands.clone(), width);
         if let Some(vec) = self.gate_instances.get(&key) {
@@ -115,6 +153,18 @@ impl Module {
 
     /// Intern a constant. Same cap semantics as `intern_gate`.
     pub fn intern_constant(&mut self, width: u32, value: u128) -> (NodeId, bool) {
+        use crate::config::FactorizationLevel;
+        if self.factorization_level.effective() == FactorizationLevel::None {
+            let node_id = self.nodes.len() as NodeId;
+            self.nodes.push(Node::Constant { width, value });
+            crate::trace_verbose!(
+                node = node_id,
+                width,
+                value,
+                "🔗 intern_constant new (level=none, dedup bypassed)"
+            );
+            return (node_id, true);
+        }
         let cap = self.max_ast_instances.max(1) as usize;
         let key = (width, value);
         if let Some(vec) = self.const_instances.get(&key) {
@@ -330,4 +380,75 @@ impl DepSet {
 pub struct Design {
     pub top: String,
     pub modules: Vec<Module>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Building two gates with the same operator, same operand
+    /// *multiset*, same width — but in different orders — must
+    /// return the same `NodeId`. This is commutative normalization
+    /// per Rule 21: `a + b` and `b + a` are the same expression
+    /// and therefore share identity.
+    #[test]
+    fn intern_gate_commutative_normalization() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            ..Module::default()
+        };
+        // Two primary inputs — gives us two distinct NodeIds.
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+
+        for op in [
+            GateOp::And,
+            GateOp::Or,
+            GateOp::Xor,
+            GateOp::Add,
+            GateOp::Mul,
+        ] {
+            // `op(a, b)` and `op(b, a)` must dedupe to one node.
+            let before = m.nodes.len();
+            let (id_ab, new_ab) = m.intern_gate(op, vec![a, b], 8, DepSet::from_port(0));
+            let (id_ba, new_ba) = m.intern_gate(op, vec![b, a], 8, DepSet::from_port(0));
+            assert!(new_ab, "{op:?}: first call must create a new node");
+            assert!(!new_ba, "{op:?}: second call must reuse the existing node");
+            assert_eq!(
+                id_ab, id_ba,
+                "{op:?}: commutative variants must share NodeId"
+            );
+            assert_eq!(m.nodes.len(), before + 1, "{op:?}: only one new node added");
+        }
+    }
+
+    /// Non-commutative ops must NOT be normalized: `a - b` and
+    /// `b - a` are different expressions and must have different
+    /// `NodeId`s.
+    #[test]
+    fn intern_gate_preserves_non_commutative_order() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+
+        // Sub — a - b ≠ b - a.
+        let (id_ab, _) = m.intern_gate(GateOp::Sub, vec![a, b], 8, DepSet::from_port(0));
+        let (id_ba, _) = m.intern_gate(GateOp::Sub, vec![b, a], 8, DepSet::from_port(0));
+        assert_ne!(id_ab, id_ba, "Sub must not be commutatively normalized");
+
+        // Mux — positional roles (sel / data_true / data_false).
+        // Different orderings are different expressions.
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // node 2 (sel-width)
+        let s: NodeId = 2;
+        let (id_sab, _) = m.intern_gate(GateOp::Mux, vec![s, a, b], 8, DepSet::from_port(0));
+        let (id_sba, _) = m.intern_gate(GateOp::Mux, vec![s, b, a], 8, DepSet::from_port(0));
+        assert_ne!(id_sab, id_sba, "Mux must not be commutatively normalized");
+    }
 }

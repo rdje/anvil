@@ -1934,31 +1934,25 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
 }
 
 fn violates_anti_collapse(op: GateOp, operands: &[NodeId], m: &Module) -> bool {
+    use crate::config::FactorizationLevel;
     use GateOp::*;
+    // Operand-uniqueness checks (And/Or/Xor and conditionally
+    // Add/Mul) are gated on `factorization_level >= OperandUnique`.
+    // At level `cse` / `none` we do NOT reject operand duplicates —
+    // the user has opted out of that layer. The 2-operand
+    // algebraic-degeneracy cases (Sub / Eq / Neq) are base Rule 8
+    // and fire regardless of the level (they'd break correctness
+    // otherwise). Mux is gated on `mux_arm_duplication_rate` as
+    // before.
+    let operand_unique_enabled =
+        m.factorization_level.effective() >= FactorizationLevel::OperandUnique;
     match op {
-        // Idempotent / self-inverse operators at any arity: any
-        // duplicate operand produces a degenerate result
-        // (`x & x = x`, `x | x = x`, `x ^ x = 0`). ALWAYS checked,
-        // regardless of `operand_duplication_rate` — these are
-        // algebraic collapses, not stylistic choices.
-        And | Or | Xor => has_duplicate_operand(operands),
-        // Add / Mul: duplicates ARE algebraically meaningful
-        // (`x + x = 2x`, `x * x = x²`), so whether to forbid them
-        // is a knob. Default `operand_duplication_rate = 0.0` →
-        // strict (no duplicates). Knob ≥ 1.0 → never reject.
-        // In between: not used (binary threshold; fold into the
-        // retry/rollback loop for bounded stochastic exposure).
-        // User opts in via `--operand-duplication-rate`.
-        Add | Mul if m.operand_duplication_rate < 1.0 => has_duplicate_operand(operands),
-        // Sub is 2-arity only. `x - x = 0` is algebraically
-        // degenerate — always rejected.
+        And | Or | Xor if operand_unique_enabled => has_duplicate_operand(operands),
+        Add | Mul if operand_unique_enabled && m.operand_duplication_rate < 1.0 => {
+            has_duplicate_operand(operands)
+        }
         Sub if operands.len() == 2 => operands[0] == operands[1],
-        // Comparisons are 2-arity. `x == x = 1`, `x != x = 0`.
         Eq | Neq if operands.len() == 2 => operands[0] == operands[1],
-        // Mux: (sel, data_true, data_false). `mux(s, a, a) = a` —
-        // honour `mux_arm_duplication_rate`. A rate of 0.0 (default)
-        // makes the 2-to-1 layer collapse when data operands match;
-        // the specific 2-to-1 flag is checked in `make_mux`.
         Mux if operands.len() == 3 && m.mux_arm_duplication_rate < 1.0 => {
             operands[1] == operands[2]
         }

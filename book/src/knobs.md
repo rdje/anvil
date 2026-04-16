@@ -22,6 +22,7 @@ the knobs you're most likely to touch day-to-day:
 | `--flop-prob`                 | 0.15     | Probability that a recursion point becomes a flop.    |
 | `--share-prob`                | 0.3      | Probability of sharing an existing signal vs recursing. |
 | `--construction-strategy`     | graph-first | How module logic is constructed (see below).      |
+| `--factorization-level`       | e-graph  | Dial along the sharing chain: none / cse / operand-unique / commutative / associative / constant-fold / peephole / e-graph. |
 | `--max-ast-instances`         | 1        | How many times one AST may be named (1 = strict CSE). |
 | `--mux-arm-duplication-rate`  | 0.0      | Probability N-to-1 mux arms may share the same signal. |
 | `--trace <level>`             | off      | Generation trace: off / low / medium / high / debug.  |
@@ -223,6 +224,13 @@ instead of creating fresh logic.
   at `max_depth`.
 
 ### AST uniqueness / duplication
+
+- `factorization_level` — coarse dial along the sharing chain:
+  `none → cse → operand-unique → commutative → associative →
+  constant-fold → peephole → e-graph`. Default `e-graph`
+  (theoretical ceiling; activates every layer implemented today).
+  Each step implies all lower ones. Implemented layers land
+  progressively without requiring a config change. See Rule 21c.
 
 - `max_ast_instances` — maximum number of times a given AST
   (`(op, operands, width)` for gates, `(width, value)` for
