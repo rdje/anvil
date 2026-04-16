@@ -3,6 +3,79 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0044 — `--trace debug` is now strictly more verbose than `high`; `off` → `none`
+
+**What changed**
+- `src/lib.rs`:
+  - New static `TRACE_DEBUG: AtomicBool` + public
+    `set_trace_debug(bool)` / `trace_debug_enabled()` helpers.
+  - New `trace_verbose!` macro: fires `tracing::trace!` only when
+    `TRACE_DEBUG` is true. Used for super-verbose events that
+    would flood `--trace high`.
+- `src/main.rs`:
+  - `TraceLevel` renamed `Off` → `None` with `#[value(alias = "off")]`
+    so `--trace off` still works. Default remains silent.
+  - `TraceLevel::debug_verbose()` returns true only for `Debug`.
+  - `init_tracing` calls `anvil::set_trace_debug(cli.trace.debug_verbose())`.
+- `src/ir/types.rs`: `intern_gate` and `intern_constant` emit
+  `trace_verbose!` events on both creation (`🔗 new`) and
+  reuse-on-cap-hit (`♻️ reuse`). Every node that enters the IR
+  is now traceable, with span context showing which call path
+  created it.
+- `src/gen/cone.rs`: `pick_gate` return logged with
+  `trace_verbose!(?op, depth, width, "🎲 pick_gate")` in both
+  `build_cone` (recursive path) and `process_signal_frame`
+  (interleaved path). Linear-combination motif dispatch also
+  gets a `trace_verbose!` marker.
+- `USER_GUIDE.md`: tracing level table updated with accurate
+  descriptions and the `none` / `off` alias note.
+
+**Why**
+User directly tested `--trace debug` vs `--trace high` and found
+them identical (both mapped to `LevelFilter::TRACE`). They also
+expected `--trace none` to work, but the CLI only accepted `off`.
+Both were real defects — the CLI advertised a level that did
+nothing, and the naming didn't match user expectations. User
+directive: "we should be able to see everything, start/end of
+every function, every branch. Without this it is painful to
+debug efficiently."
+
+**Tests**
+- All four cargo gates green.
+- 49 tests pass.
+- Empirical verification at seed 42:
+  - `--trace none` → 0 lines
+  - `--trace low` → 5 lines
+  - `--trace medium` → 141 lines
+  - `--trace high` → 3779 lines
+  - `--trace debug` → 8241 lines (+4462 strict super-set)
+  - `--trace off` still accepted as silent-alias.
+- Sample `debug`-only events (not visible at `high`):
+  - `🎲 interleaved pick_gate op=Mux depth=0 width=21`
+  - `🔗 intern_gate new node=5 op=Not width=11 n_operands=1`
+  - `🔗 intern_constant new node=6 width=1 value=0`
+  - `♻️ intern_gate reuse (AST cap hit) node=N op=X width=W`
+
+**Impact**
+- `--trace debug` is now the tool for answering "who created this
+  node?" — every `intern_*` call surfaces with its span context.
+- Zero performance impact at `--trace none` (default) or at
+  `high` (the `trace_verbose!` guard is an atomic load + `false`
+  short-circuit).
+- Trace output remains deterministic across runs with the same
+  `(seed, knobs)`.
+
+**Known residual trace gaps** (future slices):
+- `pick_terminal` doesn't emit a `trace_verbose!` on every call
+  (only tier-pick events at `high`). Already covered sufficiently
+  for most debugging.
+- Block-assembly helpers (`assemble_flop_d_encoded`,
+  `build_comb_mux_encoded`, priority encoder) don't emit a
+  `trace_verbose!` event for each assembly step. Adding them is
+  a straightforward follow-up if block-debug is needed.
+
+---
+
 ## 2026-04-16-0043 — Zero orphans: Rule 18 enforced (construction-time)
 
 **What changed**

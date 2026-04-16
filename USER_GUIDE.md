@@ -35,13 +35,13 @@ When diagnosing generator behavior — why a particular motif fired,
 which retries happened, which pool entry was picked — enable the
 built-in trace with `--trace <level>`:
 
-| Level    | What you see                                                    |
-|----------|-----------------------------------------------------------------|
-| `off`    | Silent (default). No overhead, no output.                       |
-| `low`    | Module start/done, strategy chosen, retry / fallback warnings.  |
-| `medium` | Phase transitions inside each strategy, flop drain milestones.  |
-| `high`   | Per-frame / per-cone events, motif dispatch, terminal-tier picks. |
-| `debug`  | Same as `high` today; reserved for future per-branch depth.     |
+| Level    | What you see                                                             |
+|----------|--------------------------------------------------------------------------|
+| `none`   | Silent (default). No overhead, no output. `off` accepted as alias.       |
+| `low`    | Module start/done, strategy chosen, retry / fallback warnings.           |
+| `medium` | Phase transitions inside each strategy, flop drain milestones.           |
+| `high`   | Per-frame / per-cone events, motif dispatch, terminal-tier picks, anti-collapse rollbacks. |
+| `debug`  | Strict super-set of `high`: every `pick_gate` return, every `intern_gate` / `intern_constant` create-or-reuse, with depth + width + node id. Use when you need to answer "who created this node?" |
 
 Trace output goes to stderr (so stdout stays clean for generated SV)
 or to a file with `--trace-file <path>`:

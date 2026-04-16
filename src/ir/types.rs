@@ -81,17 +81,30 @@ impl Module {
                     "intern_gate dedup returned node with wrong width: op={:?} key_width={} got_width={}",
                     op, width, existing_width
                 );
+                crate::trace_verbose!(
+                    node = existing,
+                    ?op,
+                    width,
+                    "♻️ intern_gate reuse (AST cap hit)"
+                );
                 return (existing, false);
             }
         }
         let node_id = self.nodes.len() as NodeId;
         self.nodes.push(Node::Gate {
             op,
-            operands,
+            operands: operands.clone(),
             width,
             deps,
         });
         self.gate_instances.entry(key).or_default().push(node_id);
+        crate::trace_verbose!(
+            node = node_id,
+            ?op,
+            width,
+            n_operands = operands.len(),
+            "🔗 intern_gate new"
+        );
         (node_id, true)
     }
 
@@ -108,12 +121,19 @@ impl Module {
                     "intern_constant dedup returned node with wrong width: key_width={} got_width={}",
                     width, existing_width
                 );
+                crate::trace_verbose!(
+                    node = existing,
+                    width,
+                    value,
+                    "♻️ intern_constant reuse (AST cap hit)"
+                );
                 return (existing, false);
             }
         }
         let node_id = self.nodes.len() as NodeId;
         self.nodes.push(Node::Constant { width, value });
         self.const_instances.entry(key).or_default().push(node_id);
+        crate::trace_verbose!(node = node_id, width, value, "🔗 intern_constant new");
         (node_id, true)
     }
 }

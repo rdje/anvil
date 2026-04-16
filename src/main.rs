@@ -4,10 +4,19 @@ use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 use tracing::info;
 
-/// Trace verbosity (UVM-style). `off` disables tracing entirely.
+/// Trace verbosity (UVM-style). `none` disables tracing entirely.
+///
+/// Level ordering: `none` < `low` < `medium` < `high` < `debug`.
+/// `high` and `debug` both map to `tracing::LevelFilter::TRACE`,
+/// but `debug` additionally enables the `trace_verbose!` events
+/// (every intern, every op pick, every branch) via the crate's
+/// `set_trace_debug` flag. At `high`, those events are suppressed
+/// to keep the output readable.
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum TraceLevel {
-    Off,
+    /// No tracing. `off` accepted as an alias.
+    #[value(alias = "off")]
+    None,
     Low,
     Medium,
     High,
@@ -18,12 +27,17 @@ impl TraceLevel {
     fn to_level_filter(self) -> tracing::level_filters::LevelFilter {
         use tracing::level_filters::LevelFilter;
         match self {
-            TraceLevel::Off => LevelFilter::OFF,
+            TraceLevel::None => LevelFilter::OFF,
             TraceLevel::Low => LevelFilter::INFO,
             TraceLevel::Medium => LevelFilter::DEBUG,
             TraceLevel::High => LevelFilter::TRACE,
             TraceLevel::Debug => LevelFilter::TRACE,
         }
+    }
+
+    /// True at `debug` only — super-verbose `trace_verbose!` events.
+    fn debug_verbose(self) -> bool {
+        matches!(self, TraceLevel::Debug)
     }
 }
 
@@ -151,10 +165,11 @@ struct Cli {
     #[arg(long)]
     mux_arm_duplication_rate: Option<f64>,
 
-    /// Trace verbosity. Output goes to stderr (or --trace-file).
-    /// `off` (default) compiles to near-zero overhead; higher levels
-    /// are instrumentation-only, non-reproducibility-sensitive.
-    #[arg(long, value_enum, default_value_t = TraceLevel::Off)]
+    /// Trace verbosity: `none` / `low` / `medium` / `high` / `debug`.
+    /// Output goes to stderr (or `--trace-file`). `none` (default)
+    /// compiles to near-zero overhead. `debug` adds super-verbose
+    /// per-intern / per-branch events beyond what `high` shows.
+    #[arg(long, value_enum, default_value_t = TraceLevel::None)]
     trace: TraceLevel,
 
     /// Route trace output to a file instead of stderr.
@@ -242,6 +257,8 @@ fn main() -> anyhow::Result<()> {
 /// across runs with the same `(seed, knobs)`.
 fn init_tracing(cli: &Cli) -> anyhow::Result<()> {
     use tracing_subscriber::fmt;
+    // Enable super-verbose `trace_verbose!` events at --trace debug.
+    anvil::set_trace_debug(cli.trace.debug_verbose());
     let filter = cli.trace.to_level_filter();
     let builder = fmt()
         .with_max_level(filter)

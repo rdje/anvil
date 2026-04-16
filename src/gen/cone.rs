@@ -473,6 +473,12 @@ fn process_signal_frame(
     // one SignalFrame per operand slot. The gate finalizes when its
     // last operand resolves (see `deliver`).
     let op = pick_gate(g, frame.width);
+    crate::trace_verbose!(
+        ?op,
+        depth = frame.depth,
+        width = frame.width,
+        "🎲 interleaved pick_gate"
+    );
 
     // Coefficient motif: Add/Sub/Mul with coefficient_prob becomes a
     // compound linear-combination tree. Built synchronously within
@@ -1390,6 +1396,7 @@ pub fn build_cone(
     }
 
     let op = pick_gate(g, width);
+    crate::trace_verbose!(?op, depth, width, "🎲 build_cone pick_gate");
 
     // Coefficient motif: when the picked op is Add / Sub / Mul and the
     // per-op probability fires, emit a linear-combination compound tree
@@ -1398,6 +1405,7 @@ pub fn build_cone(
     if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
         && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
     {
+        crate::trace_verbose!(?op, depth, width, "➕ linear-combination motif (recursive)");
         return build_linear_combination_recursive(g, m, pool, worklist, op, width, depth, exclude);
     }
 
