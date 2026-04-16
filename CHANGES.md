@@ -3,6 +3,61 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0051 — Combinational-depth metrics (closes another pending effectiveness-map entry)
+
+**What changed**
+- `src/metrics.rs`: two new `Metrics` fields
+  - `max_gate_depth: usize` — longest combinational fan-in path
+    through any gate. Primary inputs, constants, and flop Q act
+    as depth-0 leaves (clock edge breaks Q→D loop temporally).
+  - `gate_depth_histogram: BTreeMap<usize, usize>` — count of
+    gates at each depth.
+  - `compute()` adds a single forward walk over `m.nodes` (which
+    is always in topological order) that assigns depth =
+    `max(operand depth) + 1`.
+- `book/src/knobs.md` effectiveness map: `max_depth` moves from
+  `pending` to `max_gate_depth` / `gate_depth_histogram`.
+- `USER_GUIDE.md`: metrics section and knob-effects bullet list
+  extended with the new fields.
+- `CODEBASE_ANALYSIS.md`: metrics.rs one-liner updated.
+
+**Why**
+Two entries still listed as *pending* in the knob-effectiveness
+map: `max_depth` and `priority_encoder_prob` / `comb_mux_encoding_prob`.
+`max_depth` is the easier one — a single topological walk gives
+both `max_gate_depth` and a full histogram. Closes one of the
+three remaining pending entries.
+
+**Relationship between `max_depth` knob and `max_gate_depth`
+metric:** the knob bounds `build_cone` recursion depth; the
+metric measures IR gate-chain depth. They are NOT 1:1 because
+block-assembly helpers (chained-ternary muxes, OR-of-masked-arms
+muxes, linear-combination trees) expand each recursion level
+into many gate layers. The metric is typically 10–100× the knob
+value but monotone in it — useful for verifying knob effect.
+
+**Tests**
+- All four cargo gates green.
+- 54 tests pass (no new tests; single-walk metric is obvious
+  from the existing `compute` structure).
+- Demo sweep at seed 42:
+  ```
+  max-depth=2:  max_gate_depth=54
+  max-depth=4:  max_gate_depth=115
+  max-depth=6:  max_gate_depth=154
+  max-depth=8:  max_gate_depth=206
+  max-depth=10: max_gate_depth=354
+  ```
+  Clean monotone.
+
+**Impact**
+- Effectiveness-map *pending* list shrinks from 3 → 2
+  (`priority_encoder_prob`, `comb_mux_encoding_prob` still
+  pending).
+- No behaviour change.
+
+---
+
 ## 2026-04-16-0050 — Live-doc catch-up: CODEBASE_ANALYSIS, USER_GUIDE, DEVELOPMENT_NOTES, ROADMAP (docs only)
 
 **What changed**

@@ -342,7 +342,7 @@ which are bugs worth investigating.
 | `min_inputs` / `max_inputs`   | `num_inputs`                                               |
 | `min_outputs` / `max_outputs` | `num_outputs`                                              |
 | `min_width` / `max_width`     | port widths (in `manifest.json`), `constants_by_width`     |
-| `max_depth`                   | (pending live counter); `max_fanout` as proxy today        |
+| `max_depth`                   | `max_gate_depth`, `gate_depth_histogram` — monotone in the knob (typically 10–100× because block-assembly helpers expand each recursion level into multiple gate layers). |
 | `flop_prob`                   | `num_flops` / `num_gates`                                  |
 | `max_flops_per_module`        | `num_flops` saturation near the cap                        |
 | `min_mux_arms` / `max_mux_arms` | one-hot `MuxArm` list lengths (via flop-shape metric)    |

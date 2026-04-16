@@ -109,6 +109,26 @@ pub struct Metrics {
     /// `Add`/`Mul` arity (bounded by `max_gate_arity`) from `Concat`
     /// arity (can be much larger, driven by mux-arm widths).
     pub max_operand_count_by_kind: BTreeMap<String, usize>,
+
+    // --- Combinational depth ------------------------------------
+    /// Combinational depth of each `Node::Gate`: longest path from
+    /// the gate back to a leaf (primary input, constant, or flop Q).
+    /// Computed by bottom-up walk over `m.nodes`, which is always
+    /// in topological order (no forward references by construction).
+    ///
+    /// **Relationship to the `max_depth` knob:** the knob bounds
+    /// the recursion depth of `build_cone`, not the IR gate-chain
+    /// depth. Each `build_cone` recursion level can expand into
+    /// many internal gate layers via block-assembly helpers
+    /// (chained-ternary mux, OR-of-masked-arms mux, linear-
+    /// combination adder trees). So `max_gate_depth` is typically
+    /// 10–100× the knob value, but it is monotone in the knob —
+    /// useful for verifying that raising `max_depth` produces
+    /// deeper cones.
+    pub max_gate_depth: usize,
+    /// Histogram of per-gate combinational depth across all gates.
+    /// Keyed by depth value.
+    pub gate_depth_histogram: BTreeMap<usize, usize>,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -188,6 +208,29 @@ pub fn compute(m: &Module) -> Metrics {
             crate::ir::FlopMux::None => out.flops_mux_none += 1,
             crate::ir::FlopMux::OneHot(_) => out.flops_mux_one_hot += 1,
             crate::ir::FlopMux::Encoded { .. } => out.flops_mux_encoded += 1,
+        }
+    }
+
+    // Combinational-depth pass. `m.nodes` is in topological order by
+    // construction (Rule 1: combinational no-loop, arena-index
+    // monotonicity). A single forward walk assigns each node its
+    // depth as `max(operand depth) + 1`. Leaves (PrimaryInput,
+    // Constant, FlopQ) are depth 0 — FlopQ acts as a leaf because
+    // the clock edge breaks the Q→D loop temporally, so for
+    // combinational depth reasoning the Q is a zero-depth source.
+    let mut depth = vec![0usize; m.nodes.len()];
+    for (idx, node) in m.nodes.iter().enumerate() {
+        if let Node::Gate { operands, .. } = node {
+            let max_operand = operands
+                .iter()
+                .map(|o| depth[*o as usize])
+                .max()
+                .unwrap_or(0);
+            depth[idx] = max_operand + 1;
+            *out.gate_depth_histogram.entry(depth[idx]).or_insert(0) += 1;
+            if depth[idx] > out.max_gate_depth {
+                out.max_gate_depth = depth[idx];
+            }
         }
     }
 

@@ -41,7 +41,8 @@ src/
 │                     distribution, AST-instance saturation,
 │                     gate_operand_count_histogram +
 │                     max_gate_operand_count +
-│                     max_operand_count_by_kind }. Serde-serializable;
+│                     max_operand_count_by_kind, gate_depth_histogram
+│                     + max_gate_depth }. Serde-serializable;
 │                     embedded in manifest.json and printed with
 │                     --metrics flag.
 │

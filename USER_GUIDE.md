@@ -69,7 +69,8 @@ AST-instance saturation (`max_gate_ast_multiplicity`,
 `max_constant_ast_multiplicity` — relative to the
 `max_ast_instances` cap), and operand-arity distribution
 (`gate_operand_count_histogram`, `max_gate_operand_count`,
-`max_operand_count_by_kind`).
+`max_operand_count_by_kind`), and combinational-depth distribution
+(`max_gate_depth`, `gate_depth_histogram`).
 
 ```bash
 # Dump metrics to stderr alongside the SV to stdout.
@@ -88,6 +89,7 @@ shift. Examples:
 - `operand_duplication_rate=0.0` → gate operand lists have no internal duplicates.
 - Raising `max_ast_instances` should raise `max_gate_ast_multiplicity`.
 - Raising `max_gate_arity` should raise `max_operand_count_by_kind["add"]` exactly.
+- Raising `max_depth` should raise `max_gate_depth` monotonically.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `factorization_level=none` → gate count grows (no CSE); `=cse` and above
   shrinks it.
