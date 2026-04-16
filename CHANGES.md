@@ -3,6 +3,53 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0042 — IR chapter refresh + future-extensions roadmap (docs only)
+
+**What changed**
+- `book/src/ir.md`:
+  - `Module` struct snippet refreshed: now shows `gate_instances`,
+    `const_instances`, `max_ast_instances`,
+    `mux_arm_duplication_rate` fields.
+  - New section "Node construction: `intern_gate` /
+    `intern_constant`" documenting the method signatures, cap
+    semantics, why the dedup tables live on `Module`, and the
+    snapshot/rollback contract with `build_cone_with_retry`.
+  - Emitter naming section updated for Rule 12: no more `w_N`
+    or `r_N`; current naming is `<gate_kind>_<N>` per-kind + `flop_<id>`.
+  - New "Future extensions" section capturing the parameters /
+    synthesizable-aggregates / first-class-blocks roadmap analysis
+    in durable form. Parameters (Phase 5, hard-requires Phase 4).
+    Aggregates split into four sub-paths with explicit
+    cost/payoff per path (packed = cheap emitter-only; unpacked
+    arrays = memories, already Phase 6; unpacked datapath
+    aggregates + enums = deprioritised). Blocks as first-class
+    IR cross-references the session memory on
+    hierarchical-vs-flatten-with-mangling.
+- `ROADMAP.md`:
+  - Phase 5 entry adds cross-reference to IR chapter and names
+    Phase 4 as hard prerequisite.
+  - New Phase 5b entry for aggregates (scheduled alongside
+    Phase 5, order not fixed), pointing to IR chapter for the
+    four-sub-path breakdown.
+
+**Why**
+User direction: the book must thoroughly document the IR as it
+evolves, and the parameters/aggregates discussion from the
+preceding exchange must land in durable docs, not just commit
+messages.
+
+**Tests**
+- No code changed.
+- `mdbook build book` succeeds.
+- 50 tests unchanged.
+
+**Impact**
+- Next session (or a cold reader) can open `book/src/ir.md` and
+  see the full current IR plus the design record for the two
+  roadmap axes, without losing context to session compaction.
+
+---
+
 ## 2026-04-16-0041 — Friendly docs: quick ref, naming refresh, recipe examples (docs only)
 
 **What changed**

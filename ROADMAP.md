@@ -82,6 +82,25 @@ declared; Verilator elaboration of hierarchy succeeds.
 - Generated modules take `parameter` declarations for widths.
 - Instantiation picks parameter values from allowed ranges.
 - Parameter-dependent widths propagate correctly through cone generation.
+- **Hard prerequisite:** Phase 4 (hierarchy). Parameters only matter
+  at instantiation time.
+- IR-level design recorded in `book/src/ir.md` "Future extensions /
+  Parameters and generics".
+
+## Phase 5b — Synthesizable aggregates (scheduled alongside Phase 5,
+## order not fixed)
+
+Three sub-paths, each with its own cost and payoff (full analysis in
+`book/src/ir.md` "Future extensions / Synthesizable aggregates"):
+
+- **Packed struct / union / array** — emitter-layer change only; IR
+  stays flat. Low cost. Primary value: parser / elaboration coverage
+  in downstream tools. Can land independently of Phase 4.
+- **Unpacked arrays** — the memory-inference pattern. Covered by
+  Phase 6 below.
+- **Unpacked struct / union for datapath, enums** — deprioritised
+  (unpacked datapath is mostly non-synthesizable; enums add no
+  distinct stress value beyond typed constants).
 
 ## Phase 6 — Advanced motifs
 
