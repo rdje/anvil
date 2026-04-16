@@ -36,7 +36,11 @@ for w in operand_widths:
 ```
 
 `try_share` returns a random matching-width pool entry with non-empty
-deps, honoring the Q-exclusion contract used for flop D-cones.
+deps, honoring the optional `exclude` filter used by rare sites that
+need to forbid a specific `NodeId` from being picked. Flop D-cones
+do **not** exclude the flop's own Q — Rule 2 (Q-feedback freedom)
+allows Q as a free leaf in any sub-cone of its own D, because the
+clock edge breaks the Q→D loop temporally.
 
 This is the *non-leaf* sharing path. It complements the *leaf* sharing
 that has been present since Phase 1 (when recursion hits `max_depth`
@@ -71,23 +75,59 @@ Lower sharing means:
 
 ## Forbidden sharing patterns
 
-The non-triviality structural rules still apply post-sharing:
+The non-triviality structural rules still apply post-sharing, now
+covering a richer set than when Phase 2 first landed — see
+[Rule 8 extended](structural-rules.md) for the authoritative catalog.
+Summary:
 
-- A gate cannot have the same node as both inputs of `xor`, `sub`,
-  `==`, `!=` — even if that node is shared from the pool. The check
-  is on `NodeId` equality, which catches sharing-induced collapses at
-  gate-assembly time.
-- Mux arms cannot be the same node.
+- **`And` / `Or` / `Xor` at any arity:** no `NodeId` may appear
+  more than once in the operand list. Operand-multiset
+  distinctness — catches N-way collisions (`x ^ x ^ x ^ x = 0`
+  just as reliably as 2-arity `x ^ x`).
+- **`Sub`, `Eq`, `Neq` (2-arity):** operands must differ.
+- **`Add` / `Mul`:** operand duplicates forbidden by default, gated
+  on `operand_duplication_rate`. Set the knob > 0.0 to allow
+  `x + x = 2x` and `x * x = x²` shapes.
+- **`Mux`:** `mux(s, a, a) = a` forbidden by default, gated on
+  `mux_arm_duplication_rate`. Same applies to the N-to-1 extension
+  (no single data signal repeats across arms under the knob).
 
-Without these, sharing would *increase* the rate of trivial collapse
-because reusing the same wire on both sides of an XOR is now likely.
+Without these, sharing would *increase* the rate of trivial
+collapse because reusing the same wire in multiple operand slots is
+now likely.
 
-## What sharing does *not* do
+On anti-collapse rejection, `build_cone` restores its pre-operand
+snapshot and falls back to `pick_terminal` — the operand sub-trees
+built for the rejected gate vanish from the IR (Rule 18 α), so
+speculatively-shared signals don't orphan.
 
-It does not deduplicate equivalent sub-expressions that happen to be
-generated independently. If two cones both build `(i_0 + i_1)` from
-scratch, they remain two separate gates. Common-subexpression
-elimination is the synthesizer's job, not the generator's.
+## Construction-time CSE (Rule 21)
+
+Beyond the per-operand share/recurse fork, `anvil` performs
+**syntactic CSE at intern time**: every `Node::Gate` and
+`Node::Constant` creation goes through `Module::intern_gate` /
+`intern_constant`, which dedupes by `(op, operands, width)` /
+`(width, value)`. Two cones that independently build
+`Add([i_0, i_1], 8)` get the *same* `NodeId` — one node, two
+consumers.
+
+The `max_ast_instances` knob caps how many distinct `NodeId`s may
+represent the same AST. Default `1` = strict CSE. At
+`factorization_level ≥ Commutative` (the default), operands of
+`And / Or / Xor / Add / Mul` are sorted before interning, so
+`a + b` and `b + a` also share identity.
+
+This makes sharing "deeper" than the per-operand coin: even when
+neither cone picked the share-path, two independently-constructed
+identical expressions collapse to one node automatically. The coin
+controls whether the recursion *terminates* at an existing pool
+entry (early cut-off, smaller sub-cone); CSE controls whether
+logically-identical sub-cones share identity (same-op same-operand
+dedup, no cut-off). They compose.
+
+See [Rule 21 (AST-instance cap)](structural-rules.md) and
+[Rule 21b (commutative normalization)](structural-rules.md) for the
+full factorization-ladder framing.
 
 ## Cross-output and cross-cone sharing
 
@@ -97,24 +137,36 @@ while constructing output 0's cone is immediately eligible as a leaf
 or a DAG-sharing candidate inside output 1's cone, output 2's cone,
 and any flop D-cone drained later. There is no per-cone isolation.
 
-The current `sequential` construction strategy builds outputs in
+The `sequential` construction strategy builds outputs in
 declaration order, so later-declared outputs see more sharing
 candidates than earlier ones. That asymmetry is a construction
-artifact, not a design choice. Three alternative strategies —
-`shuffled`, `interleaved`, `graph-first` — are planned for
-future releases; the default will flip to `graph-first` which
-eliminates the asymmetry entirely. See
-[Construction Strategies](construction-strategies.md) for the full
-comparison.
+artifact.
+
+`interleaved` (the default) eliminates the asymmetry by driving all
+output cones in lockstep via a single global frame queue; each
+cone's leaf-level picks see the full module-wide pool. `shuffled`
+randomises output build order per seed, amortising the asymmetry
+across a seed sweep rather than eliminating it. The fourth
+historical strategy, `graph-first`, is retired and now routes to
+`interleaved` — see the
+[Construction Strategies](construction-strategies.md) chapter's
+"Retired" section.
 
 See Rule 16 in the [Structural Rules catalog](structural-rules.md)
 for the authoritative statement on cross-cone sharing.
 
-## No cycles possible
+## No combinational cycles possible
 
 The pool only contains signals that *already exist* when an operand
 decision is made. The gate currently being assembled is added to the
 pool *after* its operands are resolved. Therefore no gate can
-transitively reference itself through sharing. Flop-Q-to-D feedback
-is the only legal cycle, and it is gated by the existing Q-exclusion
-contract (see `book/src/sequential.md`).
+transitively reference itself through pure combinational logic.
+This is arena-index monotonicity — [Rule 1](structural-rules.md) in
+the catalog.
+
+Flop Q→D feedback through combinational logic *is* a legal pattern
+(counters, accumulators, state machines all work this way). The
+clock edge breaks the loop temporally: `Q[n+1]` is computed from
+`Q[n]` plus possibly other signals. See
+[Rule 2 (Q-feedback freedom)](structural-rules.md) for the
+authoritative statement.

@@ -3,6 +3,65 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0061 — Sharing chapter refresh: Rule 2 + Rule 18 + Rule 21 CSE (docs only)
+
+**What changed**
+- `book/src/sharing.md`:
+  - `try_share` description: removed the stale "Q-exclusion
+    contract" reference; replaced with a pointer to Rule 2
+    (Q-feedback freedom — Q is a free leaf inside its own
+    D-cone; the clock edge breaks the Q→D loop temporally).
+  - "Forbidden sharing patterns" section rewritten to match the
+    current Rule 8 extended rule set: N-arity And/Or/Xor
+    operand-multiset distinctness, 2-arity Sub/Eq/Neq
+    degeneracy, Add/Mul gated on `operand_duplication_rate`,
+    Mux gated on `mux_arm_duplication_rate`. Added a paragraph
+    on the Rule 18 α snapshot-restore on rejection — rejected
+    sub-trees don't orphan.
+  - **New "Construction-time CSE (Rule 21)" section** replaces
+    the old "What sharing does not do" paragraph. The old text
+    said "does not deduplicate equivalent sub-expressions… CSE
+    is the synthesizer's job" — this was reversed by slice
+    `f425657`. New section explains that `intern_gate` dedupes
+    by `(op, operands, width)`, with `max_ast_instances` cap
+    knob, commutative sort at level ≥ `Commutative`, and
+    articulates how per-operand `share_prob` and CSE compose
+    (share_prob = early cut-off; CSE = identity of identical
+    expressions).
+  - Cross-output sharing section: "current sequential" +
+    "graph-first will be the default" corrected. `interleaved`
+    is default; `graph-first` retired as silent alias.
+  - "No cycles possible" section retitled "No combinational
+    cycles possible"; removed the stale Q-exclusion reference;
+    added Rule 1 + Rule 2 cross-links and the explicit
+    clock-edge-breaks-the-loop-temporally story.
+
+**Why**
+Per book doctrine. `sharing.md` predated four big changes:
+- Rule 2 Q-feedback freedom (slice `6cbcbff`).
+- Rule 8 extension (`3544a0c`).
+- Rule 18 α enforcement (`b78550d`).
+- Rule 21 CSE via intern_gate (`f425657`) + Rule 21b commutative
+  normalization (`c9c2f98`).
+
+The chapter's previous "sharing does not CSE" paragraph actively
+contradicted the shipping code — the most misleading kind of
+drift.
+
+**Tests**
+- No code changed.
+- 54 tests pass.
+- `mdbook build book` succeeds.
+
+**Impact**
+- Readers learning DAG sharing now see the full story:
+  per-operand share/recurse coin **plus** construction-time CSE
+  **plus** commutative normalization, and how the three compose.
+- No more stale "Q-exclusion" references in the book (verified;
+  this chapter was the last holdout).
+
+---
+
 ## 2026-04-17-0060 — Non-triviality chapter: anti-collapse rule table + factorization-ladder framing (docs only)
 
 **What changed**
