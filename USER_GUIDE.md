@@ -64,9 +64,12 @@ JSON metrics block covering size (nodes, gates, flops, constants),
 per-kind gate distribution, constant width/value distribution,
 mux shape (2-to-1 count, degenerate count), concat shape
 (replication vs heterogeneous), sharing (num shared nodes, max
-and average fanout), flop kind and mux-shape distribution, and
-AST-instance saturation (how close we came to the
-`max_ast_instances` cap).
+and average fanout), flop kind and mux-shape distribution,
+AST-instance saturation (`max_gate_ast_multiplicity`,
+`max_constant_ast_multiplicity` — relative to the
+`max_ast_instances` cap), and operand-arity distribution
+(`gate_operand_count_histogram`, `max_gate_operand_count`,
+`max_operand_count_by_kind`).
 
 ```bash
 # Dump metrics to stderr alongside the SV to stdout.
@@ -82,8 +85,12 @@ block, verify the knob is producing the intended distribution
 shift. Examples:
 
 - `mux_arm_duplication_rate=0.0` → `num_muxes_degenerate` should be 0.
+- `operand_duplication_rate=0.0` → gate operand lists have no internal duplicates.
 - Raising `max_ast_instances` should raise `max_gate_ast_multiplicity`.
+- Raising `max_gate_arity` should raise `max_operand_count_by_kind["add"]` exactly.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
+- `factorization_level=none` → gate count grows (no CSE); `=cse` and above
+  shrinks it.
 
 Live counters (probability rolls fired vs missed, anti-collapse
 retries, terminal-tier picks) are not yet collected — the

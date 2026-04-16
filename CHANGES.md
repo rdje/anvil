@@ -3,6 +3,86 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0050 — Live-doc catch-up: CODEBASE_ANALYSIS, USER_GUIDE, DEVELOPMENT_NOTES, ROADMAP (docs only)
+
+**What changed**
+- `CODEBASE_ANALYSIS.md`:
+  - Module map refreshed: `lib.rs` trace infrastructure
+    (TRACE_DEBUG, set_trace_debug, trace_verbose! macro);
+    `metrics.rs` new operand-arity fields; `config.rs`
+    FactorizationLevel + the three duplication-rate knobs;
+    `ir/types.rs` intern_gate / intern_constant API + dedup
+    tables + per-module knob mirrors; `gen/module.rs` orphan
+    audit; `gen/cone.rs` GraphFirst retirement + build_cone
+    snapshot/rollback + process_signal_frame existing-operand
+    fallback + pick_terminal_dep_bearing +
+    pick_datas_with_dup_cap + pick_signals_with_dup_rate.
+  - Phase coverage map: Phase 1 promoted in-progress → mostly
+    done (22 structural rules enforced, 0 orphans, 0 default
+    duplicate operands; blocked only on external Verilator/Yosys
+    smoke). Phase 2 entry notes CSE + operand-uniqueness +
+    commutative. Phase 3 entry notes priority-encoder landed.
+  - Invariants list: intern_gate CSE + commutative contract;
+    build_cone snapshot/rollback; process_signal_frame
+    anti-collapse fallback; generate_leaf_module orphan audit.
+  - Test count: 35 + 15 → 39 + 15 = **54**.
+- `USER_GUIDE.md`:
+  - Metrics section lists the operand-arity fields explicitly.
+  - Knob-effects bullet list extended with
+    `operand_duplication_rate`, `max_gate_arity`, and
+    `factorization_level` entries.
+- `DEVELOPMENT_NOTES.md` (first update since `e6850fc` —
+  15 src-touching commits of drift):
+  - "Construction-time CSE via Module::intern_gate" — method
+    contract, dedup-table rationale, snapshot contract with
+    build_cone_with_retry.
+  - "Rule 18 α construction-time" — α vs β decision record +
+    GraphFirst retirement rationale.
+  - "Full factorization doctrine" — NodeId = expression identity,
+    the 7-layer implementation ladder, FactorizationLevel::
+    effective() clamping.
+  - "Emitter is a dumb serialiser" — doctrinal anchor.
+  - "Rejected: without-replacement operand picking as default"
+    — why the anti-collapse + rollback path was chosen.
+- `ROADMAP.md`:
+  - Phase 1 label: in progress → mostly done; exit-criteria note
+    that external smoke tests are blocked locally; internal
+    validation (54 tests, 0 orphans, 0 default duplicates) is
+    complete.
+  - Phase 3: in progress; per-item status (priority encoder
+    landed, constant-shift landed, linear-combination landed;
+    case/casez / reductions / variable-shift / for-loop not
+    started).
+
+**Why**
+Per user directive: *"Please strictly follow the commit workflow
+w.r.t. which live docs shall be updated. It is not cosmetic, it
+is of utmost importance to ensure the continuity of the project
+following session loss or crash."*
+
+Audit showed DEVELOPMENT_NOTES.md had not been touched in 15
+src-changing commits (`92d43f8` through `64850da`). Several of
+those slices embedded design decisions (Rule 18 α, intern_gate
+contract, FactorizationLevel) that deserved permanence beyond
+commit messages. CODEBASE_ANALYSIS.md was stale on module
+ownership. USER_GUIDE.md missed the new knob surface. ROADMAP.md
+had Phase 1 still at "in progress" despite Rule-18 enforcement
+and the full factorization work.
+
+**Tests**
+- No code changed.
+- All four cargo gates green.
+- 54 tests unchanged.
+- `mdbook build book` succeeds.
+
+**Impact**
+- A session that recovers cold from `git clone` → `SESSION_BOOTSTRAP.md`
+  now sees the actual workspace reality in `CODEBASE_ANALYSIS.md`
+  and the design rationale in `DEVELOPMENT_NOTES.md`.
+- No behavioural change.
+
+---
+
 ## 2026-04-16-0049 — Operand-arity metrics (closes a pending effectiveness-map entry)
 
 **What changed**

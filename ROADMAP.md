@@ -16,7 +16,7 @@ synthesizability smoke check.
 `cargo clippy -D warnings`, `cargo fmt --check` all clean. Reproducibility
 test passes byte-identical output for the same seed.
 
-## Phase 1 — Single-module MVP (in progress)
+## Phase 1 — Single-module MVP (mostly done)
 
 One module, no hierarchy, no inter-module sharing. Combinational *and*
 sequential logic from the start — flops are part of the same fanin-cone
@@ -37,7 +37,11 @@ recursion (Q is a leaf, D opens a new sub-cone, worklist drains).
 
 **Exit criteria:** 1000 modules generated from random seeds, all parse
 and elaborate in Verilator without error, all Yosys-synthesize to
-non-empty netlists, both with and without flops.
+non-empty netlists, both with and without flops. **Blocked:**
+Verilator and Yosys not available locally; internal validation
+(54 tests, 0 orphans across 4 strategies × 6 seeds, 0 duplicate
+operands at default knobs across 4633 gates × 5 seeds) is
+complete.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 
@@ -54,13 +58,17 @@ non-empty netlists, both with and without flops.
 factor; synthesis still succeeds; no multi-driver violations; Verilator
 lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}.
 
-## Phase 3 — Structured combinational ops
+## Phase 3 — Structured combinational ops (in progress)
 
-- `case`/`casez` expressions.
-- Priority encoders, one-hot decoders.
-- Reduction operators (`&`, `|`, `^` unary).
-- Shift by variable amount.
-- `for`-loop unrolled logic (statically bounded).
+- `case`/`casez` expressions. **Not started.**
+- Priority encoders, one-hot decoders. **Priority encoder landed
+  (Rule 17).**
+- Reduction operators (`&`, `|`, `^` unary). **Not started.**
+- Shift by variable amount. **Constant-amount shifts landed
+  (Rule 19 knob + const_shift_amount_prob); variable amount not
+  started.**
+- `for`-loop unrolled logic (statically bounded). **Not started.**
+- Linear-combination compound motif (`Σ sᵢ·cᵢ`, etc.) **landed.**
 
 **Exit criteria:** motif library covers common synthesizable idioms.
 

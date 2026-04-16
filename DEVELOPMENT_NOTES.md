@@ -192,3 +192,72 @@ constant generation. Rule 18 addresses the orthogonal
 - Public types in `ir/types.rs` and `config.rs` get full doc comments. Internal helpers do not need them.
 - No multi-paragraph docstrings. One short line; if more is needed, link to `book/`.
 - No comments explaining *what* the code does; only *why* when non-obvious.
+
+---
+
+## Construction-time CSE via `Module::intern_gate` (2026-04-15 → 2026-04-16)
+
+Design decision: *all* `Node::Gate` and `Node::Constant` creation is routed through two inherent methods on `Module`:
+
+```rust
+pub fn intern_gate(&mut self, op, operands, width, deps) -> (NodeId, bool);
+pub fn intern_constant(&mut self, width, value) -> (NodeId, bool);
+```
+
+The boolean return is `is_new`: callers that also maintain a `SignalPool` must call `pool.add` only when `is_new` is true, otherwise the pool accumulates duplicate entries for deduped nodes.
+
+Rationale: we need CSE at *construction* time, not as a post-pass. Rule 21 ("AST-instance cap") uses the dedup tables on `Module` as the single source of truth for "which NodeIds represent which expressions."
+
+Rejected alternative: decouple the dedup table from `Module`, keep it in the generator. Rejected because the dedup is an IR-level invariant — the emitter and validator may also want to reason about it, and the tables must survive a `Module::clone()`.
+
+### Snapshot contract with `build_cone_with_retry`
+
+`build_cone_with_retry` rewinds state on empty-dep retries. Before the snapshot fix, it rolled back `m.nodes.truncate(snap_len)` but *not* `gate_instances` / `const_instances`. Stale entries then pointed at truncated `NodeId`s; subsequent intern calls would return a different node than the key promised (witnessed by `const_comparand_across_all_strategies_is_valid` failing at seed 2 Interleaved during the migration).
+
+Fix: snapshot and restore `gate_instances` and `const_instances` alongside `m.nodes`, `m.flops`, pool, and worklist. The `HashMap::clone` cost is bounded by module size — measured negligible on the default knob range.
+
+## Rule 18 "No orphan gates": α construction-time (2026-04-16)
+
+Two enforcement paths were considered:
+
+- **(α) Construction-time:** only create a gate when a specific consumer is already waiting for it. `build_cone` snapshots state before operand construction; on anti-collapse rejection, the snapshot is restored — operand sub-trees vanish from the IR. `process_signal_frame` (interleaved) can't snapshot per-gate because sibling frames have committed, so it delivers one of the existing operand NodeIds as the fallback instead of calling `pick_terminal` (which would create a fresh orphan-prone node).
+- **(β) Emission-time tree-shake:** post-generation, compute the live set from drive-roots + flop D/Q transitive fanin, emit only that set.
+
+Rejected β: it's a generate-then-filter step, violating the "by construction" doctrine. User-memory feedback: *"Rule-based generation, not post-hoc filtering."* α is adopted.
+
+Corollary: GraphFirst retired. Its phase-1 speculative pool growth produced 13–27 % orphan gates per module. The variant is kept as a silent CLI alias for Interleaved for backward compat; the dedicated code path (`build_graph_first`, `grow_pool_one_unit`, `*_pool_only` helpers) is unreachable at runtime and may be removed in a future cleanup slice.
+
+## Full factorization doctrine (2026-04-16)
+
+User framing: **`NodeId` is the identity of an expression**; two expressions that are the same mathematically must share one NodeId, different expressions must have different NodeIds.
+
+Implementation ladder (see `book/src/structural-rules.md` Rule 21c):
+
+1. Syntactic CSE (Rule 21) — `(op, operands, width)` key. **Implemented.**
+2. Operand-uniqueness (Rule 8 extended) — no NodeId twice in one operand list. **Implemented.**
+3. Commutative normalization (Rule 21b) — sort commutative operands before interning. **Implemented.**
+4. Associative flattening — flatten `(a+b)+c` to `Add(a,b,c)`. **Not implemented**; aspirational level.
+5. Constant folding — `x+0 → x` etc. **Not implemented.**
+6. Peephole — algebraic rewrites. **Not implemented.**
+7. E-graph — full semantic equivalence. **Not implemented.** Default user-requested level.
+
+`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Future slices add layers; users at higher levels automatically benefit.
+
+## Emitter is a dumb serialiser (2026-04-16)
+
+User-memory feedback: *"All thinking, checks, rules' enforcement ought to be done solely at the IR level. By the time you reach emission it is too late to roll back."*
+
+Consequence: `emit::to_sv` iterates `m.nodes` in order and writes. No filtering, no reachability check, no live-set computation. Any invariant worth enforcing must be enforced at IR construction or at a `generate_leaf_module` finalization step — never at the emitter.
+
+The safety-net audit in `generate_leaf_module` (`count_orphan_gates`) is *at the IR level* and warns on Rule 18 violations; it does not modify the IR. The emitter trusts what it is given.
+
+## Rejected: without-replacement operand picking as the default
+
+For And/Or/Xor/Add/Mul operand lists, operand duplicates are caught by `violates_anti_collapse` after operands are picked. A natural alternative is to pick operands *without replacement* at the source — maintain a `HashSet<NodeId>` during the per-operand loop and exclude already-picked NodeIds.
+
+Considered and not adopted as the default because:
+1. Pool sizes at default knobs are often ≤ N (the requested arity). Without-replacement falls back to "partial arity" + distribution shift.
+2. Anti-collapse + rollback already gives 0 duplicates at default. The without-replacement change would save RNG cycles at the cost of a distribution shift that has no empirically measured benefit.
+3. `operand_duplication_rate` is the documented knob for users who want the alternative behaviour.
+
+Retained for reference in case a future motif benefits from it.

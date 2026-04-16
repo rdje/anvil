@@ -27,28 +27,63 @@ src/
 │                     stderr or file; stdout stays byte-clean.
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
-│                     Also exposes the `metrics` module.
+│                     Also exposes the `metrics` module. Trace
+│                     infrastructure: static TRACE_DEBUG: AtomicBool,
+│                     set_trace_debug(bool), trace_debug_enabled(),
+│                     and the `trace_verbose!` macro (exported) which
+│                     gates tracing::trace! calls behind the debug
+│                     flag so --trace debug is strictly more verbose
+│                     than --trace high.
 │
 ├── metrics.rs        Post-hoc structural metrics. compute(&Module) →
 │                     Metrics { size, gates_by_kind, constants_by_width,
 │                     mux/concat shape counts, fanout stats, flop
-│                     distribution, AST-instance saturation }. Serde-
-│                     serializable; embedded in manifest.json and
-│                     printed with --metrics flag.
+│                     distribution, AST-instance saturation,
+│                     gate_operand_count_histogram +
+│                     max_gate_operand_count +
+│                     max_operand_count_by_kind }. Serde-serializable;
+│                     embedded in manifest.json and printed with
+│                     --metrics flag.
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
-│                     CLI Overrides struct, ConfigError taxonomy,
+│                     CLI Overrides struct, ConfigError taxonomy.
 │                     ConstructionStrategy enum (clap::ValueEnum +
-│                     serde): Sequential, Shuffled, Interleaved,
-│                     GraphFirst (default). graph_first_pool_size
-│                     knob controls GraphFirst pool growth size.
+│                     serde): Sequential, Shuffled, Interleaved
+│                     (default). GraphFirst variant retained as a
+│                     silent alias for Interleaved — the original
+│                     speculative pool-growth strategy was retired
+│                     for producing Rule 18 violations.
+│                     FactorizationLevel enum (derives
+│                     PartialOrd/Ord): None, Cse, OperandUnique,
+│                     Commutative, Associative, ConstantFold,
+│                     Peephole, EGraph (default). effective()
+│                     clamps to the highest implemented layer
+│                     (currently Commutative). Fine-grained knobs:
+│                     max_ast_instances, mux_arm_duplication_rate,
+│                     operand_duplication_rate, factorization_level.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports types::* and the validate module.
 │   ├── types.rs      Core types: Module, Port, Direction, Node, GateOp,
-│   │                 Flop, ResetKind, DepSet, Design.
-│   │                 Phase 1: PrimaryInput/Constant/FlopQ/Gate node kinds.
-│   │                 Flop/FlopQ exist but are unused until Phase 2.
+│   │                 Flop, ResetKind, DepSet, Design. GateOp derives
+│   │                 Hash (needed as dedup-table key).
+│   │                 Node kinds: PrimaryInput/Constant/FlopQ/Gate.
+│   │                 Module gains construction-time dedup tables:
+│   │                 gate_instances: HashMap<(GateOp, Vec<NodeId>,
+│   │                 u32), Vec<NodeId>>, const_instances:
+│   │                 HashMap<(u32, u128), Vec<NodeId>>, plus per-
+│   │                 module knob mirrors: max_ast_instances,
+│   │                 mux_arm_duplication_rate,
+│   │                 operand_duplication_rate, factorization_level.
+│   │                 API: intern_gate(op, operands, width, deps) →
+│   │                 (NodeId, is_new) and intern_constant(width,
+│   │                 value) → (NodeId, is_new). intern_gate performs
+│   │                 commutative sort on And/Or/Xor/Add/Mul when
+│   │                 factorization_level ≥ Commutative; bypasses the
+│   │                 dedup path entirely at level None; otherwise
+│   │                 caps instances per AST key at max_ast_instances
+│   │                 (default 1 = strict CSE). Both methods emit
+│   │                 `trace_verbose!` 🔗 new / ♻️ reuse events.
 │   └── validate.rs   Module invariant checker: operand defined,
 │                     drive count == 1, flop D filled, dep-set non-empty,
 │                     per-gate arity + operand-width + output-width rules
@@ -63,11 +98,14 @@ src/
 │   │                 build a cone per primary output. Dispatches on
 │   │                 cfg.construction_strategy: Sequential/Shuffled
 │   │                 use the recursive build_cone_with_retry path;
-│   │                 Interleaved delegates to
-│   │                 cone::build_outputs_interleaved (frame machine);
-│   │                 GraphFirst (default) delegates to
-│   │                 cone::build_graph_first. Drives recorded in
-│   │                 declaration order regardless.
+│   │                 Interleaved (default) + the deprecated
+│   │                 GraphFirst alias both delegate to
+│   │                 cone::build_outputs_interleaved (frame machine).
+│   │                 Drives recorded in declaration order regardless.
+│   │                 After flop drain runs count_orphan_gates(m) as
+│   │                 a Rule 18 safety-net audit — a non-zero count
+│   │                 emits tracing::warn! (expected to be 0; current
+│   │                 measurements confirm it).
 │   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 drain_flop_worklist, build_cone.
@@ -102,11 +140,40 @@ src/
 │   │                 table. Gates finalize when their last operand
 │   │                 resolves. Blocks (flop, comb-mux) still build
 │   │                 synchronously within one frame step.
-│   │                 GraphFirst strategy (default):
-│   │                 build_graph_first + grow_pool_one_unit +
-│   │                 build_comb_mux_pool_only +
-│   │                 drain_flop_worklist_pool_only. No recursion
-│   │                 anywhere — every sub-cone is a pool pick.
+│   │                 GraphFirst strategy: retired. The CLI variant
+│   │                 is routed to Interleaved. Original phase-1
+│   │                 speculative pool growth produced 13–27 %
+│   │                 orphan gates per module (Rule 18 violation);
+│   │                 the dedicated code path (build_graph_first,
+│   │                 grow_pool_one_unit, *_pool_only helpers) is
+│   │                 currently dead and may be removed in a future
+│   │                 cleanup slice.
+│   │                 build_cone snapshot/rollback: before operand
+│   │                 construction, build_cone snapshots m.nodes,
+│   │                 m.flops, pool, worklist, gate_instances, and
+│   │                 const_instances. On anti-collapse rejection the
+│   │                 snapshot is fully restored — operand sub-trees
+│   │                 built speculatively never become orphans.
+│   │                 process_signal_frame anti-collapse fallback:
+│   │                 the interleaved frame machine can't snapshot
+│   │                 per-gate (siblings committed already) so it
+│   │                 reuses one of the existing operands as the
+│   │                 result NodeId instead of calling pick_terminal
+│   │                 (which would create a fresh orphan-prone node).
+│   │                 Dep-bearing terminal picker:
+│   │                 pick_terminal_dep_bearing(g, m, pool, width,
+│   │                 exclude) — returns only a dep-bearing matching-
+│   │                 width pool entry or a dep-bearing width-adapter.
+│   │                 Panics if the pool has no dep-bearing entry
+│   │                 (invariant violation). Used at mux selects,
+│   │                 priority-encoder request bits, const-comparand
+│   │                 LHS, const-shift value operand.
+│   │                 Signal-duplication helpers for N-to-1 mux arms
+│   │                 (pick_datas_with_dup_cap, honours
+│   │                 mux_arm_duplication_rate) and for linear-
+│   │                 combination operand lists
+│   │                 (pick_signals_with_dup_rate, honours
+│   │                 operand_duplication_rate).
 │   │                 Coefficient motif: when pick_gate returns
 │   │                 Add/Sub/Mul and coefficient_prob fires,
 │   │                 build_linear_combination_{recursive,pool}
@@ -168,9 +235,9 @@ main  →  lib  →  gen  →  ir
 | Phase | Status        | Code touched | Notes |
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | `cargo check`, `cargo test`, `cargo clippy -D warnings`, `cargo fmt --check` all clean locally. |
-| 1 — Single-module MVP        | in progress  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). Remaining: per-gate width validator, unit tests, Verilator/Yosys smoke. |
-| 2 — Sharing                  | in progress  | `gen/cone.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built; DAG-cone mechanism verified by `share_prob_high_shares_internal_gates` unit test. |
-| 3 — Structured combinational | not started  | `gen/cone.rs`, `emit/sv.rs` | New GateOp variants + emitter arms. |
+| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans (Rule 18 α). Zero duplicate operands at default knobs. Full factorization through Commutative layer. Remaining: Verilator/Yosys smoke (blocked — tools missing locally). |
+| 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) all enforced via intern_gate. factorization_level dial (default EGraph, clamps to Commutative today). |
+| 3 — Structured combinational | in progress  | `gen/cone.rs` | Priority-encoder block (Rule 17) landed. case/casez, reductions, variable-shifts still not started. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
 | 6 — Advanced motifs          | not started  | various | Memories, FSMs, optional multi-clock. |
@@ -178,10 +245,14 @@ main  →  lib  →  gen  →  ir
 ## Invariants currently enforced
 
 In code (constructors / generator):
+- `Module::intern_gate` / `intern_constant` enforce construction-time CSE (Rule 21): `(op, operands, width)` / `(width, value)` is the AST key; each key maps to a `Vec<NodeId>` capped at `max_ast_instances`. Commutative ops (`And`/`Or`/`Xor`/`Add`/`Mul`) have their operands sorted before key construction at factorization_level ≥ Commutative (Rule 21b). `FactorizationLevel::None` bypasses dedup entirely; `effective()` clamps aspirational levels to the highest implemented.
 - `Config::validate()` rejects out-of-range knobs.
 - `Generator::new()` seeds RNG deterministically.
 - `gen::module::generate_leaf_module` produces port counts within knob ranges.
-- `gen::cone::build_cone_with_retry` retries up to 4× on empty-dep-set cone roots.
+- `gen::cone::build_cone_with_retry` retries up to 4× on empty-dep-set cone roots; snapshots `m.nodes`, `m.flops`, pool, worklist, `gate_instances`, `const_instances` before each attempt and restores on empty-dep retry.
+- `gen::cone::build_cone` snapshots the same state before operand construction. On anti-collapse rejection, restores the snapshot and returns `pick_terminal` as fallback. No orphan leaks from rejected recursive gates.
+- `gen::cone::process_signal_frame` (interleaved) uses an existing operand as anti-collapse fallback (not `pick_terminal`) because per-gate snapshot is infeasible once sibling frames have committed.
+- `gen::module::generate_leaf_module` runs `count_orphan_gates(m)` after flop drain as a Rule 18 safety-net audit; warns via `tracing::warn!` on non-zero orphan count.
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.
 - `gen::cone::build_cone` consults `cfg.share_prob` per operand: with that probability it calls `try_share` to return an existing matching-width pool entry (with deps, honoring `exclude`); otherwise it recurses. Fresh `Gate` nodes enter the pool on creation, so later operand decisions in the same call chain can share them.
 - `gen::cone::make_width_adapter` produces a Slice (when source > target), a single Concat (when source × N == target), or Concat-then-Slice (when source × N > target). Deps propagate from the source.
@@ -217,7 +288,7 @@ In `ir::validate::validate`:
 - `src/ir/validate.rs` — 8 inline unit tests covering valid modules and each class of rejection (operand width mismatch, mux selector width, Eq output width, Concat sum, Slice out-of-bounds, wrong arity, variadic replicate Concat).
 - `src/gen/cone.rs` — 11 inline unit tests. Prior 7 (`ceil_log2`, `pick_mux_arm_count`, 4 width-adapter cases, DAG-sharing sanity, comb-mux-block) plus 4 new flop-assembler tests covering OneHot/ZeroDefault, OneHot/QFeedback, Encoded/ZeroDefault, Encoded/QFeedback — with `fixture_with_inputs` / `alloc_flop` shared helpers.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice `[hi:lo]` and Concat `{a, b}` forms, Mux ternary form.
-- Total: 35 unit tests + 15 integration = **50 tests, all passing**.
+- Total: 39 unit tests + 15 integration = **54 tests, all passing**.
 - No external smoke tests wired up yet. Phase 1 exit gate requires Verilator-lint pass on a representative seed range.
 
 ## Known weaknesses (visible in code today)
