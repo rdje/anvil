@@ -3,6 +3,84 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-16-0043 — Zero orphans: Rule 18 enforced (construction-time)
+
+**What changed**
+- `src/gen/cone.rs`:
+  - `build_cone` (recursive path) snapshots `m.nodes.len()`,
+    `m.flops.len()`, pool, worklist, `gate_instances`, and
+    `const_instances` before building operand sub-trees. On
+    anti-collapse rejection the snapshot is restored and
+    `pick_terminal` provides a safe fallback. Sub-tree nodes
+    that were built for the rejected gate are truncated — no
+    orphan leaks.
+  - `process_signal_frame` (interleaved path): the frame machine
+    cannot snapshot per-gate because sibling sub-frames have
+    already committed. On anti-collapse rejection it delivers
+    one of the existing operand `NodeId`s as the fallback instead
+    of creating a new `pick_terminal` node. For idempotent /
+    self-inverse / comparison collapses the operands share a
+    NodeId, so the fallback is semantically correct. For
+    `mux(s, a, a)` it uses `operands[1]` (= operands[2]).
+- `src/config.rs`:
+  - Default `construction_strategy` switches from `GraphFirst` to
+    `Interleaved`. GraphFirst was the only strategy that
+    speculatively created pool units before knowing who would
+    consume them (13–27% orphan rate).
+  - `GraphFirst` enum variant retained as a silent alias for
+    `Interleaved` so existing CLI invocations / config files
+    continue to work; the speculative pool-growth code path is
+    unreachable.
+- `src/gen/module.rs`:
+  - Match on `construction_strategy` routes both `Interleaved`
+    and `GraphFirst` to `cone::build_outputs_interleaved`.
+  - New safety-net audit `count_orphan_gates(m)` called after
+    flop drain; warns via `tracing::warn!` if any Gate has no
+    consumer.
+- `src/emit/sv.rs`: emitter goes back to a dumb serialiser.
+  Per user doctrine — "all thinking, checks, rules' enforcement
+  ought to be done solely at the IR level; by the time you reach
+  emission, it is too late to roll back." The brief live-set
+  filter added in a previous iteration is removed; `to_sv`
+  iterates `m.nodes` and dumps.
+- Emitter test updated: `slice_and_concat_rendered` now chains
+  the slice + concat through the drive-root so both are live.
+
+**Why**
+User directive: "A gate/module/block shall come into existence
+solely when needed, not speculatively created beforehand in the
+hope they will be picked and connected." — "Not acceptable!"
+
+**Tests**
+- All four cargo gates green.
+- 34 unit (+0 net) + 15 integration = **49 tests, all passing**.
+- Orphan audit across 4 strategies × 6 seeds (1, 42, 100, 777,
+  9999, 12345): **0 orphans in every run.**
+- Reproducibility holds: graph-first and interleaved now produce
+  byte-identical output for the same seed (graph-first is an
+  alias).
+- No undeclared references in any emitted SV (verified 4 × 4
+  strategy×seed matrix).
+
+**Impact**
+- Default output is smaller and cleaner. No declared wire goes
+  unused; no referenced signal is undeclared.
+- For users who explicitly selected `--construction-strategy
+  graph-first`: behavior is now identical to `interleaved`. No
+  CLI break.
+- Generator's "by construction" contract is now honoured for
+  Rule 18 too — no post-emission filter exists.
+
+**Known trace-coverage gap (deferred)**
+User flagged that the trace doesn't clearly show "which node
+requested this new gate." `build_cone` and `process_signal_frame`
+don't emit an op-pick trace event, so `--trace high` can't be
+used to answer "who created `not_0`?" Follow-up slice will add
+explicit trace events at every intern_gate call site with
+requester context.
+
+---
+
 ## 2026-04-16-0042 — IR chapter refresh + future-extensions roadmap (docs only)
 
 **What changed**

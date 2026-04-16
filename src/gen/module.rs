@@ -135,11 +135,12 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
             }
             slots.into_iter().map(|s| s.expect("drive root")).collect()
         }
-        ConstructionStrategy::Interleaved => {
+        ConstructionStrategy::Interleaved | ConstructionStrategy::GraphFirst => {
+            // GraphFirst routes to Interleaved — the original speculative
+            // pool-growth implementation produced Rule-18-violating
+            // orphan gates and has been retired. The `GraphFirst` CLI /
+            // config value is kept as a silent alias for backward compat.
             cone::build_outputs_interleaved(g, &mut m, &mut pool, &mut worklist)
-        }
-        ConstructionStrategy::GraphFirst => {
-            cone::build_graph_first(g, &mut m, &mut pool, &mut worklist)
         }
     };
 
@@ -155,11 +156,76 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     );
     cone::drain_flop_worklist(g, &mut m, &mut pool, &mut worklist);
 
+    // Safety-net claimed-set audit (Rule 18): demand-driven
+    // construction should leave zero orphan gates, but if the snapshot/
+    // rollback in build_cone or the frame machine in build_outputs_
+    // interleaved misses a case, this check surfaces it instead of
+    // silently emitting the orphan. In release builds the audit is a
+    // cheap fanout walk; on violation it logs a warning with the
+    // orphan count, then leaves the IR untouched (the emitter would
+    // otherwise produce valid SV that validator accepts — the orphan
+    // just wastes a wire). Future work may promote this to a hard
+    // assertion once the anti-collapse rollback is provably complete
+    // for every strategy.
+    let orphans = count_orphan_gates(&m);
+    if orphans > 0 {
+        tracing::warn!(
+            orphans,
+            "⚠️ module has orphan gates — Rule 18 residual, please report"
+        );
+    }
+
     info!(
         nodes = m.nodes.len(),
         flops = m.flops.len(),
         drives = m.drives.len(),
+        orphans,
         "✅ module done"
     );
     m
+}
+
+/// Count gate nodes with no consumer. A consumer is: another gate's
+/// operand, a flop's D / sel / data / Q reference, or an output drive
+/// root. Primary inputs and constants are allowed to be unused (they
+/// don't count as orphans). Used as a Rule-18 safety-net audit at the
+/// end of `generate_leaf_module`.
+fn count_orphan_gates(m: &Module) -> usize {
+    use crate::ir::{FlopMux, Node};
+    let mut used = vec![false; m.nodes.len()];
+    for node in &m.nodes {
+        if let Node::Gate { operands, .. } = node {
+            for &op in operands {
+                used[op as usize] = true;
+            }
+        }
+    }
+    for f in &m.flops {
+        if let Some(d) = f.d {
+            used[d as usize] = true;
+        }
+        match &f.mux {
+            FlopMux::Encoded { sel, data } => {
+                used[*sel as usize] = true;
+                for d in data {
+                    used[*d as usize] = true;
+                }
+            }
+            FlopMux::OneHot(arms) => {
+                for arm in arms {
+                    used[arm.data as usize] = true;
+                    used[arm.sel as usize] = true;
+                }
+            }
+            FlopMux::None => {}
+        }
+    }
+    for (_, root) in &m.drives {
+        used[*root as usize] = true;
+    }
+    m.nodes
+        .iter()
+        .enumerate()
+        .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
+        .count()
 }

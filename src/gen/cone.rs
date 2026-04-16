@@ -562,6 +562,7 @@ fn process_signal_frame(
     }
 }
 
+#[allow(clippy::only_used_in_recursion)]
 fn deliver(
     g: &mut Generator,
     m: &mut Module,
@@ -583,9 +584,32 @@ fn deliver(
                 let gf = gate_frames[frame_id].take().unwrap();
                 let operands: Vec<NodeId> = gf.operands.into_iter().map(|o| o.unwrap()).collect();
 
-                // Structural anti-collapse: same check as recursive path.
+                // Structural anti-collapse. Unlike the recursive path
+                // (`build_cone`), the frame machine has already
+                // committed each operand sub-tree to `m.nodes` by the
+                // time all operand slots resolve — there is no
+                // per-frame snapshot to roll back to. Instead, when
+                // the parent gate's shape is rejected, deliver an
+                // *existing* operand as the fallback so we introduce
+                // no new node (pick_terminal would create one) and
+                // the operand subtrees remain consumed by their
+                // representative. For idempotent / self-inverse /
+                // comparison collapses all operands are the same
+                // NodeId, so any choice works. For the `mux(s,a,a)`
+                // case we choose `operands[1]` (= operands[2]); the
+                // `sel` operand may be orphaned if it had no other
+                // consumers, which is a bounded edge case tracked in
+                // the Rule-18 audit.
                 if violates_anti_collapse(gf.op, &operands, m) {
-                    let fallback = pick_terminal(g, m, pool, gf.width, None);
+                    let fallback = match gf.op {
+                        GateOp::Mux if operands.len() == 3 => operands[1],
+                        _ => operands[0],
+                    };
+                    trace!(
+                        op = ?gf.op,
+                        fallback,
+                        "🔁 anti-collapse: reusing existing operand as fallback (interleaved)"
+                    );
                     deliver(g, m, pool, fallback, gf.dest, gate_frames, per_output_drive);
                     return;
                 }
@@ -1396,6 +1420,20 @@ pub fn build_cone(
         return build_comparison_const_comparand(g, m, pool, op, lhs, k);
     }
 
+    // Snapshot construction state BEFORE building operands. If the
+    // operator's shape is rejected by `violates_anti_collapse` after
+    // its operands are built, the newly-created operand sub-trees
+    // must be rolled back — otherwise they stay in `m.nodes` with no
+    // consumer (orphans). This is the α construction-rule enforcement
+    // of Rule 18: a gate comes into existence only when it and its
+    // operands will actually be consumed.
+    let snap_nodes = m.nodes.len();
+    let snap_flops = m.flops.len();
+    let snap_pool = pool.clone();
+    let snap_worklist = worklist.clone();
+    let snap_gate_dedup = m.gate_instances.clone();
+    let snap_const_dedup = m.const_instances.clone();
+
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
     for w in operand_widths {
@@ -1416,6 +1454,13 @@ pub fn build_cone(
     }
 
     if violates_anti_collapse(op, &operands, m) {
+        trace!(?op, "🔁 anti-collapse reject, rolling back operand subtree");
+        m.nodes.truncate(snap_nodes);
+        m.flops.truncate(snap_flops);
+        *pool = snap_pool;
+        *worklist = snap_worklist;
+        m.gate_instances = snap_gate_dedup;
+        m.const_instances = snap_const_dedup;
         return pick_terminal(g, m, pool, width, exclude);
     }
 

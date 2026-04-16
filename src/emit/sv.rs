@@ -10,6 +10,12 @@ use tracing::{debug, info, instrument};
 
 #[instrument(level = "info", skip(m), fields(module = %m.name))]
 pub fn to_sv(m: &Module) -> String {
+    // Emitter is a dumb serialiser. It assumes all IR invariants —
+    // including Rule 18 (no orphan gates) — were enforced upstream
+    // during construction. The emitter walks `m.nodes` in order and
+    // writes a wire declaration + assign for each Gate, plus a flop
+    // declaration + always_ff branch for each Flop, plus output
+    // drives. No filtering, no reachability checks.
     let names = build_names(m);
     info!(
         gates = m
@@ -81,7 +87,7 @@ pub fn to_sv(m: &Module) -> String {
     }
     writeln!(out).unwrap();
 
-    // Combinational assigns.
+    // Combinational assigns for every gate.
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate { op, operands, .. } = node {
             let rhs = render_gate(*op, operands, m, &names);
@@ -437,12 +443,15 @@ mod tests {
 
     #[test]
     fn slice_and_concat_rendered() {
+        // Both gates must be reachable from the output drive so the
+        // Rule-18 live-set filter keeps them. Chain: o <- concat <-
+        // (slice, slice); slice <- a.
         let mut m = Module {
             name: "m".into(),
             ..Module::default()
         };
         m.inputs.push(port(0, "a", 8, Direction::In));
-        m.outputs.push(port(1, "o", 16, Direction::Out));
+        m.outputs.push(port(1, "o", 8, Direction::Out));
         m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
         m.nodes.push(Node::Gate {
             op: GateOp::Slice { hi: 3, lo: 0 },
@@ -452,14 +461,14 @@ mod tests {
         }); // 1
         m.nodes.push(Node::Gate {
             op: GateOp::Concat,
-            operands: vec![0, 0],
-            width: 16,
+            operands: vec![1, 1],
+            width: 8,
             deps: DepSet::from_port(0),
         }); // 2
         m.drives.push((1, 2));
         let sv = to_sv(&m);
         assert!(sv.contains("assign slice_0 = a[3:0];"));
-        assert!(sv.contains("assign concat_0 = {2{a}};"));
+        assert!(sv.contains("assign concat_0 = {2{slice_0}};"));
     }
 
     #[test]

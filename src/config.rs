@@ -24,13 +24,13 @@ pub enum ConstructionStrategy {
     /// comb-mux) still build synchronously within one frame step; flop
     /// D-cones are drained synchronously at the end (as today).
     Interleaved,
-    /// No per-output cone recursion. Grow a gate pool of top-level
-    /// units (operator gate / flop / comb-mux block), each with
-    /// operands picked from the current pool (no recursion). Flop
-    /// D-cones are resolved after pool growth using pool-only picks.
-    /// Output drive-roots picked from the pool at the end. True
-    /// module-wide symmetric sharing including through block
-    /// internals. This is the default.
+    /// Deprecated alias for `Interleaved`. The original `GraphFirst`
+    /// implementation grew a gate pool speculatively before any
+    /// drive-roots were picked, producing 10–30 % orphan gates per
+    /// module (Rule 18 violation). Retained for CLI / config-file
+    /// backward compatibility only; silently routes to `Interleaved`.
+    /// See `book/src/construction-strategies.md`.
+    #[serde(alias = "graph-first", alias = "graph_first")]
     GraphFirst,
 }
 
@@ -220,7 +220,7 @@ impl Default for Config {
             hierarchy_depth: 0,
             num_leaf_modules: 0,
             use_async_reset: true,
-            construction_strategy: ConstructionStrategy::GraphFirst,
+            construction_strategy: ConstructionStrategy::Interleaved,
             graph_first_pool_size: 32,
             mux_arm_duplication_rate: 0.0,
             max_ast_instances: 1,

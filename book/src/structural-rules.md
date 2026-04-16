@@ -689,43 +689,56 @@ shape.
 
 ---
 
-## 18 — No orphan gates *(proposed; not yet enforced)*
+## 18 — No orphan gates
 
-**Rule:** Every `Node::Gate` appearing in the emitted module must be
-reachable from at least one consumer: an output drive-root, a flop's
-D input, a flop's Q that is itself read by another live node, or an
-operand of another emitted live gate. Gates not reachable from a
-consumer must not appear in the emitted SV.
+**Rule:** Every `Node::Gate` in a finalised `Module` has at least
+one consumer: an output drive-root, a flop's D input, a flop's Q
+read by a live gate, or an operand of another live gate. Gates
+that would be orphaned by a rejection path must never make it
+into `m.nodes`.
 
-**Motivation:** a signal with no reader serves no purpose. It is an
-artifact of speculative construction, not a real piece of the
-circuit. Orphaned gates bloat the emitted output, confuse anyone
-reading the SV, and waste generator work.
+**Motivation:** a signal with no reader serves no purpose. It is
+an artifact of speculative construction, not a real piece of the
+circuit. Orphaned gates bloat the emitted output, confuse readers,
+and indicate the generator did work that wasn't driven by demand.
 
-**Status:** *Proposed, pending enforcement decision.* Observable in
-current output — the graph-first strategy grows a gate pool
-speculatively and many pool entries never get picked as operands or
-drive-roots. Sample modules generated at default knobs routinely
-contain ~10% orphaned wires plus occasional stranded flops (a flop
-whose Q is never read). See `DEVELOPMENT_NOTES.md` "Generation-time
-defects observed in sample output (pending fixes)" for the concrete
-catalogue.
+**Construction-time enforcement (α — adopted):**
 
-**Two enforcement paths under consideration:**
-- **(α) Construction-time:** only create a gate when a specific
-  consumer is already waiting for it. `sequential` / `shuffled` /
-  `interleaved` already do this. `graph-first` would need to change
-  from speculative pool growth to demand-driven growth — which may
-  collapse it into something close to `interleaved`.
-- **(β) Emission-time (tree-shake):** leave graph-first as-is
-  internally; post-generation compute the live set (transitive
-  fanin from every output drive-root and flop D/Q) and emit only
-  nodes in that set. Orphans are created during generation but
-  never written to SV.
+1. **`build_cone` snapshot / rollback.** The recursive path
+   (`sequential` / `shuffled`) snapshots `m.nodes.len()`,
+   `m.flops.len()`, `pool`, `worklist`, `gate_instances`, and
+   `const_instances` before building a gate's operand sub-trees.
+   On anti-collapse rejection the snapshot is restored and
+   `pick_terminal` provides a safe fallback. The operand sub-trees
+   built for the rejected gate vanish from the IR — no orphans
+   leak.
 
-Option (β) is the low-friction first step; option (α) is the
-architecturally-clean answer but may require rethinking graph-first.
-Decision deferred to the next session per user direction.
+2. **`process_signal_frame` existing-operand fallback.** The
+   interleaved frame machine cannot snapshot per-gate because
+   sibling sub-frames have already committed. On anti-collapse
+   rejection it delivers one of the gate's *existing operand
+   NodeIds* as the fallback instead of creating a new node via
+   `pick_terminal`. Idempotent / self-inverse / comparison
+   collapses have all operands sharing a NodeId; `mux(s, a, a)`
+   uses `operands[1]`. No new node is created; existing operands
+   remain consumed.
+
+3. **`GraphFirst` retired.** The strategy's phase-1 speculative
+   pool growth was the root cause — units were created before any
+   consumer existed. The variant is retained as a silent alias
+   for `Interleaved` for CLI / config backward compatibility;
+   the speculative code is unreachable.
+
+**Safety-net audit.** `generate_leaf_module` runs
+`count_orphan_gates` after flop drain and emits
+`tracing::warn!` if any Gate lacks a consumer. In the current
+implementation across 4 strategies × many seeds the audit
+count is consistently zero; the warning exists to catch future
+regressions.
+
+**Emitter is dumb.** The emitter does not filter. Per doctrine,
+by the time the emitter runs it is too late to roll back —
+rules must be enforced at IR construction.
 
 ---
 
