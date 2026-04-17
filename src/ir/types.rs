@@ -76,6 +76,15 @@ pub struct Module {
     /// Number of encoded-style combinational mux blocks built
     /// (chained-ternary form).
     pub comb_mux_encoded_built: u32,
+
+    /// Number of times the `ConstantFold` layer fired during
+    /// construction of this module. Each fire is one algebraic
+    /// identity applied in `intern_gate` — operands dropped, an
+    /// absorbing constant substituted, or a single surviving
+    /// operand short-circuited. Exposed via
+    /// `Metrics::fold_identities_applied` for empirical
+    /// measurement of the `ConstantFold` factorization layer.
+    pub fold_identities_applied: u64,
 }
 
 impl Module {
@@ -103,6 +112,20 @@ impl Module {
             )
         {
             operands.sort_unstable();
+        }
+
+        // Constant folding (layer ConstantFold and above): apply
+        // algebraic identities at intern time. `x + 0 → x`,
+        // `x * 1 → x`, `x & 0 → 0`, `x | all_ones → all_ones`,
+        // `x ^ 0 → x`, `x << 0 → x`, `x >> 0 → x`, and
+        // `x - 0 → x`. See `book/src/structural-rules.md` Rule 21c.
+        // The helper shrinks the operand list and may short-circuit
+        // to a surviving NodeId or a constant; on `Some` we return
+        // without consulting the dedup tables.
+        if self.factorization_level.effective() >= FactorizationLevel::ConstantFold {
+            if let Some((folded_id, is_new)) = self.fold_constants(op, &mut operands, width) {
+                return (folded_id, is_new);
+            }
         }
 
         // Level = None bypasses dedup entirely: every call creates
@@ -203,6 +226,167 @@ impl Module {
         self.const_instances.entry(key).or_default().push(node_id);
         crate::trace_verbose!(node = node_id, width, value, "🔗 intern_constant new");
         (node_id, true)
+    }
+
+    /// Apply constant-folding identities to `operands` in place.
+    ///
+    /// Returns `Some((id, is_new))` when a fold short-circuits the
+    /// caller — either because an absorbing element turned the gate
+    /// into a constant (e.g. `x & 0 → 0`), or because identity
+    /// elements drained the list down to a single surviving operand
+    /// or to nothing. Returns `None` when no fold applies or when
+    /// the list was shrunk but still has ≥ 2 operands — in that case
+    /// the caller proceeds with normal dedup on the shrunk list.
+    ///
+    /// The rules covered today:
+    /// - `Add`/`Sub`/`Xor`/`Shl`/`Shr`: drop `0` operands.
+    /// - `Mul`: drop `1` operands; any `0` returns zero constant.
+    /// - `And`: drop `all_ones` operands; any `0` returns zero.
+    /// - `Or`: drop `0` operands; any `all_ones` returns all-ones.
+    ///
+    /// Non-commutative ops (`Sub`, `Shl`, `Shr`) fold only the
+    /// rhs-constant case to avoid changing semantics (e.g.
+    /// `0 - a ≠ a`). That's implemented by position-aware checks:
+    /// we only drop an index-1 `0` for 2-operand Sub/Shl/Shr.
+    ///
+    /// Comparison ops, reductions, `Not`, `Slice`, `Concat`, `Mux`
+    /// are out of scope for this layer — they belong to `Peephole`.
+    pub(crate) fn fold_constants(
+        &mut self,
+        op: GateOp,
+        operands: &mut Vec<NodeId>,
+        width: u32,
+    ) -> Option<(NodeId, bool)> {
+        // Only associative ops (Add/Mul/And/Or/Xor), plus 2-arity
+        // Sub / Shl / Shr, participate in this layer.
+        let is_associative = matches!(
+            op,
+            GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+        );
+        let is_shift_or_sub = matches!(op, GateOp::Sub | GateOp::Shl | GateOp::Shr);
+        if !is_associative && !is_shift_or_sub {
+            return None;
+        }
+
+        let all_ones: u128 = if width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << width) - 1
+        };
+
+        // Read a node's constant value if it is one. We only fold
+        // against same-width constants — mixed-width is a bug upstream.
+        let const_of = |id: NodeId, nodes: &[Node]| -> Option<u128> {
+            match &nodes[id as usize] {
+                Node::Constant { width: w, value } if *w == width => Some(*value),
+                _ => None,
+            }
+        };
+
+        if is_shift_or_sub && operands.len() == 2 {
+            // `a - 0 → a`, `a << 0 → a`, `a >> 0 → a`.
+            if let Some(0) = const_of(operands[1], &self.nodes) {
+                let surviving = operands[0];
+                self.fold_identities_applied += 1;
+                crate::trace_verbose!(
+                    node = surviving,
+                    ?op,
+                    width,
+                    "✂️ fold_constants short-circuit (rhs zero)"
+                );
+                return Some((surviving, false));
+            }
+            return None;
+        }
+
+        if !is_associative {
+            return None;
+        }
+
+        // Associative path: scan for absorbing, then drop identity
+        // operands in place.
+        let before = operands.len();
+
+        // 1. Absorbing elements: `Mul`/`And` zero, `Or` all-ones.
+        for &id in operands.iter() {
+            if let Some(v) = const_of(id, &self.nodes) {
+                let absorbs = match op {
+                    GateOp::Mul | GateOp::And => v == 0,
+                    GateOp::Or => v == all_ones,
+                    _ => false,
+                };
+                if absorbs {
+                    let absorb_value = match op {
+                        GateOp::Mul | GateOp::And => 0u128,
+                        GateOp::Or => all_ones,
+                        _ => unreachable!(),
+                    };
+                    self.fold_identities_applied += 1;
+                    let (cid, is_new) = self.intern_constant(width, absorb_value);
+                    crate::trace_verbose!(
+                        node = cid,
+                        ?op,
+                        width,
+                        value = absorb_value,
+                        "✂️ fold_constants absorbing"
+                    );
+                    return Some((cid, is_new));
+                }
+            }
+        }
+
+        // 2. Identity elements: drop in place.
+        let identity: u128 = match op {
+            GateOp::Add | GateOp::Xor | GateOp::Or => 0,
+            GateOp::Mul => 1,
+            GateOp::And => all_ones,
+            _ => return None,
+        };
+        operands.retain(|id| match &self.nodes[*id as usize] {
+            Node::Constant { width: w, value } if *w == width && *value == identity => false,
+            _ => true,
+        });
+
+        if operands.len() == before {
+            // Nothing folded.
+            return None;
+        }
+
+        // Every drop is one identity application.
+        self.fold_identities_applied += (before - operands.len()) as u64;
+
+        match operands.len() {
+            0 => {
+                // All operands were the identity — result is that identity.
+                let (cid, is_new) = self.intern_constant(width, identity);
+                crate::trace_verbose!(
+                    node = cid,
+                    ?op,
+                    width,
+                    value = identity,
+                    "✂️ fold_constants collapsed to identity"
+                );
+                Some((cid, is_new))
+            }
+            1 => {
+                // Single surviving operand — return it directly,
+                // no new gate node. Its deps are already correct
+                // from its own construction.
+                let surviving = operands[0];
+                crate::trace_verbose!(
+                    node = surviving,
+                    ?op,
+                    width,
+                    "✂️ fold_constants single survivor"
+                );
+                Some((surviving, false))
+            }
+            _ => {
+                // ≥ 2 operands remain; let the caller proceed with
+                // normal intern on the shrunk list.
+                None
+            }
+        }
     }
 }
 
@@ -463,5 +647,136 @@ mod tests {
         let (id_sab, _) = m.intern_gate(GateOp::Mux, vec![s, a, b], 8, DepSet::from_port(0));
         let (id_sba, _) = m.intern_gate(GateOp::Mux, vec![s, b, a], 8, DepSet::from_port(0));
         assert_ne!(id_sab, id_sba, "Mux must not be commutatively normalized");
+    }
+
+    /// Helper: module seeded with one primary-input (node 0) and
+    /// two constants (node 1 = zero, node 2 = all-ones for `width`),
+    /// at full factorization (default, clamps to `ConstantFold`).
+    #[cfg(test)]
+    fn fold_fixture(width: u32) -> (Module, NodeId, NodeId, NodeId) {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width });
+        let x: NodeId = 0;
+        let (zero, _) = m.intern_constant(width, 0);
+        let all_ones_val: u128 = if width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << width) - 1
+        };
+        let (ones, _) = m.intern_constant(width, all_ones_val);
+        (m, x, zero, ones)
+    }
+
+    /// `x + 0 → x`. The Add gate is never created; caller gets back
+    /// the `x` NodeId directly.
+    #[test]
+    fn fold_add_zero_collapses_to_x() {
+        let (mut m, x, zero, _) = fold_fixture(8);
+        let before = m.nodes.len();
+        let (id, is_new) = m.intern_gate(GateOp::Add, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(id, x, "Add([x, 0]) must return x");
+        assert!(!is_new);
+        assert_eq!(m.nodes.len(), before, "no new gate node created");
+        assert_eq!(m.fold_identities_applied, 1);
+    }
+
+    /// `x & all_ones → x`.
+    #[test]
+    fn fold_and_all_ones_collapses_to_x() {
+        let (mut m, x, _, ones) = fold_fixture(8);
+        let before = m.nodes.len();
+        let (id, is_new) = m.intern_gate(GateOp::And, vec![x, ones], 8, DepSet::from_port(0));
+        assert_eq!(id, x);
+        assert!(!is_new);
+        assert_eq!(m.nodes.len(), before);
+        assert_eq!(m.fold_identities_applied, 1);
+    }
+
+    /// `x * 0 → 0` (absorbing). Result is the zero constant, not a
+    /// fresh Mul gate.
+    #[test]
+    fn fold_mul_zero_absorbs() {
+        let (mut m, x, zero, _) = fold_fixture(8);
+        let before = m.nodes.len();
+        let (id, _is_new) = m.intern_gate(GateOp::Mul, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(
+            id, zero,
+            "Mul with a zero operand must return the zero constant"
+        );
+        assert_eq!(
+            m.nodes.len(),
+            before,
+            "no new gate; zero constant was already interned"
+        );
+        assert_eq!(m.fold_identities_applied, 1);
+    }
+
+    /// `x | all_ones → all_ones` (absorbing).
+    #[test]
+    fn fold_or_all_ones_absorbs() {
+        let (mut m, x, _, ones) = fold_fixture(8);
+        let (id, _is_new) = m.intern_gate(GateOp::Or, vec![x, ones], 8, DepSet::from_port(0));
+        assert_eq!(id, ones);
+        assert_eq!(m.fold_identities_applied, 1);
+    }
+
+    /// `x ^ 0 → x`, `x * 1 → x`, `x - 0 → x`, `x << 0 → x`,
+    /// `x >> 0 → x`. Sanity sweep.
+    #[test]
+    fn fold_miscellaneous_identities() {
+        let (mut m, x, zero, _) = fold_fixture(8);
+        let (one_const, _) = m.intern_constant(8, 1);
+
+        let (id_xor, _) = m.intern_gate(GateOp::Xor, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(id_xor, x, "Xor identity");
+
+        let (id_mul, _) = m.intern_gate(GateOp::Mul, vec![x, one_const], 8, DepSet::from_port(0));
+        assert_eq!(id_mul, x, "Mul identity");
+
+        let (id_sub, _) = m.intern_gate(GateOp::Sub, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(id_sub, x, "Sub rhs zero");
+
+        // Shifts use a shift-amount-width constant. The existing
+        // fold_fixture zero is 8-bit; fine for this shape since
+        // fold_constants checks same-width against the gate width.
+        // For Shl/Shr we create a same-width zero (matches the
+        // operand-width convention used by anvil for shift amounts).
+        let (id_shl, _) = m.intern_gate(GateOp::Shl, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(id_shl, x, "Shl by zero");
+
+        let (id_shr, _) = m.intern_gate(GateOp::Shr, vec![x, zero], 8, DepSet::from_port(0));
+        assert_eq!(id_shr, x, "Shr by zero");
+
+        // Each fold above is one identity application.
+        assert_eq!(m.fold_identities_applied, 5);
+    }
+
+    /// At `FactorizationLevel::Commutative` the ConstantFold layer
+    /// must NOT fire. A fresh Add gate is created and
+    /// `fold_identities_applied` stays zero.
+    #[test]
+    fn fold_disabled_below_constant_fold_level() {
+        use crate::config::FactorizationLevel;
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::Commutative,
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        let x: NodeId = 0;
+        let (zero, _) = m.intern_constant(8, 0);
+        let before = m.nodes.len();
+        let (id, is_new) = m.intern_gate(GateOp::Add, vec![x, zero], 8, DepSet::from_port(0));
+        assert_ne!(
+            id, x,
+            "at level=Commutative fold must not fire; Add gate should exist"
+        );
+        assert!(is_new, "fresh Add gate expected");
+        assert_eq!(m.nodes.len(), before + 1);
+        assert_eq!(m.fold_identities_applied, 0);
     }
 }

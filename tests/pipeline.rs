@@ -554,3 +554,31 @@ fn nested_associative_opportunities_exist_today() {
         metrics.nested_associative_operand_count
     );
 }
+
+/// Doctrine guard: the `ConstantFold` factorization layer is live at
+/// default knobs. Zero-valued constants fed into additive/XOR/shift
+/// positions, one-valued constants into multiplicative positions,
+/// and all-ones constants into AND positions must fold at intern
+/// time — the counter surfaces each fire. A seed sweep at default
+/// knobs should produce at least one fire over a modest range;
+/// otherwise either the constant_prob knob stopped producing
+/// identity-value constants or the fold layer regressed.
+#[test]
+fn constant_fold_layer_fires_at_default_knobs() {
+    let mut total_fires: u64 = 0;
+    for seed in 0..40u64 {
+        let cfg = Config {
+            seed,
+            ..Config::default()
+        };
+        let m = anvil::Generator::new(cfg).generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        total_fires += metrics.fold_identities_applied;
+    }
+    assert!(
+        total_fires > 0,
+        "expected at least one ConstantFold fire across 40 seeds at \
+         default knobs; got 0. Either the ConstantFold layer regressed \
+         or constant_prob no longer produces identity-value constants."
+    );
+}

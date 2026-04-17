@@ -3,6 +3,140 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0066 — ConstantFold factorization layer goes live (Rule 21c layer 5)
+
+**What changed**
+
+Factorization ladder:
+- `src/config.rs` promotes `FactorizationLevel::ConstantFold`
+  from aspirational to implemented. `is_implemented()` and
+  `effective()` now walk the enum order top-down and skip
+  any not-yet-live middle rungs: a request for `Associative`
+  correctly drops to `Commutative`, while `EGraph` / default
+  activates up to `ConstantFold`. The enum-order quirk that
+  `Associative` sits between `Commutative` and `ConstantFold`
+  is handled by the walker, not by reshuffling variants.
+- `src/ir/types.rs` adds the fold dispatcher
+  `Module::fold_constants` (called from `intern_gate` after
+  commutative sort, before dedup). Rules wired:
+  - **Absorbing**: `x & 0 → 0`, `x | all_ones → all_ones`,
+    `x * 0 → 0` (returns a same-width constant via
+    `intern_constant`).
+  - **Identity drop**: `Add`/`Xor`/`Or` drop `0` operands,
+    `Mul` drops `1` operands, `And` drops `all_ones`
+    operands. Post-shrink: 0 operands → identity constant,
+    1 operand → that operand's NodeId, ≥ 2 → caller
+    continues with the shrunken list.
+  - **2-arity Sub / Shl / Shr**: rhs-zero short-circuit
+    (`a - 0 → a`, `a << 0 → a`, `a >> 0 → a`). The lhs-zero
+    cases (`0 - a`, `0 << a`, `0 >> a`) are deliberately not
+    folded — they're not algebraic identities.
+  Comparison ops, reductions, `Not`, `Slice`, `Concat`, `Mux`
+  are out of scope for this layer (they belong to `Peephole`).
+
+Live counter:
+- `Module::fold_identities_applied` (u64) increments on each
+  fire. Surfaced via `Metrics::fold_identities_applied`,
+  sourced directly from the per-module counter.
+
+Pre-existing bugs exposed by fold and fixed in the same slice:
+
+- `assemble_mul_linear_combination` didn't dedup the coefficient
+  constant against its signal list — when coef == const_k and a
+  signal happened to be the literal const_k (same NodeId via
+  CSE), operands became `[c, c]`, tripping Rule 8 operand
+  uniqueness. Fixed with a post-assembly dedup pass; single-
+  operand residual returns directly.
+- `make_mul` / `make_sub` lacked the `a == b` degeneracy guard
+  that `make_and` already had. When CSE / fold collapsed two
+  callers' ids into one, `make_mul(a, a)` hit the same
+  duplicate-operand failure as above. Added guards mirroring
+  `make_and`: `make_mul` short-circuits to `a` under strict
+  operand-uniqueness; `make_sub` short-circuits to a zero
+  constant (Sub is algebraically `x - x = 0`).
+- `deliver`'s interleaved anti-collapse fallback used
+  `operands[0]` as fallback for all ops, which works for
+  gates whose operand width equals output width but BREAKS for
+  comparisons: `Eq`/`Neq` output 1-bit but operand width is
+  the comparand width K. When `violates_anti_collapse`
+  flagged `Eq(a, a)` or `Neq(a, a)` during interleaved
+  construction, delivering `operands[0]` (width K) into a
+  slot expecting width-1 (the comparison output) yielded
+  mismatched operand widths in the parent. Fixed with
+  comparison-specific width-correct fallbacks:
+  `Eq(a, a) → 1`, `Neq(a, a) → 0`. Mux, Sub, And/Or/Xor/Add/Mul
+  cases unchanged since they already had the correct width.
+
+Tests:
+- `src/ir/types.rs`: five new unit tests covering fold
+  identities (`fold_add_zero_collapses_to_x`,
+  `fold_and_all_ones_collapses_to_x`,
+  `fold_mul_zero_absorbs`, `fold_or_all_ones_absorbs`,
+  `fold_miscellaneous_identities`) and a gating test
+  (`fold_disabled_below_constant_fold_level`) that confirms
+  the layer is inert at `FactorizationLevel::Commutative`.
+- `tests/pipeline.rs`: new integration test
+  `constant_fold_layer_fires_at_default_knobs` sums
+  `fold_identities_applied` over 40 seeds at default knobs
+  and asserts > 0 — a regression guard against the fold layer
+  silently switching off (or `constant_prob` no longer
+  producing identity-valued constants).
+
+Docs:
+- `book/src/structural-rules.md` Rule 21b: factorization-
+  ladder prose updated to list constant-folding as live;
+  syntactic-vs-semantic framing extended to cite the curated
+  identities now caught at intern time.
+- `book/src/structural-rules.md` Rule 21c: level table entry
+  for `constant-fold` promoted from "Not implemented yet" to
+  the concrete identity list, with a pointer to
+  `Metrics::fold_identities_applied` for empirical
+  measurement. Effective-level prose rewritten to document
+  the walker semantics.
+- `book/src/non-triviality.md` "Factorization ladder"
+  paragraph: constant-folding added to the within-gate
+  surface; aspirational layer list slimmed to
+  `Associative`/`Peephole`/`EGraph`.
+
+**Why**
+
+Next rung on the factorization ladder (Layer 5 of 8). Picked
+over `Associative` (Layer 4) because it's strictly simpler —
+no NodeId compaction, no finalization pass, no dedup-table
+rebuild — while still advancing the ladder and surfacing
+latent bugs in adjacent code (the three fixed above). The
+`Associative` rung stays aspirational for now with its
+regression canary (`nested_associative_opportunities_exist_today`)
+still in place; when that layer lands the canary flips to
+`== 0`.
+
+**Tests**
+- 19 integration tests pass (was 18 — added
+  `constant_fold_layer_fires_at_default_knobs`).
+- 49 unit tests pass (was 43 — added 6 fold tests).
+- Total test count: 68.
+- `cargo build` clean; no warnings introduced.
+
+**Impact**
+- Default-config output contains fewer trivial-algebraic
+  gates. Specifically: `x + 0`, `x * 1`, `x & all_ones`, and
+  `x | 0` now disappear at intern time rather than landing
+  as literal nodes. Downstream synthesis tools would fold
+  these anyway; anvil now matches their view one step
+  earlier.
+- `Metrics::fold_identities_applied` exposes an empirical
+  handle on how much work the fold layer does per seed /
+  per module — useful for knob tuning (does
+  `constant_prob` produce enough identity-valued literals
+  to make fold meaningful? turns out yes at default).
+- Three latent bugs in adjacent code paths (linear-comb
+  dedup, make_mul degeneracy, comparison anti-collapse
+  fallback width) landed fixes while I was there, each
+  defensive against RNG-path shifts the fold layer
+  introduced.
+
+---
+
 ## 2026-04-17-0065 — Syntactic-vs-semantic-identity framing in the factorization-ladder narrative (docs only)
 
 **What changed**

@@ -100,17 +100,21 @@ cone still references independent inputs.
 
 **Factorization ladder.** `anvil` has started climbing this
 ladder. The implemented layers — syntactic CSE (Rule 21),
-operand uniqueness (Rule 8 extended), and commutative
-normalization (Rule 21b) — together close the *within-gate*
-duplication surface: same AST ⇒ same NodeId, no duplicate
-operands (at default knobs), `a+b` and `b+a` share identity.
+operand uniqueness (Rule 8 extended), commutative normalization
+(Rule 21b), and constant folding — together close the
+*within-gate* duplication surface: same AST ⇒ same NodeId, no
+duplicate operands (at default knobs), `a+b` and `b+a` share
+identity, and algebraic identities such as `x + 0`, `x * 1`,
+`x & 0`, `x | all_ones` collapse at intern time rather than
+landing as literal gates in the IR.
 
 The remaining aspirational layers in `FactorizationLevel` —
-`Associative`, `ConstantFold`, `Peephole`, `EGraph` — are not
-yet implemented. When they land, the `factorization_level` dial
-automatically activates them for users already at higher
-levels (the default is `e-graph`, which `effective()` clamps
-down to the highest implemented layer today).
+`Associative`, `Peephole`, `EGraph` — are not yet implemented.
+When they land, the `factorization_level` dial automatically
+activates them for users already at higher levels (the default
+is `e-graph`, which `effective()` walks down to the highest
+implemented layer — today `constant-fold`, skipping the
+not-yet-live `associative` rung in between).
 
 **Syntactic vs semantic identity.** What's already implemented
 covers the promise that **two syntactically identical

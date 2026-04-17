@@ -145,6 +145,17 @@ pub struct Metrics {
     /// collapse — justifying (or not) the cost of implementing it.
     pub nested_associative_operand_count: usize,
 
+    /// Number of times the `ConstantFold` factorization layer fired
+    /// during construction. Each fire is one algebraic identity
+    /// applied in `intern_gate` — either an operand dropped because
+    /// it was an identity element (`x + 0`, `x & all_ones`, `x * 1`,
+    /// …), an absorbing substitution (`x & 0 → 0`,
+    /// `x | all_ones → all_ones`, `x * 0 → 0`), or a 2-arity rhs-
+    /// zero short-circuit on `Sub` / `Shl` / `Shr`. Sourced from
+    /// `Module::fold_identities_applied`. Zero at factorization
+    /// levels below `ConstantFold`.
+    pub fold_identities_applied: u64,
+
     // --- Block-build counters -----------------------------------
     /// Number of priority-encoder block instances built in this
     /// module. Measures the `priority_encoder_prob` knob directly.
@@ -320,6 +331,10 @@ pub fn compute(m: &Module) -> Metrics {
     out.num_priority_encoder_blocks = m.priority_encoder_built;
     out.num_comb_muxes_one_hot = m.comb_mux_one_hot_built;
     out.num_comb_muxes_encoded = m.comb_mux_encoded_built;
+
+    // ConstantFold factorization layer: counter sourced live from
+    // `intern_gate`. Zero at levels below `ConstantFold`.
+    out.fold_identities_applied = m.fold_identities_applied;
 
     // Associative-flattening-opportunities scan. For every
     // associative gate, count operands that are themselves a gate

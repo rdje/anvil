@@ -609,8 +609,19 @@ fn deliver(
                 // consumers, which is a bounded edge case tracked in
                 // the Rule-18 audit.
                 if violates_anti_collapse(gf.op, &operands, m) {
+                    // Fallback must have the gate's output width, not
+                    // the operand width. For most ops the two match
+                    // (And/Or/Xor/Add/Mul/Sub/Mux — operand and output
+                    // widths are equal). For comparisons the output is
+                    // 1-bit while the operand width is the comparand
+                    // width, so `operands[0]` would be wrong-width.
+                    // Emit a width-correct constant representing the
+                    // algebraic truth value of the collapsed shape:
+                    //   Eq(a, a) = 1, Neq(a, a) = 0.
                     let fallback = match gf.op {
                         GateOp::Mux if operands.len() == 3 => operands[1],
+                        GateOp::Eq => make_constant(m, pool, gf.width, 1),
+                        GateOp::Neq => make_constant(m, pool, gf.width, 0),
                         _ => operands[0],
                     };
                     trace!(
@@ -921,6 +932,20 @@ fn make_and(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
 }
 
 fn make_mul(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
+    // Degeneracy guard mirroring `make_and`: `x * x = x²` is a
+    // duplicate-operand Mul, forbidden at the default strict
+    // `operand_duplication_rate = 0.0`. Can arise when a signal `a`
+    // happens to share NodeId with a coefficient constant `b` by
+    // CSE (both are the same-width, same-value literal). At
+    // operand-unique and above, collapse the degenerate shape to
+    // `a` alone — matches Rule 8 (`operand-multiset distinctness`).
+    use crate::config::FactorizationLevel;
+    if a == b
+        && m.factorization_level.effective() >= FactorizationLevel::OperandUnique
+        && m.operand_duplication_rate < 1.0
+    {
+        return a;
+    }
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
     let (node_id, is_new) = m.intern_gate(GateOp::Mul, vec![a, b], width, deps.clone());
     if is_new {
@@ -930,6 +955,14 @@ fn make_mul(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
 }
 
 fn make_sub(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: u32) -> NodeId {
+    // Degeneracy guard: `x - x = 0` is a base Rule 8 rejection
+    // regardless of factorization level. When the caller picks
+    // colliding operands (via CSE or fold-induced re-use), short-
+    // circuit to a same-width zero constant rather than interning a
+    // Sub that the IR validator would reject.
+    if a == b {
+        return make_constant(m, pool, width, 0);
+    }
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
     let (node_id, is_new) = m.intern_gate(GateOp::Sub, vec![a, b], width, deps.clone());
     if is_new {
@@ -1101,6 +1134,21 @@ fn assemble_mul_linear_combination(
     let mut operands: Vec<NodeId> = Vec::with_capacity(deduped_signals.len() + 1);
     operands.push(const_node);
     operands.extend_from_slice(&deduped_signals);
+    // Final dedup: the coefficient constant can collide with a
+    // signal that happens to be the same-value, same-width constant
+    // (via CSE). `deduped_signals` only deduped among signals; the
+    // coef was added after. Under strict operand uniqueness, drop
+    // any repeat. If that collapses operands to < 2, the remaining
+    // single operand IS the product (when coef == x and signal ==
+    // x, x * x was forbidden by operand uniqueness, so returning x
+    // alone is the Rule-8-consistent resolution).
+    if m.operand_duplication_rate < 1.0 {
+        let mut seen = std::collections::HashSet::new();
+        operands.retain(|o| seen.insert(*o));
+        if operands.len() < 2 {
+            return operands[0];
+        }
+    }
     make_nary_mul(m, pool, &operands, width)
 }
 

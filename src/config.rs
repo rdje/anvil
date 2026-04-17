@@ -79,8 +79,12 @@ pub enum FactorizationLevel {
     /// and `a+(b+c)` will share identity.
     Associative,
     /// Constant folding on top of associative flattening.
-    /// **Not yet implemented.** `x + 0`, `x * 1`, `x & 0`, `x | 1`
-    /// will reduce at intern time.
+    /// **Implemented** as of the ConstantFold slice. Algebraic
+    /// identities fire at intern time: `x + 0 → x`, `x * 1 → x`,
+    /// `x & 0 → 0`, `x | all_ones → all_ones`, `x ^ 0 → x`,
+    /// `x * 0 → 0`, `x & all_ones → x`, `x - 0 → x`,
+    /// `x << 0 → x`, `x >> 0 → x`. Fires counted in
+    /// `Metrics::fold_identities_applied`.
     ConstantFold,
     /// Peephole rewrite rules on top of constant folding. **Not yet
     /// implemented.** Identities like `(a + b) - b = a` fold at
@@ -99,27 +103,70 @@ pub enum FactorizationLevel {
 }
 
 impl FactorizationLevel {
+    /// Whether this specific layer is implemented today. Used by
+    /// `effective()` to walk down from a requested level and skip
+    /// any aspirational layers that sit *below* an implemented one
+    /// in the enum order. (For example, `ConstantFold` is
+    /// implemented while `Associative` — which sits just above
+    /// `Commutative` and just below `ConstantFold` — is not yet.)
+    pub fn is_implemented(self) -> bool {
+        matches!(
+            self,
+            FactorizationLevel::None
+                | FactorizationLevel::Cse
+                | FactorizationLevel::OperandUnique
+                | FactorizationLevel::Commutative
+                | FactorizationLevel::ConstantFold
+        )
+    }
+
     /// Highest layer that is actually implemented in the current
     /// build. Levels above this are aspirational anchors; the
     /// generator behaves as if the user requested the highest
     /// implemented level instead.
     pub fn highest_implemented() -> Self {
-        FactorizationLevel::Commutative
+        // Walk down from EGraph until we find an implemented layer.
+        for lvl in [
+            FactorizationLevel::EGraph,
+            FactorizationLevel::Peephole,
+            FactorizationLevel::ConstantFold,
+            FactorizationLevel::Associative,
+            FactorizationLevel::Commutative,
+            FactorizationLevel::OperandUnique,
+            FactorizationLevel::Cse,
+            FactorizationLevel::None,
+        ] {
+            if lvl.is_implemented() {
+                return lvl;
+            }
+        }
+        FactorizationLevel::None
     }
 
-    /// Effective level: clamps `self` down to the highest layer
-    /// that is actually implemented. Use this at every gating
-    /// site instead of comparing `self` directly, so a user
-    /// request like `EGraph` activates everything that works
-    /// today without misleading them into thinking e-graph
-    /// equivalence is live.
+    /// Effective level: returns the highest *implemented* layer at
+    /// or below `self`. Use this at every gating site instead of
+    /// comparing `self` directly, so a user request like `EGraph`
+    /// activates everything that works today without misleading
+    /// them into thinking e-graph equivalence is live — and so a
+    /// request for an unimplemented middle rung (e.g.
+    /// `Associative`) drops to the nearest implemented one below
+    /// (`Commutative`) without accidentally enabling higher rungs.
     pub fn effective(self) -> Self {
-        let ceiling = Self::highest_implemented();
-        if self > ceiling {
-            ceiling
-        } else {
-            self
+        for lvl in [
+            FactorizationLevel::EGraph,
+            FactorizationLevel::Peephole,
+            FactorizationLevel::ConstantFold,
+            FactorizationLevel::Associative,
+            FactorizationLevel::Commutative,
+            FactorizationLevel::OperandUnique,
+            FactorizationLevel::Cse,
+            FactorizationLevel::None,
+        ] {
+            if lvl <= self && lvl.is_implemented() {
+                return lvl;
+            }
         }
+        FactorizationLevel::None
     }
 }
 
