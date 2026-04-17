@@ -3,6 +3,94 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0072 — Peephole all-const evaluation: Not, Slice, reductions
+
+**What changed**
+
+Extended `Module::apply_peephole` with four new constant-folding
+rules that extend the "evaluate at intern time when all operands
+are constants" pattern (previously restricted to comparisons):
+
+- **`Not(c)`** → `~c & mask(width)`. Handled first in the `Not`
+  arm, before the `Not(Not)` and `Not(cmp)` cases.
+- **`Slice(hi, lo)(c)`** → `(c >> lo) & mask(hi - lo + 1)`.
+  Added to the existing `Slice` arm alongside the full-width
+  identity rule.
+- **`RedAnd(c)`** → `(c == all_ones(src_width)) as 1-bit`.
+- **`RedOr(c)`** → `(c != 0) as 1-bit`.
+- **`RedXor(c)`** → `popcount(c) & 1` as 1-bit.
+
+All three reductions share a new arm matching
+`GateOp::RedAnd | GateOp::RedOr | GateOp::RedXor` with
+`operands.len() == 1`. Width invariants: reductions always
+produce 1-bit output regardless of operand width.
+
+Fires share the existing `peephole_rewrites_applied` counter.
+Constants folded by these rules are orphan-safe (the outer
+unary op never materialises; the inner constant operand may be
+unreferenced but `compact_node_ids` only tracks Gate orphans,
+not Constant orphans).
+
+Tests:
+- `src/ir/types.rs`: three new unit tests —
+  `peephole_not_of_constant_folds`, `peephole_slice_of_constant_folds`,
+  `peephole_reductions_of_constants_fold`. Plus the previous
+  slice's `peephole_not_eq_of_constants_folds_to_bit` is
+  upgraded to `peephole_not_eq_of_constants_folds_end_to_end`
+  — it now asserts the full `Not(Eq(5, 7)) → 1'b1` collapse
+  rather than stopping at the Eq fold (the boundary it noted
+  as an outstanding gap).
+
+Docs:
+- `book/src/structural-rules.md` Rule 21c `peephole` row
+  expanded to list all five new constant-evaluation rules
+  alongside the existing ones. "Constant evaluation
+  (all-operand-constants → evaluated constant)" framing
+  groups them cleanly.
+
+**Why**
+
+Closes a gap noted in the previous slice: `Not(Eq(c1, c2))`
+rewrites via the comparison-inversion rule to `Neq(c1, c2)`,
+which folds to a 1-bit constant. But `Not(already_folded_const)`
+was left as a real Not gate because `Not(const)` wasn't wired.
+Same pattern for any path where ConstantFold or a peephole
+produces a constant that flows into a Not / Slice / reduction.
+
+The slice generalises the existing all-const-comparison-fold
+pattern to the remaining unary and unary-like gates, completing
+the "constants flow through pure unary operators" story at
+intern time. `Concat(all-const)` and `Shl/Shr(const, const)`
+remain as known gaps — they're slightly more involved (width
+accounting for Concat, shift-amount clamping for shifts) and
+deferred to follow-ups.
+
+**Empirical (seed 42, default knobs):**
+- `peephole_rewrites_applied`: unchanged at 31 (none of the
+  new patterns arise at default knobs on this seed — it takes
+  a constant to flow directly into a Not/Slice/reduction,
+  which is rare in current construction). The rules still fire
+  in targeted unit tests and will activate whenever ConstantFold
+  produces a constant that flows into one of these unary gates.
+- Other metrics unchanged.
+
+**Tests**
+- 62 unit tests pass (was 59 — added 3 new + 1 upgraded).
+- 22 integration tests pass (unchanged).
+- Total test count: 84.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Default-config output is unchanged at seed 42, but any
+  module where a constant reaches a unary op via some
+  sequence of folds now avoids the literal `~`, `[3:0]`, or
+  `&`/`|`/`^` reduction wrapper around the constant in SV.
+- Conceptual gap closed: the peephole layer now handles
+  all-const evaluation for every operator class except Concat
+  and Shl/Shr.
+
+---
+
 ## 2026-04-17-0071 — Cross-gate peephole: Not(comparison) → inverted comparison
 
 **What changed**

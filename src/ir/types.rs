@@ -744,6 +744,28 @@ impl Module {
 
         match op {
             GateOp::Not if operands.len() == 1 => {
+                // Constant-operand evaluation: `Not(c)` → `~c & mask(width)`.
+                // Handled first because the operand is a Constant
+                // rather than a Gate.
+                if let Some((src_w, src_val)) = const_of(operands[0], &self.nodes) {
+                    debug_assert_eq!(src_w, width);
+                    let mask: u128 = if width >= 128 {
+                        u128::MAX
+                    } else {
+                        (1u128 << width) - 1
+                    };
+                    let result = !src_val & mask;
+                    self.peephole_rewrites_applied += 1;
+                    let (cid, is_new) = self.intern_constant(width, result);
+                    crate::trace_verbose!(
+                        node = cid,
+                        width,
+                        value = result,
+                        "✂️ peephole Not of constant"
+                    );
+                    return Some((cid, is_new));
+                }
+
                 // Inspect the single operand for collapsible shapes.
                 // Clone fields we need — holding a borrow across the
                 // recursive `intern_gate` call would alias self.
@@ -853,6 +875,26 @@ impl Module {
                     );
                     return Some((x, false));
                 }
+                // All-constant: evaluate the slice at intern time.
+                if let Some((_src_w, src_val)) = const_of(operands[0], &self.nodes) {
+                    let slice_width = hi - lo + 1;
+                    debug_assert_eq!(slice_width, width);
+                    let mask: u128 = if slice_width >= 128 {
+                        u128::MAX
+                    } else {
+                        (1u128 << slice_width) - 1
+                    };
+                    let result = (src_val >> lo) & mask;
+                    self.peephole_rewrites_applied += 1;
+                    let (cid, is_new) = self.intern_constant(width, result);
+                    crate::trace_verbose!(
+                        node = cid,
+                        width,
+                        value = result,
+                        "✂️ peephole Slice of constant"
+                    );
+                    return Some((cid, is_new));
+                }
                 None
             }
             GateOp::Concat if operands.len() == 1 => {
@@ -869,6 +911,32 @@ impl Module {
                     return Some((x, false));
                 }
                 None
+            }
+            // Reductions: all-const operand evaluates to a 1-bit
+            // constant. Reduction output width is always 1.
+            GateOp::RedAnd | GateOp::RedOr | GateOp::RedXor if operands.len() == 1 => {
+                let (src_w, src_val) = const_of(operands[0], &self.nodes)?;
+                let src_all_ones: u128 = if src_w >= 128 {
+                    u128::MAX
+                } else {
+                    (1u128 << src_w) - 1
+                };
+                let result: u128 = match op {
+                    GateOp::RedAnd => (src_val == src_all_ones) as u128,
+                    GateOp::RedOr => (src_val != 0) as u128,
+                    GateOp::RedXor => (src_val.count_ones() & 1) as u128,
+                    _ => unreachable!(),
+                };
+                self.peephole_rewrites_applied += 1;
+                let (cid, is_new) = self.intern_constant(width, result);
+                crate::trace_verbose!(
+                    node = cid,
+                    ?op,
+                    width,
+                    value = result,
+                    "✂️ peephole reduction of constant"
+                );
+                Some((cid, is_new))
             }
             _ => None,
         }
@@ -1454,12 +1522,31 @@ mod tests {
         }
     }
 
-    /// `Not(Eq(c1, c2))` with both operands constants: the peephole
-    /// rewrites to `Neq(c1, c2)`, which is then immediately folded by
-    /// the same-pipeline constant-comparison peephole to a 1-bit
-    /// constant. Double-handoff through the pipeline.
+    /// `Not(const)` folds to `~const & mask(width)` at intern time.
     #[test]
-    fn peephole_not_eq_of_constants_folds_to_bit() {
+    fn peephole_not_of_constant_folds() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        // 8-bit constant 0x5A → Not → 0xA5.
+        let (c, _) = m.intern_constant(8, 0x5A);
+        let (result, _) = m.intern_gate(GateOp::Not, vec![c], 8, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 8, value } => assert_eq!(*value, 0xA5),
+            other => panic!("expected 8-bit const 0xA5, got {other:?}"),
+        }
+        assert_eq!(m.peephole_rewrites_applied, 1);
+    }
+
+    /// `Not(Eq(c1, c2))` with both operands constants: the inner Eq
+    /// folds to a 1-bit constant at intern time (via const comparison
+    /// peephole), and the outer Not on that constant then folds to
+    /// the complementary 1-bit const (via Not-of-constant peephole
+    /// landed in this slice). End-to-end: `Not(Eq(5, 7)) → 1'b1`.
+    #[test]
+    fn peephole_not_eq_of_constants_folds_end_to_end() {
         let mut m = Module {
             max_ast_instances: 1,
             factorization_level: crate::config::FactorizationLevel::default(),
@@ -1468,15 +1555,73 @@ mod tests {
         let (c5, _) = m.intern_constant(8, 5);
         let (c7, _) = m.intern_constant(8, 7);
         let (eq, _) = m.intern_gate(GateOp::Eq, vec![c5, c7], 1, DepSet::new());
-        // Eq(5, 7) already folds to const 0 at ConstantFold, so
-        // `eq` is the 1-bit zero constant. Not(0) applied as a
-        // Not on a constant — Not's peephole only handles Not(Not)
-        // and Not(comparison), so this stays a real Not gate.
-        // This is the expected boundary: constant folding of Not
-        // itself isn't wired (it would belong to ConstantFold
-        // expansion, not Peephole).
-        let _ = eq;
-        let _ = m;
+        // Eq(5, 7) folds to 1-bit const 0.
+        match &m.nodes[eq as usize] {
+            Node::Constant { width: 1, value: 0 } => {}
+            other => panic!("Eq(5,7) should fold to 1'b0, got {other:?}"),
+        }
+        // Not on that folded constant now also folds.
+        let (not_eq, _) = m.intern_gate(GateOp::Not, vec![eq], 1, DepSet::new());
+        match &m.nodes[not_eq as usize] {
+            Node::Constant { width: 1, value: 1 } => {}
+            other => panic!("Not(Eq(5,7)) should fold to 1'b1, got {other:?}"),
+        }
+    }
+
+    /// `Slice(hi, lo)(const)` folds to the sliced constant.
+    #[test]
+    fn peephole_slice_of_constant_folds() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        // 8-bit constant 0xAB = 0b10101011. Slice(5, 2) → 0b1010 = 10.
+        let (c, _) = m.intern_constant(8, 0xAB);
+        let (result, _) = m.intern_gate(
+            GateOp::Slice { hi: 5, lo: 2 },
+            vec![c],
+            4,
+            DepSet::new(),
+        );
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 4, value } => assert_eq!(*value, 0b1010),
+            other => panic!("expected 4-bit const 10, got {other:?}"),
+        }
+    }
+
+    /// Reductions on constants fold to the appropriate 1-bit
+    /// result.
+    #[test]
+    fn peephole_reductions_of_constants_fold() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c_all_ones, _) = m.intern_constant(4, 0b1111);
+        let (c_mixed, _) = m.intern_constant(4, 0b1010);
+        let (c_zero, _) = m.intern_constant(4, 0);
+
+        // RedAnd(all-ones) = 1, RedAnd(mixed) = 0.
+        let (ra1, _) = m.intern_gate(GateOp::RedAnd, vec![c_all_ones], 1, DepSet::new());
+        assert!(matches!(m.nodes[ra1 as usize], Node::Constant { value: 1, .. }));
+        let (ra2, _) = m.intern_gate(GateOp::RedAnd, vec![c_mixed], 1, DepSet::new());
+        assert!(matches!(m.nodes[ra2 as usize], Node::Constant { value: 0, .. }));
+
+        // RedOr(zero) = 0, RedOr(mixed) = 1.
+        let (ro1, _) = m.intern_gate(GateOp::RedOr, vec![c_zero], 1, DepSet::new());
+        assert!(matches!(m.nodes[ro1 as usize], Node::Constant { value: 0, .. }));
+        let (ro2, _) = m.intern_gate(GateOp::RedOr, vec![c_mixed], 1, DepSet::new());
+        assert!(matches!(m.nodes[ro2 as usize], Node::Constant { value: 1, .. }));
+
+        // RedXor(0b1010) = 0 (two 1-bits), RedXor(0b1110) = 1 (three
+        // 1-bits). Use a fresh const to get the odd-bit-count case.
+        let (c_odd, _) = m.intern_constant(4, 0b1110);
+        let (rx_even, _) = m.intern_gate(GateOp::RedXor, vec![c_mixed], 1, DepSet::new());
+        assert!(matches!(m.nodes[rx_even as usize], Node::Constant { value: 0, .. }));
+        let (rx_odd, _) = m.intern_gate(GateOp::RedXor, vec![c_odd], 1, DepSet::new());
+        assert!(matches!(m.nodes[rx_odd as usize], Node::Constant { value: 1, .. }));
     }
 
     // --- Associative flattening tests -----------------------------
