@@ -29,16 +29,30 @@ src/
 ├── ir/
 │   ├── mod.rs       # re-exports.
 │   ├── types.rs     # Module, Port, Node, GateOp (with Hash derive),
-│   │                # Flop, FlopKind, FlopMux, MuxArm, DepSet, Design.
-│   │                # Module carries construction-time dedup tables
-│   │                # (gate_instances, const_instances) and per-module
+│   │                # Flop, FlopKind, FlopMux, MuxArm, DepSet,
+│   │                # KnobId, KnobRollCounters, Design. Module
+│   │                # carries construction-time dedup tables
+│   │                # (gate_instances, const_instances), per-module
 │   │                # knob mirrors (max_ast_instances,
 │   │                # mux_arm_duplication_rate,
-│   │                # operand_duplication_rate, factorization_level).
-│   │                # API: intern_gate() / intern_constant() perform
-│   │                # Rule 21 CSE + Rule 21b commutative normalization
-│   │                # and return (NodeId, is_new). Inline unit tests
-│   │                # pin the commutative / non-commutative contract.
+│   │                # operand_duplication_rate, factorization_level),
+│   │                # and live counters (fold_identities_applied,
+│   │                # peephole_rewrites_applied,
+│   │                # flatten_associative_applied, nodes_compacted,
+│   │                # block-build counters, knob_rolls).
+│   │                # API: intern_gate() runs the full factorization
+│   │                # ladder (flatten_associative → commutative sort →
+│   │                # fold_constants → apply_peephole → CSE dedup)
+│   │                # and returns (NodeId, is_new). intern_constant()
+│   │                # is the constant analogue. Inline unit tests
+│   │                # pin each layer's contract.
+│   ├── compact.rs   # Post-construction compact_node_ids pass: BFS
+│   │                # from roots, drops unreachable gates, remaps
+│   │                # NodeIds across m.nodes / m.drives / m.flops /
+│   │                # dedup tables. Enables orphan-producing
+│   │                # rewrites (Not(Not), Associative flattening,
+│   │                # Not(cmp) inversion) to stay Rule-18-clean at
+│   │                # module finalisation. Inline unit tests.
 │   └── validate.rs  # invariant + per-gate shape checker; inline unit tests.
 ├── gen/
 │   ├── mod.rs       # Generator struct, public entry points.
@@ -111,10 +125,45 @@ pub struct Module {
     pub priority_encoder_built:  u32,
     pub comb_mux_one_hot_built:  u32,
     pub comb_mux_encoded_built:  u32,
+    // Factorization-layer live counters:
+    pub fold_identities_applied:     u64,
+    pub peephole_rewrites_applied:   u64,
+    pub flatten_associative_applied: u64,
+    pub nodes_compacted:             u32,
+    // Per-knob probability-roll counters:
+    pub knob_rolls:                  KnobRollCounters,
 }
 impl Module {
+    /// Single chokepoint for gate creation. Runs the full
+    /// factorization ladder in order: associative flattening →
+    /// commutative sort → constant fold → peephole → CSE. See
+    /// `book/src/factorization.md` for the layer-by-layer view.
     pub fn intern_gate(&mut self, op, operands, width, deps) -> (NodeId, bool);
     pub fn intern_constant(&mut self, width, value) -> (NodeId, bool);
+
+    // (Layer helpers, `pub(crate)`):
+    //   fn flatten_associative(&mut self, op, operands, width) -> Option<(NodeId, bool)>;
+    //   fn fold_constants     (&mut self, op, operands, width) -> Option<(NodeId, bool)>;
+    //   fn apply_peephole     (&mut self, op, operands, width) -> Option<(NodeId, bool)>;
+}
+
+// ir/compact.rs
+/// Post-construction BFS-reachability pass. Drops unreachable
+/// gates, remaps every `NodeId` holder across `m.nodes` /
+/// `m.drives` / `m.flops` / dedup tables. Called at the end of
+/// `generate_leaf_module`. Returns the count of removed nodes
+/// (surfaced via `Metrics::nodes_compacted`).
+pub fn compact_node_ids(m: &mut Module) -> u32;
+
+// Per-probability-roll telemetry:
+pub enum KnobId { FlopProb, CombMuxProb, PriorityEncoderProb,
+                  CoefficientProb, ConstShiftAmountProb,
+                  ConstComparandProb, CombMuxEncodingProb,
+                  FlopMuxEncodingProb, ShareProb,
+                  FlopQFeedbackProb }
+pub struct KnobRollCounters {
+    pub attempts: HashMap<KnobId, u64>,
+    pub fires:    HashMap<KnobId, u64>,
 }
 
 pub enum Node { PrimaryInput{..}, Constant{..}, FlopQ{..}, Gate{..} }

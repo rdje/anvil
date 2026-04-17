@@ -61,7 +61,13 @@ pub struct Module {
     /// always strict); 1.0 = no constraint.
     pub operand_duplication_rate: f64,
     /// Factorization level — which layers of the dedup chain are
-    /// active. See `Config::factorization_level`. Default `Full`.
+    /// active. See `Config::factorization_level` and the
+    /// `FactorizationLevel` enum (`src/config.rs`) for the
+    /// ladder: `none → cse → operand-unique → commutative →
+    /// associative → constant-fold → peephole → e-graph`.
+    /// Default `EGraph` (theoretical ceiling); `effective()`
+    /// clamps down to the highest currently-implemented layer
+    /// (today `Peephole`).
     pub factorization_level: crate::config::FactorizationLevel,
 
     // --- Block-build live counters ------------------------------
@@ -87,13 +93,23 @@ pub struct Module {
     pub fold_identities_applied: u64,
 
     /// Number of times the `Peephole` layer fired during
-    /// construction of this module. Each fire is one local rewrite
-    /// applied in `intern_gate` — double-negation collapse
-    /// (`Not(Not(x)) → x`), fully-constant comparisons evaluated at
-    /// intern time (`Eq(c1, c2) → 1-bit const`,
-    /// `Neq(c1, c2) → 1-bit const`), full-width slice identity
-    /// (`Slice(hi, lo) where hi-lo+1 == src_width → src`), and
-    /// single-operand Concat (`Concat([x]) → x`). Surfaced via
+    /// construction of this module. Each fire is one rule hit in
+    /// [`Module::apply_peephole`]:
+    ///
+    /// - `Not(Not(x)) → x` (involutive collapse)
+    /// - `Not(Eq/Neq/Lt/Gt/Le/Ge) → inverted cmp` (cross-gate
+    ///   comparison inversion)
+    /// - `Not(const) → ~const & mask` (constant evaluation)
+    /// - `Eq/Neq/Lt/Gt/Le/Ge(c1, c2) → 1-bit const` (constant
+    ///   evaluation for comparisons)
+    /// - `Slice(hi, 0)(src)` full-width identity → `src`
+    /// - `Slice(hi, lo)(c)` constant evaluation
+    /// - `Concat([x]) → x` single-operand identity
+    /// - `RedAnd/RedOr/RedXor(c) → 1-bit const` (constant
+    ///   evaluation for reductions)
+    ///
+    /// See `book/src/structural-rules.md` Rule 21c for the full
+    /// rule catalogue. Surfaced via
     /// `Metrics::peephole_rewrites_applied`.
     pub peephole_rewrites_applied: u64,
 
@@ -196,6 +212,17 @@ pub struct KnobRollCounters {
 }
 
 impl KnobRollCounters {
+    /// Record one probability roll outcome.
+    ///
+    /// Called by the `roll_knob(g, m, knob, prob)` helper in
+    /// `src/gen/cone.rs` after every `gen_bool(cfg.<prob>)` site.
+    /// Increments `attempts[knob]`, and also `fires[knob]` when
+    /// the roll returned true. The empirical ratio
+    /// `fires[knob] / attempts[knob]` should converge to the
+    /// configured probability across a large seed sweep; the
+    /// `book/src/knobs.md` "Per-knob roll-rate validation"
+    /// subsection documents how to use this to verify knob
+    /// effectiveness.
     pub fn record(&mut self, knob: KnobId, fired: bool) {
         *self.attempts.entry(knob).or_insert(0) += 1;
         if fired {
@@ -205,11 +232,75 @@ impl KnobRollCounters {
 }
 
 impl Module {
-    /// Intern a gate expression. If `(op, operands, width)` has already
-    /// been created `< max_ast_instances` times, create a new
-    /// `Node::Gate` and register it. Otherwise return the most recent
-    /// existing instance. Returns `(NodeId, is_new)` so callers can
-    /// gate their `pool.add` call on actual creation.
+    /// Intern a gate expression and return its `NodeId`.
+    ///
+    /// This is the single choke-point through which every gate
+    /// enters `m.nodes` — the whole factorization ladder (Rule
+    /// 21c in `book/src/structural-rules.md`) runs here. The
+    /// caller passes an operator, an operand list, the output
+    /// width, and a `DepSet`; `intern_gate` returns
+    /// `(NodeId, is_new)`. `is_new` is `false` when the returned
+    /// id points at a pre-existing node (CSE hit, fold / peephole
+    /// / flatten short-circuit, or AST-cap reuse) and `true` when
+    /// a brand-new `Node::Gate` was appended. Callers use
+    /// `is_new` to gate follow-up work such as `pool.add`, so a
+    /// short-circuited return never double-counts a reused node.
+    ///
+    /// # Pipeline (in execution order)
+    ///
+    /// Each layer is gated on
+    /// `self.factorization_level.effective()` (see
+    /// [`crate::config::FactorizationLevel`]):
+    ///
+    /// 1. **Associative flattening** (`>= Associative`) —
+    ///    [`Module::flatten_associative`] splices any same-op
+    ///    same-width inner gate operand into the outer operand
+    ///    list, then applies per-op semantic normalisation
+    ///    (`And`/`Or` dedup, `Xor` pair-cancel, `Add`/`Mul`
+    ///    skip-on-duplicates). On short-circuit (collapse to 0 or
+    ///    1 operand) the helper returns `Some((id, is_new))` and
+    ///    `intern_gate` returns immediately.
+    /// 2. **Commutative normalisation** (`>= Commutative`) —
+    ///    operands of `And`/`Or`/`Xor`/`Add`/`Mul` are sorted by
+    ///    `NodeId` so `a+b` and `b+a` share identity (Rule 21b).
+    /// 3. **Constant folding** (`>= ConstantFold`) —
+    ///    [`Module::fold_constants`] drops identity operands
+    ///    (`x + 0`, `x * 1`, `x & all_ones`, …), substitutes
+    ///    absorbing constants (`x & 0`, `x | all_ones`, `x * 0`)
+    ///    when no Gate operand would be orphaned, and
+    ///    short-circuits the 2-arity `Sub`/`Shl`/`Shr` rhs-zero
+    ///    case.
+    /// 4. **Peephole rewrites** (`>= Peephole`) —
+    ///    [`Module::apply_peephole`] applies local identities:
+    ///    `Not(Not(x)) → x`, `Not(cmp) → inverted cmp`, all-
+    ///    constant evaluation for comparisons / `Not` / `Slice` /
+    ///    reductions, full-width `Slice` identity, single-operand
+    ///    `Concat`.
+    /// 5. **Level-None bypass** (`== None`) — every call creates
+    ///    a fresh `NodeId`, no dedup. Used for stress-testing
+    ///    downstream CSE in consumer tools.
+    /// 6. **AST-cap + CSE dedup** (`>= Cse`) — with the final
+    ///    operand list, look up `(op, operands, width)` in
+    ///    `self.gate_instances`. If the cap
+    ///    (`max_ast_instances`) has been hit, return the most
+    ///    recent existing instance (`is_new = false`). Otherwise
+    ///    append a new `Node::Gate` and register it.
+    ///
+    /// # Orphan safety
+    ///
+    /// Layers 1, 3, 4 may leave inner gates unreferenced when
+    /// they short-circuit. Rule 18 (zero orphan gates) is
+    /// restored by the post-construction
+    /// [`crate::ir::compact::compact_node_ids`] pass at module
+    /// finalisation — see `src/gen/module.rs`.
+    ///
+    /// # Determinism
+    ///
+    /// The pipeline is deterministic given the same seed:
+    /// `intern_gate` is a pure function of its arguments plus
+    /// `(m.nodes, m.gate_instances, m.const_instances,
+    /// m.factorization_level, m.operand_duplication_rate,
+    /// m.max_ast_instances)`. No RNG is consulted here.
     pub fn intern_gate(
         &mut self,
         op: GateOp,
@@ -333,7 +424,28 @@ impl Module {
         (node_id, true)
     }
 
-    /// Intern a constant. Same cap semantics as `intern_gate`.
+    /// Intern a constant of the given `width` and `value` and
+    /// return `(NodeId, is_new)`.
+    ///
+    /// Constants are keyed by `(width, value)` in
+    /// `self.const_instances`. The same AST-instance cap as
+    /// `intern_gate` applies: the `N+1`-th call with the same
+    /// key returns the most recently created instance instead of
+    /// appending a new `Node::Constant`. `max_ast_instances = 1`
+    /// (the default) enforces strict constant uniqueness — every
+    /// `(width, value)` pair is materialised exactly once per
+    /// module.
+    ///
+    /// No factorization layers apply to constants directly — the
+    /// only branching is the `FactorizationLevel::None` bypass
+    /// which creates a fresh `NodeId` every call. This is
+    /// intentional: constants have no operands, so the only
+    /// "identity" question is `(width, value)`, which CSE
+    /// already handles.
+    ///
+    /// Callers (most helpers in `src/gen/cone.rs`) wrap this in
+    /// `make_constant` which also registers the returned id in
+    /// the signal pool.
     pub fn intern_constant(&mut self, width: u32, value: u128) -> (NodeId, bool) {
         use crate::config::FactorizationLevel;
         if self.factorization_level.effective() == FactorizationLevel::None {
@@ -374,29 +486,69 @@ impl Module {
         (node_id, true)
     }
 
-    /// Apply constant-folding identities to `operands` in place.
+    /// Constant-folding layer of the factorization ladder (Layer 5,
+    /// `FactorizationLevel::ConstantFold`). Applies algebraic
+    /// identities in place on `operands`, possibly short-circuiting
+    /// the enclosing `intern_gate` call.
     ///
-    /// Returns `Some((id, is_new))` when a fold short-circuits the
-    /// caller — either because an absorbing element turned the gate
-    /// into a constant (e.g. `x & 0 → 0`), or because identity
-    /// elements drained the list down to a single surviving operand
-    /// or to nothing. Returns `None` when no fold applies or when
-    /// the list was shrunk but still has ≥ 2 operands — in that case
-    /// the caller proceeds with normal dedup on the shrunk list.
+    /// Called by [`Module::intern_gate`] after associative
+    /// flattening and commutative sort, before peephole rewrites
+    /// and the dedup-table lookup.
     ///
-    /// The rules covered today:
-    /// - `Add`/`Sub`/`Xor`/`Shl`/`Shr`: drop `0` operands.
-    /// - `Mul`: drop `1` operands; any `0` returns zero constant.
-    /// - `And`: drop `all_ones` operands; any `0` returns zero.
-    /// - `Or`: drop `0` operands; any `all_ones` returns all-ones.
+    /// # Returns
     ///
-    /// Non-commutative ops (`Sub`, `Shl`, `Shr`) fold only the
-    /// rhs-constant case to avoid changing semantics (e.g.
-    /// `0 - a ≠ a`). That's implemented by position-aware checks:
-    /// we only drop an index-1 `0` for 2-operand Sub/Shl/Shr.
+    /// - `Some((id, is_new))` — the whole gate folded to a single
+    ///   `NodeId`: either a surviving operand (identity drops
+    ///   emptied the list down to one), an identity constant
+    ///   (identity drops emptied the list completely), or an
+    ///   absorbing constant (zero for `Mul`/`And`, all-ones for
+    ///   `Or`). `is_new` follows the convention of
+    ///   [`Module::intern_constant`].
+    /// - `None` — no fold applied, **or** one or more operands
+    ///   were dropped but ≥ 2 remain. The caller proceeds with
+    ///   `intern_gate`'s normal dedup path on the (possibly
+    ///   shrunken) list.
     ///
-    /// Comparison ops, reductions, `Not`, `Slice`, `Concat`, `Mux`
-    /// are out of scope for this layer — they belong to `Peephole`.
+    /// # Rules implemented
+    ///
+    /// | Op              | Identity drop                        | Absorbing                                 |
+    /// |-----------------|--------------------------------------|-------------------------------------------|
+    /// | `Add` / `Xor`   | drop `0`                             | —                                         |
+    /// | `Or`            | drop `0`                             | `all_ones` (all non-Gate operands only)   |
+    /// | `Mul`           | drop `1`                             | `0` (all non-Gate operands only)          |
+    /// | `And`           | drop `all_ones`                      | `0` (all non-Gate operands only)          |
+    /// | `Sub` (2-arity) | rhs `0` → lhs                        | —                                         |
+    /// | `Shl` (2-arity) | rhs `0` → lhs                        | —                                         |
+    /// | `Shr` (2-arity) | rhs `0` → lhs                        | —                                         |
+    ///
+    /// # Orphan-safety restriction on absorbing
+    ///
+    /// Absorbing (`x & 0 → 0`, etc.) turns the entire expression
+    /// into a constant, which means any `Node::Gate` operand
+    /// becomes a Rule-18 orphan (its only consumer was this
+    /// call). Without NodeId compaction that would break the
+    /// zero-orphan invariant, so absorbing **fires only when no
+    /// operand is a `Node::Gate`** — i.e. when every operand is a
+    /// `Node::Constant`, `Node::PrimaryInput`, or `Node::FlopQ`.
+    /// Those node kinds aren't gate-orphan-counted, so it's safe
+    /// to leave them unreferenced. The compaction pass
+    /// [`crate::ir::compact::compact_node_ids`] (added in slice
+    /// `2cd8b7a`) lifts this restriction for future slices when
+    /// appropriate.
+    ///
+    /// # Non-commutative ops
+    ///
+    /// `Sub`/`Shl`/`Shr` are strictly 2-arity and position-
+    /// sensitive. Only the rhs-zero case folds (`a - 0 = a`,
+    /// `a << 0 = a`, `a >> 0 = a`). The lhs-zero cases (`0 - a`,
+    /// `0 << a`, `0 >> a`) are NOT identities and are not
+    /// folded.
+    ///
+    /// # Out of scope
+    ///
+    /// Comparison ops, reductions, `Not`, `Slice`, `Concat`, and
+    /// `Mux` are not handled here — they belong to
+    /// [`Module::apply_peephole`] (Layer 6).
     pub(crate) fn fold_constants(
         &mut self,
         op: GateOp,
@@ -552,19 +704,26 @@ impl Module {
         }
     }
 
-    /// Associative flattening: splice any same-op same-width
-    /// inner gate operands into this operand list, then apply
-    /// per-op semantic normalisation.
+    /// Associative flattening layer of the factorization ladder
+    /// (Layer 4, `FactorizationLevel::Associative`). Splices any
+    /// same-op same-width inner gate operands into this operand
+    /// list, then applies per-op semantic normalisation.
     ///
-    /// Returns:
-    /// - `Some((id, is_new))` to short-circuit the caller when
-    ///   post-normalisation the operand list collapses to a
-    ///   single operand (returned directly) or zero operands
-    ///   (returned as the op's identity constant — only
-    ///   `Xor`-all-cancel reaches this).
-    /// - `None` with the operand list possibly rewritten in
-    ///   place: the caller proceeds with the new list as if the
-    ///   original had been passed.
+    /// Called by [`Module::intern_gate`] BEFORE commutative sort,
+    /// so the flattened-and-normalised operand list is what the
+    /// sort sees.
+    ///
+    /// # Returns
+    ///
+    /// - `Some((id, is_new))` — the whole gate collapses to a
+    ///   single `NodeId`: a surviving operand (post-normalisation
+    ///   the list has exactly one element) or an identity
+    ///   constant (only reachable for `Xor`-all-cancel → 0). The
+    ///   enclosing `intern_gate` returns this directly without
+    ///   ever materialising the outer gate.
+    /// - `None` — no flattening applied **or** `operands` was
+    ///   rewritten in place (≥ 2 operands remain post-
+    ///   normalisation). The caller proceeds with the new list.
     ///
     /// ## Per-op semantic normalisation after flattening
     ///
@@ -707,27 +866,88 @@ impl Module {
         }
     }
 
-    /// Apply local peephole rewrite rules. Returns `Some((id,
-    /// is_new))` when a rewrite short-circuits the caller, `None`
-    /// when no rule matches. Rules implemented today:
+    /// Peephole-rewrite layer of the factorization ladder
+    /// (Layer 6, `FactorizationLevel::Peephole`). Applies local
+    /// rewrite rules keyed on `op` and operand shapes.
     ///
-    /// - **Involutive `Not`**: `Not(Not(x)) → x`. The outer gate
-    ///   isn't materialised; the inner `Not` may end up
-    ///   unreferenced as a side effect. That orphan is cleaned up
-    ///   by the post-construction `compact_node_ids` pass, so
-    ///   Rule 18 holds at module finalisation.
-    /// - **Fully-constant comparisons**: `Eq`/`Neq`/`Lt`/`Gt`/
-    ///   `Le`/`Ge` with both operands same-width constants are
-    ///   evaluated at intern time to a 1-bit constant.
-    /// - **Full-width `Slice`**: `Slice(hi, 0)` with
-    ///   `hi + 1 == src_width` returns the source NodeId.
-    /// - **Single-operand `Concat`**: `Concat([x])` → `x`.
+    /// Called by [`Module::intern_gate`] AFTER constant folding
+    /// and BEFORE the dedup-table lookup. Every rule either
+    /// short-circuits to an existing node (no new gate
+    /// materialised) or recursively calls `self.intern_gate` to
+    /// produce a rewritten gate; orphaned intermediate gates are
+    /// cleaned up by the post-construction compaction pass
+    /// [`crate::ir::compact::compact_node_ids`], so Rule 18 holds
+    /// at module finalisation.
     ///
-    /// Rules are narrow by design: each one is an unambiguous
-    /// local identity with no width-reinterpretation or type
-    /// punning. Broader rewrites like `(a + b) - b → a` need
-    /// cross-gate rewriting (symbolic reasoning over trees) and
-    /// belong in a future layer, not here.
+    /// # Returns
+    ///
+    /// - `Some((id, is_new))` — a rule matched and the outer
+    ///   gate is short-circuited to `id`. `is_new` reflects
+    ///   whether a brand-new node was created by this call
+    ///   (relevant for absorbing / constant-evaluation rules
+    ///   that mint a new `Node::Constant`).
+    /// - `None` — no rule matched; `intern_gate` proceeds to
+    ///   the dedup-table lookup unchanged.
+    ///
+    /// # Rules
+    ///
+    /// Rules are grouped by the outer operator:
+    ///
+    /// ### `Not(operand)` (unary, 1 operand)
+    ///
+    /// 1. **Constant evaluation**: `Not(c)` → `~c & mask(width)`.
+    /// 2. **Involutive collapse**: `Not(Not(x)) → x`. The inner
+    ///    `Not` may become orphaned.
+    /// 3. **Comparison inversion** (cross-gate peephole):
+    ///    `Not(Eq(a, b)) → Neq(a, b)` and symmetric flips for
+    ///    `Neq`/`Lt`/`Gt`/`Le`/`Ge`. The inverted comparison is
+    ///    interned through the full pipeline, so it picks up
+    ///    CSE / constant folding. The inner comparison gate may
+    ///    become orphaned.
+    ///
+    /// ### Comparison ops: `Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge`
+    ///
+    /// 4. **Both-operands-constant evaluation**: if both operands
+    ///    are same-width constants, evaluate the comparison and
+    ///    return a 1-bit constant. The IR contract guarantees
+    ///    matching operand widths; mismatched widths defensively
+    ///    skip the fold.
+    ///
+    /// ### `Slice { hi, lo }(operand)` (1 operand)
+    ///
+    /// 5. **Full-width slice identity**: `Slice(hi, 0)(src)` with
+    ///    `hi + 1 == src_width` returns `src`.
+    /// 6. **Constant-operand evaluation**: `Slice(hi, lo)(c)` →
+    ///    `(c >> lo) & mask(hi - lo + 1)`.
+    ///
+    /// ### `Concat(operand)` (1 operand)
+    ///
+    /// 7. **Single-operand identity**: `Concat([x])` → `x` when
+    ///    `x.width == width`.
+    ///
+    /// ### Reductions: `RedAnd`/`RedOr`/`RedXor` (1 operand)
+    ///
+    /// 8. **Constant-operand evaluation**:
+    ///    - `RedAnd(c)` → `(c == all_ones(src_width)) as 1-bit`
+    ///    - `RedOr(c)` → `(c != 0) as 1-bit`
+    ///    - `RedXor(c)` → `popcount(c) & 1` as 1-bit
+    ///
+    /// # Design principle
+    ///
+    /// Each rule is an unambiguous local identity with no
+    /// width-reinterpretation or type punning. Broader cross-
+    /// gate rewrites like `(a + b) - b → a` or
+    /// `(a & b) | (a & !b) → a` require symbolic reasoning over
+    /// the expression tree (the e-graph problem) and are not
+    /// implemented here — they belong to the aspirational
+    /// `EGraph` layer at the top of `FactorizationLevel`.
+    ///
+    /// # Counter
+    ///
+    /// Every fire increments `self.peephole_rewrites_applied`,
+    /// which `Metrics::peephole_rewrites_applied` exposes. Use
+    /// this to verify knob-sweep behaviour or detect
+    /// regressions.
     pub(crate) fn apply_peephole(
         &mut self,
         op: GateOp,

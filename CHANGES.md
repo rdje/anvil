@@ -3,6 +3,131 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0073 — Thorough docs pass on factorization pipeline (docs only)
+
+**What changed**
+
+User asked for the `apply_peephole` / `fold_constants` /
+`flatten_associative` / `compact_node_ids` / knob-telemetry
+surface to be thoroughly documented, both in-code and in the
+book. This slice closes the gap.
+
+### In-code Rustdoc upgrades (`src/ir/types.rs`)
+
+- `Module::intern_gate` — rewrote from a one-paragraph note
+  into a full pipeline-orchestrator spec: returns convention,
+  numbered six-step pipeline (Associative → Commutative → Fold
+  → Peephole → None bypass → CSE), orphan-safety contract,
+  determinism guarantee.
+- `Module::intern_constant` — expanded to cover the dedup key,
+  cap semantics, why no factorization layers apply, and the
+  `make_constant` wrapper pattern.
+- `Module::fold_constants` — added a table of all rules by op
+  class, the absorbing-rule orphan-safety restriction, the
+  non-commutative position-sensitivity note, the explicit
+  out-of-scope list.
+- `Module::flatten_associative` — upgraded header to call out
+  Layer-4 / `FactorizationLevel::Associative` framing and
+  clarified the return convention.
+- `Module::apply_peephole` — **rewrote the stale doc** (listed
+  only the original four rules and missed every rule added
+  since). New doc groups rules by outer operator: Not (const
+  eval, involutive, comparison inversion), comparisons
+  (all-const eval), Slice (full-width identity + const eval),
+  Concat (single-operand identity), reductions (const eval).
+  Counter mechanism documented.
+- `KnobRollCounters::record` — gained a doc comment explaining
+  when it's called (`roll_knob` helper in cone.rs) and how to
+  interpret `fires / attempts`.
+- `Module::factorization_level` field — stale "Default `Full`"
+  replaced with the real default (`EGraph`) and the ladder
+  listing.
+- `Module::peephole_rewrites_applied` field — stale list
+  (missed Not(cmp) inversions, all-const Not/Slice/reduction
+  evaluations) replaced with the complete catalogue and a
+  pointer to Rule 21c.
+
+### New book chapter: `book/src/factorization.md`
+
+A dedicated "How It Works" chapter walking through the full
+`intern_gate` pipeline end-to-end. Sections:
+
+1. Why factorize (doctrinal anchor: NodeId = expression identity)
+2. The ladder (enum layers + selection)
+3. Pipeline in execution order (layers 1–6 with per-layer
+   tables, short-circuit semantics, and reasoning)
+4. Orphan safety and the compaction pass
+5. Empirical counters with a seed-42 baseline table
+6. Turning layers off — paste-and-run knob-sweep recipe
+7. Pointers to related chapters and source
+
+Progressive disclosure per the book doctrine: Rule 21c in
+`structural-rules.md` stays as the rule-catalogue entry;
+`factorization.md` is the narrative walkthrough for readers
+who want to understand what anvil does to every gate.
+
+Added to `book/src/SUMMARY.md` under "How It Works".
+
+### `book/src/ir.md` updates
+
+- `Module` struct listing refreshed to include every current
+  field: `operand_duplication_rate`, `factorization_level`,
+  block counters, fold/peephole/flatten/compaction counters,
+  `knob_rolls`.
+- "Node construction" section rewritten with three subsections:
+  CSE semantics (Rule 21), The full intern pipeline (Rule 21c
+  with numbered layer list + pointer to `factorization.md`),
+  Orphan safety via compaction. Snapshot contract kept as the
+  final subsection.
+
+### `book/src/architecture.md` updates
+
+- Crate layout refreshed: `types.rs` description now mentions
+  all current fields and helpers; new entry for
+  `compact.rs` that was missing entirely.
+- "Key types at a glance" `Module` block extended to show the
+  factorization counters + `knob_rolls`. `intern_gate`
+  signature gains a layered-pipeline doc comment. New entries
+  for `compact_node_ids`, `KnobId`, `KnobRollCounters`.
+
+### Doctrinal consistency
+
+Every public / `pub(crate)` factorization function now has a
+doc comment that (a) names its layer position, (b) lists its
+rules, (c) documents its return convention, (d) cross-links
+the book chapter where applicable. The book chapters
+cross-link back to the source. No more "what does this do" for
+a user reading `-- --help` output plus the book.
+
+**Why**
+
+User directive: "all these functions and every else shall be
+thoroughly documented when they are part of the user facing
+surface. Not only that, the book shall contain the accurate
+description of all these internal algorithms and functions."
+Prior slices landed the functionality but inherited stale or
+terse doc strings; this slice catches up.
+
+**Tests**
+- 62 unit tests pass (unchanged — docs-only slice).
+- 22 integration tests pass (unchanged).
+- Total test count: 84.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Readers of `cargo doc --open` now get a complete
+  factorization-pipeline reference via the module-level
+  summaries on `intern_gate` and the layer helpers.
+- Readers of the book get a dedicated chapter that explains
+  the pipeline rather than having to assemble the picture
+  from Rule 21c, architecture.md, and ir.md.
+- Future slices that add a layer (or promote an aspirational
+  one) have a clear template: update the `intern_gate`
+  pipeline list, Rule 21c table, `factorization.md` layer
+  list, and the per-field counter doc.
+
+---
+
 ## 2026-04-17-0072 — Peephole all-const evaluation: Not, Slice, reductions
 
 **What changed**

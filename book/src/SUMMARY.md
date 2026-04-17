@@ -15,6 +15,7 @@
 - [The Fanin Cone Algorithm](algorithm.md)
 - [Construction Strategies](construction-strategies.md)
 - [The Circuit IR](ir.md)
+- [The Factorization Pipeline](factorization.md)
 
 # Correctness Guarantees
 

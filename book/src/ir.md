@@ -25,8 +25,20 @@ pub struct Module {
 
     // Per-module knob mirrors (populated from Config at module
     // creation, immutable thereafter).
-    pub max_ast_instances:        u32,  // Rule 21
-    pub mux_arm_duplication_rate: f64,  // Rule 22
+    pub max_ast_instances:        u32,                       // Rule 21
+    pub mux_arm_duplication_rate: f64,                       // Rule 22
+    pub operand_duplication_rate: f64,                       // Rule 8 extended
+    pub factorization_level:      FactorizationLevel,        // Rule 21c
+
+    // --- Post-hoc telemetry (incremented live, surfaced via Metrics) --
+    pub priority_encoder_built:    u32,   // block-build counters
+    pub comb_mux_one_hot_built:    u32,
+    pub comb_mux_encoded_built:    u32,
+    pub fold_identities_applied:   u64,   // ConstantFold layer fires
+    pub peephole_rewrites_applied: u64,   // Peephole layer fires
+    pub flatten_associative_applied: u64, // Associative layer fires
+    pub nodes_compacted:           u32,   // compact_node_ids removals
+    pub knob_rolls:                KnobRollCounters, // per-knob attempts/fires
 }
 
 pub struct Port {
@@ -118,7 +130,7 @@ impl Module {
 }
 ```
 
-Semantics (Rule 21):
+### CSE semantics (Rule 21, bottom of the ladder)
 
 - The pair `(op, operands, width)` is the **gate AST key**.
   The pair `(width, value)` is the **constant AST key**.
@@ -141,12 +153,58 @@ structurally-identical entries; with the tables, CSE is
 structurally enforced and observable (via metrics —
 `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`).
 
-**Snapshot contract:** `build_cone_with_retry` rewinds `nodes`,
-`flops`, pool, and worklist on empty-dep-root retries. It **must**
-also restore `gate_instances` and `const_instances` — otherwise
-stale keys point at now-truncated `NodeId`s, and a subsequent
-intern call returns a different node than the key promises. This
-is a load-bearing invariant.
+### The full intern pipeline (Rule 21c)
+
+CSE is the bottom of the factorization ladder. Above it,
+`intern_gate` runs additional layers before the dedup-table
+lookup so syntactically-different-but-semantically-equivalent
+expressions land on the same CSE key:
+
+1. **Associative flattening** (`>= Associative`): splice
+   same-op operands, normalise per-op semantics.
+2. **Commutative sort** (`>= Commutative`): sort operands of
+   `And`/`Or`/`Xor`/`Add`/`Mul` by `NodeId`.
+3. **Constant folding** (`>= ConstantFold`): drop identity
+   operands (`x + 0`, `x * 1`, `x & all_ones`, …), substitute
+   absorbing constants when orphan-safe.
+4. **Peephole rewrites** (`>= Peephole`): local identities —
+   `Not(Not(x))`, `Not(cmp) → inverted cmp`, all-constant
+   evaluation for comparisons / `Not` / `Slice` / reductions,
+   full-width `Slice`, single-operand `Concat`.
+5. **Level-None bypass**: at `FactorizationLevel::None`, skip
+   every layer above and append a fresh node (stress-test mode).
+6. **AST-cap + CSE dedup**: described just above.
+
+Each layer except the bypass can short-circuit the call to a
+pre-existing or synthesised node, in which case `is_new` is
+`false` or reflects `intern_constant`'s result for synthesised
+constants.
+
+The full layer-by-layer narrative with per-rule tables and
+orphan-safety reasoning lives in
+[The Factorization Pipeline](factorization.md). Rule 21c in
+[Structural Rules](structural-rules.md#21c--factorization-level-user-controllable-dial)
+is the formal rule catalogue.
+
+### Orphan safety: the compaction pass
+
+Layers 1, 3, and 4 can leave gates unreferenced. Rule 18
+(zero orphan gates) is restored at module finalisation by
+`crate::ir::compact::compact_node_ids` — a BFS-based pass that
+rewrites `m.nodes` (and every `NodeId` holder in `m.drives` /
+`m.flops` / the dedup tables) down to the reachable set.
+Without this pass, layers 1/3/4 would have to suppress any
+rewrite that orphans an intermediate gate; with it, they fire
+freely.
+
+### Snapshot contract
+
+`build_cone_with_retry` rewinds `nodes`, `flops`, pool, and
+worklist on empty-dep-root retries. It **must** also restore
+`gate_instances` and `const_instances` — otherwise stale keys
+point at now-truncated `NodeId`s, and a subsequent intern call
+returns a different node than the key promises. This is a
+load-bearing invariant.
 
 ## Why a flat `Vec<Node>`
 
