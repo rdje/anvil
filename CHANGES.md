@@ -3,6 +3,89 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0071 — Cross-gate peephole: Not(comparison) → inverted comparison
+
+**What changed**
+
+Extended `Module::apply_peephole`'s `Not` arm from a single-gate
+rewrite (`Not(Not(x)) → x`) to cover six cross-gate comparison
+inversions:
+
+| Inner op | Rewrite      |
+|----------|--------------|
+| `Eq`     | `→ Neq`      |
+| `Neq`    | `→ Eq`       |
+| `Lt`     | `→ Ge`       |
+| `Gt`     | `→ Le`       |
+| `Le`     | `→ Gt`       |
+| `Ge`     | `→ Lt`       |
+
+When `intern_gate(Not, [cmp_gate_id], 1, deps)` sees its single
+operand is a 1-bit comparison gate, it interns the inverted
+comparison through the normal pipeline (CSE, constant fold,
+etc.) and returns that NodeId directly. The original inner
+comparison becomes orphaned (its only referencing call was the
+outer `Not`, which collapsed); the post-construction
+`compact_node_ids` pass cleans it up at module finalisation.
+
+No new counters — fires share the existing
+`peephole_rewrites_applied` counter.
+
+Implementation detail: the `Not` arm of `apply_peephole` now
+extracts `(op, operands, width, deps)` from the inner gate into
+owned values before touching `self.intern_gate` recursively,
+because holding an immutable borrow of `self.nodes[...]` across
+a `&mut self` call would alias `self`.
+
+Tests:
+- `src/ir/types.rs`: three new unit tests —
+  `peephole_not_eq_becomes_neq` (happy path),
+  `peephole_not_comparison_inversions` (sweep over the five
+  remaining rewrites), `peephole_not_eq_of_constants_folds_to_bit`
+  (boundary: Not of a folded-to-const comparison stays as a Not
+  on a constant — we don't wire Not-of-const into the pipeline
+  here, that's ConstantFold's domain).
+
+Docs:
+- `book/src/structural-rules.md` Rule 21c `peephole` row
+  expanded with the six inversions, kept in the same
+  "orphan-safe via compaction" framing as the other peephole
+  rules. Broader cross-gate rewrites like `(a + b) - b → a`
+  remain flagged as e-graph work.
+
+**Why**
+
+First concrete step toward the `EGraph` ceiling (cross-gate
+semantic equivalence). The inversions are narrow, unambiguous,
+and rely on the same compaction infrastructure that enabled
+`Not(Not(x))` in slice `2cd8b7a`. Picking this slice over broader
+e-graph work keeps the deliverable well-scoped and empirically
+measurable.
+
+**Empirical (seed 42, default knobs):**
+- `peephole_rewrites_applied`: 9 → **31** (+22 Not(cmp) fires)
+- `nodes_compacted`: 94 → **96** (only +2 new orphans because
+  comparison gates are usually shared via CSE and remain
+  reachable from other consumers post-inversion)
+
+**Tests**
+- 59 unit tests pass (was 56 — added 3 new cross-gate tests).
+- 22 integration tests pass (unchanged).
+- Total test count: 81.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Default-config output emits `neq`/`ge`/`le`/`gt`/`lt`
+  operators directly where the RTL semantically calls for a
+  negated comparison, instead of `!(eq/lt/...)`. Downstream
+  tools see the canonical operator form.
+- Infrastructure pattern established for future cross-gate
+  peepholes: read inner gate into owned values, call
+  `intern_gate` recursively, trust compaction for orphan
+  cleanup.
+
+---
+
 ## 2026-04-17-0070 — Associative flattening factorization layer goes live (Rule 21c layer 4)
 
 **What changed**

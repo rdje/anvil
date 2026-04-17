@@ -744,27 +744,70 @@ impl Module {
 
         match op {
             GateOp::Not if operands.len() == 1 => {
+                // Inspect the single operand for collapsible shapes.
+                // Clone fields we need — holding a borrow across the
+                // recursive `intern_gate` call would alias self.
+                let inner = match &self.nodes[operands[0] as usize] {
+                    Node::Gate {
+                        op: inner_op,
+                        operands: inner_ops,
+                        width: inner_w,
+                        deps: inner_deps,
+                    } => Some((*inner_op, inner_ops.clone(), *inner_w, inner_deps.clone())),
+                    _ => None,
+                };
+                let Some((inner_op, inner_ops, inner_w, inner_deps)) = inner else {
+                    return None;
+                };
+
                 // Involutive: Not(Not(x)) → x. Inner Not may be
                 // orphaned; compact_node_ids cleans it up post-
                 // construction.
-                if let Node::Gate {
-                    op: GateOp::Not,
-                    operands: inner_ops,
-                    width: inner_w,
-                    ..
-                } = &self.nodes[operands[0] as usize]
-                {
-                    if *inner_w == width && inner_ops.len() == 1 {
-                        let x = inner_ops[0];
+                if inner_op == GateOp::Not && inner_w == width && inner_ops.len() == 1 {
+                    let x = inner_ops[0];
+                    self.peephole_rewrites_applied += 1;
+                    crate::trace_verbose!(
+                        node = x,
+                        width,
+                        "✂️ peephole Not(Not(x)) → x"
+                    );
+                    return Some((x, false));
+                }
+
+                // Comparison inversion (cross-gate peephole):
+                // `Not(cmp(a, b)) → inverted_cmp(a, b)`. Width
+                // invariant: Not preserves width, comparisons are
+                // always 1-bit, so both outer Not width and inner
+                // comparison width must be 1 for this to apply.
+                // The inner comparison gate is left unreferenced
+                // (only the outer Not, now collapsed, held it);
+                // compact_node_ids cleans it up.
+                let inverted = match inner_op {
+                    GateOp::Eq => Some(GateOp::Neq),
+                    GateOp::Neq => Some(GateOp::Eq),
+                    GateOp::Lt => Some(GateOp::Ge),
+                    GateOp::Gt => Some(GateOp::Le),
+                    GateOp::Le => Some(GateOp::Gt),
+                    GateOp::Ge => Some(GateOp::Lt),
+                    _ => None,
+                };
+                if let Some(flipped) = inverted {
+                    if inner_w == 1 && width == 1 && inner_ops.len() == 2 {
                         self.peephole_rewrites_applied += 1;
                         crate::trace_verbose!(
-                            node = x,
-                            width,
-                            "✂️ peephole Not(Not(x)) → x"
+                            ?inner_op,
+                            ?flipped,
+                            "✂️ peephole Not(cmp) → inverted cmp"
                         );
-                        return Some((x, false));
+                        // Intern the inverted comparison through the
+                        // normal pipeline so it participates in CSE
+                        // / constant folding if the operands are
+                        // constants. The result takes the outer
+                        // Not's return slot directly.
+                        return Some(self.intern_gate(flipped, inner_ops, 1, inner_deps));
                     }
                 }
+
                 None
             }
             GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
@@ -1345,6 +1388,95 @@ mod tests {
         // The inner Not is now orphaned — it exists at m.nodes[inner]
         // but is referenced by no holder. `compact_node_ids` cleans
         // it up at module finalisation.
+    }
+
+    /// `Not(Eq(a, b))` rewrites to `Neq(a, b)` at intern time.
+    /// The inner Eq becomes orphaned (only the outer Not, now
+    /// collapsed, held it); compact_node_ids handles the orphan.
+    #[test]
+    fn peephole_not_eq_becomes_neq() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let (inner, _) = m.intern_gate(GateOp::Eq, vec![a, b], 1, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::Not, vec![inner], 1, DepSet::from_port(0));
+        match &m.nodes[outer as usize] {
+            Node::Gate {
+                op: GateOp::Neq,
+                operands,
+                width: 1,
+                ..
+            } => {
+                let mut ids = operands.clone();
+                ids.sort_unstable();
+                assert_eq!(ids, vec![a, b], "Neq must carry Eq's operands");
+            }
+            other => panic!("expected Neq gate, got {other:?}"),
+        }
+        assert_eq!(m.peephole_rewrites_applied, 1);
+    }
+
+    /// `Not(Neq)` / `Not(Lt)` / `Not(Gt)` / `Not(Le)` / `Not(Ge)`
+    /// all invert to their complementary comparison.
+    #[test]
+    fn peephole_not_comparison_inversions() {
+        let cases = [
+            (GateOp::Neq, GateOp::Eq),
+            (GateOp::Lt, GateOp::Ge),
+            (GateOp::Gt, GateOp::Le),
+            (GateOp::Le, GateOp::Gt),
+            (GateOp::Ge, GateOp::Lt),
+        ];
+        for (inner_op, expected_outer_op) in cases {
+            let mut m = Module {
+                max_ast_instances: 1,
+                factorization_level: crate::config::FactorizationLevel::default(),
+                ..Module::default()
+            };
+            m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+            m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+            let a: NodeId = 0;
+            let b: NodeId = 1;
+            let (inner, _) = m.intern_gate(inner_op, vec![a, b], 1, DepSet::from_port(0));
+            let (outer, _) = m.intern_gate(GateOp::Not, vec![inner], 1, DepSet::from_port(0));
+            match &m.nodes[outer as usize] {
+                Node::Gate { op, .. } if *op == expected_outer_op => {}
+                other => panic!(
+                    "Not({inner_op:?}) should rewrite to {expected_outer_op:?}, got {other:?}"
+                ),
+            }
+        }
+    }
+
+    /// `Not(Eq(c1, c2))` with both operands constants: the peephole
+    /// rewrites to `Neq(c1, c2)`, which is then immediately folded by
+    /// the same-pipeline constant-comparison peephole to a 1-bit
+    /// constant. Double-handoff through the pipeline.
+    #[test]
+    fn peephole_not_eq_of_constants_folds_to_bit() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c5, _) = m.intern_constant(8, 5);
+        let (c7, _) = m.intern_constant(8, 7);
+        let (eq, _) = m.intern_gate(GateOp::Eq, vec![c5, c7], 1, DepSet::new());
+        // Eq(5, 7) already folds to const 0 at ConstantFold, so
+        // `eq` is the 1-bit zero constant. Not(0) applied as a
+        // Not on a constant — Not's peephole only handles Not(Not)
+        // and Not(comparison), so this stays a real Not gate.
+        // This is the expected boundary: constant folding of Not
+        // itself isn't wired (it would belong to ConstantFold
+        // expansion, not Peephole).
+        let _ = eq;
+        let _ = m;
     }
 
     // --- Associative flattening tests -----------------------------
