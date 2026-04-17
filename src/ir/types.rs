@@ -96,6 +96,93 @@ pub struct Module {
     /// single-operand Concat (`Concat([x]) → x`). Surfaced via
     /// `Metrics::peephole_rewrites_applied`.
     pub peephole_rewrites_applied: u64,
+
+    /// Per-knob attempt/fire counters for every probability roll
+    /// taken during construction. Populated live by the
+    /// `roll_knob` helper in `src/gen/cone.rs` at every
+    /// `gen_bool(cfg.<prob>)` site. Surfaced via
+    /// `Metrics::knob_roll_attempts` / `knob_roll_fires` so each
+    /// probability knob's effect is empirically measurable: the
+    /// empirical fire-rate `fires / attempts` should converge to
+    /// the knob value across large seed sweeps.
+    pub knob_rolls: KnobRollCounters,
+}
+
+/// Identifier for each probability-roll knob. One variant per
+/// `gen_bool(cfg.<prob>)` site across the generator. Keep
+/// `Copy + Hash + Eq` cheap — the enum is keyed into a
+/// `HashMap` on every roll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KnobId {
+    /// `Config::flop_prob` — per-depth chance that a leaf is
+    /// a flop block (`build_flop_leaf`).
+    FlopProb,
+    /// `Config::comb_mux_prob` — per-depth chance of a comb-mux
+    /// block (`build_comb_mux`).
+    CombMuxProb,
+    /// `Config::priority_encoder_prob` — per-depth chance of a
+    /// priority-encoder block.
+    PriorityEncoderProb,
+    /// `Config::coefficient_prob` — chance that an Add/Sub/Mul
+    /// becomes a linear-combination motif.
+    CoefficientProb,
+    /// `Config::const_shift_amount_prob` — chance that a Shl/Shr
+    /// takes a constant shift amount.
+    ConstShiftAmountProb,
+    /// `Config::const_comparand_prob` — chance that a comparison's
+    /// RHS is a constant.
+    ConstComparandProb,
+    /// `Config::comb_mux_encoding_prob` — encoded vs one-hot
+    /// comb-mux shape.
+    CombMuxEncodingProb,
+    /// `Config::flop_mux_encoding_prob` — encoded vs one-hot
+    /// flop-D-mux shape.
+    FlopMuxEncodingProb,
+    /// `Config::share_prob` — chance of a DAG-sharing fork at
+    /// operand slots.
+    ShareProb,
+    /// `Config::flop_qfeedback_prob` — ZeroDefault vs QFeedback
+    /// flop kind.
+    FlopQFeedbackProb,
+}
+
+impl KnobId {
+    /// Stable lowercase string key for serialisation into
+    /// `Metrics`. Matches the `Config` field name, minus the
+    /// `_prob` suffix where present.
+    pub fn name(&self) -> &'static str {
+        match self {
+            KnobId::FlopProb => "flop_prob",
+            KnobId::CombMuxProb => "comb_mux_prob",
+            KnobId::PriorityEncoderProb => "priority_encoder_prob",
+            KnobId::CoefficientProb => "coefficient_prob",
+            KnobId::ConstShiftAmountProb => "const_shift_amount_prob",
+            KnobId::ConstComparandProb => "const_comparand_prob",
+            KnobId::CombMuxEncodingProb => "comb_mux_encoding_prob",
+            KnobId::FlopMuxEncodingProb => "flop_mux_encoding_prob",
+            KnobId::ShareProb => "share_prob",
+            KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
+        }
+    }
+}
+
+/// Live per-knob roll counters. `record(knob, fired)` is called
+/// at every probability-roll site; the empirical ratio
+/// `fires[knob] / attempts[knob]` should converge to the knob
+/// value as the module grows.
+#[derive(Debug, Clone, Default)]
+pub struct KnobRollCounters {
+    pub attempts: HashMap<KnobId, u64>,
+    pub fires: HashMap<KnobId, u64>,
+}
+
+impl KnobRollCounters {
+    pub fn record(&mut self, knob: KnobId, fired: bool) {
+        *self.attempts.entry(knob).or_insert(0) += 1;
+        if fired {
+            *self.fires.entry(knob).or_insert(0) += 1;
+        }
+    }
 }
 
 impl Module {

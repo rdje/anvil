@@ -10,13 +10,27 @@
 use super::{pool::SignalPool, Generator};
 use crate::config::Config;
 use crate::ir::{
-    DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, Module, MuxArm, Node, NodeId, ResetKind,
+    DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, KnobId, Module, MuxArm, Node, NodeId,
+    ResetKind,
 };
 use rand::Rng;
 use tracing::{debug, instrument, trace, warn};
 
 /// Worklist of flops whose D-input cone has not yet been built.
 pub type FlopWorklist = Vec<FlopId>;
+
+/// Perform a probability-roll against a named knob and record the
+/// attempt + outcome in `m.knob_rolls`. Single place to add
+/// telemetry — every `gen_bool(cfg.<prob>)` site in this module
+/// routes through here so the empirical fire-rate
+/// `fires / attempts` can be compared against the configured
+/// probability (knob-effectiveness validation per the
+/// measurability doctrine).
+fn roll_knob(g: &mut Generator, m: &mut Module, knob: KnobId, prob: f64) -> bool {
+    let fired = g.rng.gen_bool(prob.min(1.0));
+    m.knob_rolls.record(knob, fired);
+    fired
+}
 
 /// Retry loop around `build_cone` that rejects trivial (empty dep-set)
 /// roots. Bounded to avoid pathological infinite retries; if we exceed
@@ -179,13 +193,13 @@ fn grow_pool_one_unit(
     let width = g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width);
 
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    if flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0)) {
+    if flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob) {
         trace!(width, "🧱 flop block");
         build_flop_leaf(g, m, pool, worklist, width);
         return true;
     }
 
-    if g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0)) {
+    if roll_knob(g, m, KnobId::CombMuxProb, g.cfg.comb_mux_prob) {
         trace!(width, "🧱 comb-mux block");
         build_comb_mux_pool_only(g, m, pool, width);
         return true;
@@ -193,7 +207,7 @@ fn grow_pool_one_unit(
 
     // Priority-encoder block (pool-only). Skip if no N compatible with
     // target width.
-    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0))
+    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob)
         && build_priority_encoder_pool(g, m, pool, width).is_some()
     {
         trace!(width, "🧱 priority-encoder block");
@@ -207,7 +221,7 @@ fn grow_pool_one_unit(
     // recursive path: Add/Sub/Mul with coefficient_prob probability
     // becomes a linear-combination compound.
     if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
-        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+        && roll_knob(g, m, KnobId::CoefficientProb, g.cfg.coefficient_prob)
     {
         trace!(?op, "➕ linear-combination motif");
         build_linear_combination_pool(g, m, pool, op, width);
@@ -217,7 +231,7 @@ fn grow_pool_one_unit(
     // Constant shift-amount motif (pool-only). Value operand is a
     // pool pick; shift amount is a literal constant.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
     {
         trace!(?op, "⏩ const-shift-amount motif");
         let value = pick_terminal_dep_bearing(g, m, pool, width, None);
@@ -228,7 +242,9 @@ fn grow_pool_one_unit(
     // Constant comparand motif (pool-only). LHS is a pool pick of
     // internal operand width K; RHS is a literal constant. Output
     // is 1-bit.
-    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+    if is_comparison_op(op)
+        && roll_knob(g, m, KnobId::ConstComparandProb, g.cfg.const_comparand_prob)
+    {
         trace!(?op, "🔍 const-comparand motif");
         let k = pick_comparison_operand_width(g);
         let lhs = pick_terminal_dep_bearing(g, m, pool, k, None);
@@ -269,7 +285,7 @@ fn build_comb_mux_pool_only(
     let max_arms = g.cfg.max_mux_arms.max(min_arms);
     let n_arms = g.rng.gen_range(min_arms..=max_arms);
 
-    let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
+    let encoded = roll_knob(g, m, KnobId::CombMuxEncodingProb, g.cfg.comb_mux_encoding_prob);
     if encoded {
         m.comb_mux_encoded_built += 1;
         let sel_width = ceil_log2(n_arms);
@@ -323,7 +339,7 @@ fn drain_flop_worklist_pool_only(
             continue;
         }
 
-        let encoded = g.rng.gen_bool(g.cfg.flop_mux_encoding_prob.min(1.0));
+        let encoded = roll_knob(g, m, KnobId::FlopMuxEncodingProb, g.cfg.flop_mux_encoding_prob);
         if encoded {
             let sel_width = ceil_log2(m_arms);
             let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, exclude);
@@ -431,7 +447,7 @@ fn process_signal_frame(
     // Flop block: allocates a Flop and enqueues its D-cone on the worklist.
     // The FlopQ node is returned immediately and the frame resolves.
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    if flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0)) {
+    if flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob) {
         let node = build_flop_leaf(g, m, pool, worklist, frame.width);
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
@@ -440,7 +456,7 @@ fn process_signal_frame(
     // Comb-mux block: builds its internal sub-cones depth-first within
     // this frame step. Block placement interleaves with other cones;
     // block internals do not. This matches the "near-symmetric" scope.
-    if g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0)) {
+    if roll_knob(g, m, KnobId::CombMuxProb, g.cfg.comb_mux_prob) {
         let node = build_comb_mux(
             g,
             m,
@@ -456,7 +472,7 @@ fn process_signal_frame(
 
     // Priority-encoder block: compatible only when the frame's target
     // width matches ceil_log2(N) for some N in the block-arity range.
-    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0)) {
+    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob) {
         if let Some(node) = build_priority_encoder_recursive(
             g,
             m,
@@ -487,7 +503,7 @@ fn process_signal_frame(
     // this frame step (the tree itself is atomic; its signal leaves
     // come from recursive build_cone just like block internals).
     if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
-        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+        && roll_knob(g, m, KnobId::CoefficientProb, g.cfg.coefficient_prob)
     {
         let node = build_linear_combination_recursive(
             g,
@@ -507,7 +523,7 @@ fn process_signal_frame(
     // Built synchronously within this frame step; the value operand
     // comes from a recursive build_cone call.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
     {
         let value = build_cone(
             g,
@@ -524,7 +540,9 @@ fn process_signal_frame(
     }
 
     // Constant comparand motif: comparison with const_comparand_prob.
-    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+    if is_comparison_op(op)
+        && roll_knob(g, m, KnobId::ConstComparandProb, g.cfg.const_comparand_prob)
+    {
         let k = pick_comparison_operand_width(g);
         let lhs = build_cone(g, m, pool, worklist, k, frame.depth + 1, frame.exclude);
         let node = build_comparison_const_comparand(g, m, pool, op, lhs, k);
@@ -544,7 +562,7 @@ fn process_signal_frame(
     }));
     for (slot, w) in operand_widths.into_iter().enumerate() {
         // DAG-sharing fork (Rule 16 / share_prob): same as recursive path.
-        let shared = if g.rng.gen_bool(g.cfg.share_prob.min(1.0)) {
+        let shared = if roll_knob(g, m, KnobId::ShareProb, g.cfg.share_prob) {
             try_share(g, pool, w, frame.exclude)
         } else {
             None
@@ -673,7 +691,7 @@ pub fn drain_flop_worklist(
             continue;
         }
 
-        let encoded = g.rng.gen_bool(g.cfg.flop_mux_encoding_prob.min(1.0));
+        let encoded = roll_knob(g, m, KnobId::FlopMuxEncodingProb, g.cfg.flop_mux_encoding_prob);
         if encoded {
             let (d_node, mux) =
                 drain_flop_encoded(g, m, pool, worklist, width, kind, q_node, m_arms);
@@ -1463,20 +1481,20 @@ pub fn build_cone(
     // Blocks take priority over operator gates. Ordering between flop
     // and comb-mux is first-come by their independent probability rolls.
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    let pick_flop = flop_allowed && g.rng.gen_bool(g.cfg.flop_prob.min(1.0));
+    let pick_flop = flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob);
     if pick_flop {
         trace!(depth, width, "🧱 flop block");
         return build_flop_leaf(g, m, pool, worklist, width);
     }
 
-    let pick_comb_mux = g.rng.gen_bool(g.cfg.comb_mux_prob.min(1.0));
+    let pick_comb_mux = roll_knob(g, m, KnobId::CombMuxProb, g.cfg.comb_mux_prob);
     if pick_comb_mux {
         return build_comb_mux(g, m, pool, worklist, width, depth, exclude);
     }
 
     // Priority-encoder block: compatible only when target width matches
     // ceil_log2(N) for some N in the block-arity range.
-    if g.rng.gen_bool(g.cfg.priority_encoder_prob.min(1.0)) {
+    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob) {
         if let Some(node) =
             build_priority_encoder_recursive(g, m, pool, worklist, width, depth, exclude)
         {
@@ -1492,7 +1510,7 @@ pub fn build_cone(
     // (see `book/src/structural-rules.md` "Roles of constants in RTL").
     // Signals are picked via the usual recursive path.
     if matches!(op, GateOp::Add | GateOp::Sub | GateOp::Mul)
-        && g.rng.gen_bool(g.cfg.coefficient_prob.min(1.0))
+        && roll_knob(g, m, KnobId::CoefficientProb, g.cfg.coefficient_prob)
     {
         crate::trace_verbose!(?op, depth, width, "➕ linear-combination motif (recursive)");
         return build_linear_combination_recursive(g, m, pool, worklist, op, width, depth, exclude);
@@ -1502,7 +1520,7 @@ pub fn build_cone(
     // the per-shift probability fires, emit `value OP const` with a
     // literal shift amount instead of a barrel shifter.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && g.rng.gen_bool(g.cfg.const_shift_amount_prob.min(1.0))
+        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
     {
         let value = build_cone(g, m, pool, worklist, width, depth + 1, exclude);
         return build_shift_const_amount(g, m, pool, op, value, width);
@@ -1511,7 +1529,9 @@ pub fn build_cone(
     // Constant comparand motif: when the picked op is a comparison
     // and the per-comparison probability fires, emit `lhs OP const`
     // instead of recursing on both operands.
-    if is_comparison_op(op) && g.rng.gen_bool(g.cfg.const_comparand_prob.min(1.0)) {
+    if is_comparison_op(op)
+        && roll_knob(g, m, KnobId::ConstComparandProb, g.cfg.const_comparand_prob)
+    {
         let k = pick_comparison_operand_width(g);
         let lhs = build_cone(g, m, pool, worklist, k, depth + 1, exclude);
         return build_comparison_const_comparand(g, m, pool, op, lhs, k);
@@ -1539,7 +1559,7 @@ pub fn build_cone(
         // recursing to create fresh logic. Falls back to recursion if no
         // shareable candidate exists. Share/recurse is decided per-operand,
         // so a single gate's operands can mix shared and freshly-built sub-cones.
-        let share = g.rng.gen_bool(g.cfg.share_prob.min(1.0));
+        let share = roll_knob(g, m, KnobId::ShareProb, g.cfg.share_prob);
         let shared = if share {
             try_share(g, pool, w, exclude)
         } else {
@@ -1597,7 +1617,7 @@ fn build_comb_mux(
     let max_arms = g.cfg.max_mux_arms.max(min_arms);
     let n_arms = g.rng.gen_range(min_arms..=max_arms);
 
-    let encoded = g.rng.gen_bool(g.cfg.comb_mux_encoding_prob.min(1.0));
+    let encoded = roll_knob(g, m, KnobId::CombMuxEncodingProb, g.cfg.comb_mux_encoding_prob);
     if encoded {
         m.comb_mux_encoded_built += 1;
         build_comb_mux_encoded(g, m, pool, worklist, width, depth, exclude, n_arms)
@@ -1676,7 +1696,7 @@ fn build_flop_leaf(
         width,
     });
     let reset_val = pick_reset_value(g, width);
-    let kind = if g.rng.gen_bool(g.cfg.flop_qfeedback_prob.min(1.0)) {
+    let kind = if roll_knob(g, m, KnobId::FlopQFeedbackProb, g.cfg.flop_qfeedback_prob) {
         FlopKind::QFeedback
     } else {
         FlopKind::ZeroDefault

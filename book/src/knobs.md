@@ -478,3 +478,30 @@ All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future
 additions will extend this table, not shrink its
 pending-coverage.
+
+### Per-knob roll-rate validation
+
+For every probability-roll knob the metrics also expose
+`knob_roll_attempts["<knob>_prob"]` and
+`knob_roll_fires["<knob>_prob"]` — the raw attempt and fire
+counts taken during construction. The empirical fire-rate
+`fires / attempts` is a direct check on the knob:
+
+- Default knobs at seed 42 produce ratios like
+  `share_prob: 607/1999 ≈ 0.30` (default `0.3`),
+  `coefficient_prob: 51/256 ≈ 0.20` (default `0.2`),
+  `comb_mux_encoding_prob: 49/94 ≈ 0.52` (default `0.5`).
+- A knob that consistently misses its configured rate
+  indicates either a gating condition upstream (e.g.
+  `flop_prob` rolls are gated on `flop_allowed`, so hitting
+  `max_flops_per_module` cuts attempts) or a bug.
+- The counters cover every `gen_bool(cfg.<prob>)` site in
+  `src/gen/cone.rs` — see `KnobId` in `src/ir/types.rs` for
+  the full list (`flop_prob`, `comb_mux_prob`,
+  `priority_encoder_prob`, `coefficient_prob`,
+  `const_shift_amount_prob`, `const_comparand_prob`,
+  `comb_mux_encoding_prob`, `flop_mux_encoding_prob`,
+  `share_prob`, `flop_qfeedback_prob`).
+
+This is the measurability doctrine in its most direct form:
+every probability dial's effect is a simple division away.

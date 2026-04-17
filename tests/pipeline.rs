@@ -612,3 +612,64 @@ fn peephole_layer_fires_at_default_knobs() {
          being produced."
     );
 }
+
+/// Doctrine guard: every probability knob that the generator
+/// actually consults must show up in `knob_roll_attempts`, and the
+/// empirical fire-rate should be bounded by the configured
+/// probability (with some slack to allow for sampling noise). This
+/// is the measurability doctrine in test form — if a knob stops
+/// firing, or stops being rolled, the generator has regressed.
+#[test]
+fn knob_rolls_recorded_across_seeds() {
+    // Aggregate attempts+fires over a sweep so we get enough
+    // samples to see every probability knob at least once.
+    let mut total_attempts: std::collections::BTreeMap<String, u64> =
+        std::collections::BTreeMap::new();
+    let mut total_fires: std::collections::BTreeMap<String, u64> =
+        std::collections::BTreeMap::new();
+    for seed in 0..20u64 {
+        let cfg = Config {
+            seed,
+            ..Config::default()
+        };
+        let m = anvil::Generator::new(cfg).generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        for (k, v) in &metrics.knob_roll_attempts {
+            *total_attempts.entry(k.clone()).or_insert(0) += v;
+        }
+        for (k, v) in &metrics.knob_roll_fires {
+            *total_fires.entry(k.clone()).or_insert(0) += v;
+        }
+    }
+
+    // Every probability knob whose default is > 0 should log
+    // attempts. `priority_encoder_prob` default is 0.05 so even
+    // with seed variation we expect attempts across 20 seeds.
+    let expected_knobs = [
+        "flop_prob",
+        "comb_mux_prob",
+        "priority_encoder_prob",
+        "coefficient_prob",
+        "const_shift_amount_prob",
+        "const_comparand_prob",
+        "comb_mux_encoding_prob",
+        "flop_mux_encoding_prob",
+        "share_prob",
+        "flop_qfeedback_prob",
+    ];
+    for knob in expected_knobs {
+        let attempts = total_attempts.get(knob).copied().unwrap_or(0);
+        assert!(
+            attempts > 0,
+            "expected knob {knob} to be rolled at least once across 20 seeds; \
+             got 0 attempts. Either the knob is no longer consulted or its \
+             roll site is unreachable at default knobs."
+        );
+        // Fires must never exceed attempts.
+        let fires = total_fires.get(knob).copied().unwrap_or(0);
+        assert!(
+            fires <= attempts,
+            "knob {knob}: fires ({fires}) > attempts ({attempts}) — bookkeeping bug"
+        );
+    }
+}

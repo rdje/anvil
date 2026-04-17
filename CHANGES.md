@@ -3,6 +3,107 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0068 — Per-knob probability-roll counters (attempts / fires) live
+
+**What changed**
+
+Live per-knob telemetry for every probability-roll knob. New
+`KnobId` enum in `src/ir/types.rs` with one variant per
+`gen_bool(cfg.<prob>)` site (10 total). New
+`KnobRollCounters` struct on `Module` tracking
+`attempts: HashMap<KnobId, u64>` and
+`fires: HashMap<KnobId, u64>`. New helper `roll_knob(g, m,
+knob, prob)` in `src/gen/cone.rs` replaces all 25
+`gen_bool(cfg.<prob>)` sites; it rolls, records the outcome,
+and returns the bool.
+
+Knobs instrumented:
+- `flop_prob`
+- `comb_mux_prob`
+- `priority_encoder_prob`
+- `coefficient_prob`
+- `const_shift_amount_prob`
+- `const_comparand_prob`
+- `comb_mux_encoding_prob`
+- `flop_mux_encoding_prob`
+- `share_prob`
+- `flop_qfeedback_prob`
+
+Surfaced via new `Metrics` fields:
+- `knob_roll_attempts: BTreeMap<String, u64>`
+- `knob_roll_fires: BTreeMap<String, u64>`
+(converted from `KnobId` → canonical string name via
+`KnobId::name()` at `compute()` time).
+
+Tests:
+- New integration test
+  `knob_rolls_recorded_across_seeds` in `tests/pipeline.rs`:
+  across 20 seeds at default knobs, every one of the 10
+  expected knobs must appear in `knob_roll_attempts` with
+  `attempts > 0` and `fires <= attempts`. Catches regressions
+  where a knob stops being consulted or its roll site becomes
+  unreachable.
+
+Docs:
+- `book/src/knobs.md` "Knob effectiveness map" gains a new
+  "Per-knob roll-rate validation" subsection explaining the
+  empirical-fire-rate test (`fires / attempts` should track
+  the configured probability), with concrete seed-42 numbers.
+
+**Why**
+
+Completes the measurability doctrine for every probability
+knob: the effect is now a simple division away. Previously
+only *shape* metrics (`num_flops`, `num_muxes_2to1`, etc.)
+measured these knobs — useful but indirect (they conflate the
+roll rate with the number of reachable roll sites). The new
+ratio `knob_roll_fires[k] / knob_roll_attempts[k]` is a
+direct check.
+
+Picked as the next slice because `Associative` and the
+deeper peephole rules are both blocked on NodeId compaction —
+a larger architectural slice. This slice is a clean
+well-scoped completion of the measurability goal, with no
+risk of orphan cascades.
+
+**Empirical spot-check (seed 42, default knobs):**
+
+| Knob                      | Default | attempts | fires | ratio |
+|---------------------------|---------|----------|-------|-------|
+| `share_prob`              | 0.30    | 1999     | 607   | 0.304 |
+| `comb_mux_encoding_prob`  | 0.50    | 94       | 49    | 0.521 |
+| `coefficient_prob`        | 0.20    | 256      | 51    | 0.199 |
+| `const_shift_amount_prob` | 0.75    | 55       | 40    | 0.727 |
+| `flop_qfeedback_prob`     | 0.50    | 34       | 15    | 0.441 |
+| `comb_mux_prob`           | 0.10    | 1010     | 94    | 0.093 |
+| `flop_prob`               | 0.10    | 261      | 34    | 0.130 |
+
+All ratios track their configured values within sampling
+noise — the telemetry is faithful.
+
+**Tests**
+- 47 unit tests pass (unchanged).
+- 21 integration tests pass (was 20 — added
+  `knob_rolls_recorded_across_seeds`).
+- Total test count: 68.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Every probability knob now has a direct empirical check
+  on its effective rate — the measurability doctrine's
+  strongest form.
+- `manifest.json` / `--metrics` dumps gain two new maps per
+  module, keyed by knob name. Consumers can build sweep
+  scripts that assert `|empirical - configured| < ε` across
+  many seeds and flag regressions.
+- No behavioural change to the generator: `roll_knob` is
+  byte-identical to the previous `g.rng.gen_bool(...)` on
+  the output path, only adds the counter record. Verified
+  by reproducibility tests (byte-identical output across
+  `--trace` levels, which includes this change).
+
+---
+
 ## 2026-04-17-0067 — Peephole factorization layer goes live (Rule 21c layer 6), orphan-safe subset
 
 **What changed**

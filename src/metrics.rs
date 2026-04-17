@@ -167,6 +167,29 @@ pub struct Metrics {
     /// levels below `Peephole`.
     pub peephole_rewrites_applied: u64,
 
+    // --- Per-knob probability-roll counters --------------------
+    /// Attempt count per probability knob. Keyed by the knob's
+    /// canonical string name (matches `Config` field, e.g.
+    /// `"flop_prob"`). Every `gen_bool(cfg.<prob>)` site during
+    /// construction routes through the `roll_knob` helper which
+    /// increments attempts (and fires below on success). Empty
+    /// knobs (no attempts taken during this module) are omitted
+    /// from the map to keep JSON dumps compact.
+    ///
+    /// Read this with `knob_roll_fires` to compute the empirical
+    /// fire-rate per knob — should converge to the configured
+    /// probability across large seed sweeps. Divergences indicate
+    /// either low sample count or a latent gate that prevents
+    /// the roll from reaching its decision site (e.g.
+    /// `flop_prob` rolls are gated by `flop_allowed`, so a module
+    /// that hits `max_flops_per_module` early will see fewer
+    /// attempts than expected).
+    pub knob_roll_attempts: BTreeMap<String, u64>,
+    /// Fire count per probability knob — the subset of attempts
+    /// that returned `true`. See `knob_roll_attempts` for keying
+    /// and interpretation.
+    pub knob_roll_fires: BTreeMap<String, u64>,
+
     // --- Block-build counters -----------------------------------
     /// Number of priority-encoder block instances built in this
     /// module. Measures the `priority_encoder_prob` knob directly.
@@ -347,6 +370,15 @@ pub fn compute(m: &Module) -> Metrics {
     // `intern_gate`. Zero at levels below `ConstantFold`.
     out.fold_identities_applied = m.fold_identities_applied;
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
+
+    // Per-knob attempt/fire counters. Convert enum keys to strings
+    // for serialisation. Non-empty knobs only.
+    for (knob, count) in &m.knob_rolls.attempts {
+        out.knob_roll_attempts.insert(knob.name().to_string(), *count);
+    }
+    for (knob, count) in &m.knob_rolls.fires {
+        out.knob_roll_fires.insert(knob.name().to_string(), *count);
+    }
 
     // Associative-flattening-opportunities scan. For every
     // associative gate, count operands that are themselves a gate
