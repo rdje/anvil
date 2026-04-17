@@ -101,17 +101,32 @@ ascending by `NodeId`. This collapses
 
 ### 3. Constant folding (`>= ConstantFold`)
 
-[`Module::fold_constants`] applies algebraic identities:
+[`Module::fold_constants`] applies algebraic identities and
+fully-evaluates any all-constant expression at intern time:
 
-| Op              | Identity drop          | Absorbing                                |
-|-----------------|------------------------|------------------------------------------|
-| `Add` / `Xor`   | drop `0`               | —                                        |
-| `Or`            | drop `0`               | `all_ones` (non-Gate operands only)      |
-| `Mul`           | drop `1`               | `0` (non-Gate operands only)             |
-| `And`           | drop `all_ones`        | `0` (non-Gate operands only)             |
-| `Sub` (2-arity) | rhs `0` → lhs          | —                                        |
-| `Shl` (2-arity) | rhs `0` → lhs          | —                                        |
-| `Shr` (2-arity) | rhs `0` → lhs          | —                                        |
+**Associative ops (`And`/`Or`/`Xor`/`Add`/`Mul`):**
+
+| Op    | All-const evaluation                | Identity drop   | Absorbing                              |
+|-------|-------------------------------------|-----------------|----------------------------------------|
+| `And` | bitwise AND over values             | drop `all_ones` | `0` (all non-Gate operands only)       |
+| `Or`  | bitwise OR over values              | drop `0`        | `all_ones` (all non-Gate operands only)|
+| `Xor` | bitwise XOR over values             | drop `0`        | —                                      |
+| `Add` | sum mod 2^width                     | drop `0`        | —                                      |
+| `Mul` | product mod 2^width                 | drop `1`        | `0` (all non-Gate operands only)       |
+
+All-const evaluation supersedes the absorbing and identity-drop
+paths for the all-const subcase — e.g. `Add(3, 5)` folds to 8
+directly without going through identity-drop. Mixed operand
+lists (one constant + one primary input, say) reach the
+identity-drop / absorbing paths.
+
+**Non-commutative 2-arity ops:**
+
+| Op    | All-const evaluation                             | Rhs-zero identity |
+|-------|--------------------------------------------------|-------------------|
+| `Sub` | `(lhs - rhs) mod 2^width`                        | `a - 0 → a`       |
+| `Shl` | `(lhs << rhs) mod 2^width` (over-shift → 0)      | `a << 0 → a`      |
+| `Shr` | `lhs >> rhs` (over-shift → 0)                    | `a >> 0 → a`      |
 
 **Absorbing's orphan-safety restriction:** turning the whole
 expression into a constant would orphan any `Node::Gate` operand.
@@ -120,8 +135,10 @@ So absorbing fires only when every operand is a non-Gate node —
 constants, primary inputs, or flop Qs. Those don't count as gate
 orphans, so it's safe.
 
-Non-commutative ops fold only the rhs-constant case. `a - 0` is
-`a`, but `0 - a` isn't — we don't silently rewrite it.
+Non-commutative ops fold only the rhs-constant case for the
+identity shortcut. `a - 0` is `a`, but `0 - a` isn't — we don't
+silently rewrite it. All-const evaluation doesn't have this
+restriction because both operands are known constants.
 
 ### 4. Peephole rewrites (`>= Peephole`)
 
@@ -147,8 +164,13 @@ outer operator. The current catalogue:
 - Full-width slice (`lo == 0`, `hi + 1 == src_width`) → src.
 - Constant operand: `(c >> lo) & mask(hi - lo + 1)`.
 
-**For `Concat` (1 operand):**
+**For `Concat` (1 or more operands):**
 - Single-operand with matching width → that operand.
+- All-constant bit assembly: every operand is a constant →
+  pack MSB-first into one output constant (matches SV emit
+  convention, `{c1, c2, c3}` places `c1` in the high bits).
+  Operand widths must sum to the gate width; mismatch
+  defensively skips the fold.
 
 **For reductions `RedAnd`/`RedOr`/`RedXor` (1 operand):**
 - Constant operand:

@@ -105,6 +105,8 @@ pub struct Module {
     /// - `Slice(hi, 0)(src)` full-width identity → `src`
     /// - `Slice(hi, lo)(c)` constant evaluation
     /// - `Concat([x]) → x` single-operand identity
+    /// - `Concat([c1, c2, ...]) → assembled const` (MSB-first
+    ///   bit assembly when every operand is a constant)
     /// - `RedAnd/RedOr/RedXor(c) → 1-bit const` (constant
     ///   evaluation for reductions)
     ///
@@ -511,15 +513,29 @@ impl Module {
     ///
     /// # Rules implemented
     ///
-    /// | Op              | Identity drop                        | Absorbing                                 |
-    /// |-----------------|--------------------------------------|-------------------------------------------|
-    /// | `Add` / `Xor`   | drop `0`                             | —                                         |
-    /// | `Or`            | drop `0`                             | `all_ones` (all non-Gate operands only)   |
-    /// | `Mul`           | drop `1`                             | `0` (all non-Gate operands only)          |
-    /// | `And`           | drop `all_ones`                      | `0` (all non-Gate operands only)          |
-    /// | `Sub` (2-arity) | rhs `0` → lhs                        | —                                         |
-    /// | `Shl` (2-arity) | rhs `0` → lhs                        | —                                         |
-    /// | `Shr` (2-arity) | rhs `0` → lhs                        | —                                         |
+    /// ## Associative ops (`And`/`Or`/`Xor`/`Add`/`Mul`)
+    ///
+    /// | Op              | All-const evaluation                                   | Identity drop        | Absorbing                                 |
+    /// |-----------------|--------------------------------------------------------|----------------------|-------------------------------------------|
+    /// | `And`           | bitwise AND over values                                | drop `all_ones`      | `0` (all non-Gate operands only)          |
+    /// | `Or`            | bitwise OR over values                                 | drop `0`             | `all_ones` (all non-Gate operands only)   |
+    /// | `Xor`           | bitwise XOR over values                                | drop `0`             | —                                         |
+    /// | `Add`           | sum over values, mod 2^width                           | drop `0`             | —                                         |
+    /// | `Mul`           | product over values, mod 2^width                       | drop `1`             | `0` (all non-Gate operands only)          |
+    ///
+    /// All-const evaluation fires when every operand is a
+    /// `Node::Constant` of `width`; it supersedes the absorbing
+    /// and identity-drop paths for that case. Mixed operand lists
+    /// (e.g. one constant + one `Node::PrimaryInput`) still reach
+    /// the absorbing / identity-drop paths.
+    ///
+    /// ## Non-commutative 2-arity ops
+    ///
+    /// | Op    | All-const evaluation                              | Rhs-zero identity |
+    /// |-------|---------------------------------------------------|-------------------|
+    /// | `Sub` | `(lhs - rhs) mod 2^width`                         | `a - 0 → a`       |
+    /// | `Shl` | `(lhs << rhs) mod 2^width` (over-shift → 0)       | `a << 0 → a`      |
+    /// | `Shr` | `lhs >> rhs` (over-shift → 0)                     | `a >> 0 → a`      |
     ///
     /// # Orphan-safety restriction on absorbing
     ///
@@ -582,6 +598,48 @@ impl Module {
         };
 
         if is_shift_or_sub && operands.len() == 2 {
+            // All-constant evaluation: `Sub(c1, c2)`, `Shl(c1, c2)`,
+            // `Shr(c1, c2)`. For Shl/Shr the rhs (shift amount)
+            // constant may be narrower than `width` — we still
+            // accept it as long as its own width matches its own
+            // Node::Constant entry. Sub requires both to be of
+            // `width`.
+            let lhs_const = const_of(operands[0], &self.nodes);
+            let rhs_const_any_width: Option<u128> = match &self.nodes[operands[1] as usize] {
+                Node::Constant { value, .. } => Some(*value),
+                _ => None,
+            };
+            if let (Some(lhs), Some(rhs)) = (lhs_const, rhs_const_any_width) {
+                let result = match op {
+                    GateOp::Sub => lhs.wrapping_sub(rhs) & all_ones,
+                    GateOp::Shl => {
+                        if rhs >= u128::from(width) {
+                            0
+                        } else {
+                            lhs.wrapping_shl(rhs as u32) & all_ones
+                        }
+                    }
+                    GateOp::Shr => {
+                        if rhs >= u128::from(width) {
+                            0
+                        } else {
+                            (lhs >> rhs) & all_ones
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                self.fold_identities_applied += 1;
+                let (cid, is_new) = self.intern_constant(width, result);
+                crate::trace_verbose!(
+                    node = cid,
+                    ?op,
+                    width,
+                    value = result,
+                    "✂️ fold_constants all-const Sub/Shl/Shr"
+                );
+                return Some((cid, is_new));
+            }
+
             // `a - 0 → a`, `a << 0 → a`, `a >> 0 → a`.
             if let Some(0) = const_of(operands[1], &self.nodes) {
                 let surviving = operands[0];
@@ -604,6 +662,44 @@ impl Module {
         // Associative path: scan for absorbing, then drop identity
         // operands in place.
         let before = operands.len();
+
+        // 0. All-constant evaluation: if every operand is a same-
+        //    width constant, evaluate the expression directly and
+        //    return the result constant. Subsumes the absorbing
+        //    path and identity-drop path for the all-const subcase
+        //    (e.g. `Add(3, 5)` → 8, `Mul(4, 0)` → 0). Orphan-safe
+        //    because every operand is a Constant, which doesn't
+        //    count as a Gate orphan.
+        let all_const_values: Option<Vec<u128>> = operands
+            .iter()
+            .map(|id| const_of(*id, &self.nodes))
+            .collect();
+        if let Some(values) = all_const_values {
+            let result = match op {
+                GateOp::And => values.iter().copied().fold(all_ones, |acc, v| acc & v),
+                GateOp::Or => values.iter().copied().fold(0u128, |acc, v| acc | v),
+                GateOp::Xor => values.iter().copied().fold(0u128, |acc, v| acc ^ v),
+                GateOp::Add => values
+                    .iter()
+                    .copied()
+                    .fold(0u128, |acc, v| acc.wrapping_add(v) & all_ones),
+                GateOp::Mul => values
+                    .iter()
+                    .copied()
+                    .fold(1u128, |acc, v| acc.wrapping_mul(v) & all_ones),
+                _ => unreachable!(),
+            };
+            self.fold_identities_applied += 1;
+            let (cid, is_new) = self.intern_constant(width, result);
+            crate::trace_verbose!(
+                node = cid,
+                ?op,
+                width,
+                value = result,
+                "✂️ fold_constants all-const associative evaluation"
+            );
+            return Some((cid, is_new));
+        }
 
         // 1. Absorbing elements: `Mul`/`And` zero, `Or` all-ones.
         //
@@ -920,10 +1016,16 @@ impl Module {
     /// 6. **Constant-operand evaluation**: `Slice(hi, lo)(c)` →
     ///    `(c >> lo) & mask(hi - lo + 1)`.
     ///
-    /// ### `Concat(operand)` (1 operand)
+    /// ### `Concat(operands)` (1 or more operands)
     ///
     /// 7. **Single-operand identity**: `Concat([x])` → `x` when
     ///    `x.width == width`.
+    /// 8. **All-constant bit assembly** (`operands.len() >= 2`):
+    ///    every operand is a constant → pack MSB-first into one
+    ///    constant (matches the SV emit convention in
+    ///    `src/emit/sv.rs` where `{a, b, c}` places `a` in the
+    ///    high bits). Widths must sum to the gate width; mismatch
+    ///    defensively skips the fold.
     ///
     /// ### Reductions: `RedAnd`/`RedOr`/`RedXor` (1 operand)
     ///
@@ -1131,6 +1233,61 @@ impl Module {
                     return Some((x, false));
                 }
                 None
+            }
+            GateOp::Concat if operands.len() >= 2 => {
+                // All-constant bit assembly: every operand is a
+                // constant → pack their bits MSB-first (matching
+                // the SV emit convention in `src/emit/sv.rs`:
+                // `{c1, c2, c3}` has `c1` in the high bits).
+                //
+                // For each operand in order (MSB first), shift the
+                // accumulator left by that operand's width and OR
+                // in the operand's value masked to its own width.
+                let mut pieces: Vec<(u32, u128)> = Vec::with_capacity(operands.len());
+                for &id in operands.iter() {
+                    match &self.nodes[id as usize] {
+                        Node::Constant { width: w, value } => pieces.push((*w, *value)),
+                        _ => return None,
+                    }
+                }
+                // Width sanity: sum of operand widths must equal
+                // the gate width. If it doesn't, this is an
+                // upstream bug — bail defensively rather than
+                // emit a wrong-width constant.
+                let total: u32 = pieces.iter().map(|(w, _)| *w).sum();
+                if total != width {
+                    return None;
+                }
+                let mut result: u128 = 0;
+                for (w, v) in pieces {
+                    let mask: u128 = if w >= 128 {
+                        u128::MAX
+                    } else {
+                        (1u128 << w) - 1
+                    };
+                    result = if w >= 128 {
+                        v & mask
+                    } else {
+                        (result << w) | (v & mask)
+                    };
+                }
+                // Final mask to gate width (paranoia; should be a
+                // no-op if the per-piece masks held).
+                let gate_mask: u128 = if width >= 128 {
+                    u128::MAX
+                } else {
+                    (1u128 << width) - 1
+                };
+                result &= gate_mask;
+                self.peephole_rewrites_applied += 1;
+                let (cid, is_new) = self.intern_constant(width, result);
+                crate::trace_verbose!(
+                    node = cid,
+                    width,
+                    value = result,
+                    "✂️ peephole Concat of constants"
+                );
+                Some((cid, is_new))
             }
             // Reductions: all-const operand evaluates to a 1-bit
             // constant. Reduction output width is always 1.
@@ -1842,6 +1999,160 @@ mod tests {
         assert!(matches!(m.nodes[rx_even as usize], Node::Constant { value: 0, .. }));
         let (rx_odd, _) = m.intern_gate(GateOp::RedXor, vec![c_odd], 1, DepSet::new());
         assert!(matches!(m.nodes[rx_odd as usize], Node::Constant { value: 1, .. }));
+    }
+
+    // --- All-const arithmetic / structural evaluation ------------
+
+    /// `Add(3, 5) → 8` at intern time.
+    #[test]
+    fn fold_all_const_add_evaluates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c3, _) = m.intern_constant(8, 3);
+        let (c5, _) = m.intern_constant(8, 5);
+        let (result, _) = m.intern_gate(GateOp::Add, vec![c3, c5], 8, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 8, value: 8 } => {}
+            other => panic!("expected 8-bit const 8, got {other:?}"),
+        }
+    }
+
+    /// `Mul(4, 5, 6)` evaluates in a variadic Mul to `120`.
+    /// Mod-2^width semantics: 8-bit `Mul(100, 3) → 300 & 0xFF = 44`.
+    #[test]
+    fn fold_all_const_mul_wraps_modulo_width() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c100, _) = m.intern_constant(8, 100);
+        let (c3, _) = m.intern_constant(8, 3);
+        let (result, _) = m.intern_gate(GateOp::Mul, vec![c100, c3], 8, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 8, value: 44 } => {} // 300 & 0xFF = 44
+            other => panic!("expected 8-bit const 44, got {other:?}"),
+        }
+    }
+
+    /// `Xor(0b1010, 0b0110)` evaluates to `0b1100`.
+    #[test]
+    fn fold_all_const_xor_evaluates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (ca, _) = m.intern_constant(4, 0b1010);
+        let (cb, _) = m.intern_constant(4, 0b0110);
+        let (result, _) = m.intern_gate(GateOp::Xor, vec![ca, cb], 4, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 4, value: 0b1100 } => {}
+            other => panic!("expected 4-bit const 0b1100, got {other:?}"),
+        }
+    }
+
+    /// `Sub(10, 3) → 7`; `Sub(3, 10)` under 8-bit wraps to `249`.
+    #[test]
+    fn fold_all_const_sub_evaluates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c10, _) = m.intern_constant(8, 10);
+        let (c3, _) = m.intern_constant(8, 3);
+        let (pos, _) = m.intern_gate(GateOp::Sub, vec![c10, c3], 8, DepSet::new());
+        match &m.nodes[pos as usize] {
+            Node::Constant { width: 8, value: 7 } => {}
+            other => panic!("expected Sub(10, 3) = 7, got {other:?}"),
+        }
+        let (neg, _) = m.intern_gate(GateOp::Sub, vec![c3, c10], 8, DepSet::new());
+        match &m.nodes[neg as usize] {
+            Node::Constant { width: 8, value: 249 } => {} // 3-10 mod 256 = 249
+            other => panic!("expected Sub(3, 10) mod 256 = 249, got {other:?}"),
+        }
+    }
+
+    /// `Shl(0b0011, 2) → 0b1100`; shift amount ≥ width → 0.
+    #[test]
+    fn fold_all_const_shl_evaluates_and_clamps() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        // 4-bit value 0b0011, 3-bit shift-amount 2.
+        let (val, _) = m.intern_constant(4, 0b0011);
+        let (amt, _) = m.intern_constant(3, 2);
+        let (shifted, _) = m.intern_gate(GateOp::Shl, vec![val, amt], 4, DepSet::new());
+        match &m.nodes[shifted as usize] {
+            Node::Constant { width: 4, value: 0b1100 } => {}
+            other => panic!("expected Shl(3, 2) = 0b1100, got {other:?}"),
+        }
+
+        // Over-shift → 0.
+        let (amt_big, _) = m.intern_constant(3, 5);
+        let (zero, _) = m.intern_gate(GateOp::Shl, vec![val, amt_big], 4, DepSet::new());
+        match &m.nodes[zero as usize] {
+            Node::Constant { width: 4, value: 0 } => {}
+            other => panic!("expected Shl(_, 5) over 4-bit = 0, got {other:?}"),
+        }
+    }
+
+    /// `Shr(0b1100, 2) → 0b0011`.
+    #[test]
+    fn fold_all_const_shr_evaluates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (val, _) = m.intern_constant(4, 0b1100);
+        let (amt, _) = m.intern_constant(3, 2);
+        let (shifted, _) = m.intern_gate(GateOp::Shr, vec![val, amt], 4, DepSet::new());
+        match &m.nodes[shifted as usize] {
+            Node::Constant { width: 4, value: 0b0011 } => {}
+            other => panic!("expected Shr(0b1100, 2) = 0b0011, got {other:?}"),
+        }
+    }
+
+    /// `Concat(all-const)` assembles MSB-first: `{4'hA, 4'h5}` → 8'hA5.
+    #[test]
+    fn peephole_concat_of_constants_assembles_msb_first() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (hi, _) = m.intern_constant(4, 0xA);
+        let (lo, _) = m.intern_constant(4, 0x5);
+        let (result, _) = m.intern_gate(GateOp::Concat, vec![hi, lo], 8, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 8, value: 0xA5 } => {}
+            other => panic!("expected 8-bit const 0xA5, got {other:?}"),
+        }
+    }
+
+    /// `Concat([3'b101, 2'b01, 1'b1])` → 6-bit 0b101011 = 43.
+    #[test]
+    fn peephole_concat_of_constants_variadic() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (a, _) = m.intern_constant(3, 0b101);
+        let (b, _) = m.intern_constant(2, 0b01);
+        let (c, _) = m.intern_constant(1, 0b1);
+        let (result, _) = m.intern_gate(GateOp::Concat, vec![a, b, c], 6, DepSet::new());
+        match &m.nodes[result as usize] {
+            Node::Constant { width: 6, value: 0b101011 } => {}
+            other => panic!("expected 6-bit const 0b101011 = 43, got {other:?}"),
+        }
     }
 
     // --- Associative flattening tests -----------------------------

@@ -3,6 +3,140 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0074 — All-constant evaluation completes the constant-fold surface
+
+**What changed**
+
+Closes the remaining all-const evaluation gaps flagged in the
+last two slices. The factorization pipeline now evaluates every
+pure-function gate at intern time when every operand is a
+constant of the expected width.
+
+### `Module::fold_constants` — extended
+
+- **All-const associative evaluation** (Layer 5): for
+  `And`/`Or`/`Xor`/`Add`/`Mul` with every operand a same-width
+  constant, compute the result directly (bitwise AND / OR / XOR
+  over values, sum / product mod 2^width) and intern the
+  resulting constant. Inserted before the existing absorbing
+  and identity-drop branches so it supersedes them for the
+  all-const subcase — `Add(3, 5)` folds to 8 directly instead
+  of going through identity-drop (which wouldn't have worked
+  anyway since 5 isn't the identity).
+- **All-const Sub / Shl / Shr**: for the existing 2-arity
+  non-commutative arm, added upfront all-const evaluation that
+  handles `Sub(c1, c2) → (c1 - c2) mod 2^width`,
+  `Shl(c1, c2) → (c1 << c2) mod 2^width` (over-shift → 0), and
+  `Shr(c1, c2) → c1 >> c2` (over-shift → 0). For Shl/Shr the
+  shift-amount constant can have its own narrower width — we
+  read the value and only require the lhs to match the gate
+  width.
+
+The existing identity-drop + absorbing paths remain for mixed
+operand lists (one constant + one primary input / flop Q). This
+is intentional and desirable: those paths catch valuable
+partial folds even when the expression isn't fully constant.
+
+### `Module::apply_peephole` — extended
+
+- **`Concat([c1, c2, ...]) → assembled const`** when every
+  operand is a constant. MSB-first bit assembly matching the SV
+  emit convention in `src/emit/sv.rs` — `{c1, c2, c3}` packs
+  `c1` into the high bits. Widths must sum to the gate width;
+  any mismatch defensively skips the fold rather than emit a
+  wrong-width constant.
+
+### Counters
+
+Both helpers keep reusing the existing counters
+(`Module::fold_identities_applied` and
+`peephole_rewrites_applied`) — all-const evaluation fires in
+the same helper, so the count aggregates with the existing
+rules for that helper.
+
+### Tests
+
+Eight new unit tests in `src/ir/types.rs`:
+
+- `fold_all_const_add_evaluates`
+- `fold_all_const_mul_wraps_modulo_width` (verifies 8-bit
+  `Mul(100, 3)` → 44, i.e. 300 mod 256)
+- `fold_all_const_xor_evaluates`
+- `fold_all_const_sub_evaluates` (both positive and
+  wrap-around cases)
+- `fold_all_const_shl_evaluates_and_clamps` (over-shift clamps
+  to zero)
+- `fold_all_const_shr_evaluates`
+- `peephole_concat_of_constants_assembles_msb_first`
+  (`{4'hA, 4'h5}` → 8'hA5)
+- `peephole_concat_of_constants_variadic`
+  (`{3'b101, 2'b01, 1'b1}` → 6'b101011)
+
+### Docs
+
+- `book/src/factorization.md`: Layer 3 (constant folding) rule
+  table split into associative + non-commutative sub-tables
+  and extended with the all-const columns. Peephole's Concat
+  bullet updated with the bit-assembly rule.
+- `book/src/structural-rules.md` Rule 21c: `constant-fold` and
+  `peephole` level-table rows extended to list the new rules.
+- `src/ir/types.rs`:
+  [`Module::fold_constants`] Rustdoc rule tables split into
+  associative (with All-const / Identity-drop / Absorbing
+  columns) and non-commutative (with All-const / Rhs-zero
+  identity columns). `apply_peephole` Rustdoc gains the
+  Concat all-const bullet and the
+  `peephole_rewrites_applied` field comment lists it.
+
+**Why**
+
+The previous slices (`2de8855` peephole Not/Slice/reductions,
+`5f51c3b` associative flattening) flagged two known gaps:
+`Concat(all-const)` and `Shl/Shr(const, const)`. Plus one gap
+surfaced while writing unit tests for the Slice slice —
+`Add(3, 5)` and similar fully-constant expressions weren't
+evaluated (the existing absorbing + identity-drop paths only
+fire when a specific absorbing/identity value is present).
+This slice closes all three in one pass under the common
+framing "evaluate the gate at intern time when every operand
+is a constant".
+
+After this slice, the `NodeId = expression identity` contract
+holds for every syntactically-or-algebraically-evaluable
+expression: every all-constant expression collapses to a
+single constant node; every same-op-same-width nesting
+flattens; every commutative-reordering is canonicalised;
+every identity / absorbing / peephole identity collapses.
+What remains genuinely unaddressed is **cross-gate symbolic
+rewrites** over non-constant expressions (`(a + b) - b → a`,
+`(a & b) | (a & ~b) → a`, etc.), which is the e-graph
+problem — research-adjacent and still aspirational.
+
+**Empirical (seed 42, default knobs):**
+
+Counters unchanged at seed 42 (default construction path
+rarely produces all-constant operand lists directly). The new
+rules fire whenever earlier folds / peepholes produce constant
+intermediates that flow into these shapes — same pattern as
+the Not/Slice/reduction slice.
+
+**Tests**
+- 70 unit tests pass (was 62 — added 8).
+- 22 integration tests pass (unchanged).
+- Total test count: 92.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- The "constants flow through pure operators" story is now
+  complete for every operator class. Pipelines that construct
+  a constant-heavy shape via CSE / fold chains collapse all
+  the way to a single constant.
+- Rule 21c level table and `factorization.md` reflect every
+  implemented rule — no known gaps remain in the
+  documentation.
+
+---
+
 ## 2026-04-17-0073 — Thorough docs pass on factorization pipeline (docs only)
 
 **What changed**
