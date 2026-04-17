@@ -110,15 +110,27 @@ time, and fully-constant comparisons / full-width slices /
 single-operand concats get rewritten away before landing as
 literal gates.
 
+NodeId compaction arrived as a post-construction pass that
+walks from roots and drops any gate that no longer has a
+consumer. It's the infrastructure piece that lets rewrites
+such as `Not(Not(x)) → x` fire without violating Rule 18 —
+the inner `Not` may be left unreferenced by the outer call's
+short-circuit, and compaction cleans it up at module
+finalisation. The count is surfaced via
+`Metrics::nodes_compacted` and is zero whenever every rewrite
+happens to be orphan-safe by itself.
+
 The remaining aspirational layers in `FactorizationLevel` —
-`Associative` and `EGraph` — are not yet implemented. Both need
-NodeId compaction (a finalisation pass to clean up orphaned
-intermediate gates after a rewrite), which the current
-construction-time-only architecture doesn't provide. When they
-land, the `factorization_level` dial automatically activates
-them for users already at higher levels (the default is
-`e-graph`, which `effective()` walks down to the highest
-implemented layer — today `peephole`, skipping the not-yet-live
+`Associative` and the cross-gate portion of `EGraph` — are
+still not implemented. They need deeper machinery: associative
+flattening wants to merge `Add(a, Add(b, c))` into
+`Add(a, b, c)` at intern time, which orphans the inner `Add`;
+compaction cleans that up, but the intern-time merge logic
+itself is the next slice. When they land, the
+`factorization_level` dial automatically activates them for
+users already at higher levels (the default is `e-graph`,
+which `effective()` walks down to the highest implemented
+layer — today `peephole`, skipping the not-yet-live
 `associative` rung in between).
 
 **Syntactic vs semantic identity.** What's already implemented

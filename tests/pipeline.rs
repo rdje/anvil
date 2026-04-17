@@ -613,6 +613,90 @@ fn peephole_layer_fires_at_default_knobs() {
     );
 }
 
+/// Doctrine guard: the `compact_node_ids` pass keeps Rule 18
+/// (zero orphan gates) holding across all strategies and seeds,
+/// and records a non-zero `nodes_compacted` count whenever the
+/// Not(Not(x)) peephole actually fires (we'd expect this at least
+/// once across a 40-seed sweep given how common Not chains are
+/// through CSE). If `nodes_compacted` is always zero, either the
+/// peephole regressed or compaction itself became a no-op in all
+/// paths.
+#[test]
+fn compaction_preserves_rule_18_and_records_removals() {
+    let mut total_compacted: u32 = 0;
+    for seed in 0..40u64 {
+        let cfg = Config {
+            seed,
+            ..Config::default()
+        };
+        let m = anvil::Generator::new(cfg).generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        total_compacted += metrics.nodes_compacted;
+
+        // Rule 18 holds post-compaction.
+        use anvil::ir::{FlopMux, Node};
+        let mut used = vec![false; m.nodes.len()];
+        for node in &m.nodes {
+            if let Node::Gate { operands, .. } = node {
+                for &op in operands {
+                    used[op as usize] = true;
+                }
+            }
+        }
+        for f in &m.flops {
+            if let Some(d) = f.d {
+                used[d as usize] = true;
+            }
+            used[f.q as usize] = true;
+            match &f.mux {
+                FlopMux::None => {}
+                FlopMux::OneHot(arms) => {
+                    for arm in arms {
+                        used[arm.data as usize] = true;
+                        used[arm.sel as usize] = true;
+                    }
+                }
+                FlopMux::Encoded { sel, data } => {
+                    used[*sel as usize] = true;
+                    for d in data {
+                        used[*d as usize] = true;
+                    }
+                }
+            }
+        }
+        for (_, root) in &m.drives {
+            used[*root as usize] = true;
+        }
+        let orphans: Vec<usize> = m
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
+            .map(|(i, _)| i)
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "seed={}: {} orphan gate(s) after compaction: {:?}",
+            seed,
+            orphans.len(),
+            orphans
+        );
+
+        // Validator must still accept post-compaction IR.
+        anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+            panic!("seed={} validator rejects post-compaction IR: {e}", seed)
+        });
+    }
+    // Across 40 seeds at default knobs, Not(Not) should fire at
+    // least once and compaction should register it.
+    assert!(
+        total_compacted > 0,
+        "expected compaction to remove at least one node across \
+         40 seeds at default knobs; got 0. Either the Not(Not(x)) \
+         peephole regressed or compact_node_ids became a no-op."
+    );
+}
+
 /// Doctrine guard: every probability knob that the generator
 /// actually consults must show up in `knob_roll_attempts`, and the
 /// empirical fire-rate should be bounded by the configured

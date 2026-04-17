@@ -97,6 +97,15 @@ pub struct Module {
     /// `Metrics::peephole_rewrites_applied`.
     pub peephole_rewrites_applied: u64,
 
+    /// Number of nodes removed by the post-construction
+    /// `compact_node_ids` pass. Zero when the IR is Rule-18-clean
+    /// by construction (the default — every rewrite inside
+    /// `intern_gate` is currently orphan-safe). Becomes non-zero
+    /// when a rewrite like `Not(Not(x)) → x` leaves the inner
+    /// `Not` reachable only via a now-collapsed outer call.
+    /// Surfaced via `Metrics::nodes_compacted`.
+    pub nodes_compacted: u32,
+
     /// Per-knob attempt/fire counters for every probability roll
     /// taken during construction. Populated live by the
     /// `roll_knob` helper in `src/gen/cone.rs` at every
@@ -521,22 +530,17 @@ impl Module {
     /// is_new))` when a rewrite short-circuits the caller, `None`
     /// when no rule matches. Rules implemented today:
     ///
+    /// - **Involutive `Not`**: `Not(Not(x)) → x`. The outer gate
+    ///   isn't materialised; the inner `Not` may end up
+    ///   unreferenced as a side effect. That orphan is cleaned up
+    ///   by the post-construction `compact_node_ids` pass, so
+    ///   Rule 18 holds at module finalisation.
     /// - **Fully-constant comparisons**: `Eq`/`Neq`/`Lt`/`Gt`/
     ///   `Le`/`Ge` with both operands same-width constants are
     ///   evaluated at intern time to a 1-bit constant.
     /// - **Full-width `Slice`**: `Slice(hi, 0)` with
     ///   `hi + 1 == src_width` returns the source NodeId.
     /// - **Single-operand `Concat`**: `Concat([x])` → `x`.
-    ///
-    /// **Why no `Not(Not(x)) → x` here.** The outer `Not` being
-    /// collapsed would orphan the inner `Not` gate, which was
-    /// materialised by its own earlier `intern_gate` call and is
-    /// referenced only by the outer call. Without NodeId
-    /// compaction (a future finalisation pass) that orphan
-    /// violates Rule 18. Comparison / Slice / Concat rules are
-    /// safe because they replace the outer gate with a direct
-    /// operand (still referenced by the caller) or a constant (not
-    /// subject to the Rule 18 gate-orphan check).
     ///
     /// Rules are narrow by design: each one is an unambiguous
     /// local identity with no width-reinterpretation or type
@@ -558,6 +562,30 @@ impl Module {
         };
 
         match op {
+            GateOp::Not if operands.len() == 1 => {
+                // Involutive: Not(Not(x)) → x. Inner Not may be
+                // orphaned; compact_node_ids cleans it up post-
+                // construction.
+                if let Node::Gate {
+                    op: GateOp::Not,
+                    operands: inner_ops,
+                    width: inner_w,
+                    ..
+                } = &self.nodes[operands[0] as usize]
+                {
+                    if *inner_w == width && inner_ops.len() == 1 {
+                        let x = inner_ops[0];
+                        self.peephole_rewrites_applied += 1;
+                        crate::trace_verbose!(
+                            node = x,
+                            width,
+                            "✂️ peephole Not(Not(x)) → x"
+                        );
+                        return Some((x, false));
+                    }
+                }
+                None
+            }
             GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
                 if operands.len() == 2 =>
             {
@@ -1109,6 +1137,33 @@ mod tests {
         assert!(!is_new);
         assert_eq!(m.nodes.len(), before);
         assert_eq!(m.peephole_rewrites_applied, 1);
+    }
+
+    /// `Not(Not(x)) → x` at intern time. The inner `Not` is
+    /// materialised; the outer `Not` short-circuits to `x` and
+    /// leaves the inner as an orphan (compact_node_ids cleans it
+    /// up at module finalisation, not tested here).
+    #[test]
+    fn peephole_double_not_collapses_with_inner_orphaned() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        let x: NodeId = 0;
+        let (inner, _) = m.intern_gate(GateOp::Not, vec![x], 1, DepSet::from_port(0));
+        assert_ne!(inner, x, "inner Not is a real gate");
+        let before = m.nodes.len();
+        let (outer, is_new) =
+            m.intern_gate(GateOp::Not, vec![inner], 1, DepSet::from_port(0));
+        assert_eq!(outer, x, "Not(Not(x)) must return x");
+        assert!(!is_new);
+        assert_eq!(m.nodes.len(), before, "no new gate created by outer Not");
+        assert_eq!(m.peephole_rewrites_applied, 1);
+        // The inner Not is now orphaned — it exists at m.nodes[inner]
+        // but is referenced by no holder. `compact_node_ids` cleans
+        // it up at module finalisation.
     }
 
     /// At `FactorizationLevel::ConstantFold` the Peephole layer must

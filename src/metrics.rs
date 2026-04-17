@@ -167,6 +167,13 @@ pub struct Metrics {
     /// levels below `Peephole`.
     pub peephole_rewrites_applied: u64,
 
+    /// Number of nodes removed by the post-construction
+    /// `compact_node_ids` pass. Zero when every rewrite in
+    /// `intern_gate` is orphan-safe by construction — non-zero
+    /// when a rewrite like `Not(Not(x)) → x` leaves an inner
+    /// gate unreferenced. Sourced from `Module::nodes_compacted`.
+    pub nodes_compacted: u32,
+
     // --- Per-knob probability-roll counters --------------------
     /// Attempt count per probability knob. Keyed by the knob's
     /// canonical string name (matches `Config` field, e.g.
@@ -370,6 +377,7 @@ pub fn compute(m: &Module) -> Metrics {
     // `intern_gate`. Zero at levels below `ConstantFold`.
     out.fold_identities_applied = m.fold_identities_applied;
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
+    out.nodes_compacted = m.nodes_compacted;
 
     // Per-knob attempt/fire counters. Convert enum keys to strings
     // for serialisation. Non-empty knobs only.

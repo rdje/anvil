@@ -169,11 +169,29 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // just wastes a wire). Future work may promote this to a hard
     // assertion once the anti-collapse rollback is provably complete
     // for every strategy.
+    let orphans_before_compact = count_orphan_gates(&m);
+
+    // NodeId compaction pass: remove any nodes that are unreachable
+    // from roots (drives, flop fields). Idempotent — a no-op when
+    // the IR is already Rule-18-clean. Exists primarily to let
+    // construction-time rewrites (e.g. the `Not(Not(x)) → x`
+    // peephole) orphan intermediate gates safely; this pass cleans
+    // them up. The count is surfaced via `Metrics::nodes_compacted`
+    // for empirical measurement.
+    let compacted = crate::ir::compact::compact_node_ids(&mut m);
+    m.nodes_compacted = compacted;
+
+    // Post-compaction safety net. Should always be 0 — if compaction
+    // leaves an orphan, it's a BFS or holder-enumeration bug in
+    // `compact_node_ids`. Keep the warning (not an assertion) so a
+    // release build degrades gracefully.
     let orphans = count_orphan_gates(&m);
     if orphans > 0 {
         tracing::warn!(
             orphans,
-            "⚠️ module has orphan gates — Rule 18 residual, please report"
+            compacted,
+            orphans_before_compact,
+            "⚠️ module has orphan gates after compaction — compact_node_ids bug, please report"
         );
     }
 
@@ -182,6 +200,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         flops = m.flops.len(),
         drives = m.drives.len(),
         orphans,
+        compacted,
         "✅ module done"
     );
     m

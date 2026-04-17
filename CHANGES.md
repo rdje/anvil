@@ -3,6 +3,103 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0069 — NodeId compaction pass + Not(Not(x)) peephole unlock
+
+**What changed**
+
+New post-construction compaction pass: `src/ir/compact.rs` adds
+`compact_node_ids(&mut Module) -> u32`. BFS from all roots
+(drives, flop.d, flop.q, flop.mux.sel/data, flop.mux.arms) marks
+reachable nodes; unreachable ones are removed and `m.nodes` is
+rewritten with an old→new `NodeId` map. Every NodeId holder is
+remapped in place: `m.nodes[*].operands`, `m.drives`, `flop.d`,
+`flop.q`, `FlopMux::OneHot(arms)`, `FlopMux::Encoded { sel,
+data }`. Dedup tables (`gate_instances`, `const_instances`)
+are rebuilt under the new NodeId space — entries whose targets
+were unreachable are dropped; surviving ones are remapped.
+Topological order is preserved by walking old indices in
+ascending order.
+
+Integration:
+- `src/gen/module.rs` `generate_leaf_module` calls
+  `compact_node_ids` after `drain_flop_worklist`. Removed count
+  stored on `Module::nodes_compacted`. Orphan-audit warning now
+  fires only if compaction left orphans (indicating a BFS or
+  holder-enumeration bug).
+
+Peephole unlock:
+- `Not(Not(x)) → x` re-enabled in `Module::apply_peephole`. The
+  previous slice (`88c268d`) disabled it because it orphaned the
+  inner `Not`. Compaction makes the rewrite safe — the inner gate
+  is removed at module finalisation.
+
+Metrics:
+- `Module::nodes_compacted: u32` and `Metrics::nodes_compacted`
+  surface the removed count. Zero when every rewrite happens to
+  be orphan-safe; non-zero (seed-42: 7) when Not(Not) fires.
+
+Tests:
+- `src/ir/compact.rs`: 3 unit tests — no-op on clean IR, removes
+  injected orphan gate, preserves topological order.
+- `src/ir/types.rs`: reinstated
+  `peephole_double_not_collapses_with_inner_orphaned` (asserts
+  the inner Not is left in place at intern time; compaction is
+  a separate concern).
+- `tests/pipeline.rs`: new
+  `compaction_preserves_rule_18_and_records_removals` — across
+  40 seeds at default knobs, asserts (a) zero orphan gates
+  post-compaction, (b) validator accepts post-compaction IR,
+  (c) total `nodes_compacted > 0` (i.e. Not(Not) actually fires).
+
+Docs:
+- `book/src/structural-rules.md` Rule 21c: peephole row updated
+  to include `Not(Not(x)) → x` with a note about the compaction
+  pass. Cross-gate rewrites (`(a + b) - b → a`) still flagged
+  as deferred.
+- `book/src/non-triviality.md`: new paragraph describing the
+  compaction pass, its role in enabling orphan-tolerant
+  rewrites, and the path to Associative (which needs
+  intern-time merge logic on top of compaction).
+
+**Why**
+
+Compaction is the architectural prerequisite for Associative
+flattening (Layer 4) and the deferred `Not(Not(x))` peephole
+rule. Landing it now — together with re-enabling Not(Not(x)) as
+the first concrete consumer — keeps the slice tied to observable
+output rather than being pure infrastructure. Associative stays
+deferred for a follow-up (the intern-time merge logic is
+independent work).
+
+**Empirical (seed 42, default knobs):**
+- `peephole_rewrites_applied`: 9 (was 2 before Not(Not) re-enable)
+- `nodes_compacted`: 7 (→ 7 of 9 peephole fires were Not(Not);
+  the other 2 are constant-comparison / Slice / Concat, which
+  don't orphan)
+
+**Tests**
+- 51 unit tests pass (was 47 — added 3 compact tests + 1 restored
+  peephole test).
+- 22 integration tests pass (was 21 — added
+  `compaction_preserves_rule_18_and_records_removals`).
+- Total test count: 73.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Rule 18 (zero orphans) holds post-finalisation, as before —
+  but now via a construction-plus-compaction pipeline rather
+  than construction-alone. Orphan-tolerant rewrites become
+  legal.
+- `Not(Not(x))` now collapses at intern time everywhere it
+  arises via CSE chains — downstream output is slightly smaller
+  and cleaner.
+- Infrastructure in place for Associative flattening (next
+  factorization-layer slice) and future cross-gate peephole
+  rewrites that would otherwise leave intermediate gates
+  orphaned.
+
+---
+
 ## 2026-04-17-0068 — Per-knob probability-roll counters (attempts / fires) live
 
 **What changed**
