@@ -156,6 +156,17 @@ pub struct Metrics {
     /// levels below `ConstantFold`.
     pub fold_identities_applied: u64,
 
+    /// Number of times the `Peephole` factorization layer fired
+    /// during construction. Each fire is one local rewrite applied
+    /// in `intern_gate` — double-negation collapse
+    /// (`Not(Not(x)) → x`), fully-constant comparison evaluation
+    /// (`Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge` over two same-width
+    /// constants), full-width `Slice(hi, 0)` identity, or
+    /// single-operand `Concat` identity. Sourced from
+    /// `Module::peephole_rewrites_applied`. Zero at factorization
+    /// levels below `Peephole`.
+    pub peephole_rewrites_applied: u64,
+
     // --- Block-build counters -----------------------------------
     /// Number of priority-encoder block instances built in this
     /// module. Measures the `priority_encoder_prob` knob directly.
@@ -335,6 +346,7 @@ pub fn compute(m: &Module) -> Metrics {
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
     out.fold_identities_applied = m.fold_identities_applied;
+    out.peephole_rewrites_applied = m.peephole_rewrites_applied;
 
     // Associative-flattening-opportunities scan. For every
     // associative gate, count operands that are themselves a gate

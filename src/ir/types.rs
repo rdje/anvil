@@ -85,6 +85,17 @@ pub struct Module {
     /// `Metrics::fold_identities_applied` for empirical
     /// measurement of the `ConstantFold` factorization layer.
     pub fold_identities_applied: u64,
+
+    /// Number of times the `Peephole` layer fired during
+    /// construction of this module. Each fire is one local rewrite
+    /// applied in `intern_gate` — double-negation collapse
+    /// (`Not(Not(x)) → x`), fully-constant comparisons evaluated at
+    /// intern time (`Eq(c1, c2) → 1-bit const`,
+    /// `Neq(c1, c2) → 1-bit const`), full-width slice identity
+    /// (`Slice(hi, lo) where hi-lo+1 == src_width → src`), and
+    /// single-operand Concat (`Concat([x]) → x`). Surfaced via
+    /// `Metrics::peephole_rewrites_applied`.
+    pub peephole_rewrites_applied: u64,
 }
 
 impl Module {
@@ -125,6 +136,19 @@ impl Module {
         if self.factorization_level.effective() >= FactorizationLevel::ConstantFold {
             if let Some((folded_id, is_new)) = self.fold_constants(op, &mut operands, width) {
                 return (folded_id, is_new);
+            }
+        }
+
+        // Peephole rewrites (layer Peephole and above): apply local
+        // rewrite rules that collapse specific shapes at intern time.
+        // `Not(Not(x)) → x`, `Eq/Neq(const, const)` evaluated,
+        // full-width `Slice → src`, single-operand `Concat → that
+        // operand`. See `book/src/structural-rules.md` Rule 21c.
+        if self.factorization_level.effective() >= FactorizationLevel::Peephole {
+            if let Some((rewritten_id, is_new)) =
+                self.apply_peephole(op, &operands, width)
+            {
+                return (rewritten_id, is_new);
             }
         }
 
@@ -308,29 +332,46 @@ impl Module {
         let before = operands.len();
 
         // 1. Absorbing elements: `Mul`/`And` zero, `Or` all-ones.
-        for &id in operands.iter() {
-            if let Some(v) = const_of(id, &self.nodes) {
-                let absorbs = match op {
-                    GateOp::Mul | GateOp::And => v == 0,
-                    GateOp::Or => v == all_ones,
-                    _ => false,
-                };
-                if absorbs {
-                    let absorb_value = match op {
-                        GateOp::Mul | GateOp::And => 0u128,
-                        GateOp::Or => all_ones,
-                        _ => unreachable!(),
+        //
+        // **Orphan-safety restriction:** absorbing turns the whole
+        // expression into a constant, so every Gate operand loses
+        // its only consumer (this call) and becomes a Rule 18
+        // orphan. Without NodeId compaction (a future finalisation
+        // pass), we can only safely apply absorbing when no operand
+        // is a Gate — i.e. the "evaluate all-constant expression"
+        // subset. Constants, primary inputs, and flop Qs don't
+        // count as gate orphans, so they're safe to orphan here.
+        // When any operand is a Gate, the absorbing rule is
+        // suppressed and the outer gate materialises normally
+        // (its presence keeps the Gate operands reachable).
+        let no_gate_operand = operands.iter().all(|id| {
+            !matches!(self.nodes[*id as usize], Node::Gate { .. })
+        });
+        if no_gate_operand {
+            for &id in operands.iter() {
+                if let Some(v) = const_of(id, &self.nodes) {
+                    let absorbs = match op {
+                        GateOp::Mul | GateOp::And => v == 0,
+                        GateOp::Or => v == all_ones,
+                        _ => false,
                     };
-                    self.fold_identities_applied += 1;
-                    let (cid, is_new) = self.intern_constant(width, absorb_value);
-                    crate::trace_verbose!(
-                        node = cid,
-                        ?op,
-                        width,
-                        value = absorb_value,
-                        "✂️ fold_constants absorbing"
-                    );
-                    return Some((cid, is_new));
+                    if absorbs {
+                        let absorb_value = match op {
+                            GateOp::Mul | GateOp::And => 0u128,
+                            GateOp::Or => all_ones,
+                            _ => unreachable!(),
+                        };
+                        self.fold_identities_applied += 1;
+                        let (cid, is_new) = self.intern_constant(width, absorb_value);
+                        crate::trace_verbose!(
+                            node = cid,
+                            ?op,
+                            width,
+                            value = absorb_value,
+                            "✂️ fold_constants absorbing"
+                        );
+                        return Some((cid, is_new));
+                    }
                 }
             }
         }
@@ -386,6 +427,111 @@ impl Module {
                 // normal intern on the shrunk list.
                 None
             }
+        }
+    }
+
+    /// Apply local peephole rewrite rules. Returns `Some((id,
+    /// is_new))` when a rewrite short-circuits the caller, `None`
+    /// when no rule matches. Rules implemented today:
+    ///
+    /// - **Fully-constant comparisons**: `Eq`/`Neq`/`Lt`/`Gt`/
+    ///   `Le`/`Ge` with both operands same-width constants are
+    ///   evaluated at intern time to a 1-bit constant.
+    /// - **Full-width `Slice`**: `Slice(hi, 0)` with
+    ///   `hi + 1 == src_width` returns the source NodeId.
+    /// - **Single-operand `Concat`**: `Concat([x])` → `x`.
+    ///
+    /// **Why no `Not(Not(x)) → x` here.** The outer `Not` being
+    /// collapsed would orphan the inner `Not` gate, which was
+    /// materialised by its own earlier `intern_gate` call and is
+    /// referenced only by the outer call. Without NodeId
+    /// compaction (a future finalisation pass) that orphan
+    /// violates Rule 18. Comparison / Slice / Concat rules are
+    /// safe because they replace the outer gate with a direct
+    /// operand (still referenced by the caller) or a constant (not
+    /// subject to the Rule 18 gate-orphan check).
+    ///
+    /// Rules are narrow by design: each one is an unambiguous
+    /// local identity with no width-reinterpretation or type
+    /// punning. Broader rewrites like `(a + b) - b → a` need
+    /// cross-gate rewriting (symbolic reasoning over trees) and
+    /// belong in a future layer, not here.
+    pub(crate) fn apply_peephole(
+        &mut self,
+        op: GateOp,
+        operands: &[NodeId],
+        width: u32,
+    ) -> Option<(NodeId, bool)> {
+        // Read a constant's (width, value) if the node is one.
+        let const_of = |id: NodeId, nodes: &[Node]| -> Option<(u32, u128)> {
+            match &nodes[id as usize] {
+                Node::Constant { width, value } => Some((*width, *value)),
+                _ => None,
+            }
+        };
+
+        match op {
+            GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+                if operands.len() == 2 =>
+            {
+                let a = const_of(operands[0], &self.nodes)?;
+                let b = const_of(operands[1], &self.nodes)?;
+                if a.0 != b.0 {
+                    // Mixed-width — IR invariant says this shouldn't
+                    // happen, but be defensive: don't fold.
+                    return None;
+                }
+                let result: u128 = match op {
+                    GateOp::Eq => (a.1 == b.1) as u128,
+                    GateOp::Neq => (a.1 != b.1) as u128,
+                    GateOp::Lt => (a.1 < b.1) as u128,
+                    GateOp::Gt => (a.1 > b.1) as u128,
+                    GateOp::Le => (a.1 <= b.1) as u128,
+                    GateOp::Ge => (a.1 >= b.1) as u128,
+                    _ => unreachable!(),
+                };
+                self.peephole_rewrites_applied += 1;
+                let (cid, is_new) = self.intern_constant(width, result);
+                crate::trace_verbose!(
+                    node = cid,
+                    ?op,
+                    width,
+                    value = result,
+                    "✂️ peephole comparison of constants"
+                );
+                Some((cid, is_new))
+            }
+            GateOp::Slice { hi, lo } if operands.len() == 1 => {
+                // Full-width slice starting at 0 is the identity.
+                let src_w = self.nodes[operands[0] as usize].width();
+                if lo == 0 && hi + 1 == src_w && hi - lo + 1 == width {
+                    let x = operands[0];
+                    self.peephole_rewrites_applied += 1;
+                    crate::trace_verbose!(
+                        node = x,
+                        width,
+                        "✂️ peephole full-width Slice → src"
+                    );
+                    return Some((x, false));
+                }
+                None
+            }
+            GateOp::Concat if operands.len() == 1 => {
+                // Concat of a single same-width operand is the identity.
+                let src_w = self.nodes[operands[0] as usize].width();
+                if src_w == width {
+                    let x = operands[0];
+                    self.peephole_rewrites_applied += 1;
+                    crate::trace_verbose!(
+                        node = x,
+                        width,
+                        "✂️ peephole single-operand Concat → operand"
+                    );
+                    return Some((x, false));
+                }
+                None
+            }
+            _ => None,
         }
     }
 }
@@ -778,5 +924,125 @@ mod tests {
         assert!(is_new, "fresh Add gate expected");
         assert_eq!(m.nodes.len(), before + 1);
         assert_eq!(m.fold_identities_applied, 0);
+    }
+
+    /// `Eq(c1, c2)` evaluated at intern time — returns a 1-bit
+    /// constant. Same for `Neq` with the opposite boolean.
+    #[test]
+    fn peephole_constant_comparison_evaluates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        let (c5, _) = m.intern_constant(8, 5);
+        let (c7, _) = m.intern_constant(8, 7);
+        let (c5b, _) = m.intern_constant(8, 5);
+        // Constants dedupe, so c5 == c5b.
+        assert_eq!(c5, c5b);
+
+        // Eq of equal constants → 1.
+        let (eq_eq, _) = m.intern_gate(GateOp::Eq, vec![c5, c5b], 1, DepSet::new());
+        match m.nodes[eq_eq as usize] {
+            Node::Constant { width: 1, value: 1 } => {}
+            ref other => panic!("expected 1-bit const 1, got {other:?}"),
+        }
+
+        // Eq of unequal constants → 0.
+        let (eq_neq, _) = m.intern_gate(GateOp::Eq, vec![c5, c7], 1, DepSet::new());
+        match m.nodes[eq_neq as usize] {
+            Node::Constant { width: 1, value: 0 } => {}
+            ref other => panic!("expected 1-bit const 0, got {other:?}"),
+        }
+
+        // Lt(5, 7) → 1; Lt(7, 5) → 0.
+        let (lt_57, _) = m.intern_gate(GateOp::Lt, vec![c5, c7], 1, DepSet::new());
+        match m.nodes[lt_57 as usize] {
+            Node::Constant { width: 1, value: 1 } => {}
+            ref other => panic!("expected Lt(5,7)==1, got {other:?}"),
+        }
+
+        // Neq(5, 5) → 0.
+        let (neq_eq, _) = m.intern_gate(GateOp::Neq, vec![c5, c5], 1, DepSet::new());
+        match m.nodes[neq_eq as usize] {
+            Node::Constant { width: 1, value: 0 } => {}
+            ref other => panic!("expected Neq(5,5)==0, got {other:?}"),
+        }
+
+        assert!(m.peephole_rewrites_applied >= 4);
+    }
+
+    /// `Slice(hi, 0)` where `hi + 1 == src_width` returns the source.
+    #[test]
+    fn peephole_full_width_slice_identity() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        let x: NodeId = 0;
+        let before = m.nodes.len();
+        let (sliced, is_new) = m.intern_gate(
+            GateOp::Slice { hi: 7, lo: 0 },
+            vec![x],
+            8,
+            DepSet::from_port(0),
+        );
+        assert_eq!(sliced, x, "full-width Slice → src");
+        assert!(!is_new);
+        assert_eq!(m.nodes.len(), before);
+        assert_eq!(m.peephole_rewrites_applied, 1);
+
+        // Partial slice must NOT fold.
+        let (partial, is_new_partial) = m.intern_gate(
+            GateOp::Slice { hi: 3, lo: 0 },
+            vec![x],
+            4,
+            DepSet::from_port(0),
+        );
+        assert_ne!(partial, x, "partial Slice is a real gate");
+        assert!(is_new_partial);
+    }
+
+    /// `Concat([x])` → `x` when widths match.
+    #[test]
+    fn peephole_single_operand_concat_identity() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        let x: NodeId = 0;
+        let before = m.nodes.len();
+        let (result, is_new) =
+            m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
+        assert_eq!(result, x, "Concat([x]) → x");
+        assert!(!is_new);
+        assert_eq!(m.nodes.len(), before);
+        assert_eq!(m.peephole_rewrites_applied, 1);
+    }
+
+    /// At `FactorizationLevel::ConstantFold` the Peephole layer must
+    /// NOT fire: a single-operand Concat stays as a real gate and
+    /// constant comparisons stay as real Eq/Neq gates.
+    #[test]
+    fn peephole_disabled_below_peephole_level() {
+        use crate::config::FactorizationLevel;
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::ConstantFold,
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        let x: NodeId = 0;
+        let before = m.nodes.len();
+        let (concat, is_new) =
+            m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
+        assert_ne!(concat, x, "at level=ConstantFold peephole must not fire");
+        assert!(is_new);
+        assert_eq!(m.nodes.len(), before + 1);
+        assert_eq!(m.peephole_rewrites_applied, 0);
     }
 }

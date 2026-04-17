@@ -86,9 +86,15 @@ pub enum FactorizationLevel {
     /// `x << 0 → x`, `x >> 0 → x`. Fires counted in
     /// `Metrics::fold_identities_applied`.
     ConstantFold,
-    /// Peephole rewrite rules on top of constant folding. **Not yet
-    /// implemented.** Identities like `(a + b) - b = a` fold at
-    /// construction time.
+    /// Peephole rewrite rules on top of constant folding.
+    /// **Implemented** as a curated set of local, unambiguous
+    /// rewrites: `Not(Not(x)) → x`, fully-constant comparisons
+    /// evaluated at intern time, full-width `Slice(hi, 0)` with
+    /// `hi + 1 == src_width` returning the source, and single-
+    /// operand `Concat → that operand`. Cross-gate algebraic
+    /// rewrites like `(a + b) - b = a` are still deferred to the
+    /// future e-graph layer. Fires counted in
+    /// `Metrics::peephole_rewrites_applied`.
     Peephole,
     /// Theoretical ceiling — full semantic equivalence via e-graph.
     /// **Default**, and the aspiration: every mathematically-
@@ -117,6 +123,7 @@ impl FactorizationLevel {
                 | FactorizationLevel::OperandUnique
                 | FactorizationLevel::Commutative
                 | FactorizationLevel::ConstantFold
+                | FactorizationLevel::Peephole
         )
     }
 

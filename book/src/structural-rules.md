@@ -591,23 +591,24 @@ they're the same expression. The rule closes that gap.
 **Position in the factorization ladder:** CSE (21) → operand-
 uniqueness (Rule 8 + knob) → commutative normalization (21b) →
 associative flattening (future) → **constant folding (live)** →
-peephole rules (future) → e-graph equivalence (theoretical
+**peephole rules (live)** → e-graph equivalence (theoretical
 ceiling). Each layer tightens the NodeId-identity contract;
 we land them incrementally as defects demand.
 
 **The syntactic-vs-semantic boundary.** What the currently-
 implemented layers (CSE, operand-uniqueness, commutative,
-constant-fold) guarantee is that **two syntactically identical
-expressions share one node**, plus a curated set of well-known
-algebraic identities (`x + 0`, `x * 1`, `x & 0`, `x | all_ones`,
-…) get collapsed at intern time. The aspirational layers above
-extend the contract toward **two semantically equivalent
-expressions share one node** — a strictly harder problem that
-synthesis tools themselves solve incompletely. Full factorization
-in the semantic sense is an asymptote: we climb toward it one
-layer at a time, confident that each layer tightens the identity
-contract without sacrificing reproducibility or construction-time
-correctness.
+constant-fold, peephole) guarantee is that **two syntactically
+identical expressions share one node**, plus a curated set of
+well-known algebraic identities (`x + 0`, `x * 1`, `x & 0`,
+`x | all_ones`, `Eq(c1, c2)`, full-width `Slice`, single-operand
+`Concat`, …) get collapsed at intern time. The aspirational
+layers above extend the contract toward **two semantically
+equivalent expressions share one node** — a strictly harder
+problem that synthesis tools themselves solve incompletely. Full
+factorization in the semantic sense is an asymptote: we climb
+toward it one layer at a time, confident that each layer
+tightens the identity contract without sacrificing
+reproducibility or construction-time correctness.
 
 ## 21c — Factorization level (user-controllable dial)
 
@@ -620,7 +621,7 @@ order:
 constant-fold → peephole → e-graph` (default).
 
 Each level implies all lower ones. Levels above the highest
-implemented layer (currently `constant-fold` — `associative` is
+implemented layer (currently `peephole` — `associative` is
 skipped and not yet live) activate every implemented layer —
 they're aspirational anchors for the theoretical ceiling.
 
@@ -631,8 +632,11 @@ sense must share one `NodeId`; different expressions must have
 different `NodeId`s. `e-graph` is the theoretical ceiling where
 this holds for all semantic equivalences. Today we approximate
 it with syntactic CSE + operand-uniqueness + commutative
-normalization + constant folding. Future slices will close the
-gap further via associative flattening and peephole rewrites.
+normalization + constant folding + a narrow set of peephole
+rewrites. Future slices will close the gap further via
+associative flattening (needs NodeId compaction) and deeper
+peephole rewrites (e.g. cross-gate identities like
+`(a + b) - b → a`).
 
 **How each level gates behaviour:**
 
@@ -643,8 +647,8 @@ gap further via associative flattening and peephole rewrites.
 | `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
 | `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |
 | `associative`  | + Associative flattening. *Not implemented yet — effective level clamps down to `commutative`.* |
-| `constant-fold` | + Constant folding at intern time (`x + 0 → x`, `x * 1 → x`, `x & 0 → 0`, `x \| all_ones → all_ones`, `x ^ 0 → x`, `x * 0 → 0`, `x & all_ones → x`, `x - 0 → x`, `x << 0 → x`, `x >> 0 → x`). Fires counted in `Metrics::fold_identities_applied`. |
-| `peephole`    | + Peephole rewrite rules. *Not implemented yet.*                   |
+| `constant-fold` | + Constant folding at intern time. Identity drops (`x + 0 → x`, `x * 1 → x`, `x & all_ones → x`, `x \| 0 → x`, `x ^ 0 → x`, `x - 0 → x`, `x << 0 → x`, `x >> 0 → x`); absorbing only when all operands are non-Gate (the "evaluate all-constant expression" subset, orphan-safe): `c * 0 → 0`, `c & 0 → 0`, `c \| all_ones → all_ones`. Fires counted in `Metrics::fold_identities_applied`. |
+| `peephole`    | + Narrow local rewrites that don't orphan Gate operands: fully-constant comparisons evaluated at intern (`Eq(c1, c2) → 1-bit const`, same for `Neq`/`Lt`/`Gt`/`Le`/`Ge`), full-width `Slice(hi, 0)` where `hi+1 == src_width` returns the source, single-operand `Concat([x]) → x`. Fires counted in `Metrics::peephole_rewrites_applied`. Rules that would orphan a Gate (e.g. `Not(Not(x)) → x`) are deferred to the compaction-equipped e-graph layer. |
 | `e-graph`    | Full semantic equivalence. *Not implemented yet.*                  |
 
 **Effective level:** `FactorizationLevel::effective()` returns
@@ -653,10 +657,11 @@ walking the enum order top-down. Unimplemented middle rungs are
 skipped cleanly: a user asking for `associative` drops to
 `commutative` (the nearest implemented layer below), while
 `e-graph` activates everything currently live — today that's
-`constant-fold` plus every lower rung. When associative
-flattening lands, the same `--factorization-level e-graph`
-invocation will automatically gain it — no config change
-required.
+`peephole` plus every lower rung (including `constant-fold`
+one step below and `commutative` two steps below). When
+associative flattening lands, the same `--factorization-level
+e-graph` invocation will automatically gain it — no config
+change required.
 
 **Where enforced:** `src/ir/types.rs` `intern_gate` /
 `intern_constant` gate commutative sort and dedup-bypass on

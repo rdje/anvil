@@ -582,3 +582,33 @@ fn constant_fold_layer_fires_at_default_knobs() {
          or constant_prob no longer produces identity-value constants."
     );
 }
+
+/// Doctrine guard: the `Peephole` factorization layer is live at
+/// default knobs. A seed sweep should produce at least one local
+/// rewrite — most commonly a fully-constant comparison evaluated
+/// at intern time (the `const-comparand` motif lands both LHS and
+/// RHS as constants after CSE), or a full-width `Slice` / single-
+/// operand `Concat` identity. A zero count across 40 seeds means
+/// the layer regressed or no peephole-reachable shape is being
+/// generated.
+#[test]
+fn peephole_layer_fires_at_default_knobs() {
+    let mut total_fires: u64 = 0;
+    for seed in 0..40u64 {
+        let cfg = Config {
+            seed,
+            ..Config::default()
+        };
+        let m = anvil::Generator::new(cfg).generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        total_fires += metrics.peephole_rewrites_applied;
+    }
+    assert!(
+        total_fires > 0,
+        "expected at least one Peephole fire across 40 seeds at \
+         default knobs; got 0. Either the Peephole layer regressed \
+         or no peephole-reachable shape (Not(Not(x)), const-const \
+         comparison, full-width Slice, single-operand Concat) is \
+         being produced."
+    );
+}

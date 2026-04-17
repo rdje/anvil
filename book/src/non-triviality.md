@@ -101,20 +101,25 @@ cone still references independent inputs.
 **Factorization ladder.** `anvil` has started climbing this
 ladder. The implemented layers — syntactic CSE (Rule 21),
 operand uniqueness (Rule 8 extended), commutative normalization
-(Rule 21b), and constant folding — together close the
-*within-gate* duplication surface: same AST ⇒ same NodeId, no
-duplicate operands (at default knobs), `a+b` and `b+a` share
-identity, and algebraic identities such as `x + 0`, `x * 1`,
-`x & 0`, `x | all_ones` collapse at intern time rather than
-landing as literal gates in the IR.
+(Rule 21b), constant folding, and a narrow set of peephole
+rewrites — together close the *within-gate* duplication surface:
+same AST ⇒ same NodeId, no duplicate operands (at default
+knobs), `a+b` and `b+a` share identity, algebraic identities
+such as `x + 0`, `x * 1`, `x & all_ones` collapse at intern
+time, and fully-constant comparisons / full-width slices /
+single-operand concats get rewritten away before landing as
+literal gates.
 
 The remaining aspirational layers in `FactorizationLevel` —
-`Associative`, `Peephole`, `EGraph` — are not yet implemented.
-When they land, the `factorization_level` dial automatically
-activates them for users already at higher levels (the default
-is `e-graph`, which `effective()` walks down to the highest
-implemented layer — today `constant-fold`, skipping the
-not-yet-live `associative` rung in between).
+`Associative` and `EGraph` — are not yet implemented. Both need
+NodeId compaction (a finalisation pass to clean up orphaned
+intermediate gates after a rewrite), which the current
+construction-time-only architecture doesn't provide. When they
+land, the `factorization_level` dial automatically activates
+them for users already at higher levels (the default is
+`e-graph`, which `effective()` walks down to the highest
+implemented layer — today `peephole`, skipping the not-yet-live
+`associative` rung in between).
 
 **Syntactic vs semantic identity.** What's already implemented
 covers the promise that **two syntactically identical

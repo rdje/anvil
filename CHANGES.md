@@ -3,6 +3,131 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0067 — Peephole factorization layer goes live (Rule 21c layer 6), orphan-safe subset
+
+**What changed**
+
+Factorization ladder:
+- `src/config.rs` promotes `FactorizationLevel::Peephole` from
+  aspirational to implemented. `is_implemented()` now covers
+  `Peephole`; default `EGraph` walks down to `Peephole` as the
+  effective layer (was `ConstantFold`).
+- `src/ir/types.rs` adds `Module::apply_peephole`, dispatched
+  from `intern_gate` after `fold_constants`. Rules wired —
+  each one is narrow and orphan-safe:
+  - **Fully-constant comparisons**: `Eq`/`Neq`/`Lt`/`Gt`/`Le`/
+    `Ge` with both operands same-width constants are evaluated
+    at intern time to a 1-bit constant. Constants orphaned as
+    a side effect don't count as gate orphans, so the rule is
+    Rule-18-safe.
+  - **Full-width `Slice`**: `Slice(hi, 0)` with
+    `hi + 1 == src_width` returns the source NodeId. The
+    source is used by the caller — no orphan.
+  - **Single-operand `Concat`**: `Concat([x]) → x`. Same
+    orphan-safety.
+
+Orphan-safety hardening in ConstantFold's absorbing rule:
+- Previous slice's absorbing rule (`x * 0 → 0`, `x & 0 → 0`,
+  `x | all_ones → all_ones`) would orphan any Gate operand —
+  the outer gate collapses to a constant and the Gate
+  operand's only consumer (this call) disappears. The peephole
+  slice's RNG-path shift exposed the latent orphan: a pre-
+  existing build-Eq-gate, later consumed by an `And([eq, 0])`
+  which absorbed to 0, left the Eq unreferenced.
+- Fix: absorbing now fires only when **no operand is a Gate**
+  — i.e. every operand is a Constant, PrimaryInput, or FlopQ.
+  This restricts absorbing to the "evaluate all-constant
+  expression" subset, which is strictly orphan-safe. Dynamic
+  absorbing (`x & 0` where `x` is a Gate sub-tree) now waits
+  for the compaction-equipped future layer.
+
+Rule NOT implemented and why:
+- **`Not(Not(x)) → x`** — would orphan the inner `Not` gate
+  because the outer `Not` call's only reference to inner
+  (the operand) disappears after the rewrite returns `x`
+  directly. Without NodeId compaction this is a Rule 18
+  violation. Documented in `apply_peephole` doc comment +
+  Rule 21c table. Waits for the e-graph / compaction layer.
+
+Live counter:
+- `Module::peephole_rewrites_applied` (u64) increments on
+  each fire. Surfaced via `Metrics::peephole_rewrites_applied`.
+
+Tests:
+- `src/ir/types.rs`: four new peephole unit tests
+  (`peephole_constant_comparison_evaluates`,
+  `peephole_full_width_slice_identity`,
+  `peephole_single_operand_concat_identity`,
+  `peephole_disabled_below_peephole_level`). The previously-
+  written `peephole_double_not_collapses` test was dropped
+  alongside its rule.
+- `tests/pipeline.rs`: new integration test
+  `peephole_layer_fires_at_default_knobs` — sums
+  `peephole_rewrites_applied` over 40 seeds at default knobs
+  and asserts > 0.
+
+Docs:
+- `book/src/structural-rules.md` Rule 21b: factorization-
+  ladder prose updated to list peephole as live; syntactic-
+  vs-semantic framing extended with the peephole identities.
+- `book/src/structural-rules.md` Rule 21c: level table
+  entry for `peephole` promoted from "Not implemented yet"
+  to the concrete rule list, with a note about why
+  `Not(Not(x)) → x` is deferred. ConstantFold entry
+  updated to note the non-Gate-operand restriction on
+  absorbing.
+- `book/src/structural-rules.md` Rule 21c: `highest_implemented`
+  prose updated `constant-fold` → `peephole`.
+- `book/src/non-triviality.md`: "Factorization ladder"
+  subsection updated; aspirational layer list now just
+  `Associative` + `EGraph`, both noted as blocked on
+  NodeId compaction.
+
+**Why**
+
+Layer 6 of 8 on the factorization ladder, picked over the
+harder `Associative` layer (Layer 4) because peephole rules
+land as construction-time short-circuits with no NodeId
+compaction required — same architectural shape as ConstantFold.
+The effective-level walker I added in slice `82b2213` already
+handles the out-of-order activation (layer 6 live, layer 4
+still aspirational). Peephole advances the ladder and
+exposed+fixed the absorbing-rule orphan hazard that was latent
+in ConstantFold.
+
+The absorbing-rule restriction is the doctrinally-correct
+call: Rule 18 (zero orphans) is a strict invariant, and
+until we have a compaction pass, absorbing on Gate operands
+can't be made orphan-safe. The restricted form (absorb only
+when all operands are non-Gate) is a proper subset that still
+legitimately fires — just less often than the unrestricted
+form.
+
+**Tests**
+- 47 unit tests pass (was 49 after the slice; two Not(Not)
+  tests + one `double_not` test removed; four new peephole
+  tests added; net +3 from the prior slice's +6).
+- 20 integration tests pass (was 19 — added
+  `peephole_layer_fires_at_default_knobs`).
+- Total test count: 67.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Default-config output contains fewer trivial gates:
+  fully-constant comparisons are evaluated at intern
+  time, full-width slices disappear, single-operand
+  concats disappear.
+- `Metrics::peephole_rewrites_applied` gives empirical
+  visibility into Peephole-layer activity.
+- The absorbing-rule restriction tightens the Rule 18
+  guarantee: no construction-time rewrite can orphan a
+  Gate. This pushes `Not(Not(x)) → x` and
+  dynamic-absorbing (`x & 0` with gate `x`) into the
+  compaction-equipped future layer, preserving the
+  strict-orphan-free doctrine today.
+
+---
+
 ## 2026-04-17-0066 — ConstantFold factorization layer goes live (Rule 21c layer 5)
 
 **What changed**
