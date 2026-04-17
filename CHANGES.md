@@ -3,6 +3,134 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-17-0070 — Associative flattening factorization layer goes live (Rule 21c layer 4)
+
+**What changed**
+
+Factorization ladder:
+- `src/config.rs` promotes `FactorizationLevel::Associative`
+  from aspirational to implemented. `is_implemented()` now
+  covers it. `effective()` walker still handles out-of-order
+  activation correctly; default `EGraph` walks down to
+  `Peephole` (the highest rung) which transitively enables
+  `Associative` and all lower layers.
+- `src/ir/types.rs` adds `Module::flatten_associative`,
+  dispatched from `intern_gate` **before** commutative sort
+  and constant fold. For associative ops
+  (`And`/`Or`/`Xor`/`Add`/`Mul`), it scans operands for any
+  same-op same-width inner gate and splices its operands into
+  the outer operand list. Per-op semantic normalisation after
+  the splice:
+  - **`And` / `Or`**: dedup (idempotent — `a & a = a`).
+  - **`Xor`**: pair-cancel (self-inverse — `a ^ a = 0`). Count
+    occurrences, drop even-count operands entirely, keep one
+    copy of each odd-count operand.
+  - **`Add` / `Mul`**: skip the flatten when flattening would
+    produce duplicates AND `operand_duplication_rate < 1.0`.
+    Preserves both the Rule 8 uniqueness contract and the
+    `x + x = 2x` / `x * x = x²` semantics (dropping duplicates
+    here would silently change arithmetic).
+
+Short-circuits match the other intern-time helpers: post-
+normalisation an empty operand list returns the op's identity
+constant (only reachable for `Xor`-all-cancel → zero); a
+single survivor returns that operand's NodeId directly; ≥ 2
+operands overwrite the caller's operand list and intern
+proceeds normally.
+
+Live counter:
+- `Module::flatten_associative_applied: u64` increments on
+  each fire. Surfaced via `Metrics::flatten_associative_applied`.
+
+Canary flipped:
+- `tests/pipeline.rs`
+  `nested_associative_opportunities_exist_today` (which
+  previously asserted `> 0` to verify the layer hadn't landed
+  yet) renamed to `nested_associative_opportunities_flatten_to_zero`
+  and now asserts `== 0` at default knobs. This is the direct
+  doctrine check that every post-construction IR is free of
+  remaining associative-flattening opportunities. Complements
+  `flatten_associative_applied` — the former is the
+  post-construction state, the latter is the event count.
+
+Tests:
+- `src/ir/types.rs`: four new unit tests
+  (`flatten_associative_splices_same_op`,
+  `flatten_associative_and_dedups`,
+  `flatten_associative_xor_pair_cancels`,
+  `flatten_associative_xor_all_cancel_to_zero`,
+  `flatten_associative_add_skips_on_duplicates`) covering the
+  splice mechanics and per-op normalisation.
+
+Docs:
+- `book/src/structural-rules.md` Rule 21b: ladder prose +
+  syntactic-vs-semantic framing now include `associative` as
+  live, citing structural identities like
+  `Add(a, Add(b, c)) = Add(a, b, c)` and `a ^ a = 0`.
+- `book/src/structural-rules.md` Rule 21c: level table entry
+  for `associative` promoted to a concrete description of the
+  splice + per-op normalisation; "Doctrinal anchor" paragraph
+  lists `associative` alongside the other implemented layers.
+  `highest_implemented` prose updated: no more "skipping the
+  not-yet-live associative rung".
+- `book/src/non-triviality.md`: rewritten "NodeId compaction"
+  paragraph to acknowledge its new role as enabler for
+  associative flattening, followed by a dedicated paragraph on
+  the Associative layer with the per-op semantics and the
+  `nested_associative_operand_count = 0` empirical validation.
+  The aspirational-layer list narrows to "cross-gate
+  identities → e-graph".
+
+**Why**
+
+Layer 4 of the factorization ladder, enabled by the NodeId
+compaction pass from the previous slice. Previously-deferred
+because of the orphan-safety problem: splicing `Add(b, c)` into
+`Add(a, ...)` leaves the inner `Add(b, c)` unreferenced. Now
+compaction removes it at finalisation, so the rewrite is legal.
+
+With this slice, the `NodeId = expression identity` doctrine
+holds for every case where **syntactic identity after associative
+normalisation** is sufficient: `Add(a, Add(b, c))`,
+`Add(Add(a, b), c)`, and `Add(a, b, c)` all produce the same
+NodeId at default knobs. The only residual divergence is for
+semantically-equivalent-but-structurally-different expressions
+(`(a + b) - b = a`, `(a & b) | (a & ~b) = a`, `a + 2 - 1 = a + 1`),
+which are the e-graph / deeper peephole domain.
+
+**Empirical (seed 42, default knobs):**
+- `nested_associative_operand_count`: 0 (was 373 pre-slice)
+- `flatten_associative_applied`: 268
+- `nodes_compacted`: 94 (was 7 — jump driven by Associative
+  orphaning inner gates at splice time)
+- `fold_identities_applied`: 91 (was 28 — more ConstantFold
+  opportunities opened up by flattening)
+- `peephole_rewrites_applied`: 9 (unchanged)
+
+**Tests**
+- 56 unit tests pass (was 51 — added 4 new associative tests +
+  a minor rewrite of the existing test cluster).
+- 22 integration tests pass (unchanged in count; the canary
+  test was renamed and its assertion flipped).
+- Total test count: 78.
+- `cargo build` clean; `mdbook build book` clean.
+
+**Impact**
+- Default-config output contains zero nested associative
+  shapes: every `Add`/`Or`/`And`/`Xor`/`Mul` tree is fully
+  flattened into its maximum-arity operator form. Downstream
+  synthesis / formal tools see the canonical shape instead of
+  random nesting.
+- ConstantFold's identity-drop reach expands: flattened lists
+  that happen to contain an identity constant now collapse
+  correctly (previously the constant was hidden inside an
+  inner gate).
+- `factorization_level` dial is consistent: `associative` no
+  longer silently degrades to `commutative` via the walker.
+  Only `e-graph` (the theoretical ceiling) remains aspirational.
+
+---
+
 ## 2026-04-17-0069 — NodeId compaction pass + Not(Not(x)) peephole unlock
 
 **What changed**

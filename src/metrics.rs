@@ -174,6 +174,14 @@ pub struct Metrics {
     /// gate unreferenced. Sourced from `Module::nodes_compacted`.
     pub nodes_compacted: u32,
 
+    /// Number of times the `Associative` factorization layer
+    /// fired during construction. Each fire is one `intern_gate`
+    /// call on an associative op where at least one same-op
+    /// same-width inner gate was spliced into the outer operand
+    /// list. Zero at factorization levels below `Associative`.
+    /// Sourced from `Module::flatten_associative_applied`.
+    pub flatten_associative_applied: u64,
+
     // --- Per-knob probability-roll counters --------------------
     /// Attempt count per probability knob. Keyed by the knob's
     /// canonical string name (matches `Config` field, e.g.
@@ -378,6 +386,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.fold_identities_applied = m.fold_identities_applied;
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
     out.nodes_compacted = m.nodes_compacted;
+    out.flatten_associative_applied = m.flatten_associative_applied;
 
     // Per-knob attempt/fire counters. Convert enum keys to strings
     // for serialisation. Non-empty knobs only.

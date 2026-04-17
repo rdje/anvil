@@ -110,28 +110,35 @@ time, and fully-constant comparisons / full-width slices /
 single-operand concats get rewritten away before landing as
 literal gates.
 
-NodeId compaction arrived as a post-construction pass that
-walks from roots and drops any gate that no longer has a
-consumer. It's the infrastructure piece that lets rewrites
-such as `Not(Not(x)) → x` fire without violating Rule 18 —
-the inner `Not` may be left unreferenced by the outer call's
-short-circuit, and compaction cleans it up at module
-finalisation. The count is surfaced via
-`Metrics::nodes_compacted` and is zero whenever every rewrite
-happens to be orphan-safe by itself.
+NodeId compaction is a post-construction pass that walks from
+roots and drops any gate that no longer has a consumer. It's
+the infrastructure piece that lets rewrites such as
+`Not(Not(x)) → x` and associative flattening fire without
+violating Rule 18 — an inner gate may be left unreferenced by
+the outer call's short-circuit or splice, and compaction cleans
+it up at module finalisation. The count is surfaced via
+`Metrics::nodes_compacted`.
 
-The remaining aspirational layers in `FactorizationLevel` —
-`Associative` and the cross-gate portion of `EGraph` — are
-still not implemented. They need deeper machinery: associative
-flattening wants to merge `Add(a, Add(b, c))` into
-`Add(a, b, c)` at intern time, which orphans the inner `Add`;
-compaction cleans that up, but the intern-time merge logic
-itself is the next slice. When they land, the
-`factorization_level` dial automatically activates them for
-users already at higher levels (the default is `e-graph`,
-which `effective()` walks down to the highest implemented
-layer — today `peephole`, skipping the not-yet-live
-`associative` rung in between).
+Associative flattening (Layer 4) landed on top of compaction:
+at intern time, any `And`/`Or`/`Xor`/`Add`/`Mul` operand that
+is itself a same-op same-width gate is spliced into the outer
+operand list, so `Add(a, Add(b, c))` becomes `Add(a, b, c)`.
+Per-op semantic normalisation runs after the splice:
+`And`/`Or` dedup (idempotent), `Xor` pair-cancel (self-
+inverse), and `Add`/`Mul` conservatively skip the flatten when
+duplicates would result (to preserve `x + x = 2x` /
+`x * x = x²` under the strict `operand_duplication_rate`).
+Fires are counted in `Metrics::flatten_associative_applied`,
+and the complementary `nested_associative_operand_count`
+metric — the post-construction count of flattening
+opportunities — sits at zero at default knobs, a direct
+verification that the layer is exhaustive there.
+
+The remaining aspirational work lives in the top rung of
+`FactorizationLevel`: cross-gate identities like
+`(a + b) - b → a` need symbolic reasoning over the expression
+tree. That's the e-graph problem proper — the asymptote we
+climb toward without claiming to have reached.
 
 **Syntactic vs semantic identity.** What's already implemented
 covers the promise that **two syntactically identical

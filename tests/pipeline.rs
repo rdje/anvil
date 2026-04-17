@@ -528,29 +528,35 @@ fn zero_duplicate_operands_at_default_knobs() {
     }
 }
 
-/// Informational regression guard for the
-/// `nested_associative_operand_count` metric. At default knobs
-/// today (Associative layer NOT implemented), this count is
-/// non-zero. When the Associative layer lands in a future slice,
-/// this assertion will start failing — flip it to `== 0` then,
-/// as direct validation that flattening worked.
+/// Doctrine guard for the `nested_associative_operand_count`
+/// metric. **After** the Associative factorization layer landed
+/// (slice 2026-04-17-0070), this count must be zero at default
+/// knobs: every same-op same-width inner gate operand of an
+/// `And`/`Or`/`Xor`/`Add`/`Mul` is spliced in at intern time, so
+/// the final IR contains no remaining flattening opportunities.
+/// The count can only become non-zero if the Associative layer
+/// regresses OR the generator introduces a construction path
+/// that materialises a nested associative shape after intern
+/// (e.g. a post-hoc transform, not present today).
+///
+/// A residual non-zero count at `operand_duplication_rate = 1.0`
+/// is expected (we don't flatten Add/Mul at that rate, to
+/// preserve the user's "duplicates allowed" shape). This test
+/// uses the default `0.0` where all duplicates are forbidden
+/// and flattening is complete.
 #[test]
-fn nested_associative_opportunities_exist_today() {
-    // Seed 42 produced 373 opportunities at the time this test was
-    // added (slice 99084a8). Using a lower bound that still proves
-    // non-triviality without pinning the exact count (distribution
-    // can shift with generator evolution).
+fn nested_associative_opportunities_flatten_to_zero() {
     let cfg = Config {
         seed: 42,
         ..Config::default()
     };
     let m = Generator::new(cfg).generate_module();
     let metrics = anvil::metrics::compute(&m);
-    assert!(
-        metrics.nested_associative_operand_count > 0,
-        "expected nested-associative opportunities at default knobs \
-         pre-Associative-layer; got {}. If the Associative layer just \
-         landed, this test should be updated to assert == 0.",
+    assert_eq!(
+        metrics.nested_associative_operand_count, 0,
+        "expected zero nested-associative opportunities at default \
+         knobs with Associative layer live; got {}. The Associative \
+         factorization layer may have regressed.",
         metrics.nested_associative_operand_count
     );
 }

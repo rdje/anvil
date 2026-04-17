@@ -106,6 +106,16 @@ pub struct Module {
     /// Surfaced via `Metrics::nodes_compacted`.
     pub nodes_compacted: u32,
 
+    /// Number of times the `Associative` factorization layer fired
+    /// during construction of this module. Each fire is one
+    /// invocation of `intern_gate` on an associative op
+    /// (`And`/`Or`/`Xor`/`Add`/`Mul`) whose operand list contained
+    /// at least one same-op same-width inner gate, which was
+    /// spliced into the outer operand list (possibly followed by
+    /// semantic dedup/cancel per the op class). Surfaced via
+    /// `Metrics::flatten_associative_applied`.
+    pub flatten_associative_applied: u64,
+
     /// Per-knob attempt/fire counters for every probability roll
     /// taken during construction. Populated live by the
     /// `roll_knob` helper in `src/gen/cone.rs` at every
@@ -208,6 +218,22 @@ impl Module {
         deps: DepSet,
     ) -> (NodeId, bool) {
         use crate::config::FactorizationLevel;
+
+        // Associative flattening (layer Associative and above):
+        // splice any same-op same-width inner gate operands into
+        // this operand list, then apply the semantic normalisation
+        // for the op class (dedup for `And`/`Or`, pair-cancel for
+        // `Xor`, conservative for `Add`/`Mul`). See
+        // `book/src/structural-rules.md` Rule 21c. Runs BEFORE
+        // commutative sort so the flattened-and-normalised list is
+        // the one that gets sorted.
+        if self.factorization_level.effective() >= FactorizationLevel::Associative {
+            if let Some((flat_id, is_new)) =
+                self.flatten_associative(op, &mut operands, width)
+            {
+                return (flat_id, is_new);
+            }
+        }
 
         // Commutative normalization (layer Commutative and above):
         // sort operands for commutative ops so `a + b` and `b + a`
@@ -521,6 +547,161 @@ impl Module {
             _ => {
                 // ≥ 2 operands remain; let the caller proceed with
                 // normal intern on the shrunk list.
+                None
+            }
+        }
+    }
+
+    /// Associative flattening: splice any same-op same-width
+    /// inner gate operands into this operand list, then apply
+    /// per-op semantic normalisation.
+    ///
+    /// Returns:
+    /// - `Some((id, is_new))` to short-circuit the caller when
+    ///   post-normalisation the operand list collapses to a
+    ///   single operand (returned directly) or zero operands
+    ///   (returned as the op's identity constant — only
+    ///   `Xor`-all-cancel reaches this).
+    /// - `None` with the operand list possibly rewritten in
+    ///   place: the caller proceeds with the new list as if the
+    ///   original had been passed.
+    ///
+    /// ## Per-op semantic normalisation after flattening
+    ///
+    /// - **`And` / `Or`** — idempotent, so duplicate operands
+    ///   produced by splicing are simply deduplicated
+    ///   (`a & a = a`, `a | a = a`). The resulting list has
+    ///   only distinct operands, preserving Rule 8 extended.
+    /// - **`Xor`** — self-inverse, so duplicates pair-cancel
+    ///   (`a ^ a = 0`). The semantics are to count occurrences,
+    ///   drop even-count operands entirely, and keep exactly
+    ///   one copy of each odd-count operand. If every operand
+    ///   cancels, the result is the zero constant.
+    /// - **`Add` / `Mul`** — duplicates have semantic weight
+    ///   (`x + x = 2x`, `x * x = x²`), so at the default strict
+    ///   `operand_duplication_rate < 1.0` we **do not flatten**
+    ///   when flattening would produce duplicates. This
+    ///   preserves both the construction-time uniqueness rule
+    ///   and correctness: we never silently change `x + (x + y)`
+    ///   into `x + y`. At `operand_duplication_rate == 1.0` the
+    ///   user has opted into duplicate operands; we flatten
+    ///   unconditionally.
+    ///
+    /// Orphan-safety: flattening can leave the inner gate
+    /// unreferenced (its only holder was this caller's operand
+    /// slot, now spliced out). That's cleaned up at module
+    /// finalisation by `compact_node_ids` — see
+    /// `src/ir/compact.rs`.
+    fn flatten_associative(
+        &mut self,
+        op: GateOp,
+        operands: &mut Vec<NodeId>,
+        width: u32,
+    ) -> Option<(NodeId, bool)> {
+        use std::collections::{HashMap, HashSet};
+
+        if !matches!(
+            op,
+            GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+        ) {
+            return None;
+        }
+
+        // 1. Splice same-op same-width inner gates.
+        let mut flat: Vec<NodeId> = Vec::with_capacity(operands.len());
+        let mut any_spliced = false;
+        for &id in operands.iter() {
+            if let Node::Gate {
+                op: inner_op,
+                operands: inner,
+                width: inner_w,
+                ..
+            } = &self.nodes[id as usize]
+            {
+                if *inner_op == op && *inner_w == width {
+                    flat.extend(inner.iter().copied());
+                    any_spliced = true;
+                    continue;
+                }
+            }
+            flat.push(id);
+        }
+
+        if !any_spliced {
+            return None;
+        }
+
+        // 2. Per-op semantic normalisation.
+        match op {
+            GateOp::And | GateOp::Or => {
+                let mut seen = HashSet::new();
+                flat.retain(|id| seen.insert(*id));
+            }
+            GateOp::Xor => {
+                // Pair-cancel: count occurrences, keep odd-count
+                // operands with multiplicity 1.
+                let mut counts: HashMap<NodeId, u32> = HashMap::new();
+                for id in &flat {
+                    *counts.entry(*id).or_insert(0) += 1;
+                }
+                flat.retain(|id| counts[id] % 2 == 1);
+                let mut seen = HashSet::new();
+                flat.retain(|id| seen.insert(*id));
+            }
+            GateOp::Add | GateOp::Mul => {
+                // At strict operand_duplication_rate, duplicates
+                // are forbidden AND semantically meaningful. Skip
+                // the flatten when the flat list would have
+                // duplicates — preserve the pre-existing nested
+                // shape rather than silently changing semantics.
+                if self.operand_duplication_rate < 1.0 {
+                    let mut counts: HashMap<NodeId, u32> = HashMap::new();
+                    for id in &flat {
+                        *counts.entry(*id).or_insert(0) += 1;
+                    }
+                    if counts.values().any(|v| *v > 1) {
+                        return None;
+                    }
+                }
+                // Otherwise keep `flat` as-is (rate == 1.0, or no
+                // duplicates arose).
+            }
+            _ => unreachable!(),
+        }
+
+        self.flatten_associative_applied += 1;
+        crate::trace_verbose!(
+            ?op,
+            width,
+            n_flat = flat.len(),
+            "🪗 flatten_associative spliced"
+        );
+
+        // 3. Short-circuit when the normalised list is short.
+        let all_ones: u128 = if width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << width) - 1
+        };
+        match flat.len() {
+            0 => {
+                // Only reachable for Xor (all cancel) → 0.
+                debug_assert!(matches!(op, GateOp::Xor));
+                let (cid, is_new) = self.intern_constant(width, 0);
+                Some((cid, is_new))
+            }
+            1 => {
+                // Single surviving operand — return directly.
+                Some((flat[0], false))
+            }
+            _ => {
+                // And/Or: full `all_ones` absorbing case doesn't
+                // apply here (no constants injected by flatten);
+                // that's ConstantFold's job if the outer op had a
+                // constant. Xor with all-different-odd-count
+                // operands is fine. Add/Mul preserved non-dup.
+                let _ = all_ones; // silence unused in some paths.
+                *operands = flat;
                 None
             }
         }
@@ -1164,6 +1345,153 @@ mod tests {
         // The inner Not is now orphaned — it exists at m.nodes[inner]
         // but is referenced by no holder. `compact_node_ids` cleans
         // it up at module finalisation.
+    }
+
+    // --- Associative flattening tests -----------------------------
+
+    /// `Add(a, Add(b, c))` flattens to `Add(a, b, c)` at intern
+    /// time. The outer call sees three operands; inner Add is
+    /// orphaned (cleaned up by compact_node_ids, not tested here).
+    #[test]
+    fn flatten_associative_splices_same_op() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        for port in 0..3 {
+            m.nodes.push(Node::PrimaryInput { port, width: 8 });
+        }
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let c: NodeId = 2;
+        let (inner, _) = m.intern_gate(GateOp::Add, vec![b, c], 8, DepSet::from_port(1));
+        let (outer, _) =
+            m.intern_gate(GateOp::Add, vec![a, inner], 8, DepSet::from_port(0));
+        // outer should be a new gate with 3 operands (a, b, c) — not
+        // 2 (a, inner).
+        match &m.nodes[outer as usize] {
+            Node::Gate {
+                op: GateOp::Add,
+                operands,
+                ..
+            } => {
+                assert_eq!(operands.len(), 3, "outer Add must have flat operands");
+                // Commutative sort already applied — check the set.
+                let mut ids = operands.clone();
+                ids.sort_unstable();
+                assert_eq!(ids, vec![a, b, c]);
+            }
+            other => panic!("expected Add gate, got {other:?}"),
+        }
+        assert_eq!(m.flatten_associative_applied, 1);
+    }
+
+    /// `And(a, And(a, b))` flattens + dedups to `And(a, b)`.
+    #[test]
+    fn flatten_associative_and_dedups() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let (inner, _) = m.intern_gate(GateOp::And, vec![a, b], 8, DepSet::from_port(0));
+        let (outer, _) =
+            m.intern_gate(GateOp::And, vec![a, inner], 8, DepSet::from_port(0));
+        match &m.nodes[outer as usize] {
+            Node::Gate {
+                op: GateOp::And,
+                operands,
+                ..
+            } => {
+                let mut ids = operands.clone();
+                ids.sort_unstable();
+                assert_eq!(ids, vec![a, b], "duplicate a should dedup in And");
+            }
+            other => panic!("expected And gate, got {other:?}"),
+        }
+    }
+
+    /// `Xor(a, Xor(a, b))` flattens + pair-cancels to `b`.
+    #[test]
+    fn flatten_associative_xor_pair_cancels() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let (inner, _) = m.intern_gate(GateOp::Xor, vec![a, b], 8, DepSet::from_port(0));
+        let (outer, _) =
+            m.intern_gate(GateOp::Xor, vec![a, inner], 8, DepSet::from_port(0));
+        // Post-flatten and cancel: [a, a, b] → [b]. Short-circuits
+        // to b directly (no new Xor gate).
+        assert_eq!(outer, b, "Xor(a, Xor(a, b)) must short-circuit to b");
+    }
+
+    /// `Xor(a, Xor(a, b), b)` cancels all → 0 constant.
+    #[test]
+    fn flatten_associative_xor_all_cancel_to_zero() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let (inner, _) = m.intern_gate(GateOp::Xor, vec![a, b], 8, DepSet::from_port(0));
+        let (outer, _) =
+            m.intern_gate(GateOp::Xor, vec![a, inner, b], 8, DepSet::from_port(0));
+        match &m.nodes[outer as usize] {
+            Node::Constant { width: 8, value: 0 } => {}
+            other => panic!("expected 8-bit zero const, got {other:?}"),
+        }
+    }
+
+    /// `Add(x, Add(x, y))` at strict operand_duplication_rate must
+    /// NOT flatten — flattening would produce `Add(x, x, y)` which
+    /// semantically differs from `Add(x, y)` (2x+y vs x+y). The
+    /// helper returns None and the outer Add is interned with
+    /// its original operands.
+    #[test]
+    fn flatten_associative_add_skips_on_duplicates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            operand_duplication_rate: 0.0,
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        let x: NodeId = 0;
+        let y: NodeId = 1;
+        let (inner, _) = m.intern_gate(GateOp::Add, vec![x, y], 8, DepSet::from_port(0));
+        let (outer, _) =
+            m.intern_gate(GateOp::Add, vec![x, inner], 8, DepSet::from_port(0));
+        // The outer Add must have operands [x, inner] — not
+        // flattened — preserving the 2x+y semantics.
+        match &m.nodes[outer as usize] {
+            Node::Gate {
+                op: GateOp::Add,
+                operands,
+                ..
+            } => {
+                assert_eq!(operands.len(), 2, "Add should not flatten when duplicates would result");
+                assert!(operands.contains(&x));
+                assert!(operands.contains(&inner));
+            }
+            other => panic!("expected Add gate, got {other:?}"),
+        }
+        assert_eq!(m.flatten_associative_applied, 0);
     }
 
     /// At `FactorizationLevel::ConstantFold` the Peephole layer must

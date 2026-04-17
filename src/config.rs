@@ -74,9 +74,18 @@ pub enum FactorizationLevel {
     /// identity (Rule 21b).
     Commutative,
     /// Associative flattening on top of commutative normalization.
-    /// **Not yet implemented.** At this level today the generator
-    /// behaves as `commutative`; when flattening lands, `(a+b)+c`
-    /// and `a+(b+c)` will share identity.
+    /// **Implemented** — at intern time, any operand of an
+    /// `And`/`Or`/`Xor`/`Add`/`Mul` gate that is itself a same-op
+    /// same-width gate is spliced into the outer operand list, so
+    /// `Add(a, Add(b, c))` becomes `Add(a, b, c)` and shares
+    /// identity with `Add(a + b + c)` built any other way. Per-op
+    /// semantic normalisation: `And`/`Or` dedup (idempotent),
+    /// `Xor` pair-cancel, `Add`/`Mul` conservative (skip when
+    /// duplicates would result at strict `operand_duplication_rate`
+    /// to preserve `x + x = 2x` / `x * x = x²` semantics). Inner
+    /// gates orphaned by the splice are cleaned up by
+    /// `compact_node_ids` at module finalisation. Fires counted
+    /// in `Metrics::flatten_associative_applied`.
     Associative,
     /// Constant folding on top of associative flattening.
     /// **Implemented** as of the ConstantFold slice. Algebraic
@@ -122,6 +131,7 @@ impl FactorizationLevel {
                 | FactorizationLevel::Cse
                 | FactorizationLevel::OperandUnique
                 | FactorizationLevel::Commutative
+                | FactorizationLevel::Associative
                 | FactorizationLevel::ConstantFold
                 | FactorizationLevel::Peephole
         )
