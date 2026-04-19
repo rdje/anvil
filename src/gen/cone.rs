@@ -207,8 +207,12 @@ fn grow_pool_one_unit(
 
     // Priority-encoder block (pool-only). Skip if no N compatible with
     // target width.
-    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob)
-        && build_priority_encoder_pool(g, m, pool, width).is_some()
+    if roll_knob(
+        g,
+        m,
+        KnobId::PriorityEncoderProb,
+        g.cfg.priority_encoder_prob,
+    ) && build_priority_encoder_pool(g, m, pool, width).is_some()
     {
         trace!(width, "🧱 priority-encoder block");
         return true;
@@ -231,7 +235,12 @@ fn grow_pool_one_unit(
     // Constant shift-amount motif (pool-only). Value operand is a
     // pool pick; shift amount is a literal constant.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
+        && roll_knob(
+            g,
+            m,
+            KnobId::ConstShiftAmountProb,
+            g.cfg.const_shift_amount_prob,
+        )
     {
         trace!(?op, "⏩ const-shift-amount motif");
         let value = pick_terminal_dep_bearing(g, m, pool, width, None);
@@ -285,7 +294,12 @@ fn build_comb_mux_pool_only(
     let max_arms = g.cfg.max_mux_arms.max(min_arms);
     let n_arms = g.rng.gen_range(min_arms..=max_arms);
 
-    let encoded = roll_knob(g, m, KnobId::CombMuxEncodingProb, g.cfg.comb_mux_encoding_prob);
+    let encoded = roll_knob(
+        g,
+        m,
+        KnobId::CombMuxEncodingProb,
+        g.cfg.comb_mux_encoding_prob,
+    );
     if encoded {
         m.comb_mux_encoded_built += 1;
         let sel_width = ceil_log2(n_arms);
@@ -339,7 +353,12 @@ fn drain_flop_worklist_pool_only(
             continue;
         }
 
-        let encoded = roll_knob(g, m, KnobId::FlopMuxEncodingProb, g.cfg.flop_mux_encoding_prob);
+        let encoded = roll_knob(
+            g,
+            m,
+            KnobId::FlopMuxEncodingProb,
+            g.cfg.flop_mux_encoding_prob,
+        );
         if encoded {
             let sel_width = ceil_log2(m_arms);
             let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, exclude);
@@ -472,7 +491,12 @@ fn process_signal_frame(
 
     // Priority-encoder block: compatible only when the frame's target
     // width matches ceil_log2(N) for some N in the block-arity range.
-    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob) {
+    if roll_knob(
+        g,
+        m,
+        KnobId::PriorityEncoderProb,
+        g.cfg.priority_encoder_prob,
+    ) {
         if let Some(node) = build_priority_encoder_recursive(
             g,
             m,
@@ -523,7 +547,12 @@ fn process_signal_frame(
     // Built synchronously within this frame step; the value operand
     // comes from a recursive build_cone call.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
+        && roll_knob(
+            g,
+            m,
+            KnobId::ConstShiftAmountProb,
+            g.cfg.const_shift_amount_prob,
+        )
     {
         let value = build_cone(
             g,
@@ -691,7 +720,12 @@ pub fn drain_flop_worklist(
             continue;
         }
 
-        let encoded = roll_knob(g, m, KnobId::FlopMuxEncodingProb, g.cfg.flop_mux_encoding_prob);
+        let encoded = roll_knob(
+            g,
+            m,
+            KnobId::FlopMuxEncodingProb,
+            g.cfg.flop_mux_encoding_prob,
+        );
         if encoded {
             let (d_node, mux) =
                 drain_flop_encoded(g, m, pool, worklist, width, kind, q_node, m_arms);
@@ -1494,7 +1528,12 @@ pub fn build_cone(
 
     // Priority-encoder block: compatible only when target width matches
     // ceil_log2(N) for some N in the block-arity range.
-    if roll_knob(g, m, KnobId::PriorityEncoderProb, g.cfg.priority_encoder_prob) {
+    if roll_knob(
+        g,
+        m,
+        KnobId::PriorityEncoderProb,
+        g.cfg.priority_encoder_prob,
+    ) {
         if let Some(node) =
             build_priority_encoder_recursive(g, m, pool, worklist, width, depth, exclude)
         {
@@ -1520,7 +1559,12 @@ pub fn build_cone(
     // the per-shift probability fires, emit `value OP const` with a
     // literal shift amount instead of a barrel shifter.
     if matches!(op, GateOp::Shl | GateOp::Shr)
-        && roll_knob(g, m, KnobId::ConstShiftAmountProb, g.cfg.const_shift_amount_prob)
+        && roll_knob(
+            g,
+            m,
+            KnobId::ConstShiftAmountProb,
+            g.cfg.const_shift_amount_prob,
+        )
     {
         let value = build_cone(g, m, pool, worklist, width, depth + 1, exclude);
         return build_shift_const_amount(g, m, pool, op, value, width);
@@ -1617,7 +1661,12 @@ fn build_comb_mux(
     let max_arms = g.cfg.max_mux_arms.max(min_arms);
     let n_arms = g.rng.gen_range(min_arms..=max_arms);
 
-    let encoded = roll_knob(g, m, KnobId::CombMuxEncodingProb, g.cfg.comb_mux_encoding_prob);
+    let encoded = roll_knob(
+        g,
+        m,
+        KnobId::CombMuxEncodingProb,
+        g.cfg.comb_mux_encoding_prob,
+    );
     if encoded {
         m.comb_mux_encoded_built += 1;
         build_comb_mux_encoded(g, m, pool, worklist, width, depth, exclude, n_arms)
@@ -1945,33 +1994,38 @@ fn make_width_adapter(
         }
         return node_id;
     }
-    let copies = target_width.div_ceil(src_width);
-    let concat_width = copies * src_width;
-    let (concat_id, concat_is_new) = m.intern_gate(
-        GateOp::Concat,
-        vec![src_node; copies as usize],
-        concat_width,
-        src_deps.clone(),
-    );
+
+    // Expand to the exact target width instead of materialising a
+    // wider replicated Concat and slicing it back down. The old
+    // shape was semantically fine, but it left dead high bits in the
+    // intermediate Concat (`{src, src, ...}[target-1:0]`), which
+    // downstream linters quite reasonably flagged as unused.
+    let full_copies = target_width / src_width;
+    let remainder = target_width % src_width;
+    let mut operands: Vec<NodeId> =
+        Vec::with_capacity(full_copies as usize + usize::from(remainder > 0));
+    if remainder > 0 {
+        let (slice_id, slice_is_new) = m.intern_gate(
+            GateOp::Slice {
+                hi: remainder - 1,
+                lo: 0,
+            },
+            vec![src_node],
+            remainder,
+            src_deps.clone(),
+        );
+        if slice_is_new {
+            pool.add(slice_id, remainder, src_deps.clone());
+        }
+        operands.push(slice_id);
+    }
+    operands.extend(vec![src_node; full_copies as usize]);
+    let (concat_id, concat_is_new) =
+        m.intern_gate(GateOp::Concat, operands, target_width, src_deps.clone());
     if concat_is_new {
-        pool.add(concat_id, concat_width, src_deps.clone());
+        pool.add(concat_id, target_width, src_deps);
     }
-    if concat_width == target_width {
-        return concat_id;
-    }
-    let (slice_id, slice_is_new) = m.intern_gate(
-        GateOp::Slice {
-            hi: target_width - 1,
-            lo: 0,
-        },
-        vec![concat_id],
-        target_width,
-        src_deps.clone(),
-    );
-    if slice_is_new {
-        pool.add(slice_id, target_width, src_deps);
-    }
-    slice_id
+    concat_id
 }
 
 fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
@@ -2492,35 +2546,51 @@ mod tests {
     }
 
     #[test]
-    fn width_adapter_concat_then_slice_non_multiple() {
+    fn width_adapter_concat_expands_non_multiple_exactly() {
         let (mut m, mut pool, src, deps) = scaffold_module_with_input(3);
-        // target = 8, copies = ceil(8/3) = 3, concat width = 9, then slice to 8.
+        // target = 8 = 3 + 3 + 2, so the adapter should build the
+        // exact-width shape `{src[1:0], src, src}` with no oversized
+        // intermediate Concat and no outer Slice.
         let out = make_width_adapter(&mut m, &mut pool, src, 3, deps, 8);
-        // The outermost node should be a Slice of width 8.
         match &m.nodes[out as usize] {
             Node::Gate {
-                op: GateOp::Slice { hi, lo },
+                op: GateOp::Concat,
+                operands,
                 width,
                 ..
             } => {
-                assert_eq!(*hi, 7);
-                assert_eq!(*lo, 0);
                 assert_eq!(*width, 8);
+                assert_eq!(operands.len(), 3);
+                assert_eq!(operands[1], src);
+                assert_eq!(operands[2], src);
+                match &m.nodes[operands[0] as usize] {
+                    Node::Gate {
+                        op: GateOp::Slice { hi, lo },
+                        operands: slice_ops,
+                        width: slice_width,
+                        ..
+                    } => {
+                        assert_eq!(*hi, 1);
+                        assert_eq!(*lo, 0);
+                        assert_eq!(*slice_width, 2);
+                        assert_eq!(slice_ops, &vec![src]);
+                    }
+                    other => panic!("expected leading remainder Slice, got {other:?}"),
+                }
             }
-            other => panic!("expected outer Slice, got {other:?}"),
+            other => panic!("expected exact-width Concat, got {other:?}"),
         }
-        // And a Concat of width 9 should exist somewhere in the module.
-        let has_concat_9 = m.nodes.iter().any(|n| {
-            matches!(
+        assert!(
+            !m.nodes.iter().any(|n| matches!(
                 n,
                 Node::Gate {
-                    op: GateOp::Concat,
-                    width: 9,
+                    op: GateOp::Slice { hi: 7, lo: 0 },
+                    width: 8,
                     ..
                 }
-            )
-        });
-        assert!(has_concat_9, "expected a 9-bit Concat as the Slice source");
+            )),
+            "non-multiple expansion should not build an outer Slice"
+        );
     }
 
     /// `violates_anti_collapse` must catch N-arity duplicates on

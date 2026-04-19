@@ -7,7 +7,7 @@ use super::{
     Generator,
 };
 use crate::config::ConstructionStrategy;
-use crate::ir::{DepSet, Direction, Module, Node, NodeId, Port, PortId};
+use crate::ir::{DepSet, Direction, GateOp, Module, Node, NodeId, Port, PortId};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use tracing::{debug, info, instrument};
@@ -158,6 +158,14 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     );
     cone::drain_flop_worklist(g, &mut m, &mut pool, &mut worklist);
 
+    // Flop-mux operand NodeIds are construction-time metadata only:
+    // once D has been assembled, emission and validation care about
+    // `flop.d`, not the intermediate select/data leaves that happened
+    // to build it. Keep the variant shape for metrics/debugging, but
+    // discard those operand references before liveness/compaction so
+    // metadata-only cones do not survive into emitted SV.
+    summarize_flop_mux_metadata(&mut m);
+
     // Safety-net claimed-set audit (Rule 18): demand-driven
     // construction should leave zero orphan gates, but if the snapshot/
     // rollback in build_cone or the frame machine in build_outputs_
@@ -195,6 +203,9 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         );
     }
 
+    shrink_primary_inputs_to_live_width(&mut m);
+    prune_unused_input_ports(&mut m);
+
     info!(
         nodes = m.nodes.len(),
         flops = m.flops.len(),
@@ -206,13 +217,118 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     m
 }
 
+/// Flop-mux operand NodeIds are only needed while D is being assembled.
+/// After that, keep the variant shape but clear the operand lists so
+/// later liveness reasoning matches the emitted hardware rather than
+/// construction-time bookkeeping.
+fn summarize_flop_mux_metadata(m: &mut Module) {
+    use crate::ir::FlopMux;
+
+    for flop in &mut m.flops {
+        match &mut flop.mux {
+            FlopMux::None => {}
+            FlopMux::OneHot(arms) => arms.clear(),
+            FlopMux::Encoded { sel, data } => {
+                *sel = flop.q;
+                data.clear();
+            }
+        }
+    }
+}
+
+/// Shrink each surviving primary data input down to the highest bit
+/// that any live consumer actually touches. This trims warnings like
+/// "bits of signal are not used" on ports that only ever feed low-bit
+/// slices. The analysis is conservative: any non-Slice consumer
+/// demands the full current width.
+fn shrink_primary_inputs_to_live_width(m: &mut Module) {
+    use std::collections::HashMap;
+
+    let mut required: HashMap<PortId, u32> = HashMap::new();
+    let mut note_use = |port: PortId, width: u32| {
+        required
+            .entry(port)
+            .and_modify(|w| *w = (*w).max(width))
+            .or_insert(width);
+    };
+
+    for node in &m.nodes {
+        if let Node::Gate { op, operands, .. } = node {
+            for (operand_idx, operand) in operands.iter().enumerate() {
+                let Node::PrimaryInput { port, width } = &m.nodes[*operand as usize] else {
+                    continue;
+                };
+                let needed = match (op, operand_idx) {
+                    (GateOp::Slice { hi, .. }, 0) => hi + 1,
+                    _ => *width,
+                };
+                note_use(*port, needed);
+            }
+        }
+    }
+
+    for (_, root) in &m.drives {
+        if let Node::PrimaryInput { port, width } = &m.nodes[*root as usize] {
+            note_use(*port, *width);
+        }
+    }
+    for flop in &m.flops {
+        if let Some(d) = flop.d {
+            if let Node::PrimaryInput { port, width } = &m.nodes[d as usize] {
+                note_use(*port, *width);
+            }
+        }
+    }
+
+    for node in &mut m.nodes {
+        if let Node::PrimaryInput { port, width } = node {
+            if let Some(new_width) = required.get(port).copied() {
+                *width = new_width;
+            }
+        }
+    }
+    for input in &mut m.inputs {
+        let is_clock = m.clock == Some(input.id);
+        let is_reset = m.reset == Some(input.id);
+        if is_clock || is_reset {
+            continue;
+        }
+        if let Some(new_width) = required.get(&input.id).copied() {
+            input.width = new_width;
+        }
+    }
+}
+
+/// Drop primary data-input ports that no surviving node references.
+/// Clock/reset stay declared unconditionally; the emitter already hides
+/// them when the module contains no flops.
+fn prune_unused_input_ports(m: &mut Module) {
+    use std::collections::BTreeSet;
+
+    let live_ports: BTreeSet<_> = m
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            Node::PrimaryInput { port, .. } => Some(*port),
+            _ => None,
+        })
+        .collect();
+
+    m.inputs.retain(|p| {
+        let is_clock = m.clock == Some(p.id);
+        let is_reset = m.reset == Some(p.id);
+        is_clock || is_reset || live_ports.contains(&p.id)
+    });
+}
+
 /// Count gate nodes with no consumer. A consumer is: another gate's
-/// operand, a flop's D / sel / data / Q reference, or an output drive
-/// root. Primary inputs and constants are allowed to be unused (they
-/// don't count as orphans). Used as a Rule-18 safety-net audit at the
-/// end of `generate_leaf_module`.
+/// operand, a flop's D input, or an output drive root. Primary inputs
+/// and constants are allowed to be unused (they don't count as
+/// orphans). Used as a Rule-18 safety-net audit at the end of
+/// `generate_leaf_module`.
 fn count_orphan_gates(m: &Module) -> usize {
-    use crate::ir::{FlopMux, Node};
+    use crate::ir::Node;
+
     let mut used = vec![false; m.nodes.len()];
     for node in &m.nodes {
         if let Node::Gate { operands, .. } = node {
@@ -225,21 +341,6 @@ fn count_orphan_gates(m: &Module) -> usize {
         if let Some(d) = f.d {
             used[d as usize] = true;
         }
-        match &f.mux {
-            FlopMux::Encoded { sel, data } => {
-                used[*sel as usize] = true;
-                for d in data {
-                    used[*d as usize] = true;
-                }
-            }
-            FlopMux::OneHot(arms) => {
-                for arm in arms {
-                    used[arm.data as usize] = true;
-                    used[arm.sel as usize] = true;
-                }
-            }
-            FlopMux::None => {}
-        }
     }
     for (_, root) in &m.drives {
         used[*root as usize] = true;
@@ -249,4 +350,82 @@ fn count_orphan_gates(m: &Module) -> usize {
         .enumerate()
         .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
         .count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shrink_primary_input_trims_unused_high_bits() {
+        let mut m = Module::default();
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 29,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 20,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 29 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Slice { hi: 19, lo: 0 },
+            operands: vec![0],
+            width: 20,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((1, 1));
+
+        shrink_primary_inputs_to_live_width(&mut m);
+
+        assert_eq!(m.inputs[0].width, 20);
+        match &m.nodes[0] {
+            Node::PrimaryInput { width, .. } => assert_eq!(*width, 20),
+            other => panic!("expected primary input, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn shrink_primary_input_keeps_full_width_for_non_slice_use() {
+        let mut m = Module::default();
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 12,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "b".into(),
+            width: 12,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 2,
+            name: "y".into(),
+            width: 12,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 12 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 12 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![0, 1],
+            width: 12,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((2, 2));
+
+        shrink_primary_inputs_to_live_width(&mut m);
+
+        assert_eq!(m.inputs[0].width, 12);
+        match &m.nodes[0] {
+            Node::PrimaryInput { width, .. } => assert_eq!(*width, 12),
+            other => panic!("expected primary input, got {other:?}"),
+        }
+    }
 }

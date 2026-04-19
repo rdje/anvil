@@ -299,7 +299,12 @@ the final IR has a consumer by construction.
 
 These rules do not catch algebraic identities deeper in the tree
 (`(a + b) - b`, etc.). Those survive and show up in the output. The
-factorization ladder reserves `associative`, `constant-fold`,
-`peephole`, and `e-graph` levels for future slices that close the
-algebraic-equivalence gap; today's generator tops out at
-`commutative`.
+factorization ladder now implements `associative`,
+`constant-fold`, and `peephole`; only the `e-graph` level remains
+aspirational for deeper cross-gate algebraic equivalence.
+
+After cone construction, module finalisation does one more
+alignment pass before emission: it drops construction-only
+`Flop.mux` operand references, compacts unreachable nodes, then
+shrinks/prunes primary inputs so the emitted port surface matches
+the live logic instead of a provisional wider first draft.

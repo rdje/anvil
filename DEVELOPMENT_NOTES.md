@@ -16,7 +16,17 @@ These are documented in detail in the mdBook. They are restated here only as anc
 - **Structural rules catalog.** Every load-bearing generator invariant is documented in `book/src/structural-rules.md`. That chapter is the durable source of truth — new rules land there as they become invariants. Inline design-decision recaps in this file should *point* to the catalog, not duplicate rule text.
 - **Operators vs blocks.** Load-bearing conceptual distinction. An operator is an associative primitive function; its generalization is **arity** (N same-width operands). A block is a functional unit with internal structure; its generalization is **ports / port counts / arms**, encoding choices, feedback topology. Arity is operator vocabulary only — blocks have ports, not arity. `And / Or / Xor / Add / Mul` are operators and got N-arity in `2026-04-15-0015`. `Sub` is not associative and stays 2-arity. `Mux` and `Flop` are blocks and are governed by block rules, not arity knobs. See `book/src/structural-rules.md` "Operators vs blocks" preamble and Rule 14.
 - **Roles of constants in RTL.** Integer literals appear as operands with three *distinct* semantic roles: **coefficient** (multiplicative weight in arithmetic linear combinations; per-op constraints: Add `ci ≠ 0`, Sub `ci > 0` strictly positive, Mul TBD), **shift amount** (structural parameter of `Shl/Shr` — `a << 2`; constant-amount vs variable-amount are both legal, with real designs biased heavily toward constant), and **comparand** (threshold / sentinel on the RHS of a comparison — `a == 7`; additive to signal-vs-signal comparisons, not a replacement). These three are *not interchangeable*: each has its own motif family, its own constraints, and its own knob(s). Do not unify them under a single `constant_prob` knob — doing so loses the semantic distinctions. See `book/src/structural-rules.md` "Roles of constants in RTL".
-- **Construction strategies.** Four named strategies for constructing a module's internal logic, selectable per-run: `sequential` (current; build cones per-output in declaration order), `shuffled` (per-output but in random permutation), `interleaved` (frames interleaved via random-pop work queue — cones grow in lockstep), `graph-first` (grow a gate pool with no per-output structure; pick drive-roots at the end — planned default). The strategy is a property of **how** the generator builds; the emitted SV is a DAG regardless. Different strategies produce different output *distributions* (declaration-order bias, within-module sharing symmetry). See `book/src/construction-strategies.md`. Planned implementation sequence: add the knob with only `sequential` accepted, then land `shuffled`, `interleaved`, `graph-first`; flip default to `graph-first` on landing.
+- **Construction strategies.** Three live strategies construct a
+  module's internal logic: `sequential` (per-output cone recursion in
+  declaration order), `shuffled` (same, randomised output order), and
+  `interleaved` (frames interleaved via random-pop work queue — cones
+  grow in lockstep). `graph-first` remains as a deprecated CLI/config
+  alias for `interleaved`; the original speculative pool-growth
+  implementation is retired. The strategy is a property of **how** the
+  generator builds; the emitted SV is a DAG regardless. Different
+  strategies produce different output *distributions*
+  (declaration-order bias, within-module sharing symmetry). See
+  `book/src/construction-strategies.md`.
 - **Circuit IR over annotated EBNF.** The generator builds a typed circuit graph and emits SV from it. See `book/src/why-not-grammar.md`.
 - **Generation by construction, not generate-then-filter.** Validity is structural; the validator is a safety net, not a gate. See `book/src/by-construction.md`.
 - **Synthesizability is a subset constraint.** The gate set, flop pattern, and emitter cover only the synthesizable subset. There is no mode that emits non-synthesizable constructs. See `book/src/synthesizability.md`.
@@ -261,3 +271,35 @@ Considered and not adopted as the default because:
 3. `operand_duplication_rate` is the documented knob for users who want the alternative behaviour.
 
 Retained for reference in case a future motif benefits from it.
+
+## Finalisation trims metadata-only and unused-bit surface (2026-04-19)
+
+This slice locked in a small but important finalisation doctrine:
+**emit what the live hardware uses, not the generator's provisional
+scratch structure.**
+
+- **Width adapters now expand to the exact target width.** The old
+  non-multiple up-width adapter built an oversized replicated `Concat`
+  and then sliced it back down. Functionally fine, but it manufactured
+  dead high bits that lint tools quite rightly flagged. The adapter now
+  builds the exact-width shape directly (`{src[rem-1:0], src, ...}`).
+- **`Flop.mux` operand NodeIds are construction-time metadata, not
+  emitted hardware roots.** Once `flop.d` is assembled, keeping the
+  original select/data operand references around lets metadata-only
+  cones survive liveness/compaction even though the emitter never reads
+  them. Finalisation now keeps only the variant shape and discards
+  those operand references before compaction.
+- **Primary inputs are shrunk/pruned to the live bit surface.** After
+  compaction, each surviving primary input is reduced to the highest bit
+  any live consumer touches, and entirely unused data inputs are
+  dropped from the emitted interface. This keeps Verilator from
+  reporting unused input bits or dead ports.
+- **Residual associative-opportunity metrics now respect duplicate
+  policy.** Nested `Add`/`Mul` slots that would introduce duplicates if
+  flattened are intentionally preserved at strict
+  `operand_duplication_rate`; the metric now matches that semantic
+  policy instead of counting those slots as "missed" flattening.
+
+Rejected alternative: paper over the issue in the emitter with
+tool-specific lint pragmas. That would hide the symptom without fixing
+the IR/finalisation mismatch.

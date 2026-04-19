@@ -113,9 +113,10 @@ fn all_strategies_produce_valid_modules() {
 }
 
 #[test]
-fn graph_first_is_default() {
-    // The default strategy is now GraphFirst. Omitting the flag and
-    // explicitly passing graph-first must produce byte-identical output.
+fn graph_first_alias_matches_default_interleaved() {
+    // `GraphFirst` is a deprecated alias for the current default
+    // `Interleaved` strategy. Omitting the flag and explicitly passing
+    // graph-first must therefore produce byte-identical output.
     let default_cfg = Config {
         seed: 42,
         ..Config::default()
@@ -129,7 +130,7 @@ fn graph_first_is_default() {
     let b = anvil::emit::to_sv(&Generator::new(explicit_cfg).generate_module());
     assert_eq!(
         a, b,
-        "default strategy must be GraphFirst (byte-identical output)"
+        "graph-first alias must match the default interleaved strategy"
     );
 }
 
@@ -338,7 +339,7 @@ fn coefficient_motif_across_all_strategies() {
 }
 
 #[test]
-fn graph_first_differs_from_sequential() {
+fn graph_first_alias_differs_from_sequential() {
     let base = Config {
         seed: 42,
         min_outputs: 3,
@@ -361,7 +362,7 @@ fn graph_first_differs_from_sequential() {
     );
     assert_ne!(
         seq_sv, gf_sv,
-        "graph-first must produce different output from sequential"
+        "the graph-first alias (interleaved) must differ from sequential"
     );
 }
 
@@ -416,12 +417,12 @@ fn interleaved_differs_from_sequential() {
 
 /// Regression guard for Rule 18 (no orphan gates). The generator
 /// must produce modules whose every `Node::Gate` has at least one
-/// consumer (other gate's operand, flop D / mux operand, or
-/// output drive). Measured across all four strategy values at
-/// several seeds.
+/// consumer in the emitted design (other gate's operand, flop D, or
+/// output drive). Measured across all four strategy values at several
+/// seeds.
 #[test]
 fn zero_orphans_at_default_knobs() {
-    use anvil::ir::{FlopMux, Node};
+    use anvil::ir::Node;
     let strategies = [
         ConstructionStrategy::Sequential,
         ConstructionStrategy::Shuffled,
@@ -451,21 +452,6 @@ fn zero_orphans_at_default_knobs() {
                 if let Some(d) = f.d {
                     used[d as usize] = true;
                 }
-                match &f.mux {
-                    FlopMux::Encoded { sel, data } => {
-                        used[*sel as usize] = true;
-                        for d in data {
-                            used[*d as usize] = true;
-                        }
-                    }
-                    FlopMux::OneHot(arms) => {
-                        for arm in arms {
-                            used[arm.data as usize] = true;
-                            used[arm.sel as usize] = true;
-                        }
-                    }
-                    FlopMux::None => {}
-                }
             }
             for (_, root) in &m.drives {
                 used[*root as usize] = true;
@@ -485,6 +471,50 @@ fn zero_orphans_at_default_knobs() {
                 orphans.len(),
                 orphans
             );
+        }
+    }
+}
+
+#[test]
+fn no_unused_primary_data_inputs_remain_after_finalisation() {
+    use std::collections::BTreeSet;
+
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in [1u64, 42, 100, 777, 9999, 12345] {
+            let cfg = Config {
+                seed,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            let live_inputs: BTreeSet<_> = m
+                .nodes
+                .iter()
+                .filter_map(|node| match node {
+                    anvil::ir::Node::PrimaryInput { port, .. } => Some(*port),
+                    _ => None,
+                })
+                .collect();
+            for port in &m.inputs {
+                let is_clock = m.clock == Some(port.id);
+                let is_reset = m.reset == Some(port.id);
+                if is_clock || is_reset {
+                    continue;
+                }
+                assert!(
+                    live_inputs.contains(&port.id),
+                    "strategy={:?} seed={}: input {} ({}) survived finalisation without any live PrimaryInput node",
+                    strategy,
+                    seed,
+                    port.id,
+                    port.name
+                );
+            }
         }
     }
 }
@@ -531,19 +561,18 @@ fn zero_duplicate_operands_at_default_knobs() {
 /// Doctrine guard for the `nested_associative_operand_count`
 /// metric. **After** the Associative factorization layer landed
 /// (slice 2026-04-17-0070), this count must be zero at default
-/// knobs: every same-op same-width inner gate operand of an
-/// `And`/`Or`/`Xor`/`Add`/`Mul` is spliced in at intern time, so
-/// the final IR contains no remaining flattening opportunities.
-/// The count can only become non-zero if the Associative layer
-/// regresses OR the generator introduces a construction path
-/// that materialises a nested associative shape after intern
-/// (e.g. a post-hoc transform, not present today).
+/// knobs: every same-op same-width inner gate operand that is
+/// flattenable under the current duplicate policy is spliced in at
+/// intern time, so the final IR contains no remaining *legal*
+/// flattening opportunities. The count can only become non-zero if
+/// the Associative layer regresses OR the generator introduces a
+/// construction path that materialises a nested associative shape
+/// after intern (e.g. a post-hoc transform, not present today).
 ///
-/// A residual non-zero count at `operand_duplication_rate = 1.0`
-/// is expected (we don't flatten Add/Mul at that rate, to
-/// preserve the user's "duplicates allowed" shape). This test
-/// uses the default `0.0` where all duplicates are forbidden
-/// and flattening is complete.
+/// Residual nested `Add`/`Mul` shapes whose flattening would create
+/// duplicate operands do not count here; the live Associative layer
+/// intentionally preserves them at strict `operand_duplication_rate`
+/// to avoid changing semantics (`x + (x + y)` is not `x + y`).
 #[test]
 fn nested_associative_opportunities_flatten_to_zero() {
     let cfg = Config {
@@ -639,8 +668,8 @@ fn compaction_preserves_rule_18_and_records_removals() {
         let metrics = anvil::metrics::compute(&m);
         total_compacted += metrics.nodes_compacted;
 
-        // Rule 18 holds post-compaction.
-        use anvil::ir::{FlopMux, Node};
+        // Rule 18 holds post-compaction for the emitted design.
+        use anvil::ir::Node;
         let mut used = vec![false; m.nodes.len()];
         for node in &m.nodes {
             if let Node::Gate { operands, .. } = node {
@@ -654,21 +683,6 @@ fn compaction_preserves_rule_18_and_records_removals() {
                 used[d as usize] = true;
             }
             used[f.q as usize] = true;
-            match &f.mux {
-                FlopMux::None => {}
-                FlopMux::OneHot(arms) => {
-                    for arm in arms {
-                        used[arm.data as usize] = true;
-                        used[arm.sel as usize] = true;
-                    }
-                }
-                FlopMux::Encoded { sel, data } => {
-                    used[*sel as usize] = true;
-                    for d in data {
-                        used[*d as usize] = true;
-                    }
-                }
-            }
         }
         for (_, root) in &m.drives {
             used[*root as usize] = true;
@@ -689,9 +703,8 @@ fn compaction_preserves_rule_18_and_records_removals() {
         );
 
         // Validator must still accept post-compaction IR.
-        anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
-            panic!("seed={} validator rejects post-compaction IR: {e}", seed)
-        });
+        anvil::ir::validate::validate(&m)
+            .unwrap_or_else(|e| panic!("seed={} validator rejects post-compaction IR: {e}", seed));
     }
     // Across 40 seeds at default knobs, Not(Not) should fire at
     // least once and compaction should register it.

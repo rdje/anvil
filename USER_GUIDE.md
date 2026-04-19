@@ -92,7 +92,10 @@ shift. Examples:
 - Raising `max_depth` should raise `max_gate_depth` monotonically.
 - Raising `priority_encoder_prob` should raise `num_priority_encoder_blocks` monotonically.
 - Raising `comb_mux_encoding_prob` should shift the `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio toward the knob value.
-- `nested_associative_operand_count` measures how many operand slots on `And`/`Or`/`Xor`/`Add`/`Mul` gates would be absorbed by the not-yet-implemented `Associative` factorization layer. A non-zero count at default knobs is expected today; it will drop once that layer lands.
+- `nested_associative_operand_count` measures how many same-op nested
+  operand slots are still flattenable under the current duplicate
+  policy. At the default strict `operand_duplication_rate`, it should
+  be 0 once the live Associative layer has done its work.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `factorization_level=none` → gate count grows (no CSE); `=cse` and above
   shrinks it.
@@ -131,8 +134,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-gate-arity`      | 4        | Max arity N for associative operators                 |
 | `--comb-mux-prob`       | 0.1      | Probability a non-leaf node becomes an M-to-1 comb mux|
 | `--comb-mux-encoding-prob` | 0.5   | Per-mux probability of Encoded vs OneHot (comb muxes) |
-| `--construction-strategy` | graph-first | Strategy: `sequential` | `shuffled` | `interleaved` | `graph-first` (default) |
-| `--graph-first-pool-size` | 32       | Target top-level units for `graph-first` strategy    |
+| `--construction-strategy` | interleaved | Strategy: `sequential` | `shuffled` | `interleaved` (default) | `graph-first` (deprecated alias) |
+| `--graph-first-pool-size` | 32       | Legacy knob retained for backward-compatible configs; ignored by the current live path |
 | `--coefficient-prob`    | 0.2      | Per-op probability of linear-combination compound motif (Add/Sub/Mul)|
 | `--min-coefficient`     | 1        | Min coefficient (strictly positive)                   |
 | `--max-coefficient`     | 15       | Max coefficient                                       |
@@ -149,6 +152,11 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
 | `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |
 | `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
+
+The primary data-input draw happens before finalisation. Any data input
+or high input bits that survive only as dead surface area are trimmed
+before emission, so the emitted module interface matches the live logic
+rather than the generator's provisional first draft.
 
 ## Output layout
 

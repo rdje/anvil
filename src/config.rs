@@ -6,9 +6,9 @@ use thiserror::Error;
 /// Strategy for constructing a module's internal logic.
 ///
 /// See `book/src/construction-strategies.md` for the full comparison.
-/// Only `Sequential` and `Shuffled` are implemented today; `Interleaved`
-/// and `GraphFirst` will land in later slices. When `GraphFirst` lands
-/// it becomes the default.
+/// `Sequential`, `Shuffled`, and `Interleaved` are live today.
+/// `GraphFirst` is retained as a deprecated alias for `Interleaved`
+/// so older configs and CLI invocations keep working.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 #[clap(rename_all = "kebab-case")]

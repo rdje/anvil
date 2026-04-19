@@ -3,7 +3,127 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-19-0075 — Finalise the live-signal surface for lint-clean output
+
+**What changed**
+
+This slice closes the "unused bits / unused signal" defect at the
+generator/finalisation layer instead of hiding it in the emitter.
+
+### Exact-width width adapters
+
+- `gen::cone::make_width_adapter` no longer builds a wider replicated
+  `Concat` and slices it back down for non-multiple up-width
+  expansions.
+- The adapter now emits the exact-width shape directly:
+  `{src[rem-1:0], src, src, ...}`.
+- This removes dead high bits like the old seed-42
+  `concat_0[41:27]` case that Verilator flagged as unused.
+
+### Finalisation now matches emitted hardware
+
+- `gen::module::generate_leaf_module` gained a proper
+  post-construction clean-up sequence:
+  1. summarize `Flop.mux` metadata so construction-only select/data
+     operand NodeIds do not keep dead cones alive;
+  2. orphan audit;
+  3. `compact_node_ids`;
+  4. shrink surviving primary inputs to the highest bit any live
+     consumer touches;
+  5. prune entirely unused primary data-input ports from the emitted
+     interface.
+- This fixes the mismatch where IR liveness used `Flop.mux` bookkeeping
+  as if it were emitted hardware, so metadata-only gates survived and
+  later triggered `%Warning-UNUSEDSIGNAL`.
+
+### Metrics / test semantics aligned with duplicate-preserving flattening
+
+- `Metrics::nested_associative_operand_count` now counts only same-op
+  nested slots that are still flattenable under the current duplicate
+  policy.
+- This stops strict `operand_duplication_rate = 0.0` `Add`/`Mul`
+  shapes like `x * (x * y)` from being misreported as "missed"
+  associative opportunities when flattening them would change
+  semantics.
+
+### Tests and docs
+
+- Added two `src/gen/module.rs` unit tests for primary-input shrinking.
+- Updated the width-adapter non-multiple unit test to pin the new
+  exact-width Concat shape.
+- Added integration test
+  `no_unused_primary_data_inputs_remain_after_finalisation`.
+- Renamed stale pipeline tests/comments that still described
+  `graph-first` as the default strategy.
+- Refreshed `src/config.rs`, `src/main.rs`, `USER_GUIDE.md`,
+  `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, and
+  `book/src/knobs.md` to reflect:
+  - `interleaved` is the live default;
+  - `graph-first` is a deprecated alias;
+  - `graph_first_pool_size` is legacy on the live path;
+  - finalisation trims dead input ports / dead input high bits.
+
+**Why**
+
+The reported bug was "unused bits of signal", initially blamed on the
+graph-first family. Reproduction showed two distinct root causes:
+
+1. width-adapter expansion created intentionally oversized Concats,
+   leaving dead high bits in otherwise-live internal wires; and
+2. `Flop.mux` metadata was being treated as a liveness root even
+   though the emitter only consumes `flop.d`.
+
+Once those were fixed, a seed sweep still exposed unused *input* high
+bits coming from low-slice-only consumers, so finalisation now shrinks
+the live input surface as well. The graph-first diagnosis was partly a
+doc/test mirage: the current CLI `graph-first` path is just the
+interleaved builder under a deprecated alias, so the stale comments had
+to be cleaned up in the same slice.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `verilator --lint-only -Wall -Wno-DECLFILENAME -Wno-UNSIGNED /tmp/anvil_seed42_final.sv`
+- Verilator unused-signal sweep (seeds 0..4) clean for both the default
+  path and the `graph-first` alias
+- `yosys -p "read_verilog -sv /tmp/anvil_seed42_final.sv; synth"`
+
+**Impact**
+
+- Emitted modules no longer carry metadata-only orphan wires into SV.
+- Non-multiple width adaptation no longer manufactures dead high bits.
+- Final SV interfaces no longer include dead data-input ports or dead
+  input high bits.
+- The graph-first / interleaved story is now factually documented at
+  the CLI, test, user-guide, roadmap, and book levels.
+- The associative-opportunity metric now matches the live semantic
+  policy for strict duplicate preservation.
+
+**Files touched**
+
+- `src/gen/cone.rs`
+- `src/gen/module.rs`
+- `src/metrics.rs`
+- `src/main.rs`
+- `src/config.rs`
+- `src/ir/types.rs`
+- `src/ir/compact.rs`
+- `tests/pipeline.rs`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/knobs.md`
+
+---
+
 ## 2026-04-17-0074 — All-constant evaluation completes the constant-fold surface
+
+**Landed as:** `30753c8`
 
 **What changed**
 

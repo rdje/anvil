@@ -133,16 +133,19 @@ pub struct Metrics {
     // --- Factorization-ladder telemetry -------------------------
     /// Count of operand slots on associative gates
     /// (`And`/`Or`/`Xor`/`Add`/`Mul`) whose operand is itself a
-    /// `Node::Gate` of the same op and width. This is the number
-    /// of operand slots the not-yet-implemented *associative
-    /// flattening* layer would absorb: `Add([a, Add(b, c), d])`
-    /// counts 1 (the middle slot), flattening to `Add([a, b, c, d])`.
+    /// same-op same-width gate *and is flattenable under the
+    /// current duplicate policy*. `Add([a, Add(b, c), d])` counts
+    /// 1 (the middle slot), flattening to `Add([a, b, c, d])`.
+    /// `Add([a, Add(a, b)])` counts 0 at the default strict
+    /// `operand_duplication_rate`, because flattening would
+    /// introduce a duplicate `a` and the Associative layer
+    /// intentionally preserves the nested shape in that case.
     ///
     /// The metric is post-hoc: it examines the finalized IR, not
     /// construction-time events. Running the generator over a
     /// seed sweep and summing this metric tells you how much
-    /// flattening a future `Associative` layer would actually
-    /// collapse — justifying (or not) the cost of implementing it.
+    /// flattening the current Associative layer still leaves on
+    /// the table — justifying (or not) further work there.
     pub nested_associative_operand_count: usize,
 
     /// Number of times the `ConstantFold` factorization layer fired
@@ -322,10 +325,12 @@ pub fn compute(m: &Module) -> Metrics {
         }
     }
 
-    // Fanout pass: walk every Gate and every flop's D/Q/operands
-    // to build a use-count per NodeId. Primary inputs and
-    // constants are included (they can have fanout like any other
-    // node). Output drives also count as a use.
+    // Fanout pass: walk every Gate plus each emitted flop D-input to
+    // build a use-count per NodeId. Primary inputs and constants are
+    // included (they can have fanout like any other node). Output
+    // drives also count as a use. Flop-mux operand metadata is
+    // intentionally ignored here: after finalisation it is summary
+    // shape information, not an emitted consumer.
     let mut fanout = vec![0usize; m.nodes.len()];
     for node in &m.nodes {
         if let Node::Gate { operands, .. } = node {
@@ -337,18 +342,6 @@ pub fn compute(m: &Module) -> Metrics {
     for f in &m.flops {
         if let Some(d) = f.d {
             fanout[d as usize] += 1;
-        }
-        if let crate::ir::FlopMux::Encoded { sel, data } = &f.mux {
-            fanout[*sel as usize] += 1;
-            for d in data {
-                fanout[*d as usize] += 1;
-            }
-        }
-        if let crate::ir::FlopMux::OneHot(arms) = &f.mux {
-            for arm in arms {
-                fanout[arm.data as usize] += 1;
-                fanout[arm.sel as usize] += 1;
-            }
         }
     }
     for (_, root) in &m.drives {
@@ -391,17 +384,19 @@ pub fn compute(m: &Module) -> Metrics {
     // Per-knob attempt/fire counters. Convert enum keys to strings
     // for serialisation. Non-empty knobs only.
     for (knob, count) in &m.knob_rolls.attempts {
-        out.knob_roll_attempts.insert(knob.name().to_string(), *count);
+        out.knob_roll_attempts
+            .insert(knob.name().to_string(), *count);
     }
     for (knob, count) in &m.knob_rolls.fires {
         out.knob_roll_fires.insert(knob.name().to_string(), *count);
     }
 
     // Associative-flattening-opportunities scan. For every
-    // associative gate, count operands that are themselves a gate
-    // of the same op and width — those are the slots the
-    // not-yet-implemented `Associative` factorization layer would
-    // flatten away.
+    // associative gate, count same-op same-width inner-gate slots
+    // that the current duplicate policy would allow us to flatten.
+    // Add/Mul are special: at strict `operand_duplication_rate`
+    // the live Associative layer intentionally preserves nested
+    // shapes that would become duplicate-bearing if flattened.
     for node in &m.nodes {
         if let Node::Gate {
             op,
@@ -416,18 +411,46 @@ pub fn compute(m: &Module) -> Metrics {
             ) {
                 continue;
             }
-            for &operand_id in operands {
-                if let Node::Gate {
-                    op: inner_op,
-                    width: inner_w,
-                    ..
-                } = &m.nodes[operand_id as usize]
-                {
-                    if inner_op == op && inner_w == width {
-                        out.nested_associative_operand_count += 1;
+            let nested_slots: Vec<_> = operands
+                .iter()
+                .copied()
+                .filter(|operand_id| {
+                    matches!(
+                        &m.nodes[*operand_id as usize],
+                        Node::Gate {
+                            op: inner_op,
+                            width: inner_w,
+                            ..
+                        } if inner_op == op && inner_w == width
+                    )
+                })
+                .collect();
+            if nested_slots.is_empty() {
+                continue;
+            }
+            if matches!(op, GateOp::Add | GateOp::Mul) && m.operand_duplication_rate < 1.0 {
+                use std::collections::HashSet;
+
+                let mut flat: Vec<crate::ir::NodeId> = Vec::with_capacity(operands.len());
+                for &operand_id in operands {
+                    match &m.nodes[operand_id as usize] {
+                        Node::Gate {
+                            op: inner_op,
+                            operands: inner_ops,
+                            width: inner_w,
+                            ..
+                        } if inner_op == op && inner_w == width => {
+                            flat.extend(inner_ops.iter().copied());
+                        }
+                        _ => flat.push(operand_id),
                     }
                 }
+                let mut seen = HashSet::new();
+                if flat.iter().any(|id| !seen.insert(*id)) {
+                    continue;
+                }
             }
+            out.nested_associative_operand_count += nested_slots.len();
         }
     }
 

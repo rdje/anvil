@@ -321,9 +321,7 @@ impl Module {
         // commutative sort so the flattened-and-normalised list is
         // the one that gets sorted.
         if self.factorization_level.effective() >= FactorizationLevel::Associative {
-            if let Some((flat_id, is_new)) =
-                self.flatten_associative(op, &mut operands, width)
-            {
+            if let Some((flat_id, is_new)) = self.flatten_associative(op, &mut operands, width) {
                 return (flat_id, is_new);
             }
         }
@@ -360,9 +358,7 @@ impl Module {
         // full-width `Slice → src`, single-operand `Concat → that
         // operand`. See `book/src/structural-rules.md` Rule 21c.
         if self.factorization_level.effective() >= FactorizationLevel::Peephole {
-            if let Some((rewritten_id, is_new)) =
-                self.apply_peephole(op, &operands, width)
-            {
+            if let Some((rewritten_id, is_new)) = self.apply_peephole(op, &operands, width) {
                 return (rewritten_id, is_new);
             }
         }
@@ -714,9 +710,9 @@ impl Module {
         // When any operand is a Gate, the absorbing rule is
         // suppressed and the outer gate materialises normally
         // (its presence keeps the Gate operands reachable).
-        let no_gate_operand = operands.iter().all(|id| {
-            !matches!(self.nodes[*id as usize], Node::Gate { .. })
-        });
+        let no_gate_operand = operands
+            .iter()
+            .all(|id| !matches!(self.nodes[*id as usize], Node::Gate { .. }));
         if no_gate_operand {
             for &id in operands.iter() {
                 if let Some(v) = const_of(id, &self.nodes) {
@@ -753,9 +749,11 @@ impl Module {
             GateOp::And => all_ones,
             _ => return None,
         };
-        operands.retain(|id| match &self.nodes[*id as usize] {
-            Node::Constant { width: w, value } if *w == width && *value == identity => false,
-            _ => true,
+        operands.retain(|id| {
+            !matches!(
+                &self.nodes[*id as usize],
+                Node::Constant { width: w, value } if *w == width && *value == identity
+            )
         });
 
         if operands.len() == before {
@@ -1100,9 +1098,7 @@ impl Module {
                     } => Some((*inner_op, inner_ops.clone(), *inner_w, inner_deps.clone())),
                     _ => None,
                 };
-                let Some((inner_op, inner_ops, inner_w, inner_deps)) = inner else {
-                    return None;
-                };
+                let (inner_op, inner_ops, inner_w, inner_deps) = inner?;
 
                 // Involutive: Not(Not(x)) → x. Inner Not may be
                 // orphaned; compact_node_ids cleans it up post-
@@ -1110,11 +1106,7 @@ impl Module {
                 if inner_op == GateOp::Not && inner_w == width && inner_ops.len() == 1 {
                     let x = inner_ops[0];
                     self.peephole_rewrites_applied += 1;
-                    crate::trace_verbose!(
-                        node = x,
-                        width,
-                        "✂️ peephole Not(Not(x)) → x"
-                    );
+                    crate::trace_verbose!(node = x, width, "✂️ peephole Not(Not(x)) → x");
                     return Some((x, false));
                 }
 
@@ -1190,11 +1182,7 @@ impl Module {
                 if lo == 0 && hi + 1 == src_w && hi - lo + 1 == width {
                     let x = operands[0];
                     self.peephole_rewrites_applied += 1;
-                    crate::trace_verbose!(
-                        node = x,
-                        width,
-                        "✂️ peephole full-width Slice → src"
-                    );
+                    crate::trace_verbose!(node = x, width, "✂️ peephole full-width Slice → src");
                     return Some((x, false));
                 }
                 // All-constant: evaluate the slice at intern time.
@@ -1800,8 +1788,7 @@ mod tests {
         m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
         let x: NodeId = 0;
         let before = m.nodes.len();
-        let (result, is_new) =
-            m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
+        let (result, is_new) = m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
         assert_eq!(result, x, "Concat([x]) → x");
         assert!(!is_new);
         assert_eq!(m.nodes.len(), before);
@@ -1824,8 +1811,7 @@ mod tests {
         let (inner, _) = m.intern_gate(GateOp::Not, vec![x], 1, DepSet::from_port(0));
         assert_ne!(inner, x, "inner Not is a real gate");
         let before = m.nodes.len();
-        let (outer, is_new) =
-            m.intern_gate(GateOp::Not, vec![inner], 1, DepSet::from_port(0));
+        let (outer, is_new) = m.intern_gate(GateOp::Not, vec![inner], 1, DepSet::from_port(0));
         assert_eq!(outer, x, "Not(Not(x)) must return x");
         assert!(!is_new);
         assert_eq!(m.nodes.len(), before, "no new gate created by outer Not");
@@ -1955,12 +1941,7 @@ mod tests {
         };
         // 8-bit constant 0xAB = 0b10101011. Slice(5, 2) → 0b1010 = 10.
         let (c, _) = m.intern_constant(8, 0xAB);
-        let (result, _) = m.intern_gate(
-            GateOp::Slice { hi: 5, lo: 2 },
-            vec![c],
-            4,
-            DepSet::new(),
-        );
+        let (result, _) = m.intern_gate(GateOp::Slice { hi: 5, lo: 2 }, vec![c], 4, DepSet::new());
         match &m.nodes[result as usize] {
             Node::Constant { width: 4, value } => assert_eq!(*value, 0b1010),
             other => panic!("expected 4-bit const 10, got {other:?}"),
@@ -1982,23 +1963,41 @@ mod tests {
 
         // RedAnd(all-ones) = 1, RedAnd(mixed) = 0.
         let (ra1, _) = m.intern_gate(GateOp::RedAnd, vec![c_all_ones], 1, DepSet::new());
-        assert!(matches!(m.nodes[ra1 as usize], Node::Constant { value: 1, .. }));
+        assert!(matches!(
+            m.nodes[ra1 as usize],
+            Node::Constant { value: 1, .. }
+        ));
         let (ra2, _) = m.intern_gate(GateOp::RedAnd, vec![c_mixed], 1, DepSet::new());
-        assert!(matches!(m.nodes[ra2 as usize], Node::Constant { value: 0, .. }));
+        assert!(matches!(
+            m.nodes[ra2 as usize],
+            Node::Constant { value: 0, .. }
+        ));
 
         // RedOr(zero) = 0, RedOr(mixed) = 1.
         let (ro1, _) = m.intern_gate(GateOp::RedOr, vec![c_zero], 1, DepSet::new());
-        assert!(matches!(m.nodes[ro1 as usize], Node::Constant { value: 0, .. }));
+        assert!(matches!(
+            m.nodes[ro1 as usize],
+            Node::Constant { value: 0, .. }
+        ));
         let (ro2, _) = m.intern_gate(GateOp::RedOr, vec![c_mixed], 1, DepSet::new());
-        assert!(matches!(m.nodes[ro2 as usize], Node::Constant { value: 1, .. }));
+        assert!(matches!(
+            m.nodes[ro2 as usize],
+            Node::Constant { value: 1, .. }
+        ));
 
         // RedXor(0b1010) = 0 (two 1-bits), RedXor(0b1110) = 1 (three
         // 1-bits). Use a fresh const to get the odd-bit-count case.
         let (c_odd, _) = m.intern_constant(4, 0b1110);
         let (rx_even, _) = m.intern_gate(GateOp::RedXor, vec![c_mixed], 1, DepSet::new());
-        assert!(matches!(m.nodes[rx_even as usize], Node::Constant { value: 0, .. }));
+        assert!(matches!(
+            m.nodes[rx_even as usize],
+            Node::Constant { value: 0, .. }
+        ));
         let (rx_odd, _) = m.intern_gate(GateOp::RedXor, vec![c_odd], 1, DepSet::new());
-        assert!(matches!(m.nodes[rx_odd as usize], Node::Constant { value: 1, .. }));
+        assert!(matches!(
+            m.nodes[rx_odd as usize],
+            Node::Constant { value: 1, .. }
+        ));
     }
 
     // --- All-const arithmetic / structural evaluation ------------
@@ -2033,7 +2032,10 @@ mod tests {
         let (c3, _) = m.intern_constant(8, 3);
         let (result, _) = m.intern_gate(GateOp::Mul, vec![c100, c3], 8, DepSet::new());
         match &m.nodes[result as usize] {
-            Node::Constant { width: 8, value: 44 } => {} // 300 & 0xFF = 44
+            Node::Constant {
+                width: 8,
+                value: 44,
+            } => {} // 300 & 0xFF = 44
             other => panic!("expected 8-bit const 44, got {other:?}"),
         }
     }
@@ -2050,7 +2052,10 @@ mod tests {
         let (cb, _) = m.intern_constant(4, 0b0110);
         let (result, _) = m.intern_gate(GateOp::Xor, vec![ca, cb], 4, DepSet::new());
         match &m.nodes[result as usize] {
-            Node::Constant { width: 4, value: 0b1100 } => {}
+            Node::Constant {
+                width: 4,
+                value: 0b1100,
+            } => {}
             other => panic!("expected 4-bit const 0b1100, got {other:?}"),
         }
     }
@@ -2072,7 +2077,10 @@ mod tests {
         }
         let (neg, _) = m.intern_gate(GateOp::Sub, vec![c3, c10], 8, DepSet::new());
         match &m.nodes[neg as usize] {
-            Node::Constant { width: 8, value: 249 } => {} // 3-10 mod 256 = 249
+            Node::Constant {
+                width: 8,
+                value: 249,
+            } => {} // 3-10 mod 256 = 249
             other => panic!("expected Sub(3, 10) mod 256 = 249, got {other:?}"),
         }
     }
@@ -2090,7 +2098,10 @@ mod tests {
         let (amt, _) = m.intern_constant(3, 2);
         let (shifted, _) = m.intern_gate(GateOp::Shl, vec![val, amt], 4, DepSet::new());
         match &m.nodes[shifted as usize] {
-            Node::Constant { width: 4, value: 0b1100 } => {}
+            Node::Constant {
+                width: 4,
+                value: 0b1100,
+            } => {}
             other => panic!("expected Shl(3, 2) = 0b1100, got {other:?}"),
         }
 
@@ -2115,7 +2126,10 @@ mod tests {
         let (amt, _) = m.intern_constant(3, 2);
         let (shifted, _) = m.intern_gate(GateOp::Shr, vec![val, amt], 4, DepSet::new());
         match &m.nodes[shifted as usize] {
-            Node::Constant { width: 4, value: 0b0011 } => {}
+            Node::Constant {
+                width: 4,
+                value: 0b0011,
+            } => {}
             other => panic!("expected Shr(0b1100, 2) = 0b0011, got {other:?}"),
         }
     }
@@ -2132,7 +2146,10 @@ mod tests {
         let (lo, _) = m.intern_constant(4, 0x5);
         let (result, _) = m.intern_gate(GateOp::Concat, vec![hi, lo], 8, DepSet::new());
         match &m.nodes[result as usize] {
-            Node::Constant { width: 8, value: 0xA5 } => {}
+            Node::Constant {
+                width: 8,
+                value: 0xA5,
+            } => {}
             other => panic!("expected 8-bit const 0xA5, got {other:?}"),
         }
     }
@@ -2150,7 +2167,10 @@ mod tests {
         let (c, _) = m.intern_constant(1, 0b1);
         let (result, _) = m.intern_gate(GateOp::Concat, vec![a, b, c], 6, DepSet::new());
         match &m.nodes[result as usize] {
-            Node::Constant { width: 6, value: 0b101011 } => {}
+            Node::Constant {
+                width: 6,
+                value: 0b101011,
+            } => {}
             other => panic!("expected 6-bit const 0b101011 = 43, got {other:?}"),
         }
     }
@@ -2174,8 +2194,7 @@ mod tests {
         let b: NodeId = 1;
         let c: NodeId = 2;
         let (inner, _) = m.intern_gate(GateOp::Add, vec![b, c], 8, DepSet::from_port(1));
-        let (outer, _) =
-            m.intern_gate(GateOp::Add, vec![a, inner], 8, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::Add, vec![a, inner], 8, DepSet::from_port(0));
         // outer should be a new gate with 3 operands (a, b, c) — not
         // 2 (a, inner).
         match &m.nodes[outer as usize] {
@@ -2208,8 +2227,7 @@ mod tests {
         let a: NodeId = 0;
         let b: NodeId = 1;
         let (inner, _) = m.intern_gate(GateOp::And, vec![a, b], 8, DepSet::from_port(0));
-        let (outer, _) =
-            m.intern_gate(GateOp::And, vec![a, inner], 8, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::And, vec![a, inner], 8, DepSet::from_port(0));
         match &m.nodes[outer as usize] {
             Node::Gate {
                 op: GateOp::And,
@@ -2237,8 +2255,7 @@ mod tests {
         let a: NodeId = 0;
         let b: NodeId = 1;
         let (inner, _) = m.intern_gate(GateOp::Xor, vec![a, b], 8, DepSet::from_port(0));
-        let (outer, _) =
-            m.intern_gate(GateOp::Xor, vec![a, inner], 8, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::Xor, vec![a, inner], 8, DepSet::from_port(0));
         // Post-flatten and cancel: [a, a, b] → [b]. Short-circuits
         // to b directly (no new Xor gate).
         assert_eq!(outer, b, "Xor(a, Xor(a, b)) must short-circuit to b");
@@ -2257,8 +2274,7 @@ mod tests {
         let a: NodeId = 0;
         let b: NodeId = 1;
         let (inner, _) = m.intern_gate(GateOp::Xor, vec![a, b], 8, DepSet::from_port(0));
-        let (outer, _) =
-            m.intern_gate(GateOp::Xor, vec![a, inner, b], 8, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::Xor, vec![a, inner, b], 8, DepSet::from_port(0));
         match &m.nodes[outer as usize] {
             Node::Constant { width: 8, value: 0 } => {}
             other => panic!("expected 8-bit zero const, got {other:?}"),
@@ -2283,8 +2299,7 @@ mod tests {
         let x: NodeId = 0;
         let y: NodeId = 1;
         let (inner, _) = m.intern_gate(GateOp::Add, vec![x, y], 8, DepSet::from_port(0));
-        let (outer, _) =
-            m.intern_gate(GateOp::Add, vec![x, inner], 8, DepSet::from_port(0));
+        let (outer, _) = m.intern_gate(GateOp::Add, vec![x, inner], 8, DepSet::from_port(0));
         // The outer Add must have operands [x, inner] — not
         // flattened — preserving the 2x+y semantics.
         match &m.nodes[outer as usize] {
@@ -2293,7 +2308,11 @@ mod tests {
                 operands,
                 ..
             } => {
-                assert_eq!(operands.len(), 2, "Add should not flatten when duplicates would result");
+                assert_eq!(
+                    operands.len(),
+                    2,
+                    "Add should not flatten when duplicates would result"
+                );
                 assert!(operands.contains(&x));
                 assert!(operands.contains(&inner));
             }
@@ -2316,8 +2335,7 @@ mod tests {
         m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
         let x: NodeId = 0;
         let before = m.nodes.len();
-        let (concat, is_new) =
-            m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
+        let (concat, is_new) = m.intern_gate(GateOp::Concat, vec![x], 4, DepSet::from_port(0));
         assert_ne!(concat, x, "at level=ConstantFold peephole must not fire");
         assert!(is_new);
         assert_eq!(m.nodes.len(), before + 1);

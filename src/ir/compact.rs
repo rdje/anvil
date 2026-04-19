@@ -174,8 +174,10 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                 width,
                 deps,
             } => {
-                let new_operands: Vec<NodeId> =
-                    operands.into_iter().map(|o| remap(o, &old_to_new)).collect();
+                let new_operands: Vec<NodeId> = operands
+                    .into_iter()
+                    .map(|o| remap(o, &old_to_new))
+                    .collect();
                 Node::Gate {
                     op,
                     operands: new_operands,
@@ -298,8 +300,7 @@ mod tests {
         m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
         let x: NodeId = 0;
         let (c7, _) = m.intern_constant(8, 7);
-        let (add, _) =
-            m.intern_gate(GateOp::Add, vec![x, c7], 8, DepSet::from_port(0));
+        let (add, _) = m.intern_gate(GateOp::Add, vec![x, c7], 8, DepSet::from_port(0));
         m.drives.push((1, add));
 
         let before = m.nodes.len();
@@ -336,21 +337,22 @@ mod tests {
         let x: NodeId = 0;
         let (c7, _) = m.intern_constant(8, 7);
         // Reachable gate: driven to output.
-        let (live_add, _) =
-            m.intern_gate(GateOp::Add, vec![x, c7], 8, DepSet::from_port(0));
+        let (live_add, _) = m.intern_gate(GateOp::Add, vec![x, c7], 8, DepSet::from_port(0));
         m.drives.push((1, live_add));
 
         // Orphan gate: built, never referenced.
         let (c3, _) = m.intern_constant(8, 3);
-        let (_orphan, _) =
-            m.intern_gate(GateOp::Sub, vec![x, c3], 8, DepSet::from_port(0));
+        let (_orphan, _) = m.intern_gate(GateOp::Sub, vec![x, c3], 8, DepSet::from_port(0));
 
         let orphan_count_before = count_orphan_gates(&m);
         assert!(orphan_count_before > 0, "test should inject an orphan");
 
         let n_before = m.nodes.len();
         let removed = compact_node_ids(&mut m);
-        assert!(removed >= 1, "expected at least the Sub orphan to be removed");
+        assert!(
+            removed >= 1,
+            "expected at least the Sub orphan to be removed"
+        );
         assert!(m.nodes.len() < n_before);
 
         // Drive root still valid and pointing at a live Add.
@@ -392,15 +394,12 @@ mod tests {
         let (c1, _) = m.intern_constant(8, 1);
         let (c2, _) = m.intern_constant(8, 2);
         // Live chain: x + 1, then that + 2.
-        let (a1, _) =
-            m.intern_gate(GateOp::Add, vec![x, c1], 8, DepSet::from_port(0));
-        let (a2, _) =
-            m.intern_gate(GateOp::Add, vec![a1, c2], 8, DepSet::from_port(0));
+        let (a1, _) = m.intern_gate(GateOp::Add, vec![x, c1], 8, DepSet::from_port(0));
+        let (a2, _) = m.intern_gate(GateOp::Add, vec![a1, c2], 8, DepSet::from_port(0));
         m.drives.push((1, a2));
         // Orphan between them.
         let (c99, _) = m.intern_constant(8, 99);
-        let (_orphan, _) =
-            m.intern_gate(GateOp::Sub, vec![a1, c99], 8, DepSet::from_port(0));
+        let (_orphan, _) = m.intern_gate(GateOp::Sub, vec![a1, c99], 8, DepSet::from_port(0));
 
         compact_node_ids(&mut m);
 

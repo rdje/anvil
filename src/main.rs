@@ -100,12 +100,15 @@ struct Cli {
     comb_mux_prob: Option<f64>,
     #[arg(long)]
     comb_mux_encoding_prob: Option<f64>,
-    /// Construction strategy: sequential, shuffled, interleaved, or
-    /// graph-first (default). See `book/src/construction-strategies.md`.
+    /// Construction strategy: sequential, shuffled, interleaved
+    /// (default), or graph-first. `graph-first` is a deprecated alias
+    /// for `interleaved`. See `book/src/construction-strategies.md`.
     #[arg(long, value_enum)]
     construction_strategy: Option<ConstructionStrategy>,
-    /// Target number of top-level units (gate / flop / comb-mux block)
-    /// grown in the pool by the `graph-first` strategy.
+    /// Legacy knob retained for backward-compatible configs. The
+    /// retired speculative `graph-first` builder used this as its
+    /// pool-growth target; the current live interleaved/default path
+    /// ignores it.
     #[arg(long)]
     graph_first_pool_size: Option<u32>,
     /// Per-op probability (when build_cone picks Add / Sub / Mul) of

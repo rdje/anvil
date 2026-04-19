@@ -37,11 +37,12 @@ recursion (Q is a leaf, D opens a new sub-cone, worklist drains).
 
 **Exit criteria:** 1000 modules generated from random seeds, all parse
 and elaborate in Verilator without error, all Yosys-synthesize to
-non-empty netlists, both with and without flops. **Blocked:**
-Verilator and Yosys not available locally; internal validation
-(54 tests, 0 orphans across 4 strategies × 6 seeds, 0 duplicate
-operands at default knobs across 4633 gates × 5 seeds) is
-complete.
+non-empty netlists, both with and without flops. **Not yet met:**
+local tools are now available and seed-level smoke checks pass, but
+the 1000-module Verilator+Yosys sweep has not been run yet. Internal
+validation (95 tests, unused-signal Verilator sweep over seeds 0..4
+for the default path and the `graph-first` alias, seed-42 Yosys
+synthesis) is clean.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 
