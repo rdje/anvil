@@ -270,7 +270,7 @@ Cheap to enforce during generation; catch the obvious constant-folding
 cases. The exact rule set depends on `factorization_level`:
 
 At the default level (`e-graph`, currently equivalent to
-`commutative`):
+`peephole`):
 
 - **Idempotent / self-inverse N-arity ops** (`And`, `Or`, `Xor`):
   any duplicate `NodeId` in the operand list is forbidden

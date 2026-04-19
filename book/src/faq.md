@@ -102,33 +102,41 @@ cones that independently build the same AST share a single
 ## What does "full factorization" mean in the book? Does `anvil` deduplicate expressions?
 
 Yes. `NodeId` is the **identity** of an expression in the IR: two
-ASTs that are the same logically share one `NodeId`. This is
-enforced at construction time via `Module::intern_gate` /
-`intern_constant`, not as a post-hoc filter.
+equivalent expressions should collapse to one `NodeId`, regardless
+of which output cone first built them or how they were spelled
+syntactically. This is enforced at construction time via
+`Module::intern_gate` / `intern_constant`, not as a post-hoc filter.
 
-Today's implementation covers the first three layers of the
-factorization ladder:
+Today the live ladder reaches through **peephole**:
 
 1. **Syntactic CSE** (Rule 21) — same `(op, operands, width)` ⇒
-   same `NodeId`. `Add([a, b], 8)` built twice is one node.
-2. **Operand uniqueness** (Rule 8 extended) — no `NodeId` appears
-   twice in the operand list of a single gate (for `And`/`Or`/
-   `Xor` always; for `Add`/`Mul` gated on
-   `operand_duplication_rate`; for `Mux` on
-   `mux_arm_duplication_rate`).
-3. **Commutative normalization** (Rule 21b) — operands of
-   `And`/`Or`/`Xor`/`Add`/`Mul` are sorted before interning, so
-   `a + b` and `b + a` share identity.
+   same `NodeId`.
+2. **Operand uniqueness** (Rule 8 extended) — no `NodeId` twice in
+   one operand list (with the documented Add/Mul and Mux knobs).
+3. **Commutative normalization** (Rule 21b) — `a + b` and `b + a`
+   share identity.
+4. **Associative flattening** — `Add(a, Add(b, c))` canonicalises to
+   `Add(a, b, c)` when flattening is semantically safe.
+5. **Constant folding** — identity/absorbing constants and all-const
+   subexpressions collapse at intern time.
+6. **Peephole rewrites** — local canonical rewrites like
+   `Not(Not(x))`, constant comparison evaluation, full-width `Slice`,
+   and single-operand `Concat`.
 
-Four more layers are reserved as aspirational levels in
-`FactorizationLevel`: `Associative`, `ConstantFold`, `Peephole`,
-`EGraph` (the default). `effective()` clamps user requests down
-to the highest implemented layer, so a user at `e-graph` today
-gets `commutative`-level behaviour; future slices will
-automatically extend them without a config change.
+Only the final **`e-graph`** rung remains aspirational. A user at
+`--factorization-level e-graph` (or `--full-factorization`) gets the
+strongest implemented behaviour today, which currently means
+`peephole` plus every lower layer. `--no-full-factorization` is the
+coarse off-switch (`none`).
+
+Construction strategy is a separate axis. `sequential`,
+`shuffled`, and `interleaved` decide **how cones are built**;
+factorization decides **when two built expressions share one
+identity**.
 
 Dial: `--factorization-level <none|cse|operand-unique|commutative|
-associative|constant-fold|peephole|e-graph>`. See Rule 21c.
+associative|constant-fold|peephole|e-graph>`, plus the convenience
+aliases `--full-factorization` / `--no-full-factorization`. See Rule 21c.
 
 ## How do I reproduce a specific generated module?
 

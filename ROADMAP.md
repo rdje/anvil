@@ -40,7 +40,7 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
 the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (95 tests, unused-signal Verilator sweep over seeds 0..4
+validation (104 tests, unused-signal Verilator sweep over seeds 0..4
 for the default path and the `graph-first` alias, seed-42 Yosys
 synthesis) is clean.
 
@@ -64,7 +64,8 @@ lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}
 - `case`/`casez` expressions. **Not started.**
 - Priority encoders, one-hot decoders. **Priority encoder landed
   (Rule 17).**
-- Reduction operators (`&`, `|`, `^` unary). **Not started.**
+- Reduction operators (`&`, `|`, `^` unary). **Selectable gate
+  category landed.**
 - Shift by variable amount. **Constant-amount shifts landed
   (Rule 19 knob + const_shift_amount_prob); variable amount not
   started.**

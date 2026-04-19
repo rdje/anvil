@@ -169,6 +169,14 @@ pub enum KnobId {
     /// `Config::const_comparand_prob` — chance that a comparison's
     /// RHS is a constant.
     ConstComparandProb,
+    /// `Config::constant_prob` — chance that a forced leaf without a
+    /// matching-width signal becomes a fresh constant instead of a
+    /// width-adapter from an existing dep-bearing source.
+    ConstantProb,
+    /// `Config::terminal_reuse_prob` — chance that a forced leaf with
+    /// a matching-width signal reuses that signal instead of emitting
+    /// a fresh constant.
+    TerminalReuseProb,
     /// `Config::comb_mux_encoding_prob` — encoded vs one-hot
     /// comb-mux shape.
     CombMuxEncodingProb,
@@ -195,6 +203,8 @@ impl KnobId {
             KnobId::CoefficientProb => "coefficient_prob",
             KnobId::ConstShiftAmountProb => "const_shift_amount_prob",
             KnobId::ConstComparandProb => "const_comparand_prob",
+            KnobId::ConstantProb => "constant_prob",
+            KnobId::TerminalReuseProb => "terminal_reuse_prob",
             KnobId::CombMuxEncodingProb => "comb_mux_encoding_prob",
             KnobId::FlopMuxEncodingProb => "flop_mux_encoding_prob",
             KnobId::ShareProb => "share_prob",
@@ -1569,7 +1579,8 @@ mod tests {
 
     /// Helper: module seeded with one primary-input (node 0) and
     /// two constants (node 1 = zero, node 2 = all-ones for `width`),
-    /// at full factorization (default, clamps to `ConstantFold`).
+    /// at the default factorization request (`e-graph`, which
+    /// currently clamps to `Peephole`).
     #[cfg(test)]
     fn fold_fixture(width: u32) -> (Module, NodeId, NodeId, NodeId) {
         let mut m = Module {

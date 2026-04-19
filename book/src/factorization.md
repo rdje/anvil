@@ -53,7 +53,8 @@ in the current build. Today that's **peephole**; `e-graph`
 activates everything currently live plus every future layer for
 free.
 
-Selection via `--factorization-level` CLI flag or
+Selection via `--factorization-level` (or the convenience aliases
+`--full-factorization` / `--no-full-factorization`) or
 `Config::factorization_level` in a config file.
 
 ## Pipeline, in execution order

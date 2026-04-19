@@ -755,6 +755,8 @@ fn knob_rolls_recorded_across_seeds() {
         "coefficient_prob",
         "const_shift_amount_prob",
         "const_comparand_prob",
+        "constant_prob",
+        "terminal_reuse_prob",
         "comb_mux_encoding_prob",
         "flop_mux_encoding_prob",
         "share_prob",
@@ -773,6 +775,154 @@ fn knob_rolls_recorded_across_seeds() {
         assert!(
             fires <= attempts,
             "knob {knob}: fires ({fires}) > attempts ({attempts}) — bookkeeping bug"
+        );
+    }
+}
+
+#[test]
+fn gate_categories_are_exercisable_end_to_end() {
+    use std::collections::BTreeSet;
+
+    let category_runs = [
+        (
+            "bitwise",
+            Config {
+                gate_bitwise_weight: 1,
+                gate_arith_weight: 0,
+                gate_struct_weight: 0,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 0,
+                min_width: 4,
+                max_width: 4,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["and", "or", "xor", "not"].map(str::to_string)),
+        ),
+        (
+            "arith",
+            Config {
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 1,
+                gate_struct_weight: 0,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 0,
+                min_width: 4,
+                max_width: 4,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["add", "sub", "mul"].map(str::to_string)),
+        ),
+        (
+            "struct",
+            Config {
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 0,
+                gate_struct_weight: 1,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 0,
+                min_width: 4,
+                max_width: 4,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["mux"].map(str::to_string)),
+        ),
+        (
+            "compare",
+            Config {
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 0,
+                gate_struct_weight: 0,
+                gate_compare_weight: 1,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 0,
+                min_width: 1,
+                max_width: 1,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["eq", "neq", "lt", "gt", "le", "ge"].map(str::to_string)),
+        ),
+        (
+            "reduce",
+            Config {
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 0,
+                gate_struct_weight: 0,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 1,
+                gate_shift_weight: 0,
+                min_width: 1,
+                max_width: 1,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["red_and", "red_or", "red_xor"].map(str::to_string)),
+        ),
+        (
+            "shift",
+            Config {
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 0,
+                gate_struct_weight: 0,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 1,
+                min_width: 4,
+                max_width: 4,
+                flop_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                coefficient_prob: 0.0,
+                ..Config::default()
+            },
+            BTreeSet::from(["shl", "shr"].map(str::to_string)),
+        ),
+    ];
+
+    for (name, base_cfg, expected) in category_runs {
+        let mut seen = BTreeSet::new();
+        for seed in 0..32u64 {
+            let cfg = Config {
+                seed,
+                ..base_cfg.clone()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m)
+                .unwrap_or_else(|e| panic!("category {name} seed {seed}: {e}"));
+            let metrics = anvil::metrics::compute(&m);
+            for kind in metrics.gates_by_kind.keys() {
+                if expected.contains(kind) {
+                    seen.insert(kind.clone());
+                }
+            }
+            if seen == expected {
+                break;
+            }
+        }
+        assert_eq!(
+            seen, expected,
+            "category {name}: expected to exercise {expected:?}, saw {seen:?}"
         );
     }
 }

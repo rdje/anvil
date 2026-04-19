@@ -100,9 +100,11 @@ shift. Examples:
 - `factorization_level=none` → gate count grows (no CSE); `=cse` and above
   shrinks it.
 
-Live counters (probability rolls fired vs missed, anti-collapse
-retries, terminal-tier picks) are not yet collected — the
-`--trace high` output surfaces most of them on a per-event basis.
+Live probability-roll counters are collected in
+`knob_roll_attempts` / `knob_roll_fires`, so every `gen_bool`
+site now has explicit attempt/fire telemetry. Anti-collapse
+retries and terminal-tier picks are still primarily visible in
+`--trace high`.
 
 ## Reproducibility
 
@@ -148,10 +150,16 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-comparand`       | 255      | Max constant comparand (clamped to 2^K - 1)           |
 | `--priority-encoder-prob`| 0.05    | Per-emission probability of a priority-encoder block (N 1-bit reqs → log2(N)-bit index)|
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
-| `--hierarchy-depth`     | 0        | Max sub-module nesting (Phase 4)                |
+| `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
+| `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
 | `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |
 | `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
+| `--gate-compare-weight` | 1        | Relative weight for comparison ops at 1-bit targets |
+| `--gate-reduce-weight`  | 1        | Relative weight for reduction ops at 1-bit targets |
+| `--factorization-level` | e-graph  | Detailed identity ladder: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
+| `--full-factorization`  | off      | Convenience alias for the strongest currently-live identity mode |
+| `--no-full-factorization` | off    | Convenience alias that disables the factorization ladder |
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

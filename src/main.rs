@@ -78,6 +78,17 @@ struct Cli {
     max_width: Option<u32>,
     #[arg(long)]
     max_depth: Option<u32>,
+    /// Per-forced-leaf probability of reusing an existing
+    /// matching-width pool signal instead of emitting a fresh
+    /// constant. Higher values bias leaf decisions toward sharing.
+    #[arg(long)]
+    terminal_reuse_prob: Option<f64>,
+    /// Per-forced-leaf probability of emitting a fresh constant when
+    /// no matching-width signal exists. When this misses, leaf
+    /// construction falls back to a width-adapter from an existing
+    /// dep-bearing source if one exists.
+    #[arg(long)]
+    constant_prob: Option<f64>,
     #[arg(long)]
     flop_prob: Option<f64>,
     #[arg(long)]
@@ -123,6 +134,23 @@ struct Cli {
     /// Maximum coefficient value for the linear-combination motif.
     #[arg(long)]
     max_coefficient: Option<u32>,
+    /// Relative weight for bitwise ops (And/Or/Xor/Not) in `pick_gate`.
+    #[arg(long)]
+    gate_bitwise_weight: Option<u32>,
+    /// Relative weight for arithmetic ops (Add/Sub/Mul) in `pick_gate`.
+    #[arg(long)]
+    gate_arith_weight: Option<u32>,
+    /// Relative weight for structural ops (Mux) in `pick_gate`.
+    #[arg(long)]
+    gate_struct_weight: Option<u32>,
+    /// Relative weight for comparison ops (Eq/Neq/Lt/Gt/Le/Ge) in
+    /// `pick_gate` when the target width is 1.
+    #[arg(long)]
+    gate_compare_weight: Option<u32>,
+    /// Relative weight for reduction ops (RedAnd/RedOr/RedXor) in
+    /// `pick_gate` when the target width is 1.
+    #[arg(long)]
+    gate_reduce_weight: Option<u32>,
     /// Per-shift probability that the shift amount is a constant
     /// literal instead of a recursively-generated signal (barrel
     /// shifter). Real designs bias heavily toward constant.
@@ -179,11 +207,20 @@ struct Cli {
 
     /// Factorization level along the sharing/dedup chain.
     /// Values: `none` / `cse` / `operand-unique` / `commutative` /
-    /// `full` (default). Each step enables one more layer of
-    /// NodeId-as-expression-identity enforcement. See
-    /// `book/src/structural-rules.md` Rule 21b.
+    /// `associative` / `constant-fold` / `peephole` / `e-graph`
+    /// (default request). `e-graph` is the theoretical ceiling;
+    /// `effective()` clamps it to the highest implemented layer
+    /// today. See `book/src/structural-rules.md` Rule 21c.
     #[arg(long, value_enum)]
     factorization_level: Option<FactorizationLevel>,
+    /// Convenience alias for `--factorization-level e-graph`: request
+    /// the strongest currently-available identity/factorization mode.
+    #[arg(long, conflicts_with = "no_full_factorization", action = clap::ArgAction::SetTrue)]
+    full_factorization: bool,
+    /// Convenience alias for `--factorization-level none`: disable the
+    /// factorization ladder and allocate fresh NodeIds for every AST.
+    #[arg(long, conflicts_with = "full_factorization", action = clap::ArgAction::SetTrue)]
+    no_full_factorization: bool,
 
     /// Trace verbosity: `none` / `low` / `medium` / `high` / `debug`.
     /// Output goes to stderr (or `--trace-file`). `none` (default)
@@ -309,6 +346,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         min_width: cli.min_width,
         max_width: cli.max_width,
         max_depth: cli.max_depth,
+        terminal_reuse_prob: cli.terminal_reuse_prob,
+        constant_prob: cli.constant_prob,
         flop_prob: cli.flop_prob,
         share_prob: cli.share_prob,
         max_flops_per_module: cli.max_flops_per_module,
@@ -325,6 +364,11 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         coefficient_prob: cli.coefficient_prob,
         min_coefficient: cli.min_coefficient,
         max_coefficient: cli.max_coefficient,
+        gate_bitwise_weight: cli.gate_bitwise_weight,
+        gate_arith_weight: cli.gate_arith_weight,
+        gate_struct_weight: cli.gate_struct_weight,
+        gate_compare_weight: cli.gate_compare_weight,
+        gate_reduce_weight: cli.gate_reduce_weight,
         const_shift_amount_prob: cli.const_shift_amount_prob,
         min_shift_amount: cli.min_shift_amount,
         max_shift_amount: cli.max_shift_amount,
@@ -336,6 +380,76 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_ast_instances: cli.max_ast_instances,
         mux_arm_duplication_rate: cli.mux_arm_duplication_rate,
         operand_duplication_rate: cli.operand_duplication_rate,
-        factorization_level: cli.factorization_level,
+        factorization_level: if cli.no_full_factorization {
+            Some(FactorizationLevel::None)
+        } else if cli.full_factorization {
+            Some(FactorizationLevel::EGraph)
+        } else {
+            cli.factorization_level
+        },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn full_factorization_alias_sets_egraph_request() {
+        let cli = Cli::parse_from(["anvil", "--full-factorization"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(
+            overrides.factorization_level,
+            Some(FactorizationLevel::EGraph)
+        );
+    }
+
+    #[test]
+    fn no_full_factorization_alias_disables_ladder() {
+        let cli = Cli::parse_from(["anvil", "--no-full-factorization"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(
+            overrides.factorization_level,
+            Some(FactorizationLevel::None)
+        );
+    }
+
+    #[test]
+    fn explicit_factorization_level_still_parses_directly() {
+        let cli = Cli::parse_from(["anvil", "--factorization-level", "peephole"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(
+            overrides.factorization_level,
+            Some(FactorizationLevel::Peephole)
+        );
+    }
+
+    #[test]
+    fn newly_exposed_cli_knobs_round_trip_into_overrides() {
+        let cli = Cli::parse_from([
+            "anvil",
+            "--terminal-reuse-prob",
+            "0.25",
+            "--constant-prob",
+            "0.4",
+            "--gate-bitwise-weight",
+            "9",
+            "--gate-arith-weight",
+            "8",
+            "--gate-struct-weight",
+            "7",
+            "--gate-compare-weight",
+            "6",
+            "--gate-reduce-weight",
+            "5",
+        ]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
+        assert_eq!(overrides.constant_prob, Some(0.4));
+        assert_eq!(overrides.gate_bitwise_weight, Some(9));
+        assert_eq!(overrides.gate_arith_weight, Some(8));
+        assert_eq!(overrides.gate_struct_weight, Some(7));
+        assert_eq!(overrides.gate_compare_weight, Some(6));
+        assert_eq!(overrides.gate_reduce_weight, Some(5));
     }
 }

@@ -3,7 +3,150 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-20-0076 — Expose peak-sharing controls and exercise live categories
+
+**Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice tightens the control surface around the user's
+"NodeId as identity" doctrine without conflating it with cone
+construction strategy.
+
+### CLI surface: peak sharing is now an explicit mode
+
+- Added `--full-factorization` as a convenience alias for
+  `--factorization-level e-graph` (request the strongest
+  currently-implemented identity mode).
+- Added `--no-full-factorization` as the coarse off-switch
+  (`--factorization-level none`).
+- Kept the existing detailed ladder under
+  `--factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>`.
+- Exposed previously config-only *live* knobs on the CLI:
+  `--terminal-reuse-prob`, `--constant-prob`,
+  `--gate-bitwise-weight`, `--gate-arith-weight`,
+  `--gate-struct-weight`, `--gate-compare-weight`,
+  `--gate-reduce-weight`.
+
+### Dead leaf knobs are live now
+
+- `gen::cone::pick_terminal` now consults
+  `terminal_reuse_prob` at forced leaves with an exact-width
+  pool candidate:
+  - `1.0` = always reuse the matching-width signal;
+  - `0.0` = never reuse it, emit a fresh constant instead.
+- `pick_terminal` now consults `constant_prob` when no
+  matching-width signal exists but a dep-bearing width-adapter
+  source does:
+  - hit = emit a fresh constant;
+  - miss = build the width adapter.
+- Both decisions route through `roll_knob`, so they become
+  measurable in `knob_roll_attempts` / `knob_roll_fires`.
+
+### Every live gate category is now genuinely exercisable
+
+- `pick_gate`'s compare bucket now contains the full comparison
+  family: `Eq`, `Neq`, `Lt`, `Gt`, `Le`, `Ge`.
+- The reduction bucket is now live in `pick_gate`:
+  `RedAnd`, `RedOr`, `RedXor` can be selected at 1-bit target
+  width.
+- `gate_reduce_weight` is therefore no longer a dead config
+  field.
+
+### Config / test hardening
+
+- `Config::validate()` now rejects out-of-range
+  `mux_arm_duplication_rate` and `operand_duplication_rate`
+  values, matching their documented `[0.0, 1.0]` contract.
+- Added unit tests for:
+  - the new CLI aliases and newly-exposed CLI knobs;
+  - probability validation of the two duplication-rate knobs;
+  - `pick_gate` coverage across every live category;
+  - `pick_terminal` edge behavior for
+    `terminal_reuse_prob` and `constant_prob`.
+- Added an end-to-end integration test proving that each live
+  gate category is reachable in generated modules and still
+  IR-valid.
+- Extended the per-knob roll telemetry test to cover
+  `constant_prob` and `terminal_reuse_prob`.
+
+### Docs synced to shipping reality
+
+- Refreshed stale factorization passages that still claimed only
+  the first three rungs were implemented.
+- Added the load-bearing clarification that construction
+  strategy (`sequential` / `shuffled` / `interleaved`) is a
+  separate axis from identity / sharing mode.
+- Updated knob docs to reflect that `constant_prob`,
+  `terminal_reuse_prob`, and the gate-category weights are live
+  CLI-controlled knobs today.
+
+**Why**
+
+The user clarified the doctrinal target precisely:
+
+- output drives and flop D inputs are cone roots;
+- primary inputs and flop Qs are the leaves;
+- the entire fanin forest should collapse toward a maximally
+  shared DAG when the "NodeId as identity" mode is enabled;
+- this identity mode is **orthogonal** to cone-construction
+  strategy.
+
+Before this slice, the coarse factorization dial existed, but
+the user-facing on/off control was awkward, one gate category
+(`reduce`) was effectively dead, and two documented leaf knobs
+(`constant_prob`, `terminal_reuse_prob`) were not actually
+consulted. Several guide/book passages also understated the
+current live factorization ladder. This slice cleans that up so
+the next architectural step toward deeper semantic identity can
+start from a coherent, fully-exercised surface.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test` (80 unit + 24 integration = 104 passing tests)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Peak sharing / "full factorization" now has an obvious coarse
+  CLI on/off control that sits alongside, not inside, the
+  construction-strategy choice.
+- Every *live* gate category is now reachable and tested.
+- Leaf-level sharing-vs-constant choices are no longer dead
+  docs-only knobs; they affect generation and are measurable.
+- The book/live docs now consistently describe the current
+  factorization ladder as live through `peephole`, with
+  `e-graph` still aspirational.
+
+**Files touched**
+
+- `src/main.rs`
+- `src/config.rs`
+- `src/gen/cone.rs`
+- `src/ir/types.rs`
+- `tests/pipeline.rs`
+- `book/src/algorithm.md`
+- `book/src/faq.md`
+- `book/src/factorization.md`
+- `book/src/knobs.md`
+- `book/src/recipes.md`
+- `book/src/structural-rules.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+---
+
 ## 2026-04-19-0075 — Finalise the live-signal surface for lint-clean output
+
+**Landed as:** `e973d30`
 
 **What changed**
 

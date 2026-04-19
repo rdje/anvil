@@ -336,10 +336,13 @@ Walking the differences:
   layer still matters for correctness (tighter
   NodeId-as-identity contract).
 - **`commutative` → `associative` / `constant-fold` /
-  `peephole` / `e-graph`**: identical today. These levels are
-  aspirational anchors; future slices will implement them. A
-  user already at `e-graph` will automatically benefit — no
-  config migration.
+  `peephole`**: increasingly aggressive canonicalisation. At
+  some seeds these layers materially reduce gate count; at
+  others they merely tighten the identity contract without
+  changing aggregate size.
+- **`peephole` → `e-graph`**: identical today. `e-graph`
+  remains the aspirational ceiling; users already there will
+  automatically benefit when deeper semantic sharing lands.
 
 Default is `e-graph` (the theoretical ceiling). The generator
 activates every layer it knows how to implement; `effective()`

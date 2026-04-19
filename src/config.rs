@@ -109,7 +109,7 @@ pub enum FactorizationLevel {
     /// **Default**, and the aspiration: every mathematically-
     /// equivalent expression shares one `NodeId`. Not yet
     /// implemented; today this level activates every layer up to
-    /// the highest implemented one (currently `commutative`).
+    /// the highest implemented one (currently `peephole`).
     /// Future slices add layers without requiring users to change
     /// their config — they progressively get tighter factorization
     /// "for free."
@@ -329,11 +329,12 @@ pub struct Config {
     pub mux_arm_duplication_rate: f64,
 
     /// Factorization level — the coarse dial along the
-    /// sharing / dedup chain. `full` (default) enables every
-    /// implemented layer: syntactic CSE, operand uniqueness for
-    /// And/Or/Xor/Add/Mul, commutative normalization.
-    /// Lower settings disable individual layers in order. See
-    /// `book/src/structural-rules.md` Rule 21b.
+    /// sharing / dedup chain. Default `e-graph` requests the
+    /// strongest semantics the build knows how to provide;
+    /// `effective()` clamps that request down to the highest
+    /// implemented layer (today `peephole`). Lower settings
+    /// disable individual layers in order. See
+    /// `book/src/structural-rules.md` Rule 21b / 21c.
     ///
     /// Fine-grained knobs (`max_ast_instances`,
     /// `operand_duplication_rate`, `mux_arm_duplication_rate`)
@@ -481,6 +482,8 @@ impl Config {
             ("const_shift_amount_prob", self.const_shift_amount_prob),
             ("const_comparand_prob", self.const_comparand_prob),
             ("priority_encoder_prob", self.priority_encoder_prob),
+            ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
+            ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
@@ -510,6 +513,12 @@ impl Config {
         }
         if let Some(v) = o.max_depth {
             self.max_depth = v;
+        }
+        if let Some(v) = o.terminal_reuse_prob {
+            self.terminal_reuse_prob = v;
+        }
+        if let Some(v) = o.constant_prob {
+            self.constant_prob = v;
         }
         if let Some(v) = o.flop_prob {
             self.flop_prob = v;
@@ -562,6 +571,21 @@ impl Config {
         if let Some(v) = o.const_shift_amount_prob {
             self.const_shift_amount_prob = v;
         }
+        if let Some(v) = o.gate_bitwise_weight {
+            self.gate_bitwise_weight = v;
+        }
+        if let Some(v) = o.gate_arith_weight {
+            self.gate_arith_weight = v;
+        }
+        if let Some(v) = o.gate_struct_weight {
+            self.gate_struct_weight = v;
+        }
+        if let Some(v) = o.gate_compare_weight {
+            self.gate_compare_weight = v;
+        }
+        if let Some(v) = o.gate_reduce_weight {
+            self.gate_reduce_weight = v;
+        }
         if let Some(v) = o.min_shift_amount {
             self.min_shift_amount = v;
         }
@@ -607,6 +631,8 @@ pub struct Overrides {
     pub min_width: Option<u32>,
     pub max_width: Option<u32>,
     pub max_depth: Option<u32>,
+    pub terminal_reuse_prob: Option<f64>,
+    pub constant_prob: Option<f64>,
     pub flop_prob: Option<f64>,
     pub share_prob: Option<f64>,
     pub max_flops_per_module: Option<u32>,
@@ -624,6 +650,11 @@ pub struct Overrides {
     pub min_coefficient: Option<u32>,
     pub max_coefficient: Option<u32>,
     pub const_shift_amount_prob: Option<f64>,
+    pub gate_bitwise_weight: Option<u32>,
+    pub gate_arith_weight: Option<u32>,
+    pub gate_struct_weight: Option<u32>,
+    pub gate_compare_weight: Option<u32>,
+    pub gate_reduce_weight: Option<u32>,
     pub min_shift_amount: Option<u32>,
     pub max_shift_amount: Option<u32>,
     pub gate_shift_weight: Option<u32>,
@@ -635,4 +666,38 @@ pub struct Overrides {
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,
     pub factorization_level: Option<FactorizationLevel>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_rejects_duplicate_and_mux_rate_probabilities_outside_unit_interval() {
+        let mut cfg = Config {
+            mux_arm_duplication_rate: 1.5,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::Probability { name, value }) => {
+                assert_eq!(name, "mux_arm_duplication_rate");
+                assert_eq!(value, 1.5);
+            }
+            other => panic!("expected mux_arm_duplication_rate probability error, got {other:?}"),
+        }
+
+        cfg = Config {
+            operand_duplication_rate: -0.1,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::Probability { name, value }) => {
+                assert_eq!(name, "operand_duplication_rate");
+                assert_eq!(value, -0.1);
+            }
+            other => {
+                panic!("expected operand_duplication_rate probability error, got {other:?}")
+            }
+        }
+    }
 }

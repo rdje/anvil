@@ -246,12 +246,29 @@ Implementation ladder (see `book/src/structural-rules.md` Rule 21c):
 1. Syntactic CSE (Rule 21) — `(op, operands, width)` key. **Implemented.**
 2. Operand-uniqueness (Rule 8 extended) — no NodeId twice in one operand list. **Implemented.**
 3. Commutative normalization (Rule 21b) — sort commutative operands before interning. **Implemented.**
-4. Associative flattening — flatten `(a+b)+c` to `Add(a,b,c)`. **Not implemented**; aspirational level.
-5. Constant folding — `x+0 → x` etc. **Not implemented.**
-6. Peephole — algebraic rewrites. **Not implemented.**
+4. Associative flattening — flatten `(a+b)+c` to `Add(a,b,c)` when semantically safe. **Implemented.**
+5. Constant folding — `x+0 → x`, all-constant evaluation, etc. **Implemented.**
+6. Peephole — local algebraic / structural rewrites. **Implemented.**
 7. E-graph — full semantic equivalence. **Not implemented.** Default user-requested level.
 
-`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Future slices add layers; users at higher levels automatically benefit.
+`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Today that means `e-graph` requests resolve to `peephole`. Construction strategy is orthogonal: `sequential` / `shuffled` / `interleaved` decide build order, while the factorization ladder decides identity/sharing strength.
+
+## Identity mode is orthogonal to construction strategy (2026-04-20)
+
+User clarification that should remain durable:
+**"NodeId as identity" is a mode of operation, not a cone-builder.**
+
+That means:
+- `construction_strategy` answers *how fanin cones are walked/built*
+  (`sequential`, `shuffled`, `interleaved`, graph-first alias);
+- factorization / identity mode answers *when two built objects are
+  considered the same thing* and therefore must share one NodeId.
+
+Implementation consequence: expose the peak-sharing / no-sharing
+switch as a separate CLI axis (`--full-factorization`,
+`--no-full-factorization`) rather than pretending it is another
+construction strategy value. Future work on the true NodeId-as-
+identity engine must preserve this separation.
 
 ## Emitter is a dumb serialiser (2026-04-16)
 

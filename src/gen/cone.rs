@@ -1796,27 +1796,34 @@ fn pick_terminal(
         .filter(|e| !e.deps.is_empty())
         .map(|e| e.node)
         .collect();
-    if !with_deps.is_empty() {
-        let idx = g.rng.gen_range(0..with_deps.len());
-        let node = with_deps[idx];
-        trace!(tier = 1, node, "pick_terminal: dep-bearing pool entry");
-        return node;
-    }
-
     let any_match: Vec<_> = pool
         .of_width(width)
         .filter(not_excluded)
         .map(|e| e.node)
         .collect();
-    if !any_match.is_empty() {
-        let idx = g.rng.gen_range(0..any_match.len());
-        let node = any_match[idx];
+
+    if !with_deps.is_empty() || !any_match.is_empty() {
+        if roll_knob(g, m, KnobId::TerminalReuseProb, g.cfg.terminal_reuse_prob) {
+            let (tier, candidates) = if !with_deps.is_empty() {
+                (1, &with_deps)
+            } else {
+                (2, &any_match)
+            };
+            let idx = g.rng.gen_range(0..candidates.len());
+            let node = candidates[idx];
+            if tier == 1 {
+                trace!(tier, node, "pick_terminal: dep-bearing pool entry");
+            } else {
+                trace!(tier, node, "pick_terminal: any matching-width pool entry");
+            }
+            return node;
+        }
         trace!(
             tier = 2,
-            node,
-            "pick_terminal: any matching-width pool entry"
+            width,
+            "pick_terminal: terminal_reuse_prob missed; emit fresh constant"
         );
-        return node;
+        return emit_terminal_constant(g, m, pool, width);
     }
 
     let source: Option<(NodeId, u32, DepSet)> = pool
@@ -1826,6 +1833,14 @@ fn pick_terminal(
         .max_by_key(|e| e.width)
         .map(|e| (e.node, e.width, e.deps.clone()));
     if let Some((src_node, src_width, src_deps)) = source {
+        if roll_knob(g, m, KnobId::ConstantProb, g.cfg.constant_prob) {
+            trace!(
+                tier = 3,
+                width,
+                "pick_terminal: constant_prob fired; emit fresh constant"
+            );
+            return emit_terminal_constant(g, m, pool, width);
+        }
         trace!(
             tier = 3,
             src_node,
@@ -1836,7 +1851,19 @@ fn pick_terminal(
         return make_width_adapter(m, pool, src_node, src_width, src_deps, width);
     }
 
-    warn!(tier = 4, width, "⚠️ pick_terminal: fresh-constant fallback");
+    warn!(
+        tier = 4,
+        width, "⚠️ pick_terminal: fresh-constant fallback (no reusable source)"
+    );
+    emit_terminal_constant(g, m, pool, width)
+}
+
+fn emit_terminal_constant(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
     let value = if width >= 128 {
         0
     } else {
@@ -2034,7 +2061,12 @@ fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     let arith: &[GateOp] = &[Add, Sub, Mul];
     let structured: &[GateOp] = &[Mux];
     let compare: &[GateOp] = if target_width == 1 {
-        &[Eq, Neq, Lt]
+        &[Eq, Neq, Lt, Gt, Le, Ge]
+    } else {
+        &[]
+    };
+    let reduce: &[GateOp] = if target_width == 1 {
+        &[RedAnd, RedOr, RedXor]
     } else {
         &[]
     };
@@ -2044,11 +2076,12 @@ fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     let shifts: &[GateOp] = if target_width > 1 { &[Shl, Shr] } else { &[] };
 
     let w = &g.cfg;
-    let buckets: [(u32, &[GateOp]); 5] = [
+    let buckets: [(u32, &[GateOp]); 6] = [
         (w.gate_bitwise_weight, bitwise),
         (w.gate_arith_weight, arith),
         (w.gate_struct_weight, structured),
         (w.gate_compare_weight, compare),
+        (w.gate_reduce_weight, reduce),
         (w.gate_shift_weight, shifts),
     ];
     let total: u32 = buckets
@@ -2377,6 +2410,110 @@ mod tests {
     }
 
     #[test]
+    fn pick_gate_exercises_all_live_category_ops() {
+        use std::collections::HashSet;
+
+        fn collect_ops(cfg: Config, target_width: u32, draws: usize) -> HashSet<GateOp> {
+            let mut g = Generator::new(cfg);
+            let mut out = HashSet::new();
+            for _ in 0..draws {
+                out.insert(pick_gate(&mut g, target_width));
+            }
+            out
+        }
+
+        let category_cfg = |seed: u64| Config {
+            seed,
+            gate_bitwise_weight: 0,
+            gate_arith_weight: 0,
+            gate_struct_weight: 0,
+            gate_compare_weight: 0,
+            gate_reduce_weight: 0,
+            gate_shift_weight: 0,
+            ..Config::default()
+        };
+
+        let bitwise = collect_ops(
+            Config {
+                gate_bitwise_weight: 1,
+                ..category_cfg(1)
+            },
+            4,
+            512,
+        );
+        assert_eq!(
+            bitwise,
+            HashSet::from([GateOp::And, GateOp::Or, GateOp::Xor, GateOp::Not])
+        );
+
+        let arith = collect_ops(
+            Config {
+                gate_arith_weight: 1,
+                ..category_cfg(2)
+            },
+            4,
+            512,
+        );
+        assert_eq!(
+            arith,
+            HashSet::from([GateOp::Add, GateOp::Sub, GateOp::Mul])
+        );
+
+        let structured = collect_ops(
+            Config {
+                gate_struct_weight: 1,
+                ..category_cfg(3)
+            },
+            4,
+            32,
+        );
+        assert_eq!(structured, HashSet::from([GateOp::Mux]));
+
+        let compare = collect_ops(
+            Config {
+                gate_compare_weight: 1,
+                ..category_cfg(4)
+            },
+            1,
+            1024,
+        );
+        assert_eq!(
+            compare,
+            HashSet::from([
+                GateOp::Eq,
+                GateOp::Neq,
+                GateOp::Lt,
+                GateOp::Gt,
+                GateOp::Le,
+                GateOp::Ge,
+            ])
+        );
+
+        let reduce = collect_ops(
+            Config {
+                gate_reduce_weight: 1,
+                ..category_cfg(5)
+            },
+            1,
+            512,
+        );
+        assert_eq!(
+            reduce,
+            HashSet::from([GateOp::RedAnd, GateOp::RedOr, GateOp::RedXor])
+        );
+
+        let shifts = collect_ops(
+            Config {
+                gate_shift_weight: 1,
+                ..category_cfg(6)
+            },
+            4,
+            256,
+        );
+        assert_eq!(shifts, HashSet::from([GateOp::Shl, GateOp::Shr]));
+    }
+
+    #[test]
     fn pick_mux_arm_count_never_returns_one() {
         let mut g = make_generator(0.0);
         for _ in 0..10_000 {
@@ -2408,6 +2545,84 @@ mod tests {
         let out = make_width_adapter(&mut m, &mut pool, src, 8, deps, 8);
         assert_eq!(out, src, "src==target must be a passthrough");
         assert_eq!(m.nodes.len(), 1, "no nodes should be added on identity");
+    }
+
+    #[test]
+    fn pick_terminal_reuse_knob_controls_exact_width_leaf_choice() {
+        let cfg_reuse = Config {
+            seed: 7,
+            terminal_reuse_prob: 1.0,
+            ..Config::default()
+        };
+        let mut g_reuse = Generator::new(cfg_reuse);
+        let (mut m_reuse, mut pool_reuse, src_reuse, _) = scaffold_module_with_input(4);
+        let picked_reuse = pick_terminal(&mut g_reuse, &mut m_reuse, &mut pool_reuse, 4, None);
+        assert_eq!(
+            picked_reuse, src_reuse,
+            "terminal_reuse_prob=1.0 must reuse the matching-width pool signal"
+        );
+
+        let cfg_fresh = Config {
+            seed: 7,
+            terminal_reuse_prob: 0.0,
+            ..Config::default()
+        };
+        let mut g_fresh = Generator::new(cfg_fresh);
+        let (mut m_fresh, mut pool_fresh, src_fresh, _) = scaffold_module_with_input(4);
+        let picked_fresh = pick_terminal(&mut g_fresh, &mut m_fresh, &mut pool_fresh, 4, None);
+        assert_ne!(
+            picked_fresh, src_fresh,
+            "terminal_reuse_prob=0.0 must not reuse the matching-width pool signal"
+        );
+        assert!(
+            matches!(m_fresh.nodes[picked_fresh as usize], Node::Constant { .. }),
+            "terminal_reuse_prob=0.0 fallback should emit a constant leaf"
+        );
+    }
+
+    #[test]
+    fn pick_terminal_constant_prob_controls_width_adapter_fallback() {
+        let cfg_adapter = Config {
+            seed: 11,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        let mut g_adapter = Generator::new(cfg_adapter);
+        let (mut m_adapter, mut pool_adapter, _, _) = scaffold_module_with_input(8);
+        let picked_adapter =
+            pick_terminal(&mut g_adapter, &mut m_adapter, &mut pool_adapter, 4, None);
+        assert!(
+            matches!(
+                m_adapter.nodes[picked_adapter as usize],
+                Node::Gate {
+                    op: GateOp::Slice { .. },
+                    ..
+                }
+            ),
+            "constant_prob=0.0 must use a width-adapter when no matching-width signal exists"
+        );
+
+        let cfg_constant = Config {
+            seed: 11,
+            constant_prob: 1.0,
+            ..Config::default()
+        };
+        let mut g_constant = Generator::new(cfg_constant);
+        let (mut m_constant, mut pool_constant, _, _) = scaffold_module_with_input(8);
+        let picked_constant = pick_terminal(
+            &mut g_constant,
+            &mut m_constant,
+            &mut pool_constant,
+            4,
+            None,
+        );
+        assert!(
+            matches!(
+                m_constant.nodes[picked_constant as usize],
+                Node::Constant { .. }
+            ),
+            "constant_prob=1.0 must emit a constant when width-adapter fallback is available"
+        );
     }
 
     #[test]

@@ -626,6 +626,10 @@ implemented layer (currently `peephole`) activate every
 implemented layer — they're aspirational anchors for the
 theoretical ceiling.
 
+CLI convenience aliases: `--full-factorization` requests
+`e-graph` (the strongest available identity mode), while
+`--no-full-factorization` requests `none`.
+
 **Doctrinal anchor:** the user's "full factorization" doctrine
 states that `NodeId` is the identity of an expression — two
 expressions that are the same in the mathematical or logical

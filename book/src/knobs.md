@@ -125,9 +125,11 @@ instead of creating fresh logic.
   Default `0.3`. See `sharing.md` for the tree-vs-DAG-per-recursion
   semantics.
 - `terminal_reuse_prob` — probability of reusing a pool signal at
-  forced-leaf decision points. Not currently consulted by
-  `pick_terminal` (the always-prefer-matching-width policy there
-  supersedes it); retained for future tuning.
+  forced-leaf decision points when a matching-width signal exists.
+  `1.0` = always reuse that signal; `0.0` = never reuse it and emit a
+  fresh constant instead. This is the leaf-level sharing knob; it is
+  orthogonal to `share_prob`, which only applies at non-leaf
+  recursion points.
 
 ### Construction strategy
 
@@ -215,7 +217,9 @@ instead of creating fresh logic.
 ### Motif mix and termination
 
 - `constant_prob` — probability of emitting a constant terminal when
-  no matching-width signal exists. Default `0.1`.
+  no matching-width signal exists but a dep-bearing width-adapter
+  source does. Default `0.1`. When this misses, `pick_terminal`
+  adapts an existing source instead of minting a constant.
 - `gate_*_weight` — relative weights for gate categories when picking
   a gate at a non-leaf recursion point. Defaults bitwise `3`, arith
   `2`, struct `1`, compare `1`, reduce `1`.
@@ -314,8 +318,8 @@ Config {
     // Construction strategy
     construction_strategy: ConstructionStrategy::Interleaved,
     graph_first_pool_size: 32,  // legacy; GraphFirst aliased to Interleaved
-    // Factorization ladder (default: full = e-graph, clamps to
-    // highest implemented layer — Commutative today)
+    // Factorization ladder (default request: e-graph, clamps to
+    // highest implemented layer — Peephole today)
     factorization_level: FactorizationLevel::EGraph,
     max_ast_instances: 1,
     mux_arm_duplication_rate: 0.0,
@@ -359,6 +363,7 @@ is accurate as of this commit.
 ### Sharing
 ```
 --share-prob
+--terminal-reuse-prob
 ```
 
 ### Operator arity (N-ary for And/Or/Xor/Add/Mul)
@@ -385,6 +390,16 @@ is accurate as of this commit.
 --min-comparand, --max-comparand
 ```
 
+### Gate mix and leaf termination
+```
+--constant-prob
+--gate-bitwise-weight
+--gate-arith-weight
+--gate-struct-weight
+--gate-compare-weight
+--gate-reduce-weight
+```
+
 ### Blocks
 ```
 --priority-encoder-prob
@@ -400,15 +415,14 @@ is accurate as of this commit.
 ### Factorization ladder
 ```
 --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>
+--full-factorization
+--no-full-factorization
 --max-ast-instances
 --mux-arm-duplication-rate
 --operand-duplication-rate
 ```
 
 ### Not yet exposed via CLI (reachable via `--config FILE`)
-- `gate_bitwise_weight` / `gate_arith_weight` / `gate_struct_weight` / `gate_compare_weight` / `gate_reduce_weight` — gate-category pick weights.
-- `constant_prob` — fallback constant emission probability.
-- `terminal_reuse_prob` — reserved for future tuning.
 - `use_async_reset` — unused (flops are always async-reset by discipline).
 - Hierarchy fields (`hierarchy_depth`, `num_leaf_modules`, `library_prob`) — Phase 4+.
 - `max_nodes_per_module` — safety ceiling, not typically tuned.
@@ -466,12 +480,13 @@ which are bugs worth investigating.
 | `const_comparand_prob`        | `gates_by_kind["eq"]` with width-1 constants               |
 | `min_comparand` / `max_comparand` | `constants_by_width` at the comparison operand width   |
 | `min_gate_arity` / `max_gate_arity` | `max_operand_count_by_kind["add"]` / `["mul"]` / `["and"]` / `["or"]` / `["xor"]`; full histogram in `gate_operand_count_histogram` |
+| `terminal_reuse_prob`         | `knob_roll_attempts["terminal_reuse_prob"]`, `knob_roll_fires["terminal_reuse_prob"]`; higher values raise exact-width leaf reuse |
 | `constant_prob`               | `num_constants` / `num_gates`                              |
 | `gate_*_weight`               | `gates_by_kind` bucket shares                              |
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
 | `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
-| `factorization_level`         | `num_gates` (shrinks from `none` to `cse` → `commutative`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands |
+| `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `peephole`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future
@@ -499,6 +514,7 @@ counts taken during construction. The empirical fire-rate
   the full list (`flop_prob`, `comb_mux_prob`,
   `priority_encoder_prob`, `coefficient_prob`,
   `const_shift_amount_prob`, `const_comparand_prob`,
+  `constant_prob`, `terminal_reuse_prob`,
   `comb_mux_encoding_prob`, `flop_mux_encoding_prob`,
   `share_prob`, `flop_qfeedback_prob`).
 
