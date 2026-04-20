@@ -405,6 +405,25 @@ run was clean.
 This is a durable project rule now: for repo-owned Verilator/Yosys
 evidence, "green" means no errors and no warnings.
 
+### The 1000-module Phase 1 gate should be a first-class harness mode
+
+Once the smoke matrix was green, the next missing piece was not more
+doctrine. It was executable ergonomics. The Phase 1 exit criterion had
+become "run the same harness, but remember to multiply the scenario
+count, pick a large enough `--modules-per-scenario`, and also remember
+that coverage gaps must fail."
+
+That shape now lives in the harness itself as `tool_matrix
+--phase1-gate`:
+
+- it auto-enables coverage-gap failure; and
+- it raises `modules_per_scenario` high enough to generate at least
+  1000 modules total across the built-in scenario set.
+
+The deliberate choice here is to encode the gate in the repo-owned tool
+rather than leaving the phase-exit arithmetic in roadmap prose. When a
+quality gate matters, the project should be able to invoke it directly.
+
 ### Codebase suitability assessment: four steering gaps (2026-04-20)
 
 The short answer to "is the existing codebase suited to the goal?" is:

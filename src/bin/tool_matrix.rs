@@ -8,6 +8,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "tool_matrix",
@@ -26,6 +28,11 @@ struct Cli {
     /// Number of modules to generate per scenario.
     #[arg(long, default_value_t = 1)]
     modules_per_scenario: usize,
+
+    /// Elevate the run to the repo-owned Phase 1 gate:
+    /// require full coverage and at least 1000 generated modules total.
+    #[arg(long)]
+    phase1_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -140,10 +147,19 @@ struct MatrixReport {
     base_seed: u64,
     modules_per_scenario: usize,
     scenario_count: usize,
+    total_modules: usize,
+    phase1_gate: bool,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
     tool_summary: ToolSummary,
     scenarios: Vec<ScenarioReport>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RunPlan {
+    modules_per_scenario: usize,
+    fail_on_coverage_gap: bool,
+    total_modules: usize,
 }
 
 fn main() -> Result<()> {
@@ -160,6 +176,8 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    let plan = derive_run_plan(&cli, scenarios.len());
+
     let out_dir = cli
         .out
         .as_ref()
@@ -173,7 +191,7 @@ fn main() -> Result<()> {
     let mut global_coverage = CoverageSummary::default();
 
     for scenario in scenarios {
-        let report = run_scenario(&scenario, &cli, out_dir)?;
+        let report = run_scenario(&scenario, &cli, &plan, out_dir)?;
         merge_tool_summary(&mut global_tool_summary, &report.tool_summary);
         merge_coverage(&mut global_coverage, &report.coverage);
         scenario_reports.push(report);
@@ -182,8 +200,10 @@ fn main() -> Result<()> {
     let coverage_gaps = compute_coverage_gaps(&global_coverage);
     let report = MatrixReport {
         base_seed: cli.base_seed,
-        modules_per_scenario: cli.modules_per_scenario,
+        modules_per_scenario: plan.modules_per_scenario,
         scenario_count: scenario_reports.len(),
+        total_modules: plan.total_modules,
+        phase1_gate: cli.phase1_gate,
         coverage: global_coverage,
         coverage_gaps,
         tool_summary: global_tool_summary,
@@ -200,6 +220,7 @@ fn main() -> Result<()> {
         report.modules_per_scenario,
         report_path.display()
     );
+    println!("tool_matrix: total modules = {}", report.total_modules);
     println!(
         "tool_matrix: Verilator pass/fail = {}/{}, Yosys pass/fail = {}/{}",
         report.tool_summary.verilator_passed,
@@ -221,7 +242,7 @@ fn main() -> Result<()> {
             report_path.display()
         );
     }
-    if cli.fail_on_coverage_gap && !report.coverage_gaps.is_empty() {
+    if plan.fail_on_coverage_gap && !report.coverage_gaps.is_empty() {
         bail!(
             "tool_matrix detected coverage gaps; see {}",
             report_path.display()
@@ -229,6 +250,21 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
+    let phase1_modules_per_scenario = if cli.phase1_gate {
+        PHASE1_MIN_TOTAL_MODULES.div_ceil(scenario_count)
+    } else {
+        1
+    };
+    let modules_per_scenario = cli.modules_per_scenario.max(phase1_modules_per_scenario);
+    let total_modules = modules_per_scenario * scenario_count;
+    RunPlan {
+        modules_per_scenario,
+        fail_on_coverage_gap: cli.fail_on_coverage_gap || cli.phase1_gate,
+        total_modules,
+    }
 }
 
 fn build_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
@@ -389,15 +425,20 @@ fn motif_heavy_sequential_config(strategy: ConstructionStrategy, seed: u64) -> C
     }
 }
 
-fn run_scenario(scenario: &Scenario, cli: &Cli, out_root: &Path) -> Result<ScenarioReport> {
+fn run_scenario(
+    scenario: &Scenario,
+    cli: &Cli,
+    plan: &RunPlan,
+    out_root: &Path,
+) -> Result<ScenarioReport> {
     let scenario_dir = out_root.join(&scenario.name);
     std::fs::create_dir_all(&scenario_dir)
         .with_context(|| format!("create scenario directory {}", scenario_dir.display()))?;
 
     let mut generator = Generator::new(scenario.config.clone());
-    let mut modules = Vec::with_capacity(cli.modules_per_scenario);
+    let mut modules = Vec::with_capacity(plan.modules_per_scenario);
 
-    for module_index in 0..cli.modules_per_scenario {
+    for module_index in 0..plan.modules_per_scenario {
         let module = generator.generate_module();
         let metrics = anvil::metrics::compute(&module);
         let file = format!("mod_{}_{:04}.sv", scenario.config.seed, module_index);
@@ -885,6 +926,21 @@ fn escape_for_double_quotes(path: &Path) -> String {
 mod tests {
     use super::*;
 
+    fn test_cli() -> Cli {
+        Cli {
+            out: None,
+            base_seed: 0,
+            modules_per_scenario: 1,
+            phase1_gate: false,
+            list_scenarios: false,
+            skip_verilator: false,
+            skip_yosys: false,
+            verilator_bin: "verilator".to_string(),
+            yosys_bin: "yosys".to_string(),
+            fail_on_coverage_gap: false,
+        }
+    }
+
     #[test]
     fn scenario_names_are_unique() {
         let scenarios = build_scenarios(7).expect("build scenarios");
@@ -949,5 +1005,28 @@ mod tests {
             .iter()
             .any(|gap| gap.contains("missing gate category arithmetic")));
         assert!(gaps.iter().any(|gap| gap.contains("priority-encoder")));
+    }
+
+    #[test]
+    fn phase1_gate_raises_modules_per_scenario_to_cover_1000_modules() {
+        let mut cli = test_cli();
+        cli.phase1_gate = true;
+
+        let plan = derive_run_plan(&cli, 15);
+        assert_eq!(plan.modules_per_scenario, 67);
+        assert_eq!(plan.total_modules, 1005);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn phase1_gate_preserves_larger_explicit_module_count() {
+        let mut cli = test_cli();
+        cli.phase1_gate = true;
+        cli.modules_per_scenario = 100;
+
+        let plan = derive_run_plan(&cli, 15);
+        assert_eq!(plan.modules_per_scenario, 100);
+        assert_eq!(plan.total_modules, 1500);
+        assert!(plan.fail_on_coverage_gap);
     }
 }

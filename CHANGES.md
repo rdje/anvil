@@ -3,9 +3,88 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0091 — Close the downstream-warning bucket
+## 2026-04-20-0092 — Make the Phase 1 gate first-class in tool_matrix
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice turns the "broaden the clean downstream sweep toward the
+1000-module Phase 1 gate" step into a first-class repo-owned harness
+mode instead of leaving it as manual arithmetic over the smoke matrix.
+
+### `tool_matrix` now has an explicit Phase 1 gate mode
+
+- Added `--phase1-gate` to `src/bin/tool_matrix.rs`.
+- The flag:
+  - auto-enables coverage-gap failure; and
+  - raises `modules_per_scenario` high enough to generate at least
+    1000 modules total across the built-in scenario set.
+- The aggregated JSON report now records:
+  - `total_modules`, and
+  - whether the run was a `phase1_gate` run.
+- Console output now prints the total module count so the scale of a
+  run is explicit at a glance.
+
+Today, with the built-in 15-scenario matrix, `--phase1-gate` lifts the
+run to 67 modules/scenario, i.e. 1005 total modules.
+
+### The run-plan math is now tested
+
+- Added two inline unit tests in `src/bin/tool_matrix.rs`:
+  - Phase 1 gate raises the default 1-module/scenario smoke shape to
+    67 modules/scenario for 15 scenarios.
+  - A larger explicit `--modules-per-scenario` still wins when the user
+    intentionally asks for an even bigger run.
+
+### Durable docs now point at the real command
+
+- `README.md`, `USER_GUIDE.md`, `ROADMAP.md`, `CODEBASE_ANALYSIS.md`,
+  `DEVELOPMENT_NOTES.md`, `MEMORY.md`, and `book/src/recipes.md` now
+  all describe `tool_matrix --phase1-gate` as the repo-owned Phase 1
+  gate shape instead of leaving that invocation implicit.
+
+**Why**
+
+Now that the smoke matrix is green, the next pressure point is scale.
+The Phase 1 gate matters too much to live only as prose plus
+"remember to do the math". If a quality gate is load-bearing, ANVIL
+should be able to invoke it directly and deterministically.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-smoke-post-phase1-flag --modules-per-scenario 1`
+  - Verilator: 15 pass / 0 fail
+  - Yosys: 15 pass / 0 fail
+
+**Impact**
+
+- The repo-owned clean smoke matrix remains easy to run.
+- The broader Phase 1 gate is now an explicit harness mode instead of a
+  remembered convention.
+- This makes the next scale-up slice more mechanical: run the real gate,
+  investigate any failures, retain fixtures if needed, repeat.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `README.md`
+- `ROADMAP.md`
+- `USER_GUIDE.md`
+- `book/src/recipes.md`
+- `src/bin/tool_matrix.rs`
+
+## 2026-04-20-0091 — Close the downstream-warning bucket
+
+**Landed as:** `07536df`
 
 **What changed**
 

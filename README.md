@@ -142,6 +142,15 @@ fails on any generated file or emits any warning. Current local smoke
 status after the post-construction proof-cleanup slice: the built-in
 matrix is 15/15 clean in Verilator and 15/15 clean in Yosys.
 
+For the repo-owned Phase 1 gate shape:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
+```
+
+That auto-enables coverage-gap failure and raises the per-scenario
+module count high enough to generate at least 1000 modules total.
+
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.

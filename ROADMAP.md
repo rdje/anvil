@@ -154,6 +154,10 @@ repo-owned `tool_matrix` harness now exists and already exercises a
 factorization levels, and stress profiles; the current smoke run is
 15/15 clean in Verilator and 15/15 clean in Yosys, with the harness
 treating warnings as failures rather than accepting noisy green runs.
+The repo-owned gate shape is now explicit too: `tool_matrix
+--phase1-gate` auto-raises the run to at least 1000 generated modules
+total and requires full matrix coverage, though that full gate has not
+been run to completion locally yet.
 Internal validation (140 tests after
 the proof-cleanup slice, unused-signal Verilator
 sweep over seeds 0..4 for the default path and the `graph-first`

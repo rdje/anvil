@@ -141,8 +141,10 @@ src/
 │                     generates per-scenario corpora, runs Verilator
 │                     and Yosys, writes `tool_matrix_report.json`,
 │                     aggregates metrics/coverage facts, and exits
-│                     non-zero on tool failures. Also doubles as the
-│                     first executable "axis matrix" proof surface.
+│                     non-zero on tool failures. `--phase1-gate`
+│                     lifts the run to >=1000 total modules with
+│                     coverage-gap failure enabled. Also doubles as
+│                     the first executable "axis matrix" proof surface.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports `types::*`, `compact::*`, and validate.
@@ -447,14 +449,16 @@ In `ir::validate::validate`:
 - `src/emit/sv.rs` — 7 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, no-op compaction, orphan removal, and topological-order preservation.
-- `src/bin/tool_matrix.rs` — 4 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, and coverage-gap detection.
+- `src/bin/tool_matrix.rs` — 6 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, and the Phase-1 gate run-plan math.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
 - Current executed counts (`cargo test`, 2026-04-20): **116 unit + 24 integration = 140 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps; the smoke matrix is now green, and the Phase 1 exit gate is
   blocked only on scaling that clean matrix up to the larger
-  1000-module gate.
+  1000-module gate. The harness now has an explicit `--phase1-gate`
+  mode for that scale-up shape rather than leaving the arithmetic in
+  roadmap prose.
 
 ## Known weaknesses (visible in code today)
 

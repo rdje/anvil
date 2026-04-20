@@ -227,6 +227,8 @@ Useful options:
 
 - `--list-scenarios` to print the built-in matrix without running it.
 - `--modules-per-scenario N` to trade runtime for more coverage.
+- `--phase1-gate` to auto-enable coverage-gap failure and raise the
+  run to at least 1000 generated modules total.
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one

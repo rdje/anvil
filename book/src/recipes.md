@@ -48,6 +48,9 @@ cargo run --bin tool_matrix -- --out ./tool-matrix --modules-per-scenario 4
 
 # Treat missed matrix coverage as a failing result too.
 cargo run --bin tool_matrix -- --out ./tool-matrix --fail-on-coverage-gap
+
+# Run the repo-owned Phase 1 gate shape (>=1000 modules total).
+cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
 ```
 
 ## "I want fanout stress"
