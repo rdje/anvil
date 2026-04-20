@@ -1567,7 +1567,8 @@ fn node_unsigned_bounds(
                         }
                         let live: Vec<(u128, u128)> = live_parity
                             .into_iter()
-                            .filter_map(|(operand, odd)| odd.then(|| live_bounds[&operand]))
+                            .filter(|&(_, odd)| odd)
+                            .map(|(operand, _)| live_bounds[&operand])
                             .collect();
                         if live.is_empty() {
                             (exact_xor & all_ones, exact_xor & all_ones)

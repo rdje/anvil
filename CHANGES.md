@@ -3,9 +3,110 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0095 — Advance the real Phase 1 gate frontier to 246 clean modules
+## 2026-04-21-0096 — Advance the real Phase 1 gate frontier to 365 clean modules
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is primarily an evidence slice, with one small hygiene-only source
+cleanup discovered during the mandatory pre-commit checks.
+
+I resumed the real repo-owned Phase 1 gate from a fresh output tree:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r7 --phase1-gate`
+
+and checkpointed it only after it had materially expanded the clean
+frontier again.
+
+The run reached **365 generated modules** with:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved `*.yosys.stdout.log`
+  files
+
+Per-scenario progress at the checkpoint:
+
+- `int_relaxed_none_default`: 67 modules clean
+- `int_nodeid_none_default`: 67 modules clean
+- `int_nodeid_cse_default`: 67 modules clean
+- `int_nodeid_operand-unique_default`: 67 modules clean
+- `int_nodeid_commutative_default`: 67 modules clean
+- `int_nodeid_associative_default`: 30 modules clean
+
+This extends the clean evidence from the first three node-id rungs into
+the full commutative rung and materially into the associative rung,
+without surfacing a single new Verilator warning or Yosys warning.
+
+While running the required hygiene quartet for the checkpoint,
+`cargo clippy --all-targets -- -D warnings` also surfaced a
+pre-existing `clippy::filter_map_bool_then` lint in
+`src/gen/cone.rs`. That site now uses the equivalent `filter(...).map(...)`
+form. The behavior is unchanged; the slice just brings the repo back to
+full hygiene-green status after recording the stronger frontier.
+
+The live docs were updated to record this improved evidence frontier.
+No roadmap phase labels changed.
+
+**Why**
+
+The user's standing direction is still the right one: warnings count,
+tool cleanliness matters, and the adversarial axes need to be exercised
+without hidden bias. Once the warning bucket stopped reproducing in the
+earlier lanes, the next responsible move was to keep pushing the real
+matrix forward across more identity/factorization scenarios instead of
+pretending the early clean runs were enough.
+
+The commit workflow is also explicit that the hygiene quartet must be
+green before a commit proceeds. Folding the tiny clippy cleanup into
+this slice keeps the checkpoint honest instead of landing an evidence
+commit that immediately fails the repo's own pre-commit bar.
+
+This slice matters because the new frontier now shows the repaired
+generator behavior surviving:
+
+- the full relaxed/default scenario,
+- the full node-id/none scenario,
+- the full node-id/cse scenario,
+- the full node-id/operand-unique scenario,
+- the full node-id/commutative scenario, and
+- a substantial prefix of node-id/associative.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r7 --phase1-gate`
+  - checkpointed after 365 generated modules
+  - `find /tmp/anvil-tool-matrix-phase1-real-r7 -name '*.sv' | wc -l` -> `365`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r7 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r7/*/*.yosys.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The real repo-owned Phase 1 warning-clean frontier advanced from 246
+  modules to 365 modules.
+- Cleanliness evidence now spans the full commutative node-id scenario
+  and 30 modules into the associative scenario.
+- The repo is back to a fully green commit-workflow hygiene quartet
+  after the tiny clippy-only cleanup in `src/gen/cone.rs`.
+- The next PNT can resume from a stronger checkpoint and either finish
+  the associative lane or investigate the first new warning/failure
+  beyond it, instead of rerunning already-established clean ground.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `src/gen/cone.rs`
+
+## 2026-04-20-0095 — Advance the real Phase 1 gate frontier to 246 clean modules
+
+**Landed as:** `60d9883`
 
 **What changed**
 

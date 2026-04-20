@@ -42,10 +42,13 @@ generator. The work still required falls into four explicit gaps:
    same `NodeId`" is not yet fully true for stronger sequential
    equivalence or future hierarchical objects.
 3. **Tool-clean confidence is still under-automated**
-   The repo has strong internal validation and local smoke evidence, but
-   it does not yet have the broad Verilator/Yosys sweep matrix implied
-   by the signoff-grade goal. That missing harness is now one of the
-   main quality gaps, not an optional extra.
+   The repo has strong internal validation and local smoke evidence,
+   including a real `tool_matrix --phase1-gate` frontier now pushed to
+   365 warning-clean modules across five full scenarios plus 30 modules
+   of a sixth. But it still does not yet have the broad
+   Verilator/Yosys sweep matrix implied by the signoff-grade goal. That
+   missing full-closure evidence remains one of the main quality gaps,
+   not an optional extra.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
@@ -145,6 +148,10 @@ src/
 │                     lifts the run to >=1000 total modules with
 │                     coverage-gap failure enabled. Also doubles as
 │                     the first executable "axis matrix" proof surface.
+│                     Current recorded real frontier: 365 clean modules
+│                     with zero Verilator warning logs and zero Yosys
+│                     warning lines, through the full commutative rung
+│                     and into the associative rung.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports `types::*`, `compact::*`, and validate.
