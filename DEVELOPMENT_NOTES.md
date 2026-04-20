@@ -488,6 +488,34 @@ they are applied in `fold_proven_gates` and `merge_equivalent_gates`.
 This preserves the default "zero duplicate operands" doctrine without
 backing away from late exact-value cleanup or bounded semantic sharing.
 
+### Evidence slices are legitimate when the real gate frontier moves materially (2026-04-20)
+
+Not every important slice changes code. Once the user set the quality
+bar as "no warnings or errors from Verilator and Yosys", the real
+`tool_matrix --phase1-gate` run became part of the implementation loop,
+not just a nice-to-have afterthought.
+
+That means there is a legitimate kind of slice whose output is:
+
+- a materially advanced real downstream-clean frontier,
+- recorded precisely (scenario names, module counts, command line), and
+- committed into the live docs so the next session does not restart the
+  same evidence climb from memory or vibes.
+
+The key is that the checkpoint must be **material**, not cosmetic. In
+this session, moving from the earlier 76-module clean frontier to 246
+clean modules across multiple identity/factorization lanes cleared that
+bar easily. It changed what we know about the repaired generator.
+
+So the durable rule is:
+
+- if a long real gate run advances the proven clean frontier
+  substantially, it is acceptable to checkpoint that evidence as its own
+  slice, even if no code changed in that commit.
+
+That rule matters for crash recovery too, which is exactly why the
+commit workflow is strict in the first place.
+
 Second, the repo-owned downstream harness now treats warnings as
 failures rather than as "successful but noisy" runs. `tool_matrix`
 scans tool output for warning markers and marks the invocation failed

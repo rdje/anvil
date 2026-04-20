@@ -163,7 +163,12 @@ wide-slice-proof / dead-state-cleanup slice, unused-signal Verilator
 sweep over seeds 0..4 for the default path and the `graph-first`
 alias, a warning-clean `seed=0 / interleaved / relaxed / none`
 repro on `mod_0_0006.sv`, plus a warning-clean seed-42 Verilator lint
-and seed-42 Yosys synthesis) is otherwise clean.
+and seed-42 Yosys synthesis) is otherwise clean. The real repo-owned
+Phase 1 gate has now also been pushed to 246 generated modules with no
+Verilator warning logs and no Yosys warning lines in the saved stdout
+logs before manual stop, spanning the full `int_relaxed_none_default`,
+`int_nodeid_none_default`, and `int_nodeid_cse_default` scenarios plus
+45 modules into `int_nodeid_operand-unique_default`.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 

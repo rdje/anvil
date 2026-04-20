@@ -3,9 +3,88 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0094 — Close wide-slice overshift proof gaps and prune dead state at finalisation
+## 2026-04-20-0095 — Advance the real Phase 1 gate frontier to 246 clean modules
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice, not a code-change slice.
+
+After landing the wide-slice proof / dead-state / strict post-remap
+duplicate fixes, I reran the real repo-owned Phase 1 gate:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r6 --phase1-gate`
+
+and manually stopped it only after it had materially advanced beyond the
+previous frontier.
+
+The partial run reached **246 generated modules** with:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved `*.yosys.stdout.log`
+  files
+
+Per-scenario progress at the checkpoint:
+
+- `int_relaxed_none_default`: 67 modules clean
+- `int_nodeid_none_default`: 67 modules clean
+- `int_nodeid_cse_default`: 67 modules clean
+- `int_nodeid_operand-unique_default`: 45 modules clean
+
+This means the repaired warning bucket is no longer just a first-scenario
+accident: the clean run now spans relaxed + node-id lanes and has pushed
+well into the next factorization rung too.
+
+The live docs were updated to record this improved evidence frontier.
+No roadmap phase labels changed.
+
+**Why**
+
+The user explicitly set the bar as "no warning or error from Verilator
+and Yosys" and asked that warnings always warrant investigation. Once a
+warning bucket is fixed, the next responsible move is not to assume the
+problem is gone forever; it is to push the real adversarial matrix
+farther and retain the new clean frontier as durable evidence.
+
+That matters here because the previous frontier had only reached the
+first relaxed/default scenario. This slice shows that the same repaired
+generator behavior now survives:
+
+- the full relaxed/default scenario,
+- the full node-id/none scenario,
+- the full node-id/cse scenario, and
+- a substantial prefix of node-id/operand-unique.
+
+**Validation**
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r6 --phase1-gate`
+  - manually stopped after 246 generated modules
+  - `find /tmp/anvil-tool-matrix-phase1-real-r6 -name '*.sv' | wc -l` -> `246`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r6 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r6/*/*.yosys.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The real repo-owned Phase 1 warning-clean frontier advanced from the
+  earlier 76-module checkpoint to 246 modules.
+- Cleanliness evidence now spans multiple identity/factorization modes,
+  not only the first relaxed/default lane.
+- The next PNT can start from a stronger base: keep pushing the real
+  gate until the next actual warning/failure, rather than re-litigating
+  the already-fixed early scenarios.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+
+## 2026-04-20-0094 — Close wide-slice overshift proof gaps and prune dead state at finalisation
+
+**Landed as:** `739f9fe`
 
 **What changed**
 
