@@ -390,12 +390,15 @@ variants (`GateArity`, `GateOperandWidth`, `GateOutputWidth`,
 
 ## 11 — Synthesizable subset
 
-**Rule:** The gate set, the flop pattern, and the emitter cover only
-the synthesizable subset of SystemVerilog. No `initial`, no delays
-(`#N`), no `$display` / `$finish`, no dynamic arrays, no classes, no
-events, no tasks, no fork/join, no `wait`, no latches (`always_comb`
-is not emitted for datapaths — `assign` is used instead and always
-fully defines its target).
+**Rule:** The current leaf-RTL lane's gate set, flop pattern, and
+emitter cover only the synthesizable subset of SystemVerilog. No
+`initial`, no delays (`#N`), no `$display` / `$finish`, no dynamic
+arrays, no classes, no events, no tasks, no fork/join, no `wait`, and
+no latch-emitting datapath form in this lane (`always_comb` is not
+emitted for datapaths — `assign` is used instead and always fully
+defines its target). Future artifact families may broaden the source
+surface, but they must remain valid-by-construction and synthesizable
+too.
 
 **Where enforced:** the IR has no node kinds for these constructs;
 the emitter has no code path that produces them. Absence is

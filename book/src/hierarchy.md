@@ -9,6 +9,12 @@ larger modules. The algorithm is structurally identical — it is *the
 same recursion* — with one extra choice at each cone node:
 "instantiate a sub-module and use one of its output ports."
 
+This chapter describes hierarchy in the **current circuit-IR framing**.
+The broadened roadmap now also includes future source-level
+frontend/elaboration artifact families, which will likely need a
+parameter / package / type aware source-level IR in addition to this
+gate-and-instance view.
+
 ## Generation order
 
 ```

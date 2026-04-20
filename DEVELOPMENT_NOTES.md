@@ -29,8 +29,16 @@ These are documented in detail in the mdBook. They are restated here only as anc
   `book/src/construction-strategies.md`.
 - **Circuit IR over annotated EBNF.** The generator builds a typed circuit graph and emits SV from it. See `book/src/why-not-grammar.md`.
 - **Generation by construction, not generate-then-filter.** Validity is structural; the validator is a safety net, not a gate. See `book/src/by-construction.md`.
-- **Synthesizability is a subset constraint.** The gate set, flop pattern, and emitter cover only the synthesizable subset. There is no mode that emits non-synthesizable constructs. See `book/src/synthesizability.md`.
-- **Non-triviality via dep-set tracking + structural anti-collapse rules.** No oracle. See `book/src/non-triviality.md`.
+- **Synthesizability is a subset constraint.** The gate set, flop
+  pattern, and emitter cover only the synthesizable subset. Broader
+  artifact families must keep that contract too; the project is
+  broadening to more kinds of valid-by-construction synthesizable
+  artifacts, not abandoning synthesizability. See
+  `book/src/synthesizability.md`.
+- **Non-triviality via dep-set tracking + structural anti-collapse
+  rules.** No bundled oracle. Expected-facts manifests for specific
+  artifact families are acceptable; a shadow simulator used as a global
+  filter is not. See `book/src/non-triviality.md`.
 - **Signoff-grade adversarial RTL is the product goal.** `anvil` is not
   trying to be merely "valid enough". The target is a signoff-level
   quality random synthesizable RTL generator whose outputs are clean in
@@ -39,8 +47,9 @@ These are documented in detail in the mdBook. They are restated here only as anc
   both first-class; neither is optional garnish for the other.
 - **No oracle, no reference simulator.** `anvil` is still a generator,
   not a bundled shadow simulator. The way it stresses downstream tools
-  is by emitting high-quality legal RTL, not by embedding a second
-  implementation of RTL semantics. See `book/src/non-goals.md`.
+  is by emitting high-quality legal RTL and explicit expected-facts
+  contracts where appropriate, not by embedding a second implementation
+  of RTL semantics. See `book/src/non-goals.md`.
 
 If you need to revise any of these, that is a deliberate task with its own commit and a `DEVELOPMENT_NOTES.md` entry.
 
@@ -249,6 +258,57 @@ legitimacy, synthesizability, complexity, and downstream-tool
 ingestibility. Treat whole-module function correctness as out of scope
 unless a feature introduces a local block motif whose own behavior is
 well-defined by construction.
+
+### Broader artifact-family mandate (2026-04-20)
+
+The user then broadened the scope again and explicitly corrected one
+important boundary:
+
+> It might sound contradictory but in addition to what's already
+> described in the roadmap, book and live docs, I think it would good
+> to include support for such things in the roadmap, book and live docs
+> in order for ANVIL to be able address a lot more types of SV files
+> formats as output. Being able to generate various types of pseudo
+> random files for various types on downstream consumers would be a
+> great plus, I think.
+>
+> In fine, I want ANVIL to be able accurately and precisely address the
+> initial request, in full.
+>
+> ANVIL shall be the go to tool for everything (pseudo random) HDL
+> generation related thing.
+>
+> I don't think this contradict the current roadmap of AMVIL that much,
+> it is just that we are broadening the type HDL outputs we can target.
+>
+> As you wrote it clearly above, right now ANVIL is still a "leaf-module
+> typed circuit generator", I agree.
+>
+> We need to start somewhere, but that is not the end goal.
+>
+> So we need to be able to embrass more output artifact types.
+>
+> This "valid-by-construction synthesizable lane” is still valid, and
+> it will stay that way!
+>
+> We are just generating more types of valid-by-construction
+> synthesizable artifacts.
+
+Operational consequence:
+
+- the current leaf-module typed circuit generator is now explicitly the
+  **first artifact family**, not the whole product;
+- future broadening still stays inside the
+  **valid-by-construction synthesizable** contract;
+- the first requested additions are oracle-backed micro-design corpora,
+  source-level parameter / hierarchy / package IR, and explicit
+  expected-facts manifests; and
+- an earlier idea of broadening via invalid/reject corpora is **not**
+  the adopted direction for ANVIL after the user's correction above.
+
+This is a real scope change for planning, not a soft aspiration. The
+roadmap now needs explicit phases for these broader synthesizable
+artifact families.
 
 ### Codebase suitability assessment: four steering gaps (2026-04-20)
 

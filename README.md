@@ -2,7 +2,11 @@
 Single entry point for the project.
 
 ## Project objective
-`anvil` is a constrained-random generator of **synthesizable SystemVerilog RTL**. It produces syntactically valid, semantically correct, synthesizable, and structurally non-trivial modules by building a typed circuit graph via fanin-cone recursion and emitting SV from it.
+`anvil` is a constrained-random generator of **synthesizable
+SystemVerilog RTL**. Today its implemented lane produces syntactically
+valid, semantically correct, synthesizable, and structurally
+non-trivial modules by building a typed circuit graph via fanin-cone
+recursion and emitting SV from it.
 
 The intended destination is stronger than "valid enough": `anvil`
 should become a **signoff-level-quality random RTL generator** whose
@@ -18,12 +22,22 @@ tool-ingestible complexity; absent a specification, most generated
 modules are expected to be functionally arbitrary or outright
 gibberish, and that is acceptable.
 
+The long-term scope is broader than one leaf-module format. The user
+has now made that explicit: the current "leaf-module typed circuit
+generator" is the starting point, not the end state. ANVIL is meant to
+grow into the go-to tool for **multiple families of pseudo-random,
+valid-by-construction, synthesizable HDL artifacts** — for example the
+current DUT RTL lane, future oracle-backed micro-design corpora, and
+future frontend/elaboration-oriented accept corpora with explicit
+expected-facts manifests.
+
 **Three load-bearing principles:**
 1. **Recursion is the core algorithm.** The generator answers one question — *"what drives this signal?"* — and recurses. Every level of abstraction (gate, cone, module, hierarchy) is the same recursion with a richer choice set. Iteration is the exception; recursion is the default. Anything that can be expressed as a recursive descent over a typed circuit graph should be.
 2. **Every emitted module is valid by construction.** No generate-then-filter. No post-hoc repair. If a generator output fails semantic validation or synthesis, that is a generator bug, not expected behavior.
 3. **Every output is reproducible.** Byte-identical output for the same `(seed, knobs)` pair, across platforms, forever. Seeded ChaCha8; no `thread_rng`; no wall-clock entropy; no hash-map iteration order in output paths.
 
-See `ROADMAP.md` for the phased scope (combinational → sequential → sharing → hierarchy → parameterization).
+See `ROADMAP.md` for the phased scope of the current leaf RTL lane plus
+the broader future artifact families.
 
 ## Fast ramp-up (recommended reading order)
 1. `README.md` (this file): canonical entry point and project map.
@@ -68,7 +82,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `book/src/non-triviality.md`       dep-set tracking, anti-collapse rules
 - `book/src/sequential.md`           Phase 2 cone boundaries
 - `book/src/sharing.md`              Phase 3 DAG sharing
-- `book/src/hierarchy.md`            Phase 5 module-of-modules
+- `book/src/hierarchy.md`            hierarchy and future composition layers
 - `book/src/knobs.md`                knob taxonomy, reproducibility contract
 - `book/src/architecture.md`         Rust module layout and testing strategy
 - `book/src/non-goals.md`            explicit scope refusals
@@ -117,7 +131,12 @@ Both should succeed on every generated file. A failure is a generator bug; file 
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` keeps the factorization ladder live, `relaxed` disables it.
 - `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.
-- Current scope: single-module combinational **and sequential** generation, DAG sharing default-on, factorization ladder live through `peephole`, plus conservative exact-signature flop merging under `--identity-mode node-id` with effective level `>= cse`, no hierarchy yet. See `ROADMAP.md` for phase gating.
+- Current scope: single-module combinational **and sequential**
+  generation, DAG sharing default-on, bounded semantic `e-graph`
+  fragment live under `--identity-mode node-id`, no hierarchy yet, and
+  no artifact-family selector yet. Broader valid-by-construction
+  synthesizable artifact families are roadmap work. See `ROADMAP.md`
+  for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

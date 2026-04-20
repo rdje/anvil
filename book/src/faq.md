@@ -106,10 +106,13 @@ equivalent expressions should collapse to one `NodeId`, regardless
 of which output cone first built them or how they were spelled
 syntactically. For combinational nodes this is enforced at
 construction time via `Module::intern_gate` / `intern_constant`.
-For state, there is one conservative post-drain pass that merges
-exact duplicate flop signatures once D-cones exist.
+For post-construction identity, there are conservative bounded passes
+that merge equivalent small-support gates and equivalent flop state
+elements once the relevant cones exist and ANVIL can prove same
+functionality over the same canonical leaf endpoints.
 
-Today the live ladder reaches through **peephole**:
+Today the live ladder reaches through the bounded **`e-graph`**
+fragment:
 
 1. **Syntactic CSE** (Rule 21) — same `(op, operands, width)` ⇒
    same `NodeId`.
@@ -164,6 +167,44 @@ No. `anvil` generates DUT code only. Testbenches require semantic
 understanding of the DUT (what inputs are legal, what outputs
 mean). A random testbench for a random DUT tests nothing. See
 [What We Explicitly Do Not Do](non-goals.md) for the full list.
+
+## Is `anvil` permanently just a leaf-module typed circuit generator?
+
+No. That is the **current implemented lane**, not the intended final
+shape of the project.
+
+The user has now made the broader direction explicit: ANVIL should grow
+into the go-to tool for multiple families of pseudo-random,
+valid-by-construction, synthesizable HDL artifacts. The current
+leaf-module generator remains the first lane. Future lanes on the
+roadmap include:
+
+- oracle-backed micro-design corpora;
+- source-level parameter / hierarchy / package / type driven accept
+  corpora; and
+- a shared multi-artifact umbrella that keeps reproducibility,
+  manifests, and mode selection explicit.
+
+What does **not** change is the quality bar: these broadened families
+are still meant to be valid by construction and synthesizable.
+
+## Does "no oracle" mean expected-facts manifests are forbidden?
+
+No. "No oracle" means ANVIL does not embed a general-purpose
+SystemVerilog interpreter or shadow simulator.
+
+Expected-facts manifests are different. For some artifact families it is
+useful to emit a small, explicit contract alongside the `.sv` file:
+
+- parameter / localparam values,
+- resolved ranges,
+- generate decisions,
+- instance paths,
+- child parameter values,
+- port bindings.
+
+That kind of manifest is in scope because it is a **declared artifact
+contract**, not an embedded second implementation of RTL semantics.
 
 ## Is the generated SystemVerilog synthesizable?
 

@@ -55,10 +55,11 @@ generate_leaf_module(rng, knobs, index):
     drain_flop_worklist(pool, worklist)
 
     # Finalisation: drop construction-only mux operand metadata,
-    # merge exact duplicate flop state signatures when identity mode
-    # permits it, compact unreachable nodes, then trim dead input
-    # surface.
+    # run the bounded post-construction semantic merge passes when
+    # identity mode permits them, compact unreachable nodes, then
+    # trim dead input surface.
     summarize_flop_mux_metadata(module)
+    merge_equivalent_gates(module)
     merge_equivalent_flops(module)
     compact_node_ids(module)
     shrink_primary_inputs_to_live_width(module)
@@ -315,8 +316,9 @@ the final IR has a consumer by construction.
 These rules do not catch algebraic identities deeper in the tree
 (`(a + b) - b`, etc.). Those survive and show up in the output. The
 factorization ladder now implements `associative`,
-`constant-fold`, and `peephole`; only the `e-graph` level remains
-aspirational for deeper cross-gate algebraic equivalence.
+`constant-fold`, `peephole`, and a bounded live `e-graph` fragment;
+only the fuller `e-graph` destination remains aspirational for deeper
+cross-gate algebraic equivalence.
 
 After cone construction, module finalisation does one more
 alignment pass before emission: it drops construction-only

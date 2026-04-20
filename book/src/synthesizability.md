@@ -8,6 +8,11 @@ loops, unsynthesizable memory patterns.
 The critical design choice in `anvil`: **synthesizability is enforced
 by grammar restriction, not by post-hoc filtering.**
 
+This chapter describes the **current primary synthesizable RTL lane**.
+Future artifact families may broaden the emitted source forms, but the
+user has explicitly re-affirmed that they are still meant to be
+valid-by-construction and synthesizable.
+
 ## How
 
 The `GateOp` enum lists only synthesizable operators. There is no
@@ -20,7 +25,8 @@ emits:
 - `wire`, `logic` internal signal declarations
 - `assign` for combinational drives
 - `always_ff @(posedge clk [or negedge rst_n])` blocks for flops
-- No `always @*`; `always_comb` only if ever needed (Phase 4+).
+- In the current leaf lane: no `always @*`; `always_comb` only if a
+  future synthesizable artifact family explicitly adds it.
 - No `initial`. No `final`. No `fork`/`join`. No `wait`. No `#delay`.
 - No `$display`, `$monitor`, `$finish`, `$stop`, or similar.
 - No `real`, `time`, `event`, `class`, `queue`, dynamic arrays.
@@ -50,7 +56,7 @@ No sync-reset or no-reset variants are generated; per-flop clock or
 reset polarity doesn't exist in the IR. No other `always_ff` shapes
 are emitted.
 
-## Memories (future, Phase 7)
+## Memories (future, advanced motifs)
 
 When memories are added, they follow inferrable patterns only:
 

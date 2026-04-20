@@ -3,9 +3,119 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0087 — Activate bounded semantic gate merging at `e-graph`
+## 2026-04-20-0088 — Broaden ANVIL toward multiple synthesizable artifact families
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice captures a new steering conclusion across the roadmap, live
+docs, and book: ANVIL is no longer documented as only a leaf-module RTL
+generator. That lane stays intact, but it is now explicitly framed as
+the first artifact family in a broader valid-by-construction
+synthesizable HDL generator.
+
+### The product scope is now documented as multiple valid artifact families
+
+- `README.md`, `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, and
+  `CODEBASE_ANALYSIS.md` now say the same thing:
+  - the current leaf-module typed-circuit lane remains valid and
+    important;
+  - the project is broadening to more artifact families, not relaxing
+    the quality bar; and
+  - every future family must stay valid-by-construction and
+    synthesizable.
+- The docs now explicitly capture the user's clarification that the
+  "valid-by-construction synthesizable lane" remains in force while
+  ANVIL grows into a broader pseudo-random HDL generator.
+
+### The roadmap now names the next artifact-family layers
+
+- `ROADMAP.md` now has a durable "broader artifact-family mandate"
+  section near the top.
+- Three new roadmap phases were added:
+  - **Phase 7** — oracle-backed micro-design artifacts;
+  - **Phase 8** — frontend/elaboration accept corpora; and
+  - **Phase 9** — a multi-artifact ANVIL umbrella.
+- These phases describe the requested direction more concretely:
+  source-level parameter / hierarchy / package aware generation,
+  expected-facts manifests, and compact synthesizable `.sv` corpora
+  with known elaboration facts.
+
+### Expected-facts manifests are now documented as in-scope
+
+- The docs now distinguish carefully between two ideas:
+  - a bundled shadow simulator or general oracle, which remains out of
+    scope; and
+  - explicit expected-facts manifests for artifact families that need
+    them, which are in scope.
+- This distinction is now reflected consistently in the roadmap, the
+  contributor notes, the codebase analysis, and the book.
+
+### The stale contradictions were cleaned up
+
+- Removed the remaining stray "reject corpora" wording from the
+  roadmap.
+- Updated the book and live docs to stop claiming the live
+  factorization ladder only reaches `peephole`; they now say the truth:
+  ANVIL has a bounded live `e-graph` fragment, while fuller semantic
+  equivalence remains future work.
+- Clarified a few now-misleading phase/status labels in the README and
+  structural rules.
+
+**Why**
+
+The user broadened the mandate in a very specific way: ANVIL should
+become the go-to tool for pseudo-random HDL generation more broadly,
+but it must do so by adding more **valid-by-construction synthesizable**
+artifact families rather than by weakening the existing discipline.
+
+That matters because the earlier draft of the docs still contained one
+important wrong implication: broadening had started to drift toward
+"reject corpus" language. The user's correction rules that out. The
+durable documentation now reflects the intended direction precisely:
+keep the current signoff-grade synthesizable lane, add more
+synthesizable lanes, and give those new families explicit contracts.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Future implementation work now has a clearer steering target:
+  broaden ANVIL by adding new synthesizable artifact families rather
+  than by diluting the existing DUT lane.
+- The roadmap now contains explicit phases for oracle-backed
+  micro-designs, frontend/elaboration accept corpora, and the
+  multi-artifact umbrella that will eventually coordinate them.
+- Session recovery is safer because the roadmap, live docs, and book
+  now tell the same story about what ANVIL is growing into.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/introduction.md`
+- `book/src/faq.md`
+- `book/src/non-goals.md`
+- `book/src/non-triviality.md`
+- `book/src/synthesizability.md`
+- `book/src/hierarchy.md`
+- `book/src/algorithm.md`
+- `book/src/structural-rules.md`
+
+## 2026-04-20-0087 — Activate bounded semantic gate merging at `e-graph`
+
+**Landed as:** `58c31cc`
 
 **What changed**
 

@@ -24,12 +24,17 @@ The current architecture is well matched to ANVIL's direction:
 That is the right base for a signoff-grade random synthesizable RTL
 generator. The work still required falls into four explicit gaps:
 
-1. **Feature breadth / legal surface area**
+1. **Feature breadth / legal surface area / artifact-family breadth**
    The active generator is still leaf-module-centric. Phase 3 motifs are
    only partially populated, while hierarchy, parameterization,
-   aggregates, memories, and FSMs are not landed. The codebase supports
-   these as extensions of the current architecture; it does not yet
-   implement them.
+   aggregates, memories, and FSMs are not landed. Beyond that, the
+   newer user direction broadens the target beyond one output family:
+   ANVIL should eventually generate more kinds of
+   valid-by-construction synthesizable artifacts such as oracle-backed
+   micro-design corpora and frontend/elaboration accept corpora. The
+   current codebase supports this as an architectural direction, but it
+   does not yet implement the needed source-level IR or artifact-family
+   plumbing.
 2. **`NodeId`-as-identity is only partially realized**
    `Module::intern_gate` gives a strong combinational canonicalization
    chokepoint and `merge_equivalent_flops` adds the first stateful
@@ -45,8 +50,21 @@ generator. The work still required falls into four explicit gaps:
    richness today**
    That matches the project doctrine: whole-module intended behavior is
    usually arbitrary. The missing work is therefore not "add a
-   spec/oracle layer", but "add more legal, synthesizable,
-   interaction-rich motifs and composition surfaces".
+   bundled spec/oracle layer", but "add more legal, synthesizable,
+   interaction-rich motifs, composition surfaces, and explicit
+   expected-facts manifests where a particular artifact family needs
+   them".
+
+Taken literally against the user's `rtl_const_expr` / `rtl_frontend`
+style request, the repo is **not ready yet**. It currently lacks:
+
+- a source-level parameter / package / typedef / instantiation IR;
+- compact hierarchy generation beyond the planned future hierarchy lane;
+- manifest infrastructure for expected elaboration facts; and
+- an artifact-family selector above the current leaf-module generator.
+
+So the answer remains "yes as a foundation", but now with a clearer
+explanation of what is missing for the broader artifact-family goal.
 
 ## Module map
 
@@ -105,7 +123,10 @@ src/
 │                     FactorizationLevel (derives PartialOrd/Ord):
 │                     None, Cse, OperandUnique, Commutative,
 │                     Associative, ConstantFold, Peephole, EGraph
-│                     (default request). effective() clamps to the
+│                     (default request). effective() now keeps the
+│                     bounded live `e-graph` fragment under
+│                     `identity_mode = node-id` instead of clamping
+│                     everything above `Peephole` downward.
 │                     highest implemented layer (currently
 │                     Peephole). Fine-grained knobs:
 │                     max_ast_instances, mux_arm_duplication_rate,
@@ -179,7 +200,9 @@ src/
 ├── gen/
 │   ├── mod.rs        Generator struct (rng + cfg + next_module_index),
 │   │                 generate_module(), generate_design() (Phase 5+
-│   │                 stub).
+│   │                 stub). No artifact-family selector exists yet:
+│   │                 every live path still routes into the current
+│   │                 leaf-module synthesizable RTL lane.
 │   ├── module.rs     Leaf-module top-level generator: pick port counts,
 │   │                 pick widths, seed signal pool with primary inputs,
 │   │                 build a cone per primary output. Dispatches on
@@ -347,6 +370,9 @@ main  →  lib  →  gen  →  ir
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
 | 6 — Advanced motifs          | not started  | various | Memories, FSMs, optional multi-clock. |
+| 7 — Oracle-backed micro-design artifacts | not started | new artifact-family layer; manifest extensions; likely source-level artifact builders | Small self-contained synthesizable `.sv` artifacts with expected-facts manifests (parameter values, ranges, generate decisions, similar elaboration facts). |
+| 8 — Frontend/elaboration accept corpora | not started | source-level parameter / hierarchy / package / type IR; likely new emitter path | Compact 1–3 module synthesizable designs that stress frontend/elaboration surfaces rather than only the current gate-level leaf kernel. |
+| 9 — Multi-artifact umbrella  | not started  | generator entrypoint / config / manifest plumbing | Artifact-family selector above the current leaf-module lane; preserves reproducibility and explicit contracts across all synthesizable families. |
 
 ## Invariants currently enforced
 

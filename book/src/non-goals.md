@@ -20,6 +20,12 @@ This is an implementation-boundary statement, not a lowering of the
 quality bar. `anvil` is still intended to generate high-quality legal
 RTL that is clean in downstream tools by default.
 
+Expected-facts manifests for specific artifact families are still in
+scope. A manifest that says "these parameter values / generate
+decisions / instance bindings should result from this file" is not a
+bundled simulator; it is an explicit contract emitted alongside the
+artifact.
+
 ## No non-synthesizable output
 
 The gate set, the flop pattern, and the emitter are all restricted to
@@ -27,8 +33,11 @@ the synthesizable subset of SystemVerilog. There is no mode that
 emits `initial` blocks, delays, `$display`, `fork`/`join`, dynamic
 arrays, classes, or other non-synthesizable constructs.
 
-Why: the value proposition is "random *synthesizable* RTL." Relaxing
-that makes the tool another grammar fuzzer.
+Why: the value proposition is not just "random HDL text"; it is
+"random *synthesizable* HDL artifacts." Even as the roadmap broadens
+beyond the current leaf-module generator into more artifact families,
+the user has re-affirmed that this valid-by-construction synthesizable
+contract stays in force.
 
 ## No testbenches
 
@@ -85,11 +94,11 @@ synthesizable construct appears eventually."
 Why: honest scope. Coverage metrics for constrained-random RTL are an
 unsolved research problem.
 
-## No CDC, no multi-clock (until maybe Phase 7)
+## No CDC, no multi-clock (until a later dedicated phase)
 
 Multi-clock designs require CDC-safe handshake synthesis, which is
-subtle. `anvil` uses one clock and one reset until/unless Phase 7
-lands with explicit CDC motif support.
+subtle. `anvil` uses one clock and one reset until/unless a later
+dedicated CDC phase lands with explicit support.
 
 ## No formal proof of correctness
 

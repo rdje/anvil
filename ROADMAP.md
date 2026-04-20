@@ -17,6 +17,35 @@ optimizes for structurally rich, legitimate, synthesizable RTL that
 tools can ingest; local motifs may be functionally correct blocks, but
 the top-level module usually has no meaningful specification.
 
+## Broader artifact-family mandate (2026-04-20)
+
+The user broadened the project direction explicitly: today's
+"leaf-module typed circuit generator" is the starting point, not the
+destination. ANVIL should grow into the go-to tool for pseudo-random
+HDL artifact generation more broadly, which means the roadmap now needs
+to cover more than one output family.
+
+The important constraint is **separation of lanes, not dilution of the
+current one**:
+
+- the current signoff-grade synthesizable RTL lane remains
+  valid-by-construction and tool-clean by default;
+- future oracle-backed micro-design corpora are new artifact families,
+  not a weakening of the existing lane; and
+- broader source-level frontend/elaboration artifacts must also remain
+  valid-by-construction and synthesizable, not a license to blur
+  invalid files into the project scope.
+
+The first explicitly-requested families beyond the current lane are:
+
+- an **oracle-backed micro-design mode** for small self-contained `.sv`
+  files with known expected facts;
+- a **source-level parameter / hierarchy / package IR** for compact
+  elaboration- and frontend-oriented artifacts;
+- **explicit expected-facts manifests** for those corpora; and
+- additional **valid-by-construction synthesizable artifact families**
+  rather than one single leaf-module output style.
+
 ## Four steering gaps from the codebase suitability assessment (2026-04-20)
 
 The current codebase is suited to the product goal as a **foundation**,
@@ -30,9 +59,12 @@ instead of leaving them implicit.
    3, 4, 5, 5b, and 6 to land as real generator surfaces: richer
    structured combinational blocks, hierarchy, parameterization, packed
    aggregates, memories, FSMs, and other legal interaction-heavy
-   motifs. Every new category and knob must be exercised in generation
-   paths, tests, metrics, and downstream tool sweeps; dead knobs or
-   paper-only categories are regressions.
+   motifs. Beyond that, ANVIL also needs broader artifact families:
+   oracle-backed micro-designs, frontend/elaboration accept corpora,
+   and other valid-by-construction synthesizable artifact families. Every new category, knob, and artifact
+   family must be exercised in generation paths, tests, metrics, and
+   downstream tool sweeps; dead knobs or paper-only categories are
+   regressions.
 
 2. **`NodeId` as identity / full-factorization mode**
    The strong-form target is: under `identity_mode = node-id`,
@@ -76,6 +108,8 @@ instead of leaving them implicit.
    rather than intended top-level behavior. Features that create locally
    meaningful or functionally correct blocks are welcome, but ANVIL is
    not turning into a bundled oracle or spec-driven synthesis engine.
+   Expected-facts manifests for specific artifact families are fine; a
+   full shadow simulator remains out of scope.
    When choosing between slices, prefer new legal interaction surfaces
    and stronger by-construction invariants over post-hoc whole-module
    "meaningfulness" scoring.
@@ -213,6 +247,71 @@ Three sub-paths, each with its own cost and payoff (full analysis in
   the legal interaction richness needed for ANVIL to become a strong
   downstream bug finder without sacrificing clean-tool quality.
 
+## Phase 7 — Oracle-backed micro-design artifacts (not started)
+
+- Add a new artifact family for **small, self-contained `.sv` files
+  with known expected facts** rather than broad cone complexity.
+- Initial target: `rtl_const_expr`-style corpora:
+  - parameter / localparam dependency chains;
+  - widths and ranges derived from expressions (`[DEPTH-1:0]`, etc.);
+  - generate conditions and loop bounds driven by expressions;
+  - package-qualified constant use;
+  - precedence-sensitive arithmetic / shift / comparison / equality /
+    bitwise / logical / ternary expressions.
+- Typical artifact size: one module, or a tiny cluster of modules when
+  the pressure point needs local hierarchy.
+- Every emitted file gets an **expected-facts manifest** capturing
+  things like parameter values, resolved ranges, generate decisions, and
+  other obviously-checkable elaboration facts.
+
+**Exit criteria:** reproducible micro-design corpus, explicit
+expected-facts contract, and parity checks showing downstream consumers
+either agree with the manifest or produce a retained counterexample.
+
+## Phase 8 — Frontend/elaboration accept corpora (not started)
+
+- Add a source-level artifact family for **compact elaboratable
+  hierarchies** rather than only the current circuit-IR leaf modules.
+- Required surfaces include:
+  - ANSI ports and parameter lists;
+  - parameter / localparam flows;
+  - module instantiation variants (named / ordered overrides, named /
+    ordered / wildcard ports, instance arrays);
+  - package imports and package-qualified constants/types;
+  - typedef-backed types, structs, unions, enums, builtin integral
+    atom types;
+  - assign, `always_comb`, `always @(*)`, `always_ff`, and
+    `always_latch`;
+  - generate `if` / `for`.
+- Add a **source-level parameter / hierarchy / package IR** suitable
+  for this family instead of forcing everything through the current
+  gate-level circuit IR.
+- Emit an expected-facts manifest describing top parameter values,
+  instance paths, child parameter values, child port bindings, selected
+  generate branches, and similar elaboration facts.
+
+**Exit criteria:** reproducible 1–3 module accept corpora with clear
+tops, manifests of expected elaboration facts, and downstream parity
+checks against those facts.
+
+## Phase 9 — Multi-artifact ANVIL umbrella (not started)
+
+- Add an **artifact-family selector** so one tool can drive all of the
+  valid-by-construction synthesizable families above without
+  overloading one generator path with contradictory promises.
+- Unify reproducibility, manifests, seed handling, knob plumbing,
+  corpus output layout, and downstream checking across artifact
+  families.
+- Preserve the doctrinal distinction:
+  - synthesizable DUT RTL lane;
+  - oracle-backed positive micro-design lane;
+  - frontend/elaboration accept lane;
+  - future valid synthesizable artifact lanes of similar kind.
+
+**Exit criteria:** ANVIL can honestly present itself as the go-to tool
+for pseudo-random HDL artifact generation, with explicit mode/lane
+selection instead of one blurred notion of "random SV files."
+
 ## Non-goals
 
 - Testbenches, assertions, coverage — `anvil` generates DUT code only.
@@ -221,5 +320,6 @@ Three sub-paths, each with its own cost and payoff (full analysis in
 - Language coverage beyond the synthesizable SV subset.
 - Bundled oracle / reference simulator — `anvil` does not embed a
   shadow RTL semantics engine. The goal is still to stress downstream
-  tools aggressively, but by generating high-quality legal RTL rather
-  than by turning `anvil` into a second simulator.
+  tools aggressively, but by generating high-quality legal RTL and
+  explicit expected-facts contracts rather than by turning `anvil` into
+  a second simulator.
