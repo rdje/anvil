@@ -8,6 +8,8 @@ use thiserror::Error;
 pub enum ValidateError {
     #[error("node {0} references undefined operand {1}")]
     UndefinedOperand(NodeId, NodeId),
+    #[error("output port {port} is driven by undefined node {node}")]
+    UndefinedDriveRoot { port: PortId, node: NodeId },
     #[error("gate {op:?} at node {node}: expected {expected} operands, got {got}")]
     GateArity {
         node: NodeId,
@@ -45,8 +47,52 @@ pub enum ValidateError {
     },
     #[error("output port {0} is driven {1} times (expected 1)")]
     DriveCount(PortId, usize),
+    #[error("flop table slot {index} stores id {id} (expected {expected})")]
+    FlopIdMismatch {
+        index: usize,
+        id: FlopId,
+        expected: FlopId,
+    },
     #[error("flop {0} has no D input set")]
     FlopMissingD(FlopId),
+    #[error("flop {flop} field `{field}` references undefined node {node}")]
+    UndefinedFlopNode {
+        flop: FlopId,
+        field: &'static str,
+        node: NodeId,
+    },
+    #[error("flop {flop} q node {q} is not a FlopQ node")]
+    FlopQNotNode { flop: FlopId, q: NodeId },
+    #[error("flop {flop} q node {q} points back to flop {got}")]
+    FlopQBackrefMismatch {
+        flop: FlopId,
+        q: NodeId,
+        got: FlopId,
+    },
+    #[error("flop {flop} width {flop_width} != FlopQ node {q} width {q_width}")]
+    FlopQWidthMismatch {
+        flop: FlopId,
+        q: NodeId,
+        flop_width: u32,
+        q_width: u32,
+    },
+    #[error("FlopQ node {node} references undefined flop {flop}")]
+    DanglingFlopQ { node: NodeId, flop: FlopId },
+    #[error(
+        "FlopQ node {node} is not the canonical q for flop {flop} (expected node {expected_q})"
+    )]
+    NonCanonicalFlopQ {
+        node: NodeId,
+        flop: FlopId,
+        expected_q: NodeId,
+    },
+    #[error("FlopQ node {node} width {q_width} != flop {flop} width {flop_width}")]
+    FlopNodeWidthMismatch {
+        node: NodeId,
+        flop: FlopId,
+        q_width: u32,
+        flop_width: u32,
+    },
     #[error("output cone for port {0} has empty dep-set (trivially constant)")]
     TrivialOutput(PortId),
 }
@@ -63,7 +109,104 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
-    // 2. Each output port is driven exactly once.
+    // 2. Every drive root exists.
+    for (port, node) in &m.drives {
+        if !node_exists(m, *node) {
+            return Err(ValidateError::UndefinedDriveRoot {
+                port: *port,
+                node: *node,
+            });
+        }
+    }
+
+    // 3. Every flop's structural references are self-consistent.
+    for (index, flop) in m.flops.iter().enumerate() {
+        let expected = index as FlopId;
+        if flop.id != expected {
+            return Err(ValidateError::FlopIdMismatch {
+                index,
+                id: flop.id,
+                expected,
+            });
+        }
+        let Some(d) = flop.d else {
+            return Err(ValidateError::FlopMissingD(flop.id));
+        };
+        if !node_exists(m, d) {
+            return Err(ValidateError::UndefinedFlopNode {
+                flop: flop.id,
+                field: "d",
+                node: d,
+            });
+        }
+        if !node_exists(m, flop.q) {
+            return Err(ValidateError::UndefinedFlopNode {
+                flop: flop.id,
+                field: "q",
+                node: flop.q,
+            });
+        }
+        match &m.nodes[flop.q as usize] {
+            Node::FlopQ {
+                flop: backref,
+                width,
+            } => {
+                if *backref != flop.id {
+                    return Err(ValidateError::FlopQBackrefMismatch {
+                        flop: flop.id,
+                        q: flop.q,
+                        got: *backref,
+                    });
+                }
+                if *width != flop.width {
+                    return Err(ValidateError::FlopQWidthMismatch {
+                        flop: flop.id,
+                        q: flop.q,
+                        flop_width: flop.width,
+                        q_width: *width,
+                    });
+                }
+            }
+            _ => {
+                return Err(ValidateError::FlopQNotNode {
+                    flop: flop.id,
+                    q: flop.q,
+                });
+            }
+        }
+        validate_flop_mux_refs(flop, m)?;
+    }
+
+    // 4. Every FlopQ node points at a real flop and is canonical.
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        let Node::FlopQ { flop, width } = node else {
+            continue;
+        };
+        let node_id = node_id as NodeId;
+        let Some(owner) = m.flops.get(*flop as usize) else {
+            return Err(ValidateError::DanglingFlopQ {
+                node: node_id,
+                flop: *flop,
+            });
+        };
+        if owner.width != *width {
+            return Err(ValidateError::FlopNodeWidthMismatch {
+                node: node_id,
+                flop: *flop,
+                q_width: *width,
+                flop_width: owner.width,
+            });
+        }
+        if owner.q != node_id {
+            return Err(ValidateError::NonCanonicalFlopQ {
+                node: node_id,
+                flop: *flop,
+                expected_q: owner.q,
+            });
+        }
+    }
+
+    // 5. Each output port is driven exactly once.
     for out in &m.outputs {
         let count = m.drives.iter().filter(|(p, _)| *p == out.id).count();
         if count != 1 {
@@ -71,14 +214,7 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
-    // 3. Every flop has a D input.
-    for flop in &m.flops {
-        if flop.d.is_none() {
-            return Err(ValidateError::FlopMissingD(flop.id));
-        }
-    }
-
-    // 4. Cone roots have non-empty dep-sets.
+    // 6. Cone roots have non-empty dep-sets.
     for (port_id, node_id) in &m.drives {
         let node = &m.nodes[*node_id as usize];
         if let Node::Gate { deps, .. } = node {
@@ -88,7 +224,7 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
-    // 5. Per-gate operand widths and arity.
+    // 7. Per-gate operand widths and arity.
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate {
             op,
@@ -101,6 +237,48 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
+    Ok(())
+}
+
+fn node_exists(m: &Module, id: NodeId) -> bool {
+    (id as usize) < m.nodes.len()
+}
+
+fn validate_flop_mux_refs(flop: &Flop, m: &Module) -> Result<(), ValidateError> {
+    match &flop.mux {
+        FlopMux::None => {}
+        FlopMux::OneHot(arms) => {
+            for arm in arms {
+                for (field, node) in [("mux.data", arm.data), ("mux.sel", arm.sel)] {
+                    if !node_exists(m, node) {
+                        return Err(ValidateError::UndefinedFlopNode {
+                            flop: flop.id,
+                            field,
+                            node,
+                        });
+                    }
+                }
+            }
+        }
+        FlopMux::Encoded { sel, data } => {
+            if !node_exists(m, *sel) {
+                return Err(ValidateError::UndefinedFlopNode {
+                    flop: flop.id,
+                    field: "mux.sel",
+                    node: *sel,
+                });
+            }
+            for node in data {
+                if !node_exists(m, *node) {
+                    return Err(ValidateError::UndefinedFlopNode {
+                        flop: flop.id,
+                        field: "mux.data",
+                        node: *node,
+                    });
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -351,6 +529,21 @@ mod tests {
         id
     }
 
+    fn add_flop(m: &mut Module, width: u32, q: NodeId, d: Option<NodeId>) -> FlopId {
+        let flop_id = m.flops.len() as FlopId;
+        m.flops.push(Flop {
+            id: flop_id,
+            width,
+            d,
+            q,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        flop_id
+    }
+
     #[test]
     fn accepts_minimal_valid_module() {
         let mut m = empty_module();
@@ -360,6 +553,108 @@ mod tests {
         let n_and = add_and(&mut m, n_a, n_b, 4, deps);
         add_output(&mut m, "o", 4, n_and);
         validate(&m).expect("valid module must pass");
+    }
+
+    #[test]
+    fn rejects_undefined_drive_root() {
+        let mut m = empty_module();
+        add_output(&mut m, "o", 4, 99);
+        let err = validate(&m).expect_err("undefined drive root must be rejected");
+        assert!(matches!(err, ValidateError::UndefinedDriveRoot { .. }));
+    }
+
+    #[test]
+    fn rejects_flop_id_mismatch() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 });
+        let flop_id = add_flop(&mut m, 4, 0, Some(0));
+        m.flops[flop_id as usize].id = 7;
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop ids must stay dense and canonical");
+        assert!(matches!(err, ValidateError::FlopIdMismatch { .. }));
+    }
+
+    #[test]
+    fn rejects_flop_missing_d() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 });
+        add_flop(&mut m, 4, 0, None);
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop without D must be rejected");
+        assert!(matches!(err, ValidateError::FlopMissingD(..)));
+    }
+
+    #[test]
+    fn rejects_flop_q_that_is_not_a_flopq_node() {
+        let mut m = empty_module();
+        m.nodes.push(Node::Constant { width: 4, value: 0 }); // node 0
+        add_flop(&mut m, 4, 0, Some(0));
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop q must point at a FlopQ node");
+        assert!(matches!(err, ValidateError::FlopQNotNode { .. }));
+    }
+
+    #[test]
+    fn rejects_flop_q_backref_mismatch() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 1, width: 4 });
+        add_flop(&mut m, 4, 0, Some(0));
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop q backref must match owner flop");
+        assert!(matches!(err, ValidateError::FlopQBackrefMismatch { .. }));
+    }
+
+    #[test]
+    fn rejects_flop_q_width_mismatch() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 });
+        add_flop(&mut m, 4, 0, Some(0));
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop q width must match flop width");
+        assert!(matches!(err, ValidateError::FlopQWidthMismatch { .. }));
+    }
+
+    #[test]
+    fn rejects_noncanonical_flopq_node() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // canonical q: node 0
+        add_flop(&mut m, 4, 0, Some(0));
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // stale duplicate q: node 1
+        add_output(&mut m, "o", 4, 1);
+        let err = validate(&m).expect_err("duplicate stale FlopQ must be rejected");
+        assert!(matches!(err, ValidateError::NonCanonicalFlopQ { .. }));
+    }
+
+    #[test]
+    fn rejects_flopq_node_width_mismatch() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // canonical q
+        add_flop(&mut m, 4, 0, Some(0));
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // stale duplicate with wrong width
+        add_output(&mut m, "o", 8, 1);
+        let err = validate(&m).expect_err("FlopQ node width must match owning flop width");
+        assert!(matches!(err, ValidateError::FlopNodeWidthMismatch { .. }));
+    }
+
+    #[test]
+    fn rejects_dangling_flopq_node() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 9, width: 4 });
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("FlopQ must reference a real flop");
+        assert!(matches!(err, ValidateError::DanglingFlopQ { .. }));
+    }
+
+    #[test]
+    fn rejects_flop_mux_reference_to_undefined_node() {
+        let mut m = empty_module();
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // q
+        m.nodes.push(Node::Constant { width: 1, value: 1 }); // valid sel
+        let flop_id = add_flop(&mut m, 4, 0, Some(0));
+        m.flops[flop_id as usize].mux = FlopMux::OneHot(vec![MuxArm { data: 99, sel: 1 }]);
+        add_output(&mut m, "o", 4, 0);
+        let err = validate(&m).expect_err("flop mux refs must point at live nodes");
+        assert!(matches!(err, ValidateError::UndefinedFlopNode { .. }));
     }
 
     #[test]

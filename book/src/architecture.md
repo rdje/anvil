@@ -57,7 +57,7 @@ src/
 │   │                # m.nodes / m.drives / m.flops / dedup tables.
 │   │                # Keeps orphan-producing rewrites Rule-18-clean at
 │   │                # module finalisation. Inline unit tests.
-│   └── validate.rs  # invariant + per-gate shape checker; inline unit tests.
+│   └── validate.rs  # invariant + canonical-state + per-gate shape checker; inline unit tests.
 ├── gen/
 │   ├── mod.rs       # Generator struct, public entry points.
 │   ├── cone.rs      # fanin-cone recursion (combinational + sequential);
@@ -235,8 +235,9 @@ Three layers:
 
 - `src/ir/types.rs` — factorization, identity-mode, and
   rewrite-layer semantics.
-- `src/ir/validate.rs` — 8 tests (valid modules + each rejection
-  class).
+- `src/ir/validate.rs` — 21 tests (valid modules, undefined drive
+  roots, canonical flop/`FlopQ` backrefs, missing-D / mux-ref
+  failures, and representative gate-shape rejection classes).
 - `src/gen/cone.rs` — picker, anti-collapse, width-adapter, and
   motif-edge cases.
 - `src/emit/sv.rs` — 6 tests (module header, clk/rst_n omission,
@@ -253,7 +254,7 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-20): 86 unit + 24 integration = 110 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-20): 96 unit + 24 integration = 120 passing tests.**
 
 **External smoke tests** (not wired up yet) — will invoke Verilator
 and Yosys against generated output. These are the remaining Phase 1
@@ -267,10 +268,10 @@ error taxonomy:
 - `ConfigError` — invalid knobs (e.g., `min_width > max_width`,
   `min_mux_arms > max_mux_arms`, out-of-range probability). Caught
   at `Config::validate()` before any generation begins.
-- `ValidateError` — IR invariant violation (per-gate arity, per-gate
-  width, missing flop D, empty-dep-set output, etc.). Treated as a
-  generator bug — if real generator output produces this, the
-  generator is wrong.
+- `ValidateError` — IR invariant violation (undefined drive root,
+  canonical flop/`FlopQ` mismatch, per-gate arity/width, missing
+  flop D, empty-dep-set output, etc.). Treated as a generator bug —
+  if real generator output produces this, the generator is wrong.
 - `IoError` — failed to write output file. Surfaced to the user.
 
 The generator never produces invalid IR. If it does, that's a

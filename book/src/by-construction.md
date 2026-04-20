@@ -36,12 +36,13 @@ can see that every code path preserves the invariants by definition.
 ## The validator is a safety net, not a gate
 
 `anvil` ships an IR validator (`src/ir/validate.rs`) with an inline
-test suite covering every rejection class (per-gate arity, operand
-widths, output drive count, flop D filled, output-cone dep-set
-non-empty, …). Its purpose is not to reject generator output — it
-is to catch generator bugs during development. If the validator
-ever fails on real generator output, that is a bug filed against
-the generator, not expected behavior.
+test suite covering a broad rejection surface (undefined drive
+roots, canonical flop/`FlopQ` backreferences, per-gate arity,
+operand widths, output drive count, flop D filled, output-cone
+dep-set non-empty, …). Its purpose is not to reject generator
+output — it is to catch generator bugs during development. If the
+validator ever fails on real generator output, that is a bug filed
+against the generator, not expected behavior.
 
 In CI (`cargo test`), every integration test runs the validator
 after generation and fails the build if it rejects anything. This

@@ -3,9 +3,104 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0078 — Extend NodeId identity to exact-signature flops
+## 2026-04-20-0079 — Harden canonical flop identity validation
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice turns `ir::validate::validate` into a real
+stateful-identity contract checker, not just a gate-shape checker.
+
+### Drive roots and flop-held `NodeId`s are now validated before indexing
+
+- Added three new structural error classes:
+  - `UndefinedDriveRoot`
+  - `FlopIdMismatch`
+  - `UndefinedFlopNode`
+- Every output drive root must exist before the validator inspects
+  cone roots or gate shape.
+- Every flop table slot must keep the dense canonical relation
+  `m.flops[idx].id == idx`.
+- `Flop.d`, `Flop.q`, and every `NodeId` stored inside `FlopMux`
+  must point at a live node.
+
+### Canonical `Flop.q <-> Node::FlopQ` backreferences are now enforced
+
+- `Flop.q` must point at a `Node::FlopQ`.
+- That `Node::FlopQ` must point back to the same flop and carry
+  the same width as the owning `Flop`.
+- Every `Node::FlopQ` in the arena must:
+  - reference a real flop;
+  - match that flop's width; and
+  - be the canonical `q` node for that flop.
+- This catches stale duplicate Q nodes, renumbering mistakes, and
+  dangling post-merge state references before later passes or the
+  emitter can trust a broken IR.
+
+### Validator helpers and tests were expanded alongside the contract
+
+- Added `node_exists` and `validate_flop_mux_refs`.
+- The node-side `FlopQ` width check now runs before the canonical-q
+  check so the dedicated width-mismatch error path is reachable on
+  stale duplicate `FlopQ` nodes too.
+- `src/ir/validate.rs` gained 10 new stateful-invariant unit tests
+  covering:
+  - undefined drive roots;
+  - flop-id mismatch;
+  - missing D;
+  - non-`FlopQ` q node;
+  - q backref mismatch;
+  - q width mismatch;
+  - dangling / noncanonical / wrong-width `FlopQ` nodes; and
+  - undefined mux-held node references.
+- Live docs + book were refreshed so the validator is now described
+  as owning the canonical state-backreference contract.
+
+**Why**
+
+The previous slice introduced post-drain flop merging under
+`identity_mode = node-id`. That made `Flop.id`, `Flop.q`, and
+`Node::FlopQ { flop, .. }` part of the recovery-critical identity
+fabric, not incidental metadata.
+
+Per-gate arity/width checks were no longer enough: a bad
+renumbering pass, stale duplicate Q node, or dangling drive root
+could panic later passes or silently corrupt the "NodeId means
+identity" story. This hardening moves those failures into one
+explicit development-time safety net.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test` (96 unit + 24 integration = 120 passing tests)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Stateful identity now has a validator-backed contract instead of a
+  best-effort convention.
+- Post-drain state-rewrite passes may still renumber and merge, but
+  they now have to leave a provably self-consistent IR behind.
+- Session recovery docs now point at the exact invariants protecting
+  future deeper sequential-factorization work.
+
+**Files touched**
+
+- `src/ir/validate.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/ir.md`
+- `book/src/architecture.md`
+- `book/src/by-construction.md`
+
+## 2026-04-20-0078 — Extend NodeId identity to exact-signature flops
+
+**Landed as:** `420fbd4`
 
 **What changed**
 
@@ -3571,7 +3666,7 @@ priority-encoder, with case/casez/memories/FSMs planned next).
 **Files touched**
 `src/config.rs`, `src/main.rs`, `src/gen/cone.rs`, `tests/pipeline.rs`, `book/src/structural-rules.md`, `book/src/knobs.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
 
-**Commit hash:** _to be filled in after this commit_
+**Commit hash:** `b4c489a`
 
 ---
 
@@ -3607,7 +3702,7 @@ The FAQ chapter consolidates the doctrine questions that accumulated across ~15 
 **Files touched**
 `src/gen/cone.rs`, `book/src/faq.md` (new), `book/src/SUMMARY.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`, `CHANGES.md`.
 
-**Commit hash:** _to be filled in after this commit_
+**Commit hash:** `06b5a52`
 
 ---
 

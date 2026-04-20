@@ -263,13 +263,19 @@ In the generator:
 2. `Gate.deps == union(operands[i].deps)`.
 3. Every `NodeId` referenced as an operand exists in `Module.nodes`.
 4. Every `PortId` in `drives` is an output port.
-5. Each output port appears in `drives` exactly once.
-6. Each `Flop::d` is filled before emission (worklist drained).
-7. Each flop's `mux` matches its assembled D shape.
+5. Every drive-root `NodeId` exists in `Module.nodes`.
+6. Each output port appears in `drives` exactly once.
+7. Each `Flop::d` is filled before emission (worklist drained).
+8. Each `Flop::q` points at a `Node::FlopQ` whose `flop` backref and
+   `width` match the owning flop.
+9. Every `Node::FlopQ` is the canonical `q` node of a real flop.
+10. Each flop's `mux` matches its assembled D shape and only
+    references live `NodeId`s.
 
 In `validate.rs`:
 
 - All of the above.
+- `m.flops[idx].id == idx` for every dense flop-table slot.
 - Per-gate **arity**: each `GateOp` variant has a fixed or
   variadic-with-min operand count.
 - Per-gate **output width**: `Eq`-family gates produce 1-bit;
@@ -281,8 +287,8 @@ In `validate.rs`:
   width; etc.
 
 Violation of any of these is a generator bug. The constructors do
-not panic; the validator rejects with a rich error variant (node id,
-op, operand index, expected vs got widths).
+not panic; the validator rejects with a rich error variant (port,
+flop field, node id, op, operand index, expected vs got widths).
 
 ## Emitter contract
 

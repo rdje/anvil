@@ -142,6 +142,27 @@ A failed external smoke test is always a generator bug. Do not "fix" by tweaking
 
 Same principle for the IR validator (`src/ir/validate.rs`): if it rejects real generator output, that's a generator bug. The validator is an active safety net, not a gate to be worked around. The per-gate arity + width checker added in slice `2026-04-15-0008` is specifically designed to catch width bugs in the new flop-mux assembly code, where gates are constructed by hand rather than by recursion — the most likely place for a width-arithmetic slip.
 
+### Canonical state backreferences are validator-owned (2026-04-20)
+
+Once `merge_equivalent_flops` started rewriting state after drain,
+`Flop.id`, `Flop.q`, and `Node::FlopQ { flop, .. }` stopped being
+"born correct and forgotten" fields. They are now recovery-critical
+identity links that a bad renumbering pass can corrupt.
+
+`ir::validate::validate` now owns that contract:
+
+- every output drive root exists before root inspection;
+- `m.flops[idx].id == idx`;
+- `Flop.d`, `Flop.q`, and every `NodeId` stored inside `FlopMux`
+  exist;
+- `Flop.q` points at a `Node::FlopQ` whose backref and width match
+  the owning flop; and
+- every `Node::FlopQ` points at a real flop and is that flop's
+  canonical `q` node.
+
+Keep the emitter dumb. If any of these invariants fail, fix the
+producer or rewrite pass; do not add emitter-side repair logic.
+
 ---
 
 ## Generation-time defects observed in sample output (pending fixes)
