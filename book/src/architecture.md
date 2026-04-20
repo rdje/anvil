@@ -233,13 +233,13 @@ Three layers:
 **Unit tests** live inline in each source module under
 `#[cfg(test)] mod tests { ... }`. Current counts:
 
-- `src/ir/types.rs` — factorization, identity-mode, and
-  rewrite-layer semantics.
+- `src/ir/types.rs` — 36 tests covering factorization,
+  identity-mode, and rewrite-layer semantics.
 - `src/ir/validate.rs` — 21 tests (valid modules, undefined drive
   roots, canonical flop/`FlopQ` backrefs, missing-D / mux-ref
   failures, and representative gate-shape rejection classes).
-- `src/gen/cone.rs` — picker, anti-collapse, width-adapter, and
-  motif-edge cases.
+- `src/gen/cone.rs` — 18 tests covering picker, anti-collapse,
+  width-adapter, and motif-edge cases.
 - `src/emit/sv.rs` — 6 tests (module header, clk/rst_n omission,
   `always_ff` shape, operator + constant rendering, Slice/Concat,
   Mux ternary).
@@ -254,7 +254,7 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-20): 96 unit + 24 integration = 120 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-20): 99 unit + 24 integration = 123 passing tests.**
 
 **External smoke tests** (not wired up yet) — will invoke Verilator
 and Yosys against generated output. These are the remaining Phase 1

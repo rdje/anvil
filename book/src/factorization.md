@@ -126,11 +126,11 @@ fully-evaluates any all-constant expression at intern time:
 
 | Op    | All-const evaluation                | Identity drop   | Absorbing                              |
 |-------|-------------------------------------|-----------------|----------------------------------------|
-| `And` | bitwise AND over values             | drop `all_ones` | `0` (all non-Gate operands only)       |
-| `Or`  | bitwise OR over values              | drop `0`        | `all_ones` (all non-Gate operands only)|
+| `And` | bitwise AND over values             | drop `all_ones` | `0`                                    |
+| `Or`  | bitwise OR over values              | drop `0`        | `all_ones`                             |
 | `Xor` | bitwise XOR over values             | drop `0`        | —                                      |
 | `Add` | sum mod 2^width                     | drop `0`        | —                                      |
-| `Mul` | product mod 2^width                 | drop `1`        | `0` (all non-Gate operands only)       |
+| `Mul` | product mod 2^width                 | drop `1`        | `0`                                    |
 
 All-const evaluation supersedes the absorbing and identity-drop
 paths for the all-const subcase — e.g. `Add(3, 5)` folds to 8
@@ -146,12 +146,11 @@ identity-drop / absorbing paths.
 | `Shl` | `(lhs << rhs) mod 2^width` (over-shift → 0)      | `a << 0 → a`      |
 | `Shr` | `lhs >> rhs` (over-shift → 0)                    | `a >> 0 → a`      |
 
-**Absorbing's orphan-safety restriction:** turning the whole
-expression into a constant would orphan any `Node::Gate` operand.
-Without the compaction pass (see below), that would break Rule 18.
-So absorbing fires only when every operand is a non-Gate node —
-constants, primary inputs, or flop Qs. Those don't count as gate
-orphans, so it's safe.
+**Absorbing and orphan safety:** turning the whole expression into a
+constant can orphan `Node::Gate` operands, but module finalisation now
+runs `compact_node_ids`, so those dead gates are removed before
+emission. That makes mixed dynamic absorbing (`x & 0`, `x | all_ones`,
+`x * 0`) safe again.
 
 Non-commutative ops fold only the rhs-constant case for the
 identity shortcut. `a - 0` is `a`, but `0 - a` isn't — we don't
@@ -177,6 +176,14 @@ outer operator. The current catalogue:
 - All-constant evaluation: if both operands are same-width
   constants, return a 1-bit constant with the evaluated
   boolean.
+- Unsigned boundary tautologies:
+  - `x < 0 → 0`, `x >= 0 → 1`
+  - `x <= all_ones → 1`, `x > all_ones → 0`
+  - `0 > x → 0`, `0 <= x → 1`
+  - `all_ones < x → 0`, `all_ones >= x → 1`
+
+**For `Mux(sel, a, b)` (3 operands):**
+- Constant selector: `Mux(0, a, b) → b`, `Mux(1, a, b) → a`.
 
 **For `Slice { hi, lo }` (1 operand):**
 - Full-width slice (`lo == 0`, `hi + 1 == src_width`) → src.

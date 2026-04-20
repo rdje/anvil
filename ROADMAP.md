@@ -3,7 +3,9 @@
 `anvil` grows in phases. Each phase delivers a working generator with a
 larger expressive subset. No phase should land without end-to-end tests
 and at least one `.sv` artifact run through Yosys or Verilator as a
-synthesizability smoke check.
+synthesizability smoke check. Those sweeps are evidence, not the end
+goal: the intended steady-state is that generated modules are boringly
+clean in Verilator and Yosys by default.
 
 ## Phase 0 — Scaffolding (done)
 
@@ -40,9 +42,9 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
 the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (120 tests, unused-signal Verilator sweep over seeds 0..4
-for the default path and the `graph-first` alias, seed-42 Yosys
-synthesis) is clean.
+validation (123 tests, unused-signal Verilator sweep over seeds 0..4
+for the default path and the `graph-first` alias, plus a warning-clean
+seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 

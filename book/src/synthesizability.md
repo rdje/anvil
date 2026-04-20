@@ -75,10 +75,13 @@ target. No latch can be inferred from `anvil` output.
 ## Sanity check
 
 Despite all of this, the generator's "only-synthesizable-by-design"
-promise is a claim, not a proof. The project-level safety net is:
+promise is a claim, not a proof. The quality bar is not "some sample
+passes sometimes"; the intended default is that generated modules are
+clean in Verilator and Yosys. The project-level safety net is the
+evidence plan for that claim:
 
-> Periodically run a sample of `anvil` output through Yosys
-> (`synth -top <name>; stat`) and assert that synthesis completes
-> and produces a non-empty netlist.
+> Periodically run representative `anvil` output through Verilator and
+> Yosys, assert that lint / elaboration / synthesis complete cleanly,
+> and treat every failure as a generator bug.
 
 Any failure is a generator bug, filed with the seed for reproduction.

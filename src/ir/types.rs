@@ -550,11 +550,11 @@ impl Module {
     ///
     /// | Op              | All-const evaluation                                   | Identity drop        | Absorbing                                 |
     /// |-----------------|--------------------------------------------------------|----------------------|-------------------------------------------|
-    /// | `And`           | bitwise AND over values                                | drop `all_ones`      | `0` (all non-Gate operands only)          |
-    /// | `Or`            | bitwise OR over values                                 | drop `0`             | `all_ones` (all non-Gate operands only)   |
+    /// | `And`           | bitwise AND over values                                | drop `all_ones`      | `0`                                       |
+    /// | `Or`            | bitwise OR over values                                 | drop `0`             | `all_ones`                                |
     /// | `Xor`           | bitwise XOR over values                                | drop `0`             | —                                         |
     /// | `Add`           | sum over values, mod 2^width                           | drop `0`             | —                                         |
-    /// | `Mul`           | product over values, mod 2^width                       | drop `1`             | `0` (all non-Gate operands only)          |
+    /// | `Mul`           | product over values, mod 2^width                       | drop `1`             | `0`                                       |
     ///
     /// All-const evaluation fires when every operand is a
     /// `Node::Constant` of `width`; it supersedes the absorbing
@@ -570,20 +570,13 @@ impl Module {
     /// | `Shl` | `(lhs << rhs) mod 2^width` (over-shift → 0)       | `a << 0 → a`      |
     /// | `Shr` | `lhs >> rhs` (over-shift → 0)                     | `a >> 0 → a`      |
     ///
-    /// # Orphan-safety restriction on absorbing
+    /// # Orphan safety
     ///
-    /// Absorbing (`x & 0 → 0`, etc.) turns the entire expression
-    /// into a constant, which means any `Node::Gate` operand
-    /// becomes a Rule-18 orphan (its only consumer was this
-    /// call). Without NodeId compaction that would break the
-    /// zero-orphan invariant, so absorbing **fires only when no
-    /// operand is a `Node::Gate`** — i.e. when every operand is a
-    /// `Node::Constant`, `Node::PrimaryInput`, or `Node::FlopQ`.
-    /// Those node kinds aren't gate-orphan-counted, so it's safe
-    /// to leave them unreferenced. The compaction pass
-    /// [`crate::ir::compact::compact_node_ids`] (added in slice
-    /// `2cd8b7a`) lifts this restriction for future slices when
-    /// appropriate.
+    /// Absorbing (`x & 0 → 0`, etc.) can orphan the non-constant
+    /// operand sub-tree, but module finalisation now runs
+    /// [`crate::ir::compact::compact_node_ids`], so those dead
+    /// gates are removed before emission. That makes mixed dynamic
+    /// absorbing safe again at intern time.
     ///
     /// # Non-commutative ops
     ///
@@ -735,46 +728,30 @@ impl Module {
         }
 
         // 1. Absorbing elements: `Mul`/`And` zero, `Or` all-ones.
-        //
-        // **Orphan-safety restriction:** absorbing turns the whole
-        // expression into a constant, so every Gate operand loses
-        // its only consumer (this call) and becomes a Rule 18
-        // orphan. Without NodeId compaction (a future finalisation
-        // pass), we can only safely apply absorbing when no operand
-        // is a Gate — i.e. the "evaluate all-constant expression"
-        // subset. Constants, primary inputs, and flop Qs don't
-        // count as gate orphans, so they're safe to orphan here.
-        // When any operand is a Gate, the absorbing rule is
-        // suppressed and the outer gate materialises normally
-        // (its presence keeps the Gate operands reachable).
-        let no_gate_operand = operands
-            .iter()
-            .all(|id| !matches!(self.nodes[*id as usize], Node::Gate { .. }));
-        if no_gate_operand {
-            for &id in operands.iter() {
-                if let Some(v) = const_of(id, &self.nodes) {
-                    let absorbs = match op {
-                        GateOp::Mul | GateOp::And => v == 0,
-                        GateOp::Or => v == all_ones,
-                        _ => false,
+        // Dead gate operands are cleaned up later by compaction.
+        for &id in operands.iter() {
+            if let Some(v) = const_of(id, &self.nodes) {
+                let absorbs = match op {
+                    GateOp::Mul | GateOp::And => v == 0,
+                    GateOp::Or => v == all_ones,
+                    _ => false,
+                };
+                if absorbs {
+                    let absorb_value = match op {
+                        GateOp::Mul | GateOp::And => 0u128,
+                        GateOp::Or => all_ones,
+                        _ => unreachable!(),
                     };
-                    if absorbs {
-                        let absorb_value = match op {
-                            GateOp::Mul | GateOp::And => 0u128,
-                            GateOp::Or => all_ones,
-                            _ => unreachable!(),
-                        };
-                        self.fold_identities_applied += 1;
-                        let (cid, is_new) = self.intern_constant(width, absorb_value);
-                        crate::trace_verbose!(
-                            node = cid,
-                            ?op,
-                            width,
-                            value = absorb_value,
-                            "✂️ fold_constants absorbing"
-                        );
-                        return Some((cid, is_new));
-                    }
+                    self.fold_identities_applied += 1;
+                    let (cid, is_new) = self.intern_constant(width, absorb_value);
+                    crate::trace_verbose!(
+                        node = cid,
+                        ?op,
+                        width,
+                        value = absorb_value,
+                        "✂️ fold_constants absorbing"
+                    );
+                    return Some((cid, is_new));
                 }
             }
         }
@@ -1043,28 +1020,40 @@ impl Module {
     ///    return a 1-bit constant. The IR contract guarantees
     ///    matching operand widths; mismatched widths defensively
     ///    skip the fold.
+    /// 5. **Unsigned boundary tautologies**: for unsigned same-width
+    ///    comparisons against min/max constants, fold the obvious
+    ///    truths and falsehoods:
+    ///    - `x < 0 → 0`, `x >= 0 → 1`
+    ///    - `x <= all_ones → 1`, `x > all_ones → 0`
+    ///    - `0 > x → 0`, `0 <= x → 1`
+    ///    - `all_ones < x → 0`, `all_ones >= x → 1`
+    ///
+    /// ### `Mux(sel, a, b)` (3 operands)
+    ///
+    /// 6. **Constant-selector collapse**: `Mux(0, a, b) → b`,
+    ///    `Mux(1, a, b) → a`.
     ///
     /// ### `Slice { hi, lo }(operand)` (1 operand)
     ///
-    /// 5. **Full-width slice identity**: `Slice(hi, 0)(src)` with
+    /// 7. **Full-width slice identity**: `Slice(hi, 0)(src)` with
     ///    `hi + 1 == src_width` returns `src`.
-    /// 6. **Constant-operand evaluation**: `Slice(hi, lo)(c)` →
+    /// 8. **Constant-operand evaluation**: `Slice(hi, lo)(c)` →
     ///    `(c >> lo) & mask(hi - lo + 1)`.
     ///
     /// ### `Concat(operands)` (1 or more operands)
     ///
-    /// 7. **Single-operand identity**: `Concat([x])` → `x` when
+    /// 9. **Single-operand identity**: `Concat([x])` → `x` when
     ///    `x.width == width`.
-    /// 8. **All-constant bit assembly** (`operands.len() >= 2`):
-    ///    every operand is a constant → pack MSB-first into one
-    ///    constant (matches the SV emit convention in
-    ///    `src/emit/sv.rs` where `{a, b, c}` places `a` in the
-    ///    high bits). Widths must sum to the gate width; mismatch
-    ///    defensively skips the fold.
+    /// 10. **All-constant bit assembly** (`operands.len() >= 2`):
+    ///     every operand is a constant → pack MSB-first into one
+    ///     constant (matches the SV emit convention in
+    ///     `src/emit/sv.rs` where `{a, b, c}` places `a` in the
+    ///     high bits). Widths must sum to the gate width; mismatch
+    ///     defensively skips the fold.
     ///
     /// ### Reductions: `RedAnd`/`RedOr`/`RedXor` (1 operand)
     ///
-    /// 8. **Constant-operand evaluation**:
+    /// 11. **Constant-operand evaluation**:
     ///    - `RedAnd(c)` → `(c == all_ones(src_width)) as 1-bit`
     ///    - `RedOr(c)` → `(c != 0) as 1-bit`
     ///    - `RedXor(c)` → `popcount(c) & 1` as 1-bit
@@ -1186,6 +1175,51 @@ impl Module {
             GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
                 if operands.len() == 2 =>
             {
+                let operand_const = |id: NodeId| const_of(id, &self.nodes);
+                let boundary_fold = match (operand_const(operands[0]), operand_const(operands[1])) {
+                    (Some((lhs_w, lhs_v)), None) => {
+                        let lhs_max = if lhs_w >= 128 {
+                            u128::MAX
+                        } else {
+                            (1u128 << lhs_w) - 1
+                        };
+                        match op {
+                            GateOp::Gt if lhs_v == 0 => Some(0),
+                            GateOp::Le if lhs_v == 0 => Some(1),
+                            GateOp::Lt if lhs_v == lhs_max => Some(0),
+                            GateOp::Ge if lhs_v == lhs_max => Some(1),
+                            _ => None,
+                        }
+                    }
+                    (None, Some((rhs_w, rhs_v))) => {
+                        let rhs_max = if rhs_w >= 128 {
+                            u128::MAX
+                        } else {
+                            (1u128 << rhs_w) - 1
+                        };
+                        match op {
+                            GateOp::Lt if rhs_v == 0 => Some(0),
+                            GateOp::Ge if rhs_v == 0 => Some(1),
+                            GateOp::Le if rhs_v == rhs_max => Some(1),
+                            GateOp::Gt if rhs_v == rhs_max => Some(0),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(result) = boundary_fold {
+                    self.peephole_rewrites_applied += 1;
+                    let (cid, is_new) = self.intern_constant(width, result);
+                    crate::trace_verbose!(
+                        node = cid,
+                        ?op,
+                        width,
+                        value = result,
+                        "✂️ peephole unsigned comparison boundary"
+                    );
+                    return Some((cid, is_new));
+                }
+
                 let a = const_of(operands[0], &self.nodes)?;
                 let b = const_of(operands[1], &self.nodes)?;
                 if a.0 != b.0 {
@@ -1212,6 +1246,25 @@ impl Module {
                     "✂️ peephole comparison of constants"
                 );
                 Some((cid, is_new))
+            }
+            GateOp::Mux if operands.len() == 3 => {
+                let (sel_w, sel_v) = const_of(operands[0], &self.nodes)?;
+                if sel_w != 1 {
+                    return None;
+                }
+                let chosen = match sel_v {
+                    0 => operands[2],
+                    1 => operands[1],
+                    _ => return None,
+                };
+                self.peephole_rewrites_applied += 1;
+                crate::trace_verbose!(
+                    node = chosen,
+                    width,
+                    sel = sel_v,
+                    "✂️ peephole constant-selector Mux"
+                );
+                Some((chosen, false))
             }
             GateOp::Slice { hi, lo } if operands.len() == 1 => {
                 // Full-width slice starting at 0 is the identity.
@@ -1758,6 +1811,30 @@ mod tests {
         assert_eq!(m.fold_identities_applied, 1);
     }
 
+    /// Absorbing now fires even when the non-constant operand is a
+    /// Gate, because final compaction removes the dead gate later.
+    #[test]
+    fn fold_or_all_ones_absorbs_with_gate_operand() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        let x: NodeId = 0;
+        let (ones, _) = m.intern_constant(8, 0xFF);
+        let (not_x, _) = m.intern_gate(GateOp::Not, vec![x], 8, DepSet::from_port(0));
+        let before = m.nodes.len();
+        let (id, is_new) = m.intern_gate(GateOp::Or, vec![not_x, ones], 8, DepSet::from_port(0));
+        assert_eq!(id, ones);
+        assert!(
+            !is_new,
+            "absorbing should reuse the interned all-ones constant"
+        );
+        assert_eq!(m.nodes.len(), before, "outer Or should not materialize");
+        assert_eq!(m.fold_identities_applied, 1);
+    }
+
     /// `x ^ 0 → x`, `x * 1 → x`, `x - 0 → x`, `x << 0 → x`,
     /// `x >> 0 → x`. Sanity sweep.
     #[test]
@@ -1858,6 +1935,74 @@ mod tests {
         }
 
         assert!(m.peephole_rewrites_applied >= 4);
+    }
+
+    /// Unsigned comparisons against 0 / all-ones fold at the obvious
+    /// boundaries without needing full range analysis.
+    #[test]
+    fn peephole_unsigned_boundary_comparisons_fold() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        let x: NodeId = 0;
+        let (zero, _) = m.intern_constant(4, 0);
+        let (max, _) = m.intern_constant(4, 0xF);
+        let cases = [
+            (GateOp::Lt, vec![x, zero], 0),
+            (GateOp::Ge, vec![x, zero], 1),
+            (GateOp::Le, vec![x, max], 1),
+            (GateOp::Gt, vec![x, max], 0),
+            (GateOp::Gt, vec![zero, x], 0),
+            (GateOp::Le, vec![zero, x], 1),
+            (GateOp::Lt, vec![max, x], 0),
+            (GateOp::Ge, vec![max, x], 1),
+        ];
+
+        for (op, operands, expected) in cases {
+            let (id, _) = m.intern_gate(op, operands, 1, DepSet::from_port(0));
+            match m.nodes[id as usize] {
+                Node::Constant { width: 1, value } => assert_eq!(value, expected),
+                ref other => panic!("expected 1-bit const {expected}, got {other:?}"),
+            }
+        }
+
+        assert_eq!(m.peephole_rewrites_applied, 8);
+    }
+
+    /// `Mux(0, a, b) → b` and `Mux(1, a, b) → a`.
+    #[test]
+    fn peephole_mux_const_selector_collapses() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::default(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 });
+        let a: NodeId = 0;
+        let b: NodeId = 1;
+        let (sel0, _) = m.intern_constant(1, 0);
+        let (sel1, _) = m.intern_constant(1, 1);
+        let deps = DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]);
+        let before = m.nodes.len();
+
+        let (pick_b, is_new_b) = m.intern_gate(GateOp::Mux, vec![sel0, a, b], 4, deps.clone());
+        assert_eq!(pick_b, b);
+        assert!(!is_new_b);
+
+        let (pick_a, is_new_a) = m.intern_gate(GateOp::Mux, vec![sel1, a, b], 4, deps);
+        assert_eq!(pick_a, a);
+        assert!(!is_new_a);
+
+        assert_eq!(
+            m.nodes.len(),
+            before,
+            "constant-selector muxes should not materialize"
+        );
+        assert_eq!(m.peephole_rewrites_applied, 2);
     }
 
     /// `Slice(hi, 0)` where `hi + 1 == src_width` returns the source.

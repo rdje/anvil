@@ -344,15 +344,15 @@ In `ir::validate::validate`:
 
 ## Testing surface
 
-- `src/ir/types.rs` — 32 inline unit tests covering commutative normalization, constant folding, peephole rewrites, all-constant evaluation, associative flattening, and level gating.
+- `src/ir/types.rs` — 36 inline unit tests covering commutative normalization, constant folding, peephole rewrites, all-constant evaluation, associative flattening, identity-mode gates, unsigned-boundary tautologies, and const-selector mux collapse.
 - `src/ir/validate.rs` — 21 inline unit tests covering valid modules plus a broad rejection surface: undefined drive roots, dense flop-id enforcement, missing D, undefined mux-held refs, canonical `Flop.q` / `FlopQ` backrefs and widths, dangling / duplicate `FlopQ`s, and representative gate-shape failures.
-- `src/gen/cone.rs` — 15 inline unit tests covering flop assemblers, `ceil_log2`, `pick_mux_arm_count`, width-adapter cases, comb-mux generation, DAG-sharing sanity, anti-collapse, dep-bearing terminal picking, and coefficient-width clamping.
+- `src/gen/cone.rs` — 18 inline unit tests covering flop assemblers, `ceil_log2`, `pick_mux_arm_count`, width-adapter cases, comb-mux generation, DAG-sharing sanity, anti-collapse, dep-bearing terminal picking, coefficient-width clamping, CLI alias behavior, and category / leaf-knob exercise coverage.
 - `src/gen/module.rs` — 2 inline unit tests covering primary-input width shrinking and the "do not shrink full-width non-slice uses" guard.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — 6 inline unit tests for exact-signature flop merge (consumer + dep rewrite, relaxed-mode bypass, reset-signature separation) plus no-op compaction, orphan removal, and topological-order preservation.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **96 unit + 24 integration = 120 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-20): **99 unit + 24 integration = 123 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test` yet. Phase 1 exit gate remains blocked on running the larger sweeps, not on tool availability.
 
 ## Known weaknesses (visible in code today)
@@ -362,9 +362,9 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (120 passing tests: 96 unit + 24 integration).
+- `cargo test` — clean (123 passing tests: 99 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean for the unused-signal class with `-Wno-DECLFILENAME -Wno-UNSIGNED`; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; Yosys `read_verilog -sv ...; synth` on seed 42 reports 0 problems.
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; Yosys `read_verilog -sv ...; synth` on seed 42 reports 0 problems.

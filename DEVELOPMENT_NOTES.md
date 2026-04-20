@@ -79,10 +79,14 @@ The grammar view is preserved as a *correctness argument* (every constructor pre
 Considered: a Rust evaluator that walks the IR with concrete input vectors and produces expected output values, used both for non-triviality filtering and for downstream tool testing. **Rejected** because:
 - Doubles implementation effort.
 - Introduces a second correctness question (is our interpreter LRM-correct?).
-- The user's stated goal is *generation*, not *tool testing*.
+- The user's stated goal is *generation*, not building a full shadow
+  simulator or tool-oracle inside `anvil`.
 - Non-triviality is cheaper to enforce by dep-set tracking + structural rules; multi-vector evaluation is overkill for that use case.
 
-Users who want differential testing can run Verilator/Icarus/Yosys against the output; that is downstream work, not `anvil`'s job.
+That does **not** lower the output-quality bar. The generator is still
+expected to emit modules that run cleanly in downstream tools.
+Verilator / Yosys are external validators, not the place where
+`anvil` gets to finish the job.
 
 ### `always_comb` + `case` for encoded-mux flop D
 
@@ -162,6 +166,33 @@ identity links that a bad renumbering pass can corrupt.
 
 Keep the emitter dumb. If any of these invariants fail, fix the
 producer or rewrite pass; do not add emitter-side repair logic.
+
+### Compaction now legitimises dynamic absorbing folds (2026-04-20)
+
+Before `compact_node_ids`, the cautious rule for absorbing constants
+was "only fold if the other operand is not a gate", because
+`x & 0 -> 0`, `x | all_ones -> all_ones`, and `x * 0 -> 0` would
+otherwise orphan a dynamic subgraph immediately.
+
+That restriction is now obsolete. Finalisation already performs a
+reachability compaction from real roots and rebuilds the dedup tables,
+so these local identities are safe to fire regardless of whether the
+other operand is a gate. In other words: once compaction exists, the
+correctness risk is no longer "did we orphan something?" but "did we
+miss an identity we should have collapsed?"
+
+The practical consequence showed up in tool smoke:
+
+- the remaining seed-42 Verilator `UNSIGNED` / `CMPCONST` warnings
+  were not tool quirks;
+- they were missed IR-local tautologies; and
+- the right fix was to strengthen the rewrite ladder
+  (absorbing folds, unsigned boundary comparisons, const-selector
+  muxes), not to suppress or special-case Verilator.
+
+This is the pattern to keep following for the NodeId-identity roadmap:
+when equivalent local forms are discovered in emitted SV, first ask
+whether they should have already become the same node in the IR.
 
 ---
 

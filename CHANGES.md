@@ -3,9 +3,111 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0079 — Harden canonical flop identity validation
+## 2026-04-20-0080 — Fold Verilator tautology residues in the rewrite ladder
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice closes the remaining seed-42 Verilator `UNSIGNED` /
+`CMPCONST` residue by strengthening the factorization ladder itself
+instead of suppressing those warnings downstream.
+
+### Dynamic absorbing folds now fire through gate operands
+
+- `fold_constants` now accepts the three absorbing identities even
+  when the other operand(s) are interned gates:
+  - `x & 0 -> 0`
+  - `x | all_ones -> all_ones`
+  - `x * 0 -> 0`
+- The old "all other operands must be non-gates" restriction is gone.
+- Rationale: `compact_node_ids` already runs at module finalisation
+  and now owns cleanup of the orphaned dynamic subgraph.
+
+### Peephole now removes the local tautology shapes Verilator flagged
+
+- Added unsigned boundary rewrites for same-width comparisons:
+  - `x < 0 -> 0`
+  - `x >= 0 -> 1`
+  - `x <= all_ones -> 1`
+  - `x > all_ones -> 0`
+  - plus the symmetric constant-on-LHS cases (`0 <= x -> 1`,
+    `all_ones < x -> 0`, etc.).
+- Added constant-selector mux collapse:
+  - `Mux(0, a, b) -> b`
+  - `Mux(1, a, b) -> a`
+- These are now handled as local IR identities before emission, so
+  the generated SV no longer carries these tautological comparisons
+  into Verilator.
+
+### Tests and docs were extended with the stronger rewrite contract
+
+- `src/ir/types.rs` gained 3 new unit tests covering:
+  - dynamic `Or(all_ones, gate)` absorption;
+  - unsigned min/max boundary comparison folds; and
+  - constant-selector mux collapse.
+- Live docs + book now explain that compaction legitimises these
+  stronger absorbing rewrites, and that the seed-42 lint residue was
+  fixed at the IR-identity layer rather than by tool-specific
+  suppression.
+
+**Why**
+
+The user-reported "unused bits / signal" thread led into a broader
+lint-cleaning audit. After the stateful identity work, seed 42 was
+still producing a small set of Verilator warnings that were all
+structural tautologies:
+
+- unsigned comparisons against impossible bounds (`x < 0`, `x >= 0`);
+- const-selector muxes; and
+- dynamic expressions that should have been absorbed by `0` or
+  `all_ones`.
+
+Those are not desirable "noise we tolerate"; they are missed local
+identities. Fixing them in the rewrite ladder keeps the output cleaner
+and moves `node-id` identity closer to the "same function, same node"
+goal.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test` (99 unit + 24 integration = 123 passing tests)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run -- --seed 42 --count 1 --out /tmp/anvil_unsigned_probe2`
+- `verilator --lint-only /tmp/anvil_unsigned_probe2/mod_42_0000.sv`
+  (clean, no warning-specific suppressions)
+- `yosys -p "read_verilog -sv /tmp/anvil_unsigned_probe2/mod_42_0000.sv; synth; stat"`
+  (0 problems)
+
+**Impact**
+
+- Seed-42 Verilator lint is now warning-clean without relying on
+  `-Wno-UNSIGNED`.
+- The factorization ladder is stronger in a way that aligns with the
+  NodeId-identity objective: equivalent local forms collapse sooner,
+  before emission.
+- The remaining Phase-1 tooling gate is now the breadth sweep
+  (1000-module Verilator + Yosys), not this known lint residue.
+
+**Files touched**
+
+- `src/ir/types.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `book/src/ir.md`
+- `book/src/synthesizability.md`
+- `book/src/structural-rules.md`
+
+## 2026-04-20-0079 — Harden canonical flop identity validation
+
+**Landed as:** `0a6cc89`
 
 **What changed**
 

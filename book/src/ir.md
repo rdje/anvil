@@ -170,9 +170,11 @@ expressions land on the same CSE key:
    `And`/`Or`/`Xor`/`Add`/`Mul` by `NodeId`.
 3. **Constant folding** (`>= ConstantFold`): drop identity
    operands (`x + 0`, `x * 1`, `x & all_ones`, …), substitute
-   absorbing constants when orphan-safe.
+   absorbing constants, with dead gate operands later cleaned up by
+   compaction.
 4. **Peephole rewrites** (`>= Peephole`): local identities —
-   `Not(Not(x))`, `Not(cmp) → inverted cmp`, all-constant
+   `Not(Not(x))`, `Not(cmp) → inverted cmp`, constant-selector
+   `Mux`, unsigned comparison-boundary tautologies, all-constant
    evaluation for comparisons / `Not` / `Slice` / reductions,
    full-width `Slice`, single-operand `Concat`.
 5. **Level-None bypass**: at `FactorizationLevel::None`, skip
