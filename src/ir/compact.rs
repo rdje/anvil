@@ -13,7 +13,8 @@
 //!   sharing pass that runs only once flop D-cones exist. Under
 //!   `identity_mode = node-id` with effective factorization level
 //!   at least `Cse`, flops with the same emitted state semantics
-//!   (`width`, reset, `d`) are collapsed to one state element.
+//!   (`width`, reset, exact `d` or self-relative `d`) are collapsed
+//!   to one state element.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -21,11 +22,12 @@
 //!   outer `Not` call), and compacts the `m.nodes` arena to only the
 //!   reachable set.
 //!
-//! The merge is intentionally exact-signature, not a general
-//! sequential-equivalence engine: it does not try to prove
-//! coinductive equalities like two self-feedback flops whose D-cones
-//! are merely isomorphic under Q-renaming. The compaction pass is
-//! idempotent and a no-op when there are no orphans. It exists
+//! The merge is intentionally conservative, not a general
+//! sequential-equivalence engine: it now handles exact duplicate
+//! flops plus the common self-feedback case where two D-cones differ
+//! only by renaming each flop's own `q` to "self", but it still does
+//! not try to prove wider coinductive equalities. The compaction pass
+//! is idempotent and a no-op when there are no orphans. It exists
 //! primarily to unblock rewrites that would otherwise orphan
 //! intermediate gates. Without it those rewrites would have to be
 //! suppressed to stay Rule-18-clean (as they were before this
@@ -59,12 +61,47 @@
 use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, ResetKind};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
     width: u32,
-    d: NodeId,
+    d: RelativeSigId,
     reset_val: u128,
     reset_kind: ResetKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum RelativeNodeShape {
+    ExactNode(NodeId),
+    SelfQ,
+    Gate {
+        op: GateOp,
+        width: u32,
+        operands: Vec<RelativeSigId>,
+    },
+}
+
+type RelativeSigId = u32;
+
+#[derive(Default)]
+struct RelativeSignatureCtx {
+    shapes: Vec<RelativeNodeShape>,
+    interner: HashMap<RelativeNodeShape, RelativeSigId>,
+}
+
+impl RelativeSignatureCtx {
+    fn intern(&mut self, shape: RelativeNodeShape) -> RelativeSigId {
+        if let Some(&id) = self.interner.get(&shape) {
+            return id;
+        }
+        let id = self.shapes.len() as RelativeSigId;
+        self.shapes.push(shape.clone());
+        self.interner.insert(shape, id);
+        id
+    }
+
+    fn shape(&self, id: RelativeSigId) -> &RelativeNodeShape {
+        &self.shapes[id as usize]
+    }
 }
 
 /// Merge duplicate flops after every D-cone is known.
@@ -73,19 +110,23 @@ struct FlopSignature {
 /// NodeId-as-identity doctrine: a flop's identity cannot be decided
 /// at birth because its semantics are not known until the worklist
 /// finishes building `d`. After that point, if two flops have the
-/// same exact emitted state signature (`width`, reset, `d`), every
+/// same emitted state signature (`width`, reset, exact `d`, or D-cones
+/// that differ only by renaming each flop's own `q` to "self"), every
 /// consumer of the duplicate Q can safely be redirected to the
 /// canonical Q.
 ///
 /// The pass is gated by the effective identity mode:
 ///
 /// - `identity_mode = relaxed` or effective level `None` => no merge.
-/// - `identity_mode = node-id` and effective level `>= Cse` => exact
-///   signature merge is enabled.
+/// - `identity_mode = node-id` and effective level `>= Cse` => the
+///   conservative sequential-identity pass is enabled.
 ///
 /// The merge is intentionally conservative:
 ///
-/// - compares exact `d: NodeId`, not graph isomorphism;
+/// - compares exact `d: NodeId` when the D-cone is independent of the
+///   flop's own `q`;
+/// - for self-feedback D-cones, compares the exact gate structure after
+///   renaming the owning `q` to a synthetic "self" leaf;
 /// - ignores construction-only provenance (`FlopKind`, cleared
 ///   `FlopMux` operands) once `d` exists;
 /// - preserves first occurrence as canonical.
@@ -103,6 +144,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         return 0;
     }
 
+    let mut rel_sig_ctx = RelativeSignatureCtx::default();
     let mut canonical_by_sig: HashMap<FlopSignature, FlopId> = HashMap::new();
     let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
     let mut removed = 0u32;
@@ -113,7 +155,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         };
         let sig = FlopSignature {
             width: flop.width,
-            d,
+            d: relative_node_sig_id(m, d, flop.q, &mut HashMap::new(), &mut rel_sig_ctx),
             reset_val: flop.reset_val,
             reset_kind: flop.reset_kind,
         };
@@ -187,6 +229,54 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 
     rebuild_instance_tables(m);
     removed
+}
+
+fn relative_node_sig_id(
+    m: &Module,
+    node_id: NodeId,
+    self_q: NodeId,
+    memo: &mut HashMap<NodeId, RelativeSigId>,
+    ctx: &mut RelativeSignatureCtx,
+) -> RelativeSigId {
+    if let Some(sig) = memo.get(&node_id) {
+        return *sig;
+    }
+
+    let sig = if node_id == self_q {
+        ctx.intern(RelativeNodeShape::SelfQ)
+    } else {
+        match &m.nodes[node_id as usize] {
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } => {
+                let operand_sigs: Vec<RelativeSigId> = operands
+                    .iter()
+                    .map(|&operand| relative_node_sig_id(m, operand, self_q, memo, ctx))
+                    .collect();
+                if operand_sigs
+                    .iter()
+                    .any(|&sig_id| !matches!(ctx.shape(sig_id), RelativeNodeShape::ExactNode(_)))
+                {
+                    ctx.intern(RelativeNodeShape::Gate {
+                        op: *op,
+                        width: *width,
+                        operands: operand_sigs,
+                    })
+                } else {
+                    ctx.intern(RelativeNodeShape::ExactNode(node_id))
+                }
+            }
+            Node::PrimaryInput { .. } | Node::Constant { .. } | Node::FlopQ { .. } => {
+                ctx.intern(RelativeNodeShape::ExactNode(node_id))
+            }
+        }
+    };
+
+    memo.insert(node_id, sig);
+    sig
 }
 
 /// Compact `m.nodes` to only the nodes reachable from some root.
@@ -674,6 +764,45 @@ mod tests {
         assert_eq!(m.flops.len(), 2);
     }
 
+    #[test]
+    fn merge_equivalent_flops_handles_self_feedback_isomorphism() {
+        let mut m = self_feedback_flop_fixture();
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1, "self-relative duplicate flops should merge");
+        assert_eq!(m.flops.len(), 1);
+
+        let compacted = compact_node_ids(&mut m);
+        assert!(
+            compacted >= 2,
+            "duplicate q plus duplicate self-feedback gate should become unreachable"
+        );
+        validate(&m).expect("self-feedback merge must preserve validator invariants");
+
+        let Node::Gate { operands, deps, .. } = &m.nodes[m.drives[0].1 as usize] else {
+            panic!("drive root should remain a gate");
+        };
+        assert_eq!(operands.len(), 2);
+        assert_eq!(
+            operands[0], operands[1],
+            "consumer should be rewired to the surviving canonical q"
+        );
+        assert_eq!(deps.len(), 1, "virtual flop deps should coalesce");
+        assert!(deps.contains(0x8000_0000));
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_non_self_duplicate_d_cones_distinct() {
+        let mut m = non_self_duplicate_d_fixture();
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(
+            removed, 0,
+            "non-self duplicate D-cones should respect exact NodeId identity"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
     fn count_orphan_gates(m: &Module) -> usize {
         let n = m.nodes.len();
         let mut used = vec![false; n];
@@ -770,6 +899,137 @@ mod tests {
             reset_kind: ResetKind::Async,
             kind: FlopKind::QFeedback,
             mux: FlopMux::OneHot(vec![]),
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn self_feedback_flop_fixture() -> Module {
+        let mut m = Module {
+            name: "self_feedback".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::Cse,
+            ..Module::default()
+        };
+        m.outputs.push(Port {
+            id: 0,
+            name: "y".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 0
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 1
+        m.nodes.push(Node::Constant { width: 8, value: 1 }); // 2
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![0, 2],
+            width: 8,
+            deps: DepSet::from_flop_virtual(0),
+        }); // 3
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![1, 2],
+            width: 8,
+            deps: DepSet::from_flop_virtual(1),
+        }); // 4
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![0, 1],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_flop_virtual(0), &DepSet::from_flop_virtual(1)]),
+        }); // 5
+        m.drives.push((0, 5));
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(3),
+            q: 0,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 8,
+            d: Some(4),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::OneHot(vec![]),
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn non_self_duplicate_d_fixture() -> Module {
+        let mut m = Module {
+            name: "non_self_duplicate_d".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::Cse,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 8,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::Constant { width: 8, value: 1 }); // 1
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 2
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 3
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![0, 1],
+            width: 8,
+            deps: DepSet::from_port(0),
+        }); // 4
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![0, 1],
+            width: 8,
+            deps: DepSet::from_port(0),
+        }); // 5
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![2, 3],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_flop_virtual(0), &DepSet::from_flop_virtual(1)]),
+        }); // 6
+        m.drives.push((1, 6));
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(4),
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 8,
+            d: Some(5),
+            q: 3,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
         });
 
         rebuild_instance_tables(&mut m);

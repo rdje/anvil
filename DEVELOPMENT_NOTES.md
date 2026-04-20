@@ -273,10 +273,11 @@ What still needs to stay explicit:
    emitter tricks.
 2. **`NodeId`-as-identity must keep expanding through the IR, not via
    emitter magic.** Today's live coverage is normalized combinational
-   identity plus exact-signature duplicate-flop merge. Future work is
-   stronger state identity, self-feedback normalization where sound,
-   and later hierarchical/block identity. Keep `--identity-mode` as the
-   coarse on/off switch and `--factorization-level` as the finer dial;
+   identity plus conservative state merge for exact duplicates and
+   self-feedback-isomorphic flops. Future work is stronger state
+   identity across richer state graphs, and later
+   hierarchical/block identity. Keep `--identity-mode` as the coarse
+   on/off switch and `--factorization-level` as the finer dial;
    construction strategy must stay orthogonal.
 3. **Tool cleanliness must be industrialized.** Seed 42 being clean is
    good news, not a stopping point. Each new motif/category/knob needs
@@ -289,6 +290,28 @@ What still needs to stay explicit:
    pressure, hierarchy, and stateful richness. Functionally correct
    local blocks are welcome; a bundled whole-module oracle is not the
    direction.
+
+### Sequential identity now has a self-relative rung (2026-04-20)
+
+`merge_equivalent_flops` no longer stops at exact `d: NodeId`
+equality. It now recognizes one additional safe class:
+
+- two flops with the same width/reset whose D-cones are identical after
+  renaming each flop's own `q` leaf to a synthetic "self" token.
+
+That covers the common self-feedback/isomorphic-register case without
+pretending to solve general sequential equivalence.
+
+The important limit is just as load-bearing as the new capability:
+
+- if a D-cone does **not** depend on the owning `q`, its signature stays
+  exact-`NodeId`, not structural.
+
+That preserves the existing duplication semantics for non-self
+subgraphs. In other words, this slice strengthens state identity only
+where self-reference was the reason exact `NodeId` equality could never
+hold; it does not silently bulldoze `max_ast_instances` or other
+intentional duplication controls.
 
 ---
 

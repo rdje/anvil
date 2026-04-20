@@ -241,7 +241,9 @@ The current signature is intentionally conservative:
 - same `width`
 - same `reset_kind`
 - same `reset_val`
-- same exact `d: NodeId`
+- same exact `d: NodeId`; or
+- D-cones that become identical after renaming each flop's own `q` to a
+  synthetic "self" leaf.
 
 If those match, every consumer of the duplicate Q is rewired to the
 canonical Q, virtual flop deps are remapped, surviving flops are
@@ -251,7 +253,8 @@ duplicate Q nodes.
 What it deliberately does **not** do yet:
 
 - prove graph isomorphism across D-cones;
-- normalize self-feedback by Q-renaming;
+- structurally merge non-self D-cones that merely happen to be
+  duplicate ASTs under looser duplication settings;
 - merge wider sequentially-equivalent machines.
 
 ## What "full factorization" still means
@@ -272,7 +275,8 @@ Today, ANVIL is **part-way there**:
 
 - combinational expressions are canonicalized through the intern-time
   ladder described above;
-- exact duplicate flops merge once their D-cones exist; but
+- exact duplicate flops, plus self-feedback-isomorphic duplicates,
+  merge once their D-cones exist; but
 - stronger sequential equivalence, block/module identity, and future
   parameter-aware hierarchical identity are still open work.
 

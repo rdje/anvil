@@ -3,9 +3,91 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0083 — Make the four suitability gaps explicit across roadmap, book, and live docs
+## 2026-04-20-0084 — Extend state identity to self-feedback-isomorphic flops
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice strengthens the post-drain sequential identity pass in
+`src/ir/compact.rs`. `merge_equivalent_flops` no longer requires two
+flops to share the same exact `d: NodeId` in every case; it now also
+merges the common self-feedback case where the two D-cones are
+identical after renaming each flop's own `q` leaf to a synthetic
+"self" token.
+
+### Stateful identity is now stronger where exact NodeId equality could never hold
+
+- Added a self-relative D-cone signature for flop merging:
+  - if a D-subtree does not depend on the owning `q`, it stays keyed by
+    exact `NodeId`;
+  - if it does depend on the owning `q`, the signature records the gate
+    structure recursively with the owning `q` normalized to `SelfQ`.
+- This lets ANVIL merge flops like:
+  - `d0 = q0 + 1`
+  - `d1 = q1 + 1`
+  even though the two D-cones cannot share the same literal `NodeId`
+  because each one contains its own distinct `FlopQ` leaf.
+
+### The pass still respects intentional duplication outside self-feedback
+
+- Non-self duplicate D-cones remain exact-`NodeId` keyed.
+- That means this slice does **not** silently bulldoze
+  `max_ast_instances` or other duplication controls for generic
+  combinational subgraphs; it only strengthens state identity where
+  self-reference was the blocker.
+
+### Tests and docs were updated with the new contract
+
+- `src/ir/compact.rs` gained 2 new unit tests:
+  - positive: self-feedback-isomorphic flops merge and validate after
+    compaction;
+  - negative: duplicated non-self D-cones stay distinct.
+- Live docs + book were updated so they no longer describe the pass as
+  exact-signature-only.
+
+**Why**
+
+The freshly-added four-gap steering map named stronger state identity as
+the first live code gap. The next safe rung was the self-feedback case:
+it is common, structurally clear, and blocked only by each flop owning a
+different `q` leaf.
+
+Landing that case moves NodeId-as-identity in the right direction
+without pretending to solve general sequential equivalence or trampling
+the existing duplication knobs.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Stateful sharing is now stronger for common register-style feedback
+  motifs.
+- The state-identity story in the codebase is more honest: no longer
+  "exact `d: NodeId` only", but still clearly bounded.
+- The next sequential-identity questions are now narrower and cleaner:
+  wider graph isomorphism, richer state motifs, and eventually
+  hierarchical identity.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/factorization.md`
+- `src/ir/compact.rs`
+
+## 2026-04-20-0083 — Make the four suitability gaps explicit across roadmap, book, and live docs
+
+**Landed as:** `cb090be`
 
 **What changed**
 

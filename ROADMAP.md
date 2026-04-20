@@ -40,12 +40,12 @@ instead of leaving them implicit.
    should converge to one `NodeId`, so sharing of gates, blocks,
    modules, and flops is as high as the current build knows how to
    prove. Today's implementation covers normalized combinational
-   identity plus exact-signature duplicate-flop merge; stronger
-   sequential and hierarchical equivalence are still open work. This
-   mode must remain user-controllable from the CLI: `--identity-mode
-   relaxed` is a real off-switch, while `--factorization-level`
-   continues to express weaker or stronger canonicalization within
-   `node-id`.
+   identity plus conservative state merging for exact duplicates and
+   self-feedback-isomorphic flops; stronger sequential and hierarchical
+   equivalence are still open work. This mode must remain
+   user-controllable from the CLI: `--identity-mode relaxed` is a real
+   off-switch, while `--factorization-level` continues to express weaker
+   or stronger canonicalization within `node-id`.
 
 3. **Signoff-quality tool-clean industrialization**
    Seed-level cleanliness is not enough. The project needs automated
@@ -113,9 +113,10 @@ seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
   Mixing is the default — a single gate's operands can freely combine
   shared and freshly-built sub-cones.
 - Under `identity_mode = node-id` with effective factorization level
-  `>= cse`, an exact-signature post-drain flop merge now extends sharing
-  to state elements too: duplicate flops with the same `width`, reset,
-  and `d` collapse to one register.
+  `>= cse`, a conservative post-drain flop merge now extends sharing to
+  state elements too: duplicate flops with the same `width`, reset, and
+  either the same exact `d` or the same self-feedback D-cone modulo
+  renaming each flop's own `q` collapse to one register.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both
