@@ -38,7 +38,8 @@ pub struct Module {
     pub fold_identities_applied:   u64,   // ConstantFold layer fires
     pub peephole_rewrites_applied: u64,   // Peephole layer fires
     pub flatten_associative_applied: u64, // Associative layer fires
-    pub flops_merged:             u32,    // exact-signature flop merges
+    pub flops_merged:             u32,    // endpoint-aware flop merges
+    pub semantic_gates_merged:    u32,    // bounded semantic gate merges
     pub nodes_compacted:           u32,   // compact_node_ids removals
     pub knob_rolls:                KnobRollCounters, // per-knob attempts/fires
 }
@@ -181,9 +182,11 @@ expressions land on the same CSE key:
    every layer above and append a fresh node (stress-test mode).
 6. **AST-cap + CSE dedup**: described just above.
 
-Stateful sharing has one additional post-drain step outside
-`intern_gate`: after every flop's `d` exists, finalisation may merge
-flops by exact emitted-state signature (`width`, reset, `d`) under
+Post-construction sharing has two additional steps outside
+`intern_gate`: at effective level `e-graph`, finalisation may merge
+small-support combinational cones proven equivalent over the same
+canonical leaf endpoints; after every flop's `d` exists, finalisation
+may also merge flops by emitted-state meaning under
 `identity_mode = node-id` with effective level `>= cse`.
 
 Each layer except the bypass can short-circuit the call to a

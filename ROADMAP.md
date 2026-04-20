@@ -43,9 +43,9 @@ instead of leaving them implicit.
    two cones should share one identity only when ANVIL can prove they
    implement the same functionality with respect to the same canonical
    leaf endpoints. Today's implementation covers normalized
-   combinational identity plus a conservative post-drain state merge
-   over the proof forms the current ladder already canonicalizes, with
-   an additional bounded semantic proof for small-support state cones;
+   combinational identity plus a live bounded semantic fragment at the
+   `e-graph` rung for small-support gate cones, together with a
+   conservative post-drain state merge over the same proof discipline;
    stronger sequential and hierarchical equivalence are still open
    work. This mode must remain user-controllable from the CLI:
    `--identity-mode
@@ -62,6 +62,13 @@ instead of leaving them implicit.
    invariants or rewrites, not hidden behind warning suppressions. The
    intended steady-state remains: generated RTL is boringly clean in
    mainstream tools by default.
+
+   The adversarial space must be modeled as an explicit axis matrix, not
+   as one vague notion of "randomness". Construction strategy, identity
+   mode, factorization level, motif/category selection, sequential
+   density, width/depth ranges, and the probability knobs must be
+   exercised without hidden bias from whichever implementation path is
+   currently easiest.
 
 4. **Structure-first, not whole-module specification-first**
    ANVIL optimizes for structural legitimacy, synthesizability,
@@ -108,7 +115,7 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
 the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (123 tests, unused-signal Verilator sweep over seeds 0..4
+validation (129 tests, unused-signal Verilator sweep over seeds 0..4
 for the default path and the `graph-first` alias, plus a warning-clean
 seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
 
@@ -123,8 +130,9 @@ seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
   state elements too: flops collapse when ANVIL can prove their D-cones
   implement the same currently-normalized functionality over the same
   canonical leaf endpoints, together with the same `width` and reset
-  semantics. For small-support cones, that proof now includes a bounded
-  semantic check in addition to the normalized structural one.
+  semantics. At effective level `e-graph`, a bounded semantic
+  post-construction gate merge is also live for small-support
+  combinational cones over the same canonical leaf variables.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both

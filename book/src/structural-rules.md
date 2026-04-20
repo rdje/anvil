@@ -597,8 +597,9 @@ we land them incrementally as defects demand.
 
 **The syntactic-vs-semantic boundary.** What the currently-
 implemented layers (CSE, operand-uniqueness, commutative,
-associative, constant-fold, peephole) guarantee is that **two
-syntactically identical expressions share one node**, plus a
+associative, constant-fold, peephole, and the bounded `e-graph`
+fragment) guarantee is that **two expressions share one node**
+when ANVIL can prove that with today's available tactics, plus a
 curated set of structural and well-known algebraic identities
 (`Add(a, Add(b, c)) = Add(a, b, c)`, `a ^ a = 0`, `x + 0`,
 `x * 1`, `x & 0`, `x | all_ones`, `Eq(c1, c2)`, full-width
@@ -634,9 +635,9 @@ how far along the factorization chain the generator enforces
 `none → cse → operand-unique → commutative → associative →
 constant-fold → peephole → e-graph` (default).
 
-Each level implies all lower ones. Levels above the highest
-implemented layer (currently `peephole`) activate every
-implemented layer — they're aspirational anchors for the
+Each level implies all lower ones. Levels above a fully-implemented
+semantic engine activate every implemented layer today; at present the
+top rung is a bounded live `e-graph` fragment rather than the full
 theoretical ceiling.
 
 CLI convenience aliases: `--full-factorization` requests
@@ -662,13 +663,13 @@ e-graph layer.
 | Level          | Enables                                                            |
 |----------------|--------------------------------------------------------------------|
 | `none`         | Nothing. Every `intern_gate` / `intern_constant` creates a fresh NodeId. |
-| `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. Also enables the post-drain exact-signature flop merge: under `identity_mode = node-id`, flops with the same `width`, reset, and exact same `d` collapse to one state element. Construction-only provenance (`FlopKind`, cleared mux operand metadata) is ignored once `d` exists. Fires counted in `Metrics::flops_merged`. |
+| `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. Also enables the post-drain endpoint-preserving flop merge: under `identity_mode = node-id`, flops with the same `width`, reset, canonical leaf endpoints, and currently-proven D-cone functionality collapse to one state element. Construction-only provenance (`FlopKind`, cleared mux operand metadata) is ignored once `d` exists. Fires counted in `Metrics::flops_merged`. |
 | `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
 | `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |
 | `associative`  | + Associative flattening at intern time: any `And`/`Or`/`Xor`/`Add`/`Mul` operand that is itself a same-op same-width gate is spliced into the outer operand list (`Add(a, Add(b, c)) → Add(a, b, c)`). Per-op semantic normalisation after the splice: `And`/`Or` dedup (`a & a = a`), `Xor` pair-cancel (`a ^ a = 0`), `Add`/`Mul` skip the flatten when it would produce duplicates (preserves `x + x = 2x` / `x * x = x²` under strict `operand_duplication_rate`). Inner gates orphaned by the splice are cleaned up by `compact_node_ids` at module finalisation. Fires counted in `Metrics::flatten_associative_applied`; residual nesting in `Metrics::nested_associative_operand_count` is zero at default knobs. |
 | `constant-fold` | + Constant folding at intern time. Identity drops (`x + 0 → x`, `x * 1 → x`, `x & all_ones → x`, `x \| 0 → x`, `x ^ 0 → x`, `x - 0 → x`, `x << 0 → x`, `x >> 0 → x`); absorbing constants now fire on mixed operands too (`x * 0 → 0`, `x & 0 → 0`, `x \| all_ones → all_ones`) because post-construction compaction removes dead gate operands; full all-constant evaluation for associative ops (bitwise AND/OR/XOR over values, sum/product mod 2^width) and 2-arity non-commutative ops (`Sub(c1, c2)`, `Shl(c1, c2)`, `Shr(c1, c2)` all with mod-2^width semantics and over-shift → 0). Fires counted in `Metrics::fold_identities_applied`. |
 | `peephole`    | + Local rewrites at intern time. Single-gate involutions: `Not(Not(x)) → x`. Cross-gate comparison inversions: `Not(Eq) → Neq`, `Not(Neq) → Eq`, `Not(Lt) → Ge`, `Not(Gt) → Le`, `Not(Le) → Gt`, `Not(Ge) → Lt`. Unsigned comparison-boundary tautologies: `x < 0`, `x >= 0`, `x <= all_ones`, `x > all_ones`, plus the symmetric lhs-constant forms. Constant-selector mux collapse: `Mux(0, a, b) → b`, `Mux(1, a, b) → a`. Constant evaluation (all-operand-constants → evaluated constant): comparisons (`Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge`), `Not(c) → ~c & mask`, `Slice(hi, lo)(c) → (c >> lo) & mask`, `Concat([c1, c2, ...]) → MSB-first bit assembly`, `RedAnd(c) → (c == all_ones)`, `RedOr(c) → (c != 0)`, `RedXor(c) → popcount(c) & 1`. Structural identities: full-width `Slice(hi, 0)` where `hi+1 == src_width` returns the source, single-operand `Concat([x]) → x`. In every case the inner gate may be orphaned by the rewrite; the post-construction `compact_node_ids` pass cleans it up. Fires counted in `Metrics::peephole_rewrites_applied`; removed nodes in `Metrics::nodes_compacted`. Broader cross-gate rewrites like `(a + b) - b → a` still await the e-graph layer. |
-| `e-graph`    | Full semantic equivalence. *Not implemented yet.*                  |
+| `e-graph`    | Bounded semantic equivalence fragment. Under `identity_mode = node-id`, small-support combinational cones proven equal over the same canonical leaf endpoints collapse post-construction. Full semantic equivalence remains open. |
 
 **Effective level:** `Config::effective_factorization_level()` /
 `Module::effective_factorization_level()` apply the coarse mode
@@ -684,7 +685,7 @@ first, then the ladder:
 Unimplemented middle rungs are skipped cleanly: a user asking for
 `associative` drops to `commutative` (the nearest implemented
 layer below), while `e-graph` activates everything currently live
-— today that's `peephole` plus every lower rung. When deeper
+— today that's the bounded semantic gate-sharing fragment plus every lower rung. When deeper
 layers land, the same `--factorization-level e-graph` invocation
 automatically gains them — no config change required.
 

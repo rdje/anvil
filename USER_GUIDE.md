@@ -65,7 +65,8 @@ per-kind gate distribution, constant width/value distribution,
 mux shape (2-to-1 count, degenerate count), concat shape
 (replication vs heterogeneous), sharing (num shared nodes, max
 and average fanout), flop kind and mux-shape distribution,
-exact-signature flop-merge count (`flops_merged`),
+bounded semantic gate-merge count (`semantic_gates_merged`),
+endpoint-preserving flop-merge count (`flops_merged`),
 AST-instance saturation (`max_gate_ast_multiplicity`,
 `max_constant_ast_multiplicity` — relative to the
 `max_ast_instances` cap), and operand-arity distribution
@@ -100,9 +101,12 @@ shift. Examples:
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `identity_mode=relaxed` → gate count and AST multiplicity jump because
   the NodeId-identity ladder is disabled entirely.
-- Under `identity_mode=node-id`, equivalent exact-state flops can now
-  collapse too; `flops_merged` tells you how much sequential sharing
-  the post-drain pass found.
+- Under `identity_mode=node-id`, the live bounded `e-graph` fragment can
+  collapse small-support combinational cones too; `semantic_gates_merged`
+  tells you how much post-construction semantic gate sharing it found.
+- Under `identity_mode=node-id`, equivalent state cones can collapse too;
+  `flops_merged` tells you how much sequential sharing the post-drain
+  pass found.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 
@@ -175,11 +179,19 @@ rather than the generator's provisional first draft.
 
 Under `identity_mode=node-id` with effective factorization level
 `>= cse`, finalisation also performs a conservative sequential-sharing
-pass: if two flops end up with the same exact emitted state semantics
-(`width`, reset, `d`), their Qs are unified before reachability
-compaction. This is intentionally exact-signature only; it does not yet
-prove deeper sequential equivalence such as isomorphic self-feedback
-loops.
+pass: if two flops end up with the same emitted state semantics over the
+same canonical leaf endpoints, their Qs are unified before reachability
+compaction. At effective level `e-graph`, finalisation also runs a
+bounded semantic combinational-sharing pass that can merge
+different-shape small-support cones proven equivalent over the same leaf
+variables.
+
+Treat the adversarial surface as orthogonal axes, not one blended
+"randomness" knob: construction strategy (`sequential`, `shuffled`,
+`interleaved`, `graph-first` alias), identity mode (`node-id` vs
+`relaxed`), factorization level, motif/category weights, and the
+probability knobs are independent controls. Efficient downstream stress
+comes from exercising that matrix without hidden implementation bias.
 
 ## Output layout
 

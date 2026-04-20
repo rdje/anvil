@@ -424,9 +424,12 @@ Implementation ladder (see `book/src/structural-rules.md` Rule 21c):
 4. Associative flattening — flatten `(a+b)+c` to `Add(a,b,c)` when semantically safe. **Implemented.**
 5. Constant folding — `x+0 → x`, all-constant evaluation, etc. **Implemented.**
 6. Peephole — local algebraic / structural rewrites. **Implemented.**
-7. E-graph — full semantic equivalence. **Not implemented.** Default user-requested level.
+7. E-graph — full semantic equivalence. **Partially implemented.**
+   Default user-requested level. Today's live fragment is still bounded:
+   small-support combinational cones can merge post-construction when
+   they are proven equivalent over the same canonical leaf endpoints.
 
-`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Today that means `e-graph` requests resolve to `peephole`. Construction strategy is orthogonal: `sequential` / `shuffled` / `interleaved` decide build order, while the factorization ladder decides identity/sharing strength.
+`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Today `e-graph` remains the strongest implemented rung, but only as a bounded fragment rather than the full semantic-equivalence aspiration. Construction strategy is orthogonal: `sequential` / `shuffled` / `interleaved` decide build order, while the factorization ladder decides identity/sharing strength.
 
 ## Identity mode is orthogonal to construction strategy (2026-04-20)
 
@@ -469,6 +472,26 @@ This is the minimum architectural move that makes the future
 "NodeId as identity" engine honest: the repo can now talk about
 identity mode without smuggling it through the ladder alone.
 
+## Adversarial generation must be modeled as orthogonal axes (2026-04-20)
+
+User clarification that should remain durable:
+ANVIL must model all axes of adversarial generation explicitly and use
+them efficiently during actual generation; there should be no hidden
+bias toward whichever path the current implementation happens to favor.
+
+Practically that means:
+- construction strategy (`sequential`, `shuffled`, `interleaved`,
+  graph-first alias) is one axis;
+- identity mode (`node-id` vs `relaxed`) is another;
+- factorization level is a third;
+- motif/category weights, sequential density, width/depth ranges, and
+  the probability knobs are additional orthogonal axes.
+
+Implementation consequence: whenever a new generator feature lands, the
+question is not only "does it work?" but also "which axis did it add,
+how is that axis surfaced, how is it measured, and how do we avoid
+silently under-sampling it during real workloads?"
+
 ## Stateful identity must be decided post-drain (2026-04-20)
 
 For gates and constants, identity is knowable at intern time: the
@@ -500,6 +523,24 @@ the same proof form by the current ladder, or whose endpoint support is
 too large for the bounded semantic check, are not merged yet. That
 deeper coinductive story remains a
 future slice.
+
+## Bounded E-graph fragment for combinational identity (2026-04-20)
+
+`merge_equivalent_gates(&mut Module)` is now the first live
+post-construction combinational extension of the `e-graph` rung.
+
+Current rule:
+- gated by `identity_mode = node-id`;
+- gated by effective factorization level `>= e-graph`;
+- same canonical leaf endpoints are mandatory; and
+- functionality may be proven either by the already-normalized
+  structural proof form or by a bounded semantic truth table for
+  small-support cones.
+
+This is deliberately not the whole e-graph story. It is a bounded proof
+fragment that makes the strongest mode honest today while preserving the
+user's doctrine that `relaxed` remains a real no-sharing mode and that
+construction strategy stays a separate axis.
 
 ## Emitter is a dumb serialiser (2026-04-16)
 

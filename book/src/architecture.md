@@ -25,9 +25,8 @@ src/
 │                    # vs `node-id`) plus FactorizationLevel along the
 │                    # chain none → cse → operand-unique →
 │                    # commutative → associative → constant-fold →
-│                    # peephole → e-graph (default request; effective()
-│                    # clamps aspirational levels to the highest
-│                    # implemented rung).
+│                    # peephole → e-graph (default request; bounded
+│                    # semantic fragment live at the top rung).
 ├── ir/
 │   ├── mod.rs       # re-exports.
 │   ├── types.rs     # Module, Port, Node, GateOp (with Hash derive),
@@ -42,6 +41,7 @@ src/
 │   │                # and live counters (fold_identities_applied,
 │   │                # peephole_rewrites_applied,
 │   │                # flatten_associative_applied, flops_merged,
+│   │                # semantic_gates_merged,
 │   │                # nodes_compacted,
 │   │                # block-build counters, knob_rolls).
 │   │                # API: intern_gate() runs the full factorization
@@ -51,7 +51,8 @@ src/
 │   │                # is the constant analogue. Inline unit tests
 │   │                # pin each layer's contract.
 │   ├── compact.rs   # Post-construction finalisation helpers:
-│   │                # exact-signature flop merge after D-cones exist,
+│   │                # bounded semantic gate merge + endpoint-aware
+│   │                # flop merge after D-cones exist,
 │   │                # plus compact_node_ids BFS from roots dropping
 │   │                # unreachable gates and remapping NodeIds across
 │   │                # m.nodes / m.drives / m.flops / dedup tables.
@@ -127,9 +128,11 @@ than accidental:
    top of this base, not evidence against it.
 2. **`NodeId` as identity**
    Full factorization is only partially realized today. Combinational
-   identity flows through `Module::intern_gate`, and exact-signature
-   duplicate flops merge after drain, but stronger state equivalence and
-   future hierarchical identity are not finished.
+   identity flows through `Module::intern_gate`, a bounded semantic
+   gate-merge fragment now lives at the `e-graph` rung after
+   construction, and endpoint-aware duplicate flops merge after drain,
+   but stronger state equivalence and future hierarchical identity are
+   not finished.
 3. **Tool-clean industrialization**
    Internal tests are strong, yet the broader Verilator/Yosys sweep
    matrix required by the product goal is still missing. That evidence
@@ -171,6 +174,7 @@ pub struct Module {
     pub peephole_rewrites_applied:   u64,
     pub flatten_associative_applied: u64,
     pub flops_merged:                u32,
+    pub semantic_gates_merged:       u32,
     pub nodes_compacted:             u32,
     // Per-knob probability-roll counters:
     pub knob_rolls:                  KnobRollCounters,
@@ -192,9 +196,16 @@ impl Module {
 }
 
 // ir/compact.rs
-/// Post-drain exact-signature state-sharing pass. Under
+/// Post-construction bounded semantic gate-sharing pass. Under
+/// `identity_mode = node-id` with effective level `>= e-graph`,
+/// merges same-width combinational cones proven equivalent over
+/// the same canonical leaf endpoints.
+pub fn merge_equivalent_gates(m: &mut Module) -> u32;
+
+/// Post-drain endpoint-preserving state-sharing pass. Under
 /// `identity_mode = node-id` with effective level `>= cse`,
-/// merges flops with equal `width`, reset, and exact same `d`.
+/// merges flops with equal `width`, reset, and equal D-cone
+/// meaning over the same canonical leaf endpoints.
 /// Returns the number of duplicate flops removed
 /// (`Metrics::flops_merged`).
 pub fn merge_equivalent_flops(m: &mut Module) -> u32;

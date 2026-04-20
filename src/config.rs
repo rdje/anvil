@@ -144,12 +144,14 @@ pub enum FactorizationLevel {
     /// future e-graph layer. Fires counted in
     /// `Metrics::peephole_rewrites_applied`.
     Peephole,
-    /// Theoretical ceiling — full semantic equivalence via e-graph.
-    /// **Default**, and the aspiration: every mathematically-
-    /// equivalent expression shares one `NodeId`. Not yet
-    /// implemented; today this level activates every layer up to
-    /// the highest implemented one (currently `peephole`).
-    /// Future slices add layers without requiring users to change
+    /// Theoretical ceiling — semantic equivalence via e-graph.
+    /// **Default**, and still the aspiration: every mathematically-
+    /// equivalent expression shares one `NodeId`. The full engine is
+    /// not here yet, but this rung is now partially live: under
+    /// `identity_mode = node-id`, ANVIL runs the full intern-time
+    /// ladder plus a bounded post-construction semantic-sharing
+    /// fragment for small-support combinational cones. Future slices
+    /// can strengthen this rung without requiring users to change
     /// their config — they progressively get tighter factorization
     /// "for free."
     #[default]
@@ -173,6 +175,7 @@ impl FactorizationLevel {
                 | FactorizationLevel::Associative
                 | FactorizationLevel::ConstantFold
                 | FactorizationLevel::Peephole
+                | FactorizationLevel::EGraph
         )
     }
 
@@ -773,7 +776,7 @@ mod tests {
         };
         assert_eq!(
             cfg.effective_factorization_level(),
-            FactorizationLevel::Peephole
+            FactorizationLevel::EGraph
         );
 
         cfg.identity_mode = IdentityMode::Relaxed;

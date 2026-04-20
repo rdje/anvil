@@ -3,9 +3,131 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0086 — Add bounded semantic proofs to state identity
+## 2026-04-20-0087 — Activate bounded semantic gate merging at `e-graph`
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice makes the top factorization rung honest in code, not just in
+aspiration: `e-graph` is now a live bounded semantic-sharing fragment
+under `identity_mode = node-id`.
+
+### The `e-graph` rung is now partially implemented
+
+- `src/config.rs` now treats `FactorizationLevel::EGraph` as an
+  implemented rung instead of clamping it down to `Peephole`.
+- The docs on the enum and the identity-mode tests now say the truthful
+  thing: `e-graph` is still not the full semantic-equivalence engine,
+  but it is no longer just an alias for the lower ladder.
+
+### Post-construction combinational semantic sharing is now live
+
+- `src/ir/compact.rs` already had the bounded proof machinery; this
+  slice wires it into the real module-finalisation flow.
+- `src/gen/module.rs` now runs
+  `crate::ir::compact::merge_equivalent_gates(&mut m)` after
+  `summarize_flop_mux_metadata` and before the post-drain flop merge.
+- The pass is deliberately gated the strict way:
+  - `identity_mode = node-id`
+  - effective factorization level `>= e-graph`
+  - same canonical leaf endpoints
+  - same proven functionality (normalized structural proof first,
+    bounded truth-table proof for small-support cones)
+- `identity_mode = relaxed` remains a real off-switch; a new unit test
+  pins that bypass directly.
+
+### New telemetry makes the live `e-graph` fragment measurable
+
+- `Module` and `Metrics` now expose `semantic_gates_merged: u32`.
+- `Metrics::compute` now surfaces the count alongside
+  `flops_merged` / `nodes_compacted`.
+- The metrics test now asserts both post-construction merge counters.
+
+### The docs now frame ANVIL as an axis matrix, not one randomness dial
+
+- Live docs + book now say the durable steering rule explicitly:
+  adversarial generation is the cross-product of orthogonal axes, not a
+  single blended notion of "randomness".
+- The named axes now captured in the durable docs are:
+  - construction strategy (`sequential`, `shuffled`, `interleaved`,
+    `graph-first` alias),
+  - identity mode (`node-id` vs `relaxed`),
+  - factorization level,
+  - motif/category weights,
+  - sequential density / widths / depths,
+  - probability knobs.
+- The new wording also captures the user's "no hidden bias" directive:
+  these axes should be exercised efficiently during actual generation
+  rather than only existing on paper.
+
+**Why**
+
+The previous slice made bounded semantic proof real for flop identity,
+but the user then sharpened the control-surface doctrine again:
+
+- `node-id as identity == full factorization` and `relaxed` are one
+  axis;
+- construction strategies are a separate axis;
+- knobs and categories are another set of axes;
+- and ANVIL should model the adversarial space without hidden bias.
+
+Leaving `e-graph` clamped to `peephole` while claiming stronger
+factorization would have kept the strongest mode misleading. This slice
+lands the first honest combinational semantic fragment and updates the
+docs so the project can steer from the real axis model instead of a
+blurrier one.
+
+**Validation**
+
+- `cargo test merge_equivalent_gates -- --nocapture`
+- `cargo test effective_factorization_level_respects_identity_mode -- --nocapture`
+- `cargo test identity_mode_controls_whether_nodeid_means_expression_identity -- --nocapture`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --quiet -- --seed 42 --count 1 --out /tmp/anvil-smoke-Fbucnm`
+- `verilator --lint-only /tmp/anvil-smoke-Fbucnm/mod_42_0000.sv`
+- `yosys -p "read_verilog -sv /tmp/anvil-smoke-Fbucnm/mod_42_0000.sv; synth"`
+
+**Impact**
+
+- `--identity-mode node-id --factorization-level e-graph` now does more
+  than `peephole`: small-support same-endpoint combinational cones can
+  collapse even when their graph shapes differ.
+- `--identity-mode relaxed` still allocates fresh identities and skips
+  both semantic merge passes.
+- The docs now steer future work toward explicit axis coverage and away
+  from accidental implementation bias.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `book/src/algorithm.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `book/src/faq.md`
+- `book/src/ir.md`
+- `book/src/knobs.md`
+- `book/src/recipes.md`
+- `book/src/sequential.md`
+- `book/src/structural-rules.md`
+- `src/config.rs`
+- `src/gen/module.rs`
+- `src/ir/compact.rs`
+- `src/ir/types.rs`
+- `src/metrics.rs`
+
+## 2026-04-20-0086 — Add bounded semantic proofs to state identity
+
+**Landed as:** `3cac9b6`
 
 **What changed**
 

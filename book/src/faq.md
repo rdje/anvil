@@ -124,21 +124,25 @@ Today the live ladder reaches through **peephole**:
 6. **Peephole rewrites** — local canonical rewrites like
    `Not(Not(x))`, constant comparison evaluation, full-width `Slice`,
    and single-operand `Concat`.
-7. **Exact-signature flop merge** — after the flop worklist drains,
-   flops with identical `width`, reset, and exact same `d: NodeId`
-   share one state element.
+7. **Bounded post-construction semantic merge** — at `e-graph`,
+   small-support combinational cones proven equivalent over the same
+   canonical leaf endpoints share one gate; after the flop worklist
+   drains, flops with identical emitted state meaning over the same
+   canonical leaf endpoints share one state element.
 
-Only the final **`e-graph`** rung remains aspirational. A user at
+Only the full, unbounded **`e-graph`** story remains aspirational. A user at
 `--identity-mode node-id --factorization-level e-graph` (or the
 shortcut `--full-factorization`) gets the strongest implemented
-behaviour today, which currently means `peephole` plus every
-lower layer plus that conservative flop merge. `--identity-mode relaxed` (or the shortcut
+behaviour today, which means the bounded semantic gate-sharing fragment
+plus every lower layer plus that conservative flop merge. `--identity-mode relaxed` (or the shortcut
 `--no-full-factorization`) is the coarse off-switch.
 
 Construction strategy is a separate axis. `sequential`,
 `shuffled`, and `interleaved` decide **how cones are built**;
 factorization decides **when two built expressions share one
-identity**.
+identity**. The adversarial surface is the full cross-product of those
+axes plus the motif/category weights and probability knobs; ANVIL
+should exercise that matrix without hidden bias.
 
 Dial: `--identity-mode <node-id|relaxed>` plus
 `--factorization-level <none|cse|operand-unique|commutative|

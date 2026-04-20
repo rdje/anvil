@@ -24,10 +24,11 @@ semantic equivalence of arbitrary RTL trees — which nobody has
 solved completely. So anvil climbs a ladder of approximations.
 Each rung catches a specific class of "same expression, different
 syntax" cases and collapses them to a shared `NodeId`. For
-combinational nodes that mostly happens at intern time. For state,
-there is one conservative post-drain pass: once flop D-cones are
-known, endpoint-preserving state proofs over the current normalized IR
-are merged.
+combinational nodes that mostly happens at intern time. There is now
+one bounded post-construction combinational pass at the live `e-graph`
+rung, and one conservative post-drain state pass: once the full cones
+exist, endpoint-preserving proofs over the current normalized IR can be
+merged.
 
 Why mostly at intern time and not as a post-pass? Three reasons:
 
@@ -39,10 +40,11 @@ Why mostly at intern time and not as a post-pass? Three reasons:
    in the seed: the same input RNG path produces the same
    factorized output. Post-hoc passes that work over `m.nodes`
    would need their own determinism story.
-3. **State is a real exception** — a flop's identity is not fully
-   knowable when `build_flop_leaf` allocates its Q. Its semantics
-   only become concrete once the worklist later builds `d`, so the
-   current stateful sharing rule necessarily runs after drain.
+3. **Some proofs need the finished cone** — a flop's identity is not
+   fully knowable when `build_flop_leaf` allocates its Q, and bounded
+   semantic proof of a gate cone only makes sense once the whole cone
+   exists. So the strongest live sharing rules necessarily run after
+   construction for those cases.
 
 ## The ladder
 
@@ -66,9 +68,9 @@ constant-fold → peephole → e-graph (default)
 Each level implies all lower ones. Default is `e-graph` — the
 theoretical ceiling. `effective()` walks down from the requested
 level and returns the highest layer that is actually implemented
-in the current build. Today that's **peephole**; `e-graph`
-activates everything currently live plus every future layer for
-free.
+in the current build. Today that's the bounded live `e-graph`
+fragment: `e-graph` activates everything currently live plus every
+future layer for free.
 
 Selection via `--identity-mode`, `--factorization-level`, the
 convenience aliases `--full-factorization` /
@@ -230,7 +232,27 @@ Rule 21 directly. Everything above it exists to make sure
 syntactically-different-but-semantically-equivalent expressions
 both land on the same dedup key.
 
-### 7. Post-drain exact-state flop merge (`identity_mode = node-id`, effective `>= Cse`)
+### 7. Post-construction bounded semantic gate merge (`identity_mode = node-id`, effective `>= EGraph`)
+
+After every output cone and flop D-cone exists,
+[`crate::ir::compact::merge_equivalent_gates`] walks the gate arena and
+builds an endpoint-preserving proof for each combinational cone:
+
+- same `width`
+- same canonical leaf endpoints (`PrimaryInput`s / `FlopQ`s)
+- same proof of functionality over those endpoints
+
+The proof is structural over the normalized IR by default. For
+small-support cones, ANVIL also computes a bounded semantic proof by
+enumerating every endpoint assignment and keying the cone by its truth
+table. If two gates match, later users are rewired to the canonical
+gate and compaction removes the dead duplicate subtree.
+
+This is the first live `e-graph` fragment. It is intentionally bounded:
+full semantic equivalence across arbitrary-width cones is still future
+work.
+
+### 8. Post-drain endpoint-aware flop merge (`identity_mode = node-id`, effective `>= Cse`)
 
 `intern_gate` only sees combinational nodes. Flops are born before
 their D-cones exist, so their identity cannot be decided at birth.
@@ -337,6 +359,7 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 | Associative | `flatten_associative_applied: u64` | `Metrics::flatten_associative_applied` |
 | ConstantFold | `fold_identities_applied: u64` | `Metrics::fold_identities_applied` |
 | Peephole | `peephole_rewrites_applied: u64` | `Metrics::peephole_rewrites_applied` |
+| Semantic gate merge | `semantic_gates_merged: u32` | `Metrics::semantic_gates_merged` |
 | Flop merge | `flops_merged: u32` | `Metrics::flops_merged` |
 | Compaction | `nodes_compacted: u32` | `Metrics::nodes_compacted` |
 

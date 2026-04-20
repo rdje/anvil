@@ -144,6 +144,14 @@ pub struct Module {
     /// Surfaced via `Metrics::flops_merged`.
     pub flops_merged: u32,
 
+    /// Number of duplicate combinational gates merged away during
+    /// the post-construction bounded semantic-sharing pass.
+    /// Under the live `EGraph` fragment, small-support cones that
+    /// are proven functionally equal over the same canonical leaf
+    /// variables collapse to one gate. Surfaced via
+    /// `Metrics::semantic_gates_merged`.
+    pub semantic_gates_merged: u32,
+
     /// Number of times the `Associative` factorization layer fired
     /// during construction of this module. Each fire is one
     /// invocation of `intern_gate` on an associative op
@@ -1683,7 +1691,7 @@ mod tests {
         assert_eq!(nodeid_first, nodeid_second);
         assert_eq!(
             m_nodeid.effective_factorization_level(),
-            FactorizationLevel::Peephole
+            FactorizationLevel::EGraph
         );
 
         let mut m_relaxed = Module {
@@ -1742,7 +1750,7 @@ mod tests {
     /// Helper: module seeded with one primary-input (node 0) and
     /// two constants (node 1 = zero, node 2 = all-ones for `width`),
     /// at the default factorization request (`e-graph`, which
-    /// currently clamps to `Peephole`).
+    /// now includes the live bounded semantic-sharing fragment).
     #[cfg(test)]
     fn fold_fixture(width: u32) -> (Module, NodeId, NodeId, NodeId) {
         let mut m = Module {

@@ -231,8 +231,9 @@ instead of creating fresh logic.
 
 - `identity_mode` — coarse NodeId semantics switch:
   - `node-id` (default): NodeId means expression identity, so the
-    factorization ladder stays live, including the post-drain
-    exact-signature flop merge.
+    factorization ladder stays live, including the bounded semantic
+    gate merge at `e-graph` and the post-drain endpoint-aware flop
+    merge.
   - `relaxed`: disable the ladder entirely; every
     `intern_gate` / `intern_constant` call allocates a fresh
     `NodeId` even if `factorization_level` requests more.
@@ -329,8 +330,8 @@ Config {
     construction_strategy: ConstructionStrategy::Interleaved,
     identity_mode: IdentityMode::NodeId,
     graph_first_pool_size: 32,  // legacy; GraphFirst aliased to Interleaved
-    // Factorization ladder (default request: e-graph, clamps to
-    // highest implemented layer — Peephole today)
+    // Factorization ladder (default request: e-graph, whose
+    // bounded semantic fragment is now live)
     factorization_level: FactorizationLevel::EGraph,
     max_ast_instances: 1,
     mux_arm_duplication_rate: 0.0,
@@ -498,8 +499,8 @@ which are bugs worth investigating.
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
 | `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
-| `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, `num_gates`, and `flops_merged`: `relaxed` disables the ladder entirely, so multiplicities rise, raw gate count rises, and sequential exact-signature merging drops to 0 |
-| `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `peephole`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above |
+| `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, `num_gates`, `semantic_gates_merged`, and `flops_merged`: `relaxed` disables the ladder entirely, so multiplicities rise, raw gate count rises, and both post-construction semantic merges drop to 0 |
+| `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `e-graph`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above; `semantic_gates_merged` becomes eligible at `e-graph` |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future

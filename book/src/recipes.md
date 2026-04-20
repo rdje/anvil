@@ -340,14 +340,16 @@ Walking the differences:
   some seeds these layers materially reduce gate count; at
   others they merely tighten the identity contract without
   changing aggregate size.
-- **`peephole` → `e-graph`**: identical today. `e-graph`
-  remains the aspirational ceiling; users already there will
-  automatically benefit when deeper semantic sharing lands.
+- **`peephole` → `e-graph`**: this is now a bounded semantic
+  upgrade, not a pure alias. On seeds where small-support
+  different-shape cones exist over the same canonical endpoints,
+  `e-graph` can reduce gate count further; on other seeds it may
+  still look identical.
 
 Default is `e-graph` (the theoretical ceiling). The generator
 activates every layer it knows how to implement; `effective()`
-clamps down to the highest implemented layer so aspirational
-levels never error.
+keeps the bounded live fragment on and leaves room for future
+strengthening.
 
 Use `--factorization-level none` when you explicitly want to
 stress a downstream CSE pass on un-deduped input.

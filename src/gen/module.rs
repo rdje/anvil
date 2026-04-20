@@ -172,12 +172,22 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // metadata-only cones do not survive into emitted SV.
     summarize_flop_mux_metadata(&mut m);
 
+    // Bounded semantic gate-sharing pass: once every output and flop D
+    // cone exists, `identity_mode = node-id` at the live `EGraph`
+    // fragment can collapse small-support combinational cones that are
+    // proven functionally equal over the same canonical leaf
+    // endpoints. Construction strategy is irrelevant here: this is a
+    // post-construction identity pass, not a builder.
+    let semantic_gates_merged = crate::ir::compact::merge_equivalent_gates(&mut m);
+    m.semantic_gates_merged = semantic_gates_merged;
+
     // Endpoint-preserving sequential sharing pass: once every flop has
     // a concrete D-cone, `identity_mode = node-id` can conservatively
     // merge duplicate state elements whose emitted semantics are the
     // same over the same canonical leaf variables. Today that proof is
-    // only as strong as the normalized IR the factorization ladder has
-    // already established; duplicates become dead Q nodes that the
+    // the same bounded subset as the live `EGraph` fragment:
+    // normalized structural proof first, plus a bounded semantic check
+    // for small-support cones. Duplicates become dead Q nodes that the
     // compaction pass below removes.
     let flops_merged = crate::ir::compact::merge_equivalent_flops(&mut m);
     m.flops_merged = flops_merged;
@@ -225,6 +235,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     info!(
         nodes = m.nodes.len(),
         flops = m.flops.len(),
+        semantic_gates_merged,
         flops_merged,
         drives = m.drives.len(),
         orphans,

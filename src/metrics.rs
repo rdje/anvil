@@ -178,9 +178,14 @@ pub struct Metrics {
     pub nodes_compacted: u32,
 
     /// Number of duplicate flops merged away by the post-drain
-    /// exact-signature state-sharing pass. Sourced from
+    /// endpoint-preserving state-sharing pass. Sourced from
     /// `Module::flops_merged`.
     pub flops_merged: u32,
+
+    /// Number of duplicate combinational gates merged away by the
+    /// post-construction bounded semantic-sharing pass. Sourced
+    /// from `Module::semantic_gates_merged`.
+    pub semantic_gates_merged: u32,
 
     /// Number of times the `Associative` factorization layer
     /// fired during construction. Each fire is one `intern_gate`
@@ -385,6 +390,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
     out.nodes_compacted = m.nodes_compacted;
     out.flops_merged = m.flops_merged;
+    out.semantic_gates_merged = m.semantic_gates_merged;
     out.flatten_associative_applied = m.flatten_associative_applied;
 
     // Per-knob attempt/fire counters. Convert enum keys to strings
@@ -562,6 +568,7 @@ mod tests {
         });
         m.nodes.push(Node::Constant { width: 4, value: 0 });
         m.flops_merged = 1;
+        m.semantic_gates_merged = 2;
         let met = compute(&m);
         assert_eq!(met.num_flops, 2);
         assert_eq!(met.flops_zero_default, 1);
@@ -569,5 +576,6 @@ mod tests {
         assert_eq!(met.flops_mux_none, 1);
         assert_eq!(met.flops_mux_one_hot, 1);
         assert_eq!(met.flops_merged, 1);
+        assert_eq!(met.semantic_gates_merged, 2);
     }
 }
