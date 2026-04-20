@@ -342,6 +342,35 @@ warning-cleanliness bucket (`CMPCONST` / `UNSIGNED` under Verilator).
 That is exactly the intended feedback loop for the tool-clean
 industrialization lane.
 
+### Comparison warning-cleanliness is partly a generator concern, not only a factorization concern
+
+The follow-up `tool_matrix` slice made an important distinction
+explicit in code: obviously-constant unsigned comparisons are not just
+"optional peephole opportunities". They are also by-construction
+tool-cleanliness hazards.
+
+That means ANVIL now has an **always-on generator-side proof path** for
+comparisons in `src/gen/cone.rs`, independent of
+`identity_mode` / `factorization_level`. If the generator can already
+prove that a comparison is constant, it emits the constant directly
+instead of relying on the factorization ladder to clean the shape up
+later.
+
+Current proof layers:
+
+- conservative unsigned bounds for easy local identities (`x & 0 = 0`,
+  `x | all_ones = all_ones`, `x * 0 = 0`, overshift-to-zero,
+  select-known muxes, etc.);
+- exact finite-set reasoning for comparison operands up to 8 bits
+  wide; and
+- replicated-concat correlation handling for shapes like `{N{bit}}`,
+  so repeated copies of the same leaf are not treated as independent
+  free variables during the proof.
+
+This is intentionally narrower than full semantic factorization: it is
+there to keep emitted RTL cleaner across *all* identity/factorization
+modes, including `relaxed` and low rungs like `none` / `cse`.
+
 ### Codebase suitability assessment: four steering gaps (2026-04-20)
 
 The short answer to "is the existing codebase suited to the goal?" is:

@@ -232,6 +232,12 @@ Useful options:
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
   downstream consumer.
 
+Current local smoke status after the generator-side comparison-proof
+slice: Yosys is 15/15 clean on the built-in matrix, Verilator is 13/15
+clean, and the remaining failures are two correlation-heavy unsigned
+comparison warnings rather than the earlier broad `CMPCONST` /
+`UNSIGNED` bucket.
+
 ## Downstream verification
 
 `anvil` does not ship an oracle or simulator. To sanity-check output:

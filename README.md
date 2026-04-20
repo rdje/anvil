@@ -138,7 +138,10 @@ cargo run --bin tool_matrix -- --out ./tool-matrix
 
 That writes per-scenario generated corpora plus
 `tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
-fails on any generated file.
+fails on any generated file. Current local smoke status after the
+generator-side comparison-proof slice: Yosys is 15/15 clean on the
+built-in matrix, Verilator is 13/15 clean, and the remaining failures
+are two correlation-heavy unsigned-comparison warnings.
 
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.

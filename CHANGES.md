@@ -3,9 +3,129 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0089 — Add a repo-owned Verilator/Yosys tool matrix harness
+## 2026-04-20-0090 — Strengthen generator-side proof for constant comparisons
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice attacks the Verilator `CMPCONST` / `UNSIGNED`
+warning-cleanliness bucket exposed by `tool_matrix`, but does it from
+the generator side rather than by adding suppressions or by tying the
+fix to one factorization rung.
+
+### Comparison construction now has an always-on proof path
+
+- Added a dedicated comparison-construction helper in
+  `src/gen/cone.rs` that tries to prove a comparison is constant
+  **before** interning the gate.
+- Wired that helper through every comparison-emission path:
+  - recursive `build_cone`,
+  - interleaved `deliver`,
+  - pool-only `grow_pool_one_unit`,
+  - constant-comparand motif construction, and
+  - equality-to-constant helpers used by encoded mux assembly.
+- The proof is intentionally independent of
+  `identity_mode` / `factorization_level`: this is treated as
+  by-construction tool-cleanliness, not as optional semantic
+  factorization.
+
+### The proof got two layers of reasoning
+
+- A conservative unsigned-bounds engine now recognizes easy local
+  identities and range facts that matter for comparisons:
+  - `x & 0 = 0`,
+  - `x | all_ones = all_ones`,
+  - `x * 0 = 0`,
+  - `x * 1 = x`,
+  - `x + 0 = x`,
+  - `x - 0 = x`,
+  - `~x` bound inversion,
+  - exact / bounded `Shl` and `Shr`,
+  - mux-arm union or exact branch selection when the select is known,
+  - exact / bounded concat assembly for small-width shapes.
+- For comparison operands up to 8 bits wide, ANVIL now also runs an
+  exact finite-set proof instead of relying only on intervals. This is
+  especially important because comparisons are already generated over
+  1..8-bit operand widths.
+- The finite-set path now preserves **replication correlation** for
+  `Concat` shapes like `{N{bit}}`; repeated copies of the same node are
+  no longer treated as independent free variables during the proof.
+
+### New regression tests pin the warning-cleanliness logic
+
+- Added unit tests for:
+  - `x > all_ones` folding even below the peephole rung,
+  - overshift-to-zero compare folding,
+  - non-overlapping-range preservation of live comparisons, and
+  - replicated-concat correlation (`{N{bit}}`) inside the small-set
+    proof.
+
+**Why**
+
+The first repo-owned `tool_matrix` slice was useful precisely because
+it turned a vague cleanliness goal into a concrete bucket:
+Verilator-cleanliness failures concentrated in obviously-constant
+unsigned comparisons.
+
+Those warnings still matter even when the user deliberately asks for
+lower factorization or `relaxed` identity. They are not useful
+redundancy stress; they are locally-provable tautologies that muddy the
+output and make the downstream-cleanliness lane harder to trust.
+
+So this slice moves the proof earlier: if ANVIL can already prove that
+an unsigned comparison is constant, it should emit the constant
+directly regardless of sharing mode.
+
+**Validation**
+
+- `cargo test comparison_range_fold -- --nocapture`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-warning-fix --modules-per-scenario 1`
+  - Verilator: 8 pass / 7 fail
+  - Yosys: 15 pass / 0 fail
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-warning-fix-2 --modules-per-scenario 1`
+  - Verilator: 14 pass / 1 fail
+  - Yosys: 15 pass / 0 fail
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-warning-fix-4 --modules-per-scenario 1`
+  - Verilator: 13 pass / 2 fail
+  - Yosys: 15 pass / 0 fail
+  - remaining Verilator warnings are now down to two correlation-heavy
+    shapes:
+    - `int_nodeid_constant-fold_default/mod_6_0000.sv`: `le_4`
+    - `shuf_nodeid_egraph_motif_heavy_seq/mod_12_0000.sv`: `lt_0`,
+      `ge_40`
+- full hygiene rerun recorded in the commit workflow for this slice.
+
+**Impact**
+
+- Generator output is materially cleaner across the scenario matrix,
+  especially below `peephole` and under `relaxed` identity, because
+  provably-constant comparisons no longer depend on the factorization
+  ladder to disappear.
+- The repo-owned matrix improved from the original 7/15 Verilator-clean
+  state after the harness landed to 13/15 Verilator-clean with Yosys
+  still 15/15 clean.
+- The remaining warning bucket is now much smaller and more specific:
+  it has moved from easy boundary tautologies to correlation-heavy
+  compare shapes that need a stronger local proof or a construction-time
+  avoidance rule.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `book/src/architecture.md`
+- `book/src/structural-rules.md`
+- `src/gen/cone.rs`
+
+## 2026-04-20-0089 — Add a repo-owned Verilator/Yosys tool matrix harness
+
+**Landed as:** `5eba379`
 
 **What changed**
 

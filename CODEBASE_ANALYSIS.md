@@ -449,7 +449,7 @@ In `ir::validate::validate`:
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, no-op compaction, orphan removal, and topological-order preservation.
 - `src/bin/tool_matrix.rs` — 4 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, and coverage-gap detection.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **110 unit + 24 integration = 134 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-20): **114 unit + 24 integration = 138 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps, but the Phase 1 exit gate is still blocked on driving that
@@ -461,10 +461,13 @@ In `ir::validate::validate`:
 - The broader signoff-grade cleanliness matrix described in
   `ROADMAP.md` now has a repo-owned first implementation in
   `src/bin/tool_matrix.rs`, but the matrix is not yet green:
-  the first smoke run was 15/15 Yosys-clean and 7/15
-  Verilator-clean, with the remaining failures concentrated in
-  `CMPCONST` / `UNSIGNED` warning-cleanliness rather than syntax or
-  synthesis breakage.
+  after the generator-side comparison-proof slice the smoke matrix is
+  15/15 Yosys-clean and 13/15 Verilator-clean. The remaining failures
+  are no longer broad boundary-tautology residue; they are two
+  correlation-heavy `UNSIGNED` cases in
+  `int_nodeid_constant-fold_default/mod_6_0000.sv` (`le_4`) and
+  `shuf_nodeid_egraph_motif_heavy_seq/mod_12_0000.sv` (`lt_0`,
+  `ge_40`).
 - `NodeId`-as-identity is still conservative for state and does not yet
   extend to future hierarchical objects. Exact-signature duplicate
   flops merge; stronger sequential/hierarchical equivalence remains open
@@ -480,3 +483,10 @@ In `ir::validate::validate`:
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
 - Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; Yosys `read_verilog -sv ...; synth` on seed 42 reports 0 problems.
+- `src/gen/cone.rs` now owns an always-on generator-side comparison
+  proof in addition to the factorization ladder. The proof combines a
+  conservative unsigned-bounds engine with an exact finite-set engine
+  for comparison operands up to 8 bits wide, and it is used in every
+  comparison-emission path (recursive, interleaved, pool-only, and
+  constant-comparand helpers). This is an enforced output-cleanliness
+  invariant, not a user knob.

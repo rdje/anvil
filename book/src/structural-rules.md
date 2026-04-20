@@ -674,6 +674,13 @@ e-graph layer.
 | `peephole`    | + Local rewrites at intern time. Single-gate involutions: `Not(Not(x)) → x`. Cross-gate comparison inversions: `Not(Eq) → Neq`, `Not(Neq) → Eq`, `Not(Lt) → Ge`, `Not(Gt) → Le`, `Not(Le) → Gt`, `Not(Ge) → Lt`. Unsigned comparison-boundary tautologies: `x < 0`, `x >= 0`, `x <= all_ones`, `x > all_ones`, plus the symmetric lhs-constant forms. Constant-selector mux collapse: `Mux(0, a, b) → b`, `Mux(1, a, b) → a`. Constant evaluation (all-operand-constants → evaluated constant): comparisons (`Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge`), `Not(c) → ~c & mask`, `Slice(hi, lo)(c) → (c >> lo) & mask`, `Concat([c1, c2, ...]) → MSB-first bit assembly`, `RedAnd(c) → (c == all_ones)`, `RedOr(c) → (c != 0)`, `RedXor(c) → popcount(c) & 1`. Structural identities: full-width `Slice(hi, 0)` where `hi+1 == src_width` returns the source, single-operand `Concat([x]) → x`. In every case the inner gate may be orphaned by the rewrite; the post-construction `compact_node_ids` pass cleans it up. Fires counted in `Metrics::peephole_rewrites_applied`; removed nodes in `Metrics::nodes_compacted`. Broader cross-gate rewrites like `(a + b) - b → a` still await the e-graph layer. |
 | `e-graph`    | Bounded semantic equivalence fragment. Under `identity_mode = node-id`, small-support combinational cones proven equal over the same canonical leaf endpoints collapse post-construction. Full semantic equivalence remains open. |
 
+**Important scope note:** ANVIL also has an **always-on
+generator-side proof** for obviously-constant unsigned comparisons.
+That proof runs before interning and is used even under
+`identity_mode = relaxed` and low factorization rungs. It exists to
+keep emitted RTL cleaner in downstream tools, not to change the meaning
+of the user-visible factorization ladder.
+
 **Effective level:** `Config::effective_factorization_level()` /
 `Module::effective_factorization_level()` apply the coarse mode
 first, then the ladder:

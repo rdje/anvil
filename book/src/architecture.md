@@ -141,8 +141,10 @@ than accidental:
    now exists, but the broader Verilator/Yosys cleanliness gate is not
    green yet. The first matrix smoke run found an emitter bug and then
    narrowed the remaining failures to Verilator warning-cleanliness
-   (`CMPCONST` / `UNSIGNED`). That evidence layer must keep growing with
-   each new motif family until the matrix is boringly clean.
+   (`CMPCONST` / `UNSIGNED`); a follow-up generator-side comparison
+   proof pushed the smoke matrix to 13/15 Verilator-clean with Yosys
+   still 15/15 clean. That evidence layer must keep growing with each
+   new motif family until the matrix is boringly clean.
 4. **Structure-first doctrine**
    The codebase is intentionally optimized for structural legitimacy and
    synthesizability, not for proving whole-module intended behavior.

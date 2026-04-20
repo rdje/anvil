@@ -14,6 +14,7 @@ use crate::ir::{
     ResetKind,
 };
 use rand::Rng;
+use std::collections::HashMap;
 use tracing::{debug, instrument, trace, warn};
 
 /// Worklist of flops whose D-input cone has not yet been built.
@@ -268,11 +269,16 @@ fn grow_pool_one_unit(
             .map(|w| pick_terminal(g, m, pool, *w, None))
             .collect();
         if !violates_anti_collapse(op, &operands, m) {
-            let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
-            let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-            let (node_id, is_new) = m.intern_gate(op, operands, width, deps.clone());
-            if is_new {
-                pool.add(node_id, width, deps);
+            if is_comparison_op(op) {
+                debug_assert_eq!(operands.len(), 2);
+                build_comparison_gate(m, pool, op, operands[0], operands[1]);
+            } else {
+                let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+                let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+                let (node_id, is_new) = m.intern_gate(op, operands, width, deps.clone());
+                if is_new {
+                    pool.add(node_id, width, deps);
+                }
             }
             return true;
         }
@@ -680,12 +686,19 @@ fn deliver(
                     return;
                 }
 
-                let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
-                let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-                let (node_id, is_new) = m.intern_gate(gf.op, operands, gf.width, deps.clone());
-                if is_new {
-                    pool.add(node_id, gf.width, deps);
-                }
+                let node_id = if is_comparison_op(gf.op) {
+                    debug_assert_eq!(operands.len(), 2);
+                    build_comparison_gate(m, pool, gf.op, operands[0], operands[1])
+                } else {
+                    let deps_vec: Vec<DepSet> =
+                        operands.iter().map(|id| node_deps(m, *id)).collect();
+                    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+                    let (node_id, is_new) = m.intern_gate(gf.op, operands, gf.width, deps.clone());
+                    if is_new {
+                        pool.add(node_id, gf.width, deps);
+                    }
+                    node_id
+                };
                 deliver(g, m, pool, node_id, gf.dest, gate_frames, per_output_drive);
             }
         }
@@ -910,8 +923,803 @@ fn make_eq_const(
     value: u128,
 ) -> NodeId {
     let const_node = make_constant(m, pool, operand_width, value);
-    let deps = node_deps(m, operand);
-    let (node_id, is_new) = m.intern_gate(GateOp::Eq, vec![operand, const_node], 1, deps.clone());
+    build_comparison_gate(m, pool, GateOp::Eq, operand, const_node)
+}
+
+fn width_mask(width: u32) -> u128 {
+    if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    }
+}
+
+fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
+    (bounds.0 == bounds.1).then_some(bounds.0)
+}
+
+fn obvious_unsigned_compare_from_bounds(
+    op: GateOp,
+    lhs: (u128, u128),
+    rhs: (u128, u128),
+) -> Option<u128> {
+    let (lhs_min, lhs_max) = lhs;
+    let (rhs_min, rhs_max) = rhs;
+    match op {
+        GateOp::Eq => {
+            if lhs_max < rhs_min || rhs_max < lhs_min {
+                Some(0)
+            } else if lhs_min == lhs_max && lhs_min == rhs_min && rhs_min == rhs_max {
+                Some(1)
+            } else {
+                None
+            }
+        }
+        GateOp::Neq => {
+            if lhs_max < rhs_min || rhs_max < lhs_min {
+                Some(1)
+            } else if lhs_min == lhs_max && lhs_min == rhs_min && rhs_min == rhs_max {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        GateOp::Lt => {
+            if lhs_max < rhs_min {
+                Some(1)
+            } else if lhs_min >= rhs_max {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        GateOp::Le => {
+            if lhs_max <= rhs_min {
+                Some(1)
+            } else if lhs_min > rhs_max {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        GateOp::Gt => {
+            if lhs_min > rhs_max {
+                Some(1)
+            } else if lhs_max <= rhs_min {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        GateOp::Ge => {
+            if lhs_min >= rhs_max {
+                Some(1)
+            } else if lhs_max < rhs_min {
+                Some(0)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn exact_gate_value(
+    m: &Module,
+    op: GateOp,
+    operands: &[NodeId],
+    width: u32,
+    memo: &mut HashMap<NodeId, (u128, u128)>,
+) -> Option<u128> {
+    let exact_operand = |memo: &mut HashMap<NodeId, (u128, u128)>, id: NodeId| {
+        exact_bound(node_unsigned_bounds(m, id, memo))
+    };
+
+    match op {
+        GateOp::And => {
+            let mut acc = width_mask(width);
+            for &operand in operands {
+                acc &= exact_operand(memo, operand)?;
+            }
+            Some(acc & width_mask(width))
+        }
+        GateOp::Or => {
+            let mut acc = 0;
+            for &operand in operands {
+                acc |= exact_operand(memo, operand)?;
+            }
+            Some(acc & width_mask(width))
+        }
+        GateOp::Xor => {
+            let mut acc = 0;
+            for &operand in operands {
+                acc ^= exact_operand(memo, operand)?;
+            }
+            Some(acc & width_mask(width))
+        }
+        GateOp::Not if operands.len() == 1 => {
+            Some((!exact_operand(memo, operands[0])?) & width_mask(width))
+        }
+        GateOp::Add => {
+            let mut acc = 0u128;
+            for &operand in operands {
+                acc = acc.wrapping_add(exact_operand(memo, operand)?);
+            }
+            Some(acc & width_mask(width))
+        }
+        GateOp::Sub if operands.len() == 2 => {
+            let lhs = exact_operand(memo, operands[0])?;
+            let rhs = exact_operand(memo, operands[1])?;
+            Some(lhs.wrapping_sub(rhs) & width_mask(width))
+        }
+        GateOp::Mul => {
+            let mut acc = 1u128;
+            for &operand in operands {
+                acc = acc.wrapping_mul(exact_operand(memo, operand)?);
+            }
+            Some(acc & width_mask(width))
+        }
+        GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+            if operands.len() == 2 =>
+        {
+            let lhs = exact_operand(memo, operands[0])?;
+            let rhs = exact_operand(memo, operands[1])?;
+            let result = match op {
+                GateOp::Eq => lhs == rhs,
+                GateOp::Neq => lhs != rhs,
+                GateOp::Lt => lhs < rhs,
+                GateOp::Gt => lhs > rhs,
+                GateOp::Le => lhs <= rhs,
+                GateOp::Ge => lhs >= rhs,
+                _ => unreachable!(),
+            };
+            Some(u128::from(result))
+        }
+        GateOp::Mux if operands.len() == 3 => {
+            let sel = exact_operand(memo, operands[0])?;
+            let branch = if sel == 0 { operands[2] } else { operands[1] };
+            exact_operand(memo, branch)
+        }
+        GateOp::Slice { lo, .. } if operands.len() == 1 => {
+            let src = exact_operand(memo, operands[0])?;
+            Some((src >> lo) & width_mask(width))
+        }
+        GateOp::Concat => {
+            let mut out = 0u128;
+            for &operand in operands {
+                let operand_width = m.nodes[operand as usize].width();
+                let operand_value = exact_operand(memo, operand)?;
+                if operand_width >= 128 {
+                    out = operand_value;
+                } else {
+                    out = (out << operand_width) | (operand_value & width_mask(operand_width));
+                }
+            }
+            Some(out & width_mask(width))
+        }
+        GateOp::RedAnd | GateOp::RedOr | GateOp::RedXor if operands.len() == 1 => {
+            let operand = operands[0];
+            let operand_width = m.nodes[operand as usize].width();
+            let value = exact_operand(memo, operand)?;
+            let result = match op {
+                GateOp::RedAnd => value == width_mask(operand_width),
+                GateOp::RedOr => value != 0,
+                GateOp::RedXor => value.count_ones() % 2 == 1,
+                _ => unreachable!(),
+            };
+            Some(u128::from(result))
+        }
+        GateOp::Shl | GateOp::Shr if operands.len() == 2 => {
+            let lhs = exact_operand(memo, operands[0])?;
+            let rhs = exact_operand(memo, operands[1])?;
+            let src_width = m.nodes[operands[0] as usize].width();
+            if rhs >= u128::from(src_width) {
+                return Some(0);
+            }
+            let amount = rhs as u32;
+            let shifted = match op {
+                GateOp::Shl => lhs.wrapping_shl(amount),
+                GateOp::Shr => lhs >> amount,
+                _ => unreachable!(),
+            };
+            Some(shifted & width_mask(width))
+        }
+        _ => None,
+    }
+}
+
+fn collect_small_set(seen: &[bool; 256], width: u32) -> Vec<u16> {
+    let domain = if width >= 8 { 256 } else { 1usize << width };
+    let mut out = Vec::new();
+    for (value, present) in seen.iter().enumerate().take(domain) {
+        if *present {
+            out.push(value as u16);
+        }
+    }
+    out
+}
+
+fn fold_small_binary_sets<F>(lhs: &[u16], rhs: &[u16], width: u32, mut f: F) -> Vec<u16>
+where
+    F: FnMut(u16, u16) -> u16,
+{
+    let mut seen = [false; 256];
+    for &a in lhs {
+        for &b in rhs {
+            seen[f(a, b) as usize] = true;
+        }
+    }
+    collect_small_set(&seen, width)
+}
+
+fn node_small_value_set(
+    m: &Module,
+    id: NodeId,
+    memo: &mut HashMap<NodeId, Vec<u16>>,
+) -> Option<Vec<u16>> {
+    if let Some(values) = memo.get(&id) {
+        return Some(values.clone());
+    }
+
+    let width = m.nodes[id as usize].width();
+    if width > 8 {
+        return None;
+    }
+    let mask = width_mask(width) as u16;
+
+    let values = match &m.nodes[id as usize] {
+        Node::PrimaryInput { .. } | Node::FlopQ { .. } => (0..=mask).collect(),
+        Node::Constant { value, .. } => vec![(*value & u128::from(mask)) as u16],
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => match *op {
+            GateOp::And => {
+                let mut iter = operands.iter();
+                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                iter.try_fold(first, |acc, operand| {
+                    let rhs = node_small_value_set(m, *operand, memo)?;
+                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| a & b))
+                })?
+            }
+            GateOp::Or => {
+                let mut iter = operands.iter();
+                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                iter.try_fold(first, |acc, operand| {
+                    let rhs = node_small_value_set(m, *operand, memo)?;
+                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| a | b))
+                })?
+            }
+            GateOp::Xor => {
+                let mut iter = operands.iter();
+                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                iter.try_fold(first, |acc, operand| {
+                    let rhs = node_small_value_set(m, *operand, memo)?;
+                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                        (a ^ b) & mask
+                    }))
+                })?
+            }
+            GateOp::Not if operands.len() == 1 => {
+                let src = node_small_value_set(m, operands[0], memo)?;
+                let mut seen = [false; 256];
+                for value in src {
+                    seen[((!value) & mask) as usize] = true;
+                }
+                collect_small_set(&seen, *width)
+            }
+            GateOp::Add => {
+                let mut iter = operands.iter();
+                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                iter.try_fold(first, |acc, operand| {
+                    let rhs = node_small_value_set(m, *operand, memo)?;
+                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                        a.wrapping_add(b) & mask
+                    }))
+                })?
+            }
+            GateOp::Sub if operands.len() == 2 => {
+                let lhs = node_small_value_set(m, operands[0], memo)?;
+                let rhs = node_small_value_set(m, operands[1], memo)?;
+                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| a.wrapping_sub(b) & mask)
+            }
+            GateOp::Mul => {
+                let mut iter = operands.iter();
+                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                iter.try_fold(first, |acc, operand| {
+                    let rhs = node_small_value_set(m, *operand, memo)?;
+                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                        a.wrapping_mul(b) & mask
+                    }))
+                })?
+            }
+            GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+                if operands.len() == 2 =>
+            {
+                let lhs = node_small_value_set(m, operands[0], memo)?;
+                let rhs = node_small_value_set(m, operands[1], memo)?;
+                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| {
+                    let result = match *op {
+                        GateOp::Eq => a == b,
+                        GateOp::Neq => a != b,
+                        GateOp::Lt => a < b,
+                        GateOp::Gt => a > b,
+                        GateOp::Le => a <= b,
+                        GateOp::Ge => a >= b,
+                        _ => unreachable!(),
+                    };
+                    u16::from(result)
+                })
+            }
+            GateOp::Mux if operands.len() == 3 => {
+                let sel = node_small_value_set(m, operands[0], memo)?;
+                let on_true = node_small_value_set(m, operands[1], memo)?;
+                let on_false = node_small_value_set(m, operands[2], memo)?;
+                let mut seen = [false; 256];
+                if sel.contains(&0) {
+                    for &value in &on_false {
+                        seen[value as usize] = true;
+                    }
+                }
+                if sel.iter().any(|&v| v != 0) {
+                    for &value in &on_true {
+                        seen[value as usize] = true;
+                    }
+                }
+                collect_small_set(&seen, *width)
+            }
+            GateOp::Slice { lo, .. } if operands.len() == 1 => {
+                let src = node_small_value_set(m, operands[0], memo)?;
+                let mut seen = [false; 256];
+                for value in src {
+                    seen[((value >> lo) & mask) as usize] = true;
+                }
+                collect_small_set(&seen, *width)
+            }
+            GateOp::Concat => {
+                if !operands.is_empty() && operands.iter().all(|operand| *operand == operands[0]) {
+                    let operand = operands[0];
+                    let operand_width = m.nodes[operand as usize].width();
+                    let src = node_small_value_set(m, operand, memo)?;
+                    let mut seen = [false; 256];
+                    for value in src {
+                        let mut out = 0u16;
+                        for _ in 0..operands.len() {
+                            out = if operand_width >= 16 {
+                                value & mask
+                            } else {
+                                (((out as u32) << operand_width) | u32::from(value)) as u16 & mask
+                            };
+                        }
+                        seen[out as usize] = true;
+                    }
+                    collect_small_set(&seen, *width)
+                } else {
+                    let mut acc = vec![0u16];
+                    for &operand in operands {
+                        let operand_width = m.nodes[operand as usize].width();
+                        let rhs = node_small_value_set(m, operand, memo)?;
+                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                            if operand_width >= 16 {
+                                b & mask
+                            } else {
+                                (((a as u32) << operand_width) | u32::from(b)) as u16 & mask
+                            }
+                        });
+                    }
+                    acc
+                }
+            }
+            GateOp::RedAnd | GateOp::RedOr | GateOp::RedXor if operands.len() == 1 => {
+                let src_width = m.nodes[operands[0] as usize].width();
+                let all_ones = width_mask(src_width) as u16;
+                let src = node_small_value_set(m, operands[0], memo)?;
+                let mut seen = [false; 256];
+                for value in src {
+                    let result = match *op {
+                        GateOp::RedAnd => value == all_ones,
+                        GateOp::RedOr => value != 0,
+                        GateOp::RedXor => value.count_ones() % 2 == 1,
+                        _ => unreachable!(),
+                    };
+                    seen[usize::from(result)] = true;
+                }
+                collect_small_set(&seen, *width)
+            }
+            GateOp::Shl | GateOp::Shr if operands.len() == 2 => {
+                let src_width = m.nodes[operands[0] as usize].width() as u16;
+                let lhs = node_small_value_set(m, operands[0], memo)?;
+                let rhs = node_small_value_set(m, operands[1], memo)?;
+                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| {
+                    if b >= src_width {
+                        0
+                    } else {
+                        match *op {
+                            GateOp::Shl => a.wrapping_shl(u32::from(b)) & mask,
+                            GateOp::Shr => a >> b,
+                            _ => unreachable!(),
+                        }
+                    }
+                })
+            }
+            _ => return None,
+        },
+    };
+
+    memo.insert(id, values.clone());
+    Some(values)
+}
+
+fn node_unsigned_bounds(
+    m: &Module,
+    id: NodeId,
+    memo: &mut HashMap<NodeId, (u128, u128)>,
+) -> (u128, u128) {
+    if let Some(&bounds) = memo.get(&id) {
+        return bounds;
+    }
+
+    let bounds = match &m.nodes[id as usize] {
+        Node::PrimaryInput { width, .. } | Node::FlopQ { width, .. } => (0, width_mask(*width)),
+        Node::Constant { value, .. } => (*value, *value),
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => {
+            if let Some(value) = exact_gate_value(m, *op, operands, *width, memo) {
+                (value, value)
+            } else {
+                let default = (0, width_mask(*width));
+                match *op {
+                    GateOp::And => {
+                        let all_ones = width_mask(*width);
+                        let mut saw_zero = false;
+                        let mut live = Vec::new();
+                        for &operand in operands {
+                            let bounds = node_unsigned_bounds(m, operand, memo);
+                            match exact_bound(bounds) {
+                                Some(0) => {
+                                    saw_zero = true;
+                                    break;
+                                }
+                                Some(v) if v == all_ones => {}
+                                _ => live.push(bounds),
+                            }
+                        }
+                        if saw_zero {
+                            (0, 0)
+                        } else if live.is_empty() {
+                            (all_ones, all_ones)
+                        } else if live.len() == 1 {
+                            live[0]
+                        } else {
+                            let upper = live.iter().map(|(_, max)| *max).min().unwrap_or(all_ones);
+                            (0, upper)
+                        }
+                    }
+                    GateOp::Or => {
+                        let all_ones = width_mask(*width);
+                        let mut saw_all_ones = false;
+                        let mut live = Vec::new();
+                        for &operand in operands {
+                            let bounds = node_unsigned_bounds(m, operand, memo);
+                            match exact_bound(bounds) {
+                                Some(v) if v == all_ones => {
+                                    saw_all_ones = true;
+                                    break;
+                                }
+                                Some(0) => {}
+                                _ => live.push(bounds),
+                            }
+                        }
+                        if saw_all_ones {
+                            (all_ones, all_ones)
+                        } else if live.is_empty() {
+                            (0, 0)
+                        } else if live.len() == 1 {
+                            live[0]
+                        } else {
+                            let lower = live.iter().map(|(min, _)| *min).max().unwrap_or(0);
+                            (lower, all_ones)
+                        }
+                    }
+                    GateOp::Xor => {
+                        let all_ones = width_mask(*width);
+                        let mut live: Vec<(u128, u128)> = Vec::new();
+                        let mut exact_xor = 0u128;
+                        for &operand in operands {
+                            let bounds = node_unsigned_bounds(m, operand, memo);
+                            if let Some(v) = exact_bound(bounds) {
+                                exact_xor ^= v;
+                            } else {
+                                live.push(bounds);
+                            }
+                        }
+                        if live.is_empty() {
+                            (exact_xor & all_ones, exact_xor & all_ones)
+                        } else if live.len() == 1 && exact_xor == 0 {
+                            live[0]
+                        } else if live.len() == 1 && exact_xor == all_ones {
+                            let (src_min, src_max) = live[0];
+                            (all_ones ^ src_max, all_ones ^ src_min)
+                        } else {
+                            default
+                        }
+                    }
+                    GateOp::Not if operands.len() == 1 => {
+                        let all_ones = width_mask(*width);
+                        let (src_min, src_max) = node_unsigned_bounds(m, operands[0], memo);
+                        (all_ones ^ src_max, all_ones ^ src_min)
+                    }
+                    GateOp::Add => {
+                        let mut live = Vec::new();
+                        for &operand in operands {
+                            let bounds = node_unsigned_bounds(m, operand, memo);
+                            if exact_bound(bounds) == Some(0) {
+                                continue;
+                            }
+                            live.push(bounds);
+                        }
+                        if live.is_empty() {
+                            (0, 0)
+                        } else if live.len() == 1 {
+                            live[0]
+                        } else {
+                            let mut min_sum = 0u128;
+                            let mut max_sum = 0u128;
+                            let mut overflow = false;
+                            for (min, max) in live {
+                                min_sum = min_sum.saturating_add(min);
+                                max_sum = max_sum.saturating_add(max);
+                                if min_sum > width_mask(*width) || max_sum > width_mask(*width) {
+                                    overflow = true;
+                                    break;
+                                }
+                            }
+                            if overflow {
+                                default
+                            } else {
+                                (min_sum, max_sum)
+                            }
+                        }
+                    }
+                    GateOp::Sub if operands.len() == 2 => {
+                        let lhs = node_unsigned_bounds(m, operands[0], memo);
+                        let rhs = node_unsigned_bounds(m, operands[1], memo);
+                        if exact_bound(rhs) == Some(0) {
+                            lhs
+                        } else if lhs.0 >= rhs.1 {
+                            (lhs.0 - rhs.1, lhs.1 - rhs.0)
+                        } else {
+                            default
+                        }
+                    }
+                    GateOp::Mul => {
+                        let mut saw_zero = false;
+                        let mut live = Vec::new();
+                        for &operand in operands {
+                            let bounds = node_unsigned_bounds(m, operand, memo);
+                            match exact_bound(bounds) {
+                                Some(0) => {
+                                    saw_zero = true;
+                                    break;
+                                }
+                                Some(1) => {}
+                                _ => live.push(bounds),
+                            }
+                        }
+                        if saw_zero {
+                            (0, 0)
+                        } else if live.is_empty() {
+                            (1, 1)
+                        } else if live.len() == 1 {
+                            live[0]
+                        } else {
+                            let mut min_prod = 1u128;
+                            let mut max_prod = 1u128;
+                            let mut overflow = false;
+                            for (min, max) in live {
+                                min_prod = min_prod.saturating_mul(min);
+                                max_prod = max_prod.saturating_mul(max);
+                                if min_prod > width_mask(*width) || max_prod > width_mask(*width) {
+                                    overflow = true;
+                                    break;
+                                }
+                            }
+                            if overflow {
+                                default
+                            } else {
+                                (min_prod, max_prod)
+                            }
+                        }
+                    }
+                    GateOp::Eq
+                    | GateOp::Neq
+                    | GateOp::Lt
+                    | GateOp::Gt
+                    | GateOp::Le
+                    | GateOp::Ge
+                        if operands.len() == 2 =>
+                    {
+                        let lhs = node_unsigned_bounds(m, operands[0], memo);
+                        let rhs = node_unsigned_bounds(m, operands[1], memo);
+                        obvious_unsigned_compare_from_bounds(*op, lhs, rhs)
+                            .map(|v| (v, v))
+                            .unwrap_or((0, 1))
+                    }
+                    GateOp::RedAnd if operands.len() == 1 => {
+                        let src = node_unsigned_bounds(m, operands[0], memo);
+                        let all_ones = width_mask(m.nodes[operands[0] as usize].width());
+                        if src.0 == all_ones {
+                            (1, 1)
+                        } else if src.1 < all_ones {
+                            (0, 0)
+                        } else {
+                            (0, 1)
+                        }
+                    }
+                    GateOp::RedOr if operands.len() == 1 => {
+                        let src = node_unsigned_bounds(m, operands[0], memo);
+                        if src.1 == 0 {
+                            (0, 0)
+                        } else if src.0 > 0 {
+                            (1, 1)
+                        } else {
+                            (0, 1)
+                        }
+                    }
+                    GateOp::RedXor => (0, 1),
+                    GateOp::Mux if operands.len() == 3 => {
+                        let sel = exact_bound(node_unsigned_bounds(m, operands[0], memo));
+                        if let Some(sel) = sel {
+                            let arm = if sel == 0 { operands[2] } else { operands[1] };
+                            node_unsigned_bounds(m, arm, memo)
+                        } else {
+                            let on_true = node_unsigned_bounds(m, operands[1], memo);
+                            let on_false = node_unsigned_bounds(m, operands[2], memo);
+                            (on_true.0.min(on_false.0), on_true.1.max(on_false.1))
+                        }
+                    }
+                    GateOp::Slice { .. } if operands.len() == 1 => default,
+                    GateOp::Concat => {
+                        let mut min = 0u128;
+                        let mut max = 0u128;
+                        let mut supported = true;
+                        for &operand in operands {
+                            let operand_width = m.nodes[operand as usize].width();
+                            if operand_width >= 128 {
+                                supported = false;
+                                break;
+                            }
+                            let (op_min, op_max) = node_unsigned_bounds(m, operand, memo);
+                            min = (min << operand_width) | (op_min & width_mask(operand_width));
+                            max = (max << operand_width) | (op_max & width_mask(operand_width));
+                        }
+                        if supported {
+                            (min & width_mask(*width), max & width_mask(*width))
+                        } else {
+                            default
+                        }
+                    }
+                    GateOp::Shl if operands.len() == 2 => {
+                        let lhs = node_unsigned_bounds(m, operands[0], memo);
+                        let rhs = exact_bound(node_unsigned_bounds(m, operands[1], memo));
+                        match rhs {
+                            _ if lhs == (0, 0) => (0, 0),
+                            Some(amount)
+                                if amount >= u128::from(m.nodes[operands[0] as usize].width()) =>
+                            {
+                                (0, 0)
+                            }
+                            Some(0) => lhs,
+                            Some(amount) => {
+                                let shift = amount as u32;
+                                if lhs.1 <= (width_mask(*width) >> shift) {
+                                    (
+                                        (lhs.0 << shift) & width_mask(*width),
+                                        (lhs.1 << shift) & width_mask(*width),
+                                    )
+                                } else {
+                                    default
+                                }
+                            }
+                            _ => default,
+                        }
+                    }
+                    GateOp::Shr if operands.len() == 2 => {
+                        let lhs = node_unsigned_bounds(m, operands[0], memo);
+                        let rhs = exact_bound(node_unsigned_bounds(m, operands[1], memo));
+                        match rhs {
+                            _ if lhs == (0, 0) => (0, 0),
+                            Some(amount)
+                                if amount >= u128::from(m.nodes[operands[0] as usize].width()) =>
+                            {
+                                (0, 0)
+                            }
+                            Some(0) => lhs,
+                            Some(amount) => {
+                                let shift = amount as u32;
+                                (lhs.0 >> shift, lhs.1 >> shift)
+                            }
+                            None => default,
+                        }
+                    }
+                    _ => default,
+                }
+            }
+        }
+    };
+
+    memo.insert(id, bounds);
+    bounds
+}
+
+fn obvious_unsigned_compare_result(
+    m: &Module,
+    op: GateOp,
+    lhs: NodeId,
+    rhs: NodeId,
+) -> Option<u128> {
+    let lhs_width = m.nodes[lhs as usize].width();
+    let rhs_width = m.nodes[rhs as usize].width();
+    if lhs_width <= 8 && rhs_width <= 8 {
+        let mut set_memo = HashMap::new();
+        if let (Some(lhs_values), Some(rhs_values)) = (
+            node_small_value_set(m, lhs, &mut set_memo),
+            node_small_value_set(m, rhs, &mut set_memo),
+        ) {
+            let mut saw_true = false;
+            let mut saw_false = false;
+            for &a in &lhs_values {
+                for &b in &rhs_values {
+                    let result = match op {
+                        GateOp::Eq => a == b,
+                        GateOp::Neq => a != b,
+                        GateOp::Lt => a < b,
+                        GateOp::Gt => a > b,
+                        GateOp::Le => a <= b,
+                        GateOp::Ge => a >= b,
+                        _ => return None,
+                    };
+                    saw_true |= result;
+                    saw_false |= !result;
+                    if saw_true && saw_false {
+                        break;
+                    }
+                }
+                if saw_true && saw_false {
+                    break;
+                }
+            }
+            if saw_true ^ saw_false {
+                return Some(u128::from(saw_true));
+            }
+        }
+    }
+
+    let mut memo = HashMap::new();
+    let lhs_bounds = node_unsigned_bounds(m, lhs, &mut memo);
+    let rhs_bounds = node_unsigned_bounds(m, rhs, &mut memo);
+    obvious_unsigned_compare_from_bounds(op, lhs_bounds, rhs_bounds)
+}
+
+fn build_comparison_gate(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    op: GateOp,
+    lhs: NodeId,
+    rhs: NodeId,
+) -> NodeId {
+    debug_assert!(is_comparison_op(op));
+    if let Some(value) = obvious_unsigned_compare_result(m, op, lhs, rhs) {
+        return make_constant(m, pool, 1, value);
+    }
+    let deps = DepSet::union(&[&node_deps(m, lhs), &node_deps(m, rhs)]);
+    let (node_id, is_new) = m.intern_gate(op, vec![lhs, rhs], 1, deps.clone());
     if is_new {
         pool.add(node_id, 1, deps);
     }
@@ -1316,12 +2124,7 @@ fn build_comparison_const_comparand(
     ));
     let value = pick_comparand_value(g, operand_width);
     let const_node = make_constant(m, pool, operand_width, value);
-    let deps = node_deps(m, lhs);
-    let (node_id, is_new) = m.intern_gate(op, vec![lhs, const_node], 1, deps.clone());
-    if is_new {
-        pool.add(node_id, 1, deps);
-    }
-    node_id
+    build_comparison_gate(m, pool, op, lhs, const_node)
 }
 
 /// Find an N (number of request inputs) for a priority-encoder block
@@ -1623,6 +2426,11 @@ pub fn build_cone(
         m.gate_instances = snap_gate_dedup;
         m.const_instances = snap_const_dedup;
         return pick_terminal(g, m, pool, width, exclude);
+    }
+
+    if is_comparison_op(op) {
+        debug_assert_eq!(operands.len(), 2);
+        return build_comparison_gate(m, pool, op, operands[0], operands[1]);
     }
 
     let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
@@ -2214,7 +3022,7 @@ fn node_deps(m: &Module, id: NodeId) -> DepSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{Config, FactorizationLevel};
     use crate::ir::{Direction, Flop, FlopKind, MuxArm, Port, ResetKind};
 
     /// Build a minimal test fixture with `n_wide` primary inputs of
@@ -2916,5 +3724,109 @@ mod tests {
                 "width=8: coef bounded by max_coefficient=15, got {c8}"
             );
         }
+    }
+
+    #[test]
+    fn comparison_range_fold_rejects_gt_all_ones_even_without_peephole() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 2, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let max = make_constant(&mut m, &mut pool, 2, 0b11);
+        let cmp = build_comparison_gate(&mut m, &mut pool, GateOp::Gt, x, max);
+        assert!(
+            matches!(
+                &m.nodes[cmp as usize],
+                Node::Constant { width: 1, value: 0 }
+            ),
+            "x > all-ones must fold to 1'b0 even below peephole"
+        );
+    }
+
+    #[test]
+    fn comparison_range_fold_proves_overshift_rhs_is_zero() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 7, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let huge_shift = make_constant(&mut m, &mut pool, 8, 0xD5);
+        let deps = node_deps(&m, x);
+        let (rhs, is_new) = m.intern_gate(GateOp::Shl, vec![x, huge_shift], 7, deps.clone());
+        if is_new {
+            pool.add(rhs, 7, deps);
+        }
+        let cmp = build_comparison_gate(&mut m, &mut pool, GateOp::Ge, x, rhs);
+        assert!(
+            matches!(
+                &m.nodes[cmp as usize],
+                Node::Constant { width: 1, value: 1 }
+            ),
+            "x >= (y << huge_const) must fold when the shift is provably zero"
+        );
+    }
+
+    #[test]
+    fn comparison_range_fold_keeps_overlapping_ranges_live() {
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let cmp = build_comparison_gate(&mut m, &mut pool, GateOp::Lt, 0, 1);
+        assert!(
+            matches!(
+                &m.nodes[cmp as usize],
+                Node::Gate {
+                    op: GateOp::Lt,
+                    width: 1,
+                    ..
+                }
+            ),
+            "independent 4-bit inputs have overlapping ranges; comparison must stay live"
+        );
+    }
+
+    #[test]
+    fn comparison_range_fold_tracks_replicated_concat_correlation() {
+        let (mut m, mut pool) = fixture_with_inputs(0, 1, 2);
+        m.factorization_level = FactorizationLevel::None;
+        let bit = 0;
+        let sel = 1;
+        let concat_deps = node_deps(&m, bit);
+        let (replicated, concat_is_new) =
+            m.intern_gate(GateOp::Concat, vec![bit; 5], 5, concat_deps.clone());
+        if concat_is_new {
+            pool.add(replicated, 5, concat_deps);
+        }
+        let lo = make_constant(&mut m, &mut pool, 5, 0x02);
+        let hi = make_constant(&mut m, &mut pool, 5, 0x12);
+        let mux_deps =
+            DepSet::union(&[&node_deps(&m, sel), &node_deps(&m, lo), &node_deps(&m, hi)]);
+        let (masked_mux, mux_is_new) =
+            m.intern_gate(GateOp::Mux, vec![sel, hi, lo], 5, mux_deps.clone());
+        if mux_is_new {
+            pool.add(masked_mux, 5, mux_deps);
+        }
+        let c0d = make_constant(&mut m, &mut pool, 5, 0x0d);
+        let c1a = make_constant(&mut m, &mut pool, 5, 0x1a);
+        let and_deps = DepSet::union(&[
+            &node_deps(&m, c0d),
+            &node_deps(&m, replicated),
+            &node_deps(&m, masked_mux),
+            &node_deps(&m, c1a),
+        ]);
+        let (masked, and_is_new) = m.intern_gate(
+            GateOp::And,
+            vec![c0d, replicated, masked_mux, c1a],
+            5,
+            and_deps.clone(),
+        );
+        if and_is_new {
+            pool.add(masked, 5, and_deps);
+        }
+        let zero = make_constant(&mut m, &mut pool, 5, 0);
+        let cmp = build_comparison_gate(&mut m, &mut pool, GateOp::Gt, masked, zero);
+        assert!(
+            matches!(
+                &m.nodes[cmp as usize],
+                Node::Constant { width: 1, value: 0 }
+            ),
+            "replicated concat bits must stay correlated; the masked value is always zero"
+        );
     }
 }
