@@ -210,6 +210,12 @@ impl Module {
 /// the same canonical leaf endpoints.
 pub fn merge_equivalent_gates(m: &mut Module) -> u32;
 
+/// Post-remap associative normalization pass. Re-runs the live
+/// Associative layer on the settled graph after remap-producing
+/// cleanup passes have changed which already-built node an
+/// operand points at.
+pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32;
+
 /// Post-drain endpoint-preserving state-sharing pass. Under
 /// `identity_mode = node-id` with effective level `>= cse`,
 /// merges flops with equal `width`, reset, and equal D-cone

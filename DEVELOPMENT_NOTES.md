@@ -371,6 +371,25 @@ This is intentionally narrower than full semantic factorization: it is
 there to keep emitted RTL cleaner across *all* identity/factorization
 modes, including `relaxed` and low rungs like `none` / `cse`.
 
+Two implementation refinements became load-bearing once the real
+`--phase1-gate` run started surfacing concrete warning files:
+
+- **Exact proof must short-circuit once the result is already forced.**
+  A small-width node can depend on a wider cone through `Slice`, so
+  "walk every operand recursively until all are exact" is too blunt. If
+  an exact prefix has already forced the result, the helper must stop:
+  `6'h16 | 6'h39 | tail` at width 6 is already `6'h3f`; `2'h1 * 2'h2 *
+  2'h2 * tail` at width 2 is already `0`; `x ^ x` is already `0`; and
+  `x <= x` is already `1`. Letting the proof recurse into an irrelevant
+  non-exact tail just turns an exact fact into an unnecessary `None`.
+- **The small finite-set engine and the settled-graph exact-value
+  engine need the same short-circuit doctrine.** The first catches
+  narrow local cones directly; the second matters because
+  `node_unsigned_bounds` asks "is this gate already exact?" before it
+  falls back to interval reasoning. If only one engine gets the
+  shortcut, the other can still miss exactly the same downstream
+  warning.
+
 ### Downstream warnings are a generator bug, and the final graph gets a last proof pass
 
 The follow-up slice closed the remaining `tool_matrix` warning bucket by
@@ -387,6 +406,24 @@ sees. That pass:
 - rewrites any gate whose current cone is provably exact into a
   constant in place; and
 - rewires muxes whose selector is now provably constant.
+
+One more settled-graph wrinkle showed up immediately afterwards:
+remap-producing post-construction passes can reintroduce legal
+associative nestings **after** the intern-time Associative layer has
+already done its work. The live example was a width-1 `Add` whose
+operand was later remapped to another width-1 `Add`, leaving
+`nested_associative_operand_count = 1` at default knobs even though
+flattening was still legal under the strict duplicate policy.
+
+The durable rule is: **any pass that can change which already-built
+node an operand points at may need to restore associative normal form
+afterwards.** ANVIL now does that with
+`flatten_posthoc_associative_gates(&mut Module)` in `src/ir/compact.rs`
+after `fold_proven_gates` and after `merge_equivalent_gates`. The pass
+uses the same duplicate policy as the intern-time Associative layer:
+`And`/`Or` dedup, `Xor` pair-cancels, `Add`/`Mul` flatten only when the
+flat list would still be legal at the current
+`operand_duplication_rate`.
 
 The proof stack now has three complementary layers:
 

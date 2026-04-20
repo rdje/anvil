@@ -25,6 +25,9 @@
 //!   revisits already-built gates using the final graph. It folds any
 //!   gate whose current cone is provably exact and rewires muxes whose
 //!   selector is now provably constant.
+//! - `flatten_posthoc_associative_gates(&mut m)`: a normalisation pass
+//!   that restores associative flattening after later remap passes have
+//!   changed which already-built node an operand points at.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -70,6 +73,7 @@
 //! e-graph aspiration (Rule 21c).
 
 use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, PortId, ResetKind};
+use crate::config::FactorizationLevel;
 use std::collections::{BTreeSet, HashMap};
 
 const MAX_SEMANTIC_SUPPORT_BITS: u32 = 10;
@@ -767,6 +771,151 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
     simplified
 }
 
+/// Re-run the associative layer after post-construction remap passes.
+///
+/// Intern-time flattening keeps the live IR free of legal nested
+/// associative shapes, but later remap passes (for example semantic
+/// gate merging or constant-selector mux rewrites) can reintroduce
+/// `Add(x, Add(y, z))`-style forms by changing which already-built
+/// node an operand points at. This pass restores the same
+/// same-op/same-width normal form in-place on the settled graph,
+/// respecting the current duplicate policy for `Add` / `Mul`.
+pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32 {
+    if m.effective_factorization_level() < FactorizationLevel::Associative {
+        return 0;
+    }
+
+    let mut node_remap: HashMap<NodeId, NodeId> = HashMap::new();
+    let mut flattened = 0u32;
+
+    for node_id in 0..m.nodes.len() as NodeId {
+        let snapshot = match &m.nodes[node_id as usize] {
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } if matches!(
+                op,
+                GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+            ) =>
+            {
+                Some((*op, operands.clone(), *width))
+            }
+            _ => None,
+        };
+        let Some((op, operands, width)) = snapshot else {
+            continue;
+        };
+
+        if let Node::Gate {
+            operands: current_operands,
+            ..
+        } = &mut m.nodes[node_id as usize]
+        {
+            for operand in current_operands.iter_mut() {
+                rewrite_node_id_if_mapped(operand, &node_remap);
+            }
+        }
+
+        let mut flat = Vec::with_capacity(operands.len());
+        let mut any_spliced = false;
+        for operand_id in operands {
+            let operand_id = node_remap.get(&operand_id).copied().unwrap_or(operand_id);
+            match &m.nodes[operand_id as usize] {
+                Node::Gate {
+                    op: inner_op,
+                    operands: inner_ops,
+                    width: inner_w,
+                    ..
+                } if *inner_op == op && *inner_w == width => {
+                    flat.extend(inner_ops.iter().copied());
+                    any_spliced = true;
+                }
+                _ => flat.push(operand_id),
+            }
+        }
+
+        if !any_spliced {
+            continue;
+        }
+
+        match op {
+            GateOp::And | GateOp::Or => {
+                use std::collections::HashSet;
+                let mut seen = HashSet::new();
+                flat.retain(|id| seen.insert(*id));
+            }
+            GateOp::Xor => {
+                use std::collections::{HashMap, HashSet};
+                let mut counts: HashMap<NodeId, u32> = HashMap::new();
+                for id in &flat {
+                    *counts.entry(*id).or_insert(0) += 1;
+                }
+                flat.retain(|id| counts[id] % 2 == 1);
+                let mut seen = HashSet::new();
+                flat.retain(|id| seen.insert(*id));
+            }
+            GateOp::Add | GateOp::Mul => {
+                if m.operand_duplication_rate < 1.0 {
+                    use std::collections::HashMap;
+                    let mut counts: HashMap<NodeId, u32> = HashMap::new();
+                    for id in &flat {
+                        *counts.entry(*id).or_insert(0) += 1;
+                    }
+                    if counts.values().any(|count| *count > 1) {
+                        continue;
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+
+        match flat.len() {
+            0 => {
+                debug_assert!(matches!(op, GateOp::Xor));
+                m.nodes[node_id as usize] = Node::Constant { width, value: 0 };
+                flattened += 1;
+            }
+            1 => {
+                node_remap.insert(node_id, flat[0]);
+                flattened += 1;
+            }
+            _ => {
+                if let Node::Gate {
+                    operands: current_operands,
+                    ..
+                } = &mut m.nodes[node_id as usize]
+                {
+                    *current_operands = flat;
+                    flattened += 1;
+                }
+            }
+        }
+    }
+
+    if !node_remap.is_empty() {
+        for node in &mut m.nodes {
+            if let Node::Gate { operands, .. } = node {
+                for operand in operands.iter_mut() {
+                    rewrite_node_id_if_mapped(operand, &node_remap);
+                }
+            }
+        }
+        for (_, root) in &mut m.drives {
+            rewrite_node_id_if_mapped(root, &node_remap);
+        }
+        for flop in &mut m.flops {
+            rewrite_flop_from_partial_map(flop, &node_remap);
+        }
+    }
+
+    if flattened > 0 || !node_remap.is_empty() {
+        rebuild_instance_tables(m);
+    }
+    flattened
+}
+
 /// Compact `m.nodes` to only the nodes reachable from some root.
 /// Returns the number of nodes removed (useful for the
 /// `Metrics::nodes_compacted` counter).
@@ -1365,6 +1514,81 @@ mod tests {
         let deps = DepSet::union(&dep_refs);
         let (node_id, _) = m.intern_gate(op, operands, width, deps);
         node_id
+    }
+
+    fn push_raw_gate(m: &mut Module, op: GateOp, operands: Vec<NodeId>, width: u32) -> NodeId {
+        let dep_sets: Vec<DepSet> = operands
+            .iter()
+            .map(|operand| deps_of(m, *operand))
+            .collect();
+        let dep_refs: Vec<&DepSet> = dep_sets.iter().collect();
+        let deps = DepSet::union(&dep_refs);
+        let node_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op,
+            operands,
+            width,
+            deps,
+        });
+        node_id
+    }
+
+    #[test]
+    fn flatten_posthoc_associative_gates_flattens_legal_nested_add() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::Associative,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 1);
+        let b = push_primary(&mut m, 1, 1);
+        let c = push_primary(&mut m, 2, 1);
+        let inner = push_raw_gate(&mut m, GateOp::Add, vec![b, c], 1);
+        let outer = push_raw_gate(&mut m, GateOp::Add, vec![a, inner], 1);
+
+        let flattened = flatten_posthoc_associative_gates(&mut m);
+        assert_eq!(flattened, 1);
+        assert!(
+            matches!(
+                &m.nodes[outer as usize],
+                Node::Gate {
+                    op: GateOp::Add,
+                    operands,
+                    width: 1,
+                    ..
+                } if operands == &vec![a, b, c]
+            ),
+            "post-remap associative pass should splice the inner Add operands into the outer Add"
+        );
+    }
+
+    #[test]
+    fn flatten_posthoc_associative_gates_keeps_duplicate_bearing_add_nested() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::Associative,
+            operand_duplication_rate: 0.0,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 1);
+        let b = push_primary(&mut m, 1, 1);
+        let inner = push_raw_gate(&mut m, GateOp::Add, vec![a, b], 1);
+        let outer = push_raw_gate(&mut m, GateOp::Add, vec![a, inner], 1);
+
+        let flattened = flatten_posthoc_associative_gates(&mut m);
+        assert_eq!(flattened, 0);
+        assert!(
+            matches!(
+                &m.nodes[outer as usize],
+                Node::Gate {
+                    op: GateOp::Add,
+                    operands,
+                    width: 1,
+                    ..
+                } if operands == &vec![a, inner]
+            ),
+            "duplicate-bearing Add nesting must remain intact under the strict duplicate policy"
+        );
     }
 
     #[test]

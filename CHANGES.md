@@ -3,9 +3,123 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0092 — Make the Phase 1 gate first-class in tool_matrix
+## 2026-04-20-0093 — Extend exact proof shortcuts and restore associative normal form after remaps
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice keeps pushing on the real `--phase1-gate` warning bucket. It
+does two related things: it teaches the exact-proof helpers to stop
+giving up once the result is already forced, and it restores
+associative normal form after later remap passes have changed which
+already-built node an operand points at.
+
+### Exact proof now short-circuits once the answer is already forced
+
+- `src/gen/cone.rs` now folds reflexive unsigned comparisons exactly:
+  - `Eq(x, x)`, `Le(x, x)`, `Ge(x, x)` -> `1`
+  - `Neq(x, x)`, `Lt(x, x)`, `Gt(x, x)` -> `0`
+- The exact finite-set helper and the unsigned-bounds helper now track
+  duplicate-XOR parity by `NodeId`, so shapes like `x ^ x` collapse to
+  zero even in `identity_mode = relaxed`.
+- The exact finite-set helper now short-circuits on absorbing or
+  saturating exact prefixes instead of recursing into irrelevant tails:
+  - `And(..., 0, tail)` -> `{0}`
+  - `Or(..., all_ones, tail)` -> `{all_ones}`
+  - `Mul(..., 0, tail)` -> `{0}`
+- The exact-value helper used by `node_unsigned_bounds` now applies the
+  same idea on the settled graph, so proofs like `2'h2 * 2'h2 * tail`
+  at width 2 -> `0`, or `6'h16 | 6'h39 | tail` at width 6 -> `6'h3f`,
+  survive even when the tail itself is not exactly known.
+
+Together these changes close the real warning shapes found in the live
+Phase 1 run:
+
+- `x <= x` / `x < x`
+- `x >= (x ^ x)`
+- `x > all_ones`
+- `x > 1` after a product already wrapped to zero upstream
+
+### Finalisation now re-runs associative flattening after remaps
+
+- Added `flatten_posthoc_associative_gates(&mut Module)` in
+  `src/ir/compact.rs`.
+- The pass runs only when the effective factorization ladder includes
+  `Associative`.
+- It restores same-op same-width associative normal form after
+  remap-producing post-construction passes (`fold_proven_gates`,
+  `merge_equivalent_gates`) have changed which already-built node a
+  gate operand points at.
+- `Add` / `Mul` still respect the strict duplicate policy: if
+  flattening would create duplicate operands under
+  `operand_duplication_rate < 1.0`, the nested shape is preserved.
+- `generate_leaf_module` now calls this post-remap associative pass
+  after the first proof-cleanup pass, after semantic gate merge, and
+  after the final proof-cleanup pass.
+
+This closes the regression that showed up in
+`nested_associative_opportunities_flatten_to_zero`: the live
+Associative layer was fine at intern time, but later remaps could
+reintroduce a legal nested `Add` shape unless we normalized again on
+the settled graph.
+
+**Why**
+
+The real `tool_matrix --phase1-gate` run is doing exactly what it
+should: surfacing concrete warning artifacts instead of letting us hand
+wave about downstream cleanliness. The warnings we hit were not "tool
+being picky"; they were proof blind spots:
+
+- small exact expressions that were already forced by a constant
+  prefix, but the helper still recursed into an irrelevant unknown
+  tail; and
+- post-construction remaps reintroducing a legal associative nesting
+  after the intern-time Associative layer had already done its job.
+
+Both needed to be fixed in ANVIL, not explained away.
+
+**Validation**
+
+- `cargo test`
+- `cargo fmt --all --check`
+- `cargo test --test pipeline nested_associative_opportunities_flatten_to_zero -- --exact`
+- `cargo run --bin anvil -- --seed 0 --count 31 --out /tmp/anvil-relaxed-none-probe-r4 --identity-mode relaxed --factorization-level none`
+  - `verilator --lint-only` clean on:
+    - `mod_0_0013.sv`
+    - `mod_0_0016.sv`
+    - `mod_0_0018.sv`
+    - `mod_0_0026.sv`
+    - `mod_0_0030.sv`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r4 --phase1-gate`
+  - manually stopped after 76 generated modules
+  - Verilator warning logs present: `0`
+
+**Impact**
+
+- The exact-proof layer is less correlation-blind in relaxed lanes.
+- Small-width proofs no longer give up just because an irrelevant tail
+  depends on a wider cone.
+- Post-construction remaps no longer leak legal nested associative
+  shapes into final metrics / emission.
+- The real Phase 1 gate progressed materially farther before any
+  warning investigation was needed.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `src/gen/cone.rs`
+- `src/gen/module.rs`
+- `src/ir/compact.rs`
+
+## 2026-04-20-0092 — Make the Phase 1 gate first-class in tool_matrix
+
+**Landed as:** `fe4dd0e`
 
 **What changed**
 

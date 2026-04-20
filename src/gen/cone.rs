@@ -1033,17 +1033,35 @@ fn exact_gate_value(
     match op {
         GateOp::And => {
             let mut acc = width_mask(width);
+            let mut saw_unknown = false;
             for &operand in operands {
-                acc &= exact_operand(memo, operand)?;
+                match exact_operand(memo, operand) {
+                    Some(value) => {
+                        acc &= value;
+                        if acc == 0 {
+                            return Some(0);
+                        }
+                    }
+                    None => saw_unknown = true,
+                }
             }
-            Some(acc & width_mask(width))
+            (!saw_unknown).then_some(acc & width_mask(width))
         }
         GateOp::Or => {
             let mut acc = 0;
+            let mut saw_unknown = false;
             for &operand in operands {
-                acc |= exact_operand(memo, operand)?;
+                match exact_operand(memo, operand) {
+                    Some(value) => {
+                        acc |= value;
+                        if acc == width_mask(width) {
+                            return Some(width_mask(width));
+                        }
+                    }
+                    None => saw_unknown = true,
+                }
             }
-            Some(acc & width_mask(width))
+            (!saw_unknown).then_some(acc & width_mask(width))
         }
         GateOp::Xor => {
             let mut acc = 0;
@@ -1069,10 +1087,19 @@ fn exact_gate_value(
         }
         GateOp::Mul => {
             let mut acc = 1u128;
+            let mut saw_unknown = false;
             for &operand in operands {
-                acc = acc.wrapping_mul(exact_operand(memo, operand)?);
+                match exact_operand(memo, operand) {
+                    Some(value) => {
+                        acc = acc.wrapping_mul(value) & width_mask(width);
+                        if acc == 0 {
+                            return Some(0);
+                        }
+                    }
+                    None => saw_unknown = true,
+                }
             }
-            Some(acc & width_mask(width))
+            (!saw_unknown).then_some(acc & width_mask(width))
         }
         GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
             if operands.len() == 2 =>
@@ -1192,30 +1219,85 @@ fn node_small_value_set(
             ..
         } => match *op {
             GateOp::And => {
-                let mut iter = operands.iter();
-                let first = node_small_value_set(m, *iter.next()?, memo)?;
-                iter.try_fold(first, |acc, operand| {
-                    let rhs = node_small_value_set(m, *operand, memo)?;
-                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| a & b))
-                })?
+                let mut exact_and = mask;
+                let mut live = Vec::new();
+                for &operand in operands {
+                    let rhs = node_small_value_set(m, operand, memo)?;
+                    if rhs.len() == 1 {
+                        exact_and &= rhs[0] & mask;
+                        if exact_and == 0 {
+                            return Some(vec![0]);
+                        }
+                    } else {
+                        live.push(rhs);
+                    }
+                }
+
+                if live.is_empty() {
+                    vec![exact_and]
+                } else {
+                    let mut acc = vec![exact_and];
+                    for rhs in live {
+                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| a & b);
+                        if acc == [0] {
+                            break;
+                        }
+                    }
+                    acc
+                }
             }
             GateOp::Or => {
-                let mut iter = operands.iter();
-                let first = node_small_value_set(m, *iter.next()?, memo)?;
-                iter.try_fold(first, |acc, operand| {
-                    let rhs = node_small_value_set(m, *operand, memo)?;
-                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| a | b))
-                })?
+                let mut exact_or = 0u16;
+                let mut live = Vec::new();
+                for &operand in operands {
+                    let rhs = node_small_value_set(m, operand, memo)?;
+                    if rhs.len() == 1 {
+                        exact_or |= rhs[0] & mask;
+                        if exact_or == mask {
+                            return Some(vec![mask]);
+                        }
+                    } else {
+                        live.push(rhs);
+                    }
+                }
+
+                if live.is_empty() {
+                    vec![exact_or]
+                } else {
+                    let mut acc = vec![exact_or];
+                    for rhs in live {
+                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| a | b);
+                        if acc == [mask] {
+                            break;
+                        }
+                    }
+                    acc
+                }
             }
             GateOp::Xor => {
-                let mut iter = operands.iter();
-                let first = node_small_value_set(m, *iter.next()?, memo)?;
-                iter.try_fold(first, |acc, operand| {
-                    let rhs = node_small_value_set(m, *operand, memo)?;
-                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
-                        (a ^ b) & mask
-                    }))
-                })?
+                let mut exact_xor = 0u16;
+                let mut live_parity = HashMap::<NodeId, bool>::new();
+                let mut live_sets = HashMap::<NodeId, Vec<u16>>::new();
+                for &operand in operands {
+                    let rhs = node_small_value_set(m, operand, memo)?;
+                    if rhs.len() == 1 {
+                        exact_xor ^= rhs[0] & mask;
+                    } else {
+                        let parity = live_parity.entry(operand).or_insert(false);
+                        *parity = !*parity;
+                        live_sets.entry(operand).or_insert(rhs);
+                    }
+                }
+
+                let mut acc = vec![exact_xor & mask];
+                for (operand, odd) in live_parity {
+                    if !odd {
+                        continue;
+                    }
+                    let rhs = live_sets.get(&operand)?;
+                    acc = fold_small_binary_sets(&acc, rhs, *width, |a, b| (a ^ b) & mask);
+                }
+                acc
             }
             GateOp::Not if operands.len() == 1 => {
                 let src = node_small_value_set(m, operands[0], memo)?;
@@ -1241,14 +1323,34 @@ fn node_small_value_set(
                 fold_small_binary_sets(&lhs, &rhs, *width, |a, b| a.wrapping_sub(b) & mask)
             }
             GateOp::Mul => {
-                let mut iter = operands.iter();
-                let first = node_small_value_set(m, *iter.next()?, memo)?;
-                iter.try_fold(first, |acc, operand| {
-                    let rhs = node_small_value_set(m, *operand, memo)?;
-                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
-                        a.wrapping_mul(b) & mask
-                    }))
-                })?
+                let mut exact_mul = 1u16;
+                let mut live = Vec::new();
+                for &operand in operands {
+                    let rhs = node_small_value_set(m, operand, memo)?;
+                    if rhs.len() == 1 {
+                        exact_mul = exact_mul.wrapping_mul(rhs[0]) & mask;
+                        if exact_mul == 0 {
+                            return Some(vec![0]);
+                        }
+                    } else {
+                        live.push(rhs);
+                    }
+                }
+
+                if live.is_empty() {
+                    vec![exact_mul]
+                } else {
+                    let mut acc = vec![exact_mul];
+                    for rhs in live {
+                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                            a.wrapping_mul(b) & mask
+                        });
+                        if acc == [0] {
+                            break;
+                        }
+                    }
+                    acc
+                }
             }
             GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
                 if operands.len() == 2 =>
@@ -1444,16 +1546,23 @@ fn node_unsigned_bounds(
                     }
                     GateOp::Xor => {
                         let all_ones = width_mask(*width);
-                        let mut live: Vec<(u128, u128)> = Vec::new();
                         let mut exact_xor = 0u128;
+                        let mut live_parity = HashMap::<NodeId, bool>::new();
+                        let mut live_bounds = HashMap::<NodeId, (u128, u128)>::new();
                         for &operand in operands {
                             let bounds = node_unsigned_bounds(m, operand, memo);
                             if let Some(v) = exact_bound(bounds) {
                                 exact_xor ^= v;
                             } else {
-                                live.push(bounds);
+                                let parity = live_parity.entry(operand).or_insert(false);
+                                *parity = !*parity;
+                                live_bounds.entry(operand).or_insert(bounds);
                             }
                         }
+                        let live: Vec<(u128, u128)> = live_parity
+                            .into_iter()
+                            .filter_map(|(operand, odd)| odd.then(|| live_bounds[&operand]))
+                            .collect();
                         if live.is_empty() {
                             (exact_xor & all_ones, exact_xor & all_ones)
                         } else if live.len() == 1 && exact_xor == 0 {
@@ -1675,6 +1784,14 @@ fn obvious_unsigned_compare_result(
     lhs: NodeId,
     rhs: NodeId,
 ) -> Option<u128> {
+    if lhs == rhs {
+        return match op {
+            GateOp::Eq | GateOp::Le | GateOp::Ge => Some(1),
+            GateOp::Neq | GateOp::Lt | GateOp::Gt => Some(0),
+            _ => None,
+        };
+    }
+
     let lhs_width = m.nodes[lhs as usize].width();
     let rhs_width = m.nodes[rhs as usize].width();
     if lhs_width <= 8 && rhs_width <= 8 {
@@ -3839,5 +3956,147 @@ mod tests {
             ),
             "replicated concat bits must stay correlated; the masked value is always zero"
         );
+    }
+
+    #[test]
+    fn comparison_range_fold_proves_reflexive_slice_tautologies() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 16, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let wide = 0;
+        let deps = node_deps(&m, wide);
+        let (slice, is_new) =
+            m.intern_gate(GateOp::Slice { hi: 5, lo: 0 }, vec![wide], 6, deps.clone());
+        if is_new {
+            pool.add(slice, 6, deps);
+        }
+
+        let le = build_comparison_gate(&mut m, &mut pool, GateOp::Le, slice, slice);
+        assert!(
+            matches!(
+                &m.nodes[le as usize],
+                Node::Constant { width: 1, value: 1 }
+            ),
+            "x <= x must fold to 1'b1 even when the semantic support is too wide for exact enumeration"
+        );
+
+        let lt = build_comparison_gate(&mut m, &mut pool, GateOp::Lt, slice, slice);
+        assert!(
+            matches!(&m.nodes[lt as usize], Node::Constant { width: 1, value: 0 }),
+            "x < x must fold to 1'b0 for the same wide correlated operand"
+        );
+    }
+
+    #[test]
+    fn small_value_set_tracks_duplicate_xor_parity() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 5, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let deps = node_deps(&m, x);
+        let (dup_xor, is_new) = m.intern_gate(GateOp::Xor, vec![x, x], 5, deps.clone());
+        if is_new {
+            pool.add(dup_xor, 5, deps);
+        }
+
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_small_value_set(&m, dup_xor, &mut memo),
+            Some(vec![0]),
+            "x ^ x must collapse to the singleton set {{0}} in exact finite-set reasoning"
+        );
+    }
+
+    #[test]
+    fn comparison_range_fold_proves_ge_against_duplicate_xor_zero() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 5, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let deps = node_deps(&m, x);
+        let (dup_xor, is_new) = m.intern_gate(GateOp::Xor, vec![x, x], 5, deps.clone());
+        if is_new {
+            pool.add(dup_xor, 5, deps);
+        }
+
+        let ge = build_comparison_gate(&mut m, &mut pool, GateOp::Ge, x, dup_xor);
+        assert!(
+            matches!(&m.nodes[ge as usize], Node::Constant { width: 1, value: 1 }),
+            "x >= (x ^ x) must fold to 1'b1 because the rhs is provably zero"
+        );
+    }
+
+    #[test]
+    fn small_value_set_short_circuits_or_all_ones_prefix_over_wide_tail() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 16, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let wide = 0;
+        let wide_deps = node_deps(&m, wide);
+        let (tail, tail_is_new) = m.intern_gate(
+            GateOp::Slice { hi: 5, lo: 0 },
+            vec![wide],
+            6,
+            wide_deps.clone(),
+        );
+        if tail_is_new {
+            pool.add(tail, 6, wide_deps);
+        }
+
+        let c16 = make_constant(&mut m, &mut pool, 6, 0x16);
+        let c39 = make_constant(&mut m, &mut pool, 6, 0x39);
+        let deps = DepSet::union(&[
+            &node_deps(&m, c16),
+            &node_deps(&m, c39),
+            &node_deps(&m, tail),
+        ]);
+        let (or, is_new) = m.intern_gate(GateOp::Or, vec![c16, c39, tail], 6, deps.clone());
+        if is_new {
+            pool.add(or, 6, deps);
+        }
+
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_small_value_set(&m, or, &mut memo),
+            Some(vec![0x3f]),
+            "22 | 57 already saturates all six bits, so the wide-dependent tail cannot change the result"
+        );
+        assert_eq!(prove_node_exact_value(&m, or), Some(0x3f));
+    }
+
+    #[test]
+    fn small_value_set_short_circuits_mul_zero_prefix_over_wide_tail() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 16, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let wide = 0;
+        let wide_deps = node_deps(&m, wide);
+        let (tail, tail_is_new) = m.intern_gate(
+            GateOp::Slice { hi: 1, lo: 0 },
+            vec![wide],
+            2,
+            wide_deps.clone(),
+        );
+        if tail_is_new {
+            pool.add(tail, 2, wide_deps);
+        }
+
+        let one = make_constant(&mut m, &mut pool, 2, 0x1);
+        let two_a = make_constant(&mut m, &mut pool, 2, 0x2);
+        let two_b = make_constant(&mut m, &mut pool, 2, 0x2);
+        let deps = DepSet::union(&[
+            &node_deps(&m, one),
+            &node_deps(&m, two_a),
+            &node_deps(&m, two_b),
+            &node_deps(&m, tail),
+        ]);
+        let (mul, is_new) =
+            m.intern_gate(GateOp::Mul, vec![one, two_a, two_b, tail], 2, deps.clone());
+        if is_new {
+            pool.add(mul, 2, deps);
+        }
+
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_small_value_set(&m, mul, &mut memo),
+            Some(vec![0]),
+            "at width 2, 1 * 2 * 2 already wraps to zero, so the wide-dependent tail cannot revive the product"
+        );
+        assert_eq!(prove_node_exact_value(&m, mul), Some(0));
     }
 }

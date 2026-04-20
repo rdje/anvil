@@ -252,6 +252,18 @@ This is the first live `e-graph` fragment. It is intentionally bounded:
 full semantic equivalence across arbitrary-width cones is still future
 work.
 
+Later remap-producing passes can themselves create fresh legal
+associative opportunities by changing which already-built node an
+operand points at. For example, semantic gate merge or a constant-
+selector mux rewrite can turn an outer `Add` operand into another
+same-width `Add` even though the intern-time Associative layer had
+already normalized the original shape. ANVIL therefore re-runs a
+settled-graph associative normalization pass
+(`flatten_posthoc_associative_gates`) after remap-producing cleanup
+passes. It uses the same duplicate policy as the intern-time layer:
+`And`/`Or` dedup, `Xor` pair-cancels, `Add`/`Mul` flatten only when the
+flat list is still legal at the current `operand_duplication_rate`.
+
 ### 8. Post-drain endpoint-aware flop merge (`identity_mode = node-id`, effective `>= Cse`)
 
 `intern_gate` only sees combinational nodes. Flops are born before
@@ -366,10 +378,11 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 Plus a structural post-construction metric:
 `nested_associative_operand_count` — the number of operand slots
 on associative gates whose operand is itself a same-op same-width
-gate. At default knobs with Associative live, this is **0** —
-direct empirical validation that the layer is exhaustive. See
-the `nested_associative_opportunities_flatten_to_zero` regression
-test.
+gate. At default knobs with Associative live, this is **0** — direct
+empirical validation that the combined intern-time plus post-remap
+associative normalization is exhaustive for legal flattening
+opportunities. See the
+`nested_associative_opportunities_flatten_to_zero` regression test.
 
 Empirical baseline (seed 42, default knobs):
 
