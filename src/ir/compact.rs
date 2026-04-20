@@ -13,8 +13,9 @@
 //!   sharing pass that runs only once flop D-cones exist. Under
 //!   `identity_mode = node-id` with effective factorization level
 //!   at least `Cse`, flops with the same emitted state semantics
-//!   (`width`, reset, exact `d` or self-relative `d`) are collapsed
-//!   to one state element.
+//!   (`width`, reset, same canonical leaf endpoints, and a D-cone
+//!   functionality already normalized to the same proof form) are
+//!   collapsed to one state element.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -23,15 +24,14 @@
 //!   reachable set.
 //!
 //! The merge is intentionally conservative, not a general
-//! sequential-equivalence engine: it now handles exact duplicate
-//! flops plus the common self-feedback case where two D-cones differ
-//! only by renaming each flop's own `q` to "self", but it still does
-//! not try to prove wider coinductive equalities. The compaction pass
-//! is idempotent and a no-op when there are no orphans. It exists
+//! sequential-equivalence engine: it compares endpoint-preserving
+//! structural signatures over the already-normalized IR, and does not
+//! try to prove wider coinductive equalities that the current
+//! factorization ladder has not already canonicalized. The compaction
+//! pass is idempotent and a no-op when there are no orphans. It exists
 //! primarily to unblock rewrites that would otherwise orphan
 //! intermediate gates. Without it those rewrites would have to be
-//! suppressed to stay Rule-18-clean (as they were before this
-//! module).
+//! suppressed to stay Rule-18-clean (as they were before this module).
 //!
 //! ## Guarantees
 //!
@@ -58,50 +58,101 @@
 //! Wider semantic equivalence across arbitrary gate trees and
 //! stateful motifs remains the e-graph aspiration (Rule 21c).
 
-use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, ResetKind};
+use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, PortId, ResetKind};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
     width: u32,
-    d: RelativeSigId,
+    d: StructuralSigId,
     reset_val: u128,
     reset_kind: ResetKind,
 }
 
+type StructuralSigId = u32;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum RelativeNodeShape {
-    ExactNode(NodeId),
-    SelfQ,
+enum StructuralNodeShape {
+    PrimaryInput {
+        port: PortId,
+        width: u32,
+    },
+    Constant {
+        width: u32,
+        value: u128,
+    },
+    FlopQ {
+        flop: FlopId,
+        width: u32,
+    },
     Gate {
         op: GateOp,
         width: u32,
-        operands: Vec<RelativeSigId>,
+        operands: Vec<StructuralSigId>,
     },
 }
 
-type RelativeSigId = u32;
-
-#[derive(Default)]
-struct RelativeSignatureCtx {
-    shapes: Vec<RelativeNodeShape>,
-    interner: HashMap<RelativeNodeShape, RelativeSigId>,
+#[derive(Debug, Default)]
+struct StructuralSignatureCtx {
+    shapes: Vec<StructuralNodeShape>,
+    interner: HashMap<StructuralNodeShape, StructuralSigId>,
 }
 
-impl RelativeSignatureCtx {
-    fn intern(&mut self, shape: RelativeNodeShape) -> RelativeSigId {
-        if let Some(&id) = self.interner.get(&shape) {
-            return id;
+impl StructuralSignatureCtx {
+    fn intern(&mut self, shape: StructuralNodeShape) -> StructuralSigId {
+        if let Some(&sig_id) = self.interner.get(&shape) {
+            return sig_id;
         }
-        let id = self.shapes.len() as RelativeSigId;
+        let sig_id = self.shapes.len() as StructuralSigId;
         self.shapes.push(shape.clone());
-        self.interner.insert(shape, id);
-        id
+        self.interner.insert(shape, sig_id);
+        sig_id
+    }
+}
+
+fn structural_node_sig_id(
+    m: &Module,
+    node_id: NodeId,
+    memo: &mut HashMap<NodeId, StructuralSigId>,
+    ctx: &mut StructuralSignatureCtx,
+) -> StructuralSigId {
+    if let Some(&sig_id) = memo.get(&node_id) {
+        return sig_id;
     }
 
-    fn shape(&self, id: RelativeSigId) -> &RelativeNodeShape {
-        &self.shapes[id as usize]
-    }
+    let sig_id = match &m.nodes[node_id as usize] {
+        Node::PrimaryInput { port, width } => ctx.intern(StructuralNodeShape::PrimaryInput {
+            port: *port,
+            width: *width,
+        }),
+        Node::Constant { width, value } => ctx.intern(StructuralNodeShape::Constant {
+            width: *width,
+            value: *value,
+        }),
+        Node::FlopQ { flop, width } => ctx.intern(StructuralNodeShape::FlopQ {
+            flop: *flop,
+            width: *width,
+        }),
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => {
+            let operand_sigs = operands
+                .iter()
+                .map(|&operand| structural_node_sig_id(m, operand, memo, ctx))
+                .collect();
+            ctx.intern(StructuralNodeShape::Gate {
+                op: *op,
+                width: *width,
+                operands: operand_sigs,
+            })
+        }
+    };
+
+    memo.insert(node_id, sig_id);
+    sig_id
 }
 
 /// Merge duplicate flops after every D-cone is known.
@@ -110,23 +161,24 @@ impl RelativeSignatureCtx {
 /// NodeId-as-identity doctrine: a flop's identity cannot be decided
 /// at birth because its semantics are not known until the worklist
 /// finishes building `d`. After that point, if two flops have the
-/// same emitted state signature (`width`, reset, exact `d`, or D-cones
-/// that differ only by renaming each flop's own `q` to "self"), every
-/// consumer of the duplicate Q can safely be redirected to the
-/// canonical Q.
+/// same emitted state signature (`width`, reset, and a D-cone with the
+/// same canonical leaf endpoints plus the same currently-proven
+/// functionality), every consumer of the duplicate Q can safely be
+/// redirected to the canonical Q.
 ///
 /// The pass is gated by the effective identity mode:
 ///
 /// - `identity_mode = relaxed` or effective level `None` => no merge.
 /// - `identity_mode = node-id` and effective level `>= Cse` => the
-///   conservative sequential-identity pass is enabled.
+///   endpoint-preserving state-identity pass is enabled.
 ///
 /// The merge is intentionally conservative:
 ///
-/// - compares exact `d: NodeId` when the D-cone is independent of the
-///   flop's own `q`;
-/// - for self-feedback D-cones, compares the exact gate structure after
-///   renaming the owning `q` to a synthetic "self" leaf;
+/// - compares D-cones by a leaf-aware structural signature over the
+///   already-normalized IR;
+/// - treats "same functionality" as the doctrine, while only claiming
+///   the proof subset the current normalization ladder can actually
+///   establish today;
 /// - ignores construction-only provenance (`FlopKind`, cleared
 ///   `FlopMux` operands) once `d` exists;
 /// - preserves first occurrence as canonical.
@@ -144,8 +196,9 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         return 0;
     }
 
-    let mut rel_sig_ctx = RelativeSignatureCtx::default();
     let mut canonical_by_sig: HashMap<FlopSignature, FlopId> = HashMap::new();
+    let mut node_sig_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
+    let mut sig_ctx = StructuralSignatureCtx::default();
     let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
     let mut removed = 0u32;
 
@@ -155,7 +208,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         };
         let sig = FlopSignature {
             width: flop.width,
-            d: relative_node_sig_id(m, d, flop.q, &mut HashMap::new(), &mut rel_sig_ctx),
+            d: structural_node_sig_id(m, d, &mut node_sig_memo, &mut sig_ctx),
             reset_val: flop.reset_val,
             reset_kind: flop.reset_kind,
         };
@@ -229,54 +282,6 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 
     rebuild_instance_tables(m);
     removed
-}
-
-fn relative_node_sig_id(
-    m: &Module,
-    node_id: NodeId,
-    self_q: NodeId,
-    memo: &mut HashMap<NodeId, RelativeSigId>,
-    ctx: &mut RelativeSignatureCtx,
-) -> RelativeSigId {
-    if let Some(sig) = memo.get(&node_id) {
-        return *sig;
-    }
-
-    let sig = if node_id == self_q {
-        ctx.intern(RelativeNodeShape::SelfQ)
-    } else {
-        match &m.nodes[node_id as usize] {
-            Node::Gate {
-                op,
-                operands,
-                width,
-                ..
-            } => {
-                let operand_sigs: Vec<RelativeSigId> = operands
-                    .iter()
-                    .map(|&operand| relative_node_sig_id(m, operand, self_q, memo, ctx))
-                    .collect();
-                if operand_sigs
-                    .iter()
-                    .any(|&sig_id| !matches!(ctx.shape(sig_id), RelativeNodeShape::ExactNode(_)))
-                {
-                    ctx.intern(RelativeNodeShape::Gate {
-                        op: *op,
-                        width: *width,
-                        operands: operand_sigs,
-                    })
-                } else {
-                    ctx.intern(RelativeNodeShape::ExactNode(node_id))
-                }
-            }
-            Node::PrimaryInput { .. } | Node::Constant { .. } | Node::FlopQ { .. } => {
-                ctx.intern(RelativeNodeShape::ExactNode(node_id))
-            }
-        }
-    };
-
-    memo.insert(node_id, sig);
-    sig
 }
 
 /// Compact `m.nodes` to only the nodes reachable from some root.
@@ -765,42 +770,28 @@ mod tests {
     }
 
     #[test]
-    fn merge_equivalent_flops_handles_self_feedback_isomorphism() {
+    fn merge_equivalent_flops_keeps_self_feedback_cones_distinct_when_q_endpoints_differ() {
         let mut m = self_feedback_flop_fixture();
 
         let removed = merge_equivalent_flops(&mut m);
-        assert_eq!(removed, 1, "self-relative duplicate flops should merge");
-        assert_eq!(m.flops.len(), 1);
-
-        let compacted = compact_node_ids(&mut m);
-        assert!(
-            compacted >= 2,
-            "duplicate q plus duplicate self-feedback gate should become unreachable"
-        );
-        validate(&m).expect("self-feedback merge must preserve validator invariants");
-
-        let Node::Gate { operands, deps, .. } = &m.nodes[m.drives[0].1 as usize] else {
-            panic!("drive root should remain a gate");
-        };
-        assert_eq!(operands.len(), 2);
-        assert_eq!(
-            operands[0], operands[1],
-            "consumer should be rewired to the surviving canonical q"
-        );
-        assert_eq!(deps.len(), 1, "virtual flop deps should coalesce");
-        assert!(deps.contains(0x8000_0000));
+        assert_eq!(removed, 0, "different q endpoints must stay distinct");
+        assert_eq!(m.flops.len(), 2);
     }
 
     #[test]
-    fn merge_equivalent_flops_keeps_non_self_duplicate_d_cones_distinct() {
+    fn merge_equivalent_flops_merges_same_endpoint_duplicate_d_cones() {
         let mut m = non_self_duplicate_d_fixture();
 
         let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.flops.len(), 1);
+
+        let compacted = compact_node_ids(&mut m);
         assert_eq!(
-            removed, 0,
-            "non-self duplicate D-cones should respect exact NodeId identity"
+            compacted, 2,
+            "duplicate D-cone and Q should become unreachable"
         );
-        assert_eq!(m.flops.len(), 2);
+        validate(&m).expect("merged duplicate D-cones should still validate");
     }
 
     fn count_orphan_gates(m: &Module) -> usize {

@@ -172,12 +172,13 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // metadata-only cones do not survive into emitted SV.
     summarize_flop_mux_metadata(&mut m);
 
-    // Exact-signature sequential sharing pass: once every flop has a
-    // concrete D-cone, `identity_mode = node-id` can conservatively
+    // Endpoint-preserving sequential sharing pass: once every flop has
+    // a concrete D-cone, `identity_mode = node-id` can conservatively
     // merge duplicate state elements whose emitted semantics are the
-    // same (`width`, reset, `d`). This is the first stateful
-    // extension of the NodeId-as-identity story; duplicates become
-    // dead Q nodes that the compaction pass below removes.
+    // same over the same canonical leaf variables. Today that proof is
+    // only as strong as the normalized IR the factorization ladder has
+    // already established; duplicates become dead Q nodes that the
+    // compaction pass below removes.
     let flops_merged = crate::ir::compact::merge_equivalent_flops(&mut m);
     m.flops_merged = flops_merged;
 

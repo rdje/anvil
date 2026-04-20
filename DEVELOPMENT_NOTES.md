@@ -273,12 +273,14 @@ What still needs to stay explicit:
    emitter tricks.
 2. **`NodeId`-as-identity must keep expanding through the IR, not via
    emitter magic.** Today's live coverage is normalized combinational
-   identity plus conservative state merge for exact duplicates and
-   self-feedback-isomorphic flops. Future work is stronger state
-   identity across richer state graphs, and later
-   hierarchical/block identity. Keep `--identity-mode` as the coarse
-   on/off switch and `--factorization-level` as the finer dial;
-   construction strategy must stay orthogonal.
+   identity plus a conservative endpoint-preserving state merge.
+   Future work is stronger state identity across richer state graphs and
+   later hierarchical/block identity, but it must stay faithful to the
+   doctrine: same identity requires proven same functionality with
+   respect to the same canonical leaf variables. Keep
+   `--identity-mode` as the coarse on/off switch and
+   `--factorization-level` as the finer dial; construction strategy
+   must stay orthogonal.
 3. **Tool cleanliness must be industrialized.** Seed 42 being clean is
    good news, not a stopping point. Each new motif/category/knob needs
    matrixed Verilator/Yosys evidence, retained seed+config
@@ -291,27 +293,26 @@ What still needs to stay explicit:
    local blocks are welcome; a bundled whole-module oracle is not the
    direction.
 
-### Sequential identity now has a self-relative rung (2026-04-20)
+### Endpoint-preserving functional doctrine for state identity (2026-04-20)
 
-`merge_equivalent_flops` no longer stops at exact `d: NodeId`
-equality. It now recognizes one additional safe class:
+The user clarified the intended meaning of state equality sharply:
 
-- two flops with the same width/reset whose D-cones are identical after
-  renaming each flop's own `q` leaf to a synthetic "self" token.
+- two fanin cones may **not** share one `NodeId` if they do not have the
+  same leaf endpoints as variables;
+- the relevant variables are the canonical leaf endpoints: primary
+  inputs and/or flop `Q` outputs; and
+- the goal is equality by proven same functionality with respect to
+  those same endpoints, not equality by visual resemblance or by
+  matching graph skeleton alone.
 
-That covers the common self-feedback/isomorphic-register case without
-pretending to solve general sequential equivalence.
+Operational consequence:
 
-The important limit is just as load-bearing as the new capability:
-
-- if a D-cone does **not** depend on the owning `q`, its signature stays
-  exact-`NodeId`, not structural.
-
-That preserves the existing duplication semantics for non-self
-subgraphs. In other words, this slice strengthens state identity only
-where self-reference was the reason exact `NodeId` equality could never
-hold; it does not silently bulldoze `max_ast_instances` or other
-intentional duplication controls.
+- `merge_equivalent_flops` now uses a conservative leaf-aware proof form
+  over the already-normalized IR rather than exact `d: NodeId`; and
+- any future strengthening of sequential identity must preserve the
+  canonical leaf namespace. "Rename each owning `q` to SELF" is **not**
+  acceptable in strict `NodeId as identity` mode, and neither is
+  equating cones solely because they happen to look structurally alike.
 
 ---
 
@@ -477,16 +478,18 @@ extension of "NodeId as identity" cannot be an allocation-time guess;
 it has to run after drain.
 
 Current rule: after `summarize_flop_mux_metadata`, flops are merged
-iff they have the same exact emitted-state signature:
-`width`, `reset_kind`, `reset_val`, and exact same `d: NodeId`.
+iff they have the same emitted-state signature over the same canonical
+leaf variables: same `width`, `reset_kind`, `reset_val`, and the same
+leaf-aware D-cone proof form over the already-normalized IR.
 Construction provenance (`FlopKind`, cleared mux operand metadata) is
 deliberately ignored once D exists, because emitted hardware semantics
-are carried by width/reset/D, not by how the generator happened to
-assemble them.
+are carried by width/reset/D-cone meaning, not by how the generator
+happened to assemble them.
 
 This is intentionally narrower than full sequential equivalence. Two
-self-feedback flops whose D-cones are only isomorphic under Q
-renaming are not merged yet. That deeper coinductive story remains a
+cones that happen to compute the same function but are not reduced to
+the same proof form by the current ladder are not merged yet. That
+deeper coinductive story remains a
 future slice.
 
 ## Emitter is a dumb serialiser (2026-04-16)

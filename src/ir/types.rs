@@ -134,10 +134,13 @@ pub struct Module {
     pub nodes_compacted: u32,
 
     /// Number of duplicate flops merged away during the
-    /// post-drain exact-signature state-sharing pass. Once D-cones
-    /// exist, flops with identical emitted state semantics
-    /// (`width`, reset, `d`) collapse to one state element when
-    /// the effective factorization level is at least `Cse`.
+    /// post-drain endpoint-preserving state-sharing pass. Once
+    /// D-cones exist, flops with identical emitted state semantics
+    /// over the same canonical leaf variables collapse to one
+    /// state element when the effective factorization level is at
+    /// least `Cse`. Today the proof is conservative: it follows the
+    /// current normalized IR rather than a full sequential
+    /// equivalence engine.
     /// Surfaced via `Metrics::flops_merged`.
     pub flops_merged: u32,
 

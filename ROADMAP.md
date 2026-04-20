@@ -39,13 +39,18 @@ instead of leaving them implicit.
    equivalent expressions anywhere in any output cone or flop-D cone
    should converge to one `NodeId`, so sharing of gates, blocks,
    modules, and flops is as high as the current build knows how to
-   prove. Today's implementation covers normalized combinational
-   identity plus conservative state merging for exact duplicates and
-   self-feedback-isomorphic flops; stronger sequential and hierarchical
-   equivalence are still open work. This mode must remain
-   user-controllable from the CLI: `--identity-mode relaxed` is a real
-   off-switch, while `--factorization-level` continues to express weaker
-   or stronger canonicalization within `node-id`.
+   prove. The doctrinal bar is stronger than syntactic resemblance:
+   two cones should share one identity only when ANVIL can prove they
+   implement the same functionality with respect to the same canonical
+   leaf endpoints. Today's implementation covers normalized
+   combinational identity plus a conservative post-drain state merge
+   over the proof forms the current ladder already canonicalizes;
+   stronger sequential and hierarchical equivalence are still open
+   work. This mode must remain user-controllable from the CLI:
+   `--identity-mode
+   relaxed` is a real off-switch, while `--factorization-level`
+   continues to express weaker or stronger canonicalization within
+   `node-id`.
 
 3. **Signoff-quality tool-clean industrialization**
    Seed-level cleanliness is not enough. The project needs automated
@@ -114,9 +119,10 @@ seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
   shared and freshly-built sub-cones.
 - Under `identity_mode = node-id` with effective factorization level
   `>= cse`, a conservative post-drain flop merge now extends sharing to
-  state elements too: duplicate flops with the same `width`, reset, and
-  either the same exact `d` or the same self-feedback D-cone modulo
-  renaming each flop's own `q` collapse to one register.
+  state elements too: flops collapse when ANVIL can prove their D-cones
+  implement the same currently-normalized functionality over the same
+  canonical leaf endpoints, together with the same `width` and reset
+  semantics.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both

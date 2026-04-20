@@ -3,9 +3,96 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0084 — Extend state identity to self-feedback-isomorphic flops
+## 2026-04-20-0085 — Align state identity with endpoint-aware functional proofs
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice corrects the previous state-identity broadening, but it does
+not fall all the way back to exact `d: NodeId` equality. The doctrine is
+now stated the strong way: two cones may share identity only when ANVIL
+can prove they implement the same functionality with respect to the same
+canonical leaf endpoints. For this slice, `merge_equivalent_flops`
+implements a conservative proof subset of that doctrine.
+
+### Stateful identity now uses endpoint-aware proof forms
+
+- `src/ir/compact.rs` no longer uses the self-relative
+  "rename each owning `q` to SELF" shortcut.
+- Flop merging now keys D-cones by a leaf-aware interned signature over
+  the already-normalized IR: primary inputs and flop-Q leaves are kept
+  distinct by their real endpoint identities, constants are explicit,
+  and gates are interned by op/width/operand proof ids.
+- This means duplicate D-cones such as two separately-built `i0 + 1`
+  cones now merge even when their literal `NodeId`s differ, while
+  `q0 + 1` and `q1 + 1` still stay distinct because the endpoint
+  variables differ.
+
+### The tests now pin the doctrine directly
+
+- Replaced the previous positive self-feedback merge test with the
+  opposite assertion: cones that depend on different `Q` endpoints must
+  **not** merge.
+- Flipped the non-self duplicate-D test into the positive case: two
+  separately-built cones over the same input endpoint set now do merge,
+  even though their literal `NodeId`s differ.
+
+### Docs were corrected to match the stricter meaning
+
+- `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+  `book/src/factorization.md`, and `MEMORY.md` now state the doctrine
+  precisely: identity is about proven same functionality over the same
+  canonical leaf variables, while the current implementation is only a
+  conservative proof subset of that goal.
+
+**Why**
+
+The user clarified the intended doctrine precisely:
+
+- two fanin cones may not have the same `NodeId` if they do not have the
+  same endpoints as variables; and
+- the right target is equality as the same function with respect to
+  those same endpoints, even when the shapes differ.
+
+Under that doctrine, the self-relative `SELF + 1` shortcut was too
+permissive, while exact `d: NodeId` equality was too weak. This slice
+lands the conservative middle step that is actually faithful to the
+current proof surface.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Strict `NodeId as identity` mode now preserves real leaf variables
+  while still merging duplicate endpoint-equal D-cones that were built
+  separately.
+- The docs now stop equating "same shape" with the doctrine itself.
+- Future sequential-identity work now has a sharper bar: stronger
+  equivalence must preserve canonical leaf variables and must be backed
+  by an explicit proof, not an ad hoc renaming trick.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/factorization.md`
+- `src/gen/module.rs`
+- `src/ir/compact.rs`
+- `src/ir/types.rs`
+
+## 2026-04-20-0084 — Extend state identity to self-feedback-isomorphic flops
+
+**Landed as:** `92c9ef7`
 
 **What changed**
 

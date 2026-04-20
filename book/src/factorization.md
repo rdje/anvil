@@ -26,7 +26,8 @@ Each rung catches a specific class of "same expression, different
 syntax" cases and collapses them to a shared `NodeId`. For
 combinational nodes that mostly happens at intern time. For state,
 there is one conservative post-drain pass: once flop D-cones are
-known, exact duplicate state signatures are merged.
+known, endpoint-preserving state proofs over the current normalized IR
+are merged.
 
 Why mostly at intern time and not as a post-pass? Three reasons:
 
@@ -236,14 +237,15 @@ their D-cones exist, so their identity cannot be decided at birth.
 After `drain_flop_worklist` finishes, `generate_leaf_module` runs
 [`crate::ir::compact::merge_equivalent_flops`].
 
-The current signature is intentionally conservative:
+The current proof is intentionally conservative:
 
 - same `width`
 - same `reset_kind`
 - same `reset_val`
-- same exact `d: NodeId`; or
-- D-cones that become identical after renaming each flop's own `q` to a
-  synthetic "self" leaf.
+- same canonical leaf endpoints (`PrimaryInput`s / `FlopQ`s)
+- same D-cone proof form after the current normalization ladder
+  (commutative canonicalization, associative flattening, constant fold,
+  peephole, etc.) has done what it can
 
 If those match, every consumer of the duplicate Q is rewired to the
 canonical Q, virtual flop deps are remapped, surviving flops are
@@ -252,9 +254,9 @@ duplicate Q nodes.
 
 What it deliberately does **not** do yet:
 
-- prove graph isomorphism across D-cones;
-- structurally merge non-self D-cones that merely happen to be
-  duplicate ASTs under looser duplication settings;
+- prove arbitrary semantic equivalence across different unreduced
+  D-cone forms;
+- merge cones that depend on different canonical leaf endpoints;
 - merge wider sequentially-equivalent machines.
 
 ## What "full factorization" still means
@@ -275,8 +277,8 @@ Today, ANVIL is **part-way there**:
 
 - combinational expressions are canonicalized through the intern-time
   ladder described above;
-- exact duplicate flops, plus self-feedback-isomorphic duplicates,
-  merge once their D-cones exist; but
+- endpoint-preserving duplicate flops merge once their D-cones exist;
+  but
 - stronger sequential equivalence, block/module identity, and future
   parameter-aware hierarchical identity are still open work.
 
