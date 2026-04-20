@@ -3,9 +3,128 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0088 — Broaden ANVIL toward multiple synthesizable artifact families
+## 2026-04-20-0089 — Add a repo-owned Verilator/Yosys tool matrix harness
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice turns the "exercise the full adversarial axis matrix"
+doctrine into an executable repo-owned tool instead of leaving it as
+documentation plus one-off shell commands.
+
+### A new `tool_matrix` binary now drives curated downstream sweeps
+
+- Added `src/bin/tool_matrix.rs`.
+- The binary builds a curated scenario matrix that covers:
+  - interleaved runs across `relaxed` plus every
+    `factorization_level` rung;
+  - all three live construction strategies
+    (`sequential` / `shuffled` / `interleaved`);
+  - a share-heavy comb-only stress profile; and
+  - a motif-heavy sequential stress profile.
+- For each scenario it:
+  - generates a per-scenario corpus;
+  - writes a scenario-local `manifest.json`;
+  - runs Verilator and Yosys on every emitted file;
+  - aggregates per-file metrics, tool outcomes, and coverage facts; and
+  - writes a top-level `tool_matrix_report.json`.
+- The harness exits non-zero on downstream-tool failures, because the
+  point is to surface generator bugs rather than quietly accept red
+  runs.
+
+### The matrix reuses existing metrics as its coverage proof surface
+
+- The report aggregates:
+  - gate kinds / gate categories,
+  - block counters,
+  - per-knob roll attempts/fires,
+  - comb-only vs sequential presence,
+  - construction-strategy / identity-mode / factorization coverage.
+- Added binary-level unit tests covering:
+  - unique scenario naming,
+  - full factorization-rung coverage,
+  - all live construction strategies, and
+  - coverage-gap detection.
+
+### The first matrix run immediately found and helped fix a real bug
+
+- The first `tool_matrix` smoke run found a hard Verilator error in the
+  emitter: scalar `Slice { hi: 0, lo: 0 }` was serialized as
+  `a[0:0]` even when `a` was already scalar `logic`.
+- `src/emit/sv.rs` now renders that case as just `a`, and emits
+  single-bit vector selections as `a[3]` instead of `a[3:3]`.
+- Added an emitter unit test pinning the scalar-slice case.
+
+### The docs now point at the new harness and record what it revealed
+
+- `README.md`, `USER_GUIDE.md`, `ROADMAP.md`,
+  `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, and the book now
+  document the `tool_matrix` binary, how to run it, and what role it
+  plays in the Phase-1 / signoff-cleanliness lane.
+- The phase/status docs now say the truthful current thing:
+  - the repo-owned matrix exists;
+  - Yosys is already green on the first smoke run; and
+  - Verilator is not yet warning-clean across the matrix.
+
+**Why**
+
+The user has repeatedly pushed ANVIL toward two connected goals:
+
+- model all adversarial-generation axes explicitly, with no hidden
+  bias; and
+- make clean downstream-tool behavior a real quality bar, not a vague
+  aspiration.
+
+The new harness is the first direct implementation of that doctrine.
+It also paid for itself immediately: rather than just adding a test
+surface, it found a real emitter defect and then narrowed the remaining
+tool-clean gap to a concrete warning bucket (`CMPCONST` / `UNSIGNED`)
+that the next bug-fix slice can attack directly.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --list-scenarios`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-smoke-2 --modules-per-scenario 1`
+  - expected non-zero today because the matrix is not fully
+    Verilator-clean yet
+  - observed result after the scalar-slice fix:
+    - Verilator: 7 pass / 8 fail
+    - Yosys: 15 pass / 0 fail
+    - coverage gaps: 0
+
+**Impact**
+
+- ANVIL now has a repo-owned executable proof surface for the
+  adversarial axis matrix instead of relying only on prose and ad hoc
+  commands.
+- The first hard emitter bug surfaced by the matrix is fixed.
+- The remaining tool-clean gap is now sharply characterized:
+  Verilator warning-cleanliness (`CMPCONST` / `UNSIGNED`) is the next
+  tactical lane, while Yosys is already green across the smoke matrix.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `book/src/architecture.md`
+- `book/src/recipes.md`
+- `src/bin/tool_matrix.rs`
+- `src/emit/sv.rs`
+
+## 2026-04-20-0088 — Broaden ANVIL toward multiple synthesizable artifact families
+
+**Landed as:** `ca2947b`
 
 **What changed**
 

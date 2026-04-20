@@ -274,7 +274,17 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Le => format!("{} <= {}", a(0), a(1)),
         Ge => format!("{} >= {}", a(0), a(1)),
         Mux => format!("({}) ? ({}) : ({})", a(0), a(1), a(2)),
-        Slice { hi, lo } => format!("{}[{}:{}]", a(0), hi, lo),
+        Slice { hi, lo } => {
+            let src = a(0);
+            let src_width = m.nodes[operands[0] as usize].width();
+            if src_width == 1 && hi == 0 && lo == 0 {
+                src
+            } else if hi == lo {
+                format!("{src}[{hi}]")
+            } else {
+                format!("{src}[{hi}:{lo}]")
+            }
+        }
         Concat => {
             // If every operand points at the same NodeId, emit the
             // canonical SystemVerilog replication form `{N{expr}}`
@@ -469,6 +479,28 @@ mod tests {
         let sv = to_sv(&m);
         assert!(sv.contains("assign slice_0 = a[3:0];"));
         assert!(sv.contains("assign concat_0 = {2{slice_0}};"));
+    }
+
+    #[test]
+    fn scalar_slice_renders_without_range_select() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 1, Direction::In));
+        m.outputs.push(port(1, "o", 1, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0
+        m.nodes.push(Node::Gate {
+            op: GateOp::Slice { hi: 0, lo: 0 },
+            operands: vec![0],
+            width: 1,
+            deps: DepSet::from_port(0),
+        }); // 1
+        m.drives.push((1, 1));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("assign slice_0 = a;"));
+        assert!(!sv.contains("a[0:0]"));
     }
 
     #[test]

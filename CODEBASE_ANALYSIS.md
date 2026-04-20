@@ -127,11 +127,22 @@ src/
 │                     bounded live `e-graph` fragment under
 │                     `identity_mode = node-id` instead of clamping
 │                     everything above `Peephole` downward.
-│                     highest implemented layer (currently
-│                     Peephole). Fine-grained knobs:
+│                     Fine-grained knobs:
 │                     max_ast_instances, mux_arm_duplication_rate,
 │                     operand_duplication_rate, identity_mode,
 │                     factorization_level.
+│
+├── bin/
+│   └── tool_matrix.rs
+│                     Repo-owned downstream-tool matrix harness.
+│                     Builds a curated scenario set over
+│                     construction strategy, identity mode,
+│                     factorization level, and two stress profiles;
+│                     generates per-scenario corpora, runs Verilator
+│                     and Yosys, writes `tool_matrix_report.json`,
+│                     aggregates metrics/coverage facts, and exits
+│                     non-zero on tool failures. Also doubles as the
+│                     first executable "axis matrix" proof surface.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports `types::*`, `compact::*`, and validate.
@@ -433,19 +444,27 @@ In `ir::validate::validate`:
 - `src/ir/validate.rs` — 21 inline unit tests covering valid modules plus a broad rejection surface: undefined drive roots, dense flop-id enforcement, missing D, undefined mux-held refs, canonical `Flop.q` / `FlopQ` backrefs and widths, dangling / duplicate `FlopQ`s, and representative gate-shape failures.
 - `src/gen/cone.rs` — 18 inline unit tests covering flop assemblers, `ceil_log2`, `pick_mux_arm_count`, width-adapter cases, comb-mux generation, DAG-sharing sanity, anti-collapse, dep-bearing terminal picking, coefficient-width clamping, CLI alias behavior, and category / leaf-knob exercise coverage.
 - `src/gen/module.rs` — 2 inline unit tests covering primary-input width shrinking and the "do not shrink full-width non-slice uses" guard.
-- `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, and Mux ternary form.
+- `src/emit/sv.rs` — 7 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, no-op compaction, orphan removal, and topological-order preservation.
+- `src/bin/tool_matrix.rs` — 4 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, and coverage-gap detection.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **101 unit + 24 integration = 125 passing tests**. Doc-tests: 0.
-- No external Verilator / Yosys smoke tests are wired into `cargo test` yet. Phase 1 exit gate remains blocked on running the larger sweeps, not on tool availability.
+- Current executed counts (`cargo test`, 2026-04-20): **110 unit + 24 integration = 134 passing tests**. Doc-tests: 0.
+- No external Verilator / Yosys smoke tests are wired into `cargo test`
+  yet. A repo-owned `tool_matrix` harness now exists for broader
+  sweeps, but the Phase 1 exit gate is still blocked on driving that
+  matrix to warning-clean Verilator results and then scaling it up to
+  the larger 1000-module gate.
 
 ## Known weaknesses (visible in code today)
 
 - The broader signoff-grade cleanliness matrix described in
-  `ROADMAP.md` does not yet exist as repo-owned automation. Internal
-  validation is strong; industrialized tool evidence is still an open
-  engineering lane.
+  `ROADMAP.md` now has a repo-owned first implementation in
+  `src/bin/tool_matrix.rs`, but the matrix is not yet green:
+  the first smoke run was 15/15 Yosys-clean and 7/15
+  Verilator-clean, with the remaining failures concentrated in
+  `CMPCONST` / `UNSIGNED` warning-cleanliness rather than syntax or
+  synthesis breakage.
 - `NodeId`-as-identity is still conservative for state and does not yet
   extend to future hierarchical objects. Exact-signature duplicate
   flops merge; stronger sequential/hierarchical equivalence remains open

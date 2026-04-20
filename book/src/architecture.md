@@ -100,6 +100,9 @@ main  ->  lib  ->  gen  ->  ir
 - `emit` depends on `ir` (reads IR).
 - `gen` and `emit` do not depend on each other.
 - `main` wires it all together.
+- `src/bin/tool_matrix.rs` is a repo-owned auxiliary binary: it uses
+  the public crate API to generate a curated scenario matrix, run
+  Verilator/Yosys, and write an aggregated report.
 
 This means `ir` can be tested in isolation, `emit` can be tested with
 hand-constructed IRs (no need to invoke the generator), and `gen` can
@@ -134,9 +137,12 @@ than accidental:
    but stronger state equivalence and future hierarchical identity are
    not finished.
 3. **Tool-clean industrialization**
-   Internal tests are strong, yet the broader Verilator/Yosys sweep
-   matrix required by the product goal is still missing. That evidence
-   layer must grow with each new motif family.
+   Internal tests are strong, and a repo-owned `tool_matrix` harness
+   now exists, but the broader Verilator/Yosys cleanliness gate is not
+   green yet. The first matrix smoke run found an emitter bug and then
+   narrowed the remaining failures to Verilator warning-cleanliness
+   (`CMPCONST` / `UNSIGNED`). That evidence layer must keep growing with
+   each new motif family until the matrix is boringly clean.
 4. **Structure-first doctrine**
    The codebase is intentionally optimized for structural legitimacy and
    synthesizability, not for proving whole-module intended behavior.

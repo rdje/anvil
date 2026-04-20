@@ -310,6 +310,38 @@ This is a real scope change for planning, not a soft aspiration. The
 roadmap now needs explicit phases for these broader synthesizable
 artifact families.
 
+### Repo-owned tool matrix harness (2026-04-20)
+
+The "no hidden bias" / "exercise all axes" doctrine now has an
+executable first form in the repo: `src/bin/tool_matrix.rs`.
+
+The design choices for this harness are deliberate:
+
+- it is a Rust binary in-repo, not an external shell script, so it can
+  reuse `Config`, `Generator`, metrics, and manifest formats directly;
+- it uses a **curated matrix**, not one giant Cartesian product, so the
+  sweep stays fast enough to run routinely while still covering the
+  load-bearing axes:
+  - interleaved ladder sweep across `relaxed` plus every
+    `factorization_level` rung,
+  - strategy sweep across `sequential` / `shuffled` / `interleaved`,
+  - a share-heavy comb-only profile,
+  - a motif-heavy sequential profile;
+- it reuses structural metrics as the coverage surface instead of
+  inventing a second observability stack; gate kinds, block counters,
+  and knob roll attempts/fires already tell us whether a scenario
+  actually exercised what it claimed to stress; and
+- it exits non-zero on downstream-tool failures because the point is to
+  surface generator bugs, not to produce a pretty report while quietly
+  accepting red runs.
+
+The first smoke run after landing the harness was immediately useful:
+it found one real emitter bug (`logic[0:0]`-style scalar slice
+emission) and, after that fix, reduced the remaining failures to the
+warning-cleanliness bucket (`CMPCONST` / `UNSIGNED` under Verilator).
+That is exactly the intended feedback loop for the tool-clean
+industrialization lane.
+
 ### Codebase suitability assessment: four steering gaps (2026-04-20)
 
 The short answer to "is the existing codebase suited to the goal?" is:

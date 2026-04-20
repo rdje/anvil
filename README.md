@@ -70,6 +70,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 ### Tests and examples
 - `tests/pipeline.rs`       end-to-end: generate → validate → emit
 - `examples/generate_one.rs` minimal library usage
+- `src/bin/tool_matrix.rs`  curated Verilator/Yosys scenario-matrix harness
 
 ### Design docs (mdBook, live)
 - `book/book.toml`
@@ -105,6 +106,9 @@ cargo run -- --seed 42 --count 100 --out ./generated
 # Library-usage example
 cargo run --example generate_one
 
+# Tool-clean matrix sweep
+cargo run --bin tool_matrix -- --out ./tool-matrix
+
 # Lint and formatting
 cargo clippy --all-targets
 cargo fmt --all
@@ -124,6 +128,17 @@ yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth; stat"
 ```
 
 Both should succeed on every generated file. A failure is a generator bug; file with the seed and the effective knobs from `manifest.json`.
+
+For a broader repo-owned sweep across construction strategies,
+identity modes, factorization levels, and stress profiles:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix
+```
+
+That writes per-scenario generated corpora plus
+`tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
+fails on any generated file.
 
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.

@@ -148,10 +148,16 @@ recursion (Q is a leaf, D opens a new sub-cone, worklist drains).
 and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
-the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (129 tests, unused-signal Verilator sweep over seeds 0..4
-for the default path and the `graph-first` alias, plus a warning-clean
-seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
+the 1000-module Verilator+Yosys sweep has not been run yet. A new
+repo-owned `tool_matrix` harness now exists and already exercises a
+15-scenario adversarial matrix across strategies, identity modes,
+factorization levels, and stress profiles; the first smoke run is
+15/15 Yosys-clean but only 7/15 Verilator-clean because
+`CMPCONST` / `UNSIGNED` warning-cleanliness still needs work. Internal
+validation (134 tests after the harness slice, unused-signal Verilator
+sweep over seeds 0..4 for the default path and the `graph-first`
+alias, plus a warning-clean seed-42 Verilator lint and seed-42 Yosys
+synthesis) is otherwise clean.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 

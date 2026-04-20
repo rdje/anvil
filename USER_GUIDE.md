@@ -203,6 +203,35 @@ generated/
 └── ...
 ```
 
+## Tool matrix sweeps
+
+For a broader repo-owned downstream sweep, use the dedicated matrix
+harness:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix
+```
+
+What it does:
+
+- builds a curated scenario matrix over construction strategy,
+  identity mode, factorization level, and two stress profiles
+  (share-heavy comb-only, motif-heavy sequential);
+- generates a per-scenario corpus under `./tool-matrix/<scenario>/`;
+- runs Verilator and Yosys on every generated file;
+- writes `./tool-matrix/tool_matrix_report.json` with per-file tool
+  results, aggregated metrics, and coverage facts; and
+- exits non-zero if either downstream tool fails on any generated file.
+
+Useful options:
+
+- `--list-scenarios` to print the built-in matrix without running it.
+- `--modules-per-scenario N` to trade runtime for more coverage.
+- `--fail-on-coverage-gap` to fail when the matrix misses one of the
+  intended axes or motif/knob decision sites.
+- `--skip-verilator` / `--skip-yosys` when you want to isolate one
+  downstream consumer.
+
 ## Downstream verification
 
 `anvil` does not ship an oracle or simulator. To sanity-check output:

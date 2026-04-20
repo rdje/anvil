@@ -19,6 +19,37 @@ Knobs to tune:
 - `--max-width 16` keeps data widths moderate → SV stays readable.
 - `--flop-prob 0.2` gives a mix of combinational and sequential blocks.
 
+## "I want an executable Verilator/Yosys axis matrix"
+
+Use the repo-owned matrix harness instead of hand-running one seed at a
+time:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix
+```
+
+This does more than emit files:
+
+- sweeps a curated matrix over construction strategy, identity mode,
+  factorization level, and two stress profiles;
+- runs Verilator and Yosys on every generated file;
+- writes per-scenario corpora plus `tool_matrix_report.json`; and
+- fails the command if either downstream tool fails anywhere in the
+  matrix.
+
+Useful variants:
+
+```bash
+# See the built-in scenario names without generating anything.
+cargo run --bin tool_matrix -- --list-scenarios
+
+# Spend more runtime for more actual motif/knob coverage.
+cargo run --bin tool_matrix -- --out ./tool-matrix --modules-per-scenario 4
+
+# Treat missed matrix coverage as a failing result too.
+cargo run --bin tool_matrix -- --out ./tool-matrix --fail-on-coverage-gap
+```
+
 ## "I want fanout stress"
 
 Internal wires driving many consumers — stresses common-subexpression
