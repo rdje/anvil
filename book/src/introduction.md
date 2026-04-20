@@ -9,14 +9,18 @@ SystemVerilog modules that are guaranteed to:
    multi-driven nets, no illegal lvalues.
 3. **Synthesize** — lives inside the subset of SystemVerilog that
    Yosys, Vivado, Design Compiler, and friends actually accept.
-4. **Do something** — every output genuinely depends on at least one
-   input; the whole circuit does not collapse to a constant.
+4. **Remain structurally non-trivial** — every output genuinely depends
+   on at least one real source; the whole circuit does not collapse to a
+   constant.
 
 What it emits is random, not meaningful. A gate computing `(a + b) & c`
 with no coherent design intent. That is the point: `anvil` is for
 **stress-testing tools** (parsers, elaborators, simulators,
 synthesizers, formal equivalence checkers) and for **generating
 synthetic corpora** — not for synthesizing real designs.
+
+Whole-module intended functionality is usually absent. The target is
+legal structure, not behavior with a specification behind it.
 
 The quality bar is intentionally high. `anvil` is not trying to become
 "a fuzzer that sometimes emits legal RTL"; it is trying to become a

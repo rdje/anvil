@@ -3,9 +3,85 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0081 — Capture the signoff-grade bug-finder doctrine
+## 2026-04-20-0082 — Capture the structure-over-functionality doctrine verbatim
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This docs-only slice records, verbatim, the user's doctrinal
+clarification that ANVIL is not targeting meaningful top-level module
+functionality. It is targeting structure: legal, synthesizable, complex
+RTL that downstream tools can ingest.
+
+### The book now preserves the doctrine in its strongest form
+
+- `book/src/core-idea.md` no longer claims that RTL must be
+  functionally correct "to make sense to use" for ANVIL's purpose.
+- The same chapter now contains the user's clarification **verbatim**
+  under a dedicated doctrinal-anchor section.
+- `book/src/introduction.md` and `book/src/faq.md` now distinguish:
+  - whole-module intended behavior is generally absent; but
+  - local motifs may still be functionally correct blocks.
+
+### The live docs now steer contributors the same way
+
+- `README.md` now says explicitly that whole-module intended behavior is
+  not the goal; legal structure and tool-ingestible complexity are.
+- `ROADMAP.md` now states that whole-module intended functionality is
+  not a roadmap goal.
+- `DEVELOPMENT_NOTES.md` now preserves the user's clarification
+  **verbatim** and translates it into an implementation rule of thumb.
+
+### Continuity docs were refreshed too
+
+- `MEMORY.md` now records this as the latest doctrinal slice and points
+  future sessions at the new verbatim anchors.
+- The previous docs-only slice now has its landed hash filled in.
+
+**Why**
+
+Some existing wording still implied that a generated RTL module had to
+be "functionally correct" in a broad top-level sense to be useful.
+That is not ANVIL's mission.
+
+Without a specification, whole-module function correctness is not even
+well-defined for most generated outputs. ANVIL's by-construction target
+is instead: legitimate structure, synthesizability, complexity, and
+downstream-tool ingestibility. This slice makes that distinction
+durable.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Future contributors now have a sharper doctrinal answer when they ask
+  whether ANVIL should chase meaningful whole-module behavior.
+- The core idea chapter no longer undermines the project direction with
+  the wrong premise.
+- Session recovery now carries the user's exact words, not only
+  paraphrases.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `book/src/core-idea.md`
+- `book/src/introduction.md`
+- `book/src/faq.md`
+
+## 2026-04-20-0081 — Capture the signoff-grade bug-finder doctrine
+
+**Landed as:** `3281e53`
 
 **What changed**
 

@@ -227,6 +227,29 @@ two axes without regressing the other:
 2. stronger confidence that generated output is clean and robust in
    downstream tools.
 
+### Verbatim user doctrine: structure over intended functionality (2026-04-20)
+
+The following user guidance is intentionally logged **verbatim** because
+it is doctrinal and should steer future implementation choices:
+
+> Let's be clear. Generating module by recursively generating fanin cones of its outputs, mechanically means that the resulting functionality will be gibberish but that's not the point. Having functioning behavior makes no sense here. For some modules, we might get some usable functionality but that's not the goal. The ultimate goal is to be able to generate synthesable legit RTL code that downstream tools (parser, synthesizer, linter, ...) can ingest.
+>
+> My construction we are not aiming at functionality but at structure, capiche.
+>
+> ANVIL will be able to create complex to very complex synthesizable RTL code.
+>
+> Any functionally correct synthesizable RTL code is undistinguishable from an functionally incorrect or even gibberish code at first sight, to ensure function correctioness one need functonal verification which needs to match a specification against a RTL module.
+>
+> So no one can tell at first glance whether a RTL is gibberish or functionally correct with a specification, meaning for most of what will be generated, function correctness is not the goal and can't be by construction.
+>
+> But they are features that will create functionally correct blocks.
+
+Operational consequence: optimize ANVIL primarily for structural
+legitimacy, synthesizability, complexity, and downstream-tool
+ingestibility. Treat whole-module function correctness as out of scope
+unless a feature introduces a local block motif whose own behavior is
+well-defined by construction.
+
 ---
 
 ## Generation-time defects observed in sample output (pending fixes)

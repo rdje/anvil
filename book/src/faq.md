@@ -182,6 +182,26 @@ equivalence checkers), not for generating real designs.
 If you need RTL that *does* something meaningful, you hire an
 engineer.
 
+## Is `anvil` trying to generate functionally correct whole modules?
+
+No. For most generated modules, whole-module function correctness is not
+even a meaningful target because there is no specification to compare
+against.
+
+ANVIL is built by recursively generating fanin cones. That process is
+great at producing legal, synthesizable, structurally rich RTL, but it
+mechanically tends to produce arbitrary or gibberish overall behavior.
+That is acceptable because ANVIL is optimizing for structure and
+downstream-tool ingestibility, not top-level design intent.
+
+The important distinction is:
+
+- **whole modules** are usually arbitrary in behavior; but
+- **local motifs / blocks** may still be functionally correct by
+  construction (for example a mux as a mux, a flop as a flop, a
+  priority encoder as a priority encoder, and future memories / FSM
+  templates in their own local sense).
+
 ## Is `anvil` trying to be a signoff-grade bug finder for downstream tools?
 
 Yes. That is the intended direction.

@@ -12,6 +12,11 @@ signoff-grade random synthesizable RTL generator that finds bugs in
 downstream tools by feeding them legal, unusual, feature-rich designs,
 not by relying on malformed input or low-quality noise.
 
+Whole-module intended functionality is not a roadmap goal. The roadmap
+optimizes for structurally rich, legitimate, synthesizable RTL that
+tools can ingest; local motifs may be functionally correct blocks, but
+the top-level module usually has no meaningful specification.
+
 ## Phase 0 — Scaffolding (done)
 
 - Cargo project, module skeleton, CLI entry point.

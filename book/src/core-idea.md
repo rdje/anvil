@@ -30,12 +30,17 @@ state, which is where invariants silently break.
 
 ## The problem
 
-An RTL file has to be functionally correct for it to make sense to use.
-It is not like a regex that can be random and still exercise a parser
-usefully. Unfortunately, there does not seem to exist any practical way
-to pseudo-randomly generate RTL that is semantically correct — meaning
-it elaborates, types check, widths align, names resolve, no net is
-driven twice, and every referenced signal exists.
+For ANVIL's purpose, an RTL file does **not** need intended top-level
+functionality in order to be useful. What it needs is to be legal,
+synthesizable, structurally rich, and ingestible by downstream tools.
+Whether a whole module is "functionally correct" is a different
+question: that requires a specification, and most generated modules do
+not have one.
+
+Unfortunately, there does not seem to exist any practical way to
+pseudo-randomly generate RTL that is semantically correct — meaning it
+elaborates, types check, widths align, names resolve, no net is driven
+twice, and every referenced signal exists.
 
 Grammar-based generation (walk an EBNF, emit tokens) produces
 syntactically valid text but almost never semantically valid text. The
@@ -43,6 +48,33 @@ semantic constraints of RTL are tight enough that random derivations
 are overwhelmingly rejected during elaboration. You end up filtering
 99%+ of your output, which is both expensive and biased toward the
 easiest-to-generate patterns.
+
+## Verbatim doctrinal anchor: structure over intended functionality
+
+The following user guidance is preserved **verbatim** because it is the
+clearest statement of what ANVIL is, and is not, trying to do:
+
+> Let's be clear. Generating module by recursively generating fanin cones of its outputs, mechanically means that the resulting functionality will be gibberish but that's not the point. Having functioning behavior makes no sense here. For some modules, we might get some usable functionality but that's not the goal. The ultimate goal is to be able to generate synthesable legit RTL code that downstream tools (parser, synthesizer, linter, ...) can ingest.
+>
+> My construction we are not aiming at functionality but at structure, capiche.
+>
+> ANVIL will be able to create complex to very complex synthesizable RTL code.
+>
+> Any functionally correct synthesizable RTL code is undistinguishable from an functionally incorrect or even gibberish code at first sight, to ensure function correctioness one need functonal verification which needs to match a specification against a RTL module.
+>
+> So no one can tell at first glance whether a RTL is gibberish or functionally correct with a specification, meaning for most of what will be generated, function correctness is not the goal and can't be by construction.
+>
+> But they are features that will create functionally correct blocks.
+
+Derived reading:
+
+- whole-module intended behavior is usually arbitrary and often
+  gibberish;
+- that is acceptable because ANVIL targets structure, not design intent;
+  and
+- some **local motifs** can still be functionally correct blocks by
+  construction, even when the enclosing module has no meaningful
+  top-level specification.
 
 ## The insight
 
@@ -140,10 +172,12 @@ from `(seed, knobs)`.
 
 ## What we deliberately do not do
 
-- **No oracle.** `anvil` is a generator, not a tool tester. Downstream
-  users can run Verilator or Yosys against the output for
+- **No oracle.** `anvil` is a generator, not a bundled semantic oracle.
+  Downstream users can run Verilator or Yosys against the output for
   differential/sanity testing; `anvil` does not build a reference
-  simulator. This is a deliberate scope reduction.
+  simulator. This is a deliberate scope reduction, not a retreat from
+  the goal of generating high-quality RTL that those tools should ingest
+  cleanly.
 - **No grammar.** An annotated EBNF is a valid way to describe this
   generator formally, and attribute grammars would yield an equivalent
   result. But the circuit-graph view is more direct, more visual, and

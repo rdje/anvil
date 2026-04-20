@@ -2,7 +2,7 @@
 Single entry point for the project.
 
 ## Project objective
-`anvil` is a constrained-random generator of **synthesizable SystemVerilog RTL**. It produces syntactically valid, semantically correct, synthesizable, and functionally non-trivial modules by building a typed circuit graph via fanin-cone recursion and emitting SV from it.
+`anvil` is a constrained-random generator of **synthesizable SystemVerilog RTL**. It produces syntactically valid, semantically correct, synthesizable, and structurally non-trivial modules by building a typed circuit graph via fanin-cone recursion and emitting SV from it.
 
 The intended destination is stronger than "valid enough": `anvil`
 should become a **signoff-level-quality random RTL generator** whose
@@ -11,6 +11,12 @@ being rich enough to break them. The product goal is **legal,
 reproducible, adversarial RTL** that can expose real parser,
 elaboration, synthesis, and lint bugs precisely because it stays inside
 the accepted synthesizable envelope.
+
+Whole-module intended functionality is not the target. By construction,
+the recursive fanin-cone process mainly aims at legal structure and
+tool-ingestible complexity; absent a specification, most generated
+modules are expected to be functionally arbitrary or outright
+gibberish, and that is acceptable.
 
 **Three load-bearing principles:**
 1. **Recursion is the core algorithm.** The generator answers one question — *"what drives this signal?"* — and recurses. Every level of abstraction (gate, cone, module, hierarchy) is the same recursion with a richer choice set. Iteration is the exception; recursion is the default. Anything that can be expressed as a recursive descent over a typed circuit graph should be.
