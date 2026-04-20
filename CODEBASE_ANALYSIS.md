@@ -8,6 +8,46 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 - **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** not yet pinned. Whatever stable Rust is current.
 
+## Suitability assessment against the product goal
+
+Short answer: **yes as a foundation, not yet as a completed generator**.
+
+The current architecture is well matched to ANVIL's direction:
+
+- typed IR construction instead of grammar/text emission;
+- one combinational identity chokepoint in `ir/types.rs`;
+- post-drain state and reachability finalisation in `ir/compact.rs`;
+- validator-owned invariants in `ir/validate.rs`;
+- explicit knob/control plumbing in `config.rs`; and
+- a deliberately dumb SV emitter in `emit/sv.rs`.
+
+That is the right base for a signoff-grade random synthesizable RTL
+generator. The work still required falls into four explicit gaps:
+
+1. **Feature breadth / legal surface area**
+   The active generator is still leaf-module-centric. Phase 3 motifs are
+   only partially populated, while hierarchy, parameterization,
+   aggregates, memories, and FSMs are not landed. The codebase supports
+   these as extensions of the current architecture; it does not yet
+   implement them.
+2. **`NodeId`-as-identity is only partially realized**
+   `Module::intern_gate` gives a strong combinational canonicalization
+   chokepoint and `merge_equivalent_flops` adds the first stateful
+   sharing pass, but "same expression anywhere in the cone forest means
+   same `NodeId`" is not yet fully true for stronger sequential
+   equivalence or future hierarchical objects.
+3. **Tool-clean confidence is still under-automated**
+   The repo has strong internal validation and local smoke evidence, but
+   it does not yet have the broad Verilator/Yosys sweep matrix implied
+   by the signoff-grade goal. That missing harness is now one of the
+   main quality gaps, not an optional extra.
+4. **The IR is optimized for structural legitimacy more than semantic
+   richness today**
+   That matches the project doctrine: whole-module intended behavior is
+   usually arbitrary. The missing work is therefore not "add a
+   spec/oracle layer", but "add more legal, synthesizable,
+   interaction-rich motifs and composition surfaces".
+
 ## Module map
 
 ```
@@ -143,7 +183,10 @@ src/
 │   │                 `compact_node_ids`, post-compaction orphan audit,
 │   │                 shrink surviving primary inputs to the highest
 │   │                 live bit, then prune dead data-input ports from
-│   │                 the emitted surface. `m.flops_merged` and
+│   │                 the emitted surface. This is still the Phase
+│   │                 1/2/3 leaf kernel; future hierarchy should wrap
+│   │                 it rather than collapse inter-module generation
+│   │                 into it. `m.flops_merged` and
 │   │                 `m.nodes_compacted` record the removal counts.
 │   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
@@ -357,6 +400,14 @@ In `ir::validate::validate`:
 
 ## Known weaknesses (visible in code today)
 
+- The broader signoff-grade cleanliness matrix described in
+  `ROADMAP.md` does not yet exist as repo-owned automation. Internal
+  validation is strong; industrialized tool evidence is still an open
+  engineering lane.
+- `NodeId`-as-identity is still conservative for state and does not yet
+  extend to future hierarchical objects. Exact-signature duplicate
+  flops merge; stronger sequential/hierarchical equivalence remains open
+  work.
 - `gen::cone::input_widths_for` for `Slice` and `Concat` returns placeholder widths. `Slice` and `Concat` are not currently selectable in `pick_gate` (only used by `make_width_adapter` and the flop-mux assembly, which construct them directly with correct widths). Properly wire `input_widths_for` when Phase 3 makes them pickable.
 - `emit::sv::render_gate` for `Concat` joins operand names with commas (correct SV); the IR does not currently distinguish per-operand widths in storage because every current producer of `Concat` either replicates a single source or concatenates uniform-width bits. When variadic `Concat` with mixed widths becomes a real motif, the IR shape is still adequate (widths are a property of each operand node, not of the `Concat` itself), but a generator-side helper will need to compose such shapes carefully.
 

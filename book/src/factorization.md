@@ -254,6 +254,42 @@ What it deliberately does **not** do yet:
 - normalize self-feedback by Q-renaming;
 - merge wider sequentially-equivalent machines.
 
+## What "full factorization" still means
+
+The strong-form user doctrine is:
+
+- assign one identity to one expression;
+- if two expressions are equivalent, they should not end up with
+  different `NodeId`s; and
+- sharing across output cones should be as high as the current build
+  knows how to prove.
+
+In roadmap terms, that means the fanin cones of different outputs and
+flop-D inputs should eventually share gates, blocks, modules, and flops
+whenever those structures are equivalent.
+
+Today, ANVIL is **part-way there**:
+
+- combinational expressions are canonicalized through the intern-time
+  ladder described above;
+- exact duplicate flops merge once their D-cones exist; but
+- stronger sequential equivalence, block/module identity, and future
+  parameter-aware hierarchical identity are still open work.
+
+This remains deliberately user-controllable:
+
+- `--identity-mode relaxed` turns the identity contract off and forces
+  the effective ladder to `none`;
+- `--identity-mode node-id` keeps the identity contract live; and
+- `--factorization-level` selects how strong the currently implemented
+  canonicalization should be within `node-id`.
+
+So "full factorization" is not marketing shorthand for "already solved";
+it is the direction of travel for the strongest `node-id` mode. New
+identity work should always strengthen the IR's proof that two
+structures are the same, never blur genuinely different structures into
+one `NodeId`.
+
 ## Orphan safety: the compaction pass
 
 Layers 1, 3, and 4 can leave gates unreferenced. When

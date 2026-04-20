@@ -250,6 +250,46 @@ ingestibility. Treat whole-module function correctness as out of scope
 unless a feature introduces a local block motif whose own behavior is
 well-defined by construction.
 
+### Codebase suitability assessment: four steering gaps (2026-04-20)
+
+The short answer to "is the existing codebase suited to the goal?" is:
+**yes, as a foundation; no, not yet as a finished system**.
+
+Why "yes": the architecture already matches the problem. `gen` builds a
+typed IR instead of text, `Module::intern_gate` is a single
+construction-time chokepoint for combinational identity,
+`ir::compact` owns post-drain cleanup and state-finalisation work,
+`validate` owns the invariant contract, `config` keeps the control
+surface explicit, and the SV emitter stays deliberately dumb. That is
+the right shape for a signoff-grade legal-RTL generator.
+
+What still needs to stay explicit:
+
+1. **Feature breadth grows above the leaf kernel, not by muddying it.**
+   `src/gen/module.rs` is the leaf-module kernel. Hierarchy should land
+   as a higher layer (planned `src/gen/hierarchy.rs`), not as ad hoc
+   special cases in the leaf path. Likewise, memories/FSMs/aggregates
+   should become first-class motifs or module-level generators, not
+   emitter tricks.
+2. **`NodeId`-as-identity must keep expanding through the IR, not via
+   emitter magic.** Today's live coverage is normalized combinational
+   identity plus exact-signature duplicate-flop merge. Future work is
+   stronger state identity, self-feedback normalization where sound,
+   and later hierarchical/block identity. Keep `--identity-mode` as the
+   coarse on/off switch and `--factorization-level` as the finer dial;
+   construction strategy must stay orthogonal.
+3. **Tool cleanliness must be industrialized.** Seed 42 being clean is
+   good news, not a stopping point. Each new motif/category/knob needs
+   matrixed Verilator/Yosys evidence, retained seed+config
+   counterexamples, and root-cause fixes at the IR/generator layer
+   rather than warning suppressions.
+4. **Structure-first doctrine remains load-bearing.** Absent a
+   specification, whole-module functional intent is not the optimization
+   target. Invest in legal interaction surfaces, factorization
+   pressure, hierarchy, and stateful richness. Functionally correct
+   local blocks are welcome; a bundled whole-module oracle is not the
+   direction.
+
 ---
 
 ## Generation-time defects observed in sample output (pending fixes)

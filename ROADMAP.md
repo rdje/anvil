@@ -17,6 +17,56 @@ optimizes for structurally rich, legitimate, synthesizable RTL that
 tools can ingest; local motifs may be functionally correct blocks, but
 the top-level module usually has no meaningful specification.
 
+## Four steering gaps from the codebase suitability assessment (2026-04-20)
+
+The current codebase is suited to the product goal as a **foundation**,
+but these four gaps must stay explicit. They are already spread across
+the phased plan below; this section makes them durable as a steering map
+instead of leaving them implicit.
+
+1. **Feature breadth / legal design-space width**
+   The current engine is still fundamentally a leaf-module generator.
+   Reaching "complex to very complex synthesizable RTL" requires Phases
+   3, 4, 5, 5b, and 6 to land as real generator surfaces: richer
+   structured combinational blocks, hierarchy, parameterization, packed
+   aggregates, memories, FSMs, and other legal interaction-heavy
+   motifs. Every new category and knob must be exercised in generation
+   paths, tests, metrics, and downstream tool sweeps; dead knobs or
+   paper-only categories are regressions.
+
+2. **`NodeId` as identity / full-factorization mode**
+   The strong-form target is: under `identity_mode = node-id`,
+   equivalent expressions anywhere in any output cone or flop-D cone
+   should converge to one `NodeId`, so sharing of gates, blocks,
+   modules, and flops is as high as the current build knows how to
+   prove. Today's implementation covers normalized combinational
+   identity plus exact-signature duplicate-flop merge; stronger
+   sequential and hierarchical equivalence are still open work. This
+   mode must remain user-controllable from the CLI: `--identity-mode
+   relaxed` is a real off-switch, while `--factorization-level`
+   continues to express weaker or stronger canonicalization within
+   `node-id`.
+
+3. **Signoff-quality tool-clean industrialization**
+   Seed-level cleanliness is not enough. The project needs automated
+   Verilator/Yosys evidence across seeds, construction strategies,
+   identity modes, factorization levels, category mixes, flop/no-flop
+   cases, and future hierarchy/memory/FSM features. Counterexamples must
+   be retained with exact seed+config evidence and fed back into IR
+   invariants or rewrites, not hidden behind warning suppressions. The
+   intended steady-state remains: generated RTL is boringly clean in
+   mainstream tools by default.
+
+4. **Structure-first, not whole-module specification-first**
+   ANVIL optimizes for structural legitimacy, synthesizability,
+   complexity, factorization pressure, and downstream-tool ingestibility
+   rather than intended top-level behavior. Features that create locally
+   meaningful or functionally correct blocks are welcome, but ANVIL is
+   not turning into a bundled oracle or spec-driven synthesis engine.
+   When choosing between slices, prefer new legal interaction surfaces
+   and stronger by-construction invariants over post-hoc whole-module
+   "meaningfulness" scoring.
+
 ## Phase 0 — Scaffolding (done)
 
 - Cargo project, module skeleton, CLI entry point.
@@ -90,7 +140,7 @@ lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}
 
 **Exit criteria:** motif library covers common synthesizable idioms.
 
-## Phase 4 — Hierarchy
+## Phase 4 — Hierarchy (not started)
 
 - Module instantiation: at any cone node, optionally emit a sub-module
   call instead of a gate.
@@ -99,22 +149,30 @@ lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}
   - **On-demand**: generate a fresh sub-module with required port widths.
 - Arbitrary hierarchy depth, bounded by knob.
 - Name uniqueness across the module set.
+- Hierarchical identity is future required work: under
+  `identity_mode = node-id`, equivalent instantiated structures should
+  eventually participate in the same sharing story instead of creating a
+  second identity system beside gates/flops.
 
 **Exit criteria:** multi-file output directory with correct top module
 declared; Verilator elaboration of hierarchy succeeds.
 
-## Phase 5 — Parameterization
+## Phase 5 — Parameterization (not started)
 
 - Generated modules take `parameter` declarations for widths.
 - Instantiation picks parameter values from allowed ranges.
 - Parameter-dependent widths propagate correctly through cone generation.
 - **Hard prerequisite:** Phase 4 (hierarchy). Parameters only matter
   at instantiation time.
+- Parameter-aware identity must remain sound: different parameter values
+  cannot accidentally alias to one `NodeId` or one module instance
+  unless the resulting structure is genuinely equivalent.
 - IR-level design recorded in `book/src/ir.md` "Future extensions /
   Parameters and generics".
 
-## Phase 5b — Synthesizable aggregates (scheduled alongside Phase 5,
-## order not fixed)
+## Phase 5b — Synthesizable aggregates (not started)
+
+Scheduled alongside Phase 5; order is not fixed.
 
 Three sub-paths, each with its own cost and payoff (full analysis in
 `book/src/ir.md` "Future extensions / Synthesizable aggregates"):
@@ -128,12 +186,15 @@ Three sub-paths, each with its own cost and payoff (full analysis in
   (unpacked datapath is mostly non-synthesizable; enums add no
   distinct stress value beyond typed constants).
 
-## Phase 6 — Advanced motifs
+## Phase 6 — Advanced motifs (not started)
 
 - Memories (single-port, dual-port, with inferrable patterns only).
 - FSMs with explicitly generated state encodings.
 - Multi-clock with CDC-safe handshakes — optional, expensive. Until
   this lands, every module remains fully synchronous to a single clock.
+- These motifs are not just feature-count work; they are a major part of
+  the legal interaction richness needed for ANVIL to become a strong
+  downstream bug finder without sacrificing clean-tool quality.
 
 ## Non-goals
 

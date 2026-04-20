@@ -104,6 +104,42 @@ This means `ir` can be tested in isolation, `emit` can be tested with
 hand-constructed IRs (no need to invoke the generator), and `gen` can
 be tested by inspecting the IR it produces without ever emitting SV.
 
+## Is the current codebase suited to the goal?
+
+Yes, as a foundation.
+
+The present decomposition already matches ANVIL's problem:
+
+- `gen` constructs typed IR rather than text;
+- `ir/types.rs` provides one combinational identity chokepoint;
+- `ir/compact.rs` owns post-drain state/reachability finalisation;
+- `ir/validate.rs` owns the invariant contract; and
+- `emit/sv.rs` stays dumb and therefore honest.
+
+That is the correct architectural shape for a signoff-grade legal-RTL
+generator. What remains is to keep four steering gaps explicit rather
+than accidental:
+
+1. **Feature breadth**
+   The current engine is still centered on the leaf-module generator in
+   `src/gen/module.rs`. Richer structured ops, hierarchy,
+   parameterization, aggregates, memories, and FSMs are future work on
+   top of this base, not evidence against it.
+2. **`NodeId` as identity**
+   Full factorization is only partially realized today. Combinational
+   identity flows through `Module::intern_gate`, and exact-signature
+   duplicate flops merge after drain, but stronger state equivalence and
+   future hierarchical identity are not finished.
+3. **Tool-clean industrialization**
+   Internal tests are strong, yet the broader Verilator/Yosys sweep
+   matrix required by the product goal is still missing. That evidence
+   layer must grow with each new motif family.
+4. **Structure-first doctrine**
+   The codebase is intentionally optimized for structural legitimacy and
+   synthesizability, not for proving whole-module intended behavior.
+   The missing work is more legal interaction richness, not a bundled
+   oracle.
+
 ## Key types at a glance
 
 ```rust

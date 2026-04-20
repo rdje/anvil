@@ -15,6 +15,11 @@ use tracing::{debug, info, instrument};
 const CLK_NAME: &str = "clk";
 const RST_N_NAME: &str = "rst_n";
 
+/// Generate one leaf module: ports, internal cones, and optional state.
+///
+/// This remains the Phase 1/2/3 kernel. Future hierarchy should compose
+/// leaf modules above this function rather than silently folding
+/// inter-module generation into it.
 #[instrument(level = "info", skip(g), fields(seed = g.cfg.seed))]
 pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     let n_in = g.rng.gen_range(g.cfg.min_inputs..=g.cfg.max_inputs);

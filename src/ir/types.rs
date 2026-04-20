@@ -305,9 +305,10 @@ impl Module {
     ///    [`Module::fold_constants`] drops identity operands
     ///    (`x + 0`, `x * 1`, `x & all_ones`, …), substitutes
     ///    absorbing constants (`x & 0`, `x | all_ones`, `x * 0`)
-    ///    when no Gate operand would be orphaned, and
-    ///    short-circuits the 2-arity `Sub`/`Shl`/`Shr` rhs-zero
-    ///    case.
+    ///    even when that leaves dynamic gate operands
+    ///    unreachable, and short-circuits the 2-arity
+    ///    `Sub`/`Shl`/`Shr` rhs-zero case. Finalisation
+    ///    compaction removes those dead gate subgraphs.
     /// 4. **Peephole rewrites** (`>= Peephole`) —
     ///    [`Module::apply_peephole`] applies local identities:
     ///    `Not(Not(x)) → x`, `Not(cmp) → inverted cmp`, all-

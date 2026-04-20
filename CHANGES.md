@@ -3,9 +3,109 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0082 — Capture the structure-over-functionality doctrine verbatim
+## 2026-04-20-0083 — Make the four suitability gaps explicit across roadmap, book, and live docs
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice turns the earlier codebase-suitability assessment into
+durable project guidance. The four missing-or-diffuse points are now
+spelled out explicitly in the roadmap, the book, and the contributor
+docs, and the one stale Rustdoc claim around absorbing folds was
+corrected so the code comments match the actual implementation.
+
+### The roadmap now carries the four-gap steering map directly
+
+- `ROADMAP.md` gained a dedicated section that makes these four gaps
+  explicit instead of leaving them spread across later phases:
+  1. feature breadth beyond the current leaf-module core;
+  2. `NodeId` as identity / full-factorization mode;
+  3. industrialized Verilator/Yosys cleanliness evidence; and
+  4. structure-first implementation rather than whole-module
+     functionality chasing.
+- The roadmap now also marks Phases 4, 5, 5b, and 6 as
+  `not started`, fixes the malformed Phase-5b heading, and records the
+  identity implications for hierarchy, parameters, and advanced motifs.
+
+### The live docs now answer "is the codebase suited?" in the same words
+
+- `DEVELOPMENT_NOTES.md` now says the codebase is suited **as a
+  foundation** because the typed IR, factorization chokepoint,
+  post-drain finalisation, validator-owned invariants, explicit config
+  surface, and dumb emitter all match the problem.
+- `CODEBASE_ANALYSIS.md` now has a dedicated suitability section that
+  maps the four gaps onto the actual Rust modules and current testing
+  reality.
+- `MEMORY.md` now records this as the newest doctrinal steering slice
+  and points future sessions at the new anchors.
+
+### The book now explains the same thing in the right places
+
+- `book/src/architecture.md` now answers the suitability question
+  explicitly and ties the four gaps to the current crate layout.
+- `book/src/factorization.md` now explains what "full factorization"
+  still means in roadmap terms: combinational identity is strong,
+  exact-signature flop merge is live, but stronger sequential and
+  hierarchical identity are not finished yet.
+
+### Code-adjacent documentation was aligned too
+
+- `src/ir/types.rs` no longer claims that absorbing folds only fire when
+  no gate operand would be orphaned; the Rustdoc now reflects the real
+  compaction-backed behavior.
+- `src/gen/module.rs` now documents `generate_leaf_module` as the
+  leaf-kernel entry point that future hierarchy should wrap rather than
+  distort.
+
+**Why**
+
+The roadmap already contained pieces of all four points, but they were
+diffuse enough that a future contributor could miss their combined
+force:
+
+- the need to grow far beyond a leaf-module generator;
+- the difference between today's NodeId identity and the user's stronger
+  "equivalent expressions should share one id" doctrine;
+- the fact that signoff-quality cleanliness needs a real sweep harness,
+  not just a few clean seeds; and
+- the structure-over-whole-module-function doctrine.
+
+Making those explicit reduces the chance of future implementation drift
+and gives PNT choices a clearer, repo-owned filter.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The roadmap now answers the user's question honestly: the codebase is
+  suited as a foundation, but the missing work is concrete and named.
+- Future sessions have a much better chance of extending the code along
+  the intended axes rather than improvising a different product.
+- The "NodeId as identity" story is now more precise in both the live
+  docs and the book.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `src/ir/types.rs`
+- `src/gen/module.rs`
+
+## 2026-04-20-0082 — Capture the structure-over-functionality doctrine verbatim
+
+**Landed as:** `fc7ae3e`
 
 **What changed**
 
