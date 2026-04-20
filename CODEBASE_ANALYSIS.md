@@ -146,10 +146,12 @@ src/
 │   │                 under `identity_mode = NodeId` with effective
 │   │                 level `>= Cse`, flops collapse when their
 │   │                 D-cones are proven equal over the same canonical
-│   │                 leaf endpoints by the current normalized proof
-│   │                 subset (`width`, reset, and leaf-aware
-│   │                 signature). Different endpoint variables do not
-│   │                 merge. `compact_node_ids(&mut Module)` BFSes
+│   │                 leaf endpoints by the current proof subset:
+│   │                 normalized structural signature first, plus a
+│   │                 bounded semantic signature for small-support
+│   │                 cones (`width`, reset, and endpoint-aware proof).
+│   │                 Different endpoint variables do not merge.
+│   │                 `compact_node_ids(&mut Module)` BFSes
 │   │                 from output drives + flop fields, drops
 │   │                 unreachable nodes, remaps every surviving NodeId
 │   │                 holder, and rebuilds dedup tables. Called from
@@ -347,7 +349,7 @@ In code (constructors / generator):
 - `gen::cone::build_cone` snapshots the same state before operand construction. On anti-collapse rejection, restores the snapshot and returns `pick_terminal` as fallback. No orphan leaks from rejected recursive gates.
 - `gen::cone::process_signal_frame` (interleaved) uses an existing operand as anti-collapse fallback (not `pick_terminal`) because per-gate snapshot is infeasible once sibling frames have committed.
 - `gen::module::summarize_flop_mux_metadata` clears construction-only mux operand references once `flop.d` exists, so metadata-only select/data cones do not survive liveness/compaction.
-- `ir::compact::merge_equivalent_flops` is the first stateful extension of the NodeId-as-identity contract. It runs after D-cones exist, only under `identity_mode = NodeId` with effective level `>= Cse`, and merges flops by an endpoint-preserving proof subset: same `width`, `reset_kind`, `reset_val`, and the same leaf-aware D-cone signature over canonical primary-input / flop-Q endpoints. The pass rewires duplicate Q consumers, remaps virtual flop deps, renumbers surviving flops, and rebuilds dedup tables. Different endpoint variables do not merge, even if the cone skeleton looks similar. It is still far short of coinductive sequential equivalence.
+- `ir::compact::merge_equivalent_flops` is the first stateful extension of the NodeId-as-identity contract. It runs after D-cones exist, only under `identity_mode = NodeId` with effective level `>= Cse`, and merges flops by an endpoint-preserving proof subset: same `width`, `reset_kind`, `reset_val`, and the same D-cone proof over canonical primary-input / flop-Q endpoints. That proof is structural over the normalized IR by default, with a bounded semantic truth-table signature for small-support cones. The pass rewires duplicate Q consumers, remaps virtual flop deps, renumbers surviving flops, and rebuilds dedup tables. Different endpoint variables do not merge, even if the cone skeleton looks similar. It is still far short of coinductive sequential equivalence.
 - `gen::module::generate_leaf_module` runs `count_orphan_gates(m)` after the merge / before compaction as a Rule 18 safety-net audit, then `compact_node_ids`, then a second orphan audit; `m.flops_merged` and `m.nodes_compacted` record the numbers of removed duplicates / unreachable nodes.
 - `gen::module::shrink_primary_inputs_to_live_width` reduces each surviving primary input to the highest bit any live consumer touches; `prune_unused_input_ports` removes data-input ports with no surviving `PrimaryInput` node.
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.

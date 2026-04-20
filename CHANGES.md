@@ -3,9 +3,93 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0085 — Align state identity with endpoint-aware functional proofs
+## 2026-04-20-0086 — Add bounded semantic proofs to state identity
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice strengthens `merge_equivalent_flops` again, but in a way
+that matches the doctrine more closely: when two flop D-cones depend on
+the same canonical leaf endpoints and ANVIL can *prove* they implement
+the same function, they now merge even if their graph shapes differ.
+
+### Small-support semantic state proofs now complement normalized structure
+
+- `src/ir/compact.rs` now computes two kinds of D-cone proof:
+  - the existing leaf-aware structural proof over the already-normalized
+    IR; and
+  - a new bounded semantic proof for small-support cones.
+- The semantic proof enumerates all assignments over the cone's
+  canonical primary-input / flop-Q endpoints when the total support is
+  small enough (`<= 10` bits today), evaluates the D-cone under each
+  assignment, and interns the resulting truth table together with the
+  endpoint list.
+- If that semantic proof is available, it becomes the flop-merge key.
+  Otherwise the pass falls back to the structural proof.
+
+### Different-shape but same-function cones can now merge
+
+- Added a new compact-unit test with two 1-bit D-cones over the same
+  endpoints `{a, b}`:
+  - `(a & b) | (a & !b)`
+  - `a & (b | !b)`
+- These cones have different graph shapes, but the new bounded semantic
+  proof shows they implement the same function, so the duplicate flop
+  now merges.
+- The existing negative test still pins the endpoint doctrine directly:
+  `q0 + 1` and `q1 + 1` do **not** merge, because the endpoint
+  variables differ.
+
+### Docs now say the proof surface more precisely
+
+- `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+  `book/src/factorization.md`, and `MEMORY.md` now describe the live
+  state-identity story as:
+  - normalized structural proof first;
+  - bounded semantic proof for small-support state cones; and
+  - larger semantic equivalence still open work.
+
+**Why**
+
+The user tightened the doctrine again: same endpoint set plus same
+functionality is the real rule, not same endpoint set plus same shape.
+
+The previous slice corrected the endpoint side of that doctrine. This
+slice advances the functionality side by landing a real proof tactic for
+some differently-shaped cones instead of only talking about the goal.
+
+**Validation**
+
+- `cargo test merge_equivalent_flops -- --nocapture`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Strict `NodeId as identity` mode now has one genuine
+  different-shape / same-function proof path in state merging.
+- The implementation is still deliberately bounded and conservative.
+- The remaining gap is now sharper: broader semantic equivalence across
+  larger cones, richer state motifs, and eventually general output-cone
+  identity.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/factorization.md`
+- `src/ir/compact.rs`
+
+## 2026-04-20-0085 — Align state identity with endpoint-aware functional proofs
+
+**Landed as:** `ac243cd`
 
 **What changed**
 

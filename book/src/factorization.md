@@ -246,6 +246,9 @@ The current proof is intentionally conservative:
 - same D-cone proof form after the current normalization ladder
   (commutative canonicalization, associative flattening, constant fold,
   peephole, etc.) has done what it can
+- for small-support cones, an extra bounded semantic proof:
+  enumerate every assignment over the canonical endpoint bits and key
+  the cone by its resulting truth table
 
 If those match, every consumer of the duplicate Q is rewired to the
 canonical Q, virtual flop deps are remapped, surviving flops are
@@ -254,7 +257,7 @@ duplicate Q nodes.
 
 What it deliberately does **not** do yet:
 
-- prove arbitrary semantic equivalence across different unreduced
+- prove arbitrary semantic equivalence across larger or unreduced
   D-cone forms;
 - merge cones that depend on different canonical leaf endpoints;
 - merge wider sequentially-equivalent machines.

@@ -14,8 +14,9 @@
 //!   `identity_mode = node-id` with effective factorization level
 //!   at least `Cse`, flops with the same emitted state semantics
 //!   (`width`, reset, same canonical leaf endpoints, and a D-cone
-//!   functionality already normalized to the same proof form) are
-//!   collapsed to one state element.
+//!   functionality proven either by the current normalized proof form
+//!   or by a bounded small-support semantic check) are collapsed to one
+//!   state element.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -24,14 +25,15 @@
 //!   reachable set.
 //!
 //! The merge is intentionally conservative, not a general
-//! sequential-equivalence engine: it compares endpoint-preserving
-//! structural signatures over the already-normalized IR, and does not
-//! try to prove wider coinductive equalities that the current
-//! factorization ladder has not already canonicalized. The compaction
-//! pass is idempotent and a no-op when there are no orphans. It exists
-//! primarily to unblock rewrites that would otherwise orphan
-//! intermediate gates. Without it those rewrites would have to be
-//! suppressed to stay Rule-18-clean (as they were before this module).
+//! sequential-equivalence engine: it compares endpoint-preserving proof
+//! forms over the already-normalized IR, and adds only a bounded
+//! small-support semantic check on top. It does not try to prove wider
+//! coinductive equalities that the current factorization ladder has not
+//! already canonicalized. The compaction pass is idempotent and a no-op
+//! when there are no orphans. It exists primarily to unblock rewrites
+//! that would otherwise orphan intermediate gates. Without it those
+//! rewrites would have to be suppressed to stay Rule-18-clean (as they
+//! were before this module).
 //!
 //! ## Guarantees
 //!
@@ -59,14 +61,22 @@
 //! stateful motifs remains the e-graph aspiration (Rule 21c).
 
 use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, PortId, ResetKind};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+
+const MAX_SEMANTIC_SUPPORT_BITS: u32 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
     width: u32,
-    d: StructuralSigId,
+    d: ConeProof,
     reset_val: u128,
     reset_kind: ResetKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum ConeProof {
+    Structural(StructuralSigId),
+    Semantic(SemanticConeProof),
 }
 
 type StructuralSigId = u32;
@@ -108,6 +118,26 @@ impl StructuralSignatureCtx {
         self.interner.insert(shape, sig_id);
         sig_id
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum LeafEndpoint {
+    PrimaryInput { port: PortId, width: u32 },
+    FlopQ { flop: FlopId, width: u32 },
+}
+
+impl LeafEndpoint {
+    fn width(self) -> u32 {
+        match self {
+            LeafEndpoint::PrimaryInput { width, .. } | LeafEndpoint::FlopQ { width, .. } => width,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct SemanticConeProof {
+    endpoints: Vec<LeafEndpoint>,
+    outputs: Vec<u128>,
 }
 
 fn structural_node_sig_id(
@@ -155,6 +185,232 @@ fn structural_node_sig_id(
     sig_id
 }
 
+fn bitmask(width: u32) -> u128 {
+    if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    }
+}
+
+fn collect_leaf_endpoints(
+    m: &Module,
+    node_id: NodeId,
+    memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+) -> BTreeSet<LeafEndpoint> {
+    if let Some(endpoints) = memo.get(&node_id) {
+        return endpoints.clone();
+    }
+
+    let endpoints = match &m.nodes[node_id as usize] {
+        Node::PrimaryInput { port, width } => BTreeSet::from([LeafEndpoint::PrimaryInput {
+            port: *port,
+            width: *width,
+        }]),
+        Node::FlopQ { flop, width } => BTreeSet::from([LeafEndpoint::FlopQ {
+            flop: *flop,
+            width: *width,
+        }]),
+        Node::Constant { .. } => BTreeSet::new(),
+        Node::Gate { operands, .. } => {
+            let mut out = BTreeSet::new();
+            for &operand in operands {
+                out.extend(collect_leaf_endpoints(m, operand, memo));
+            }
+            out
+        }
+    };
+
+    memo.insert(node_id, endpoints.clone());
+    endpoints
+}
+
+fn evaluate_node_under_assignment(
+    m: &Module,
+    node_id: NodeId,
+    assignment: u128,
+    endpoint_offsets: &HashMap<LeafEndpoint, u32>,
+    memo: &mut HashMap<NodeId, u128>,
+) -> u128 {
+    if let Some(&value) = memo.get(&node_id) {
+        return value;
+    }
+
+    let value = match &m.nodes[node_id as usize] {
+        Node::PrimaryInput { port, width } => {
+            let endpoint = LeafEndpoint::PrimaryInput {
+                port: *port,
+                width: *width,
+            };
+            let offset = endpoint_offsets[&endpoint];
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::FlopQ { flop, width } => {
+            let endpoint = LeafEndpoint::FlopQ {
+                flop: *flop,
+                width: *width,
+            };
+            let offset = endpoint_offsets[&endpoint];
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::Constant { width, value } => *value & bitmask(*width),
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => {
+            let width_mask = bitmask(*width);
+            let operand_values: Vec<u128> = operands
+                .iter()
+                .map(|&operand| {
+                    evaluate_node_under_assignment(m, operand, assignment, endpoint_offsets, memo)
+                })
+                .collect();
+            match op {
+                GateOp::And => operand_values
+                    .iter()
+                    .copied()
+                    .fold(width_mask, |acc, v| acc & v),
+                GateOp::Or => operand_values.iter().copied().fold(0u128, |acc, v| acc | v),
+                GateOp::Xor => operand_values.iter().copied().fold(0u128, |acc, v| acc ^ v),
+                GateOp::Not => (!operand_values[0]) & width_mask,
+                GateOp::Add => operand_values
+                    .iter()
+                    .copied()
+                    .fold(0u128, |acc, v| acc.wrapping_add(v) & width_mask),
+                GateOp::Sub => operand_values[0].wrapping_sub(operand_values[1]) & width_mask,
+                GateOp::Mul => operand_values
+                    .iter()
+                    .copied()
+                    .fold(1u128, |acc, v| acc.wrapping_mul(v) & width_mask),
+                GateOp::Eq => (operand_values[0] == operand_values[1]) as u128,
+                GateOp::Neq => (operand_values[0] != operand_values[1]) as u128,
+                GateOp::Lt => (operand_values[0] < operand_values[1]) as u128,
+                GateOp::Gt => (operand_values[0] > operand_values[1]) as u128,
+                GateOp::Le => (operand_values[0] <= operand_values[1]) as u128,
+                GateOp::Ge => (operand_values[0] >= operand_values[1]) as u128,
+                GateOp::Mux => {
+                    if operand_values[0] == 0 {
+                        operand_values[2] & width_mask
+                    } else {
+                        operand_values[1] & width_mask
+                    }
+                }
+                GateOp::Slice { hi, lo } => {
+                    let slice_width = hi - lo + 1;
+                    (operand_values[0] >> lo) & bitmask(slice_width)
+                }
+                GateOp::Concat => {
+                    let mut out = 0u128;
+                    for (&operand, operand_value) in operands.iter().zip(operand_values.iter()) {
+                        let operand_width = m.nodes[operand as usize].width();
+                        out = if operand_width >= 128 {
+                            operand_value & bitmask(operand_width)
+                        } else {
+                            (out << operand_width) | (operand_value & bitmask(operand_width))
+                        };
+                    }
+                    out & width_mask
+                }
+                GateOp::RedAnd => {
+                    let src_width = m.nodes[operands[0] as usize].width();
+                    (operand_values[0] == bitmask(src_width)) as u128
+                }
+                GateOp::RedOr => (operand_values[0] != 0) as u128,
+                GateOp::RedXor => (operand_values[0].count_ones() & 1) as u128,
+                GateOp::Shl => {
+                    let amt = operand_values[1];
+                    if amt >= u128::from(*width) {
+                        0
+                    } else {
+                        operand_values[0].wrapping_shl(amt as u32) & width_mask
+                    }
+                }
+                GateOp::Shr => {
+                    let amt = operand_values[1];
+                    if amt >= u128::from(*width) {
+                        0
+                    } else {
+                        (operand_values[0] >> amt) & width_mask
+                    }
+                }
+            }
+        }
+    };
+
+    memo.insert(node_id, value);
+    value
+}
+
+fn semantic_cone_proof(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+) -> Option<SemanticConeProof> {
+    if m.nodes[node_id as usize].width() > 128 {
+        return None;
+    }
+
+    let endpoints: Vec<LeafEndpoint> = collect_leaf_endpoints(m, node_id, endpoint_memo)
+        .into_iter()
+        .collect();
+    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
+    if support_bits > MAX_SEMANTIC_SUPPORT_BITS {
+        return None;
+    }
+
+    let mut endpoint_offsets: HashMap<LeafEndpoint, u32> = HashMap::new();
+    let mut next_offset = 0u32;
+    for endpoint in &endpoints {
+        endpoint_offsets.insert(*endpoint, next_offset);
+        next_offset += endpoint.width();
+    }
+
+    let assignment_count = 1usize << support_bits;
+    let mut outputs = Vec::with_capacity(assignment_count);
+    for assignment in 0..assignment_count {
+        let mut memo: HashMap<NodeId, u128> = HashMap::new();
+        outputs.push(evaluate_node_under_assignment(
+            m,
+            node_id,
+            assignment as u128,
+            &endpoint_offsets,
+            &mut memo,
+        ));
+    }
+
+    Some(SemanticConeProof { endpoints, outputs })
+}
+
+fn cone_proof(
+    m: &Module,
+    node_id: NodeId,
+    structural_memo: &mut HashMap<NodeId, StructuralSigId>,
+    structural_ctx: &mut StructuralSignatureCtx,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    semantic_memo: &mut HashMap<NodeId, Option<SemanticConeProof>>,
+) -> ConeProof {
+    if let Some(proof) = semantic_memo.get(&node_id) {
+        if let Some(proof) = proof {
+            return ConeProof::Semantic(proof.clone());
+        }
+    } else {
+        let proof = semantic_cone_proof(m, node_id, endpoint_memo);
+        semantic_memo.insert(node_id, proof);
+        if let Some(Some(proof)) = semantic_memo.get(&node_id) {
+            return ConeProof::Semantic(proof.clone());
+        }
+    }
+
+    ConeProof::Structural(structural_node_sig_id(
+        m,
+        node_id,
+        structural_memo,
+        structural_ctx,
+    ))
+}
+
 /// Merge duplicate flops after every D-cone is known.
 ///
 /// This is the first conservative stateful extension of the
@@ -174,8 +430,9 @@ fn structural_node_sig_id(
 ///
 /// The merge is intentionally conservative:
 ///
-/// - compares D-cones by a leaf-aware structural signature over the
-///   already-normalized IR;
+/// - compares D-cones by a leaf-aware proof form: bounded small-support
+///   semantic signature when available, otherwise a structural
+///   signature over the already-normalized IR;
 /// - treats "same functionality" as the doctrine, while only claiming
 ///   the proof subset the current normalization ladder can actually
 ///   establish today;
@@ -197,8 +454,10 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
     }
 
     let mut canonical_by_sig: HashMap<FlopSignature, FlopId> = HashMap::new();
-    let mut node_sig_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
-    let mut sig_ctx = StructuralSignatureCtx::default();
+    let mut structural_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
+    let mut structural_ctx = StructuralSignatureCtx::default();
+    let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+    let mut semantic_memo: HashMap<NodeId, Option<SemanticConeProof>> = HashMap::new();
     let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
     let mut removed = 0u32;
 
@@ -208,7 +467,14 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         };
         let sig = FlopSignature {
             width: flop.width,
-            d: structural_node_sig_id(m, d, &mut node_sig_memo, &mut sig_ctx),
+            d: cone_proof(
+                m,
+                d,
+                &mut structural_memo,
+                &mut structural_ctx,
+                &mut endpoint_memo,
+                &mut semantic_memo,
+            ),
             reset_val: flop.reset_val,
             reset_kind: flop.reset_kind,
         };
@@ -794,6 +1060,22 @@ mod tests {
         validate(&m).expect("merged duplicate D-cones should still validate");
     }
 
+    #[test]
+    fn merge_equivalent_flops_merges_small_semantic_equivalents_with_same_endpoints() {
+        let mut m = semantic_equivalent_d_fixture();
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.flops.len(), 1);
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(
+            compacted, 3,
+            "duplicate semantic cone subtree and Q should become unreachable"
+        );
+        validate(&m).expect("merged semantic-equivalent D-cones should still validate");
+    }
+
     fn count_orphan_gates(m: &Module) -> usize {
         let n = m.nodes.len();
         let mut used = vec![false; n];
@@ -1016,6 +1298,105 @@ mod tests {
             id: 1,
             width: 8,
             d: Some(5),
+            q: 3,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn semantic_equivalent_d_fixture() -> Module {
+        let mut m = Module {
+            name: "semantic_equivalent_d".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::Cse,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "b".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 2,
+            name: "y".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0 a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 1 }); // 1 b
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 }); // 2
+        m.nodes.push(Node::FlopQ { flop: 1, width: 1 }); // 3
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![1],
+            width: 1,
+            deps: DepSet::from_port(1),
+        }); // 4 !b
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 1],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 5 a&b
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 4],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 6 a&!b
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![5, 6],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 7 (a&b)|(a&!b)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![1, 4],
+            width: 1,
+            deps: DepSet::from_port(1),
+        }); // 8 b|!b
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 8],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 9 a&(b|!b)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![2, 3],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_flop_virtual(0), &DepSet::from_flop_virtual(1)]),
+        }); // 10
+        m.drives.push((2, 10));
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(7),
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 1,
+            d: Some(9),
             q: 3,
             reset_val: 0,
             reset_kind: ResetKind::Async,

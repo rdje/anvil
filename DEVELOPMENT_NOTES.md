@@ -308,7 +308,10 @@ The user clarified the intended meaning of state equality sharply:
 Operational consequence:
 
 - `merge_equivalent_flops` now uses a conservative leaf-aware proof form
-  over the already-normalized IR rather than exact `d: NodeId`; and
+  over the already-normalized IR rather than exact `d: NodeId`;
+- that proof form now includes a bounded semantic check for
+  small-support cones, so some different-shape cones can merge when
+  they evaluate identically over the same canonical endpoint set; and
 - any future strengthening of sequential identity must preserve the
   canonical leaf namespace. "Rename each owning `q` to SELF" is **not**
   acceptable in strict `NodeId as identity` mode, and neither is
@@ -480,7 +483,12 @@ it has to run after drain.
 Current rule: after `summarize_flop_mux_metadata`, flops are merged
 iff they have the same emitted-state signature over the same canonical
 leaf variables: same `width`, `reset_kind`, `reset_val`, and the same
-leaf-aware D-cone proof form over the already-normalized IR.
+leaf-aware D-cone proof form. Today that proof form has two rungs:
+
+1. normalized structural proof over the already-canonicalized IR; and
+2. bounded semantic proof for small-support cones (enumerate every
+   endpoint assignment, key by the resulting truth table).
+
 Construction provenance (`FlopKind`, cleared mux operand metadata) is
 deliberately ignored once D exists, because emitted hardware semantics
 are carried by width/reset/D-cone meaning, not by how the generator
@@ -488,7 +496,8 @@ happened to assemble them.
 
 This is intentionally narrower than full sequential equivalence. Two
 cones that happen to compute the same function but are not reduced to
-the same proof form by the current ladder are not merged yet. That
+the same proof form by the current ladder, or whose endpoint support is
+too large for the bounded semantic check, are not merged yet. That
 deeper coinductive story remains a
 future slice.
 

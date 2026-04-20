@@ -44,7 +44,8 @@ instead of leaving them implicit.
    implement the same functionality with respect to the same canonical
    leaf endpoints. Today's implementation covers normalized
    combinational identity plus a conservative post-drain state merge
-   over the proof forms the current ladder already canonicalizes;
+   over the proof forms the current ladder already canonicalizes, with
+   an additional bounded semantic proof for small-support state cones;
    stronger sequential and hierarchical equivalence are still open
    work. This mode must remain user-controllable from the CLI:
    `--identity-mode
@@ -122,7 +123,8 @@ seed-42 Verilator lint and seed-42 Yosys synthesis) is clean.
   state elements too: flops collapse when ANVIL can prove their D-cones
   implement the same currently-normalized functionality over the same
   canonical leaf endpoints, together with the same `width` and reset
-  semantics.
+  semantics. For small-support cones, that proof now includes a bounded
+  semantic check in addition to the normalized structural one.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both
