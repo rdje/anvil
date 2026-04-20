@@ -172,6 +172,11 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // metadata-only cones do not survive into emitted SV.
     summarize_flop_mux_metadata(&mut m);
 
+    // Downstream-clean proof pass: revisit already-built cones using
+    // the current graph so exact constants and constant-selector muxes
+    // do not survive purely because the proof became visible late.
+    crate::ir::compact::fold_proven_gates(&mut m);
+
     // Bounded semantic gate-sharing pass: once every output and flop D
     // cone exists, `identity_mode = node-id` at the live `EGraph`
     // fragment can collapse small-support combinational cones that are
@@ -191,6 +196,10 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // compaction pass below removes.
     let flops_merged = crate::ir::compact::merge_equivalent_flops(&mut m);
     m.flops_merged = flops_merged;
+
+    // Sharing/remap can expose new exact cones, so rerun the
+    // downstream-clean proof pass once on the settled graph.
+    crate::ir::compact::fold_proven_gates(&mut m);
 
     // Safety-net claimed-set audit (Rule 18): demand-driven
     // construction should leave zero orphan gates, but if the snapshot/

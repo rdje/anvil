@@ -21,6 +21,10 @@
 //!   functionality proven either by the current normalized proof form
 //!   or by a bounded small-support semantic check) are collapsed to one
 //!   state element.
+//! - `fold_proven_gates(&mut m)`: a downstream-cleanliness pass that
+//!   revisits already-built gates using the final graph. It folds any
+//!   gate whose current cone is provably exact and rewires muxes whose
+//!   selector is now provably constant.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -394,6 +398,27 @@ fn semantic_cone_proof(
     Some(SemanticConeProof { endpoints, outputs })
 }
 
+fn semantic_exact_value(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    memo: &mut HashMap<NodeId, Option<u128>>,
+) -> Option<u128> {
+    if let Some(value) = memo.get(&node_id) {
+        return *value;
+    }
+    let exact = semantic_cone_proof(m, node_id, endpoint_memo).and_then(|proof| {
+        let first = *proof.outputs.first()?;
+        proof
+            .outputs
+            .iter()
+            .all(|&value| value == first)
+            .then_some(first)
+    });
+    memo.insert(node_id, exact);
+    exact
+}
+
 fn cone_proof(
     m: &Module,
     node_id: NodeId,
@@ -637,6 +662,109 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 
     rebuild_instance_tables(m);
     removed
+}
+
+/// Revisit built gates using the final graph and fold any gate whose
+/// current value is provably exact.
+///
+/// Some exact proofs only become visible once later sharing/remap steps
+/// settle the subgraph a gate sees. This pass intentionally runs after
+/// construction for downstream-tool cleanliness: exact constants and
+/// constant-selector muxes are not useful stress by themselves, and
+/// leaving them behind turns clean-tool output into a warning problem.
+///
+/// Returns the number of gates simplified in place or rewired away.
+pub fn fold_proven_gates(m: &mut Module) -> u32 {
+    let mut node_remap: HashMap<NodeId, NodeId> = HashMap::new();
+    let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+    let mut semantic_exact_memo: HashMap<NodeId, Option<u128>> = HashMap::new();
+    let mut simplified = 0u32;
+
+    for node_id in 0..m.nodes.len() as NodeId {
+        let snapshot = match &m.nodes[node_id as usize] {
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } => Some((*op, operands.clone(), *width)),
+            _ => None,
+        };
+        let Some((op, operands, width)) = snapshot else {
+            continue;
+        };
+
+        if let Node::Gate {
+            operands: current_operands,
+            ..
+        } = &mut m.nodes[node_id as usize]
+        {
+            for operand in current_operands.iter_mut() {
+                rewrite_node_id_if_mapped(operand, &node_remap);
+            }
+        }
+
+        let exact_value = crate::gen::cone::prove_node_exact_value(m, node_id).or_else(|| {
+            let node_width = m.nodes[node_id as usize].width();
+            (node_width <= 8)
+                .then(|| {
+                    semantic_exact_value(m, node_id, &mut endpoint_memo, &mut semantic_exact_memo)
+                })
+                .flatten()
+        });
+
+        if let Some(value) = exact_value {
+            let value = value & bitmask(width);
+            if !matches!(
+                &m.nodes[node_id as usize],
+                Node::Constant {
+                    width: existing_width,
+                    value: existing_value
+                } if *existing_width == width && *existing_value == value
+            ) {
+                m.nodes[node_id as usize] = Node::Constant { width, value };
+                simplified += 1;
+            }
+            continue;
+        }
+
+        if op == GateOp::Mux && operands.len() == 3 {
+            let (sel, on_true, on_false) = match &m.nodes[node_id as usize] {
+                Node::Gate { operands, .. } => (operands[0], operands[1], operands[2]),
+                _ => continue,
+            };
+            if let Some(sel_value) = crate::gen::cone::prove_node_exact_value(m, sel) {
+                let chosen = match sel_value {
+                    0 => on_false,
+                    1 => on_true,
+                    _ => continue,
+                };
+                node_remap.insert(node_id, chosen);
+                simplified += 1;
+            }
+        }
+    }
+
+    if !node_remap.is_empty() {
+        for node in &mut m.nodes {
+            if let Node::Gate { operands, .. } = node {
+                for operand in operands.iter_mut() {
+                    rewrite_node_id_if_mapped(operand, &node_remap);
+                }
+            }
+        }
+        for (_, root) in &mut m.drives {
+            rewrite_node_id_if_mapped(root, &node_remap);
+        }
+        for flop in &mut m.flops {
+            rewrite_flop_from_partial_map(flop, &node_remap);
+        }
+    }
+
+    if simplified > 0 || !node_remap.is_empty() {
+        rebuild_instance_tables(m);
+    }
+    simplified
 }
 
 /// Compact `m.nodes` to only the nodes reachable from some root.
@@ -1198,6 +1326,145 @@ mod tests {
 
         let removed = merge_equivalent_gates(&mut m);
         assert_eq!(removed, 0);
+    }
+
+    fn push_primary(m: &mut Module, port: PortId, width: u32) -> NodeId {
+        if !m.inputs.iter().any(|existing| existing.id == port) {
+            m.inputs.push(Port {
+                id: port,
+                name: format!("i_{port}"),
+                width,
+                dir: Direction::In,
+            });
+        }
+        let node_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::PrimaryInput { port, width });
+        node_id
+    }
+
+    fn push_constant(m: &mut Module, width: u32, value: u128) -> NodeId {
+        let (node_id, _) = m.intern_constant(width, value);
+        node_id
+    }
+
+    fn deps_of(m: &Module, id: NodeId) -> DepSet {
+        match &m.nodes[id as usize] {
+            Node::PrimaryInput { port, .. } => DepSet::from_port(*port),
+            Node::Constant { .. } => DepSet::new(),
+            Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
+            Node::Gate { deps, .. } => deps.clone(),
+        }
+    }
+
+    fn push_gate(m: &mut Module, op: GateOp, operands: Vec<NodeId>, width: u32) -> NodeId {
+        let dep_sets: Vec<DepSet> = operands
+            .iter()
+            .map(|operand| deps_of(m, *operand))
+            .collect();
+        let dep_refs: Vec<&DepSet> = dep_sets.iter().collect();
+        let deps = DepSet::union(&dep_refs);
+        let (node_id, _) = m.intern_gate(op, operands, width, deps);
+        node_id
+    }
+
+    #[test]
+    fn fold_proven_gates_revisits_constant_selector_mux_chains() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let bit = push_primary(&mut m, 0, 1);
+        let zero1 = push_constant(&mut m, 1, 0);
+        let zero5 = push_constant(&mut m, 5, 0);
+        let hi = push_constant(&mut m, 5, 0x12);
+        let c0d = push_constant(&mut m, 5, 0x0d);
+        let c1a = push_constant(&mut m, 5, 0x1a);
+        let c5 = push_constant(&mut m, 5, 0x05);
+        let c8 = push_constant(&mut m, 5, 0x08);
+        let c10 = push_constant(&mut m, 5, 0x0a);
+        let c31 = push_constant(&mut m, 5, 0x1f);
+        let concat = push_gate(&mut m, GateOp::Concat, vec![bit, bit, bit, bit, bit], 5);
+        let dead_sel = push_gate(&mut m, GateOp::Mux, vec![zero1, hi, zero5], 5);
+        let masked = push_gate(&mut m, GateOp::And, vec![c0d, concat, dead_sel, c1a], 5);
+        let not_bit = push_gate(&mut m, GateOp::Sub, vec![zero1, bit], 1);
+        let rhs_const = push_gate(&mut m, GateOp::And, vec![c31, c8, c5], 5);
+        let rhs = push_gate(&mut m, GateOp::Mux, vec![not_bit, c10, rhs_const], 5);
+        let cmp = push_gate(&mut m, GateOp::Le, vec![masked, rhs], 1);
+        m.outputs.push(Port {
+            id: 1,
+            name: "o_0".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.drives.push((1, cmp));
+
+        assert!(fold_proven_gates(&mut m) > 0);
+        assert!(matches!(
+            &m.nodes[dead_sel as usize],
+            Node::Constant { width: 5, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[masked as usize],
+            Node::Constant { width: 5, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[rhs_const as usize],
+            Node::Constant { width: 5, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[cmp as usize],
+            Node::Constant { width: 1, value: 1 }
+        ));
+    }
+
+    #[test]
+    fn fold_proven_gates_revisits_overshift_compare_chain() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let wide = push_primary(&mut m, 0, 9);
+        let slice = push_gate(&mut m, GateOp::Slice { hi: 3, lo: 0 }, vec![wide], 4);
+        let variable = push_primary(&mut m, 1, 8);
+        let sel = push_primary(&mut m, 2, 1);
+        let c7b = push_constant(&mut m, 8, 0x7b);
+        let cde = push_constant(&mut m, 8, 0xde);
+        let c80 = push_constant(&mut m, 8, 0x80);
+        let shift_amt = push_gate(&mut m, GateOp::Or, vec![variable, c7b, cde, c80], 8);
+        let shifted = push_gate(&mut m, GateOp::Shr, vec![slice, shift_amt], 4);
+        let maybe_slice = push_gate(&mut m, GateOp::Mux, vec![sel, slice, shifted], 4);
+        let masked = push_gate(&mut m, GateOp::And, vec![shifted, maybe_slice], 4);
+        let cmp = push_gate(&mut m, GateOp::Lt, vec![slice, masked], 1);
+        m.outputs.push(Port {
+            id: 3,
+            name: "o_0".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.drives.push((3, cmp));
+
+        assert!(fold_proven_gates(&mut m) >= 4);
+        assert!(matches!(
+            &m.nodes[shift_amt as usize],
+            Node::Constant {
+                width: 8,
+                value: 0xff
+            }
+        ));
+        assert!(matches!(
+            &m.nodes[shifted as usize],
+            Node::Constant { width: 4, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[masked as usize],
+            Node::Constant { width: 4, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[cmp as usize],
+            Node::Constant { width: 1, value: 0 }
+        ));
     }
 
     fn count_orphan_gates(m: &Module) -> usize {

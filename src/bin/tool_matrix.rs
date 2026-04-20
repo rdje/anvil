@@ -502,7 +502,7 @@ fn run_verilator(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Resul
 
 fn run_yosys(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
     let script = format!(
-        "read_verilog -sv \"{}\"; synth; stat",
+        "read_verilog -sv \"{}\"; synth -noabc; stat",
         escape_for_double_quotes(sv_path)
     );
     run_tool("yosys", bin, vec!["-p".to_string(), script], out_dir, stem)
@@ -518,13 +518,19 @@ fn run_tool(
     let output = Command::new(binary).args(&argv).output();
     match output {
         Ok(output) => {
+            let warning_detected = tool_output_contains_warning(
+                tool_name,
+                String::from_utf8_lossy(&output.stdout).as_ref(),
+                String::from_utf8_lossy(&output.stderr).as_ref(),
+            );
+            let success = output.status.success() && !warning_detected;
             let stdout_log = write_tool_log_if_needed(
                 out_dir,
                 stem,
                 tool_name,
                 "stdout",
                 &output.stdout,
-                !output.status.success(),
+                !success,
             )?;
             let stderr_log = write_tool_log_if_needed(
                 out_dir,
@@ -532,16 +538,16 @@ fn run_tool(
                 tool_name,
                 "stderr",
                 &output.stderr,
-                !output.status.success(),
+                !success,
             )?;
             Ok(ToolInvocation {
                 tool: tool_name.to_string(),
                 argv: std::iter::once(binary.to_string()).chain(argv).collect(),
-                success: output.status.success(),
+                success,
                 exit_code: output.status.code(),
                 stdout_log,
                 stderr_log,
-                error: None,
+                error: warning_detected.then(|| "tool emitted warning(s)".to_string()),
             })
         }
         Err(err) => Ok(ToolInvocation {
@@ -553,6 +559,20 @@ fn run_tool(
             stderr_log: None,
             error: Some(err.to_string()),
         }),
+    }
+}
+
+fn tool_output_contains_warning(tool_name: &str, stdout: &str, stderr: &str) -> bool {
+    match tool_name {
+        "verilator" => stdout.lines().chain(stderr.lines()).any(|line| {
+            let line = line.trim_start();
+            line.starts_with("%Warning-")
+        }),
+        "yosys" => stdout.lines().chain(stderr.lines()).any(|line| {
+            let line = line.trim_start();
+            line.starts_with("Warning:") || line.contains(": Warning:")
+        }),
+        _ => false,
     }
 }
 

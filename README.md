@@ -124,7 +124,7 @@ mdbook serve book
 verilator --lint-only generated/mod_42_0000.sv
 
 # Synthesis sanity check (requires Yosys)
-yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth; stat"
+yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
 ```
 
 Both should succeed on every generated file. A failure is a generator bug; file with the seed and the effective knobs from `manifest.json`.
@@ -138,10 +138,9 @@ cargo run --bin tool_matrix -- --out ./tool-matrix
 
 That writes per-scenario generated corpora plus
 `tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
-fails on any generated file. Current local smoke status after the
-generator-side comparison-proof slice: Yosys is 15/15 clean on the
-built-in matrix, Verilator is 13/15 clean, and the remaining failures
-are two correlation-heavy unsigned-comparison warnings.
+fails on any generated file or emits any warning. Current local smoke
+status after the post-construction proof-cleanup slice: the built-in
+matrix is 15/15 clean in Verilator and 15/15 clean in Yosys.
 
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.

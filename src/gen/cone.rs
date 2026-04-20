@@ -938,6 +938,21 @@ fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
     (bounds.0 == bounds.1).then_some(bounds.0)
 }
 
+pub(crate) fn prove_node_exact_value(m: &Module, id: NodeId) -> Option<u128> {
+    let width = m.nodes[id as usize].width();
+    if width <= 8 {
+        let mut set_memo = HashMap::new();
+        if let Some(values) = node_small_value_set(m, id, &mut set_memo) {
+            if let [value] = values.as_slice() {
+                return Some(u128::from(*value));
+            }
+        }
+    }
+
+    let mut bound_memo = HashMap::new();
+    exact_bound(node_unsigned_bounds(m, id, &mut bound_memo))
+}
+
 fn obvious_unsigned_compare_from_bounds(
     op: GateOp,
     lhs: (u128, u128),
@@ -1607,14 +1622,12 @@ fn node_unsigned_bounds(
                     }
                     GateOp::Shl if operands.len() == 2 => {
                         let lhs = node_unsigned_bounds(m, operands[0], memo);
-                        let rhs = exact_bound(node_unsigned_bounds(m, operands[1], memo));
+                        let src_width = u128::from(m.nodes[operands[0] as usize].width());
+                        let rhs_bounds = node_unsigned_bounds(m, operands[1], memo);
+                        let rhs = exact_bound(rhs_bounds);
                         match rhs {
                             _ if lhs == (0, 0) => (0, 0),
-                            Some(amount)
-                                if amount >= u128::from(m.nodes[operands[0] as usize].width()) =>
-                            {
-                                (0, 0)
-                            }
+                            _ if rhs_bounds.0 >= src_width => (0, 0),
                             Some(0) => lhs,
                             Some(amount) => {
                                 let shift = amount as u32;
@@ -1632,14 +1645,12 @@ fn node_unsigned_bounds(
                     }
                     GateOp::Shr if operands.len() == 2 => {
                         let lhs = node_unsigned_bounds(m, operands[0], memo);
-                        let rhs = exact_bound(node_unsigned_bounds(m, operands[1], memo));
+                        let src_width = u128::from(m.nodes[operands[0] as usize].width());
+                        let rhs_bounds = node_unsigned_bounds(m, operands[1], memo);
+                        let rhs = exact_bound(rhs_bounds);
                         match rhs {
                             _ if lhs == (0, 0) => (0, 0),
-                            Some(amount)
-                                if amount >= u128::from(m.nodes[operands[0] as usize].width()) =>
-                            {
-                                (0, 0)
-                            }
+                            _ if rhs_bounds.0 >= src_width => (0, 0),
                             Some(0) => lhs,
                             Some(amount) => {
                                 let shift = amount as u32;

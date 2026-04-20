@@ -294,7 +294,7 @@ directly consumable:
 
 ```bash
 verilator --lint-only anvil_output.sv
-yosys -p "read_verilog -sv anvil_output.sv; synth; stat"
+yosys -p "read_verilog -sv anvil_output.sv; synth -noabc; stat"
 ```
 
 Both should succeed on every generated module. If one fails, it is

@@ -3,9 +3,118 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0090 — Strengthen generator-side proof for constant comparisons
+## 2026-04-20-0091 — Close the downstream-warning bucket
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice closes the remaining repo-owned `tool_matrix`
+warning-cleanliness gap and makes the warning policy itself explicit in
+code.
+
+### The final graph now gets a proof-cleanup pass
+
+- Added `fold_proven_gates(&mut Module)` in `src/ir/compact.rs`.
+- `generate_leaf_module` now runs that pass once after flop-mux
+  metadata is summarized and again after the post-construction sharing
+  passes settle the graph.
+- The pass does two things on the settled graph:
+  - rewrites any gate whose current cone is provably exact into a
+    constant in place; and
+  - rewires muxes whose selector is now provably constant.
+
+This matters because some exact proofs are only visible after later
+remaps / merges have changed what a gate actually sees.
+
+### Exact-value proof got two important reinforcements
+
+- Added `prove_node_exact_value` in `src/gen/cone.rs` so the
+  post-construction pass can reuse the generator's exact-value proof
+  rather than inventing a second local notion of "obvious constant".
+- Strengthened shift bounds: `Shl` / `Shr` now fold to zero not only
+  when the shift amount is an exact constant that overshifts, but also
+  when the shift amount is merely proven to be **always** at least the
+  source width.
+- Added a bounded semantic-exact fallback in `fold_proven_gates` for
+  small-support cones whose exact value is correlation-sensitive and is
+  not recovered by interval / small-set local proof alone.
+
+Together these close the three residual Verilator `UNSIGNED` cases that
+had survived the earlier comparison-construction proof.
+
+### `tool_matrix` now treats warnings as failures
+
+- `src/bin/tool_matrix.rs` now scans tool output for warning markers and
+  marks the invocation failed even when the process exit code is zero.
+- The Yosys command used by the harness changed from `synth` to
+  `synth -noabc` so the repo-owned matrix no longer tolerates an
+  irrelevant ABC combinational-network warning and then pretends the run
+  was clean.
+
+This turns the user rule into executable policy: for repo-owned
+Verilator/Yosys evidence, green means **no errors and no warnings**.
+
+### New regression tests pin the late-proof path
+
+- Added two `ir::compact` unit tests covering:
+  - a constant-selector / masked-constant chain in the shape of the
+    former `mod_6_0000.sv` warning; and
+  - an overshift-to-zero compare chain in the shape of the former
+    `mod_12_0000.sv` warning.
+
+**Why**
+
+The previous slice had narrowed the warning bucket enough that stopping
+there would have been easy, but not acceptable under the project's
+actual quality bar. The remaining warnings were already telling us
+something precise: ANVIL still had exact facts that it could prove, but
+was not proving late enough.
+
+This slice fixes that architectural gap instead of teaching the project
+to live with "known clean-ish" output.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+  - 140 passing tests: 116 unit + 24 integration
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-current3 --modules-per-scenario 1`
+  - Verilator: 15 pass / 0 fail
+  - Yosys: 15 pass / 0 fail
+  - warnings are now treated as failures
+
+**Impact**
+
+- The repo-owned downstream smoke matrix is now clean in both tools:
+  15/15 Verilator-clean and 15/15 Yosys-clean.
+- The warning policy is now executable rather than aspirational:
+  `tool_matrix` rejects warning-bearing runs.
+- The generator has a stronger architectural cleanliness story:
+  construction-time proof, post-construction proof-cleanup, semantic
+  gate merge, sequential merge, then compaction.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `book/src/architecture.md`
+- `book/src/faq.md`
+- `src/bin/tool_matrix.rs`
+- `src/gen/cone.rs`
+- `src/gen/module.rs`
+- `src/ir/compact.rs`
+
+## 2026-04-20-0090 — Strengthen generator-side proof for constant comparisons
+
+**Landed as:** `1ed22db`
 
 **What changed**
 

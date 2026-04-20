@@ -375,7 +375,7 @@ main  →  lib  →  gen  →  ir
 | Phase | Status        | Code touched | Notes |
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | Historical scaffold landed; current HEAD builds/tests/lints/formats clean again (see Build hygiene). |
-| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; the emitted input surface is now trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones and endpoint-preserving post-drain flop merging under `identity_mode = node-id`. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
+| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; the emitted input surface is now trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones, endpoint-preserving post-drain flop merging under `identity_mode = node-id`, and a final exact-value cleanup pass (`fold_proven_gates`) for downstream-tool cleanliness. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
 | 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; the live bounded `EGraph` fragment now merges small-support combinational cones post-construction under `identity_mode = node-id`, and duplicate flops merge post-drain when they are proven equal over the same canonical leaf endpoints by the same proof discipline; final compaction cleans orphaned intermediates from these rewrites. |
 | 3 — Structured combinational | in progress  | `gen/cone.rs`, `ir/types.rs`, `emit/sv.rs`, `ir/validate.rs` | Priority-encoder block (Rule 17), combinational mux block (Rule 15), coefficient motif, const-shift motif, const-comparand motif, and reduction-category gate picking landed. Generic Slice/Concat remain non-pickable helper shapes (width-adapter / block assembly only); case/casez, variable shifts, and loop-unrolled logic are not started. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
@@ -449,25 +449,21 @@ In `ir::validate::validate`:
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, no-op compaction, orphan removal, and topological-order preservation.
 - `src/bin/tool_matrix.rs` — 4 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, and coverage-gap detection.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **114 unit + 24 integration = 138 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-20): **116 unit + 24 integration = 140 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
-  sweeps, but the Phase 1 exit gate is still blocked on driving that
-  matrix to warning-clean Verilator results and then scaling it up to
-  the larger 1000-module gate.
+  sweeps; the smoke matrix is now green, and the Phase 1 exit gate is
+  blocked only on scaling that clean matrix up to the larger
+  1000-module gate.
 
 ## Known weaknesses (visible in code today)
 
 - The broader signoff-grade cleanliness matrix described in
-  `ROADMAP.md` now has a repo-owned first implementation in
-  `src/bin/tool_matrix.rs`, but the matrix is not yet green:
-  after the generator-side comparison-proof slice the smoke matrix is
-  15/15 Yosys-clean and 13/15 Verilator-clean. The remaining failures
-  are no longer broad boundary-tautology residue; they are two
-  correlation-heavy `UNSIGNED` cases in
-  `int_nodeid_constant-fold_default/mod_6_0000.sv` (`le_4`) and
-  `shuf_nodeid_egraph_motif_heavy_seq/mod_12_0000.sv` (`lt_0`,
-  `ge_40`).
+  `ROADMAP.md` now has a repo-owned implementation in
+  `src/bin/tool_matrix.rs`, and the smoke matrix is currently green:
+  15/15 clean in Verilator and 15/15 clean in Yosys. The harness now
+  treats warnings as failures, so "green" here means no errors and no
+  warnings, not merely zero non-zero exits.
 - `NodeId`-as-identity is still conservative for state and does not yet
   extend to future hierarchical objects. Exact-signature duplicate
   flops merge; stronger sequential/hierarchical equivalence remains open
@@ -477,12 +473,12 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (125 passing tests: 101 unit + 24 integration).
+- `cargo test` — clean (140 passing tests: 116 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; Yosys `read_verilog -sv ...; synth` on seed 42 reports 0 problems.
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; Yosys `read_verilog -sv ...; synth -noabc` on seed 42 reports 0 problems; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys.
 - `src/gen/cone.rs` now owns an always-on generator-side comparison
   proof in addition to the factorization ladder. The proof combines a
   conservative unsigned-bounds engine with an exact finite-set engine

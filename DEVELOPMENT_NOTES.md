@@ -371,6 +371,40 @@ This is intentionally narrower than full semantic factorization: it is
 there to keep emitted RTL cleaner across *all* identity/factorization
 modes, including `relaxed` and low rungs like `none` / `cse`.
 
+### Downstream warnings are a generator bug, and the final graph gets a last proof pass
+
+The follow-up slice closed the remaining `tool_matrix` warning bucket by
+making two policy changes explicit in code.
+
+First, ANVIL now runs a post-construction proof-cleanup pass in
+`src/ir/compact.rs` (`fold_proven_gates`) after cone construction and
+again after the sharing/remap passes settle. The key distinction is
+timing: some exact proofs are not visible when a gate is first
+constructed, but become visible later once remaps, merges, or other
+local simplifications have changed the graph that the gate actually
+sees. That pass:
+
+- rewrites any gate whose current cone is provably exact into a
+  constant in place; and
+- rewires muxes whose selector is now provably constant.
+
+The proof stack now has three complementary layers:
+
+- construction-time local proofs in `src/gen/cone.rs`,
+- post-construction exact-value cleanup on the settled graph, and
+- bounded semantic identity / sharing for the `e-graph` fragment.
+
+Second, the repo-owned downstream harness now treats warnings as
+failures rather than as "successful but noisy" runs. `tool_matrix`
+scans tool output for warning markers and marks the invocation failed
+even if the process exit status is zero. The Yosys script was also
+tightened from `synth` to `synth -noabc` so the matrix does not accept a
+self-inflicted ABC combinational-network warning and then pretend the
+run was clean.
+
+This is a durable project rule now: for repo-owned Verilator/Yosys
+evidence, "green" means no errors and no warnings.
+
 ### Codebase suitability assessment: four steering gaps (2026-04-20)
 
 The short answer to "is the existing codebase suited to the goal?" is:

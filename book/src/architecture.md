@@ -138,13 +138,13 @@ than accidental:
    not finished.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
-   now exists, but the broader Verilator/Yosys cleanliness gate is not
-   green yet. The first matrix smoke run found an emitter bug and then
-   narrowed the remaining failures to Verilator warning-cleanliness
-   (`CMPCONST` / `UNSIGNED`); a follow-up generator-side comparison
-   proof pushed the smoke matrix to 13/15 Verilator-clean with Yosys
-   still 15/15 clean. That evidence layer must keep growing with each
-   new motif family until the matrix is boringly clean.
+   now exists, and its current smoke matrix is green: 15/15 clean in
+   Verilator and 15/15 clean in Yosys. The harness now treats warnings
+   as failures, so "green" means no errors and no warnings. The path to
+   that state needed both construction-time comparison proofs and a
+   post-construction exact-value cleanup pass on the settled graph.
+   That evidence layer must keep growing with each new motif family
+   until the larger phase-exit sweeps are equally boring.
 4. **Structure-first doctrine**
    The codebase is intentionally optimized for structural legitimacy and
    synthesizability, not for proving whole-module intended behavior.
@@ -309,11 +309,13 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-20): 99 unit + 24 integration = 123 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-20): 116 unit + 24 integration = 140 passing tests.**
 
-**External smoke tests** (not wired up yet) — will invoke Verilator
-and Yosys against generated output. These are the remaining Phase 1
-and Phase 2 exit gates.
+**External smoke tests** — repo-owned downstream smoke now exists via
+`src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
+curated adversarial matrix and treats warnings as failures. Scaling
+that green smoke matrix up is part of the remaining Phase 1 / Phase 2
+exit work.
 
 ## Error handling
 

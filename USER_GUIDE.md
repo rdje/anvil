@@ -232,11 +232,10 @@ Useful options:
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
   downstream consumer.
 
-Current local smoke status after the generator-side comparison-proof
-slice: Yosys is 15/15 clean on the built-in matrix, Verilator is 13/15
-clean, and the remaining failures are two correlation-heavy unsigned
-comparison warnings rather than the earlier broad `CMPCONST` /
-`UNSIGNED` bucket.
+Current local smoke status after the post-construction proof-cleanup
+slice: the built-in matrix is now 15/15 clean in Verilator and 15/15
+clean in Yosys. `tool_matrix` treats warnings as failures, so a green
+run means "no errors, no warnings", not merely zero non-zero exits.
 
 ## Downstream verification
 
@@ -249,7 +248,7 @@ verilator --lint-only generated/mod_42_0000.sv
 
 **Yosys synthesis:**
 ```bash
-yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth; stat"
+yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
 ```
 
 Both should succeed on every generated file. If one fails, that's a bug
