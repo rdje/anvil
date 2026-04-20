@@ -40,7 +40,7 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
 the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (104 tests, unused-signal Verilator sweep over seeds 0..4
+validation (107 tests, unused-signal Verilator sweep over seeds 0..4
 for the default path and the `graph-first` alias, seed-42 Yosys
 synthesis) is clean.
 

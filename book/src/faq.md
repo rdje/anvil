@@ -124,18 +124,20 @@ Today the live ladder reaches through **peephole**:
    and single-operand `Concat`.
 
 Only the final **`e-graph`** rung remains aspirational. A user at
-`--factorization-level e-graph` (or `--full-factorization`) gets the
-strongest implemented behaviour today, which currently means
-`peephole` plus every lower layer. `--no-full-factorization` is the
-coarse off-switch (`none`).
+`--identity-mode node-id --factorization-level e-graph` (or the
+shortcut `--full-factorization`) gets the strongest implemented
+behaviour today, which currently means `peephole` plus every
+lower layer. `--identity-mode relaxed` (or the shortcut
+`--no-full-factorization`) is the coarse off-switch.
 
 Construction strategy is a separate axis. `sequential`,
 `shuffled`, and `interleaved` decide **how cones are built**;
 factorization decides **when two built expressions share one
 identity**.
 
-Dial: `--factorization-level <none|cse|operand-unique|commutative|
-associative|constant-fold|peephole|e-graph>`, plus the convenience
+Dial: `--identity-mode <node-id|relaxed>` plus
+`--factorization-level <none|cse|operand-unique|commutative|
+associative|constant-fold|peephole|e-graph>`, or the convenience
 aliases `--full-factorization` / `--no-full-factorization`. See Rule 21c.
 
 ## How do I reproduce a specific generated module?

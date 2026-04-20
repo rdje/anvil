@@ -8,7 +8,7 @@ at the reader who wants to know what *exactly* happens between
 `m.nodes`".
 
 For the formal rule catalogue (which layer owns which rule), see
-[Rule 21c in Structural Rules](structural-rules.md#21c--factorization-level-user-controllable-dial).
+[Rule 21c in Structural Rules](structural-rules.md#21c--identity-mode--factorization-level-user-controllable-dial).
 This chapter is the narrative complement.
 
 ## Why factorize?
@@ -39,7 +39,17 @@ Why at intern time and not as a post-pass? Two reasons:
 
 ## The ladder
 
-`FactorizationLevel` in `src/config.rs`:
+`IdentityMode` + `FactorizationLevel` in `src/config.rs`:
+
+```
+identity_mode: node-id | relaxed
+```
+
+`node-id` (default) means NodeId is expression identity and keeps
+the ladder live. `relaxed` is the coarse off-switch: the ladder is
+forced to `none` regardless of the requested rung.
+
+Within `identity_mode = node-id`, the ladder is:
 
 ```
 none → cse → operand-unique → commutative → associative →
@@ -53,15 +63,16 @@ in the current build. Today that's **peephole**; `e-graph`
 activates everything currently live plus every future layer for
 free.
 
-Selection via `--factorization-level` (or the convenience aliases
-`--full-factorization` / `--no-full-factorization`) or
-`Config::factorization_level` in a config file.
+Selection via `--identity-mode`, `--factorization-level`, the
+convenience aliases `--full-factorization` /
+`--no-full-factorization`, or `Config::{identity_mode,
+factorization_level}` in a config file.
 
 ## Pipeline, in execution order
 
 When `intern_gate(op, operands, width, deps)` is called, the
 following runs in sequence. Each step is gated on
-`self.factorization_level.effective() >= <LayerThreshold>`.
+`self.effective_factorization_level() >= <LayerThreshold>`.
 
 ### 1. Associative flattening (`>= Associative`)
 
@@ -291,7 +302,7 @@ nodes.
 
 ## Pointers
 
-- Rule 21c in [Structural Rules](structural-rules.md#21c--factorization-level-user-controllable-dial)
+- Rule 21c in [Structural Rules](structural-rules.md#21c--identity-mode--factorization-level-user-controllable-dial)
   — the formal rule catalogue and per-level table.
 - [Non-Triviality and Dependency Tracking](non-triviality.md)
   — how the factorization layers interact with the Rule 18

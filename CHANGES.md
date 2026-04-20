@@ -3,9 +3,146 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0076 — Expose peak-sharing controls and exercise live categories
+## 2026-04-20-0077 — Make identity mode a first-class typed axis
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice turns "NodeId as identity" from a documented doctrine
+plus CLI sugar into a first-class typed axis in the codebase.
+
+### Config / CLI / IR now model identity mode explicitly
+
+- Added `IdentityMode` in `src/config.rs`:
+  - `node-id` (default): NodeId means expression identity; the
+    factorization ladder stays live.
+  - `relaxed`: disable the identity/factorization ladder
+    entirely and allocate fresh NodeIds for every AST.
+- Added `identity_mode` to `Config`, `Overrides`, `Cli`, and
+  `Module`.
+- Added `Config::effective_factorization_level()` and
+  `Module::effective_factorization_level()` so the coarse
+  identity mode is applied before every factorization gate.
+- Added the new CLI flag:
+  `--identity-mode <node-id|relaxed>`.
+
+### Convenience aliases now expand to the explicit coarse+fine pair
+
+- `--full-factorization` now means:
+  `--identity-mode node-id --factorization-level e-graph`.
+- `--no-full-factorization` now means:
+  `--identity-mode relaxed --factorization-level none`.
+- The aliases now conflict with explicit `--identity-mode` /
+  `--factorization-level` so the CLI no longer silently mixes
+  sugar and direct control.
+
+### All identity/factorization gating now consults the effective mode
+
+- `Module::intern_gate` and `Module::intern_constant` no longer
+  read the raw ladder directly; they consult
+  `self.effective_factorization_level()`.
+- `gen::cone::{make_and, make_mul, violates_anti_collapse}` do
+  the same, so operand-uniqueness / anti-collapse behavior now
+  tracks the coarse identity mode consistently.
+- `generate_leaf_module` now copies `cfg.identity_mode` into the
+  per-module IR mirror just like the other construction-time
+  knobs.
+
+### Proof tests landed for the new semantics
+
+- Added a config unit test proving:
+  - `identity_mode = node-id, factorization_level = e-graph`
+    resolves to `peephole` today;
+  - `identity_mode = relaxed` forces the effective level to
+    `none`.
+- Added CLI unit tests for:
+  - direct `--identity-mode relaxed` parsing;
+  - `--full-factorization` setting both `identity_mode` and
+    `factorization_level`;
+  - `--no-full-factorization` doing the inverse.
+- Added an IR unit test proving the same requested
+  `factorization_level = e-graph`:
+  - dedupes under `IdentityMode::NodeId`;
+  - allocates fresh NodeIds under `IdentityMode::Relaxed`.
+
+### Docs now describe the same model the code implements
+
+- README / USER_GUIDE now document `--identity-mode` directly.
+- The book chapters on knobs, factorization, structural rules,
+  IR, architecture, sharing, non-triviality, algorithm, and FAQ
+  now distinguish:
+  - coarse identity mode;
+  - fine-grained factorization rung;
+  - construction strategy as a separate axis.
+- `DEVELOPMENT_NOTES.md` records the design consequence:
+  the separation is now in types and gating sites, not just in
+  prose.
+- `CODEBASE_ANALYSIS.md` and `MEMORY.md` were refreshed for
+  session recovery.
+
+**Why**
+
+The repo had drifted into an awkward in-between state:
+
+- the docs correctly said "NodeId as identity" is orthogonal to
+  cone-construction strategy;
+- the CLI had sugar for "full factorization on/off";
+- but the code still treated the identity story mostly as a raw
+  `factorization_level` ladder.
+
+That mismatch was survivable for users, but bad for recovery and
+future work. The next deeper step toward full factorization must
+reason about identity mode explicitly, especially once flops and
+future hierarchy enter the question. This slice makes the
+separation real without changing the already-working ladder.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test` (83 unit + 24 integration = 107 passing tests)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The codebase now has an honest first-class place to talk about
+  "NodeId as identity" without smuggling it through the ladder.
+- CLI/config/IR all agree on the model:
+  coarse identity mode + fine-grained ladder.
+- Future identity work for stateful / hierarchical objects can
+  build on a real axis instead of more aliases and prose.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/main.rs`
+- `src/gen/module.rs`
+- `src/gen/cone.rs`
+- `src/ir/types.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `book/src/algorithm.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `book/src/faq.md`
+- `book/src/ir.md`
+- `book/src/knobs.md`
+- `book/src/non-triviality.md`
+- `book/src/sharing.md`
+- `book/src/structural-rules.md`
+- `CHANGES.md`
+
+---
+
+## 2026-04-20-0076 — Expose peak-sharing controls and exercise live categories
+
+**Landed as:** `dd28086`
 
 **What changed**
 

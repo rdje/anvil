@@ -229,12 +229,21 @@ instead of creating fresh logic.
 
 ### AST uniqueness / duplication
 
+- `identity_mode` — coarse NodeId semantics switch:
+  - `node-id` (default): NodeId means expression identity, so the
+    factorization ladder stays live.
+  - `relaxed`: disable the ladder entirely; every
+    `intern_gate` / `intern_constant` call allocates a fresh
+    `NodeId` even if `factorization_level` requests more.
+  This is orthogonal to construction strategy. See Rule 21c.
+
 - `factorization_level` — coarse dial along the sharing chain:
   `none → cse → operand-unique → commutative → associative →
   constant-fold → peephole → e-graph`. Default `e-graph`
-  (theoretical ceiling; activates every layer implemented today).
-  Each step implies all lower ones. Implemented layers land
-  progressively without requiring a config change. See Rule 21c.
+  (theoretical ceiling; activates every layer implemented today)
+  when `identity_mode = node-id`. Each step implies all lower
+  ones. Implemented layers land progressively without requiring a
+  config change. See Rule 21c.
 
 - `max_ast_instances` — maximum number of times a given AST
   (`(op, operands, width)` for gates, `(width, value)` for
@@ -317,6 +326,7 @@ Config {
     comb_mux_encoding_prob: 0.5,
     // Construction strategy
     construction_strategy: ConstructionStrategy::Interleaved,
+    identity_mode: IdentityMode::NodeId,
     graph_first_pool_size: 32,  // legacy; GraphFirst aliased to Interleaved
     // Factorization ladder (default request: e-graph, clamps to
     // highest implemented layer — Peephole today)
@@ -412,8 +422,9 @@ is accurate as of this commit.
 --graph-first-pool-size
 ```
 
-### Factorization ladder
+### Identity / factorization
 ```
+--identity-mode <node-id|relaxed>
 --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>
 --full-factorization
 --no-full-factorization
@@ -486,6 +497,7 @@ which are bugs worth investigating.
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
 | `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
+| `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, and `num_gates`: `relaxed` disables the ladder entirely, so multiplicities and raw gate count rise sharply |
 | `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `peephole`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands |
 
 All knobs now have a concrete metric (or metric ratio) that

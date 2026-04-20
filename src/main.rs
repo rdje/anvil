@@ -1,4 +1,4 @@
-use anvil::config::{ConstructionStrategy, FactorizationLevel};
+use anvil::config::{ConstructionStrategy, FactorizationLevel, IdentityMode};
 use anvil::{Config, Generator};
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
@@ -213,13 +213,29 @@ struct Cli {
     /// today. See `book/src/structural-rules.md` Rule 21c.
     #[arg(long, value_enum)]
     factorization_level: Option<FactorizationLevel>,
-    /// Convenience alias for `--factorization-level e-graph`: request
-    /// the strongest currently-available identity/factorization mode.
-    #[arg(long, conflicts_with = "no_full_factorization", action = clap::ArgAction::SetTrue)]
+    /// Coarse identity mode: `node-id` (default) means NodeId is
+    /// expression identity and keeps the factorization ladder live;
+    /// `relaxed` disables the ladder entirely and allocates fresh
+    /// NodeIds for every AST.
+    #[arg(long, value_enum)]
+    identity_mode: Option<IdentityMode>,
+    /// Convenience alias for `--identity-mode node-id
+    /// --factorization-level e-graph`: request the strongest
+    /// currently-available identity/factorization mode.
+    #[arg(
+        long,
+        conflicts_with_all = ["no_full_factorization", "identity_mode", "factorization_level"],
+        action = clap::ArgAction::SetTrue
+    )]
     full_factorization: bool,
-    /// Convenience alias for `--factorization-level none`: disable the
-    /// factorization ladder and allocate fresh NodeIds for every AST.
-    #[arg(long, conflicts_with = "full_factorization", action = clap::ArgAction::SetTrue)]
+    /// Convenience alias for `--identity-mode relaxed
+    /// --factorization-level none`: disable the factorization ladder
+    /// and allocate fresh NodeIds for every AST.
+    #[arg(
+        long,
+        conflicts_with_all = ["full_factorization", "identity_mode", "factorization_level"],
+        action = clap::ArgAction::SetTrue
+    )]
     no_full_factorization: bool,
 
     /// Trace verbosity: `none` / `low` / `medium` / `high` / `debug`.
@@ -360,6 +376,13 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         comb_mux_prob: cli.comb_mux_prob,
         comb_mux_encoding_prob: cli.comb_mux_encoding_prob,
         construction_strategy: cli.construction_strategy,
+        identity_mode: if cli.no_full_factorization {
+            Some(IdentityMode::Relaxed)
+        } else if cli.full_factorization {
+            Some(IdentityMode::NodeId)
+        } else {
+            cli.identity_mode
+        },
         graph_first_pool_size: cli.graph_first_pool_size,
         coefficient_prob: cli.coefficient_prob,
         min_coefficient: cli.min_coefficient,
@@ -395,9 +418,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn full_factorization_alias_sets_egraph_request() {
+    fn identity_mode_cli_parses_directly() {
+        let cli = Cli::parse_from(["anvil", "--identity-mode", "relaxed"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.identity_mode, Some(IdentityMode::Relaxed));
+        assert_eq!(overrides.factorization_level, None);
+    }
+
+    #[test]
+    fn full_factorization_alias_sets_identity_mode_and_egraph_request() {
         let cli = Cli::parse_from(["anvil", "--full-factorization"]);
         let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.identity_mode, Some(IdentityMode::NodeId));
         assert_eq!(
             overrides.factorization_level,
             Some(FactorizationLevel::EGraph)
@@ -405,9 +437,10 @@ mod tests {
     }
 
     #[test]
-    fn no_full_factorization_alias_disables_ladder() {
+    fn no_full_factorization_alias_sets_relaxed_and_none() {
         let cli = Cli::parse_from(["anvil", "--no-full-factorization"]);
         let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.identity_mode, Some(IdentityMode::Relaxed));
         assert_eq!(
             overrides.factorization_level,
             Some(FactorizationLevel::None)
@@ -418,6 +451,7 @@ mod tests {
     fn explicit_factorization_level_still_parses_directly() {
         let cli = Cli::parse_from(["anvil", "--factorization-level", "peephole"]);
         let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.identity_mode, None);
         assert_eq!(
             overrides.factorization_level,
             Some(FactorizationLevel::Peephole)

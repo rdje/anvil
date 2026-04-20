@@ -28,6 +28,7 @@ pub struct Module {
     pub max_ast_instances:        u32,                       // Rule 21
     pub mux_arm_duplication_rate: f64,                       // Rule 22
     pub operand_duplication_rate: f64,                       // Rule 8 extended
+    pub identity_mode:            IdentityMode,              // Rule 21c coarse mode
     pub factorization_level:      FactorizationLevel,        // Rule 21c
 
     // --- Post-hoc telemetry (incremented live, surfaced via Metrics) --
@@ -155,8 +156,10 @@ structurally enforced and observable (via metrics —
 
 ### The full intern pipeline (Rule 21c)
 
-CSE is the bottom of the factorization ladder. Above it,
-`intern_gate` runs additional layers before the dedup-table
+CSE is the bottom of the factorization ladder. The coarse switch
+above it is `identity_mode`: at `Relaxed`, the effective level is
+forced to `None` and every call allocates a fresh node; at
+`NodeId`, `intern_gate` runs the ladder below before the dedup-table
 lookup so syntactically-different-but-semantically-equivalent
 expressions land on the same CSE key:
 
@@ -183,7 +186,7 @@ constants.
 The full layer-by-layer narrative with per-rule tables and
 orphan-safety reasoning lives in
 [The Factorization Pipeline](factorization.md). Rule 21c in
-[Structural Rules](structural-rules.md#21c--factorization-level-user-controllable-dial)
+[Structural Rules](structural-rules.md#21c--identity-mode--factorization-level-user-controllable-dial)
 is the formal rule catalogue.
 
 ### Orphan safety: the compaction pass

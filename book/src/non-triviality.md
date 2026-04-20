@@ -75,11 +75,13 @@ pre-operand-construction snapshot and falls back to `pick_terminal`
 — the operand sub-trees built for the rejected gate vanish from
 the IR (Rule 18 α, ensuring no orphan gates).
 
-**Factorization-level gating:** the rules above apply at
+**Identity / factorization gating:** the rules above apply when
+`identity_mode = node-id` and
 `factorization_level ≥ OperandUnique` (the default, effectively
-`e-graph`). At level `cse` only the 2-operand algebraic-degeneracy
-cases (`Sub` / `Eq` / `Neq`) fire. At level `none` the dedup path
-is bypassed entirely and no anti-collapse checks run.
+`e-graph`). At level `cse` only the 2-operand
+algebraic-degeneracy cases (`Sub` / `Eq` / `Neq`) fire. At level
+`none`, or whenever `identity_mode = relaxed`, the dedup path is
+bypassed entirely and no anti-collapse checks run.
 
 See [Structural Rules](structural-rules.md) Rule 8 for the
 authoritative catalog entry.

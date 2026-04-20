@@ -101,7 +101,8 @@ Both should succeed on every generated file. A failure is a generator bug; file 
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.
 - `anvil --dump-config` prints the effective knobs as JSON.
-- `anvil --full-factorization` requests the strongest currently-live identity mode; `anvil --no-full-factorization` disables the factorization ladder entirely.
+- `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` keeps the factorization ladder live, `relaxed` disables it.
+- `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.
 - Current scope: single-module combinational **and sequential** generation, DAG sharing default-on, factorization ladder live through `peephole`, no hierarchy yet. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule

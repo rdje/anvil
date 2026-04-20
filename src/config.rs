@@ -34,12 +34,51 @@ pub enum ConstructionStrategy {
     GraphFirst,
 }
 
+/// Identity mode — the coarse answer to "what does a `NodeId`
+/// mean?".
+///
+/// This is intentionally orthogonal to `ConstructionStrategy`:
+/// construction strategy decides *how* fanin cones are walked and
+/// built, while identity mode decides *when* two built expressions
+/// must share one `NodeId`.
+///
+/// `NodeId` (default) keeps the factorization ladder live:
+/// `factorization_level.effective()` selects the strongest
+/// currently-implemented sharing semantics.
+///
+/// `Relaxed` disables the identity/factorization ladder entirely:
+/// every `intern_gate` / `intern_constant` call allocates a fresh
+/// `NodeId` regardless of the requested `factorization_level`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+#[clap(rename_all = "kebab-case")]
+pub enum IdentityMode {
+    /// Relaxed identity: disable the factorization ladder and let
+    /// every AST materialise as a fresh node. Useful for debugging
+    /// downstream CSE-sensitive tooling or measuring the raw
+    /// duplication the construction strategy would otherwise
+    /// produce.
+    #[value(alias = "off")]
+    Relaxed,
+    /// NodeId = expression identity. The requested
+    /// `factorization_level` stays live and is clamped to the
+    /// strongest implemented rung by `effective()`.
+    #[default]
+    #[serde(alias = "nodeid", alias = "node_id")]
+    #[value(alias = "nodeid", alias = "node_id")]
+    NodeId,
+}
+
 /// Progressive factorization dial along the full chain:
 /// `none → cse → operand-unique → commutative → associative →
 /// constant-fold → peephole → e-graph`. Each level implies all
 /// lower ones. Default `e-graph` (theoretical ceiling — the
 /// generator activates every layer it knows how to implement;
 /// future slices add more without a config change).
+///
+/// This dial is subordinate to `IdentityMode`: in
+/// `IdentityMode::Relaxed` the effective level is forced to `none`
+/// regardless of the requested rung.
 ///
 /// See `book/src/structural-rules.md` Rule 21b for the chain,
 /// motivation, and "NodeId = identity of an expression" doctrine.
@@ -289,6 +328,14 @@ pub struct Config {
     // `book/src/construction-strategies.md`.
     pub construction_strategy: ConstructionStrategy,
 
+    /// Identity mode — the coarse answer to "what does a NodeId
+    /// mean?". Default `node-id` keeps the factorization ladder
+    /// live; `relaxed` disables it entirely and forces fresh
+    /// NodeIds even when `factorization_level` requests stronger
+    /// sharing. Orthogonal to `construction_strategy`.
+    #[serde(default)]
+    pub identity_mode: IdentityMode,
+
     /// Target number of top-level units (operator gate / flop /
     /// comb-mux block) grown in the pool by the `GraphFirst`
     /// strategy. Only consulted when `construction_strategy ==
@@ -328,8 +375,8 @@ pub struct Config {
     /// flop-D variants).
     pub mux_arm_duplication_rate: f64,
 
-    /// Factorization level — the coarse dial along the
-    /// sharing / dedup chain. Default `e-graph` requests the
+    /// Factorization level — the rung requested within
+    /// `identity_mode == node-id`. Default `e-graph` requests the
     /// strongest semantics the build knows how to provide;
     /// `effective()` clamps that request down to the highest
     /// implemented layer (today `peephole`). Lower settings
@@ -339,7 +386,9 @@ pub struct Config {
     /// Fine-grained knobs (`max_ast_instances`,
     /// `operand_duplication_rate`, `mux_arm_duplication_rate`)
     /// remain in effect at their active level; the factorization
-    /// level gates whether a layer contributes at all.
+    /// level gates whether a layer contributes at all. When
+    /// `identity_mode == relaxed`, the effective level is forced
+    /// to `none` regardless of this requested rung.
     pub factorization_level: FactorizationLevel,
 
     /// Maximum number of times a given AST (gate expression /
@@ -402,6 +451,7 @@ impl Default for Config {
             num_leaf_modules: 0,
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
+            identity_mode: IdentityMode::NodeId,
             graph_first_pool_size: 32,
             mux_arm_duplication_rate: 0.0,
             operand_duplication_rate: 0.0,
@@ -434,6 +484,15 @@ pub enum ConfigError {
 }
 
 impl Config {
+    /// Effective factorization level after the coarse identity mode
+    /// has been applied.
+    pub fn effective_factorization_level(&self) -> FactorizationLevel {
+        match self.identity_mode {
+            IdentityMode::Relaxed => FactorizationLevel::None,
+            IdentityMode::NodeId => self.factorization_level.effective(),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.min_inputs > self.max_inputs {
             return Err(ConfigError::InputRange(self.min_inputs, self.max_inputs));
@@ -556,6 +615,9 @@ impl Config {
         if let Some(v) = o.construction_strategy {
             self.construction_strategy = v;
         }
+        if let Some(v) = o.identity_mode {
+            self.identity_mode = v;
+        }
         if let Some(v) = o.graph_first_pool_size {
             self.graph_first_pool_size = v;
         }
@@ -645,6 +707,7 @@ pub struct Overrides {
     pub comb_mux_prob: Option<f64>,
     pub comb_mux_encoding_prob: Option<f64>,
     pub construction_strategy: Option<ConstructionStrategy>,
+    pub identity_mode: Option<IdentityMode>,
     pub graph_first_pool_size: Option<u32>,
     pub coefficient_prob: Option<f64>,
     pub min_coefficient: Option<u32>,
@@ -699,5 +762,24 @@ mod tests {
                 panic!("expected operand_duplication_rate probability error, got {other:?}")
             }
         }
+    }
+
+    #[test]
+    fn effective_factorization_level_respects_identity_mode() {
+        let mut cfg = Config {
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Config::default()
+        };
+        assert_eq!(
+            cfg.effective_factorization_level(),
+            FactorizationLevel::Peephole
+        );
+
+        cfg.identity_mode = IdentityMode::Relaxed;
+        assert_eq!(
+            cfg.effective_factorization_level(),
+            FactorizationLevel::None
+        );
     }
 }

@@ -61,14 +61,16 @@ src/
 │                     silent alias for Interleaved — the original
 │                     speculative pool-growth strategy was retired
 │                     for producing Rule 18 violations.
-│                     FactorizationLevel enum (derives
-│                     PartialOrd/Ord): None, Cse, OperandUnique,
-│                     Commutative, Associative, ConstantFold,
-│                     Peephole, EGraph (default). effective()
-│                     clamps to the highest implemented layer
-│                     (currently Peephole). Fine-grained knobs:
+│                     IdentityMode enum (`Relaxed`, `NodeId`) plus
+│                     FactorizationLevel (derives PartialOrd/Ord):
+│                     None, Cse, OperandUnique, Commutative,
+│                     Associative, ConstantFold, Peephole, EGraph
+│                     (default request). effective() clamps to the
+│                     highest implemented layer (currently
+│                     Peephole). Fine-grained knobs:
 │                     max_ast_instances, mux_arm_duplication_rate,
-│                     operand_duplication_rate, factorization_level.
+│                     operand_duplication_rate, identity_mode,
+│                     factorization_level.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports `types::*`, `compact::*`, and validate.
@@ -83,6 +85,7 @@ src/
 │   │                 knob mirrors (`max_ast_instances`,
 │   │                 `mux_arm_duplication_rate`,
 │   │                 `operand_duplication_rate`,
+│   │                 `identity_mode`,
 │   │                 `factorization_level`), and live counters for
 │   │                 block-builds / factorization / compaction /
 │   │                 knob rolls.
@@ -92,7 +95,9 @@ src/
 │   │                 full currently-implemented factorization ladder:
 │   │                 associative flattening → commutative sort →
 │   │                 constant folding → peephole rewrites → AST-cap
-│   │                 CSE, with level None bypassing dedup entirely.
+│   │                 CSE, with `identity_mode = Relaxed` forcing the
+│   │                 effective level to None and bypassing dedup
+│   │                 entirely.
 │   │                 Both methods emit `trace_verbose!` 🔗 new /
 │   │                 ♻️ reuse events.
 │   ├── compact.rs    Post-construction reachability compaction.
@@ -277,7 +282,7 @@ main  →  lib  →  gen  →  ir
 ## Invariants currently enforced
 
 In code (constructors / generator):
-- `Module::intern_gate` / `intern_constant` enforce the currently-implemented factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `FactorizationLevel::None` bypasses dedup entirely; `effective()` currently clamps aspirational levels to `Peephole`.
+- `Module::intern_gate` / `intern_constant` enforce the currently-implemented factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `identity_mode = Relaxed` forces the effective level to `None`; `identity_mode = NodeId` uses `FactorizationLevel::effective()`, which currently clamps aspirational levels to `Peephole`.
 - `Config::validate()` rejects out-of-range knobs.
 - `Generator::new()` seeds RNG deterministically.
 - `gen::module::generate_leaf_module` produces port counts within knob ranges.
@@ -290,7 +295,7 @@ In code (constructors / generator):
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.
 - `gen::cone::build_cone` consults `cfg.share_prob` per operand: with that probability it calls `try_share` to return an existing matching-width pool entry (with deps, honoring `exclude`); otherwise it recurses. Fresh `Gate` nodes enter the pool on creation, so later operand decisions in the same call chain can share them.
 - `gen::cone::make_width_adapter` produces a Slice (when source > target) or an exact-width Concat (when source < target), using a leading low Slice only for the remainder chunk in non-multiple expansions. Deps propagate from the source.
-- `gen::cone::violates_anti_collapse` rejects duplicate operands in `And`/`Or`/`Xor` whenever `factorization_level >= OperandUnique`, rejects duplicate operands in `Add`/`Mul` at the same levels when `operand_duplication_rate < 1.0`, rejects `x - x`, `x == x`, `x != x` at 2-arity, and rejects `mux(s, a, a)` when `mux_arm_duplication_rate < 1.0`. `or_reduce_terms` dedups input terms before chaining Ors; `make_none_selected` routes through it. See `book/src/structural-rules.md` Rule 8.
+- `gen::cone::violates_anti_collapse` rejects duplicate operands in `And`/`Or`/`Xor` whenever the effective factorization level is `>= OperandUnique`, rejects duplicate operands in `Add`/`Mul` at the same levels when `operand_duplication_rate < 1.0`, rejects `x - x`, `x == x`, `x != x` at 2-arity, and rejects `mux(s, a, a)` when `mux_arm_duplication_rate < 1.0`. `or_reduce_terms` dedups input terms before chaining Ors; `make_none_selected` routes through it. See `book/src/structural-rules.md` Rule 8.
 - `gen::cone::pick_gate` only offers comparison ops when the parent target width is 1.
 - `gen::cone::build_flop_leaf` allocates `Flop` (with random `FlopKind`) and `FlopQ` together; `Flop.q` always points at the new `FlopQ` node; `Flop.d` and `Flop.mux` are filled later by `drain_flop_worklist`.
 - All flops use `ResetKind::Async` unconditionally (single-CLK / single-RST_N synchronous discipline).
@@ -326,7 +331,7 @@ In `ir::validate::validate`:
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — 3 inline unit tests for no-op compaction, orphan removal, and topological-order preservation.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **80 unit + 24 integration = 104 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-20): **83 unit + 24 integration = 107 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test` yet. Phase 1 exit gate remains blocked on running the larger sweeps, not on tool availability.
 
 ## Known weaknesses (visible in code today)
@@ -336,7 +341,7 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (104 passing tests: 80 unit + 24 integration).
+- `cargo test` — clean (107 passing tests: 83 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.

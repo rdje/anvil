@@ -60,14 +60,21 @@ pub struct Module {
     /// 0.0 = strict operand uniqueness for Add/Mul (And/Or/Xor are
     /// always strict); 1.0 = no constraint.
     pub operand_duplication_rate: f64,
-    /// Factorization level — which layers of the dedup chain are
-    /// active. See `Config::factorization_level` and the
+    /// Identity mode — the coarse answer to "what does a `NodeId`
+    /// mean?" See `Config::identity_mode`. `NodeId` keeps the
+    /// factorization ladder live; `Relaxed` disables it and forces
+    /// fresh node allocation for every AST.
+    pub identity_mode: crate::config::IdentityMode,
+    /// Requested factorization level — which layers of the dedup
+    /// chain are active when `identity_mode == NodeId`. See
+    /// `Config::factorization_level` and the
     /// `FactorizationLevel` enum (`src/config.rs`) for the
     /// ladder: `none → cse → operand-unique → commutative →
     /// associative → constant-fold → peephole → e-graph`.
     /// Default `EGraph` (theoretical ceiling); `effective()`
     /// clamps down to the highest currently-implemented layer
-    /// (today `Peephole`).
+    /// (today `Peephole`). When `identity_mode == Relaxed`, the
+    /// effective level is forced to `None`.
     pub factorization_level: crate::config::FactorizationLevel,
 
     // --- Block-build live counters ------------------------------
@@ -244,6 +251,15 @@ impl KnobRollCounters {
 }
 
 impl Module {
+    /// Effective factorization level after applying the coarse
+    /// identity mode.
+    pub fn effective_factorization_level(&self) -> crate::config::FactorizationLevel {
+        match self.identity_mode {
+            crate::config::IdentityMode::Relaxed => crate::config::FactorizationLevel::None,
+            crate::config::IdentityMode::NodeId => self.factorization_level.effective(),
+        }
+    }
+
     /// Intern a gate expression and return its `NodeId`.
     ///
     /// This is the single choke-point through which every gate
@@ -261,7 +277,7 @@ impl Module {
     /// # Pipeline (in execution order)
     ///
     /// Each layer is gated on
-    /// `self.factorization_level.effective()` (see
+    /// `self.effective_factorization_level()` (see
     /// [`crate::config::FactorizationLevel`]):
     ///
     /// 1. **Associative flattening** (`>= Associative`) —
@@ -311,7 +327,8 @@ impl Module {
     /// The pipeline is deterministic given the same seed:
     /// `intern_gate` is a pure function of its arguments plus
     /// `(m.nodes, m.gate_instances, m.const_instances,
-    /// m.factorization_level, m.operand_duplication_rate,
+    /// m.identity_mode, m.factorization_level,
+    /// m.operand_duplication_rate,
     /// m.max_ast_instances)`. No RNG is consulted here.
     pub fn intern_gate(
         &mut self,
@@ -330,7 +347,7 @@ impl Module {
         // `book/src/structural-rules.md` Rule 21c. Runs BEFORE
         // commutative sort so the flattened-and-normalised list is
         // the one that gets sorted.
-        if self.factorization_level.effective() >= FactorizationLevel::Associative {
+        if self.effective_factorization_level() >= FactorizationLevel::Associative {
             if let Some((flat_id, is_new)) = self.flatten_associative(op, &mut operands, width) {
                 return (flat_id, is_new);
             }
@@ -339,7 +356,7 @@ impl Module {
         // Commutative normalization (layer Commutative and above):
         // sort operands for commutative ops so `a + b` and `b + a`
         // share identity. Disabled at lower factorization levels.
-        if self.factorization_level.effective() >= FactorizationLevel::Commutative
+        if self.effective_factorization_level() >= FactorizationLevel::Commutative
             && matches!(
                 op,
                 GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
@@ -356,7 +373,7 @@ impl Module {
         // The helper shrinks the operand list and may short-circuit
         // to a surviving NodeId or a constant; on `Some` we return
         // without consulting the dedup tables.
-        if self.factorization_level.effective() >= FactorizationLevel::ConstantFold {
+        if self.effective_factorization_level() >= FactorizationLevel::ConstantFold {
             if let Some((folded_id, is_new)) = self.fold_constants(op, &mut operands, width) {
                 return (folded_id, is_new);
             }
@@ -367,7 +384,7 @@ impl Module {
         // `Not(Not(x)) → x`, `Eq/Neq(const, const)` evaluated,
         // full-width `Slice → src`, single-operand `Concat → that
         // operand`. See `book/src/structural-rules.md` Rule 21c.
-        if self.factorization_level.effective() >= FactorizationLevel::Peephole {
+        if self.effective_factorization_level() >= FactorizationLevel::Peephole {
             if let Some((rewritten_id, is_new)) = self.apply_peephole(op, &operands, width) {
                 return (rewritten_id, is_new);
             }
@@ -375,7 +392,7 @@ impl Module {
 
         // Level = None bypasses dedup entirely: every call creates
         // a fresh NodeId. Useful for stress-testing downstream CSE.
-        if self.factorization_level.effective() == FactorizationLevel::None {
+        if self.effective_factorization_level() == FactorizationLevel::None {
             let node_id = self.nodes.len() as NodeId;
             let n = operands.len();
             self.nodes.push(Node::Gate {
@@ -456,7 +473,7 @@ impl Module {
     /// the signal pool.
     pub fn intern_constant(&mut self, width: u32, value: u128) -> (NodeId, bool) {
         use crate::config::FactorizationLevel;
-        if self.factorization_level.effective() == FactorizationLevel::None {
+        if self.effective_factorization_level() == FactorizationLevel::None {
             let node_id = self.nodes.len() as NodeId;
             self.nodes.push(Node::Constant { width, value });
             crate::trace_verbose!(
@@ -1547,6 +1564,63 @@ mod tests {
             );
             assert_eq!(m.nodes.len(), before + 1, "{op:?}: only one new node added");
         }
+    }
+
+    /// The coarse identity mode is orthogonal to the requested
+    /// factorization rung: the same `factorization_level = e-graph`
+    /// request dedupes in `NodeId` mode, but is forcibly disabled in
+    /// `Relaxed` mode.
+    #[test]
+    fn identity_mode_controls_whether_nodeid_means_expression_identity() {
+        use crate::config::{FactorizationLevel, IdentityMode};
+
+        let mut m_nodeid = Module {
+            max_ast_instances: 1,
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        m_nodeid
+            .nodes
+            .push(Node::PrimaryInput { port: 0, width: 8 });
+        m_nodeid
+            .nodes
+            .push(Node::PrimaryInput { port: 1, width: 8 });
+        let (nodeid_first, nodeid_first_new) =
+            m_nodeid.intern_gate(GateOp::Add, vec![0, 1], 8, DepSet::from_port(0));
+        let (nodeid_second, nodeid_second_new) =
+            m_nodeid.intern_gate(GateOp::Add, vec![0, 1], 8, DepSet::from_port(0));
+        assert!(nodeid_first_new);
+        assert!(!nodeid_second_new);
+        assert_eq!(nodeid_first, nodeid_second);
+        assert_eq!(
+            m_nodeid.effective_factorization_level(),
+            FactorizationLevel::Peephole
+        );
+
+        let mut m_relaxed = Module {
+            max_ast_instances: 1,
+            identity_mode: IdentityMode::Relaxed,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        m_relaxed
+            .nodes
+            .push(Node::PrimaryInput { port: 0, width: 8 });
+        m_relaxed
+            .nodes
+            .push(Node::PrimaryInput { port: 1, width: 8 });
+        let (relaxed_first, relaxed_first_new) =
+            m_relaxed.intern_gate(GateOp::Add, vec![0, 1], 8, DepSet::from_port(0));
+        let (relaxed_second, relaxed_second_new) =
+            m_relaxed.intern_gate(GateOp::Add, vec![0, 1], 8, DepSet::from_port(0));
+        assert!(relaxed_first_new);
+        assert!(relaxed_second_new);
+        assert_ne!(relaxed_first, relaxed_second);
+        assert_eq!(
+            m_relaxed.effective_factorization_level(),
+            FactorizationLevel::None
+        );
     }
 
     /// Non-commutative ops must NOT be normalized: `a - b` and

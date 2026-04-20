@@ -113,9 +113,11 @@ consumers.
 
 The `max_ast_instances` knob caps how many distinct `NodeId`s may
 represent the same AST. Default `1` = strict CSE. At
+`identity_mode = node-id` with
 `factorization_level ≥ Commutative` (the default), operands of
 `And / Or / Xor / Add / Mul` are sorted before interning, so
-`a + b` and `b + a` also share identity.
+`a + b` and `b + a` also share identity. Under
+`identity_mode = relaxed`, even exact AST matches do not dedupe.
 
 This makes sharing "deeper" than the per-operand coin: even when
 neither cone picked the share-path, two independently-constructed

@@ -972,7 +972,7 @@ fn make_and(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
     // CSE. At level `cse` / `none`, pass through — the user opted
     // out of operand uniqueness.
     use crate::config::FactorizationLevel;
-    if a == b && m.factorization_level.effective() >= FactorizationLevel::OperandUnique {
+    if a == b && m.effective_factorization_level() >= FactorizationLevel::OperandUnique {
         return a;
     }
     let deps = DepSet::union(&[&node_deps(m, a), &node_deps(m, b)]);
@@ -993,7 +993,7 @@ fn make_mul(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
     // `a` alone — matches Rule 8 (`operand-multiset distinctness`).
     use crate::config::FactorizationLevel;
     if a == b
-        && m.factorization_level.effective() >= FactorizationLevel::OperandUnique
+        && m.effective_factorization_level() >= FactorizationLevel::OperandUnique
         && m.operand_duplication_rate < 1.0
     {
         return a;
@@ -2149,7 +2149,7 @@ fn violates_anti_collapse(op: GateOp, operands: &[NodeId], m: &Module) -> bool {
     // otherwise). Mux is gated on `mux_arm_duplication_rate` as
     // before.
     let operand_unique_enabled =
-        m.factorization_level.effective() >= FactorizationLevel::OperandUnique;
+        m.effective_factorization_level() >= FactorizationLevel::OperandUnique;
     match op {
         And | Or | Xor if operand_unique_enabled => has_duplicate_operand(operands),
         Add | Mul if operand_unique_enabled && m.operand_duplication_rate < 1.0 => {

@@ -120,15 +120,17 @@ build_cone(width, depth, exclude):
 
     # Structural anti-collapse (Rule 8 extended): reject operand
     # multisets that degenerate algebraically. The check depends on
-    # factorization_level — see below. On rejection, restore snapshot
-    # and fall back to pick_terminal.
+    # the effective identity mode / factorization rung — see below.
+    # On rejection, restore snapshot and fall back to pick_terminal.
     if violates_anti_collapse(op, operands):
         snap.restore()
         return pick_terminal(width, exclude)
 
-    # `intern_gate` enforces Rule 21 (CSE) + Rule 21b (commutative
-    # normalization for And/Or/Xor/Add/Mul) + AST-instance cap. The
-    # same (op, sorted_operands, width) returns the same NodeId.
+    # `intern_gate` enforces the effective identity mode: under
+    # `identity_mode = node-id`, Rule 21 (CSE) + Rule 21b
+    # (commutative normalization for And/Or/Xor/Add/Mul) + the
+    # AST-instance cap apply, so the same
+    # (op, sorted_operands, width) returns the same NodeId.
     (node, is_new) = m.intern_gate(op, operands, width, deps)
     if is_new:
         pool.add(node, width, deps)             # new gate is shareable
@@ -267,7 +269,8 @@ when the flop's D-cone is built).
 ## Structural anti-collapse rules
 
 Cheap to enforce during generation; catch the obvious constant-folding
-cases. The exact rule set depends on `factorization_level`:
+cases. The exact rule set depends on the effective factorization
+level:
 
 At the default level (`e-graph`, currently equivalent to
 `peephole`):
@@ -286,11 +289,13 @@ At the default level (`e-graph`, currently equivalent to
   through. Duplicates are algebraically meaningful here, so the
   user opts in.
 
-Lowering `factorization_level` relaxes these rules. At level
-`cse`, only the 2-operand algebraic-degeneracy cases (`Sub` /
-`Eq` / `Neq`) fire — the rest are permitted (and picked up by
-syntactic CSE at the AST-key level). At level `none` no
-anti-collapse rules fire and the dedup path is bypassed entirely.
+Lowering `factorization_level` relaxes these rules *within*
+`identity_mode = node-id`. At level `cse`, only the 2-operand
+algebraic-degeneracy cases (`Sub` / `Eq` / `Neq`) fire — the
+rest are permitted (and picked up by syntactic CSE at the AST-key
+level). At level `none`, or whenever `identity_mode = relaxed`,
+no anti-collapse rules fire and the dedup path is bypassed
+entirely.
 
 On rejection, `build_cone` restores its pre-operand-construction
 snapshot and falls back to `pick_terminal`. This prevents the

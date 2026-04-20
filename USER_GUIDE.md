@@ -97,8 +97,10 @@ shift. Examples:
   policy. At the default strict `operand_duplication_rate`, it should
   be 0 once the live Associative layer has done its work.
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
-- `factorization_level=none` → gate count grows (no CSE); `=cse` and above
-  shrinks it.
+- `identity_mode=relaxed` → gate count and AST multiplicity jump because
+  the NodeId-identity ladder is disabled entirely.
+- `factorization_level=none` (under `identity_mode=node-id`) → gate count
+  grows; `=cse` and above shrinks it.
 
 Live probability-roll counters are collected in
 `knob_roll_attempts` / `knob_roll_fires`, so every `gen_bool`
@@ -157,9 +159,10 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
 | `--gate-compare-weight` | 1        | Relative weight for comparison ops at 1-bit targets |
 | `--gate-reduce-weight`  | 1        | Relative weight for reduction ops at 1-bit targets |
+| `--identity-mode`       | node-id  | Coarse NodeId semantics: `node-id` keeps the ladder live, `relaxed` disables it |
 | `--factorization-level` | e-graph  | Detailed identity ladder: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
-| `--full-factorization`  | off      | Convenience alias for the strongest currently-live identity mode |
-| `--no-full-factorization` | off    | Convenience alias that disables the factorization ladder |
+| `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
+| `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

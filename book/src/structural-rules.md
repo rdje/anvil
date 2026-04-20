@@ -611,12 +611,25 @@ asymptote: we climb toward it one layer at a time, confident
 that each layer tightens the identity contract without
 sacrificing reproducibility or construction-time correctness.
 
-## 21c — Factorization level (user-controllable dial)
+## 21c — Identity mode + factorization level (user-controllable dial)
 
-**Rule:** `Config::factorization_level` is a single knob that
-selects how far along the factorization chain the generator
-enforces `NodeId = expression identity`. Values in increasing
-order:
+**Rule:** the coarse switch is `Config::identity_mode`, and the
+fine-grained ladder within `identity_mode = node-id` is
+`Config::factorization_level`.
+
+`identity_mode` values:
+
+`relaxed → node-id` (default)
+
+- `relaxed`: disable the identity/factorization ladder entirely.
+  Every `intern_gate` / `intern_constant` call allocates a fresh
+  `NodeId`.
+- `node-id`: NodeId means expression identity; the factorization
+  ladder below becomes active.
+
+Within `identity_mode = node-id`, `factorization_level` selects
+how far along the factorization chain the generator enforces
+`NodeId = expression identity`. Values in increasing order:
 
 `none → cse → operand-unique → commutative → associative →
 constant-fold → peephole → e-graph` (default).
@@ -627,8 +640,9 @@ implemented layer — they're aspirational anchors for the
 theoretical ceiling.
 
 CLI convenience aliases: `--full-factorization` requests
-`e-graph` (the strongest available identity mode), while
-`--no-full-factorization` requests `none`.
+`--identity-mode node-id --factorization-level e-graph`, while
+`--no-full-factorization` requests
+`--identity-mode relaxed --factorization-level none`.
 
 **Doctrinal anchor:** the user's "full factorization" doctrine
 states that `NodeId` is the identity of an expression — two
@@ -643,7 +657,7 @@ gap further via deeper peephole rewrites (e.g. cross-gate
 identities like `(a + b) - b → a`) and eventually a real
 e-graph layer.
 
-**How each level gates behaviour:**
+**How the ladder behaves inside `identity_mode = node-id`:**
 
 | Level          | Enables                                                            |
 |----------------|--------------------------------------------------------------------|
@@ -656,21 +670,27 @@ e-graph layer.
 | `peephole`    | + Local rewrites at intern time. Single-gate involutions: `Not(Not(x)) → x`. Cross-gate comparison inversions: `Not(Eq) → Neq`, `Not(Neq) → Eq`, `Not(Lt) → Ge`, `Not(Gt) → Le`, `Not(Le) → Gt`, `Not(Ge) → Lt`. Constant evaluation (all-operand-constants → evaluated constant): comparisons (`Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge`), `Not(c) → ~c & mask`, `Slice(hi, lo)(c) → (c >> lo) & mask`, `Concat([c1, c2, ...]) → MSB-first bit assembly`, `RedAnd(c) → (c == all_ones)`, `RedOr(c) → (c != 0)`, `RedXor(c) → popcount(c) & 1`. Structural identities: full-width `Slice(hi, 0)` where `hi+1 == src_width` returns the source, single-operand `Concat([x]) → x`. In every case the inner gate may be orphaned by the rewrite; the post-construction `compact_node_ids` pass cleans it up. Fires counted in `Metrics::peephole_rewrites_applied`; removed nodes in `Metrics::nodes_compacted`. Broader cross-gate rewrites like `(a + b) - b → a` still await the e-graph layer. |
 | `e-graph`    | Full semantic equivalence. *Not implemented yet.*                  |
 
-**Effective level:** `FactorizationLevel::effective()` returns
-the highest *implemented* layer at or below the requested one,
-walking the enum order top-down. Unimplemented middle rungs are
-skipped cleanly: a user asking for `associative` drops to
-`commutative` (the nearest implemented layer below), while
-`e-graph` activates everything currently live — today that's
-`peephole` plus every lower rung (including `constant-fold`
-one step below and `commutative` two steps below). When
-associative flattening lands, the same `--factorization-level
-e-graph` invocation will automatically gain it — no config
-change required.
+**Effective level:** `Config::effective_factorization_level()` /
+`Module::effective_factorization_level()` apply the coarse mode
+first, then the ladder:
+
+- `identity_mode = relaxed` forces the effective level to `none`
+  regardless of the requested rung.
+- `identity_mode = node-id` uses
+  `FactorizationLevel::effective()`, which returns the highest
+  *implemented* layer at or below the requested one, walking the
+  enum order top-down.
+
+Unimplemented middle rungs are skipped cleanly: a user asking for
+`associative` drops to `commutative` (the nearest implemented
+layer below), while `e-graph` activates everything currently live
+— today that's `peephole` plus every lower rung. When deeper
+layers land, the same `--factorization-level e-graph` invocation
+automatically gains them — no config change required.
 
 **Where enforced:** `src/ir/types.rs` `intern_gate` /
 `intern_constant` gate commutative sort and dedup-bypass on
-`self.factorization_level.effective()`. `src/gen/cone.rs`
+`self.effective_factorization_level()`. `src/gen/cone.rs`
 `violates_anti_collapse` gates operand-uniqueness checks the
 same way.
 

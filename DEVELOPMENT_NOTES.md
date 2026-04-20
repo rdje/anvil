@@ -270,6 +270,30 @@ switch as a separate CLI axis (`--full-factorization`,
 construction strategy value. Future work on the true NodeId-as-
 identity engine must preserve this separation.
 
+## Identity mode is now a first-class typed axis (2026-04-20)
+
+The separation above now lives in the code, not just in the docs:
+
+- `Config` owns a new `IdentityMode` enum with `node-id`
+  (default) and `relaxed`.
+- `Module` mirrors both `identity_mode` and the requested
+  `factorization_level`.
+- The actual gating sites consult
+  `effective_factorization_level()` instead of reading the raw
+  ladder directly.
+
+Design consequence:
+- `identity_mode = relaxed` is the coarse hard-off switch. It
+  forces the effective level to `none`, so `intern_gate` and
+  `intern_constant` always allocate fresh NodeIds.
+- `identity_mode = node-id` means the ladder is live, and
+  `factorization_level` becomes the fine-grained selector within
+  that mode.
+
+This is the minimum architectural move that makes the future
+"NodeId as identity" engine honest: the repo can now talk about
+identity mode without smuggling it through the ladder alone.
+
 ## Emitter is a dumb serialiser (2026-04-16)
 
 User-memory feedback: *"All thinking, checks, rules' enforcement ought to be done solely at the IR level. By the time you reach emission it is too late to roll back."*
