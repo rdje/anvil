@@ -182,6 +182,21 @@ equivalence checkers), not for generating real designs.
 If you need RTL that *does* something meaningful, you hire an
 engineer.
 
+## Is `anvil` trying to be a signoff-grade bug finder for downstream tools?
+
+Yes. That is the intended direction.
+
+More precisely: `anvil` is trying to become a **signoff-level quality
+random synthesizable RTL generator** whose outputs are clean in tools
+like Verilator and Yosys by default, while still being rich enough to
+expose real bugs in parsers, elaborators, synthesizers, and similar
+consumers.
+
+Those two goals are not in tension. The point is **not** to find bugs
+by emitting malformed junk. The point is to find bugs with legal,
+reproducible, structurally disciplined RTL that exercises hard corners
+of the design space.
+
 ## What SystemVerilog language standard does `anvil` target?
 
 The **synthesizable subset**. Emitted constructs are accepted by

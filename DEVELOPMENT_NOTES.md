@@ -31,7 +31,16 @@ These are documented in detail in the mdBook. They are restated here only as anc
 - **Generation by construction, not generate-then-filter.** Validity is structural; the validator is a safety net, not a gate. See `book/src/by-construction.md`.
 - **Synthesizability is a subset constraint.** The gate set, flop pattern, and emitter cover only the synthesizable subset. There is no mode that emits non-synthesizable constructs. See `book/src/synthesizability.md`.
 - **Non-triviality via dep-set tracking + structural anti-collapse rules.** No oracle. See `book/src/non-triviality.md`.
-- **No oracle, no reference simulator.** `anvil` is a generator. Tool testing is downstream. See `book/src/non-goals.md`.
+- **Signoff-grade adversarial RTL is the product goal.** `anvil` is not
+  trying to be merely "valid enough". The target is a signoff-level
+  quality random synthesizable RTL generator whose outputs are clean in
+  mainstream downstream tools by default and still adversarial enough to
+  expose real bugs in them. Feature growth and clean-run robustness are
+  both first-class; neither is optional garnish for the other.
+- **No oracle, no reference simulator.** `anvil` is still a generator,
+  not a bundled shadow simulator. The way it stresses downstream tools
+  is by emitting high-quality legal RTL, not by embedding a second
+  implementation of RTL semantics. See `book/src/non-goals.md`.
 
 If you need to revise any of these, that is a deliberate task with its own commit and a `DEVELOPMENT_NOTES.md` entry.
 
@@ -193,6 +202,30 @@ The practical consequence showed up in tool smoke:
 This is the pattern to keep following for the NodeId-identity roadmap:
 when equivalent local forms are discovered in emitted SV, first ask
 whether they should have already become the same node in the IR.
+
+### Signoff-quality and bug-finding are not competing goals (2026-04-20)
+
+The user clarified the product direction explicitly:
+
+- `anvil` should become a signoff-level quality random synthesizable
+  RTL generator;
+- generated modules should be clean in tools like Verilator and Yosys
+  by default; and
+- `anvil` should still be strong enough to break downstream parsers,
+  elaborators, synthesizers, and similar consumers.
+
+Those statements are compatible. The project is **not** trying to find
+tool bugs by emitting junk, malformed syntax, or semantically dubious
+RTL. The intended bug-finding power comes from breadth, interaction
+richness, factorization pressure, stateful motifs, hierarchy, memories,
+and other legal-but-hard combinations that real tools should accept.
+
+When choosing between slices, prefer work that strengthens one of these
+two axes without regressing the other:
+
+1. broader / harder legal design space; or
+2. stronger confidence that generated output is clean and robust in
+   downstream tools.
 
 ---
 

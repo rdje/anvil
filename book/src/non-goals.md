@@ -3,18 +3,22 @@
 A project's clarity comes as much from what it refuses to do as from
 what it delivers. These are `anvil`'s non-goals.
 
-## No oracle, no reference simulator
+## No bundled oracle, no reference simulator
 
-`anvil` is a generator, not a tool tester. It does not ship a
-SystemVerilog interpreter, a reference simulator, or a golden-model
-evaluator. Users who want differential testing between tools should
-run Verilator, Icarus, or a commercial simulator against the
-generated output themselves.
+`anvil` absolutely aims to stress downstream tools and expose bugs in
+them. What it does **not** do is ship a SystemVerilog interpreter, a
+reference simulator, or a golden-model evaluator of its own. Users who
+want differential testing between tools should run Verilator, Icarus,
+or a commercial simulator against the generated output themselves.
 
 Why: the scope is already large. An oracle doubles the implementation
 effort and introduces a second correctness question (is our
 interpreter correct?). Most users who want RTL generation do not want
 a bundled simulator.
+
+This is an implementation-boundary statement, not a lowering of the
+quality bar. `anvil` is still intended to generate high-quality legal
+RTL that is clean in downstream tools by default.
 
 ## No non-synthesizable output
 
@@ -66,8 +70,9 @@ nonsensical in function, even though they are structurally valid.
 
 Why: constraining output toward "realistic" patterns defeats the
 whole point of random generation, which is to exercise the vast space
-of *unusual but legal* constructs that humans never write. If you
-want realistic RTL, hire an engineer.
+of *unusual but legal* constructs that humans never write. The target
+is adversarial but valid workloads, not realistic business logic. If
+you want realistic RTL, hire an engineer.
 
 ## No attempt at coverage guarantees
 

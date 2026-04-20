@@ -7,6 +7,11 @@ synthesizability smoke check. Those sweeps are evidence, not the end
 goal: the intended steady-state is that generated modules are boringly
 clean in Verilator and Yosys by default.
 
+That quality bar coexists with breadth. `anvil` is meant to grow into a
+signoff-grade random synthesizable RTL generator that finds bugs in
+downstream tools by feeding them legal, unusual, feature-rich designs,
+not by relying on malformed input or low-quality noise.
+
 ## Phase 0 — Scaffolding (done)
 
 - Cargo project, module skeleton, CLI entry point.
@@ -131,5 +136,7 @@ Three sub-paths, each with its own cost and payoff (full analysis in
 - Non-synthesizable constructs (`initial`, delays, system tasks beyond
   `$display` in debug comments).
 - Language coverage beyond the synthesizable SV subset.
-- Oracle / reference simulator — `anvil` is a generator, not a tool tester.
-  Downstream users are free to run Verilator/Yosys against the output.
+- Bundled oracle / reference simulator — `anvil` does not embed a
+  shadow RTL semantics engine. The goal is still to stress downstream
+  tools aggressively, but by generating high-quality legal RTL rather
+  than by turning `anvil` into a second simulator.

@@ -18,6 +18,13 @@ with no coherent design intent. That is the point: `anvil` is for
 synthesizers, formal equivalence checkers) and for **generating
 synthetic corpora** — not for synthesizing real designs.
 
+The quality bar is intentionally high. `anvil` is not trying to become
+"a fuzzer that sometimes emits legal RTL"; it is trying to become a
+**signoff-grade random synthesizable RTL generator**. The interesting
+part is not malformed input. The interesting part is **legal,
+reproducible, unusual RTL** that downstream tools ought to handle
+cleanly, but occasionally do not.
+
 ## Who is this for?
 
 - **EDA tool developers** who need a steady stream of legal,
@@ -95,6 +102,12 @@ SystemVerilog from the graph as a final step. No filter loop. No
 generate-then-repair. Validity is structural — the graph *cannot* be
 illegal because there was never a moment in its construction when it
 could have become illegal.
+
+That by-construction discipline is what lets `anvil` aim higher than a
+syntax fuzzer. If a downstream tool breaks, the ideal outcome is that it
+breaks on an input that is not merely parseable, but structurally
+solid, synthesizable, and boringly acceptable according to the same
+standards a signoff flow would expect.
 
 The algorithm is small (a few hundred lines) and easy to extend.
 Adding a new motif — a new gate, a new flop style, a new hierarchical

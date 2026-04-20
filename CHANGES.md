@@ -3,9 +3,87 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0080 — Fold Verilator tautology residues in the rewrite ladder
+## 2026-04-20-0081 — Capture the signoff-grade bug-finder doctrine
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This docs-only slice captures the newly-explicit product direction:
+`anvil` should become a signoff-level quality random synthesizable RTL
+generator whose outputs are clean in downstream tools by default and
+still adversarial enough to expose real bugs in them.
+
+### The entry-point docs now say the strong version out loud
+
+- `README.md` now describes the destination as "legal, reproducible,
+  adversarial RTL" rather than merely "valid synthesizable output".
+- `ROADMAP.md` now states that signoff-grade cleanliness and feature
+  breadth are simultaneous goals, not separate tracks.
+
+### The book now distinguishes "no bundled simulator" from "not a bug finder"
+
+- `book/src/introduction.md` now frames `anvil` as aiming higher than a
+  syntax fuzzer: it should fail downstream tools, when it does, with
+  structurally solid synthesizable RTL.
+- `book/src/non-goals.md` now clarifies that "no oracle / no reference
+  simulator" is an implementation-boundary choice, not a retreat from
+  downstream-tool stress or quality expectations.
+- `book/src/faq.md` now has an explicit Q/A entry saying yes, the goal
+  is a signoff-grade bug finder for downstream parsers / elaborators /
+  synthesizers — but by way of legal RTL, not malformed junk.
+
+### Contributor-facing doctrine now steers future PNT choices
+
+- `DEVELOPMENT_NOTES.md` gained a new core design-decision statement
+  and a dedicated note that signoff cleanliness and downstream
+  adversarial power are complementary goals.
+- `MEMORY.md` now records this doctrine as a fresh handoff anchor, and
+  the stale open question about whether the old `UNSIGNED` residue was
+  acceptable lint noise has been removed.
+
+**Why**
+
+Recent user guidance made the product bar sharper than some older docs
+still reflected. A few passages still sounded like downstream-tool
+robustness was merely external validation or someone else's concern.
+
+That wording would steer implementation in the wrong direction. The
+project's intended value is not "random RTL that is usually okay"; it
+is "high-quality legal RTL that is strong enough to find real bugs in
+consumer tools". This slice makes that durable.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Future roadmap / PNT choices now have a clearer doctrinal filter:
+  grow legal feature richness and keep tightening the clean-run bar.
+- The book no longer conflates "we do not ship a simulator" with "tool
+  bug-finding is not our concern".
+- Session recovery is safer because the product direction is now stated
+  in the durable docs, not only in transient conversation.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `book/src/introduction.md`
+- `book/src/non-goals.md`
+- `book/src/faq.md`
+
+## 2026-04-20-0080 — Fold Verilator tautology residues in the rewrite ladder
+
+**Landed as:** `559a8be`
 
 **What changed**
 
