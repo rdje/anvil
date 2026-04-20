@@ -252,6 +252,11 @@ This is the first live `e-graph` fragment. It is intentionally bounded:
 full semantic equivalence across arbitrary-width cones is still future
 work.
 
+The settled-graph exact-value cleanup that feeds these remaps is also
+allowed to reason through narrow `Slice` results even when the source
+cone is wider than the small finite-set engine's direct domain. A
+wide-source / narrow-slice cone is still a narrow proof problem.
+
 Later remap-producing passes can themselves create fresh legal
 associative opportunities by changing which already-built node an
 operand points at. For example, semantic gate merge or a constant-
@@ -263,6 +268,8 @@ settled-graph associative normalization pass
 passes. It uses the same duplicate policy as the intern-time layer:
 `And`/`Or` dedup, `Xor` pair-cancels, `Add`/`Mul` flatten only when the
 flat list is still legal at the current `operand_duplication_rate`.
+In addition, candidate remaps are pruned if they would directly create
+duplicate operands inside a strict `Add` or `Mul`.
 
 ### 8. Post-drain endpoint-aware flop merge (`identity_mode = node-id`, effective `>= Cse`)
 
@@ -347,20 +354,34 @@ To resolve this, `src/gen/module.rs` calls
 built. `merge_equivalent_flops` is the conservative stateful
 sharing step; `compact_node_ids` then:
 
-1. BFS from all roots (output drives, flop fields).
-2. Marks reachable nodes.
-3. Rewrites `m.nodes` in topological order, keeping only
+1. BFS from output drive-roots.
+2. When the walk reaches a live `FlopQ`, mark the owning flop
+   live and pull in its `d` / mux-held nodes.
+3. Marks reachable nodes and reachable flops.
+4. Rewrites `m.nodes` in topological order, keeping only
    reachable nodes.
-4. Remaps every `NodeId` in `m.drives`, `m.flops`, `m.nodes[*]
-   .operands`, and the dedup tables.
+5. Rewrites `m.flops`, dropping dead state elements whose `Q`
+   was never reached by the live graph.
+6. Remaps every `NodeId` / `FlopId` holder plus virtual flop
+   deps in surviving gate dep-sets and the dedup tables.
 
-Result: Rule 18 is re-established at module finalisation. The
-count of removed nodes is exposed as `Metrics::nodes_compacted`.
+Result: Rule 18 is re-established at module finalisation, and
+dead sequential state does not survive into emitted SV just
+because it happened to be allocated earlier. The count of
+removed nodes is exposed as `Metrics::nodes_compacted`.
 
 A subtle consequence: without this pass, each of layers 1, 3, 4
 would have to be *orphan-suppressed* — either not firing when
 orphaning would occur, or recording the orphan as a permitted
 exception. With the pass, they can fire freely.
+
+One more post-remap wrinkle matters at strict default knobs:
+late proof / sharing passes are allowed to collapse equivalent
+children, but they are **not** allowed to leave a strict `Add`
+or `Mul` with the same `NodeId` twice in its operand list. So
+ANVIL now prunes candidate remaps that would introduce duplicate
+operands into `Add` / `Mul` when
+`operand_duplication_rate < 1.0`.
 
 ## Empirical counters
 

@@ -431,6 +431,63 @@ The proof stack now has three complementary layers:
 - post-construction exact-value cleanup on the settled graph, and
 - bounded semantic identity / sharing for the `e-graph` fragment.
 
+### Narrow slices of wide cones are still narrow proof domains (2026-04-20)
+
+The next live warning bucket made a subtle point painfully concrete:
+the small finite-set engine is allowed to be width-bounded, but it is
+not allowed to treat a narrow `Slice` result as "unprovable" just
+because the source cone is wider than 8 bits. A 14-bit or 25-bit source
+feeding an 8-bit slice still yields an 8-bit proof problem.
+
+The durable implementation rule is:
+
+- if a narrow slice's source is already exact, use that exact value;
+- otherwise, if the source is too wide for direct enumeration, fall
+  back to the full narrow output domain instead of returning `None`.
+
+That fallback is conservative but still useful: it keeps later local
+operations (`Or` with forcing constants, exact shifts, subtract-small,
+dynamic overshift) in the proof path, which is enough to recover exact
+facts like "this `Shr` is forced to zero". Returning `None` too early
+throws away that whole proof chain.
+
+### Finalisation liveness must be output-rooted, not flop-table-rooted (2026-04-20)
+
+The dead-register Verilator warning exposed a mismatch between Rule-18
+gate liveness and sequential liveness. The old compaction pass rooted
+every `flop.q` unconditionally because the flop existed in `m.flops`.
+That preserved dead state even when no output cone, live flop D-cone,
+or other retained logic ever consumed that Q.
+
+The durable rule is:
+
+- start final liveness from output drive-roots;
+- when the walk reaches a live `Node::FlopQ`, mark the owning flop
+  live and pull in its `d` / mux-held nodes;
+- drop any flop whose `Q` is never reached by the live graph.
+
+That is the sequential analogue of Rule 18: state is live because it is
+observed by retained logic, not because it once got allocated.
+
+### Post-remap identity cannot violate strict Add/Mul duplicate policy (2026-04-20)
+
+Late proof / sharing passes operate after construction, so they can
+collapse two previously-distinct child cones to one canonical node.
+That is fine in general, but under strict `operand_duplication_rate`
+the final emitted IR is still not allowed to contain duplicate
+`NodeId`s inside an `Add` or `Mul` operand list.
+
+The durable rule is therefore stronger than "the remap is semantically
+valid":
+
+- a candidate remap is only acceptable if every strict `Add` / `Mul`
+  consumer remains duplicate-free after the rewrite.
+
+ANVIL now enforces that by pruning duplicate-introducing remaps before
+they are applied in `fold_proven_gates` and `merge_equivalent_gates`.
+This preserves the default "zero duplicate operands" doctrine without
+backing away from late exact-value cleanup or bounded semantic sharing.
+
 Second, the repo-owned downstream harness now treats warnings as
 failures rather than as "successful but noisy" runs. `tool_matrix`
 scans tool output for warning markers and marks the invocation failed

@@ -158,11 +158,12 @@ The repo-owned gate shape is now explicit too: `tool_matrix
 --phase1-gate` auto-raises the run to at least 1000 generated modules
 total and requires full matrix coverage, though that full gate has not
 been run to completion locally yet.
-Internal validation (140 tests after
-the proof-cleanup slice, unused-signal Verilator
+Internal validation (153 tests after the
+wide-slice-proof / dead-state-cleanup slice, unused-signal Verilator
 sweep over seeds 0..4 for the default path and the `graph-first`
-alias, plus a warning-clean seed-42 Verilator lint and seed-42 Yosys
-synthesis) is otherwise clean.
+alias, a warning-clean `seed=0 / interleaved / relaxed / none`
+repro on `mod_0_0006.sv`, plus a warning-clean seed-42 Verilator lint
+and seed-42 Yosys synthesis) is otherwise clean.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 

@@ -1388,7 +1388,13 @@ fn node_small_value_set(
                 collect_small_set(&seen, *width)
             }
             GateOp::Slice { lo, .. } if operands.len() == 1 => {
-                let src = node_small_value_set(m, operands[0], memo)?;
+                let src = match node_small_value_set(m, operands[0], memo) {
+                    Some(values) => values,
+                    None => match prove_node_exact_value(m, operands[0]) {
+                        Some(value) => vec![((value >> lo) & u128::from(mask)) as u16],
+                        None => (0..=mask).collect(),
+                    },
+                };
                 let mut seen = [false; 256];
                 for value in src {
                     seen[((value >> lo) & mask) as usize] = true;
@@ -4098,5 +4104,103 @@ mod tests {
             "at width 2, 1 * 2 * 2 already wraps to zero, so the wide-dependent tail cannot revive the product"
         );
         assert_eq!(prove_node_exact_value(&m, mul), Some(0));
+    }
+
+    #[test]
+    fn prove_node_exact_value_detects_dynamic_overshift_zero() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 8, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let deps = node_deps(&m, x);
+
+        let c26 = make_constant(&mut m, &mut pool, 8, 0x26);
+        let ceb = make_constant(&mut m, &mut pool, 8, 0xeb);
+        let or_deps = DepSet::union(&[
+            &node_deps(&m, x),
+            &node_deps(&m, c26),
+            &node_deps(&m, x),
+            &node_deps(&m, ceb),
+        ]);
+        let (or, or_is_new) = m.intern_gate(GateOp::Or, vec![x, c26, x, ceb], 8, or_deps.clone());
+        if or_is_new {
+            pool.add(or, 8, or_deps);
+        }
+
+        let one = make_constant(&mut m, &mut pool, 1, 1);
+        let (shl, shl_is_new) = m.intern_gate(GateOp::Shl, vec![or, one], 8, deps.clone());
+        if shl_is_new {
+            pool.add(shl, 8, deps.clone());
+        }
+
+        let five = make_constant(&mut m, &mut pool, 8, 5);
+        let (rhs, rhs_is_new) = m.intern_gate(GateOp::Sub, vec![shl, five], 8, deps.clone());
+        if rhs_is_new {
+            pool.add(rhs, 8, deps.clone());
+        }
+
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![shl, rhs], 8, deps.clone());
+        if shr_is_new {
+            pool.add(shr, 8, deps);
+        }
+
+        assert_eq!(
+            prove_node_exact_value(&m, shr),
+            Some(0),
+            "when rhs is derived from a left-shifted value minus a small constant, the shift can still be provably overshifted"
+        );
+    }
+
+    #[test]
+    fn prove_node_exact_value_detects_dynamic_overshift_zero_through_wide_slice() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 9, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let wide = 0;
+        let wide_deps = node_deps(&m, wide);
+        let (slice, slice_is_new) = m.intern_gate(
+            GateOp::Slice { hi: 7, lo: 0 },
+            vec![wide],
+            8,
+            wide_deps.clone(),
+        );
+        if slice_is_new {
+            pool.add(slice, 8, wide_deps.clone());
+        }
+
+        let c26 = make_constant(&mut m, &mut pool, 8, 0x26);
+        let ceb = make_constant(&mut m, &mut pool, 8, 0xeb);
+        let or_deps = DepSet::union(&[
+            &node_deps(&m, slice),
+            &node_deps(&m, c26),
+            &node_deps(&m, slice),
+            &node_deps(&m, ceb),
+        ]);
+        let (or, or_is_new) =
+            m.intern_gate(GateOp::Or, vec![slice, c26, slice, ceb], 8, or_deps.clone());
+        if or_is_new {
+            pool.add(or, 8, or_deps);
+        }
+
+        let one = make_constant(&mut m, &mut pool, 1, 1);
+        let (shl, shl_is_new) = m.intern_gate(GateOp::Shl, vec![or, one], 8, wide_deps.clone());
+        if shl_is_new {
+            pool.add(shl, 8, wide_deps.clone());
+        }
+
+        let five = make_constant(&mut m, &mut pool, 8, 5);
+        let (rhs, rhs_is_new) = m.intern_gate(GateOp::Sub, vec![shl, five], 8, wide_deps.clone());
+        if rhs_is_new {
+            pool.add(rhs, 8, wide_deps.clone());
+        }
+
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![shl, rhs], 8, wide_deps);
+        if shr_is_new {
+            pool.add(shr, 8, node_deps(&m, shr));
+        }
+
+        assert_eq!(
+            prove_node_exact_value(&m, shr),
+            Some(0),
+            "narrow slices of wider cones must still participate in the exact-value proof that detects dynamic overshifts"
+        );
     }
 }

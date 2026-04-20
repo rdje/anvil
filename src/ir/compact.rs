@@ -32,8 +32,9 @@
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
 //!   peephole, which leaves the inner `Not` referenced only by the
-//!   outer `Not` call), and compacts the `m.nodes` arena to only the
-//!   reachable set.
+//!   outer `Not` call), drops dead flops whose `Q` is never reached
+//!   by the live graph, and compacts the `m.nodes` / `m.flops` arenas
+//!   to only the reachable set.
 //!
 //! The merge is intentionally conservative, not a general
 //! sequential-equivalence engine: it compares endpoint-preserving proof
@@ -50,11 +51,14 @@
 //!
 //! After `compact_node_ids(&mut m)`:
 //!
-//! - `m.nodes` contains only nodes reachable from some root (drive,
-//!   flop.d, flop.q, flop.mux field).
+//! - `m.nodes` contains only nodes reachable from some surviving
+//!   output drive-root.
 //! - Every `NodeId` in `m.nodes[*].operands`, `m.drives`, and the
 //!   `Flop` / `FlopMux` fields points to a valid index in the new
 //!   `m.nodes`.
+//! - `m.flops` contains only state elements whose `Q` is observed by
+//!   the retained graph, and virtual flop deps are remapped to the
+//!   compacted `FlopId` space.
 //! - The dedup tables (`gate_instances`, `const_instances`) are
 //!   rebuilt against the new `NodeId` space. Entries whose target
 //!   was unreachable are dropped; surviving entries reference the
@@ -511,6 +515,11 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
         return 0;
     }
 
+    removed -= prune_duplicate_introducing_add_mul_remaps(m, &mut node_remap);
+    if removed == 0 {
+        return 0;
+    }
+
     for node in &mut m.nodes {
         if let Node::Gate { operands, .. } = node {
             for operand in operands.iter_mut() {
@@ -750,6 +759,7 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
     }
 
     if !node_remap.is_empty() {
+        simplified -= prune_duplicate_introducing_add_mul_remaps(m, &mut node_remap);
         for node in &mut m.nodes {
             if let Node::Gate { operands, .. } = node {
                 for operand in operands.iter_mut() {
@@ -927,69 +937,60 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         return 0;
     }
 
-    // 1. Mark reachable nodes by BFS from every root. Roots are:
-    //    - `m.drives` (output drive-roots)
-    //    - every `Flop` field that holds a `NodeId`
-    //    The BFS body walks Gate operands recursively. Primary
-    //    inputs / constants / FlopQ nodes have no operands — they're
-    //    leaves and terminate the walk.
+    // 1. Mark reachable nodes by BFS from every output drive-root.
+    //    Gates recurse through operands. A `FlopQ` leaf is the bridge
+    //    into sequential state: once some live consumer reaches Q, the
+    //    owning flop becomes live and its D / mux metadata join the walk.
     let mut reachable = vec![false; n];
+    let mut reachable_flops = vec![false; m.flops.len()];
     let mut stack: Vec<NodeId> = Vec::new();
+    let mark_node = |id: NodeId, reachable: &mut [bool], stack: &mut Vec<NodeId>| {
+        if !reachable[id as usize] {
+            reachable[id as usize] = true;
+            stack.push(id);
+        }
+    };
 
     for (_, root) in &m.drives {
-        if !reachable[*root as usize] {
-            reachable[*root as usize] = true;
-            stack.push(*root);
-        }
+        mark_node(*root, &mut reachable, &mut stack);
     }
-    for flop in &m.flops {
-        if let Some(d) = flop.d {
-            if !reachable[d as usize] {
-                reachable[d as usize] = true;
-                stack.push(d);
+
+    while let Some(nid) = stack.pop() {
+        match &m.nodes[nid as usize] {
+            Node::Gate { operands, .. } => {
+                // Operands are u32 — copy to avoid borrow issues.
+                let ops: Vec<NodeId> = operands.clone();
+                for op in ops {
+                    mark_node(op, &mut reachable, &mut stack);
+                }
             }
-        }
-        if !reachable[flop.q as usize] {
-            reachable[flop.q as usize] = true;
-            stack.push(flop.q);
-        }
-        match &flop.mux {
-            FlopMux::None => {}
-            FlopMux::OneHot(arms) => {
-                for arm in arms {
-                    for nid in [arm.data, arm.sel] {
-                        if !reachable[nid as usize] {
-                            reachable[nid as usize] = true;
-                            stack.push(nid);
+            Node::FlopQ { flop, .. } => {
+                let flop_idx = *flop as usize;
+                if reachable_flops[flop_idx] {
+                    continue;
+                }
+                reachable_flops[flop_idx] = true;
+                let flop = &m.flops[flop_idx];
+                if let Some(d) = flop.d {
+                    mark_node(d, &mut reachable, &mut stack);
+                }
+                match &flop.mux {
+                    FlopMux::None => {}
+                    FlopMux::OneHot(arms) => {
+                        for arm in arms {
+                            mark_node(arm.data, &mut reachable, &mut stack);
+                            mark_node(arm.sel, &mut reachable, &mut stack);
+                        }
+                    }
+                    FlopMux::Encoded { sel, data } => {
+                        mark_node(*sel, &mut reachable, &mut stack);
+                        for d in data {
+                            mark_node(*d, &mut reachable, &mut stack);
                         }
                     }
                 }
             }
-            FlopMux::Encoded { sel, data } => {
-                if !reachable[*sel as usize] {
-                    reachable[*sel as usize] = true;
-                    stack.push(*sel);
-                }
-                for d in data {
-                    if !reachable[*d as usize] {
-                        reachable[*d as usize] = true;
-                        stack.push(*d);
-                    }
-                }
-            }
-        }
-    }
-
-    while let Some(nid) = stack.pop() {
-        if let Node::Gate { operands, .. } = &m.nodes[nid as usize] {
-            // Operands are u32 — copy to avoid borrow issues.
-            let ops: Vec<NodeId> = operands.clone();
-            for op in ops {
-                if !reachable[op as usize] {
-                    reachable[op as usize] = true;
-                    stack.push(op);
-                }
-            }
+            Node::PrimaryInput { .. } | Node::Constant { .. } => {}
         }
     }
 
@@ -1011,6 +1012,14 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         if reachable[old_id as usize] {
             old_to_new.insert(old_id, next_new_id);
             next_new_id += 1;
+        }
+    }
+    let mut old_flop_to_new: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
+    let mut next_new_flop: FlopId = 0;
+    for old_flop in 0..m.flops.len() {
+        if reachable_flops[old_flop] {
+            old_flop_to_new[old_flop] = next_new_flop;
+            next_new_flop += 1;
         }
     }
 
@@ -1037,17 +1046,21 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         let remapped = match node {
             Node::PrimaryInput { port, width } => Node::PrimaryInput { port, width },
             Node::Constant { width, value } => Node::Constant { width, value },
-            Node::FlopQ { flop, width } => Node::FlopQ { flop, width },
+            Node::FlopQ { flop, width } => Node::FlopQ {
+                flop: old_flop_to_new[flop as usize],
+                width,
+            },
             Node::Gate {
                 op,
                 operands,
                 width,
-                deps,
+                mut deps,
             } => {
                 let new_operands: Vec<NodeId> = operands
                     .into_iter()
                     .map(|o| remap(o, &old_to_new))
                     .collect();
+                deps.remap_flop_virtuals(&old_flop_to_new);
                 Node::Gate {
                     op,
                     operands: new_operands,
@@ -1065,10 +1078,19 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         *root = remap(*root, &old_to_new);
     }
 
-    // 6. Rewrite flops.
-    for flop in m.flops.iter_mut() {
-        rewrite_flop(flop, &old_to_new, &remap);
+    // 6. Rewrite flops, dropping any state element whose `Q` is not
+    //    reachable from a surviving output cone.
+    let old_flops = std::mem::take(&mut m.flops);
+    let mut new_flops: Vec<Flop> = Vec::with_capacity(next_new_flop as usize);
+    for (old_flop, mut flop) in old_flops.into_iter().enumerate() {
+        if !reachable_flops[old_flop] {
+            continue;
+        }
+        flop.id = old_flop_to_new[old_flop];
+        rewrite_flop(&mut flop, &old_to_new, &remap);
+        new_flops.push(flop);
     }
+    m.flops = new_flops;
 
     // 7. Rebuild dedup tables against the new NodeId space. Drop
     //    entries whose target was unreachable; remap surviving ones.
@@ -1168,6 +1190,67 @@ fn rewrite_node_id_if_mapped(id: &mut NodeId, map: &HashMap<NodeId, NodeId>) {
     }
 }
 
+fn prune_duplicate_introducing_add_mul_remaps(
+    m: &Module,
+    node_remap: &mut HashMap<NodeId, NodeId>,
+) -> u32 {
+    if node_remap.is_empty() || m.operand_duplication_rate >= 1.0 {
+        return 0;
+    }
+
+    let mut pruned = 0u32;
+    loop {
+        let mut offenders = BTreeSet::new();
+
+        for node in &m.nodes {
+            let Node::Gate { op, operands, .. } = node else {
+                continue;
+            };
+            if !matches!(op, GateOp::Add | GateOp::Mul) {
+                continue;
+            }
+
+            let mut positions_by_target: HashMap<NodeId, Vec<usize>> = HashMap::new();
+            for (idx, operand) in operands.iter().copied().enumerate() {
+                let target = node_remap.get(&operand).copied().unwrap_or(operand);
+                positions_by_target.entry(target).or_default().push(idx);
+            }
+
+            for (target, positions) in positions_by_target {
+                if positions.len() < 2 {
+                    continue;
+                }
+
+                let mut kept_target = false;
+                for pos in positions {
+                    let original = operands[pos];
+                    if original == target {
+                        kept_target = true;
+                        continue;
+                    }
+                    if kept_target {
+                        offenders.insert(original);
+                    } else {
+                        kept_target = true;
+                    }
+                }
+            }
+        }
+
+        if offenders.is_empty() {
+            break;
+        }
+
+        for offender in offenders {
+            if node_remap.remove(&offender).is_some() {
+                pruned += 1;
+            }
+        }
+    }
+
+    pruned
+}
+
 fn rebuild_instance_tables(m: &mut Module) {
     m.gate_instances.clear();
     m.const_instances.clear();
@@ -1206,7 +1289,7 @@ mod tests {
     use super::*;
     use crate::config::{FactorizationLevel, IdentityMode};
     use crate::ir::validate::validate;
-    use crate::ir::{DepSet, Direction, FlopKind, Port, ResetKind};
+    use crate::ir::{DepSet, Direction, Flop, FlopKind, FlopMux, Port, ResetKind};
 
     /// No-op on a clean IR: all nodes reachable, nothing compacted.
     /// Built at `FactorizationLevel::Cse` so fold rules don't
@@ -1346,6 +1429,53 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn compact_drops_flops_whose_q_is_never_observed() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::None,
+            ..Module::default()
+        };
+        m.outputs.push(Port {
+            id: 0,
+            name: "y".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 });
+        m.nodes.push(Node::FlopQ { flop: 1, width: 1 });
+        let zero = push_constant(&mut m, 1, 0);
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(zero),
+            q: 0,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 1,
+            d: Some(zero),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((0, 0));
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "only the dead flop Q node should be removed");
+        assert_eq!(m.flops.len(), 1, "unused state element should be pruned");
+        assert_eq!(m.flops[0].id, 0);
+        assert_eq!(m.flops[0].q, 0);
+        assert!(matches!(&m.nodes[0], Node::FlopQ { flop: 0, width: 1 }));
+        validate(&m).expect("compacting away dead flops must preserve IR validity");
     }
 
     #[test]
@@ -1688,6 +1818,43 @@ mod tests {
         assert!(matches!(
             &m.nodes[cmp as usize],
             Node::Constant { width: 1, value: 0 }
+        ));
+    }
+
+    #[test]
+    fn fold_proven_gates_revisits_dynamic_overshift_through_wide_slice() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let wide = push_primary(&mut m, 0, 9);
+        let slice = push_gate(&mut m, GateOp::Slice { hi: 7, lo: 0 }, vec![wide], 8);
+        let c26 = push_constant(&mut m, 8, 0x26);
+        let ceb = push_constant(&mut m, 8, 0xeb);
+        let or = push_gate(&mut m, GateOp::Or, vec![slice, c26, slice, ceb], 8);
+        let one = push_constant(&mut m, 1, 1);
+        let shl = push_gate(&mut m, GateOp::Shl, vec![or, one], 8);
+        let five = push_constant(&mut m, 8, 5);
+        let rhs = push_gate(&mut m, GateOp::Sub, vec![shl, five], 8);
+        let shr = push_gate(&mut m, GateOp::Shr, vec![shl, rhs], 8);
+        let sink = push_gate(&mut m, GateOp::Add, vec![shr, five], 8);
+        m.outputs.push(Port {
+            id: 1,
+            name: "o_0".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+        m.drives.push((1, sink));
+
+        assert!(fold_proven_gates(&mut m) > 0);
+        assert!(matches!(
+            &m.nodes[shr as usize],
+            Node::Constant { width: 8, value: 0 }
+        ));
+        assert!(matches!(
+            &m.nodes[sink as usize],
+            Node::Constant { width: 8, value: 5 }
         ));
     }
 

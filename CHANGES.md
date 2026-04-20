@@ -3,9 +3,115 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0093 — Extend exact proof shortcuts and restore associative normal form after remaps
+## 2026-04-20-0094 — Close wide-slice overshift proof gaps and prune dead state at finalisation
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice closes the next real downstream-cleanliness holes surfaced by
+the live warning hunt.
+
+### Exact-value proofs now survive narrow slices of wider cones
+
+- `src/gen/cone.rs` no longer gives up on `Slice` outputs just because
+  the source cone is wider than 8 bits.
+- For a narrow slice whose source set is unavailable, the small-set
+  helper now:
+  - uses an exact source value when one is already provable, or
+  - safely falls back to the full narrow output domain instead of
+    returning `None`.
+- That keeps exact-value reasoning alive for real shapes like:
+  - wide-input slice -> OR with forcing constants -> SHL ->
+    subtract-small-constant -> dynamic SHR
+  - where the result is still provably zero even though the leaf source
+    was wider than the small-set engine's direct domain.
+- Added regressions in `src/gen/cone.rs` and `src/ir/compact.rs` for the
+  real "dynamic overshift through a wide slice" pattern.
+
+### Final compaction now removes dead flops, not just dead nodes
+
+- `src/ir/compact.rs::compact_node_ids` now treats output drive-roots as
+  the primary liveness roots.
+- Live flops are discovered when a reachable `Node::FlopQ` is actually
+  consumed; reaching `Q` then pulls the owning flop's `d` and mux-held
+  nodes into the walk.
+- Unobserved flops are dropped from `m.flops`, `Node::FlopQ` backrefs
+  are renumbered into the compacted `FlopId` space, and gate dep-sets
+  remap virtual flop ids alongside node ids.
+- Added a regression proving that a flop whose `Q` is never observed is
+  removed during compaction.
+
+This closes the live Verilator `UNUSEDSIGNAL` leak where dead registers
+could survive purely because the old compaction BFS rooted every
+`flop.q` unconditionally.
+
+### Post-construction remaps now respect the strict Add/Mul duplicate policy
+
+- Added `prune_duplicate_introducing_add_mul_remaps(...)` in
+  `src/ir/compact.rs`.
+- `fold_proven_gates` and `merge_equivalent_gates` now prune candidate
+  node remaps that would create duplicate `NodeId`s inside a strict
+  `Add` or `Mul` operand list when `operand_duplication_rate < 1.0`.
+- This preserves the default doctrine tested by
+  `zero_duplicate_operands_at_default_knobs` even after late proof /
+  sharing passes collapse two equivalent child cones to one canonical
+  node.
+
+**Why**
+
+The real warning hunt exposed three important truths about the current
+implementation:
+
+1. a narrow output slice of a wider cone is still a narrow proof domain,
+   so exact-value reasoning must not bail out just because the source is
+   wide;
+2. "reachable sequential state" means "reachable from outputs through
+   actually-consumed `Q`s", not "every row in `m.flops` is live by
+   definition"; and
+3. late identity/remap passes are not allowed to silently violate the
+   default strict duplicate-operand contract for `Add` / `Mul`.
+
+All three were generator bugs, not downstream-tool quirks.
+
+**Validation**
+
+- `cargo test`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo test --test pipeline zero_duplicate_operands_at_default_knobs`
+- `cargo run --bin anvil -- --seed 0 --count 7 --out /tmp/anvil-seed0-relaxed-none-repro --construction-strategy interleaved --identity-mode relaxed --factorization-level none`
+  - `verilator --lint-only -Wall -Wno-DECLFILENAME /tmp/anvil-seed0-relaxed-none-repro/mod_0_0006.sv`
+    - exit 0, no warnings
+  - `yosys -p "read_verilog -sv /tmp/anvil-seed0-relaxed-none-repro/mod_0_0006.sv; synth -noabc; stat"`
+    - exit 0, no warnings
+
+**Impact**
+
+- The exact-proof layer can now prove some real downstream-cleanliness
+  facts through wide-source narrow slices that were previously invisible.
+- Dead sequential state no longer survives into emitted SV just because
+  it existed in the flop table.
+- The default strict duplicate-operand doctrine remains true even after
+  late proof and semantic-merge passes.
+- The live `seed=0 / interleaved / relaxed / none` repro that had been
+  carrying the overshift / unused-state investigation is now clean in
+  both Verilator and the repo-owned Yosys `synth -noabc` check.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/factorization.md`
+- `src/gen/cone.rs`
+- `src/ir/compact.rs`
+
+## 2026-04-20-0093 — Extend exact proof shortcuts and restore associative normal form after remaps
+
+**Landed as:** `cda8bd1`
 
 **What changed**
 
