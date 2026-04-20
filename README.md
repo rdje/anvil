@@ -103,7 +103,7 @@ Both should succeed on every generated file. A failure is a generator bug; file 
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` keeps the factorization ladder live, `relaxed` disables it.
 - `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.
-- Current scope: single-module combinational **and sequential** generation, DAG sharing default-on, factorization ladder live through `peephole`, no hierarchy yet. See `ROADMAP.md` for phase gating.
+- Current scope: single-module combinational **and sequential** generation, DAG sharing default-on, factorization ladder live through `peephole`, plus conservative exact-signature flop merging under `--identity-mode node-id` with effective level `>= cse`, no hierarchy yet. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

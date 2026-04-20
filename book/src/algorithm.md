@@ -54,6 +54,16 @@ generate_leaf_module(rng, knobs, index):
     # enqueue more flops.
     drain_flop_worklist(pool, worklist)
 
+    # Finalisation: drop construction-only mux operand metadata,
+    # merge exact duplicate flop state signatures when identity mode
+    # permits it, compact unreachable nodes, then trim dead input
+    # surface.
+    summarize_flop_mux_metadata(module)
+    merge_equivalent_flops(module)
+    compact_node_ids(module)
+    shrink_primary_inputs_to_live_width(module)
+    prune_unused_input_ports(module)
+
     return module
 ```
 

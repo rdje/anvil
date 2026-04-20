@@ -40,7 +40,7 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Not yet met:**
 local tools are now available and seed-level smoke checks pass, but
 the 1000-module Verilator+Yosys sweep has not been run yet. Internal
-validation (107 tests, unused-signal Verilator sweep over seeds 0..4
+validation (110 tests, unused-signal Verilator sweep over seeds 0..4
 for the default path and the `graph-first` alias, seed-42 Yosys
 synthesis) is clean.
 
@@ -50,6 +50,10 @@ synthesis) is clean.
 - Per-operand `share_prob` decision: recurse (tree) or reuse (DAG).
   Mixing is the default — a single gate's operands can freely combine
   shared and freshly-built sub-cones.
+- Under `identity_mode = node-id` with effective factorization level
+  `>= cse`, an exact-signature post-drain flop merge now extends sharing
+  to state elements too: duplicate flops with the same `width`, reset,
+  and `d` collapse to one register.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both

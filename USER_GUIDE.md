@@ -65,6 +65,7 @@ per-kind gate distribution, constant width/value distribution,
 mux shape (2-to-1 count, degenerate count), concat shape
 (replication vs heterogeneous), sharing (num shared nodes, max
 and average fanout), flop kind and mux-shape distribution,
+exact-signature flop-merge count (`flops_merged`),
 AST-instance saturation (`max_gate_ast_multiplicity`,
 `max_constant_ast_multiplicity` — relative to the
 `max_ast_instances` cap), and operand-arity distribution
@@ -99,6 +100,9 @@ shift. Examples:
 - Raising `flop_prob` should raise `num_flops` / `num_nodes`.
 - `identity_mode=relaxed` → gate count and AST multiplicity jump because
   the NodeId-identity ladder is disabled entirely.
+- Under `identity_mode=node-id`, equivalent exact-state flops can now
+  collapse too; `flops_merged` tells you how much sequential sharing
+  the post-drain pass found.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 
@@ -168,6 +172,14 @@ The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
 before emission, so the emitted module interface matches the live logic
 rather than the generator's provisional first draft.
+
+Under `identity_mode=node-id` with effective factorization level
+`>= cse`, finalisation also performs a conservative sequential-sharing
+pass: if two flops end up with the same exact emitted state semantics
+(`width`, reset, `d`), their Qs are unified before reachability
+compaction. This is intentionally exact-signature only; it does not yet
+prove deeper sequential equivalence such as isomorphic self-feedback
+loops.
 
 ## Output layout
 

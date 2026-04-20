@@ -87,8 +87,8 @@ src/
 │   │                 `operand_duplication_rate`,
 │   │                 `identity_mode`,
 │   │                 `factorization_level`), and live counters for
-│   │                 block-builds / factorization / compaction /
-│   │                 knob rolls.
+│   │                 block-builds / factorization / sequential-merge /
+│   │                 compaction / knob rolls.
 │   │                 API: intern_gate(op, operands, width, deps) →
 │   │                 (NodeId, is_new) and intern_constant(width,
 │   │                 value) → (NodeId, is_new). intern_gate runs the
@@ -100,13 +100,20 @@ src/
 │   │                 entirely.
 │   │                 Both methods emit `trace_verbose!` 🔗 new /
 │   │                 ♻️ reuse events.
-│   ├── compact.rs    Post-construction reachability compaction.
-│   │                 `compact_node_ids(&mut Module)` BFSes from
-│   │                 output drives + flop fields, drops unreachable
-│   │                 nodes, remaps every surviving NodeId holder, and
-│   │                 rebuilds dedup tables. Called from
-│   │                 `gen::module::generate_leaf_module`; removal count
-│   │                 is surfaced as `Metrics::nodes_compacted`.
+│   ├── compact.rs    Post-construction IR finalization helpers.
+│   │                 `merge_equivalent_flops(&mut Module)` is a
+│   │                 conservative post-drain state-sharing pass:
+│   │                 under `identity_mode = NodeId` with effective
+│   │                 level `>= Cse`, flops with identical exact
+│   │                 signatures (`width`, reset, `d`) collapse to one
+│   │                 state element and duplicate Q consumers are
+│   │                 rewired. `compact_node_ids(&mut Module)` BFSes
+│   │                 from output drives + flop fields, drops
+│   │                 unreachable nodes, remaps every surviving NodeId
+│   │                 holder, and rebuilds dedup tables. Called from
+│   │                 `gen::module::generate_leaf_module`; counts are
+│   │                 surfaced as `Metrics::flops_merged` and
+│   │                 `Metrics::nodes_compacted`.
 │   └── validate.rs   Module invariant checker: operand defined,
 │                     drive count == 1, flop D filled, dep-set non-empty,
 │                     per-gate arity + operand-width + output-width rules
@@ -128,12 +135,13 @@ src/
 │   │                 Drives recorded in declaration order regardless.
 │   │                 Finalisation after flop drain: summarize
 │   │                 `Flop.mux` metadata to drop dead operand refs,
+│   │                 merge exact-signature duplicate flops,
 │   │                 orphan audit before compaction,
 │   │                 `compact_node_ids`, post-compaction orphan audit,
 │   │                 shrink surviving primary inputs to the highest
 │   │                 live bit, then prune dead data-input ports from
-│   │                 the emitted surface. `m.nodes_compacted` records
-│   │                 the removal count.
+│   │                 the emitted surface. `m.flops_merged` and
+│   │                 `m.nodes_compacted` record the removal counts.
 │   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 build_outputs_interleaved, build_graph_first
@@ -272,8 +280,8 @@ main  →  lib  →  gen  →  ir
 | Phase | Status        | Code touched | Notes |
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | Historical scaffold landed; current HEAD builds/tests/lints/formats clean again (see Build hygiene). |
-| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; the emitted input surface is now trimmed to live ports/bits. Factorization ladder is live through Peephole. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
-| 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; final compaction cleans orphaned intermediates from these rewrites. |
+| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; the emitted input surface is now trimmed to live ports/bits. Factorization ladder is live through Peephole, with conservative exact-signature flop merging under `identity_mode = node-id`. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
+| 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; exact-signature duplicate flops now merge post-drain under `identity_mode = node-id`; final compaction cleans orphaned intermediates from these rewrites. |
 | 3 — Structured combinational | in progress  | `gen/cone.rs`, `ir/types.rs`, `emit/sv.rs`, `ir/validate.rs` | Priority-encoder block (Rule 17), combinational mux block (Rule 15), coefficient motif, const-shift motif, const-comparand motif, and reduction-category gate picking landed. Generic Slice/Concat remain non-pickable helper shapes (width-adapter / block assembly only); case/casez, variable shifts, and loop-unrolled logic are not started. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
@@ -282,7 +290,7 @@ main  →  lib  →  gen  →  ir
 ## Invariants currently enforced
 
 In code (constructors / generator):
-- `Module::intern_gate` / `intern_constant` enforce the currently-implemented factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `identity_mode = Relaxed` forces the effective level to `None`; `identity_mode = NodeId` uses `FactorizationLevel::effective()`, which currently clamps aspirational levels to `Peephole`.
+- `Module::intern_gate` / `intern_constant` enforce the currently-implemented combinational factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `identity_mode = Relaxed` forces the effective level to `None`; `identity_mode = NodeId` uses `FactorizationLevel::effective()`, which currently clamps aspirational levels to `Peephole`.
 - `Config::validate()` rejects out-of-range knobs.
 - `Generator::new()` seeds RNG deterministically.
 - `gen::module::generate_leaf_module` produces port counts within knob ranges.
@@ -290,7 +298,8 @@ In code (constructors / generator):
 - `gen::cone::build_cone` snapshots the same state before operand construction. On anti-collapse rejection, restores the snapshot and returns `pick_terminal` as fallback. No orphan leaks from rejected recursive gates.
 - `gen::cone::process_signal_frame` (interleaved) uses an existing operand as anti-collapse fallback (not `pick_terminal`) because per-gate snapshot is infeasible once sibling frames have committed.
 - `gen::module::summarize_flop_mux_metadata` clears construction-only mux operand references once `flop.d` exists, so metadata-only select/data cones do not survive liveness/compaction.
-- `gen::module::generate_leaf_module` runs `count_orphan_gates(m)` before compaction as a Rule 18 safety-net audit, then `compact_node_ids`, then a second orphan audit; `m.nodes_compacted` records the number of removed nodes.
+- `ir::compact::merge_equivalent_flops` is the first stateful extension of the NodeId-as-identity contract. It runs after D-cones exist, only under `identity_mode = NodeId` with effective level `>= Cse`, and merges flops by exact emitted-state signature: `width`, `reset_kind`, `reset_val`, `d`. It rewires duplicate Q consumers, remaps virtual flop deps, renumbers surviving flops, and rebuilds dedup tables. It is exact-signature only, not coinductive sequential equivalence.
+- `gen::module::generate_leaf_module` runs `count_orphan_gates(m)` after the merge / before compaction as a Rule 18 safety-net audit, then `compact_node_ids`, then a second orphan audit; `m.flops_merged` and `m.nodes_compacted` record the numbers of removed duplicates / unreachable nodes.
 - `gen::module::shrink_primary_inputs_to_live_width` reduces each surviving primary input to the highest bit any live consumer touches; `prune_unused_input_ports` removes data-input ports with no surviving `PrimaryInput` node.
 - `gen::cone::pick_terminal` prefers matching-width pool entries with non-empty deps; on no width-match, builds a width-adapter (`make_width_adapter`) from the widest dep-bearing pool entry; only emits a constant when the entire pool has empty deps.
 - `gen::cone::build_cone` consults `cfg.share_prob` per operand: with that probability it calls `try_share` to return an existing matching-width pool entry (with deps, honoring `exclude`); otherwise it recurses. Fresh `Gate` nodes enter the pool on creation, so later operand decisions in the same call chain can share them.
@@ -329,9 +338,9 @@ In `ir::validate::validate`:
 - `src/gen/module.rs` — 2 inline unit tests covering primary-input width shrinking and the "do not shrink full-width non-slice uses" guard.
 - `src/emit/sv.rs` — 6 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
-- `src/ir/compact.rs` — 3 inline unit tests for no-op compaction, orphan removal, and topological-order preservation.
+- `src/ir/compact.rs` — 6 inline unit tests for exact-signature flop merge (consumer + dep rewrite, relaxed-mode bypass, reset-signature separation) plus no-op compaction, orphan removal, and topological-order preservation.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **83 unit + 24 integration = 107 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-20): **86 unit + 24 integration = 110 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test` yet. Phase 1 exit gate remains blocked on running the larger sweeps, not on tool availability.
 
 ## Known weaknesses (visible in code today)
@@ -341,7 +350,7 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (107 passing tests: 83 unit + 24 integration).
+- `cargo test` — clean (110 passing tests: 86 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.

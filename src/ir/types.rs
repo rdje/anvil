@@ -13,6 +13,8 @@ pub type PortId = u32;
 pub type NodeId = u32;
 pub type FlopId = u32;
 
+const FLOP_VIRTUAL_TAG: u32 = 0x8000_0000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     In,
@@ -130,6 +132,14 @@ pub struct Module {
     /// `Not` reachable only via a now-collapsed outer call.
     /// Surfaced via `Metrics::nodes_compacted`.
     pub nodes_compacted: u32,
+
+    /// Number of duplicate flops merged away during the
+    /// post-drain exact-signature state-sharing pass. Once D-cones
+    /// exist, flops with identical emitted state semantics
+    /// (`width`, reset, `d`) collapse to one state element when
+    /// the effective factorization level is at least `Cse`.
+    /// Surfaced via `Metrics::flops_merged`.
+    pub flops_merged: u32,
 
     /// Number of times the `Associative` factorization layer fired
     /// during construction of this module. Each fire is one
@@ -1417,7 +1427,7 @@ impl GateOp {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ResetKind {
     None,
     Sync,
@@ -1492,7 +1502,7 @@ impl DepSet {
         // Virtual ids live in a disjoint numeric space from port ids.
         // We tag flop virtual ids with the high bit set.
         let mut s = BTreeSet::new();
-        s.insert(0x8000_0000 | flop);
+        s.insert(FLOP_VIRTUAL_TAG | flop);
         Self { set: s }
     }
 
@@ -1514,6 +1524,27 @@ impl DepSet {
 
     pub fn contains(&self, id: u32) -> bool {
         self.set.contains(&id)
+    }
+
+    /// Rewrite virtual flop ids after a flop merge / renumbering
+    /// pass. Primary-input deps are left untouched; virtual flop
+    /// deps are remapped through the provided old-id → new-id
+    /// table and deduplicated naturally by the set.
+    pub(crate) fn remap_flop_virtuals(&mut self, old_to_new: &[FlopId]) {
+        let mut next = BTreeSet::new();
+        for id in self.set.iter().copied() {
+            if (id & FLOP_VIRTUAL_TAG) != 0 {
+                let old = (id & !FLOP_VIRTUAL_TAG) as usize;
+                let new = old_to_new
+                    .get(old)
+                    .copied()
+                    .unwrap_or(id & !FLOP_VIRTUAL_TAG);
+                next.insert(FLOP_VIRTUAL_TAG | new);
+            } else {
+                next.insert(id);
+            }
+        }
+        self.set = next;
     }
 }
 

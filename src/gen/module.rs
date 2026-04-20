@@ -167,6 +167,15 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // metadata-only cones do not survive into emitted SV.
     summarize_flop_mux_metadata(&mut m);
 
+    // Exact-signature sequential sharing pass: once every flop has a
+    // concrete D-cone, `identity_mode = node-id` can conservatively
+    // merge duplicate state elements whose emitted semantics are the
+    // same (`width`, reset, `d`). This is the first stateful
+    // extension of the NodeId-as-identity story; duplicates become
+    // dead Q nodes that the compaction pass below removes.
+    let flops_merged = crate::ir::compact::merge_equivalent_flops(&mut m);
+    m.flops_merged = flops_merged;
+
     // Safety-net claimed-set audit (Rule 18): demand-driven
     // construction should leave zero orphan gates, but if the snapshot/
     // rollback in build_cone or the frame machine in build_outputs_
@@ -210,6 +219,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     info!(
         nodes = m.nodes.len(),
         flops = m.flops.len(),
+        flops_merged,
         drives = m.drives.len(),
         orphans,
         compacted,

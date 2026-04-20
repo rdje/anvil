@@ -3,9 +3,139 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-20-0077 — Make identity mode a first-class typed axis
+## 2026-04-20-0078 — Extend NodeId identity to exact-signature flops
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice extends the `node-id` identity story from purely
+combinational nodes into the first conservative sequential case:
+duplicate flops.
+
+### Post-drain exact-signature flop merge now runs at module finalisation
+
+- Added `crate::ir::compact::merge_equivalent_flops(&mut Module) ->
+  u32`.
+- The pass runs only when:
+  - `identity_mode = node-id`; and
+  - the effective factorization level is at least `cse`.
+- It executes after `drain_flop_worklist` and after
+  `summarize_flop_mux_metadata`, when every flop finally has a
+  concrete `d`.
+- Flops merge when they have the same exact emitted-state
+  signature:
+  - `width`
+  - `reset_kind`
+  - `reset_val`
+  - exact same `d: NodeId`
+
+### The merge rewires state consumers, not just the flop table
+
+- Duplicate Q users are rewritten to the canonical Q.
+- Virtual flop deps inside `DepSet` are remapped through the
+  old-flop-id -> new-flop-id table, so dependency tracking stays
+  truthful after the merge.
+- Surviving flops are renumbered densely; their `Flop.id` and
+  `Node::FlopQ { flop, .. }` references are kept in sync.
+- Dedup tables are rebuilt after the rewrite so the final module
+  metadata matches the post-merge IR.
+- The later `compact_node_ids` pass then removes the now-dead
+  duplicate `FlopQ` nodes.
+
+### Construction-only flop provenance is intentionally ignored
+
+- The signature does **not** include `FlopKind`.
+- The signature does **not** include `FlopMux` operand metadata.
+- Rationale: by the time this pass runs, emitted hardware
+  semantics are determined by width/reset/D. `FlopKind` and the
+  cleared mux operands are construction provenance / telemetry,
+  not emitted behavior.
+- This means a `ZeroDefault`-born flop and a `QFeedback`-born
+  flop can merge if they ended up with the same actual `d`.
+
+### New telemetry surfaced the state-sharing result
+
+- Added `Module::flops_merged: u32`.
+- Added `Metrics::flops_merged: u32`.
+- `generate_leaf_module` now records the merge count and logs it
+  alongside node/flop/compaction totals.
+
+### Tests and docs were updated to match the new semantics
+
+- `src/ir/compact.rs` gained three merge-specific unit tests:
+  - merge rewrites gate operands and virtual deps correctly;
+  - `identity_mode = relaxed` bypasses the pass;
+  - different reset signatures do not merge.
+- Existing compaction tests remain intact.
+- The live docs and book now state the important nuance
+  explicitly:
+  combinational factorization is mainly intern-time, but stateful
+  exact-signature sharing is a post-drain finalisation step.
+
+**Why**
+
+The previous slice made identity mode a real typed axis, but the
+stateful side still had a visible hole: `build_flop_leaf` always
+allocated a fresh flop, so "NodeId is the identity of an
+expression" silently stopped at registers.
+
+There is no honest way to solve that at allocation time because a
+flop's semantics are not known when its Q is born; the D-cone only
+exists after the worklist drains. So the right next step was a
+conservative post-drain pass that merges the cases we can prove
+exactly today without pretending to solve general sequential
+equivalence.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test` (86 unit + 24 integration = 110 passing tests)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- `identity_mode = node-id` now reaches one level deeper into the
+  sequential fabric: exact duplicate state elements can share one
+  identity too.
+- The project now has a clean architectural split:
+  - combinational identity at intern time;
+  - conservative state identity after drain.
+- `flops_merged` makes the new behavior measurable, so future
+  stateful-factorization work has a baseline.
+- The remaining gap is clear and documented: deeper sequential
+  equivalence still needs a stronger coinductive / e-graph-style
+  story.
+
+**Files touched**
+
+- `src/ir/types.rs`
+- `src/ir/compact.rs`
+- `src/gen/module.rs`
+- `src/metrics.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `book/src/algorithm.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `book/src/faq.md`
+- `book/src/ir.md`
+- `book/src/knobs.md`
+- `book/src/non-triviality.md`
+- `book/src/sequential.md`
+- `book/src/sharing.md`
+- `book/src/structural-rules.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-04-20-0077 — Make identity mode a first-class typed axis
+
+**Landed as:** `033e03d`
 
 **What changed**
 

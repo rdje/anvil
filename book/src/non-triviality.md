@@ -112,6 +112,11 @@ time, and fully-constant comparisons / full-width slices /
 single-operand concats get rewritten away before landing as
 literal gates.
 
+Sequential state now gets one conservative extra layer after drain:
+under `identity_mode = node-id` with effective level `>= cse`,
+flops with identical exact emitted-state signatures (`width`,
+reset, `d`) are merged too.
+
 NodeId compaction is a post-construction pass that walks from
 roots and drops any gate that no longer has a consumer. It's
 the infrastructure piece that lets rewrites such as

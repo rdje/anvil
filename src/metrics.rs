@@ -177,6 +177,11 @@ pub struct Metrics {
     /// gate unreferenced. Sourced from `Module::nodes_compacted`.
     pub nodes_compacted: u32,
 
+    /// Number of duplicate flops merged away by the post-drain
+    /// exact-signature state-sharing pass. Sourced from
+    /// `Module::flops_merged`.
+    pub flops_merged: u32,
+
     /// Number of times the `Associative` factorization layer
     /// fired during construction. Each fire is one `intern_gate`
     /// call on an associative op where at least one same-op
@@ -379,6 +384,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.fold_identities_applied = m.fold_identities_applied;
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
     out.nodes_compacted = m.nodes_compacted;
+    out.flops_merged = m.flops_merged;
     out.flatten_associative_applied = m.flatten_associative_applied;
 
     // Per-knob attempt/fire counters. Convert enum keys to strings
@@ -555,11 +561,13 @@ mod tests {
             mux: FlopMux::OneHot(vec![]),
         });
         m.nodes.push(Node::Constant { width: 4, value: 0 });
+        m.flops_merged = 1;
         let met = compute(&m);
         assert_eq!(met.num_flops, 2);
         assert_eq!(met.flops_zero_default, 1);
         assert_eq!(met.flops_qfeedback, 1);
         assert_eq!(met.flops_mux_none, 1);
         assert_eq!(met.flops_mux_one_hot, 1);
+        assert_eq!(met.flops_merged, 1);
     }
 }

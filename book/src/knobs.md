@@ -231,7 +231,8 @@ instead of creating fresh logic.
 
 - `identity_mode` — coarse NodeId semantics switch:
   - `node-id` (default): NodeId means expression identity, so the
-    factorization ladder stays live.
+    factorization ladder stays live, including the post-drain
+    exact-signature flop merge.
   - `relaxed`: disable the ladder entirely; every
     `intern_gate` / `intern_constant` call allocates a fresh
     `NodeId` even if `factorization_level` requests more.
@@ -497,8 +498,8 @@ which are bugs worth investigating.
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
 | `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
 | `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
-| `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, and `num_gates`: `relaxed` disables the ladder entirely, so multiplicities and raw gate count rise sharply |
-| `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `peephole`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands |
+| `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, `num_gates`, and `flops_merged`: `relaxed` disables the ladder entirely, so multiplicities rise, raw gate count rises, and sequential exact-signature merging drops to 0 |
+| `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `peephole`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future

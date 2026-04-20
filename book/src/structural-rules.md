@@ -662,7 +662,7 @@ e-graph layer.
 | Level          | Enables                                                            |
 |----------------|--------------------------------------------------------------------|
 | `none`         | Nothing. Every `intern_gate` / `intern_constant` creates a fresh NodeId. |
-| `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. |
+| `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. Also enables the post-drain exact-signature flop merge: under `identity_mode = node-id`, flops with the same `width`, reset, and exact same `d` collapse to one state element. Construction-only provenance (`FlopKind`, cleared mux operand metadata) is ignored once `d` exists. Fires counted in `Metrics::flops_merged`. |
 | `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
 | `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |
 | `associative`  | + Associative flattening at intern time: any `And`/`Or`/`Xor`/`Add`/`Mul` operand that is itself a same-op same-width gate is spliced into the outer operand list (`Add(a, Add(b, c)) → Add(a, b, c)`). Per-op semantic normalisation after the splice: `And`/`Or` dedup (`a & a = a`), `Xor` pair-cancel (`a ^ a = 0`), `Add`/`Mul` skip the flatten when it would produce duplicates (preserves `x + x = 2x` / `x * x = x²` under strict `operand_duplication_rate`). Inner gates orphaned by the splice are cleaned up by `compact_node_ids` at module finalisation. Fires counted in `Metrics::flatten_associative_applied`; residual nesting in `Metrics::nested_associative_operand_count` is zero at default knobs. |

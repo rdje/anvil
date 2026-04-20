@@ -23,10 +23,12 @@ The perfect version of this is the e-graph problem — proving
 semantic equivalence of arbitrary RTL trees — which nobody has
 solved completely. So anvil climbs a ladder of approximations.
 Each rung catches a specific class of "same expression, different
-syntax" cases and collapses them to a shared `NodeId` at intern
-time.
+syntax" cases and collapses them to a shared `NodeId`. For
+combinational nodes that mostly happens at intern time. For state,
+there is one conservative post-drain pass: once flop D-cones are
+known, exact duplicate state signatures are merged.
 
-Why at intern time and not as a post-pass? Two reasons:
+Why mostly at intern time and not as a post-pass? Three reasons:
 
 1. **Rule-based generation** doctrine — we never materialise a
    gate and then filter it out, because the construction-time
@@ -36,6 +38,10 @@ Why at intern time and not as a post-pass? Two reasons:
    in the seed: the same input RNG path produces the same
    factorized output. Post-hoc passes that work over `m.nodes`
    would need their own determinism story.
+3. **State is a real exception** — a flop's identity is not fully
+   knowable when `build_flop_leaf` allocates its Q. Its semantics
+   only become concrete once the worklist later builds `d`, so the
+   current stateful sharing rule necessarily runs after drain.
 
 ## The ladder
 
@@ -216,6 +222,31 @@ Rule 21 directly. Everything above it exists to make sure
 syntactically-different-but-semantically-equivalent expressions
 both land on the same dedup key.
 
+### 7. Post-drain exact-state flop merge (`identity_mode = node-id`, effective `>= Cse`)
+
+`intern_gate` only sees combinational nodes. Flops are born before
+their D-cones exist, so their identity cannot be decided at birth.
+After `drain_flop_worklist` finishes, `generate_leaf_module` runs
+[`crate::ir::compact::merge_equivalent_flops`].
+
+The current signature is intentionally conservative:
+
+- same `width`
+- same `reset_kind`
+- same `reset_val`
+- same exact `d: NodeId`
+
+If those match, every consumer of the duplicate Q is rewired to the
+canonical Q, virtual flop deps are remapped, surviving flops are
+renumbered densely, and the later compaction pass drops the now-dead
+duplicate Q nodes.
+
+What it deliberately does **not** do yet:
+
+- prove graph isomorphism across D-cones;
+- normalize self-feedback by Q-renaming;
+- merge wider sequentially-equivalent machines.
+
 ## Orphan safety: the compaction pass
 
 Layers 1, 3, and 4 can leave gates unreferenced. When
@@ -224,9 +255,11 @@ the inner `Not` was already materialised and is now held by
 nobody. Rule 18 (zero orphan gates) would fail.
 
 To resolve this, `src/gen/module.rs` calls
+[`crate::ir::compact::merge_equivalent_flops`] and then
 [`crate::ir::compact::compact_node_ids`] at the end of
 `generate_leaf_module`, after all cones and flop D-cones are
-built. The pass:
+built. `merge_equivalent_flops` is the conservative stateful
+sharing step; `compact_node_ids` then:
 
 1. BFS from all roots (output drives, flop fields).
 2. Marks reachable nodes.
@@ -252,6 +285,7 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 | Associative | `flatten_associative_applied: u64` | `Metrics::flatten_associative_applied` |
 | ConstantFold | `fold_identities_applied: u64` | `Metrics::fold_identities_applied` |
 | Peephole | `peephole_rewrites_applied: u64` | `Metrics::peephole_rewrites_applied` |
+| Flop merge | `flops_merged: u32` | `Metrics::flops_merged` |
 | Compaction | `nodes_compacted: u32` | `Metrics::nodes_compacted` |
 
 Plus a structural post-construction metric:

@@ -127,6 +127,12 @@ entry (early cut-off, smaller sub-cone); CSE controls whether
 logically-identical sub-cones share identity (same-op same-operand
 dedup, no cut-off). They compose.
 
+State gets one extra conservative layer after drain: under
+`identity_mode = node-id` with effective level `>= cse`, flops with
+the same exact emitted-state signature (`width`, reset, `d`) are
+merged too. That is post-drain rather than intern-time because a
+flop's D is not known when its Q is first allocated.
+
 See [Rule 21 (AST-instance cap)](structural-rules.md) and
 [Rule 21b (commutative normalization)](structural-rules.md) for the
 full factorization-ladder framing.

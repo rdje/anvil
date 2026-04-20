@@ -1,4 +1,4 @@
-//! Post-construction NodeId compaction.
+//! Post-construction IR finalization passes.
 //!
 //! Rule 18 says zero orphan gates at the end of construction — every
 //! gate must have at least one consumer (another gate's operand, a
@@ -7,17 +7,29 @@
 //! `process_signal_frame`'s existing-operand fallback. That keeps
 //! the IR Rule-18-clean without any post-pass.
 //!
-//! This module adds a defensive final pass that walks from roots,
-//! identifies any node that became orphaned by a construction-time
-//! rewrite (e.g. the `Not(Not(x)) → x` peephole, which leaves the
-//! inner `Not` referenced only by the outer `Not` call), and
-//! compacts the `m.nodes` arena to only the reachable set.
+//! This module houses two post-construction passes:
 //!
-//! The pass is idempotent and a no-op when there are no orphans.
-//! It exists primarily to unblock rewrites that would otherwise
-//! orphan intermediate gates. Without the pass those rewrites would
-//! have to be suppressed to stay Rule-18-clean (as they were before
-//! this module).
+//! - `merge_equivalent_flops(&mut m)`: a conservative stateful
+//!   sharing pass that runs only once flop D-cones exist. Under
+//!   `identity_mode = node-id` with effective factorization level
+//!   at least `Cse`, flops with the same emitted state semantics
+//!   (`width`, reset, `d`) are collapsed to one state element.
+//! - `compact_node_ids(&mut m)`: a defensive reachability pass that
+//!   walks from roots, identifies any node that became orphaned by a
+//!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
+//!   peephole, which leaves the inner `Not` referenced only by the
+//!   outer `Not` call), and compacts the `m.nodes` arena to only the
+//!   reachable set.
+//!
+//! The merge is intentionally exact-signature, not a general
+//! sequential-equivalence engine: it does not try to prove
+//! coinductive equalities like two self-feedback flops whose D-cones
+//! are merely isomorphic under Q-renaming. The compaction pass is
+//! idempotent and a no-op when there are no orphans. It exists
+//! primarily to unblock rewrites that would otherwise orphan
+//! intermediate gates. Without it those rewrites would have to be
+//! suppressed to stay Rule-18-clean (as they were before this
+//! module).
 //!
 //! ## Guarantees
 //!
@@ -39,12 +51,143 @@
 //!
 //! ## Non-goals
 //!
-//! This pass does NOT merge semantically equivalent expressions —
-//! that's the full factorization ladder's job (Rule 21 / 21b / 21c).
-//! Compaction is strictly about removing unreachable nodes.
+//! `merge_equivalent_flops` is not a general sequential-equality
+//! prover, and `compact_node_ids` is not a semantic merge at all.
+//! Wider semantic equivalence across arbitrary gate trees and
+//! stateful motifs remains the e-graph aspiration (Rule 21c).
 
-use super::types::{Flop, FlopMux, GateOp, Module, Node, NodeId};
+use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, ResetKind};
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct FlopSignature {
+    width: u32,
+    d: NodeId,
+    reset_val: u128,
+    reset_kind: ResetKind,
+}
+
+/// Merge duplicate flops after every D-cone is known.
+///
+/// This is the first conservative stateful extension of the
+/// NodeId-as-identity doctrine: a flop's identity cannot be decided
+/// at birth because its semantics are not known until the worklist
+/// finishes building `d`. After that point, if two flops have the
+/// same exact emitted state signature (`width`, reset, `d`), every
+/// consumer of the duplicate Q can safely be redirected to the
+/// canonical Q.
+///
+/// The pass is gated by the effective identity mode:
+///
+/// - `identity_mode = relaxed` or effective level `None` => no merge.
+/// - `identity_mode = node-id` and effective level `>= Cse` => exact
+///   signature merge is enabled.
+///
+/// The merge is intentionally conservative:
+///
+/// - compares exact `d: NodeId`, not graph isomorphism;
+/// - ignores construction-only provenance (`FlopKind`, cleared
+///   `FlopMux` operands) once `d` exists;
+/// - preserves first occurrence as canonical.
+///
+/// Returns the number of removed duplicate flops.
+pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
+    use crate::config::{FactorizationLevel, IdentityMode};
+
+    if m.flops.len() < 2 {
+        return 0;
+    }
+    if m.identity_mode != IdentityMode::NodeId
+        || m.effective_factorization_level() < FactorizationLevel::Cse
+    {
+        return 0;
+    }
+
+    let mut canonical_by_sig: HashMap<FlopSignature, FlopId> = HashMap::new();
+    let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
+    let mut removed = 0u32;
+
+    for flop in &m.flops {
+        let Some(d) = flop.d else {
+            return 0;
+        };
+        let sig = FlopSignature {
+            width: flop.width,
+            d,
+            reset_val: flop.reset_val,
+            reset_kind: flop.reset_kind,
+        };
+        if let Some(&canonical_old) = canonical_by_sig.get(&sig) {
+            old_to_canonical_old[flop.id as usize] = canonical_old;
+            removed += 1;
+        } else {
+            canonical_by_sig.insert(sig, flop.id);
+        }
+    }
+
+    if removed == 0 {
+        return 0;
+    }
+
+    let mut old_to_new: Vec<FlopId> = vec![0; m.flops.len()];
+    let mut next_new: FlopId = 0;
+    for old in 0..m.flops.len() as FlopId {
+        if old_to_canonical_old[old as usize] == old {
+            old_to_new[old as usize] = next_new;
+            next_new += 1;
+        }
+    }
+    for old in 0..m.flops.len() as FlopId {
+        let canonical_old = old_to_canonical_old[old as usize];
+        old_to_new[old as usize] = old_to_new[canonical_old as usize];
+    }
+
+    let mut q_node_remap: HashMap<NodeId, NodeId> = HashMap::new();
+    for old in 0..m.flops.len() as FlopId {
+        let canonical_old = old_to_canonical_old[old as usize];
+        if canonical_old != old {
+            q_node_remap.insert(m.flops[old as usize].q, m.flops[canonical_old as usize].q);
+        }
+    }
+
+    let old_flops = std::mem::take(&mut m.flops);
+    let mut new_flops: Vec<Flop> = Vec::with_capacity(old_flops.len() - removed as usize);
+    for mut flop in old_flops {
+        let old = flop.id as usize;
+        if old_to_canonical_old[old] != flop.id {
+            continue;
+        }
+        flop.id = old_to_new[old];
+        rewrite_flop_from_partial_map(&mut flop, &q_node_remap);
+        new_flops.push(flop);
+    }
+    m.flops = new_flops;
+
+    for node in &mut m.nodes {
+        match node {
+            Node::PrimaryInput { .. } | Node::Constant { .. } => {}
+            Node::FlopQ { flop, .. } => {
+                *flop = old_to_new[*flop as usize];
+            }
+            Node::Gate { operands, deps, .. } => {
+                for operand in operands.iter_mut() {
+                    rewrite_node_id_if_mapped(operand, &q_node_remap);
+                }
+                deps.remap_flop_virtuals(&old_to_new);
+            }
+        }
+    }
+
+    for (_, root) in &mut m.drives {
+        rewrite_node_id_if_mapped(root, &q_node_remap);
+    }
+    for flop in &mut m.flops {
+        rewrite_flop_from_partial_map(flop, &q_node_remap);
+    }
+
+    rebuild_instance_tables(m);
+    removed
+}
 
 /// Compact `m.nodes` to only the nodes reachable from some root.
 /// Returns the number of nodes removed (useful for the
@@ -270,10 +413,73 @@ fn rewrite_flop(
     }
 }
 
+fn rewrite_flop_from_partial_map(flop: &mut Flop, map: &HashMap<NodeId, NodeId>) {
+    if let Some(d) = flop.d.as_mut() {
+        rewrite_node_id_if_mapped(d, map);
+    }
+    rewrite_node_id_if_mapped(&mut flop.q, map);
+    match &mut flop.mux {
+        FlopMux::None => {}
+        FlopMux::OneHot(arms) => {
+            for arm in arms {
+                rewrite_node_id_if_mapped(&mut arm.data, map);
+                rewrite_node_id_if_mapped(&mut arm.sel, map);
+            }
+        }
+        FlopMux::Encoded { sel, data } => {
+            rewrite_node_id_if_mapped(sel, map);
+            for d in data.iter_mut() {
+                rewrite_node_id_if_mapped(d, map);
+            }
+        }
+    }
+}
+
+fn rewrite_node_id_if_mapped(id: &mut NodeId, map: &HashMap<NodeId, NodeId>) {
+    if let Some(&new_id) = map.get(id) {
+        *id = new_id;
+    }
+}
+
+fn rebuild_instance_tables(m: &mut Module) {
+    m.gate_instances.clear();
+    m.const_instances.clear();
+
+    let nodes = &m.nodes;
+    let gate_instances = &mut m.gate_instances;
+    let const_instances = &mut m.const_instances;
+
+    for (id, node) in nodes.iter().enumerate() {
+        let node_id = id as NodeId;
+        match node {
+            Node::PrimaryInput { .. } | Node::FlopQ { .. } => {}
+            Node::Constant { width, value } => {
+                const_instances
+                    .entry((*width, *value))
+                    .or_default()
+                    .push(node_id);
+            }
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } => {
+                gate_instances
+                    .entry((*op, operands.clone(), *width))
+                    .or_default()
+                    .push(node_id);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{DepSet, Direction, Port};
+    use crate::config::{FactorizationLevel, IdentityMode};
+    use crate::ir::validate::validate;
+    use crate::ir::{DepSet, Direction, FlopKind, Port, ResetKind};
 
     /// No-op on a clean IR: all nodes reachable, nothing compacted.
     /// Built at `FactorizationLevel::Cse` so fold rules don't
@@ -415,6 +621,59 @@ mod tests {
         }
     }
 
+    #[test]
+    fn merge_equivalent_flops_rewrites_consumers_and_deps() {
+        let mut m =
+            exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 0);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.flops.len(), 1);
+        assert_eq!(m.flops_merged, 0, "pass returns count; caller records it");
+
+        let Node::Gate { operands, deps, .. } = &m.nodes[3] else {
+            panic!("drive root should still be the add gate");
+        };
+        assert_eq!(operands, &vec![1, 1]);
+        assert_eq!(deps.len(), 1, "virtual flop deps should coalesce");
+        assert!(deps.contains(0x8000_0000));
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "duplicate FlopQ should become unreachable");
+        validate(&m).expect("merged module should still validate");
+        assert_eq!(m.flops[0].id, 0);
+        assert_eq!(m.flops[0].q, 1);
+        match &m.nodes[1] {
+            Node::FlopQ { flop, width } => {
+                assert_eq!((*flop, *width), (0, 8));
+            }
+            other => panic!("expected surviving canonical FlopQ, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn merge_equivalent_flops_respects_relaxed_identity() {
+        let mut m =
+            exact_signature_flop_fixture(IdentityMode::Relaxed, FactorizationLevel::EGraph, 0, 0);
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.flops.len(), 2);
+        let Node::Gate { operands, deps, .. } = &m.nodes[3] else {
+            panic!("fixture root should be an add gate");
+        };
+        assert_eq!(operands, &vec![1, 2]);
+        assert_eq!(deps.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_distinct_reset_signatures() {
+        let mut m =
+            exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 1);
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.flops.len(), 2);
+    }
+
     fn count_orphan_gates(m: &Module) -> usize {
         let n = m.nodes.len();
         let mut used = vec![false; n];
@@ -454,5 +713,66 @@ mod tests {
             .enumerate()
             .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
             .count()
+    }
+
+    fn exact_signature_flop_fixture(
+        identity_mode: IdentityMode,
+        factorization_level: FactorizationLevel,
+        reset0: u128,
+        reset1: u128,
+    ) -> Module {
+        let mut m = Module {
+            name: "f".into(),
+            identity_mode,
+            factorization_level,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 8,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 2
+        m.nodes.push(Node::Gate {
+            op: GateOp::Add,
+            operands: vec![1, 2],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_flop_virtual(0), &DepSet::from_flop_virtual(1)]),
+        }); // 3
+        m.drives.push((1, 3));
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: reset0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 8,
+            d: Some(0),
+            q: 2,
+            reset_val: reset1,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::OneHot(vec![]),
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
     }
 }

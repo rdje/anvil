@@ -104,8 +104,10 @@ cones that independently build the same AST share a single
 Yes. `NodeId` is the **identity** of an expression in the IR: two
 equivalent expressions should collapse to one `NodeId`, regardless
 of which output cone first built them or how they were spelled
-syntactically. This is enforced at construction time via
-`Module::intern_gate` / `intern_constant`, not as a post-hoc filter.
+syntactically. For combinational nodes this is enforced at
+construction time via `Module::intern_gate` / `intern_constant`.
+For state, there is one conservative post-drain pass that merges
+exact duplicate flop signatures once D-cones exist.
 
 Today the live ladder reaches through **peephole**:
 
@@ -122,12 +124,15 @@ Today the live ladder reaches through **peephole**:
 6. **Peephole rewrites** — local canonical rewrites like
    `Not(Not(x))`, constant comparison evaluation, full-width `Slice`,
    and single-operand `Concat`.
+7. **Exact-signature flop merge** — after the flop worklist drains,
+   flops with identical `width`, reset, and exact same `d: NodeId`
+   share one state element.
 
 Only the final **`e-graph`** rung remains aspirational. A user at
 `--identity-mode node-id --factorization-level e-graph` (or the
 shortcut `--full-factorization`) gets the strongest implemented
 behaviour today, which currently means `peephole` plus every
-lower layer. `--identity-mode relaxed` (or the shortcut
+lower layer plus that conservative flop merge. `--identity-mode relaxed` (or the shortcut
 `--no-full-factorization`) is the coarse off-switch.
 
 Construction strategy is a separate axis. `sequential`,

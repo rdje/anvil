@@ -41,7 +41,8 @@ src/
 │   │                # factorization_level),
 │   │                # and live counters (fold_identities_applied,
 │   │                # peephole_rewrites_applied,
-│   │                # flatten_associative_applied, nodes_compacted,
+│   │                # flatten_associative_applied, flops_merged,
+│   │                # nodes_compacted,
 │   │                # block-build counters, knob_rolls).
 │   │                # API: intern_gate() runs the full factorization
 │   │                # ladder (flatten_associative → commutative sort →
@@ -49,12 +50,12 @@ src/
 │   │                # and returns (NodeId, is_new). intern_constant()
 │   │                # is the constant analogue. Inline unit tests
 │   │                # pin each layer's contract.
-│   ├── compact.rs   # Post-construction compact_node_ids pass: BFS
-│   │                # from roots, drops unreachable gates, remaps
-│   │                # NodeIds across m.nodes / m.drives / m.flops /
-│   │                # dedup tables. Enables orphan-producing
-│   │                # rewrites (Not(Not), Associative flattening,
-│   │                # Not(cmp) inversion) to stay Rule-18-clean at
+│   ├── compact.rs   # Post-construction finalisation helpers:
+│   │                # exact-signature flop merge after D-cones exist,
+│   │                # plus compact_node_ids BFS from roots dropping
+│   │                # unreachable gates and remapping NodeIds across
+│   │                # m.nodes / m.drives / m.flops / dedup tables.
+│   │                # Keeps orphan-producing rewrites Rule-18-clean at
 │   │                # module finalisation. Inline unit tests.
 │   └── validate.rs  # invariant + per-gate shape checker; inline unit tests.
 ├── gen/
@@ -133,6 +134,7 @@ pub struct Module {
     pub fold_identities_applied:     u64,
     pub peephole_rewrites_applied:   u64,
     pub flatten_associative_applied: u64,
+    pub flops_merged:                u32,
     pub nodes_compacted:             u32,
     // Per-knob probability-roll counters:
     pub knob_rolls:                  KnobRollCounters,
@@ -154,6 +156,13 @@ impl Module {
 }
 
 // ir/compact.rs
+/// Post-drain exact-signature state-sharing pass. Under
+/// `identity_mode = node-id` with effective level `>= cse`,
+/// merges flops with equal `width`, reset, and exact same `d`.
+/// Returns the number of duplicate flops removed
+/// (`Metrics::flops_merged`).
+pub fn merge_equivalent_flops(m: &mut Module) -> u32;
+
 /// Post-construction BFS-reachability pass. Drops unreachable
 /// gates, remaps every `NodeId` holder across `m.nodes` /
 /// `m.drives` / `m.flops` / dedup tables. Called at the end of
@@ -244,7 +253,7 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-20): 83 unit + 24 integration = 107 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-20): 86 unit + 24 integration = 110 passing tests.**
 
 **External smoke tests** (not wired up yet) — will invoke Verilator
 and Yosys against generated output. These are the remaining Phase 1

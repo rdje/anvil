@@ -98,6 +98,12 @@ Without reuse, every output would have its own private flop chain,
 producing unrealistic and bloated designs. Reuse probability is
 controlled by the `--share-prob` knob.
 
+Under `identity_mode = node-id`, there is a second sequential-sharing
+path after drain: if two flops ended up with the same exact state
+signature, they are merged even if they were born as distinct
+registers. That is exact-signature only, not full sequential
+equivalence.
+
 ## Clock and reset
 
 Exactly one clock and one reset, declared as ports of the module

@@ -294,6 +294,30 @@ This is the minimum architectural move that makes the future
 "NodeId as identity" engine honest: the repo can now talk about
 identity mode without smuggling it through the ladder alone.
 
+## Stateful identity must be decided post-drain (2026-04-20)
+
+For gates and constants, identity is knowable at intern time: the
+full key exists when `intern_gate` / `intern_constant` runs.
+
+Flops are different. `build_flop_leaf` allocates a Q leaf
+immediately, but the flop's semantics are not complete until the
+worklist later constructs its D-cone. So the first honest stateful
+extension of "NodeId as identity" cannot be an allocation-time guess;
+it has to run after drain.
+
+Current rule: after `summarize_flop_mux_metadata`, flops are merged
+iff they have the same exact emitted-state signature:
+`width`, `reset_kind`, `reset_val`, and exact same `d: NodeId`.
+Construction provenance (`FlopKind`, cleared mux operand metadata) is
+deliberately ignored once D exists, because emitted hardware semantics
+are carried by width/reset/D, not by how the generator happened to
+assemble them.
+
+This is intentionally narrower than full sequential equivalence. Two
+self-feedback flops whose D-cones are only isomorphic under Q
+renaming are not merged yet. That deeper coinductive story remains a
+future slice.
+
 ## Emitter is a dumb serialiser (2026-04-16)
 
 User-memory feedback: *"All thinking, checks, rules' enforcement ought to be done solely at the IR level. By the time you reach emission it is too late to roll back."*
