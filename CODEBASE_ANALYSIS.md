@@ -148,6 +148,13 @@ src/
 │                     lifts the run to >=1000 total modules with
 │                     coverage-gap failure enabled. Also doubles as
 │                     the first executable "axis matrix" proof surface.
+│                     Yosys is now a first-class harness axis too:
+│                     `--yosys-mode <without-abc|with-abc|both>`
+│                     selects the current stable `synth -noabc`
+│                     baseline, the explicit ABC-enabled
+│                     `synth -noabc; abc -fast; opt -fast; check`
+│                     harness path, or both as separate sub-runs per
+│                     file.
 │                     Current recorded real frontier: 365 clean modules
 │                     with zero Verilator warning logs and zero Yosys
 │                     warning lines, through the full commutative rung
@@ -487,12 +494,12 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (153 passing tests: 129 unit + 24 integration).
+- `cargo test` — clean (155 passing tests: 131 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys; and a real `tool_matrix --phase1-gate` rerun has now been pushed to **246 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, and `int_nodeid_cse_default`, plus 45 clean in `int_nodeid_operand-unique_default` before manual stop).
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; and a real `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint).
 - `src/gen/cone.rs` now owns an always-on generator-side comparison
   proof in addition to the factorization ladder. The proof combines a
   conservative unsigned-bounds engine with an exact finite-set engine

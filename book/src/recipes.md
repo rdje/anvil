@@ -51,6 +51,9 @@ cargo run --bin tool_matrix -- --out ./tool-matrix --fail-on-coverage-gap
 
 # Run the repo-owned Phase 1 gate shape (>=1000 modules total).
 cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
+
+# Compare Yosys with and without ABC on the same corpus.
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
 ```
 
 ## "I want fanout stress"

@@ -140,7 +140,24 @@ That writes per-scenario generated corpora plus
 `tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
 fails on any generated file or emits any warning. Current local smoke
 status after the post-construction proof-cleanup slice: the built-in
-matrix is 15/15 clean in Verilator and 15/15 clean in Yosys.
+matrix is 15/15 clean in Verilator and 15/15 clean in Yosys under the
+current default `--yosys-mode without-abc`.
+
+The harness now has an explicit Yosys mode axis too:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode without-abc
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode with-abc
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
+```
+
+`without-abc` remains the default because it is the current stable
+baseline. `with-abc` now means the repo-owned warning-clean ABC path
+(`synth -noabc; abc -fast; opt -fast; stat; check`) rather than the
+raw default `synth` script, because the latter's ABC flow was tripping
+non-actionable combinational-network warnings on valid generated
+designs. A small repo-owned `--yosys-mode both` probe is now clean in
+both sub-modes: `without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
 
 For the repo-owned Phase 1 gate shape:
 
@@ -157,6 +174,9 @@ module count high enough to generate at least 1000 modules total.
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` keeps the factorization ladder live, `relaxed` disables it.
 - `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.
+- `tool_matrix --yosys-mode <without-abc|with-abc|both>` controls
+  whether the repo-owned Yosys harness runs the current `synth -noabc`
+  path, the explicit ABC-enabled `abc -fast` path, or both.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and

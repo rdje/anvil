@@ -3,9 +3,112 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0096 — Advance the real Phase 1 gate frontier to 365 clean modules
+## 2026-04-21-0097 — Make the ABC-enabled Yosys harness warning-clean
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This slice finishes the Yosys-mode work by turning `with-abc` into a
+repo-owned, warning-clean ABC path instead of just replaying Yosys's
+raw default `synth` script.
+
+In `src/bin/tool_matrix.rs`:
+
+- `--yosys-mode with-abc` now runs:
+  `read_verilog -sv ...; synth -noabc; abc -fast; opt -fast; stat; check`
+  instead of `read_verilog -sv ...; synth; stat`
+- warning failures now retain the first actual warning line as the
+  `error` string instead of the vague `tool emitted warning(s)` bucket
+- the `yosys_mode` tests were updated to pin the new script shape
+
+The driving evidence was the first repo-owned `--yosys-mode both`
+probe: `without-abc` passed 15/15 while the old `with-abc` path failed
+14/15 solely on:
+
+- `ABC: Warning: The network is combinational (run "fraig" or "fraig_sweep").`
+
+Direct Yosys probing showed that this warning came from the default
+ABC script's `scorr` step, not from invalid RTL. Yosys's own `help abc`
+text also confirms that ABC operates on extracted logic snippets rather
+than necessarily on the whole module as one sequential network, which
+explains why the warning appeared even on sequential modules with many
+flops.
+
+The harness now uses `abc -fast` for the repo-owned ABC lane, and the
+follow-up repo-owned smoke run is clean:
+
+- `without-abc = 15/15 pass`
+- `with-abc = 15/15 pass`
+
+The live docs and book were updated accordingly:
+
+- `README.md`, `USER_GUIDE.md`, `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`
+- `book/src/architecture.md`, `book/src/recipes.md`
+
+No roadmap phase labels changed.
+
+**Why**
+
+The user's bar is explicit: warnings are not to be waved away, and the
+project needs clean Verilator/Yosys runs by default. The previous
+`with-abc` path was therefore useful as diagnosis, but not good enough
+as the repo-owned ABC harness lane because it stayed red on a warning
+bucket that current evidence points to as a tool-flow mismatch rather
+than a generator defect.
+
+The right move was not to hide warnings. It was to understand the exact
+warning, choose an ABC-enabled script that stays meaningful for the
+project, and keep the harness red only for genuinely actionable
+problems.
+
+That leaves `without-abc` as the stable baseline and `with-abc` as a
+real second lane, not a knowingly noisy one.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-yosys-both-smoke-r2 --modules-per-scenario 1 --skip-verilator --yosys-mode both`
+  - `tool_matrix: Yosys without-abc pass/fail = 15/0`
+  - `tool_matrix: Yosys with-abc pass/fail = 15/0`
+- direct probes on the previous failing sequential and comb-only cases:
+  - `yosys -Q -p '...; synth; stat'` reproduced the ABC warning
+  - `yosys -Q -p '...; synth -noabc; abc -fast; opt -fast; stat; check'`
+    stayed warning-clean and `check`-clean
+
+**Impact**
+
+- The repo-owned Yosys harness now has two clean lanes instead of one:
+  `without-abc` and `with-abc`.
+- `tool_matrix --yosys-mode both` is now a genuinely useful industrial
+  smoke shape instead of a guaranteed warning bucket.
+- Future warning regressions in tool runs are now more actionable
+  because the report records the actual warning line.
+- The docs now describe the Yosys axis accurately: `with-abc` is the
+  explicit ABC-enabled harness path, not the raw default `synth`
+  behavior.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `book/src/architecture.md`
+- `book/src/recipes.md`
+- `src/bin/tool_matrix.rs`
+
+## 2026-04-21-0096 — Advance the real Phase 1 gate frontier to 365 clean modules
+
+**Landed as:** `f708d8d`
 
 **What changed**
 

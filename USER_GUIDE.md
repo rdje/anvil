@@ -229,6 +229,9 @@ Useful options:
 - `--modules-per-scenario N` to trade runtime for more coverage.
 - `--phase1-gate` to auto-enable coverage-gap failure and raise the
   run to at least 1000 generated modules total.
+- `--yosys-mode <without-abc|with-abc|both>` to choose the current
+  stable `synth -noabc` path, the explicit ABC-enabled
+  `abc -fast` path, or both as separate sub-runs per generated file.
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
@@ -236,8 +239,11 @@ Useful options:
 
 Current local smoke status after the post-construction proof-cleanup
 slice: the built-in matrix is now 15/15 clean in Verilator and 15/15
-clean in Yosys. `tool_matrix` treats warnings as failures, so a green
-run means "no errors, no warnings", not merely zero non-zero exits.
+clean in Yosys under `--yosys-mode without-abc`. `tool_matrix` treats
+warnings as failures, so a green run means "no errors, no warnings",
+not merely zero non-zero exits. A small `--yosys-mode both` probe is
+now clean in both Yosys sub-modes too:
+`without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
 
 ## Downstream verification
 
@@ -251,6 +257,12 @@ verilator --lint-only generated/mod_42_0000.sv
 **Yosys synthesis:**
 ```bash
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
+```
+
+To probe the ABC-enabled path explicitly:
+
+```bash
+yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; abc -fast; opt -fast; stat; check"
 ```
 
 Both should succeed on every generated file. If one fails, that's a bug

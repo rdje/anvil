@@ -54,9 +54,21 @@ struct Cli {
     #[arg(long, default_value = "yosys")]
     yosys_bin: String,
 
+    /// Yosys synthesis mode: keep the current no-ABC path, run the
+    /// warning-clean ABC-enabled harness path, or run both.
+    #[arg(long, value_enum, default_value_t = YosysMode::WithoutAbc)]
+    yosys_mode: YosysMode,
+
     /// Return non-zero if the matrix misses intended coverage.
     #[arg(long)]
     fail_on_coverage_gap: bool,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+enum YosysMode {
+    WithoutAbc,
+    WithAbc,
+    Both,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,15 +95,17 @@ struct ModuleReport {
     name: String,
     metrics: Metrics,
     verilator: Option<ToolInvocation>,
-    yosys: Option<ToolInvocation>,
+    yosys: Vec<ToolInvocation>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
 struct ToolSummary {
     verilator_passed: usize,
     verilator_failed: usize,
-    yosys_passed: usize,
-    yosys_failed: usize,
+    yosys_without_abc_passed: usize,
+    yosys_without_abc_failed: usize,
+    yosys_with_abc_passed: usize,
+    yosys_with_abc_failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -149,6 +163,7 @@ struct MatrixReport {
     scenario_count: usize,
     total_modules: usize,
     phase1_gate: bool,
+    yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
     tool_summary: ToolSummary,
@@ -204,6 +219,7 @@ fn main() -> Result<()> {
         scenario_count: scenario_reports.len(),
         total_modules: plan.total_modules,
         phase1_gate: cli.phase1_gate,
+        yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
         tool_summary: global_tool_summary,
@@ -222,11 +238,13 @@ fn main() -> Result<()> {
     );
     println!("tool_matrix: total modules = {}", report.total_modules);
     println!(
-        "tool_matrix: Verilator pass/fail = {}/{}, Yosys pass/fail = {}/{}",
+        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}",
         report.tool_summary.verilator_passed,
         report.tool_summary.verilator_failed,
-        report.tool_summary.yosys_passed,
-        report.tool_summary.yosys_failed
+        report.tool_summary.yosys_without_abc_passed,
+        report.tool_summary.yosys_without_abc_failed,
+        report.tool_summary.yosys_with_abc_passed,
+        report.tool_summary.yosys_with_abc_failed
     );
     if !report.coverage_gaps.is_empty() {
         println!(
@@ -236,7 +254,7 @@ fn main() -> Result<()> {
         );
     }
 
-    if report.tool_summary.verilator_failed > 0 || report.tool_summary.yosys_failed > 0 {
+    if report.tool_summary.verilator_failed > 0 || report.tool_summary.yosys_failed() > 0 {
         bail!(
             "tool_matrix detected downstream-tool failures; see {}",
             report_path.display()
@@ -463,9 +481,15 @@ fn run_scenario(
         };
 
         let yosys = if cli.skip_yosys {
-            None
+            Vec::new()
         } else {
-            Some(run_yosys(&cli.yosys_bin, &scenario_dir, &sv_path, stem)?)
+            run_yosys(
+                cli.yosys_mode,
+                &cli.yosys_bin,
+                &scenario_dir,
+                &sv_path,
+                stem,
+            )?
         };
 
         modules.push(ModuleReport {
@@ -541,12 +565,52 @@ fn run_verilator(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Resul
     )
 }
 
-fn run_yosys(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
-    let script = format!(
-        "read_verilog -sv \"{}\"; synth -noabc; stat",
-        escape_for_double_quotes(sv_path)
-    );
-    run_tool("yosys", bin, vec!["-p".to_string(), script], out_dir, stem)
+fn run_yosys(
+    mode: YosysMode,
+    bin: &str,
+    out_dir: &Path,
+    sv_path: &Path,
+    stem: &str,
+) -> Result<Vec<ToolInvocation>> {
+    let mut invocations = Vec::new();
+    for (tool_label, script) in yosys_invocations(mode, sv_path) {
+        invocations.push(run_tool(
+            tool_label,
+            bin,
+            vec!["-p".to_string(), script],
+            out_dir,
+            stem,
+        )?);
+    }
+    Ok(invocations)
+}
+
+fn yosys_invocations(mode: YosysMode, sv_path: &Path) -> Vec<(&'static str, String)> {
+    let escaped = escape_for_double_quotes(sv_path);
+    match mode {
+        YosysMode::WithoutAbc => vec![(
+            "yosys-without-abc",
+            format!("read_verilog -sv \"{escaped}\"; synth -noabc; stat"),
+        )],
+        YosysMode::WithAbc => vec![(
+            "yosys-with-abc",
+            format!(
+                "read_verilog -sv \"{escaped}\"; synth -noabc; abc -fast; opt -fast; stat; check"
+            ),
+        )],
+        YosysMode::Both => vec![
+            (
+                "yosys-without-abc",
+                format!("read_verilog -sv \"{escaped}\"; synth -noabc; stat"),
+            ),
+            (
+                "yosys-with-abc",
+                format!(
+                    "read_verilog -sv \"{escaped}\"; synth -noabc; abc -fast; opt -fast; stat; check"
+                ),
+            ),
+        ],
+    }
 }
 
 fn run_tool(
@@ -559,12 +623,12 @@ fn run_tool(
     let output = Command::new(binary).args(&argv).output();
     match output {
         Ok(output) => {
-            let warning_detected = tool_output_contains_warning(
+            let warning = first_tool_warning(
                 tool_name,
                 String::from_utf8_lossy(&output.stdout).as_ref(),
                 String::from_utf8_lossy(&output.stderr).as_ref(),
             );
-            let success = output.status.success() && !warning_detected;
+            let success = output.status.success() && warning.is_none();
             let stdout_log = write_tool_log_if_needed(
                 out_dir,
                 stem,
@@ -588,7 +652,7 @@ fn run_tool(
                 exit_code: output.status.code(),
                 stdout_log,
                 stderr_log,
-                error: warning_detected.then(|| "tool emitted warning(s)".to_string()),
+                error: warning,
             })
         }
         Err(err) => Ok(ToolInvocation {
@@ -603,17 +667,21 @@ fn run_tool(
     }
 }
 
-fn tool_output_contains_warning(tool_name: &str, stdout: &str, stderr: &str) -> bool {
+fn first_tool_warning(tool_name: &str, stdout: &str, stderr: &str) -> Option<String> {
     match tool_name {
-        "verilator" => stdout.lines().chain(stderr.lines()).any(|line| {
-            let line = line.trim_start();
-            line.starts_with("%Warning-")
-        }),
-        "yosys" => stdout.lines().chain(stderr.lines()).any(|line| {
-            let line = line.trim_start();
-            line.starts_with("Warning:") || line.contains(": Warning:")
-        }),
-        _ => false,
+        "verilator" => stdout
+            .lines()
+            .chain(stderr.lines())
+            .map(str::trim_start)
+            .find(|line| line.starts_with("%Warning-"))
+            .map(ToOwned::to_owned),
+        tool_name if tool_name.starts_with("yosys") => stdout
+            .lines()
+            .chain(stderr.lines())
+            .map(str::trim_start)
+            .find(|line| line.starts_with("Warning:") || line.contains(": Warning:"))
+            .map(ToOwned::to_owned),
+        _ => None,
     }
 }
 
@@ -671,11 +739,23 @@ fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
                 summary.verilator_failed += 1;
             }
         }
-        if let Some(yosys) = &module.yosys {
-            if yosys.success {
-                summary.yosys_passed += 1;
-            } else {
-                summary.yosys_failed += 1;
+        for yosys in &module.yosys {
+            match yosys.tool.as_str() {
+                "yosys-without-abc" => {
+                    if yosys.success {
+                        summary.yosys_without_abc_passed += 1;
+                    } else {
+                        summary.yosys_without_abc_failed += 1;
+                    }
+                }
+                "yosys-with-abc" => {
+                    if yosys.success {
+                        summary.yosys_with_abc_passed += 1;
+                    } else {
+                        summary.yosys_with_abc_failed += 1;
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -729,8 +809,10 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
 fn merge_tool_summary(dst: &mut ToolSummary, src: &ToolSummary) {
     dst.verilator_passed += src.verilator_passed;
     dst.verilator_failed += src.verilator_failed;
-    dst.yosys_passed += src.yosys_passed;
-    dst.yosys_failed += src.yosys_failed;
+    dst.yosys_without_abc_passed += src.yosys_without_abc_passed;
+    dst.yosys_without_abc_failed += src.yosys_without_abc_failed;
+    dst.yosys_with_abc_passed += src.yosys_with_abc_passed;
+    dst.yosys_with_abc_failed += src.yosys_with_abc_failed;
 }
 
 fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
@@ -915,6 +997,20 @@ fn factorization_level_slug(level: FactorizationLevel) -> &'static str {
     factorization_level_name(level)
 }
 
+fn yosys_mode_slug(mode: YosysMode) -> &'static str {
+    match mode {
+        YosysMode::WithoutAbc => "without-abc",
+        YosysMode::WithAbc => "with-abc",
+        YosysMode::Both => "both",
+    }
+}
+
+impl ToolSummary {
+    fn yosys_failed(&self) -> usize {
+        self.yosys_without_abc_failed + self.yosys_with_abc_failed
+    }
+}
+
 fn escape_for_double_quotes(path: &Path) -> String {
     path.display()
         .to_string()
@@ -937,6 +1033,7 @@ mod tests {
             skip_yosys: false,
             verilator_bin: "verilator".to_string(),
             yosys_bin: "yosys".to_string(),
+            yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
         }
     }
@@ -1028,5 +1125,72 @@ mod tests {
         assert_eq!(plan.modules_per_scenario, 100);
         assert_eq!(plan.total_modules, 1500);
         assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn yosys_mode_expands_to_expected_invocations() {
+        let path = Path::new("/tmp/example.sv");
+
+        let without = yosys_invocations(YosysMode::WithoutAbc, path);
+        assert_eq!(without.len(), 1);
+        assert_eq!(without[0].0, "yosys-without-abc");
+        assert!(without[0].1.contains("synth -noabc; stat"));
+
+        let with = yosys_invocations(YosysMode::WithAbc, path);
+        assert_eq!(with.len(), 1);
+        assert_eq!(with[0].0, "yosys-with-abc");
+        assert!(with[0]
+            .1
+            .contains("synth -noabc; abc -fast; opt -fast; stat; check"));
+        assert!(with[0].1.contains("abc -fast"));
+
+        let both = yosys_invocations(YosysMode::Both, path);
+        assert_eq!(both.len(), 2);
+        assert_eq!(both[0].0, "yosys-without-abc");
+        assert_eq!(both[1].0, "yosys-with-abc");
+    }
+
+    #[test]
+    fn summarize_tools_counts_yosys_modes_separately() {
+        let modules = vec![ModuleReport {
+            file: "mod.sv".to_string(),
+            name: "mod_0_0000".to_string(),
+            metrics: Metrics::default(),
+            verilator: Some(ToolInvocation {
+                tool: "verilator".to_string(),
+                argv: vec![],
+                success: true,
+                exit_code: Some(0),
+                stdout_log: None,
+                stderr_log: None,
+                error: None,
+            }),
+            yosys: vec![
+                ToolInvocation {
+                    tool: "yosys-without-abc".to_string(),
+                    argv: vec![],
+                    success: true,
+                    exit_code: Some(0),
+                    stdout_log: None,
+                    stderr_log: None,
+                    error: None,
+                },
+                ToolInvocation {
+                    tool: "yosys-with-abc".to_string(),
+                    argv: vec![],
+                    success: false,
+                    exit_code: Some(1),
+                    stdout_log: None,
+                    stderr_log: Some("stderr.log".to_string()),
+                    error: Some("ABC: Warning: example".to_string()),
+                },
+            ],
+        }];
+
+        let summary = summarize_tools(&modules);
+        assert_eq!(summary.verilator_passed, 1);
+        assert_eq!(summary.yosys_without_abc_passed, 1);
+        assert_eq!(summary.yosys_with_abc_failed, 1);
+        assert_eq!(summary.yosys_failed(), 1);
     }
 }

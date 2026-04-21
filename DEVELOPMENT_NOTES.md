@@ -888,3 +888,42 @@ scratch structure.**
 Rejected alternative: paper over the issue in the emitter with
 tool-specific lint pragmas. That would hide the symptom without fixing
 the IR/finalisation mismatch.
+
+## Yosys ABC/no-ABC is now an explicit harness axis (2026-04-21)
+
+Historically, the repo-owned Yosys smoke path settled on
+`synth -noabc` because some runs with the default ABC-enabled `synth`
+were reported to blow up or time out. That was useful operationally,
+but it left the distinction implicit: future sessions could see one
+hardcoded `-noabc` script and have no way to tell whether it was a
+deliberate stability baseline, a temporary workaround, or stale cargo
+cult.
+
+`tool_matrix` now makes that choice explicit with a Yosys mode axis:
+
+- `without-abc` — current stable baseline, still the default;
+- `with-abc` — the repo-owned ABC-enabled harness path; and
+- `both` — run both sub-modes per generated file and report them
+  separately.
+
+The default remains `without-abc` because that is the last known-good
+repo-owned baseline. The point of adding `with-abc` and `both` is not
+to silently relax warnings; it is to make the instability visible and
+reproducible.
+
+On the first small repo-owned probe, `without-abc` passed 15/15 while
+the original `with-abc` path failed 14/15, not from a crash but from
+ABC's `Warning: The network is combinational` line. Yosys's own `help abc`
+text explains why that can happen even on sequential modules: ABC is
+run on logic snippets extracted from the design, not necessarily on the
+whole module as one sequential network.
+
+The repo-owned harness now treats `with-abc` as the explicit
+warning-clean script:
+
+`synth -noabc; abc -fast; opt -fast; stat; check`
+
+That keeps ABC in the loop while avoiding the default `scorr`-based ABC
+script that was producing the non-actionable warning bucket. The
+follow-up small `--yosys-mode both` probe is now clean in both
+sub-modes: `without-abc = 15/15 pass`, `with-abc = 15/15 pass`.

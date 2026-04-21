@@ -102,7 +102,11 @@ main  ->  lib  ->  gen  ->  ir
 - `main` wires it all together.
 - `src/bin/tool_matrix.rs` is a repo-owned auxiliary binary: it uses
   the public crate API to generate a curated scenario matrix, run
-  Verilator/Yosys, and write an aggregated report.
+  Verilator/Yosys, and write an aggregated report. Yosys is now an
+  explicit harness axis too: the binary can run the current stable
+  `synth -noabc` path, the explicit ABC-enabled
+  `synth -noabc; abc -fast; opt -fast; check` path, or both as
+  separate sub-runs per generated file.
 
 This means `ir` can be tested in isolation, `emit` can be tested with
 hand-constructed IRs (no need to invoke the generator), and `gen` can
@@ -138,13 +142,21 @@ than accidental:
    not finished.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
-   now exists, and its current smoke matrix is green: 15/15 clean in
-   Verilator and 15/15 clean in Yosys. The harness now treats warnings
-   as failures, so "green" means no errors and no warnings. The path to
-   that state needed both construction-time comparison proofs and a
-   post-construction exact-value cleanup pass on the settled graph.
-   That evidence layer must keep growing with each new motif family
-   until the larger phase-exit sweeps are equally boring.
+   now exists, and its current stable smoke matrix is green: 15/15
+   clean in Verilator and 15/15 clean in Yosys under the explicit
+   `without-abc` Yosys mode. The harness now treats warnings as
+   failures, so "green" means no errors and no warnings. It also has a
+   distinct `with-abc` mode (or `both`) so the ABC-enabled Yosys path
+   can be measured separately too. The harness now uses an explicit
+   `abc -fast` path there rather than Yosys's raw default `synth`
+   script because the latter was emitting a non-actionable ABC warning
+   bucket on extracted combinational subnetworks. The path to the
+   current green state needed both construction-time comparison proofs,
+   a post-construction exact-value cleanup pass on the settled graph,
+   and a repo-owned ABC script choice that stays warning-clean on the
+   generated corpus. That evidence layer must keep growing with each
+   new motif family until the larger phase-exit sweeps are equally
+   boring.
 4. **Structure-first doctrine**
    The codebase is intentionally optimized for structural legitimacy and
    synthesizability, not for proving whole-module intended behavior.
@@ -315,13 +327,15 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-20): 116 unit + 24 integration = 140 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-21): 131 unit + 24 integration = 155 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
-curated adversarial matrix and treats warnings as failures. Scaling
-that green smoke matrix up is part of the remaining Phase 1 / Phase 2
-exit work.
+curated adversarial matrix and treats warnings as failures. The harness
+now has an explicit Yosys mode axis too (`without-abc`, `with-abc`, or
+`both`), so the stable no-ABC baseline and the explicit ABC-enabled
+harness path can be tracked separately. Scaling that green smoke matrix
+up is part of the remaining Phase 1 / Phase 2 exit work.
 
 ## Error handling
 
