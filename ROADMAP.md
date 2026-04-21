@@ -80,10 +80,11 @@ instead of leaving them implicit.
    conservative post-drain state merge over the same proof discipline;
    stronger sequential and hierarchical equivalence are still open
    work. This mode must remain user-controllable from the CLI:
-   `--identity-mode
-   relaxed` is a real off-switch, while `--factorization-level`
-   continues to express weaker or stronger canonicalization within
-   `node-id`.
+   `--identity-mode relaxed` is the real semantic off-switch.
+   Within `node-id`, `--factorization-level` remains an
+   implementation/proof-depth and stress-coverage dial while the build
+   climbs toward the doctrine; it must not be treated as redefining what
+   `node-id` means.
 
 3. **Signoff-quality tool-clean industrialization**
    Seed-level cleanliness is not enough. The project needs automated

@@ -63,20 +63,23 @@ pub struct Module {
     /// always strict); 1.0 = no constraint.
     pub operand_duplication_rate: f64,
     /// Identity mode — the coarse answer to "what does a `NodeId`
-    /// mean?" See `Config::identity_mode`. `NodeId` keeps the
-    /// factorization ladder live; `Relaxed` disables it and forces
-    /// fresh node allocation for every AST.
+    /// mean?" See `Config::identity_mode`. `NodeId` selects the
+    /// full-factorization doctrine (`NodeId` = expression identity);
+    /// `Relaxed` disables that doctrine and forces fresh node
+    /// allocation for every AST.
     pub identity_mode: crate::config::IdentityMode,
-    /// Requested factorization level — which layers of the dedup
-    /// chain are active when `identity_mode == NodeId`. See
+    /// Requested factorization level — which parts of the current
+    /// implementation ladder are active when `identity_mode ==
+    /// NodeId`. See
     /// `Config::factorization_level` and the
     /// `FactorizationLevel` enum (`src/config.rs`) for the
     /// ladder: `none → cse → operand-unique → commutative →
     /// associative → constant-fold → peephole → e-graph`.
     /// Default `EGraph` (theoretical ceiling); `effective()`
     /// clamps down to the highest currently-implemented layer
-    /// (today `Peephole`). When `identity_mode == Relaxed`, the
-    /// effective level is forced to `None`.
+    /// (today the bounded `EGraph` fragment). When
+    /// `identity_mode == Relaxed`, the effective level is forced
+    /// to `None`.
     pub factorization_level: crate::config::FactorizationLevel,
 
     // --- Block-build live counters ------------------------------

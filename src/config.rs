@@ -42,9 +42,11 @@ pub enum ConstructionStrategy {
 /// built, while identity mode decides *when* two built expressions
 /// must share one `NodeId`.
 ///
-/// `NodeId` (default) keeps the factorization ladder live:
-/// `factorization_level.effective()` selects the strongest
-/// currently-implemented sharing semantics.
+/// `NodeId` (default) means `NodeId` is the identity of an
+/// expression — the full-factorization doctrine. The
+/// `factorization_level` ladder does not redefine that meaning; it
+/// selects how much of that doctrine the current build can
+/// currently enforce/prove.
 ///
 /// `Relaxed` disables the identity/factorization ladder entirely:
 /// every `intern_gate` / `intern_constant` call allocates a fresh
@@ -60,9 +62,10 @@ pub enum IdentityMode {
     /// produce.
     #[value(alias = "off")]
     Relaxed,
-    /// NodeId = expression identity. The requested
-    /// `factorization_level` stays live and is clamped to the
-    /// strongest implemented rung by `effective()`.
+    /// NodeId = expression identity, i.e. the full-factorization
+    /// doctrine. The requested `factorization_level` stays live as
+    /// the current-build enforcement/proof-depth dial and is clamped
+    /// to the strongest implemented rung by `effective()`.
     #[default]
     #[serde(alias = "nodeid", alias = "node_id")]
     #[value(alias = "nodeid", alias = "node_id")]
@@ -97,9 +100,11 @@ pub enum IdentityMode {
 )]
 #[serde(rename_all = "kebab-case")]
 pub enum FactorizationLevel {
+    /// Weakest implementation rung inside `identity_mode = node-id`.
     /// No dedup of any kind. Every `intern_gate` call creates a
     /// fresh `NodeId`, even for identical ASTs. Useful for
-    /// debugging CSE-sensitive downstream tools.
+    /// debugging CSE-sensitive downstream tools and for matrix
+    /// coverage; not the doctrinal meaning of `NodeId` identity.
     None,
     /// Syntactic CSE: `(op, operands, width)` identifies a node.
     /// Same-key calls share `NodeId` (up to `max_ast_instances`).

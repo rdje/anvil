@@ -416,7 +416,7 @@ main  →  lib  →  gen  →  ir
 ## Invariants currently enforced
 
 In code (constructors / generator):
-- `Module::intern_gate` / `intern_constant` enforce the currently-implemented combinational factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `identity_mode = Relaxed` forces the effective level to `None`; `identity_mode = NodeId` uses `FactorizationLevel::effective()`, which now keeps the bounded `EGraph` fragment live at the top rung.
+- `Module::intern_gate` / `intern_constant` enforce the currently-implemented combinational factorization ladder (Rule 21 / 21b / 21c): associative flattening, commutative sort on `And`/`Or`/`Xor`/`Add`/`Mul`, constant folding, peephole rewrites, then AST-cap CSE keyed by `(op, operands, width)` / `(width, value)`. `identity_mode = Relaxed` forces the effective level to `None`; `identity_mode = NodeId` uses `FactorizationLevel::effective()`, which now keeps the bounded `EGraph` fragment live at the top rung. Doctrinally, `node-id` still means full factorization (`NodeId` = expression identity); the ladder is the current build's enforcement/proof-depth dial inside that doctrine, not a competing definition of `node-id`.
 - `Config::validate()` rejects out-of-range knobs.
 - `Generator::new()` seeds RNG deterministically.
 - `gen::module::generate_leaf_module` produces port counts within knob ranges.

@@ -167,8 +167,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
 | `--gate-compare-weight` | 1        | Relative weight for comparison ops at 1-bit targets |
 | `--gate-reduce-weight`  | 1        | Relative weight for reduction ops at 1-bit targets |
-| `--identity-mode`       | node-id  | Coarse NodeId semantics: `node-id` keeps the ladder live, `relaxed` disables it |
-| `--factorization-level` | e-graph  | Detailed identity ladder: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
+| `--identity-mode`       | node-id  | Coarse NodeId semantics: `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), `relaxed` intentionally disables it |
+| `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
 
@@ -185,6 +185,14 @@ compaction. At effective level `e-graph`, finalisation also runs a
 bounded semantic combinational-sharing pass that can merge
 different-shape small-support cones proven equivalent over the same leaf
 variables.
+
+Interpretation note: doctrinally, `identity_mode=node-id` means
+`NodeId` is the identity of an expression, which implies full
+factorization by definition. `factorization_level` is the current
+build's approximation/proof-depth dial inside that doctrine, plus a
+useful stress/debug axis for matrix sweeps; it does not redefine what
+`node-id` means. `relaxed` is the only intentional mode where equivalent
+expressions may keep different `NodeId`s.
 
 Treat the adversarial surface as orthogonal axes, not one blended
 "randomness" knob: construction strategy (`sequential`, `shuffled`,

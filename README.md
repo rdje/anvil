@@ -187,7 +187,8 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.
 - `anvil --dump-config` prints the effective knobs as JSON.
-- `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` keeps the factorization ladder live, `relaxed` disables it.
+- `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), while `relaxed` is the intentional off-switch where equivalent expressions may keep different `NodeId`s.
+- `anvil --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>` is the current-build implementation/proof-depth dial inside `node-id`; lower rungs are weaker enforcement of the same doctrine, not a different meaning of `node-id`.
 - `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.
 - `tool_matrix --yosys-mode <without-abc|with-abc|both>` controls
   whether the repo-owned Yosys harness runs the current `synth -noabc`

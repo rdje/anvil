@@ -140,6 +140,13 @@ behaviour today, which means the bounded semantic gate-sharing fragment
 plus every lower layer plus that conservative flop merge. `--identity-mode relaxed` (or the shortcut
 `--no-full-factorization`) is the coarse off-switch.
 
+Interpretation note: doctrinally, `node-id` already means full
+factorization by definition. The `factorization_level` ladder is just
+the current build's implementation/proof-depth dial inside that mode.
+So labels like `nodeid-none` are matrix-coverage names for a deliberately
+weakened current-build rung, not alternate semantics for what `node-id`
+is supposed to mean.
+
 Construction strategy is a separate axis. `sequential`,
 `shuffled`, and `interleaved` decide **how cones are built**;
 factorization decides **when two built expressions share one

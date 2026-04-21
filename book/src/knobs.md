@@ -230,22 +230,24 @@ instead of creating fresh logic.
 ### AST uniqueness / duplication
 
 - `identity_mode` — coarse NodeId semantics switch:
-  - `node-id` (default): NodeId means expression identity, so the
-    factorization ladder stays live, including the bounded semantic
-    gate merge at `e-graph` and the post-drain endpoint-aware flop
-    merge.
+  - `node-id` (default): NodeId means expression identity, which
+    implies full factorization by definition. The factorization ladder
+    is the current build's enforcement/proof-depth dial inside that
+    doctrine, including the bounded semantic gate merge at `e-graph`
+    and the post-drain endpoint-aware flop merge.
   - `relaxed`: disable the ladder entirely; every
     `intern_gate` / `intern_constant` call allocates a fresh
     `NodeId` even if `factorization_level` requests more.
   This is orthogonal to construction strategy. See Rule 21c.
 
-- `factorization_level` — coarse dial along the sharing chain:
+- `factorization_level` — current-build dial along the sharing chain:
   `none → cse → operand-unique → commutative → associative →
   constant-fold → peephole → e-graph`. Default `e-graph`
   (theoretical ceiling; activates every layer implemented today)
   when `identity_mode = node-id`. Each step implies all lower
-  ones. Implemented layers land progressively without requiring a
-  config change. See Rule 21c.
+  ones. Lower rungs are weaker enforcement of the same doctrine, not a
+  different definition of `node-id`. Implemented layers land
+  progressively without requiring a config change. See Rule 21c.
 
 - `max_ast_instances` — maximum number of times a given AST
   (`(op, operands, width)` for gates, `(width, value)` for
@@ -268,7 +270,7 @@ instead of creating fresh logic.
   operand list may contain the same `NodeId` twice (applies to
   `Add` and `Mul`; `And`/`Or`/`Xor` are *always* strict regardless
   because duplicates collapse algebraically). Range `[0.0, 1.0]`.
-  Default `0.0` = strict operand uniqueness (full factorization).
+  Default `0.0` = strict operand uniqueness for `Add`/`Mul`.
   `1.0` = duplicates unrestricted — opt in to exercise
   `x + x = 2x` / `x * x = x²` shapes in downstream tools. See
   `book/src/structural-rules.md` Rule 8 + Rule 21c.

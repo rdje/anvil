@@ -54,9 +54,11 @@ Why mostly at intern time and not as a post-pass? Three reasons:
 identity_mode: node-id | relaxed
 ```
 
-`node-id` (default) means NodeId is expression identity and keeps
-the ladder live. `relaxed` is the coarse off-switch: the ladder is
-forced to `none` regardless of the requested rung.
+`node-id` (default) means `NodeId` is expression identity, which
+implies full factorization by definition. `relaxed` is the coarse
+off-switch: it is the only intentional mode where equivalent
+expressions may keep different `NodeId`s, and the ladder is forced to
+`none` regardless of the requested rung.
 
 Within `identity_mode = node-id`, the ladder is:
 
@@ -71,6 +73,13 @@ level and returns the highest layer that is actually implemented
 in the current build. Today that's the bounded live `e-graph`
 fragment: `e-graph` activates everything currently live plus every
 future layer for free.
+
+Interpretation note: this ladder does **not** redefine what
+`identity_mode = node-id` means. It is the current build's
+implementation/proof-depth dial inside the full-factorization
+doctrine. In other words, `none`, `cse`, `operand-unique`, and the
+higher rungs are staged approximations and stress/debug settings, not
+alternate meanings of `NodeId` identity.
 
 Selection via `--identity-mode`, `--factorization-level`, the
 convenience aliases `--full-factorization` /

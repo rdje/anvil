@@ -161,9 +161,12 @@ structurally enforced and observable (via metrics —
 CSE is the bottom of the factorization ladder. The coarse switch
 above it is `identity_mode`: at `Relaxed`, the effective level is
 forced to `None` and every call allocates a fresh node; at
-`NodeId`, `intern_gate` runs the ladder below before the dedup-table
-lookup so syntactically-different-but-semantically-equivalent
-expressions land on the same CSE key:
+`NodeId`, the full-factorization doctrine is selected and
+`intern_gate` runs the current-build ladder below before the
+dedup-table lookup so syntactically-different-but-semantically-
+equivalent expressions land on the same CSE key. Lower rungs are
+implementation/debug settings inside that doctrine, not a different
+meaning of `NodeId`:
 
 1. **Associative flattening** (`>= Associative`): splice
    same-op operands, normalise per-op semantics.
@@ -179,7 +182,9 @@ expressions land on the same CSE key:
    evaluation for comparisons / `Not` / `Slice` / reductions,
    full-width `Slice`, single-operand `Concat`.
 5. **Level-None bypass**: at `FactorizationLevel::None`, skip
-   every layer above and append a fresh node (stress-test mode).
+   every layer above and append a fresh node (diagnostic/stress mode
+   inside the `node-id` matrix, not the doctrinal meaning of
+   `NodeId` identity).
 6. **AST-cap + CSE dedup**: described just above.
 
 Post-construction sharing has two additional steps outside

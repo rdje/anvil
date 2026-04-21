@@ -628,12 +628,14 @@ fine-grained ladder within `identity_mode = node-id` is
 - `relaxed`: disable the identity/factorization ladder entirely.
   Every `intern_gate` / `intern_constant` call allocates a fresh
   `NodeId`.
-- `node-id`: NodeId means expression identity; the factorization
-  ladder below becomes active.
+- `node-id`: NodeId means expression identity, which implies full
+  factorization by definition. The factorization ladder below does not
+  change that meaning; it is the current build's implementation /
+  proof-depth dial inside that doctrine.
 
 Within `identity_mode = node-id`, `factorization_level` selects
-how far along the factorization chain the generator enforces
-`NodeId = expression identity`. Values in increasing order:
+how far along the factorization chain the current build enforces or
+proves that doctrine. Values in increasing order:
 
 `none → cse → operand-unique → commutative → associative →
 constant-fold → peephole → e-graph` (default).
@@ -652,20 +654,23 @@ CLI convenience aliases: `--full-factorization` requests
 states that `NodeId` is the identity of an expression — two
 expressions that are the same in the mathematical or logical
 sense must share one `NodeId`; different expressions must have
-different `NodeId`s. `e-graph` is the theoretical ceiling where
-this holds for all semantic equivalences. Today we approximate
-it with syntactic CSE + operand-uniqueness + commutative
-normalization + associative flattening + constant folding + a
-narrow set of peephole rewrites. Future slices will close the
-gap further via deeper peephole rewrites (e.g. cross-gate
-identities like `(a + b) - b → a`) and eventually a real
+different `NodeId`s. Interpreted strictly, that already implies full
+factorization by definition. `relaxed` is the only intentional mode
+where equivalent expressions may keep different `NodeId`s. `e-graph` is
+the theoretical ceiling where the current build proves this for all
+semantic equivalences. Today we approximate it with syntactic CSE +
+operand-uniqueness + commutative normalization + associative
+flattening + constant folding + a narrow set of peephole rewrites.
+Future slices
+will close the gap further via deeper peephole rewrites (e.g.
+cross-gate identities like `(a + b) - b → a`) and eventually a real
 e-graph layer.
 
 **How the ladder behaves inside `identity_mode = node-id`:**
 
 | Level          | Enables                                                            |
 |----------------|--------------------------------------------------------------------|
-| `none`         | Nothing. Every `intern_gate` / `intern_constant` creates a fresh NodeId. |
+| `none`         | Current-build diagnostic/stress rung only. Every `intern_gate` / `intern_constant` creates a fresh `NodeId`. Useful for matrix coverage, but not the doctrinal meaning of `node-id`. |
 | `cse`          | + Syntactic CSE: `(op, operands, width)` / `(width, value)` dedupe. Also enables the post-drain endpoint-preserving flop merge: under `identity_mode = node-id`, flops with the same `width`, reset, canonical leaf endpoints, and currently-proven D-cone functionality collapse to one state element. Construction-only provenance (`FlopKind`, cleared mux operand metadata) is ignored once `d` exists. Fires counted in `Metrics::flops_merged`. |
 | `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
 | `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |

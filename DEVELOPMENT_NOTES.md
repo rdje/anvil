@@ -803,7 +803,7 @@ Implementation ladder (see `book/src/structural-rules.md` Rule 21c):
    small-support combinational cones can merge post-construction when
    they are proven equivalent over the same canonical leaf endpoints.
 
-`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Today `e-graph` remains the strongest implemented rung, but only as a bounded fragment rather than the full semantic-equivalence aspiration. Construction strategy is orthogonal: `sequential` / `shuffled` / `interleaved` decide build order, while the factorization ladder decides identity/sharing strength.
+`FactorizationLevel::effective()` clamps user requests down to the highest implemented layer so aspirational levels don't error. Today `e-graph` remains the strongest implemented rung, but only as a bounded fragment rather than the full semantic-equivalence aspiration. Construction strategy is orthogonal: `sequential` / `shuffled` / `interleaved` decide build order, while the factorization ladder records how much of the `node-id` identity contract the current build can currently enforce/prove.
 
 ## Identity mode is orthogonal to construction strategy (2026-04-20)
 
@@ -838,9 +838,12 @@ Design consequence:
 - `identity_mode = relaxed` is the coarse hard-off switch. It
   forces the effective level to `none`, so `intern_gate` and
   `intern_constant` always allocate fresh NodeIds.
-- `identity_mode = node-id` means the ladder is live, and
-  `factorization_level` becomes the fine-grained selector within
-  that mode.
+- `identity_mode = node-id` selects the full-factorization doctrine:
+  `NodeId` is the identity of an expression.
+- `factorization_level` is then the fine-grained implementation /
+  proof-depth selector inside that doctrine. Lower rungs are useful
+  diagnostic and stress modes, but they are not alternate semantics for
+  `node-id`.
 
 This is the minimum architectural move that makes the future
 "NodeId as identity" engine honest: the repo can now talk about

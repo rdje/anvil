@@ -3,9 +3,73 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0106 — Fold reflexive subtraction before unsigned compare emit
+## 2026-04-21-0107 — Clarify NodeId doctrine across docs
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I tightened the identity/factorization story across the live docs, the
+book, and the key Rustdoc surfaces:
+
+- `README.md`, `USER_GUIDE.md`, `ROADMAP.md`,
+  `DEVELOPMENT_NOTES.md`, and `CODEBASE_ANALYSIS.md`
+- `book/src/factorization.md`, `book/src/structural-rules.md`,
+  `book/src/knobs.md`, `book/src/ir.md`, and `book/src/faq.md`
+- `src/config.rs` and `src/ir/types.rs`
+
+They now all say the same thing:
+
+- `identity_mode = node-id` means `NodeId` is the identity of an
+  expression, which implies full factorization by definition;
+- `identity_mode = relaxed` is the only intentional mode where
+  equivalent expressions may keep different `NodeId`s; and
+- `factorization_level` is the current-build implementation /
+  proof-depth dial inside `node-id`, not a competing definition of
+  what `node-id` means.
+
+I also corrected one smaller wording drift in the book:
+`operand_duplication_rate = 0.0` now says what it really guarantees
+(`Add`/`Mul` operand uniqueness), instead of overclaiming that it is
+full factorization by itself.
+
+**Why**
+
+The docs had developed a real conceptual blur. Several core surfaces
+still described `node-id` as merely "keeping the ladder live", which
+made labels like `nodeid-none` sound as if they were alternate
+definitions of `NodeId` identity.
+
+That is not the doctrine the project is steering toward. The durable
+interpretation is stricter:
+
+- `node-id` = full-factorization doctrine
+- `relaxed` = allow equivalent expressions to keep different names
+
+The ladder still exists, but only as a staged implementation / proof
+dial while the current build climbs toward that doctrine.
+
+**Validation**
+
+- repo-wide wording audit with `rg`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The live docs and the mdBook now steer future implementation with the
+  same interpretation the user stated explicitly.
+- `nodeid-none` is now documented as a matrix/debug rung in the current
+  build, not as a different semantics for `node-id`.
+- Future code changes have less room to smuggle the implementation
+  ladder into the meaning of `NodeId` identity itself.
+
+## 2026-04-21-0106 — Fold reflexive subtraction before unsigned compare emit
+
+**Landed as:** `3a4f7c9`
 
 **What changed**
 
