@@ -243,7 +243,12 @@ clean in Yosys under `--yosys-mode without-abc`. `tool_matrix` treats
 warnings as failures, so a green run means "no errors, no warnings",
 not merely zero non-zero exits. A small `--yosys-mode both` probe is
 now clean in both Yosys sub-modes too:
-`without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
+`without-abc = 15/15 pass`, `with-abc = 15/15 pass`. A real
+`--phase1-gate --yosys-mode both` rerun has also now been checkpointed
+at 144 clean modules with zero Verilator warning logs and zero Yosys
+warning lines, spanning the full `int_relaxed_none_default`, the full
+`int_nodeid_none_default`, and 10 clean modules into
+`int_nodeid_cse_default`.
 
 ## Downstream verification
 

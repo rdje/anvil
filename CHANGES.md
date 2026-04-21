@@ -3,9 +3,104 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0097 — Make the ABC-enabled Yosys harness warning-clean
+## 2026-04-21-0098 — Record the first clean both-mode Phase 1 frontier
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice only. No source files changed.
+
+I resumed the real repo-owned Phase 1 gate from a fresh output tree,
+but this time under the stronger Yosys surface:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r9 --phase1-gate --yosys-mode both`
+
+The run was deliberately stopped at the first meaningful both-mode
+checkpoint after the harness had cleared multiple full scenarios.
+
+The saved frontier is now **144 generated modules** with:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved
+  `*.yosys-without-abc.stdout.log` and `*.yosys-with-abc.stdout.log`
+  files
+
+Per-scenario progress at the checkpoint:
+
+- `int_relaxed_none_default`: 67 modules clean
+- `int_nodeid_none_default`: 67 modules clean
+- `int_nodeid_cse_default`: 10 modules clean
+
+This is the first real repo-owned frontier that keeps **both** Yosys
+lanes clean, not just the `without-abc` baseline:
+
+- Verilator lint
+- Yosys `synth -noabc`
+- Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+
+The live docs were updated to record this stronger-but-smaller frontier
+without overwriting the existing 365-module no-ABC frontier. Both
+facts are now explicit in the repo:
+
+- 365 clean modules under the original `tool_matrix --phase1-gate`
+  baseline
+- 144 clean modules under `tool_matrix --phase1-gate --yosys-mode both`
+
+No roadmap phase labels changed.
+
+**Why**
+
+The previous slice made the ABC-enabled Yosys lane warning-clean in a
+small 15-scenario smoke probe. The next responsible move was to test
+that lane under the real industrial gate shape instead of assuming the
+small probe would generalize.
+
+Stopping at the two-scenario boundary plus the beginning of the third
+gives a checkpoint that is both meaningful and recoverable:
+
+- one full relaxed scenario under both Yosys modes
+- one full node-id scenario under both Yosys modes
+- the start of the next factorization rung already clean
+
+That is enough evidence to say the cleaned-up ABC lane is not just a
+toy-case success, while still keeping the slice scoped and commit-ready.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r9 --phase1-gate --yosys-mode both`
+  - manually stopped after the checkpoint
+  - `find /tmp/anvil-tool-matrix-phase1-real-r9 -name '*.sv' | wc -l` -> `144`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r9 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r9/*/*.yosys-*.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The repo now has a real both-mode Phase 1 frontier, not just a tiny
+  both-mode smoke probe.
+- The cleaned-up ABC harness lane is now proven through two full
+  scenarios and into the next factorization rung.
+- Future PNT work can resume `/tmp/anvil-tool-matrix-phase1-real-r9`
+  from a known-good both-mode checkpoint rather than restarting from a
+  15-module smoke toy.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0097 — Make the ABC-enabled Yosys harness warning-clean
+
+**Landed as:** `bbfca1d`
 
 **What changed**
 
