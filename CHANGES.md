@@ -3,9 +3,85 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0108 — Record fresh current-code nodeid-none frontier
+## 2026-04-21-0109 — Cap cleanup semantic proofs to tiny endpoint sets
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I tightened the post-construction exact-value cleanup path in
+`src/ir/compact.rs`.
+
+`fold_proven_gates` still revisits the settled graph to scrub obvious
+constants for downstream-tool cleanliness, but its local semantic exact
+fallback (`semantic_exact_value`) is now explicitly gated by a new
+helper, `semantic_exact_cleanup_eligible`. That helper only admits
+cleanup-time brute-force proofs when all three of these are true:
+
+- node width is at most `8` bits;
+- the canonical leaf-endpoint set is at most **3** endpoints; and
+- the total endpoint support is at most
+  `MAX_SEMANTIC_SUPPORT_BITS` (`10`).
+
+When a cone fails that eligibility test, the cleanup prover now
+memoizes `None` immediately instead of repeatedly re-entering the full
+semantic walk.
+
+I also added a regression test,
+`semantic_exact_cleanup_skips_four_endpoint_cones`, which pins the new
+cleanup-only cap on a 4-endpoint `Concat`.
+
+**Why**
+
+The fresh current-code both-mode frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r16` looked like a downstream-tool
+stall at first glance, but sampling the live process showed the real
+hotspot was internal:
+
+- `anvil::ir::compact::fold_proven_gates`
+- `semantic_exact_value`
+- `semantic_cone_proof`
+- `evaluate_node_under_assignment`
+
+So this was not Yosys or Verilator getting stuck. The settled-graph
+cleanup prover had become too eager on a `nodeid-cse` cone, and it was
+burning time exploring a support set that is outside the narrow
+"downstream cleanup" job of that pass.
+
+The durable rule is now explicit in code: the cleanup-only exact prover
+must stay **stricter** than the generator-side semantic-sharing passes.
+It exists to scrub obvious constants for cleaner emitted RTL, not to
+widen the main identity/factorization contract at arbitrary runtime
+cost.
+
+**Validation**
+
+- `sample <tool_matrix_pid> 5`
+  - showed the hot path in `ir::compact`, not in Yosys / Verilator
+- `cargo test semantic_exact_cleanup_skips_four_endpoint_cones --lib`
+- `cargo run --bin anvil -- --seed 2 --count 2 --out /tmp/anvil-cse-seed2-repro-r2 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`
+- clean downstream sweeps on both emitted repro modules:
+  - `verilator --lint-only`
+  - `yosys -q -p "read_verilog -sv ...; synth -noabc; stat"`
+  - `yosys -q -p "read_verilog -sv ...; synth -noabc; abc -fast; opt -fast; stat; check"`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The old `nodeid-cse` choke point is now repaired in current code.
+- `/tmp/anvil-tool-matrix-phase1-real-r16` is no longer a resumable
+  work tree, because `tool_matrix --resume` is intentionally
+  byte-stable and this semantic-cleanup change altered emitted `.sv`.
+- The next frontier push must therefore start from a fresh output tree
+  rather than trying to resume `r16` in place.
+
+## 2026-04-21-0108 — Record fresh current-code nodeid-none frontier
+
+**Landed as:** `4023050`
 
 **What changed**
 

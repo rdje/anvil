@@ -509,6 +509,23 @@ The proof stack now has three complementary layers:
 - post-construction exact-value cleanup on the settled graph, and
 - bounded semantic identity / sharing for the `e-graph` fragment.
 
+One more durable constraint became explicit when the fresh current-code
+`nodeid-cse` frontier stalled during resume: sampling the live process
+showed the hotspot in `ir::compact::fold_proven_gates` /
+`semantic_exact_value`, not in Yosys or Verilator. The settled-graph
+cleanup prover is therefore intentionally **stricter** than the
+generator-side semantic-sharing passes. Today it only brute-forces cones
+that are all of:
+
+- at most 8 bits wide;
+- at most 10 total support bits; and
+- at most 3 canonical leaf endpoints.
+
+If a cone falls outside that tiny cleanup surface, the pass memoizes
+`None` immediately and moves on. Durable rule: late proof-cleanup exists
+to scrub obvious constants for downstream-tool cleanliness, not to widen
+the main identity/factorization contract at arbitrary runtime cost.
+
 ### Narrow slices of wide cones are still narrow proof domains (2026-04-20)
 
 The next live warning bucket made a subtle point painfully concrete:

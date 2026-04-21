@@ -81,6 +81,7 @@ use crate::config::FactorizationLevel;
 use std::collections::{BTreeSet, HashMap};
 
 const MAX_SEMANTIC_SUPPORT_BITS: u32 = 10;
+const MAX_SEMANTIC_EXACT_ENDPOINTS: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
@@ -406,6 +407,28 @@ fn semantic_cone_proof(
     Some(SemanticConeProof { endpoints, outputs })
 }
 
+fn semantic_exact_cleanup_eligible(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+) -> bool {
+    // This cleanup-only exact prover is intentionally stricter than the
+    // bounded semantic merge passes above: it exists to scrub obvious
+    // constants for downstream-tool cleanliness, not to widen the main
+    // semantic-sharing contract at any runtime cost.
+    if m.nodes[node_id as usize].width() > 8 {
+        return false;
+    }
+
+    let endpoints = collect_leaf_endpoints(m, node_id, endpoint_memo);
+    if endpoints.len() > MAX_SEMANTIC_EXACT_ENDPOINTS {
+        return false;
+    }
+
+    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
+    support_bits <= MAX_SEMANTIC_SUPPORT_BITS
+}
+
 fn semantic_exact_value(
     m: &Module,
     node_id: NodeId,
@@ -414,6 +437,10 @@ fn semantic_exact_value(
 ) -> Option<u128> {
     if let Some(value) = memo.get(&node_id) {
         return *value;
+    }
+    if !semantic_exact_cleanup_eligible(m, node_id, endpoint_memo) {
+        memo.insert(node_id, None);
+        return None;
     }
     let exact = semantic_cone_proof(m, node_id, endpoint_memo).and_then(|proof| {
         let first = *proof.outputs.first()?;
@@ -718,12 +745,7 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
         }
 
         let exact_value = crate::gen::cone::prove_node_exact_value(m, node_id).or_else(|| {
-            let node_width = m.nodes[node_id as usize].width();
-            (node_width <= 8)
-                .then(|| {
-                    semantic_exact_value(m, node_id, &mut endpoint_memo, &mut semantic_exact_memo)
-                })
-                .flatten()
+            semantic_exact_value(m, node_id, &mut endpoint_memo, &mut semantic_exact_memo)
         });
 
         if let Some(value) = exact_value {
@@ -1856,6 +1878,26 @@ mod tests {
             &m.nodes[sink as usize],
             Node::Constant { width: 8, value: 5 }
         ));
+    }
+
+    #[test]
+    fn semantic_exact_cleanup_skips_four_endpoint_cones() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 1);
+        let b = push_primary(&mut m, 1, 1);
+        let c = push_primary(&mut m, 2, 1);
+        let d = push_primary(&mut m, 3, 1);
+        let concat = push_gate(&mut m, GateOp::Concat, vec![a, b, c, d], 4);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            !semantic_exact_cleanup_eligible(&m, concat, &mut endpoint_memo),
+            "post-construction exact cleanup must skip cones with more than three canonical leaf endpoints"
+        );
     }
 
     fn count_orphan_gates(m: &Module) -> usize {
