@@ -212,6 +212,12 @@ harness:
 cargo run --bin tool_matrix -- --out ./tool-matrix
 ```
 
+To continue an interrupted sweep on the same output tree:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix --resume
+```
+
 What it does:
 
 - builds a curated scenario matrix over construction strategy,
@@ -250,9 +256,14 @@ lines, spanning the full `int_relaxed_none_default`,
 `int_nodeid_none_default`, `int_nodeid_cse_default`,
 `int_nodeid_operand-unique_default`, and
 `int_nodeid_commutative_default` scenarios plus 33 clean modules into
-`int_nodeid_associative_default`. `tool_matrix` currently writes fresh
-artifacts into the chosen `--out` tree rather than resuming a partial
-run in place, so stronger frontiers should use a new output directory.
+`int_nodeid_associative_default`. `tool_matrix` now writes
+per-module checkpoint sidecars and supports `--resume`, so interrupted
+output trees can be continued in place.
+
+`--resume` only reuses saved tool results when the saved tool surface
+matches the current run (`skip_verilator`, `skip_yosys`, and
+`yosys_mode`). Older trees without checkpoints are upgraded by
+validating the saved `.sv` and rerunning the current tool surface once.
 
 ## Downstream verification
 

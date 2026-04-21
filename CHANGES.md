@@ -3,9 +3,108 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0100 — Advance the real both-mode frontier to 368 clean modules
+## 2026-04-21-0101 — Add resumable per-module checkpoints to tool_matrix
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+`src/bin/tool_matrix.rs` now has real resume support instead of the old
+"start a fresh output tree every time" workflow.
+
+The harness now writes a per-module checkpoint sidecar:
+
+- `<stem>.module-report.json`
+
+after each fully processed module. Each sidecar stores the module
+report plus the tool-surface settings that produced it
+(`skip_verilator`, `skip_yosys`, and `yosys_mode`).
+
+A new CLI flag is now live:
+
+- `tool_matrix --resume`
+
+When `--resume` is used, `tool_matrix` replays the deterministic
+generator state, validates that the regenerated module still matches
+the saved artifact, and then:
+
+- reuses the saved tool results when the checkpoint matches the current
+  tool surface; or
+- bootstraps legacy / pre-checkpoint trees by validating the saved
+  `.sv`, rerunning the current tool surface once, and writing the new
+  sidecar.
+
+One subtle design choice also landed: resume validation now keys on the
+saved `.sv` text plus module identity, while metrics are refreshed from
+the current code on resume. During the real smoke proof, metrics turned
+out to be too strict a reuse key even when the emitted `.sv` matched
+exactly, so the checkpoint logic now treats the emitted artifact as the
+load-bearing truth and recomputes metrics locally.
+
+`src/metrics.rs` now derives `Deserialize` and `PartialEq` to support
+checkpoint I/O and the new harness tests.
+
+The live docs now reflect the new truth: `tool_matrix` **does** resume
+partial runs, older trees can be upgraded in place, and the stale
+"no resume mode" guidance has been removed.
+
+**Why**
+
+The project had crossed the threshold where frontier runs were worth
+resuming rather than replaying manually. The old workflow was wasting
+time and leaving crash-recovery weaker than the user explicitly wanted.
+
+Per-module checkpoints are the right grain here:
+
+- scenario manifests only land at scenario boundaries, which is too
+  coarse for interrupted industrial sweeps;
+- top-level reports only land at the very end of the matrix; and
+- partial output trees were otherwise just piles of `.sv` files with no
+  trustworthy way to know what tool work had actually completed.
+
+This slice turns `tool_matrix` into a recovery-friendly harness rather
+than a one-shot batch runner.
+
+**Validation**
+
+- `cargo test --bin tool_matrix`
+  - includes two new harness tests:
+    - resume from checkpointed modules
+    - bootstrap resume from legacy `.sv` files without checkpoints
+- real smoke proof:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-resume-smoke-r1 --modules-per-scenario 1 --yosys-mode both`
+  - deliberately interrupted after 14 scenario module sidecars had landed
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-resume-smoke-r1 --modules-per-scenario 1 --yosys-mode both --resume`
+  - final result:
+    - `tool_matrix: 15 scenarios, 1 modules/scenario`
+    - `Verilator pass/fail = 15/0`
+    - `Yosys without-abc pass/fail = 15/0`
+    - `Yosys with-abc pass/fail = 15/0`
+
+**Impact**
+
+- `tool_matrix` can now resume interrupted runs from the same `--out`
+  tree instead of forcing fresh output roots every time.
+- Future frontier pushes can be resumed exactly from new sidecars.
+- Existing frontier trees can be upgraded in place by the legacy
+  bootstrap path.
+- The repo's recovery story now matches the project's crash-tolerant
+  doctrine much better.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `src/metrics.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0100 — Advance the real both-mode frontier to 368 clean modules
+
+**Landed as:** `cd25e8e`
 
 **What changed**
 

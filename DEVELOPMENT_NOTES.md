@@ -57,22 +57,28 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
-### `tool_matrix` frontier runs do not resume yet
-Operational gotcha captured after the real both-mode frontier pushes:
-reusing the same `tool_matrix --out DIR` path does **not** resume a
-partially completed industrial sweep. `run_scenario` always writes a
-fresh set of module files and manifests into the scenario directory.
+### `tool_matrix` frontier runs now use per-module checkpoints
+`tool_matrix` now writes `<stem>.module-report.json` after each fully
+processed module and supports `--resume`.
 
-That means the current evidence workflow is:
+The resume contract is intentionally narrow:
 
-- start a fresh output tree,
-- push until the run reaches a materially stronger clean checkpoint,
-- stop it deliberately,
-- record the exact counts in the docs.
+- checkpoint reuse is allowed only when the current tool surface matches
+  the checkpoint (`skip_verilator`, `skip_yosys`, `yosys_mode`);
+- the regenerated module must still match the saved `.sv` text and
+  module identity; and
+- metrics are refreshed locally on resume instead of being treated as
+  the reuse key.
 
-Do not write handoff notes that claim the next session can literally
-"resume" an existing output tree unless explicit resume support lands in
-the harness first.
+That last point is important. In the real smoke proof, the saved `.sv`
+matched exactly while the checkpointed metrics did not, which means
+metrics are too strict a resume key even when the emitted artifact is
+unchanged. The load-bearing truth for reuse is therefore the emitted
+module, not the old metric blob.
+
+Older output trees without sidecars are still resumable: `--resume`
+will validate the saved `.sv`, rerun the current tool surface once for
+that module, and then write the new checkpoint sidecar.
 
 ### `constant_prob = 0.1`
 Default chosen to prevent constants from dominating cone leaves. Real synthesis-stress workloads may want lower (≤ 0.05); aggressive pattern coverage may want higher. Revisit after first seed sweep with metrics on what fraction of generated cones survive non-triviality on the first attempt.

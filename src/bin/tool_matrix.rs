@@ -3,7 +3,7 @@ use anvil::metrics::Metrics;
 use anvil::{Config, Generator};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -62,6 +62,10 @@ struct Cli {
     /// Return non-zero if the matrix misses intended coverage.
     #[arg(long)]
     fail_on_coverage_gap: bool,
+
+    /// Resume from per-module checkpoints in --out when present.
+    #[arg(long)]
+    resume: bool,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -78,7 +82,7 @@ struct Scenario {
     config: Config,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ToolInvocation {
     tool: String,
     argv: Vec<String>,
@@ -89,13 +93,21 @@ struct ToolInvocation {
     error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModuleReport {
     file: String,
     name: String,
     metrics: Metrics,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModuleCheckpoint {
+    skip_verilator: bool,
+    skip_yosys: bool,
+    yosys_mode: String,
+    report: ModuleReport,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -175,6 +187,22 @@ struct RunPlan {
     modules_per_scenario: usize,
     fail_on_coverage_gap: bool,
     total_modules: usize,
+}
+
+#[derive(Debug, Clone)]
+struct ModulePaths {
+    file: String,
+    stem: String,
+    sv_path: PathBuf,
+    checkpoint_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedModule {
+    paths: ModulePaths,
+    name: String,
+    metrics: Metrics,
+    sv_text: String,
 }
 
 fn main() -> Result<()> {
@@ -457,48 +485,20 @@ fn run_scenario(
     let mut modules = Vec::with_capacity(plan.modules_per_scenario);
 
     for module_index in 0..plan.modules_per_scenario {
-        let module = generator.generate_module();
-        let metrics = anvil::metrics::compute(&module);
-        let file = format!("mod_{}_{:04}.sv", scenario.config.seed, module_index);
-        let sv_path = scenario_dir.join(&file);
-        std::fs::write(&sv_path, anvil::emit::to_sv(&module))
-            .with_context(|| format!("write {}", sv_path.display()))?;
+        if let Some(report) =
+            resume_existing_module(&mut generator, scenario, cli, &scenario_dir, module_index)?
+        {
+            modules.push(report);
+            continue;
+        }
 
-        let stem = sv_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .context("scenario file stem not valid UTF-8")?;
-
-        let verilator = if cli.skip_verilator {
-            None
-        } else {
-            Some(run_verilator(
-                &cli.verilator_bin,
-                &scenario_dir,
-                &sv_path,
-                stem,
-            )?)
-        };
-
-        let yosys = if cli.skip_yosys {
-            Vec::new()
-        } else {
-            run_yosys(
-                cli.yosys_mode,
-                &cli.yosys_bin,
-                &scenario_dir,
-                &sv_path,
-                stem,
-            )?
-        };
-
-        modules.push(ModuleReport {
-            file,
-            name: module.name,
-            metrics,
-            verilator,
-            yosys,
-        });
+        let prepared = prepare_module(&mut generator, scenario, &scenario_dir, module_index)?;
+        modules.push(materialize_prepared_module(
+            cli,
+            &scenario_dir,
+            prepared,
+            true,
+        )?);
     }
 
     write_scenario_manifest(&scenario_dir, scenario, &modules)?;
@@ -521,6 +521,44 @@ fn run_scenario(
         tool_summary,
         modules,
     })
+}
+
+fn resume_existing_module(
+    generator: &mut Generator,
+    scenario: &Scenario,
+    cli: &Cli,
+    scenario_dir: &Path,
+    module_index: usize,
+) -> Result<Option<ModuleReport>> {
+    if !cli.resume {
+        return Ok(None);
+    }
+
+    let paths = module_paths(scenario_dir, scenario.config.seed, module_index)?;
+    if !paths.sv_path.exists() && !paths.checkpoint_path.exists() {
+        return Ok(None);
+    }
+
+    let prepared = prepare_module_with_paths(generator, scenario, paths)?;
+    if let Some(checkpoint) = load_module_checkpoint(&prepared.paths.checkpoint_path)? {
+        if checkpoint_matches_cli(&checkpoint, cli) {
+            let mut report = checkpoint.report;
+            validate_checkpoint_against_prepared(&report, &prepared)?;
+            report.metrics = prepared.metrics.clone();
+            return Ok(Some(report));
+        }
+    }
+
+    if !prepared.paths.sv_path.exists() {
+        bail!(
+            "cannot resume {}: checkpoint exists but {} is missing",
+            prepared.paths.file,
+            prepared.paths.sv_path.display()
+        );
+    }
+
+    validate_legacy_sv_against_prepared(&prepared)?;
+    materialize_prepared_module(cli, scenario_dir, prepared, false).map(Some)
 }
 
 fn write_scenario_manifest(
@@ -552,6 +590,170 @@ fn write_scenario_manifest(
     let manifest_path = scenario_dir.join("manifest.json");
     std::fs::write(&manifest_path, serde_json::to_string_pretty(&manifest)?)
         .with_context(|| format!("write {}", manifest_path.display()))?;
+    Ok(())
+}
+
+fn module_paths(scenario_dir: &Path, seed: u64, module_index: usize) -> Result<ModulePaths> {
+    let file = format!("mod_{}_{:04}.sv", seed, module_index);
+    let sv_path = scenario_dir.join(&file);
+    let stem = sv_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .context("scenario file stem not valid UTF-8")?
+        .to_string();
+    let checkpoint_path = scenario_dir.join(format!("{stem}.module-report.json"));
+    Ok(ModulePaths {
+        file,
+        stem,
+        sv_path,
+        checkpoint_path,
+    })
+}
+
+fn prepare_module(
+    generator: &mut Generator,
+    scenario: &Scenario,
+    scenario_dir: &Path,
+    module_index: usize,
+) -> Result<PreparedModule> {
+    let paths = module_paths(scenario_dir, scenario.config.seed, module_index)?;
+    prepare_module_with_paths(generator, scenario, paths)
+}
+
+fn prepare_module_with_paths(
+    generator: &mut Generator,
+    _scenario: &Scenario,
+    paths: ModulePaths,
+) -> Result<PreparedModule> {
+    let module = generator.generate_module();
+    let metrics = anvil::metrics::compute(&module);
+    let sv_text = anvil::emit::to_sv(&module);
+    Ok(PreparedModule {
+        paths,
+        name: module.name,
+        metrics,
+        sv_text,
+    })
+}
+
+fn materialize_prepared_module(
+    cli: &Cli,
+    scenario_dir: &Path,
+    prepared: PreparedModule,
+    write_sv: bool,
+) -> Result<ModuleReport> {
+    if write_sv {
+        std::fs::write(&prepared.paths.sv_path, &prepared.sv_text)
+            .with_context(|| format!("write {}", prepared.paths.sv_path.display()))?;
+    }
+
+    let (verilator, yosys) = run_module_tools(
+        cli,
+        scenario_dir,
+        &prepared.paths.sv_path,
+        &prepared.paths.stem,
+    )?;
+
+    let report = ModuleReport {
+        file: prepared.paths.file.clone(),
+        name: prepared.name,
+        metrics: prepared.metrics,
+        verilator,
+        yosys,
+    };
+    write_module_checkpoint(cli, &prepared.paths.checkpoint_path, &report)?;
+    Ok(report)
+}
+
+fn run_module_tools(
+    cli: &Cli,
+    scenario_dir: &Path,
+    sv_path: &Path,
+    stem: &str,
+) -> Result<(Option<ToolInvocation>, Vec<ToolInvocation>)> {
+    let verilator = if cli.skip_verilator {
+        None
+    } else {
+        Some(run_verilator(
+            &cli.verilator_bin,
+            scenario_dir,
+            sv_path,
+            stem,
+        )?)
+    };
+
+    let yosys = if cli.skip_yosys {
+        Vec::new()
+    } else {
+        run_yosys(cli.yosys_mode, &cli.yosys_bin, scenario_dir, sv_path, stem)?
+    };
+
+    Ok((verilator, yosys))
+}
+
+fn write_module_checkpoint(cli: &Cli, path: &Path, report: &ModuleReport) -> Result<()> {
+    let checkpoint = ModuleCheckpoint {
+        skip_verilator: cli.skip_verilator,
+        skip_yosys: cli.skip_yosys,
+        yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
+        report: report.clone(),
+    };
+    std::fs::write(path, serde_json::to_string_pretty(&checkpoint)?)
+        .with_context(|| format!("write {}", path.display()))?;
+    Ok(())
+}
+
+fn load_module_checkpoint(path: &Path) -> Result<Option<ModuleCheckpoint>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    match serde_json::from_str::<ModuleCheckpoint>(&text) {
+        Ok(checkpoint) => Ok(Some(checkpoint)),
+        Err(_) => Ok(None),
+    }
+}
+
+fn checkpoint_matches_cli(checkpoint: &ModuleCheckpoint, cli: &Cli) -> bool {
+    checkpoint.skip_verilator == cli.skip_verilator
+        && checkpoint.skip_yosys == cli.skip_yosys
+        && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
+}
+
+fn validate_checkpoint_against_prepared(
+    report: &ModuleReport,
+    prepared: &PreparedModule,
+) -> Result<()> {
+    validate_legacy_sv_against_prepared(prepared)?;
+    if report.file != prepared.paths.file {
+        bail!(
+            "resume mismatch for {}: checkpoint file {}, expected {}",
+            prepared.paths.file,
+            report.file,
+            prepared.paths.file
+        );
+    }
+    if report.name != prepared.name {
+        bail!(
+            "resume mismatch for {}: checkpoint module {}, expected {}",
+            prepared.paths.file,
+            report.name,
+            prepared.name
+        );
+    }
+    Ok(())
+}
+
+fn validate_legacy_sv_against_prepared(prepared: &PreparedModule) -> Result<()> {
+    let existing = std::fs::read_to_string(&prepared.paths.sv_path)
+        .with_context(|| format!("read {}", prepared.paths.sv_path.display()))?;
+    if existing != prepared.sv_text {
+        bail!(
+            "resume mismatch for {}: existing SV differs from regenerated module",
+            prepared.paths.file
+        );
+    }
     Ok(())
 }
 
@@ -1021,6 +1223,8 @@ fn escape_for_double_quotes(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn test_cli() -> Cli {
         Cli {
@@ -1035,7 +1239,21 @@ mod tests {
             yosys_bin: "yosys".to_string(),
             yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
+            resume: false,
         }
+    }
+
+    fn temp_test_dir(label: &str) -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time went backwards")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "anvil-tool-matrix-{label}-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
     }
 
     #[test]
@@ -1192,5 +1410,88 @@ mod tests {
         assert_eq!(summary.yosys_without_abc_passed, 1);
         assert_eq!(summary.yosys_with_abc_failed, 1);
         assert_eq!(summary.yosys_failed(), 1);
+    }
+
+    #[test]
+    fn resume_uses_checkpointed_modules_and_generates_the_rest() {
+        let out_root = temp_test_dir("resume-checkpoint");
+        let scenario = make_scenario(
+            "resume_case",
+            "resume test",
+            relaxed_default_config(ConstructionStrategy::Interleaved, 11),
+        )
+        .expect("scenario");
+        let scenario_dir = out_root.join(&scenario.name);
+        fs::create_dir_all(&scenario_dir).expect("create scenario dir");
+
+        let mut generator = Generator::new(scenario.config.clone());
+        for module_index in 0..2 {
+            let prepared =
+                prepare_module(&mut generator, &scenario, &scenario_dir, module_index).unwrap();
+            fs::write(&prepared.paths.sv_path, &prepared.sv_text).unwrap();
+            let report = ModuleReport {
+                file: prepared.paths.file.clone(),
+                name: prepared.name,
+                metrics: prepared.metrics,
+                verilator: None,
+                yosys: vec![],
+            };
+            write_module_checkpoint(&test_cli_resume(), &prepared.paths.checkpoint_path, &report)
+                .unwrap();
+        }
+
+        let cli = test_cli_resume();
+        let plan = RunPlan {
+            modules_per_scenario: 3,
+            fail_on_coverage_gap: false,
+            total_modules: 3,
+        };
+        let report = run_scenario(&scenario, &cli, &plan, &out_root).expect("run scenario");
+
+        assert_eq!(report.modules.len(), 3);
+        assert!(scenario_dir.join("mod_11_0000.module-report.json").exists());
+        assert!(scenario_dir.join("mod_11_0001.module-report.json").exists());
+        assert!(scenario_dir.join("mod_11_0002.module-report.json").exists());
+
+        let _ = fs::remove_dir_all(out_root);
+    }
+
+    #[test]
+    fn resume_bootstraps_legacy_sv_without_checkpoint() {
+        let out_root = temp_test_dir("resume-legacy");
+        let scenario = make_scenario(
+            "legacy_case",
+            "legacy resume test",
+            relaxed_default_config(ConstructionStrategy::Interleaved, 13),
+        )
+        .expect("scenario");
+        let scenario_dir = out_root.join(&scenario.name);
+        fs::create_dir_all(&scenario_dir).expect("create scenario dir");
+
+        let mut generator = Generator::new(scenario.config.clone());
+        let prepared = prepare_module(&mut generator, &scenario, &scenario_dir, 0).unwrap();
+        fs::write(&prepared.paths.sv_path, &prepared.sv_text).unwrap();
+
+        let cli = test_cli_resume();
+        let plan = RunPlan {
+            modules_per_scenario: 2,
+            fail_on_coverage_gap: false,
+            total_modules: 2,
+        };
+        let report = run_scenario(&scenario, &cli, &plan, &out_root).expect("run scenario");
+
+        assert_eq!(report.modules.len(), 2);
+        assert!(scenario_dir.join("mod_13_0000.module-report.json").exists());
+        assert!(scenario_dir.join("mod_13_0001.module-report.json").exists());
+
+        let _ = fs::remove_dir_all(out_root);
+    }
+
+    fn test_cli_resume() -> Cli {
+        let mut cli = test_cli();
+        cli.skip_verilator = true;
+        cli.skip_yosys = true;
+        cli.resume = true;
+        cli
     }
 }

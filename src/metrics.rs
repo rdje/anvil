@@ -15,12 +15,12 @@
 //! another knob, or whether a new knob is needed.
 
 use crate::ir::{GateOp, Module, Node};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Structural summary of a single generated module. Serialisable as
 /// JSON for inclusion in `manifest.json` or stderr dumps.
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Metrics {
     /// Module identifier (e.g. `mod_42_0000`).
     pub module: String,

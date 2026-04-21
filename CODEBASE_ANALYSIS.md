@@ -142,12 +142,16 @@ src/
 │                     construction strategy, identity mode,
 │                     factorization level, and two stress profiles;
 │                     generates per-scenario corpora, runs Verilator
-│                     and Yosys, writes `tool_matrix_report.json`,
-│                     aggregates metrics/coverage facts, and exits
-│                     non-zero on tool failures. `--phase1-gate`
-│                     lifts the run to >=1000 total modules with
-│                     coverage-gap failure enabled. Also doubles as
-│                     the first executable "axis matrix" proof surface.
+│                     and Yosys, writes per-module
+│                     `.module-report.json` checkpoints plus the final
+│                     `tool_matrix_report.json`, aggregates
+│                     metrics/coverage facts, and exits non-zero on
+│                     tool failures. `--phase1-gate` lifts the run to
+│                     >=1000 total modules with coverage-gap failure
+│                     enabled; `--resume` reuses compatible
+│                     per-module checkpoints and bootstraps older trees
+│                     from saved `.sv` artifacts. Also doubles as the
+│                     first executable "axis matrix" proof surface.
 │                     Yosys is now a first-class harness axis too:
 │                     `--yosys-mode <without-abc|with-abc|both>`
 │                     selects the current stable `synth -noabc`
@@ -466,9 +470,9 @@ In `ir::validate::validate`:
 - `src/emit/sv.rs` — 7 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, no-op compaction, orphan removal, dead-flop removal, strict post-remap duplicate protection, and topological-order preservation.
-- `src/bin/tool_matrix.rs` — 6 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, and the Phase-1 gate run-plan math.
+- `src/bin/tool_matrix.rs` — 10 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 gate run-plan math, checkpointed resume, and legacy `.sv` bootstrap resume.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-20): **129 unit + 24 integration = 153 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-21): **133 unit + 24 integration = 157 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps; the smoke matrix is now green, and the Phase 1 exit gate is
@@ -499,7 +503,7 @@ In `ir::validate::validate`:
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); and a real both-mode `tool_matrix --phase1-gate --yosys-mode both` rerun has now also been pushed to **368 generated modules** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 33 clean in `int_nodeid_associative_default` before checkpoint). `tool_matrix` still has no in-place resume support for partial frontier runs, so each stronger checkpoint currently comes from a fresh output tree.
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); a real both-mode `tool_matrix --phase1-gate --yosys-mode both` rerun has now also been pushed to **368 generated modules** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 33 clean in `int_nodeid_associative_default` before checkpoint); and a real partial both-mode smoke run interrupted at 14/15 scenarios was then completed successfully on the same output tree under `--resume`, ending at 15/15 clean in Verilator and both Yosys sub-modes.
 - `src/gen/cone.rs` now owns an always-on generator-side comparison
   proof in addition to the factorization ladder. The proof combines a
   conservative unsigned-bounds engine with an exact finite-set engine

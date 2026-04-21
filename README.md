@@ -164,10 +164,10 @@ warning lines, spanning the full `int_relaxed_none_default`,
 `int_nodeid_none_default`, `int_nodeid_cse_default`,
 `int_nodeid_operand-unique_default`, and
 `int_nodeid_commutative_default` scenarios plus 33 clean modules into
-`int_nodeid_associative_default`. `tool_matrix` still does not resume
-an existing output tree in place, so stronger frontiers are currently
-established by starting a fresh `--out` directory and pushing it past
-the prior checkpoint.
+`int_nodeid_associative_default`. `tool_matrix` now writes per-module
+checkpoint sidecars and supports `--resume`, so interrupted output trees
+can be continued in place instead of always forking a fresh `--out`
+directory.
 
 For the repo-owned Phase 1 gate shape:
 
@@ -176,7 +176,12 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
 ```
 
 That auto-enables coverage-gap failure and raises the per-scenario
-module count high enough to generate at least 1000 modules total.
+module count high enough to generate at least 1000 modules total. To
+continue an interrupted run on the same tree:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
+```
 
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.
@@ -187,6 +192,10 @@ module count high enough to generate at least 1000 modules total.
 - `tool_matrix --yosys-mode <without-abc|with-abc|both>` controls
   whether the repo-owned Yosys harness runs the current `synth -noabc`
   path, the explicit ABC-enabled `abc -fast` path, or both.
+- `tool_matrix --resume` reuses per-module checkpoints from an existing
+  `--out` tree when the saved tool surface matches the current run; old
+  trees without checkpoints are bootstrapped from their saved `.sv`
+  artifacts.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and
