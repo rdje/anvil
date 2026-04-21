@@ -3,9 +3,84 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0107 — Clarify NodeId doctrine across docs
+## 2026-04-21-0108 — Record fresh current-code nodeid-none frontier
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I pushed a fresh current-code real both-mode Phase 1 tree at
+`/tmp/anvil-tool-matrix-phase1-real-r16` and stopped it on a clean
+checkpoint boundary that is actually meaningful for the repaired proof
+engine:
+
+- `int_relaxed_none_default`: `67/67` completed module checkpoints
+- `int_nodeid_none_default`: `67/67` completed module checkpoints
+- `int_nodeid_cse_default`: `1/67` completed module checkpoints
+
+At the stop point the tree contains:
+
+- **135** completed `*.module-report.json` checkpoints
+- **136** emitted `.sv` files
+- **0** Verilator warning logs
+- **0** Yosys `Warning:` lines across both Yosys modes
+
+Because the harness was intentionally interrupted on a checkpointed
+tree instead of finishing the full matrix, there is no final
+`tool_matrix_report.json` yet. The saved tree remains resumable in
+place via `--resume`.
+
+I also refreshed the live recovery docs with that checkpoint and cleaned
+up one stale doc drift in `CODEBASE_ANALYSIS.md`: the duplicated
+"Generator-output smoke" bullet is now collapsed back to one bullet, and
+the test count is corrected to the current `160` passing total.
+
+**Why**
+
+The previous fresh current-code frontier (`r12`) was useful, but it was
+stale across the later proof-engine fixes. The next useful question was
+not "does relaxed still work?" but "does the repaired current code now
+carry the full `nodeid-none` rung cleanly under Verilator and both
+repo-owned Yosys modes on a real matrix tree?"
+
+The answer is now "yes": the fresh current-code tree has cleared the
+full relaxed baseline and the full `nodeid-none` scenario with no
+warning artifacts, then stepped one checkpoint into `cse` before the
+intentional stop.
+
+**Validation**
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r16 --phase1-gate --yosys-mode both`
+  - intentionally interrupted after checkpoint counts reached the full
+    `nodeid-none` boundary
+- `find /tmp/anvil-tool-matrix-phase1-real-r16/int_relaxed_none_default -name '*.module-report.json' | wc -l` -> `67`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16/int_nodeid_none_default -name '*.module-report.json' | wc -l` -> `67`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16/int_nodeid_cse_default -name '*.module-report.json' | wc -l` -> `1`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16 -name '*.module-report.json' | wc -l` -> `135`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16 -name '*.sv' | wc -l` -> `136`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16 -name '*.verilator.stderr.log' | wc -l` -> `0`
+- `find /tmp/anvil-tool-matrix-phase1-real-r16 -name '*.stdout.log' -path '*yosys*' -print0 | xargs -0 rg -n '^Warning:' | wc -l` -> `0`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- There is now a fresh current-code both-mode frontier parked in
+  `/tmp/anvil-tool-matrix-phase1-real-r16`, not only the older `r12`
+  evidence tree.
+- The repaired proof engine is now proven across the entire
+  `nodeid-none` scenario in a real matrix run, not just on a focused
+  seed-1 repro.
+- The next PNT can resume `r16` directly and keep climbing through
+  `cse`, `operand-unique`, and beyond instead of replaying the
+  relaxed/none prefix again.
+
+## 2026-04-21-0107 — Clarify NodeId doctrine across docs
+
+**Landed as:** `23fece6`
 
 **What changed**
 
