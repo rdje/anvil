@@ -3,9 +3,96 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0102 — Upgrade the legacy r11 both-mode frontier into resumable state
+## 2026-04-21-0103 — Bound exact small-set proofs to unblock the CSE frontier
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+`src/gen/cone.rs` now treats exact finite-set reasoning as a bounded
+generator-side proof engine rather than an unbounded search.
+
+The small-width helper behind `prove_node_exact_value()` and
+generator-side comparison folding now has two new guardrails:
+
+- a shared work budget for exact finite-set exploration; and
+- memoization of both **known** results and **unknown** results.
+
+That means the proof engine still keeps all the useful narrow exact
+facts on simple cones, but it can now bail out cleanly instead of
+blowing up on correlation-heavy shared cones such as the one-hot-mux /
+small-set search knot that was stalling the real `int_nodeid_cse`
+frontier.
+
+I also added a regression test that makes the new contract explicit:
+
+- `small_value_set_bails_out_before_cartesian_blow_up`
+
+which proves the helper now returns `None` rather than trying to fully
+enumerate a clearly pathological 5-input 8-bit cartesian search.
+
+**Why**
+
+The real clue came from sampling the stuck `tool_matrix --resume` job
+on the legacy `r11` both-mode frontier. It was not stuck in Verilator
+or Yosys; it was burning CPU inside ANVIL itself, specifically in
+`build_comb_mux_one_hot()` and `node_small_value_set()` while working
+through an uncheckpointed `int_nodeid_cse_default` module.
+
+This is exactly the kind of failure mode the generator-side proof
+engine is supposed to avoid:
+
+- exact narrow proofs are good because they keep emitted RTL cleaner;
+- but exact proof machinery is not allowed to become the new source of
+  pathological runtime.
+
+So the right fix was not "disable the proofs" and not "let it spin".
+The right fix was to make the proof engine explicitly budgeted.
+
+One operational consequence also became explicit during validation:
+`tool_matrix --resume` is intentionally byte-stable. Once generator
+semantics change, older trees may fail resume validation because the
+regenerated `.sv` no longer matches the saved artifact. That happened
+here with the old `r11` tree, so the current-code proof was done on a
+fresh reproduction tree instead of trying to cross that semantic
+boundary in place.
+
+**Validation**
+
+- `cargo test --bin tool_matrix --lib --tests --quiet`
+- `cargo test small_value_set_bails_out_before_cartesian_blow_up --lib --quiet`
+- Focused current-code CSE reproduction:
+  - `cargo run --bin anvil -- --seed 2 --count 10 --out /tmp/anvil-cse-seed2-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`
+  - all 10 modules emitted successfully (`mod_2_0000.sv` .. `mod_2_0009.sv`)
+- Focused downstream cleanliness on that repro tree:
+  - Verilator: `fails=0`, `warns=0`
+  - Yosys `synth -noabc; check`: `fails=0`, `warns=0`
+  - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`: `fails=0`, `warns=0`
+
+**Impact**
+
+- The small-width exact-proof engine is now safe to leave on in the
+  generator path even on correlation-heavy shared cones.
+- The old "resume `r11` cheaply from 143 upgraded checkpoints" note is
+  no longer the immediate cheap move after this semantic change; the
+  next real frontier push should start from a fresh output tree under
+  the new generator semantics.
+- The former CSE choke point now has a durable regression test and a
+  current-code proof run, not just a local hunch.
+
+**Files touched**
+
+- `src/gen/cone.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0102 — Upgrade the legacy r11 both-mode frontier into resumable state
+
+**Landed as:** `878eb4f`
 
 **What changed**
 

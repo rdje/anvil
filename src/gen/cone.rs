@@ -941,8 +941,8 @@ fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
 pub(crate) fn prove_node_exact_value(m: &Module, id: NodeId) -> Option<u128> {
     let width = m.nodes[id as usize].width();
     if width <= 8 {
-        let mut set_memo = HashMap::new();
-        if let Some(values) = node_small_value_set(m, id, &mut set_memo) {
+        let mut set_ctx = SmallValueSetContext::default();
+        if let Some(values) = node_small_value_set(m, id, &mut set_ctx) {
             if let [value] = values.as_slice() {
                 return Some(u128::from(*value));
             }
@@ -1181,31 +1181,95 @@ fn collect_small_set(seen: &[bool; 256], width: u32) -> Vec<u16> {
     out
 }
 
-fn fold_small_binary_sets<F>(lhs: &[u16], rhs: &[u16], width: u32, mut f: F) -> Vec<u16>
+const SMALL_VALUE_SET_WORK_BUDGET: usize = 200_000;
+
+#[derive(Clone)]
+enum SmallValueSetMemoEntry {
+    Known(Vec<u16>),
+    Unknown,
+}
+
+#[derive(Clone)]
+struct SmallValueSetContext {
+    memo: HashMap<NodeId, SmallValueSetMemoEntry>,
+    remaining_work: usize,
+}
+
+impl Default for SmallValueSetContext {
+    fn default() -> Self {
+        Self {
+            memo: HashMap::new(),
+            remaining_work: SMALL_VALUE_SET_WORK_BUDGET,
+        }
+    }
+}
+
+impl SmallValueSetContext {
+    fn spend(&mut self, amount: usize) -> bool {
+        if amount > self.remaining_work {
+            return false;
+        }
+        self.remaining_work -= amount;
+        true
+    }
+}
+
+fn remember_small_value_set(
+    ctx: &mut SmallValueSetContext,
+    id: NodeId,
+    values: Vec<u16>,
+) -> Option<Vec<u16>> {
+    ctx.memo
+        .insert(id, SmallValueSetMemoEntry::Known(values.clone()));
+    Some(values)
+}
+
+fn mark_small_value_set_unknown(ctx: &mut SmallValueSetContext, id: NodeId) -> Option<Vec<u16>> {
+    ctx.memo.insert(id, SmallValueSetMemoEntry::Unknown);
+    None
+}
+
+fn fold_small_binary_sets<F>(
+    ctx: &mut SmallValueSetContext,
+    lhs: &[u16],
+    rhs: &[u16],
+    width: u32,
+    mut f: F,
+) -> Option<Vec<u16>>
 where
     F: FnMut(u16, u16) -> u16,
 {
+    let work = lhs.len().saturating_mul(rhs.len()).max(1);
+    if !ctx.spend(work) {
+        return None;
+    }
     let mut seen = [false; 256];
     for &a in lhs {
         for &b in rhs {
             seen[f(a, b) as usize] = true;
         }
     }
-    collect_small_set(&seen, width)
+    Some(collect_small_set(&seen, width))
 }
 
 fn node_small_value_set(
     m: &Module,
     id: NodeId,
-    memo: &mut HashMap<NodeId, Vec<u16>>,
+    ctx: &mut SmallValueSetContext,
 ) -> Option<Vec<u16>> {
-    if let Some(values) = memo.get(&id) {
-        return Some(values.clone());
+    if let Some(entry) = ctx.memo.get(&id) {
+        return match entry {
+            SmallValueSetMemoEntry::Known(values) => Some(values.clone()),
+            SmallValueSetMemoEntry::Unknown => None,
+        };
     }
 
     let width = m.nodes[id as usize].width();
     if width > 8 {
-        return None;
+        return mark_small_value_set_unknown(ctx, id);
+    }
+    if !ctx.spend(1) {
+        return mark_small_value_set_unknown(ctx, id);
     }
     let mask = width_mask(width) as u16;
 
@@ -1222,11 +1286,11 @@ fn node_small_value_set(
                 let mut exact_and = mask;
                 let mut live = Vec::new();
                 for &operand in operands {
-                    let rhs = node_small_value_set(m, operand, memo)?;
+                    let rhs = node_small_value_set(m, operand, ctx)?;
                     if rhs.len() == 1 {
                         exact_and &= rhs[0] & mask;
                         if exact_and == 0 {
-                            return Some(vec![0]);
+                            return remember_small_value_set(ctx, id, vec![0]);
                         }
                     } else {
                         live.push(rhs);
@@ -1238,7 +1302,7 @@ fn node_small_value_set(
                 } else {
                     let mut acc = vec![exact_and];
                     for rhs in live {
-                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| a & b);
+                        acc = fold_small_binary_sets(ctx, &acc, &rhs, *width, |a, b| a & b)?;
                         if acc == [0] {
                             break;
                         }
@@ -1250,11 +1314,11 @@ fn node_small_value_set(
                 let mut exact_or = 0u16;
                 let mut live = Vec::new();
                 for &operand in operands {
-                    let rhs = node_small_value_set(m, operand, memo)?;
+                    let rhs = node_small_value_set(m, operand, ctx)?;
                     if rhs.len() == 1 {
                         exact_or |= rhs[0] & mask;
                         if exact_or == mask {
-                            return Some(vec![mask]);
+                            return remember_small_value_set(ctx, id, vec![mask]);
                         }
                     } else {
                         live.push(rhs);
@@ -1266,7 +1330,7 @@ fn node_small_value_set(
                 } else {
                     let mut acc = vec![exact_or];
                     for rhs in live {
-                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| a | b);
+                        acc = fold_small_binary_sets(ctx, &acc, &rhs, *width, |a, b| a | b)?;
                         if acc == [mask] {
                             break;
                         }
@@ -1279,7 +1343,7 @@ fn node_small_value_set(
                 let mut live_parity = HashMap::<NodeId, bool>::new();
                 let mut live_sets = HashMap::<NodeId, Vec<u16>>::new();
                 for &operand in operands {
-                    let rhs = node_small_value_set(m, operand, memo)?;
+                    let rhs = node_small_value_set(m, operand, ctx)?;
                     if rhs.len() == 1 {
                         exact_xor ^= rhs[0] & mask;
                     } else {
@@ -1295,12 +1359,15 @@ fn node_small_value_set(
                         continue;
                     }
                     let rhs = live_sets.get(&operand)?;
-                    acc = fold_small_binary_sets(&acc, rhs, *width, |a, b| (a ^ b) & mask);
+                    acc = fold_small_binary_sets(ctx, &acc, rhs, *width, |a, b| (a ^ b) & mask)?;
                 }
                 acc
             }
             GateOp::Not if operands.len() == 1 => {
-                let src = node_small_value_set(m, operands[0], memo)?;
+                let src = node_small_value_set(m, operands[0], ctx)?;
+                if !ctx.spend(src.len().max(1)) {
+                    return mark_small_value_set_unknown(ctx, id);
+                }
                 let mut seen = [false; 256];
                 for value in src {
                     seen[((!value) & mask) as usize] = true;
@@ -1309,28 +1376,26 @@ fn node_small_value_set(
             }
             GateOp::Add => {
                 let mut iter = operands.iter();
-                let first = node_small_value_set(m, *iter.next()?, memo)?;
+                let first = node_small_value_set(m, *iter.next()?, ctx)?;
                 iter.try_fold(first, |acc, operand| {
-                    let rhs = node_small_value_set(m, *operand, memo)?;
-                    Some(fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
-                        a.wrapping_add(b) & mask
-                    }))
+                    let rhs = node_small_value_set(m, *operand, ctx)?;
+                    fold_small_binary_sets(ctx, &acc, &rhs, *width, |a, b| a.wrapping_add(b) & mask)
                 })?
             }
             GateOp::Sub if operands.len() == 2 => {
-                let lhs = node_small_value_set(m, operands[0], memo)?;
-                let rhs = node_small_value_set(m, operands[1], memo)?;
-                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| a.wrapping_sub(b) & mask)
+                let lhs = node_small_value_set(m, operands[0], ctx)?;
+                let rhs = node_small_value_set(m, operands[1], ctx)?;
+                fold_small_binary_sets(ctx, &lhs, &rhs, *width, |a, b| a.wrapping_sub(b) & mask)?
             }
             GateOp::Mul => {
                 let mut exact_mul = 1u16;
                 let mut live = Vec::new();
                 for &operand in operands {
-                    let rhs = node_small_value_set(m, operand, memo)?;
+                    let rhs = node_small_value_set(m, operand, ctx)?;
                     if rhs.len() == 1 {
                         exact_mul = exact_mul.wrapping_mul(rhs[0]) & mask;
                         if exact_mul == 0 {
-                            return Some(vec![0]);
+                            return remember_small_value_set(ctx, id, vec![0]);
                         }
                     } else {
                         live.push(rhs);
@@ -1342,9 +1407,9 @@ fn node_small_value_set(
                 } else {
                     let mut acc = vec![exact_mul];
                     for rhs in live {
-                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                        acc = fold_small_binary_sets(ctx, &acc, &rhs, *width, |a, b| {
                             a.wrapping_mul(b) & mask
-                        });
+                        })?;
                         if acc == [0] {
                             break;
                         }
@@ -1355,9 +1420,9 @@ fn node_small_value_set(
             GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
                 if operands.len() == 2 =>
             {
-                let lhs = node_small_value_set(m, operands[0], memo)?;
-                let rhs = node_small_value_set(m, operands[1], memo)?;
-                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| {
+                let lhs = node_small_value_set(m, operands[0], ctx)?;
+                let rhs = node_small_value_set(m, operands[1], ctx)?;
+                fold_small_binary_sets(ctx, &lhs, &rhs, *width, |a, b| {
                     let result = match *op {
                         GateOp::Eq => a == b,
                         GateOp::Neq => a != b,
@@ -1368,12 +1433,20 @@ fn node_small_value_set(
                         _ => unreachable!(),
                     };
                     u16::from(result)
-                })
+                })?
             }
             GateOp::Mux if operands.len() == 3 => {
-                let sel = node_small_value_set(m, operands[0], memo)?;
-                let on_true = node_small_value_set(m, operands[1], memo)?;
-                let on_false = node_small_value_set(m, operands[2], memo)?;
+                let sel = node_small_value_set(m, operands[0], ctx)?;
+                let on_true = node_small_value_set(m, operands[1], ctx)?;
+                let on_false = node_small_value_set(m, operands[2], ctx)?;
+                let work = sel
+                    .len()
+                    .saturating_add(on_true.len())
+                    .saturating_add(on_false.len())
+                    .max(1);
+                if !ctx.spend(work) {
+                    return mark_small_value_set_unknown(ctx, id);
+                }
                 let mut seen = [false; 256];
                 if sel.contains(&0) {
                     for &value in &on_false {
@@ -1388,13 +1461,16 @@ fn node_small_value_set(
                 collect_small_set(&seen, *width)
             }
             GateOp::Slice { lo, .. } if operands.len() == 1 => {
-                let src = match node_small_value_set(m, operands[0], memo) {
+                let src = match node_small_value_set(m, operands[0], ctx) {
                     Some(values) => values,
                     None => match prove_node_exact_value(m, operands[0]) {
                         Some(value) => vec![((value >> lo) & u128::from(mask)) as u16],
                         None => (0..=mask).collect(),
                     },
                 };
+                if !ctx.spend(src.len().max(1)) {
+                    return mark_small_value_set_unknown(ctx, id);
+                }
                 let mut seen = [false; 256];
                 for value in src {
                     seen[((value >> lo) & mask) as usize] = true;
@@ -1405,7 +1481,11 @@ fn node_small_value_set(
                 if !operands.is_empty() && operands.iter().all(|operand| *operand == operands[0]) {
                     let operand = operands[0];
                     let operand_width = m.nodes[operand as usize].width();
-                    let src = node_small_value_set(m, operand, memo)?;
+                    let src = node_small_value_set(m, operand, ctx)?;
+                    let work = src.len().saturating_mul(operands.len()).max(1);
+                    if !ctx.spend(work) {
+                        return mark_small_value_set_unknown(ctx, id);
+                    }
                     let mut seen = [false; 256];
                     for value in src {
                         let mut out = 0u16;
@@ -1423,14 +1503,14 @@ fn node_small_value_set(
                     let mut acc = vec![0u16];
                     for &operand in operands {
                         let operand_width = m.nodes[operand as usize].width();
-                        let rhs = node_small_value_set(m, operand, memo)?;
-                        acc = fold_small_binary_sets(&acc, &rhs, *width, |a, b| {
+                        let rhs = node_small_value_set(m, operand, ctx)?;
+                        acc = fold_small_binary_sets(ctx, &acc, &rhs, *width, |a, b| {
                             if operand_width >= 16 {
                                 b & mask
                             } else {
                                 (((a as u32) << operand_width) | u32::from(b)) as u16 & mask
                             }
-                        });
+                        })?;
                     }
                     acc
                 }
@@ -1438,7 +1518,10 @@ fn node_small_value_set(
             GateOp::RedAnd | GateOp::RedOr | GateOp::RedXor if operands.len() == 1 => {
                 let src_width = m.nodes[operands[0] as usize].width();
                 let all_ones = width_mask(src_width) as u16;
-                let src = node_small_value_set(m, operands[0], memo)?;
+                let src = node_small_value_set(m, operands[0], ctx)?;
+                if !ctx.spend(src.len().max(1)) {
+                    return mark_small_value_set_unknown(ctx, id);
+                }
                 let mut seen = [false; 256];
                 for value in src {
                     let result = match *op {
@@ -1453,9 +1536,9 @@ fn node_small_value_set(
             }
             GateOp::Shl | GateOp::Shr if operands.len() == 2 => {
                 let src_width = m.nodes[operands[0] as usize].width() as u16;
-                let lhs = node_small_value_set(m, operands[0], memo)?;
-                let rhs = node_small_value_set(m, operands[1], memo)?;
-                fold_small_binary_sets(&lhs, &rhs, *width, |a, b| {
+                let lhs = node_small_value_set(m, operands[0], ctx)?;
+                let rhs = node_small_value_set(m, operands[1], ctx)?;
+                fold_small_binary_sets(ctx, &lhs, &rhs, *width, |a, b| {
                     if b >= src_width {
                         0
                     } else {
@@ -1465,14 +1548,13 @@ fn node_small_value_set(
                             _ => unreachable!(),
                         }
                     }
-                })
+                })?
             }
-            _ => return None,
+            _ => return mark_small_value_set_unknown(ctx, id),
         },
     };
 
-    memo.insert(id, values.clone());
-    Some(values)
+    remember_small_value_set(ctx, id, values)
 }
 
 fn node_unsigned_bounds(
@@ -1802,10 +1884,10 @@ fn obvious_unsigned_compare_result(
     let lhs_width = m.nodes[lhs as usize].width();
     let rhs_width = m.nodes[rhs as usize].width();
     if lhs_width <= 8 && rhs_width <= 8 {
-        let mut set_memo = HashMap::new();
+        let mut set_ctx = SmallValueSetContext::default();
         if let (Some(lhs_values), Some(rhs_values)) = (
-            node_small_value_set(m, lhs, &mut set_memo),
-            node_small_value_set(m, rhs, &mut set_memo),
+            node_small_value_set(m, lhs, &mut set_ctx),
+            node_small_value_set(m, rhs, &mut set_ctx),
         ) {
             let mut saw_true = false;
             let mut saw_false = false;
@@ -4004,7 +4086,7 @@ mod tests {
             pool.add(dup_xor, 5, deps);
         }
 
-        let mut memo = HashMap::new();
+        let mut memo = SmallValueSetContext::default();
         assert_eq!(
             node_small_value_set(&m, dup_xor, &mut memo),
             Some(vec![0]),
@@ -4058,7 +4140,7 @@ mod tests {
             pool.add(or, 6, deps);
         }
 
-        let mut memo = HashMap::new();
+        let mut memo = SmallValueSetContext::default();
         assert_eq!(
             node_small_value_set(&m, or, &mut memo),
             Some(vec![0x3f]),
@@ -4098,13 +4180,37 @@ mod tests {
             pool.add(mul, 2, deps);
         }
 
-        let mut memo = HashMap::new();
+        let mut memo = SmallValueSetContext::default();
         assert_eq!(
             node_small_value_set(&m, mul, &mut memo),
             Some(vec![0]),
             "at width 2, 1 * 2 * 2 already wraps to zero, so the wide-dependent tail cannot revive the product"
         );
         assert_eq!(prove_node_exact_value(&m, mul), Some(0));
+    }
+
+    #[test]
+    fn small_value_set_bails_out_before_cartesian_blow_up() {
+        let (mut m, mut pool) = fixture_with_inputs(5, 8, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let deps = DepSet::union(&[
+            &node_deps(&m, 0),
+            &node_deps(&m, 1),
+            &node_deps(&m, 2),
+            &node_deps(&m, 3),
+            &node_deps(&m, 4),
+        ]);
+        let (sum, is_new) = m.intern_gate(GateOp::Add, vec![0, 1, 2, 3, 4], 8, deps.clone());
+        if is_new {
+            pool.add(sum, 8, deps);
+        }
+
+        let mut memo = SmallValueSetContext::default();
+        assert_eq!(
+            node_small_value_set(&m, sum, &mut memo),
+            None,
+            "budgeted exact finite-set reasoning should bail out instead of enumerating an unbounded cartesian product"
+        );
     }
 
     #[test]

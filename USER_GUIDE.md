@@ -264,6 +264,9 @@ output trees can be continued in place.
 matches the current run (`skip_verilator`, `skip_yosys`, and
 `yosys_mode`). Older trees without checkpoints are upgraded by
 validating the saved `.sv` and rerunning the current tool surface once.
+Resume is intentionally byte-stable: if regenerated `.sv` no longer
+matches the saved artifact after a generator-semantics change, use a
+fresh output directory for the new run.
 
 ## Downstream verification
 

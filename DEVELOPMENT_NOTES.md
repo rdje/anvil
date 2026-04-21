@@ -70,6 +70,12 @@ The resume contract is intentionally narrow:
 - metrics are refreshed locally on resume instead of being treated as
   the reuse key.
 
+This means resume is intentionally **byte-stable**, not "best effort".
+If generator semantics change and a regenerated module no longer matches
+the saved `.sv`, that old tree is evidence only; use a fresh `--out`
+tree for the new semantics instead of trying to cross that boundary in
+place.
+
 That last point is important. In the real smoke proof, the saved `.sv`
 matched exactly while the checkpointed metrics did not, which means
 metrics are too strict a resume key even when the emitted artifact is
@@ -412,6 +418,15 @@ Two implementation refinements became load-bearing once the real
   falls back to interval reasoning. If only one engine gets the
   shortcut, the other can still miss exactly the same downstream
   warning.
+
+Another refinement became necessary once the real `int_nodeid_cse`
+frontier hit a correlation-heavy one-hot-mux cone: **exact finite-set
+reasoning must also be budgeted.** The helper now carries a shared work
+budget and memoizes both exact results and "unknown" results, so it can
+still prove small exact facts on narrow cones without turning itself
+into an exponential runtime trap on shared cartesian searches. The
+durable contract is "prove what is cheap and crisp; otherwise return
+`None` and fall back to the cheaper proof layers."
 
 ### Downstream warnings are a generator bug, and the final graph gets a last proof pass
 

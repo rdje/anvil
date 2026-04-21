@@ -195,7 +195,10 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
 - `tool_matrix --resume` reuses per-module checkpoints from an existing
   `--out` tree when the saved tool surface matches the current run; old
   trees without checkpoints are bootstrapped from their saved `.sv`
-  artifacts.
+  artifacts. Resume is intentionally byte-stable: if regenerated `.sv`
+  no longer matches the saved artifact after a generator-semantics
+  change, start from a fresh `--out` tree instead of forcing reuse
+  across that boundary.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and
