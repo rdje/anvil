@@ -3,9 +3,97 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0101 — Add resumable per-module checkpoints to tool_matrix
+## 2026-04-21-0102 — Upgrade the legacy r11 both-mode frontier into resumable state
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice only. No source files changed.
+
+After landing `tool_matrix --resume`, I immediately used it on the real
+legacy both-mode frontier that had been captured before checkpoint
+sidecars existed:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r11 --phase1-gate --yosys-mode both --resume`
+
+The run was deliberately stopped at the first meaningful in-place
+upgrade checkpoint rather than being left to churn indefinitely.
+
+At the saved checkpoint, the legacy `r11` tree now contains
+**143** per-module sidecars (`*.module-report.json`) covering:
+
+- `int_relaxed_none_default`: 67/67 modules checkpointed
+- `int_nodeid_none_default`: 67/67 modules checkpointed
+- `int_nodeid_cse_default`: 9/67 modules checkpointed
+
+The `.sv` frontier itself is unchanged at **368 generated modules**:
+
+- `int_relaxed_none_default`: 67 modules
+- `int_nodeid_none_default`: 67 modules
+- `int_nodeid_cse_default`: 67 modules
+- `int_nodeid_operand-unique_default`: 67 modules
+- `int_nodeid_commutative_default`: 67 modules
+- `int_nodeid_associative_default`: 33 modules
+
+And the upgraded tree remained clean while doing that work:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved
+  `*.yosys-without-abc.stdout.log` and `*.yosys-with-abc.stdout.log`
+  files
+
+This is the first real proof that the new resume path is useful on a
+large industrial frontier rather than only in tiny smoke examples.
+
+**Why**
+
+Adding `--resume` was only half the job. The repo already had a large
+both-mode frontier parked in `/tmp/anvil-tool-matrix-phase1-real-r11`,
+but that tree predated per-module checkpoints and therefore still
+behaved like old dead evidence unless we actually upgraded it.
+
+Stopping after two full scenarios plus the beginning of the third is a
+good boundary because it proves three things at once:
+
+- legacy `.sv` bootstrap works on a real frontier;
+- the upgraded tree stays warning-clean while being converted; and
+- future sessions can now resume `r11` cheaply from a real in-place
+  checkpoint instead of replaying from zero.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r11 --phase1-gate --yosys-mode both --resume`
+  - manually stopped after the checkpoint
+  - `find /tmp/anvil-tool-matrix-phase1-real-r11 -name '*.module-report.json' | wc -l` -> `143`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r11 -name '*.sv' | wc -l` -> `368`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r11 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r11/*/*.yosys-*.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The legacy `r11` frontier is no longer just a docs checkpoint; it is
+  now partially upgraded into resumable state.
+- The next PNT can resume `/tmp/anvil-tool-matrix-phase1-real-r11`
+  directly and cheaply from 143 verified module checkpoints.
+- The stronger both-mode frontier remains at 368 generated modules, but
+  the operational recovery state for that tree is now much better than
+  before this slice.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0101 — Add resumable per-module checkpoints to tool_matrix
+
+**Landed as:** `0c9b3f0`
 
 **What changed**
 
