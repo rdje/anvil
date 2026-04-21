@@ -3,9 +3,92 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0103 — Bound exact small-set proofs to unblock the CSE frontier
+## 2026-04-21-0104 — Record a fresh current-code both-mode frontier through CSE
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice only. No source files changed.
+
+After fixing the exact small-set proof budget in `src/gen/cone.rs`, I
+started a fresh real `tool_matrix` both-mode Phase 1 run instead of
+trying to keep leaning on the older pre-fix frontiers:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r12 --phase1-gate --yosys-mode both`
+
+The run was deliberately stopped at the first meaningful fresh
+current-code boundary: full relaxed coverage, full `nodeid-none`
+coverage, full `nodeid-cse` coverage, and the beginning of
+`nodeid-operand-unique`.
+
+At the saved checkpoint, `/tmp/anvil-tool-matrix-phase1-real-r12`
+contains **221 completed module checkpoints** and **221 emitted
+modules**:
+
+- `int_relaxed_none_default`: 67/67
+- `int_nodeid_none_default`: 67/67
+- `int_nodeid_cse_default`: 67/67
+- `int_nodeid_operand-unique_default`: 20/67
+
+And the whole saved tree remains clean:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved
+  `*.yosys-without-abc.stdout.log` and `*.yosys-with-abc.stdout.log`
+  files
+
+**Why**
+
+The previous slice proved the proof-engine fix on a focused
+`seed=2 / interleaved / node-id / cse / count=10` repro. That was a
+good local proof, but it was still a local proof.
+
+This slice answers the stronger question: does the fix actually hold up
+inside the real repo-owned both-mode industrial lane?
+
+The answer is now "yes, at least through the entire fresh current-code
+`cse` rung". That matters because `cse` was exactly where the old
+correlation-heavy proof hotspot had been dragging the run.
+
+This slice also updates the recovery story. The immediate next move is
+no longer "start a fresh current-code tree"; that work has now been
+done. The next PNT can resume `r12` directly and continue the same lane
+into `operand-unique`, `commutative`, and beyond.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- Fresh current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r12 --phase1-gate --yosys-mode both`
+  - manually stopped after the checkpoint
+  - `find /tmp/anvil-tool-matrix-phase1-real-r12 -name '*.module-report.json' | wc -l` -> `221`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r12 -name 'mod_*.sv' | wc -l` -> `221`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r12 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r12/*/*.yosys-*.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- There is now a fresh current-code real both-mode frontier parked in
+  `/tmp/anvil-tool-matrix-phase1-real-r12`, not just older evidence
+  trees from before the exact-proof budget fix.
+- The fresh current-code lane has already cleared the full `cse` rung
+  cleanly and is into `operand-unique`.
+- The next PNT can resume `r12` cheaply from **221** saved checkpoints
+  instead of replaying the relaxed/none/nodeid-none/cse prefix.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0103 — Bound exact small-set proofs to unblock the CSE frontier
+
+**Landed as:** `248d5f2`
 
 **What changed**
 
