@@ -20,6 +20,62 @@ use tracing::{debug, instrument, trace, warn};
 /// Worklist of flops whose D-input cone has not yet been built.
 pub type FlopWorklist = Vec<FlopId>;
 
+#[derive(Clone, Copy)]
+struct ConstructionSnapshot {
+    nodes_len: usize,
+    flops_len: usize,
+    pool_len: usize,
+    worklist_len: usize,
+}
+
+fn take_construction_snapshot(
+    m: &Module,
+    pool: &SignalPool,
+    worklist: &FlopWorklist,
+) -> ConstructionSnapshot {
+    ConstructionSnapshot {
+        nodes_len: m.nodes.len(),
+        flops_len: m.flops.len(),
+        pool_len: pool.len(),
+        worklist_len: worklist.len(),
+    }
+}
+
+fn rollback_construction_snapshot(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    snapshot: ConstructionSnapshot,
+) {
+    m.nodes.truncate(snapshot.nodes_len);
+    m.flops.truncate(snapshot.flops_len);
+    pool.truncate(snapshot.pool_len);
+    worklist.truncate(snapshot.worklist_len);
+    prune_intern_tables_after_node_truncate(m, snapshot.nodes_len as NodeId);
+}
+
+fn prune_intern_tables_after_node_truncate(m: &mut Module, cutoff: NodeId) {
+    if cutoff >= m.nodes.len() as NodeId
+        && m.gate_instances
+            .values()
+            .all(|ids| ids.last().map(|id| *id < cutoff).unwrap_or(true))
+        && m.const_instances
+            .values()
+            .all(|ids| ids.last().map(|id| *id < cutoff).unwrap_or(true))
+    {
+        return;
+    }
+
+    m.gate_instances.retain(|_, ids| {
+        ids.retain(|id| *id < cutoff);
+        !ids.is_empty()
+    });
+    m.const_instances.retain(|_, ids| {
+        ids.retain(|id| *id < cutoff);
+        !ids.is_empty()
+    });
+}
+
 /// Perform a probability-roll against a named knob and record the
 /// attempt + outcome in `m.knob_rolls`. Single place to add
 /// telemetry — every `gen_bool(cfg.<prob>)` site in this module
@@ -53,12 +109,7 @@ pub fn build_cone_with_retry(
 ) -> NodeId {
     const MAX_RETRIES: u32 = 4;
     for attempt in 0..MAX_RETRIES {
-        let snap_nodes = m.nodes.len();
-        let snap_flops = m.flops.len();
-        let snap_pool = pool.clone();
-        let snap_worklist = worklist.clone();
-        let snap_gate_dedup = m.gate_instances.clone();
-        let snap_const_dedup = m.const_instances.clone();
+        let snapshot = take_construction_snapshot(m, pool, worklist);
         let node = build_cone(g, m, pool, worklist, width, 0, exclude);
         let deps = node_deps(m, node);
         if !deps.is_empty() {
@@ -66,15 +117,7 @@ pub fn build_cone_with_retry(
             return node;
         }
         warn!(attempt, "🔁 cone root empty-dep, retrying");
-        m.nodes.truncate(snap_nodes);
-        m.flops.truncate(snap_flops);
-        *pool = snap_pool;
-        *worklist = snap_worklist;
-        // Restore dedup tables so no stale entry points at a truncated
-        // NodeId (which would return a now-different node when a later
-        // call reuses that slot).
-        m.gate_instances = snap_gate_dedup;
-        m.const_instances = snap_const_dedup;
+        rollback_construction_snapshot(m, pool, worklist, snapshot);
     }
     warn!("⚠️ cone retry budget exhausted, accepting last attempt");
     build_cone(g, m, pool, worklist, width, 0, exclude)
@@ -2063,6 +2106,22 @@ fn node_unsigned_bounds(
                                 let shift = amount as u32;
                                 (lhs.0 >> shift, lhs.1 >> shift)
                             }
+                            _ if exact_bound(lhs).is_some() => {
+                                let lhs_value = exact_bound(lhs).expect("guard checked");
+                                let min_amount = rhs_bounds.0.min(src_width);
+                                let max_amount = rhs_bounds.1.min(src_width);
+                                let upper = if min_amount >= src_width {
+                                    0
+                                } else {
+                                    lhs_value >> (min_amount as u32)
+                                };
+                                let lower = if max_amount >= src_width {
+                                    0
+                                } else {
+                                    lhs_value >> (max_amount as u32)
+                                };
+                                (lower.min(upper), lower.max(upper))
+                            }
                             None => default,
                         }
                     }
@@ -2076,7 +2135,7 @@ fn node_unsigned_bounds(
     bounds
 }
 
-fn obvious_unsigned_compare_result(
+pub(crate) fn obvious_unsigned_compare_result(
     m: &Module,
     op: GateOp,
     lhs: NodeId,
@@ -2815,12 +2874,7 @@ pub fn build_cone(
     // consumer (orphans). This is the α construction-rule enforcement
     // of Rule 18: a gate comes into existence only when it and its
     // operands will actually be consumed.
-    let snap_nodes = m.nodes.len();
-    let snap_flops = m.flops.len();
-    let snap_pool = pool.clone();
-    let snap_worklist = worklist.clone();
-    let snap_gate_dedup = m.gate_instances.clone();
-    let snap_const_dedup = m.const_instances.clone();
+    let snapshot = take_construction_snapshot(m, pool, worklist);
 
     let operand_widths = input_widths_for(op, width, &g.cfg, &mut g.rng);
     let mut operands = Vec::with_capacity(operand_widths.len());
@@ -2843,12 +2897,7 @@ pub fn build_cone(
 
     if violates_anti_collapse(op, &operands, m) {
         trace!(?op, "🔁 anti-collapse reject, rolling back operand subtree");
-        m.nodes.truncate(snap_nodes);
-        m.flops.truncate(snap_flops);
-        *pool = snap_pool;
-        *worklist = snap_worklist;
-        m.gate_instances = snap_gate_dedup;
-        m.const_instances = snap_const_dedup;
+        rollback_construction_snapshot(m, pool, worklist, snapshot);
         return pick_terminal(g, m, pool, width, exclude);
     }
 
@@ -3446,7 +3495,7 @@ fn node_deps(m: &Module, id: NodeId) -> DepSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Config, FactorizationLevel};
+    use crate::config::{Config, FactorizationLevel, IdentityMode};
     use crate::ir::{Direction, Flop, FlopKind, MuxArm, Port, ResetKind};
 
     /// Build a minimal test fixture with `n_wide` primary inputs of
@@ -3486,6 +3535,52 @@ mod tests {
             pool.add(nid, 1, DepSet::from_port(port_id));
         }
         (m, pool)
+    }
+
+    #[test]
+    fn rollback_snapshot_truncates_pool_and_prunes_stale_dedup_entries() {
+        let (mut m, mut pool) = fixture_with_inputs(2, 4, 0);
+        m.identity_mode = IdentityMode::NodeId;
+        m.factorization_level = FactorizationLevel::Cse;
+        m.max_ast_instances = 1;
+        let mut worklist = Vec::new();
+
+        let a = 0;
+        let b = 1;
+        let deps = DepSet::union(&[&node_deps(&m, a), &node_deps(&m, b)]);
+
+        let (old_const, old_const_new) = m.intern_constant(4, 1);
+        assert!(old_const_new);
+        pool.add(old_const, 4, DepSet::new());
+
+        let (old_gate, old_gate_new) = m.intern_gate(GateOp::Add, vec![a, b], 4, deps.clone());
+        assert!(old_gate_new);
+        pool.add(old_gate, 4, deps.clone());
+
+        let snapshot = take_construction_snapshot(&m, &pool, &worklist);
+
+        let (new_const, new_const_new) = m.intern_constant(4, 2);
+        assert!(new_const_new);
+        pool.add(new_const, 4, DepSet::new());
+
+        let (new_gate, new_gate_new) = m.intern_gate(GateOp::Xor, vec![a, b], 4, deps.clone());
+        assert!(new_gate_new);
+        pool.add(new_gate, 4, deps);
+        worklist.push(7);
+
+        rollback_construction_snapshot(&mut m, &mut pool, &mut worklist, snapshot);
+
+        assert_eq!(m.nodes.len(), snapshot.nodes_len);
+        assert_eq!(m.flops.len(), snapshot.flops_len);
+        assert_eq!(pool.len(), snapshot.pool_len);
+        assert_eq!(worklist.len(), snapshot.worklist_len);
+
+        let add_key = (GateOp::Add, vec![a, b], 4);
+        let xor_key = (GateOp::Xor, vec![a, b], 4);
+        assert_eq!(m.gate_instances.get(&add_key), Some(&vec![old_gate]));
+        assert!(!m.gate_instances.contains_key(&xor_key));
+        assert_eq!(m.const_instances.get(&(4, 1)), Some(&vec![old_const]));
+        assert!(!m.const_instances.contains_key(&(4, 2)));
     }
 
     /// Allocate a flop and its FlopQ node. Returns the FlopQ NodeId
@@ -4518,6 +4613,33 @@ mod tests {
             prove_node_exact_value(&m, shr),
             Some(0),
             "when rhs is derived from a left-shifted value minus a small constant, the shift can still be provably overshifted"
+        );
+    }
+
+    #[test]
+    fn prove_node_exact_value_detects_reduction_zero_from_dynamic_single_bit_shr() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 8, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let rhs = 0;
+
+        let one = make_constant(&mut m, &mut pool, 4, 1);
+        let shr_deps = DepSet::union(&[&node_deps(&m, one), &node_deps(&m, rhs)]);
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![one, rhs], 4, shr_deps.clone());
+        if shr_is_new {
+            pool.add(shr, 4, shr_deps);
+        }
+
+        let red_and_deps = node_deps(&m, shr);
+        let (red_and, red_and_is_new) =
+            m.intern_gate(GateOp::RedAnd, vec![shr], 1, red_and_deps.clone());
+        if red_and_is_new {
+            pool.add(red_and, 1, red_and_deps);
+        }
+
+        assert_eq!(
+            prove_node_exact_value(&m, red_and),
+            Some(0),
+            "reduction-AND of `1 >> dynamic_rhs` must fold to zero because the shifted source can never become all ones"
         );
     }
 

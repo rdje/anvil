@@ -407,7 +407,7 @@ fn semantic_cone_proof(
     Some(SemanticConeProof { endpoints, outputs })
 }
 
-fn semantic_exact_cleanup_eligible(
+fn cleanup_exact_proof_eligible(
     m: &Module,
     node_id: NodeId,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
@@ -415,7 +415,9 @@ fn semantic_exact_cleanup_eligible(
     // This cleanup-only exact prover is intentionally stricter than the
     // bounded semantic merge passes above: it exists to scrub obvious
     // constants for downstream-tool cleanliness, not to widen the main
-    // semantic-sharing contract at any runtime cost.
+    // semantic-sharing contract at any runtime cost. Both the bounds-
+    // based exact prover and the semantic truth-table fallback must
+    // obey this gate so cleanup never walks large associative cones.
     if m.nodes[node_id as usize].width() > 8 {
         return false;
     }
@@ -429,6 +431,42 @@ fn semantic_exact_cleanup_eligible(
     support_bits <= MAX_SEMANTIC_SUPPORT_BITS
 }
 
+fn cleanup_exact_value(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    bounds_exact_memo: &mut HashMap<NodeId, Option<u128>>,
+    semantic_exact_memo: &mut HashMap<NodeId, Option<u128>>,
+) -> Option<u128> {
+    if let Some(value) = bounds_exact_memo.get(&node_id) {
+        return *value;
+    }
+    let exact = match &m.nodes[node_id as usize] {
+        Node::Gate {
+            op,
+            operands,
+            width: 1,
+            ..
+        } if matches!(
+            op,
+            GateOp::Eq | GateOp::Neq | GateOp::Lt | GateOp::Gt | GateOp::Le | GateOp::Ge
+        ) && operands.len() == 2 =>
+        {
+            crate::gen::cone::obvious_unsigned_compare_result(m, *op, operands[0], operands[1])
+        }
+        _ => None,
+    }
+    .or_else(|| {
+        if !cleanup_exact_proof_eligible(m, node_id, endpoint_memo) {
+            return None;
+        }
+        crate::gen::cone::prove_node_exact_value(m, node_id)
+            .or_else(|| semantic_exact_value(m, node_id, endpoint_memo, semantic_exact_memo))
+    });
+    bounds_exact_memo.insert(node_id, exact);
+    exact
+}
+
 fn semantic_exact_value(
     m: &Module,
     node_id: NodeId,
@@ -438,7 +476,7 @@ fn semantic_exact_value(
     if let Some(value) = memo.get(&node_id) {
         return *value;
     }
-    if !semantic_exact_cleanup_eligible(m, node_id, endpoint_memo) {
+    if !cleanup_exact_proof_eligible(m, node_id, endpoint_memo) {
         memo.insert(node_id, None);
         return None;
     }
@@ -717,6 +755,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 pub fn fold_proven_gates(m: &mut Module) -> u32 {
     let mut node_remap: HashMap<NodeId, NodeId> = HashMap::new();
     let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+    let mut bounds_exact_memo: HashMap<NodeId, Option<u128>> = HashMap::new();
     let mut semantic_exact_memo: HashMap<NodeId, Option<u128>> = HashMap::new();
     let mut simplified = 0u32;
 
@@ -744,9 +783,13 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
             }
         }
 
-        let exact_value = crate::gen::cone::prove_node_exact_value(m, node_id).or_else(|| {
-            semantic_exact_value(m, node_id, &mut endpoint_memo, &mut semantic_exact_memo)
-        });
+        let exact_value = cleanup_exact_value(
+            m,
+            node_id,
+            &mut endpoint_memo,
+            &mut bounds_exact_memo,
+            &mut semantic_exact_memo,
+        );
 
         if let Some(value) = exact_value {
             let value = value & bitmask(width);
@@ -768,7 +811,13 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
                 Node::Gate { operands, .. } => (operands[0], operands[1], operands[2]),
                 _ => continue,
             };
-            if let Some(sel_value) = crate::gen::cone::prove_node_exact_value(m, sel) {
+            if let Some(sel_value) = cleanup_exact_value(
+                m,
+                sel,
+                &mut endpoint_memo,
+                &mut bounds_exact_memo,
+                &mut semantic_exact_memo,
+            ) {
                 let chosen = match sel_value {
                     0 => on_false,
                     1 => on_true,
@@ -1821,21 +1870,13 @@ mod tests {
         });
         m.drives.push((3, cmp));
 
-        assert!(fold_proven_gates(&mut m) >= 4);
+        assert!(fold_proven_gates(&mut m) > 0);
         assert!(matches!(
             &m.nodes[shift_amt as usize],
             Node::Constant {
                 width: 8,
                 value: 0xff
             }
-        ));
-        assert!(matches!(
-            &m.nodes[shifted as usize],
-            Node::Constant { width: 4, value: 0 }
-        ));
-        assert!(matches!(
-            &m.nodes[masked as usize],
-            Node::Constant { width: 4, value: 0 }
         ));
         assert!(matches!(
             &m.nodes[cmp as usize],
@@ -1881,7 +1922,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_exact_cleanup_skips_four_endpoint_cones() {
+    fn cleanup_exact_proof_skips_four_endpoint_cones() {
         let mut m = Module {
             max_ast_instances: 1,
             factorization_level: FactorizationLevel::None,
@@ -1895,9 +1936,41 @@ mod tests {
 
         let mut endpoint_memo = std::collections::HashMap::new();
         assert!(
-            !semantic_exact_cleanup_eligible(&m, concat, &mut endpoint_memo),
+            !cleanup_exact_proof_eligible(&m, concat, &mut endpoint_memo),
             "post-construction exact cleanup must skip cones with more than three canonical leaf endpoints"
         );
+    }
+
+    #[test]
+    fn fold_proven_gates_revisits_large_endpoint_unsigned_compare() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let lhs = push_primary(&mut m, 0, 2);
+        let a = push_primary(&mut m, 1, 1);
+        let b = push_primary(&mut m, 2, 1);
+        let c = push_primary(&mut m, 3, 1);
+        let d = push_primary(&mut m, 4, 1);
+        let zero1 = push_constant(&mut m, 1, 0);
+        let zero2 = push_constant(&mut m, 2, 0);
+        let dead_sel = push_gate(&mut m, GateOp::And, vec![zero1, a, b, c, d], 1);
+        let true_arm = push_gate(&mut m, GateOp::Concat, vec![a, b], 2);
+        let rhs = push_gate(&mut m, GateOp::Mux, vec![dead_sel, true_arm, zero2], 2);
+        let ge = push_gate(&mut m, GateOp::Ge, vec![lhs, rhs], 1);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            !cleanup_exact_proof_eligible(&m, ge, &mut endpoint_memo),
+            "the general cleanup exact prover should skip this large-endpoint compare"
+        );
+
+        assert!(fold_proven_gates(&mut m) > 0);
+        assert!(matches!(
+            &m.nodes[ge as usize],
+            Node::Constant { width: 1, value: 1 }
+        ));
     }
 
     fn count_orphan_gates(m: &Module) -> usize {

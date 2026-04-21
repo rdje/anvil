@@ -3,9 +3,110 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0110 — Silence associative shiftadd warnings and push the both-mode frontier to 372
+## 2026-04-22-0111 — Cut clone-heavy rollback churn and scrub associative compare warnings
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I tightened two generator/finalization hotspots that showed up while
+trying to resume the fresh current-code both-mode associative frontier.
+
+First, `src/gen/cone.rs` no longer snapshots whole construction state
+by cloning the signal pool, worklist, and dedup tables on every
+retry/anti-collapse rollback. It now snapshots lengths only, truncates
+back to those markers, and prunes stale dedup-table entries whose
+`NodeId`s were rewound. `src/gen/pool.rs` grew `len()` / `truncate()`
+to support that rollback path, and a new regression test,
+`rollback_snapshot_truncates_pool_and_prunes_stale_dedup_entries`,
+pins the invariant.
+
+Second, I tightened the exact-proof surface that cleanup is allowed to
+use, but without giving up on warning cleanup:
+
+- `src/ir/compact.rs` still keeps the general cleanup exact prover
+  behind the existing tiny-cone eligibility gate, but it now runs the
+  bounded unsigned-compare proof on compare gates even when the cone is
+  too large for the general cleanup exact path.
+- `src/gen/cone.rs` now gives `Shr` tighter bounds when the lhs is an
+  exact constant and the rhs is only range-known. That lets ANVIL prove
+  shapes like `&(4'h1 >> dynamic_rhs) == 0`, which in turn lets
+  compare cleanup collapse warnings such as `sub_37 < red_and_8`.
+
+I added two more regression tests for those exact gaps:
+
+- `prove_node_exact_value_detects_reduction_zero_from_dynamic_single_bit_shr`
+- `fold_proven_gates_revisits_large_endpoint_unsigned_compare`
+
+**Why**
+
+The first resume attempt against `/tmp/anvil-tool-matrix-phase1-real-r18`
+was not actually stuck in Yosys. Sampling showed the first hotspot in
+generator rollback churn (`build_cone_with_retry` / anti-collapse),
+with lots of `SignalPool` / `DepSet` clone traffic. After fixing that,
+the next hotspot moved to post-construction cleanup
+(`fold_proven_gates` leaning too hard on exact-value proofs over large
+associative cones).
+
+Once those runtime issues were out of the way, a fresh focused
+associative repro finally surfaced the next real downstream warning:
+
+- Verilator `CMPCONST` on `mod_5_0030.sv`
+- then Verilator `UNSIGNED` on `mod_5_0005.sv`
+
+Those warnings were legitimate ANVIL cleanup gaps, not tool noise:
+
+- `sub_37 < red_and_8` was constant because `red_and_8` was really the
+  reduction-AND of `4'h1 >> dynamic_rhs`, which can never become all
+  ones.
+- `add_0 >= mux_27` was constant because the rhs mux was dead on a
+  selector proven zero, so the comparison was really `unsigned_x >= 0`.
+
+The fix therefore had to be a real proof-cleanup improvement, not just
+more permissive harness logic.
+
+**Validation**
+
+- targeted unit tests:
+  - `cargo test rollback_snapshot_truncates_pool_and_prunes_stale_dedup_entries --lib`
+  - `cargo test prove_node_exact_value_detects_reduction_zero_from_dynamic_single_bit_shr --lib`
+  - `cargo test cleanup_exact_proof_skips_four_endpoint_cones --lib`
+  - `cargo test fold_proven_gates_revisits_large_endpoint_unsigned_compare --lib`
+- focused fresh associative repro:
+  - `cargo run --bin anvil -- --seed 5 --count 38 --out /tmp/anvil-associative-seed5-repro-r6 --construction-strategy interleaved --identity-mode node-id --factorization-level associative`
+  - all **38** emitted modules are now clean in:
+    - Verilator
+    - Yosys `synth -noabc`
+    - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+- attempted `tool_matrix --resume` against `/tmp/anvil-tool-matrix-phase1-real-r18`
+  now correctly reports byte-stable mismatch (`existing SV differs from
+  regenerated module`), so `r18` is historical evidence only on this
+  code and should not be resumed in place.
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Retry / anti-collapse rollback is materially cheaper on deep
+  associative shapes because it truncates and prunes instead of cloning
+  whole construction state.
+- Post-construction cleanup no longer misses large-endpoint unsigned
+  compare tautologies just because the general cleanup exact gate says
+  "too big".
+- The previously failing fresh associative focused repro is now clean
+  through **38/38** modules under Verilator and both repo-owned Yosys
+  modes.
+- `/tmp/anvil-tool-matrix-phase1-real-r18` remains a valuable proof
+  checkpoint at 372 completed modules / 373 emitted `.sv` files, but it
+  is no longer resumable on the current code because the emitted `.sv`
+  changed again.
+
+## 2026-04-21-0110 — Silence associative shiftadd warnings and push the both-mode frontier to 372
+
+**Landed as:** `ba6d69b`
 
 **What changed**
 

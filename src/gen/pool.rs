@@ -32,6 +32,14 @@ impl SignalPool {
         self.entries.iter()
     }
 
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn truncate(&mut self, len: usize) {
+        self.entries.truncate(len);
+    }
+
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

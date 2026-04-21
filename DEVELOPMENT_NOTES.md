@@ -86,6 +86,31 @@ Older output trees without sidecars are still resumable: `--resume`
 will validate the saved `.sv`, rerun the current tool surface once for
 that module, and then write the new checkpoint sidecar.
 
+One more operational detail now matters in practice: once a proof or
+cleanup change alters emitted `.sv`, an older frontier tree becomes
+historical evidence only even if it was the latest live checkpoint at
+the time. That happened to `/tmp/anvil-tool-matrix-phase1-real-r18`
+after the rollback / compare-cleanup repairs: the tree still records a
+real 372-checkpoint both-mode frontier, but current code must continue
+from a fresh output tree instead of trying to "upgrade" it in place.
+
+### Cleanup exact proofs must stay compare-aware without becoming broad again
+The post-construction `fold_proven_gates` pass now follows a deliberate
+split:
+
+- the **general** cleanup exact prover stays tiny-only (small width,
+  small support, small endpoint count) so it cannot reintroduce the old
+  large-cone runtime blowups; but
+- compare gates still get the bounded unsigned-compare proof even when
+  the cone is too large for the general cleanup exact gate.
+
+That split exists because "large cone" and "cheap compare tautology"
+are not the same thing. A dead-selector rhs can make `x >= 0` or
+`1 < dead_rhs` obviously constant even when the whole cone's endpoint
+set is wider than the general cleanup exact gate allows. The compare
+revisit path is therefore a downstream-cleanliness exception that is
+worth keeping separate from the broader exact-value cleanup budget.
+
 ### `constant_prob = 0.1`
 Default chosen to prevent constants from dominating cone leaves. Real synthesis-stress workloads may want lower (≤ 0.05); aggressive pattern coverage may want higher. Revisit after first seed sweep with metrics on what fraction of generated cones survive non-triviality on the first attempt.
 
