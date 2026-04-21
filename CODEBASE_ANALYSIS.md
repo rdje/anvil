@@ -162,9 +162,9 @@ src/
 │                     Current recorded real frontiers: 365 clean
 │                     modules on the older no-ABC gate; a historical
 │                     372-checkpoint / 373-emitted-file both-mode tree
-│                     (`r18`) with zero warning artifacts; and the new
+│                     (`r18`) with zero warning artifacts; and the
 │                     live resumable current-code both-mode tree
-│                     (`r20`) at 211 completed checkpoints / 212
+│                     (`r20`) at 346 completed checkpoints / 347
 │                     emitted `.sv` files, also warning-clean so far.
 │                     Because `--resume` is intentionally byte-stable,
 │                     later proof-driven `.sv` changes turn old trees

@@ -3,9 +3,74 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-22-0112 — Fold large-endpoint overshifts and re-bank the fresh CSE frontier
+## 2026-04-22-0113 — Advance the live `r20` both-mode frontier through commutative
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+No source changes in this slice. I resumed the live current-code
+both-mode `tool_matrix` frontier in place and banked a much deeper
+warning-clean checkpoint.
+
+The run was resumed from:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r20`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+
+and then intentionally interrupted again at the next good checkpoint.
+
+**Why**
+
+The previous `r20` checkpoint had only just entered
+`int_nodeid_operand-unique_default` on current code. The next useful
+move was not another local proof tweak; it was to push the same tree
+forward and see whether the repaired code would stay clean through the
+rest of `operand-unique`, the whole `commutative` rung, and into
+`associative`.
+
+That is exactly what happened, so this slice is evidence and recovery
+state rather than a code change.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **346** completed checkpoints /
+    **347** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67
+    - `int_nodeid_none_default`: 67
+    - `int_nodeid_cse_default`: 67
+    - `int_nodeid_operand-unique_default`: 67
+    - `int_nodeid_commutative_default`: 67
+    - `int_nodeid_associative_default`: 11
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The live current-code resumable both-mode frontier at
+  `/tmp/anvil-tool-matrix-phase1-real-r20` now covers all clean
+  scenarios through `commutative`, plus 11 clean `associative`
+  checkpoints.
+- The stronger both-mode current-code frontier now stands at **346**
+  completed checkpoints / **347** emitted `.sv` files with zero
+  warning artifacts.
+- `r20` remains the live resumable tree on current code, and the next
+  natural push is deeper into `int_nodeid_associative_default`.
+
+## 2026-04-22-0112 — Fold large-endpoint overshifts and re-bank the fresh CSE frontier
+
+**Landed as:** `3ddcfbd`
 
 **What changed**
 
