@@ -446,6 +446,28 @@ the proof useful where it is strongest, while making larger shared
 cones stay on the cheaper proof layers instead of burning CPU proving
 finite-set facts that are not load-bearing for cleanliness.
 
+The first fresh-current-code both-mode rerun exposed a second, more
+basic compare-cleanliness gap: **the cheap proof layer must know a few
+arithmetic reflexive identities too, not only comparison tautologies.**
+
+The concrete failing shape was:
+
+- `sub_16 = mul_17 - mul_17`
+- `and_49 = mul_18 & mul_18 & sub_16`
+- `lt_0 = add_13 < and_49`
+
+Verilator quite reasonably warned that the unsigned comparison was
+constant. The missing fact was just `x - x = 0`.
+
+The exact finite-set engine was not the right place to rely on for this
+because it may legitimately decline a cone. The **cheap** layer has to
+know it too. So `exact_gate_value` and `node_unsigned_bounds` now both
+encode reflexive subtraction directly. Durable rule:
+
+- local exact/bounds proofs should carry the cheapest algebraic facts
+  that directly prevent mainstream tool warnings, even when those facts
+  do not require the heavier finite-set prover at all.
+
 ### Downstream warnings are a generator bug, and the final graph gets a last proof pass
 
 The follow-up slice closed the remaining `tool_matrix` warning bucket by

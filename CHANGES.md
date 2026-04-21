@@ -3,9 +3,82 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0105 — Cap exact finite-set proofs to small-support cones
+## 2026-04-21-0106 — Fold reflexive subtraction before unsigned compare emit
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+`src/gen/cone.rs` now teaches the cheap exact/bounds proof layer the
+missing reflexive subtraction identity:
+
+- `x - x = 0` now folds immediately in `exact_gate_value`; and
+- the bounds layer now also treats `Sub(lhs, lhs)` as the exact range
+  `(0, 0)` even when `lhs` itself is not exact.
+
+I also added a regression test,
+`comparison_range_fold_proves_lt_against_reflexive_sub_zero`, which
+pins the exact unsigned-warning shape down.
+
+**Why**
+
+The first fresh current-code both-mode frontier after the small-support
+cap hit a real warning at
+`/tmp/anvil-tool-matrix-phase1-real-r15/int_nodeid_none_default/mod_1_0022.sv:1019`:
+
+`add_13 < and_49`
+
+Verilator was right. In that file, `and_49` included:
+
+- `sub_16 = mul_17 - mul_17`
+
+so the RHS was provably zero and the unsigned `<` comparison was
+constant false.
+
+The hole was not in the new small-support gate. It was simpler:
+the cheap proof layers already knew reflexive comparison tautologies
+like `x < x = 0`, but they did **not** yet know the arithmetic identity
+`x - x = 0` unless `x` itself had already become exact.
+
+That let the zero stay hidden behind a non-exact producer and leak all
+the way to emitted RTL.
+
+**Validation**
+
+- `cargo test comparison_range_fold --lib`
+- Focused repro for the exact failing frontier scenario:
+  - `cargo run --bin anvil -- --seed 1 --count 23 --out /tmp/anvil-nodeid-none-seed1-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level none`
+  - now emits through `mod_1_0022.sv`
+- Downstream tool proof on the exact offender:
+  - `verilator --lint-only /tmp/anvil-nodeid-none-seed1-repro-r1/mod_1_0022.sv`
+  - `yosys -p 'read_verilog -sv \".../mod_1_0022.sv\"; synth -noabc; stat'`
+  - `yosys -p 'read_verilog -sv \".../mod_1_0022.sv\"; synth -noabc; abc -fast; opt -fast; stat; check'`
+- Stronger scenario proof on the full 23-module batch:
+  - Verilator: `23/23` pass, `0` warnings
+  - Yosys without-abc: `23/23` pass, `0` warnings
+  - Yosys with-abc: `23/23` pass, `0` warnings
+
+**Impact**
+
+- The first fresh current-code both-mode `nodeid-none` warning boundary
+  is now clean.
+- The generator-side comparison proof now covers another important
+  unsigned-cleanliness identity without relying on the heavier exact
+  finite-set engine.
+- The next frontier push can restart from a fresh current-code tree
+  instead of carrying this warning forward.
+
+**Files touched**
+
+- `src/gen/cone.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0105 — Cap exact finite-set proofs to small-support cones
+
+**Landed as:** `b41b367`
 
 **What changed**
 

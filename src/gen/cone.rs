@@ -1080,6 +1080,9 @@ fn exact_gate_value(
             Some(acc & width_mask(width))
         }
         GateOp::Sub if operands.len() == 2 => {
+            if operands[0] == operands[1] {
+                return Some(0);
+            }
             let lhs = exact_operand(memo, operands[0])?;
             let rhs = exact_operand(memo, operands[1])?;
             Some(lhs.wrapping_sub(rhs) & width_mask(width))
@@ -1723,14 +1726,18 @@ fn node_unsigned_bounds(
                         }
                     }
                     GateOp::Sub if operands.len() == 2 => {
-                        let lhs = node_unsigned_bounds(m, operands[0], memo);
-                        let rhs = node_unsigned_bounds(m, operands[1], memo);
-                        if exact_bound(rhs) == Some(0) {
-                            lhs
-                        } else if lhs.0 >= rhs.1 {
-                            (lhs.0 - rhs.1, lhs.1 - rhs.0)
+                        if operands[0] == operands[1] {
+                            (0, 0)
                         } else {
-                            default
+                            let lhs = node_unsigned_bounds(m, operands[0], memo);
+                            let rhs = node_unsigned_bounds(m, operands[1], memo);
+                            if exact_bound(rhs) == Some(0) {
+                                lhs
+                            } else if lhs.0 >= rhs.1 {
+                                (lhs.0 - rhs.1, lhs.1 - rhs.0)
+                            } else {
+                                default
+                            }
                         }
                     }
                     GateOp::Mul => {
@@ -4129,6 +4136,39 @@ mod tests {
         assert!(
             matches!(&m.nodes[ge as usize], Node::Constant { width: 1, value: 1 }),
             "x >= (x ^ x) must fold to 1'b1 because the rhs is provably zero"
+        );
+    }
+
+    #[test]
+    fn comparison_range_fold_proves_lt_against_reflexive_sub_zero() {
+        let (mut m, mut pool) = fixture_with_inputs(2, 6, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+        let y = 1;
+
+        let mul_deps = DepSet::union(&[&node_deps(&m, x), &node_deps(&m, y), &node_deps(&m, x)]);
+        let (mul, mul_is_new) = m.intern_gate(GateOp::Mul, vec![x, y, x], 6, mul_deps.clone());
+        if mul_is_new {
+            pool.add(mul, 6, mul_deps);
+        }
+
+        let sub_deps = node_deps(&m, mul);
+        let (zero_rhs, sub_is_new) =
+            m.intern_gate(GateOp::Sub, vec![mul, mul], 6, sub_deps.clone());
+        if sub_is_new {
+            pool.add(zero_rhs, 6, sub_deps);
+        }
+
+        let sum_deps = DepSet::union(&[&node_deps(&m, x), &node_deps(&m, y)]);
+        let (lhs, add_is_new) = m.intern_gate(GateOp::Add, vec![x, y], 6, sum_deps.clone());
+        if add_is_new {
+            pool.add(lhs, 6, sum_deps);
+        }
+
+        let lt = build_comparison_gate(&mut m, &mut pool, GateOp::Lt, lhs, zero_rhs);
+        assert!(
+            matches!(&m.nodes[lt as usize], Node::Constant { width: 1, value: 0 }),
+            "unsigned lhs < (x - x) must fold to 1'b0 even when x itself is not exact"
         );
     }
 
