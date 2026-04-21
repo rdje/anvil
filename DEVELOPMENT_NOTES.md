@@ -102,14 +102,19 @@ split:
   small support, small endpoint count) so it cannot reintroduce the old
   large-cone runtime blowups; but
 - compare gates still get the bounded unsigned-compare proof even when
-  the cone is too large for the general cleanup exact gate.
+  the cone is too large for the general cleanup exact gate; and
+- shift gates (`Shl` / `Shr`) may still use the **bounds-only** exact
+  result even when the cone is too large for the general cleanup exact
+  gate.
 
 That split exists because "large cone" and "cheap compare tautology"
 are not the same thing. A dead-selector rhs can make `x >= 0` or
 `1 < dead_rhs` obviously constant even when the whole cone's endpoint
-set is wider than the general cleanup exact gate allows. The compare
-revisit path is therefore a downstream-cleanliness exception that is
-worth keeping separate from the broader exact-value cleanup budget.
+set is wider than the general cleanup exact gate allows. Likewise, a
+large-endpoint rhs range can still make `2'h1 >> rhs` or `x << rhs`
+obviously zero. Those compare/shift revisit paths are therefore
+downstream-cleanliness exceptions worth keeping separate from the
+broader exact-value cleanup budget.
 
 ### `constant_prob = 0.1`
 Default chosen to prevent constants from dominating cone leaves. Real synthesis-stress workloads may want lower (≤ 0.05); aggressive pattern coverage may want higher. Revisit after first seed sweep with metrics on what fraction of generated cones survive non-triviality on the first attempt.

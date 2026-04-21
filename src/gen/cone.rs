@@ -995,6 +995,11 @@ pub(crate) fn prove_node_exact_value(m: &Module, id: NodeId) -> Option<u128> {
     exact_bound(node_unsigned_bounds(m, id, &mut bound_memo))
 }
 
+pub(crate) fn prove_node_exact_value_from_bounds(m: &Module, id: NodeId) -> Option<u128> {
+    let mut bound_memo = HashMap::new();
+    exact_bound(node_unsigned_bounds(m, id, &mut bound_memo))
+}
+
 fn obvious_unsigned_compare_from_bounds(
     op: GateOp,
     lhs: (u128, u128),

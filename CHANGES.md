@@ -3,9 +3,104 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-22-0111 — Cut clone-heavy rollback churn and scrub associative compare warnings
+## 2026-04-22-0112 — Fold large-endpoint overshifts and re-bank the fresh CSE frontier
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I tightened the post-construction cleanup pass one more step in a very
+specific way.
+
+`src/ir/compact.rs` already kept the general cleanup exact prover
+tiny-only and already had a compare-specific escape hatch for bounded
+unsigned tautologies. This slice adds the analogous narrow exception
+for `Shl` / `Shr`: cleanup may now ask for the **bounds-only** exact
+result of a shift gate even when the cone is too large for the general
+cleanup exact gate.
+
+To support that, `src/gen/cone.rs` now exposes
+`prove_node_exact_value_from_bounds`, which skips the small-set
+enumerator and returns only what `node_unsigned_bounds` can prove
+exactly. `src/ir/compact.rs` uses that helper only for shift gates.
+
+I also added a regression test for the exact missed shape:
+
+- `fold_proven_gates_revisits_large_endpoint_overshift_shift`
+
+That test forces a shift whose rhs depends on four endpoint variables,
+so the general cleanup exact gate rejects it, but the bounds are still
+enough to prove the shift result is always zero.
+
+**Why**
+
+The fresh current-code both-mode frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r19` got cleanly past the old
+runtime/associative warning fixes and then stopped at the next real
+downstream warning in `int_nodeid_cse_default/mod_2_0018.sv`:
+
+- `Warning: ... result of shift operation is always constant ...`
+
+The offending shape was:
+
+- `shr_2 = mux_10 >> 3'h6`
+- `add_5 = shr_2 + 8'h7`
+- `shr_3 = 2'h1 >> add_5`
+
+So the rhs was always at least `7`, while the lhs width was only `2`.
+This was exactly the kind of cheap always-overshift proof we *want*
+cleanup to catch, but the cone was large enough that the general
+cleanup exact gate refused to revisit it.
+
+So the load-bearing adjustment is now:
+
+- keep the broad cleanup exact path tiny-only;
+- still allow cheap, bounded shift exactness via the bounds engine.
+
+That preserves runtime discipline while closing a real downstream-tool
+warning class.
+
+**Validation**
+
+- targeted unit test:
+  - `cargo test fold_proven_gates_revisits_large_endpoint_overshift_shift --lib`
+- focused current-code repro:
+  - `cargo run --bin anvil -- --seed 2 --count 19 --out /tmp/anvil-cse-seed2-repro-r2 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`
+  - all **19** emitted modules are now clean in:
+    - Verilator
+    - Yosys `synth -noabc`
+    - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+- fresh current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both`
+  - intentionally interrupted after **211** completed checkpoints /
+    **212** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67
+    - `int_nodeid_none_default`: 67
+    - `int_nodeid_cse_default`: 67
+    - `int_nodeid_operand-unique_default`: 10
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- Large-endpoint always-overshift shift nodes are now cleaned up
+  without reopening the broad expensive cleanup proof path.
+- The old `r19` CSE warning on `mod_2_0018.sv` is fixed at the
+  generator/finalization layer.
+- There is now a fresh current-code both-mode frontier at
+  `/tmp/anvil-tool-matrix-phase1-real-r20` with **211** completed
+  checkpoints / **212** emitted `.sv` files, all warning-clean.
+- `r20` is the new live resumable tree on current code.
+
+## 2026-04-22-0111 — Cut clone-heavy rollback churn and scrub associative compare warnings
+
+**Landed as:** `49286ef`
 
 **What changed**
 

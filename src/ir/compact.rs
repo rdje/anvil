@@ -454,6 +454,10 @@ fn cleanup_exact_value(
         {
             crate::gen::cone::obvious_unsigned_compare_result(m, *op, operands[0], operands[1])
         }
+        Node::Gate {
+            op: GateOp::Shl | GateOp::Shr,
+            ..
+        } => crate::gen::cone::prove_node_exact_value_from_bounds(m, node_id),
         _ => None,
     }
     .or_else(|| {
@@ -1970,6 +1974,36 @@ mod tests {
         assert!(matches!(
             &m.nodes[ge as usize],
             Node::Constant { width: 1, value: 1 }
+        ));
+    }
+
+    #[test]
+    fn fold_proven_gates_revisits_large_endpoint_overshift_shift() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 1);
+        let b = push_primary(&mut m, 1, 1);
+        let c = push_primary(&mut m, 2, 1);
+        let d = push_primary(&mut m, 3, 1);
+        let eight = push_constant(&mut m, 4, 8);
+        let one = push_constant(&mut m, 2, 1);
+        let rhs = push_gate(&mut m, GateOp::Concat, vec![a, b, c, d], 4);
+        let rhs_masked = push_gate(&mut m, GateOp::Or, vec![rhs, eight], 4);
+        let shr = push_gate(&mut m, GateOp::Shr, vec![one, rhs_masked], 2);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            !cleanup_exact_proof_eligible(&m, shr, &mut endpoint_memo),
+            "the general cleanup exact prover should skip this large-endpoint shift"
+        );
+
+        assert!(fold_proven_gates(&mut m) > 0);
+        assert!(matches!(
+            &m.nodes[shr as usize],
+            Node::Constant { width: 2, value: 0 }
         ));
     }
 

@@ -160,13 +160,16 @@ src/
 │                     harness path, or both as separate sub-runs per
 │                     file.
 │                     Current recorded real frontiers: 365 clean
-│                     modules on the older no-ABC gate, plus a newer
-│                     372-checkpoint / 373-emitted-file both-mode
-│                     checkpoint tree (`r18`) with zero warning
-│                     artifacts. Because `--resume` is intentionally
-│                     byte-stable, later proof-driven `.sv` changes
-│                     turn old trees into evidence only; `r18` is now
-│                     historical and the next push must start fresh.
+│                     modules on the older no-ABC gate; a historical
+│                     372-checkpoint / 373-emitted-file both-mode tree
+│                     (`r18`) with zero warning artifacts; and the new
+│                     live resumable current-code both-mode tree
+│                     (`r20`) at 211 completed checkpoints / 212
+│                     emitted `.sv` files, also warning-clean so far.
+│                     Because `--resume` is intentionally byte-stable,
+│                     later proof-driven `.sv` changes turn old trees
+│                     into evidence only; `r18` is historical while
+│                     `r20` matches current code.
 │
 ├── ir/
 │   ├── mod.rs        Re-exports `types::*`, `compact::*`, and validate.
@@ -218,8 +221,10 @@ src/
 │   │                 to state elements. `fold_proven_gates(&mut Module)`
 │   │                 keeps the general cleanup exact prover tiny-only,
 │   │                 but still revisits compare gates with the bounded
-│   │                 unsigned-compare proof so large-endpoint
-│   │                 `x >= 0`-style tautologies do not leak through.
+│   │                 unsigned-compare proof and shift gates with a
+│   │                 bounds-only exact check, so large-endpoint
+│   │                 `x >= 0` or `1 >> rhs` tautologies do not leak
+│   │                 through.
 │   │                 `compact_node_ids(&mut Module)` now
 │   │                 BFSes from output drives, discovers live flops
 │   │                 through actually-consumed `FlopQ` leaves, drops
@@ -412,7 +417,7 @@ main  →  lib  →  gen  →  ir
 | Phase | Status        | Code touched | Notes |
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | Historical scaffold landed; current HEAD builds/tests/lints/formats clean again (see Build hygiene). |
-| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; final compaction now also drops dead flops whose `Q` is never observed, and the emitted input surface is trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones, post-remap associative re-normalisation on the settled graph, endpoint-preserving post-drain flop merging under `identity_mode = node-id`, strict Add/Mul remap-pruning under `operand_duplication_rate < 1.0`, a final exact-value cleanup pass (`fold_proven_gates`) for downstream-tool cleanliness that keeps the general exact prover tiny-only (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints) while still revisiting compare gates with the bounded unsigned-compare proof, plus a tiny-domain rhs fallback for shift overshift proofs when narrow boolean-mask arithmetic keeps the rhs domain small even though the whole cone is large. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
+| 1 — Single-module MVP        | mostly done  | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; final compaction now also drops dead flops whose `Q` is never observed, and the emitted input surface is trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones, post-remap associative re-normalisation on the settled graph, endpoint-preserving post-drain flop merging under `identity_mode = node-id`, strict Add/Mul remap-pruning under `operand_duplication_rate < 1.0`, a final exact-value cleanup pass (`fold_proven_gates`) for downstream-tool cleanliness that keeps the general exact prover tiny-only (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints) while still revisiting compare gates with the bounded unsigned-compare proof and shift gates with a bounds-only exact check, plus a tiny-domain rhs fallback for shift overshift proofs when narrow boolean-mask arithmetic keeps the rhs domain small even though the whole cone is large. Remaining: broader Verilator/Yosys sweeps for the Phase-1 exit gate. |
 | 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; the live bounded `EGraph` fragment now merges small-support combinational cones post-construction under `identity_mode = node-id`, duplicate flops merge post-drain when they are proven equal over the same canonical leaf endpoints by the same proof discipline, and late remaps are pruned when they would violate the strict Add/Mul duplicate policy. Final compaction cleans orphaned intermediates and dead state from these rewrites. |
 | 3 — Structured combinational | in progress  | `gen/cone.rs`, `ir/types.rs`, `emit/sv.rs`, `ir/validate.rs` | Priority-encoder block (Rule 17), combinational mux block (Rule 15), coefficient motif, const-shift motif, const-comparand motif, and reduction-category gate picking landed. Generic Slice/Concat remain non-pickable helper shapes (width-adapter / block assembly only); case/casez, variable shifts, and loop-unrolled logic are not started. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
