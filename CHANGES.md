@@ -3,9 +3,100 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0098 — Record the first clean both-mode Phase 1 frontier
+## 2026-04-21-0099 — Advance the real both-mode frontier to 288 clean modules
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice only. No source files changed.
+
+I resumed the real repo-owned both-mode gate from a fresh output tree:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r10 --phase1-gate --yosys-mode both`
+
+and deliberately stopped it only after it had materially advanced past
+the previous both-mode checkpoint.
+
+The saved frontier is now **288 generated modules** with:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved
+  `*.yosys-without-abc.stdout.log` and `*.yosys-with-abc.stdout.log`
+  files
+
+Per-scenario progress at the checkpoint:
+
+- `int_relaxed_none_default`: 67 modules clean
+- `int_nodeid_none_default`: 67 modules clean
+- `int_nodeid_cse_default`: 67 modules clean
+- `int_nodeid_operand-unique_default`: 67 modules clean
+- `int_nodeid_commutative_default`: 20 modules clean
+
+Compared to the previous both-mode frontier (144 modules), this extends
+the real zero-warning evidence across two additional full node-id
+factorization rungs and materially into the commutative rung, while
+keeping all three downstream surfaces clean:
+
+- Verilator lint
+- Yosys `synth -noabc`
+- Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+
+The live docs were updated accordingly. No roadmap phase labels changed.
+
+**Why**
+
+The prior both-mode checkpoint proved that the cleaned-up ABC harness
+lane was not just a tiny 15-module smoke-case success. The next useful
+step was to keep pushing that stricter gate shape until it had covered
+more of the factorization ladder in real generated artifacts.
+
+This new checkpoint matters because it now shows the both-mode tool
+surface staying clean through:
+
+- relaxed identity
+- node-id / none
+- node-id / cse
+- node-id / operand-unique
+- and into node-id / commutative
+
+That is strong enough to be a real industrial checkpoint rather than a
+mere "it still works on the first couple of lanes" reassurance.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r10 --phase1-gate --yosys-mode both`
+  - manually stopped after the checkpoint
+  - `find /tmp/anvil-tool-matrix-phase1-real-r10 -name '*.sv' | wc -l` -> `288`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r10 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r10/*/*.yosys-*.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The real both-mode Phase 1 frontier advanced from 144 clean modules
+  to 288 clean modules.
+- The repo now has durable both-mode evidence through the full
+  `operand-unique` rung and into the `commutative` rung.
+- The next PNT can resume `/tmp/anvil-tool-matrix-phase1-real-r10`
+  instead of re-establishing already-proven both-mode ground.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0098 — Record the first clean both-mode Phase 1 frontier
+
+**Landed as:** `e532cc9`
 
 **What changed**
 

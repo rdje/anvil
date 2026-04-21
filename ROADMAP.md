@@ -176,10 +176,11 @@ logs before checkpoint, spanning the full `int_relaxed_none_default`,
 `int_nodeid_commutative_default` scenarios plus 30 modules into
 `int_nodeid_associative_default`. The stronger real both-mode gate
 shape (`tool_matrix --phase1-gate --yosys-mode both`) has now also
-been pushed to 144 clean modules with the same zero-warning bar,
-spanning the full `int_relaxed_none_default`, the full
-`int_nodeid_none_default`, and 10 modules into
-`int_nodeid_cse_default`.
+been pushed to 288 clean modules with the same zero-warning bar,
+spanning the full `int_relaxed_none_default`,
+`int_nodeid_none_default`, `int_nodeid_cse_default`, and
+`int_nodeid_operand-unique_default` scenarios plus 20 modules into
+`int_nodeid_commutative_default`.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 
