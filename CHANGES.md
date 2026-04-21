@@ -3,9 +3,93 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0099 — Advance the real both-mode frontier to 288 clean modules
+## 2026-04-21-0100 — Advance the real both-mode frontier to 368 clean modules
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+This is an evidence slice only. No source files changed.
+
+I launched a fresh repo-owned both-mode gate from a new output tree:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r11 --phase1-gate --yosys-mode both`
+
+and deliberately stopped it only after the stricter both-mode frontier
+had moved past both the previous 288-module both-mode checkpoint and
+the older 365-module no-ABC baseline frontier.
+
+The saved frontier is now **368 generated modules** with:
+
+- **0** `*.verilator.stderr.log` artifacts
+- **0** Yosys `Warning:` lines across the saved
+  `*.yosys-without-abc.stdout.log` and `*.yosys-with-abc.stdout.log`
+  files
+
+Per-scenario progress at the checkpoint:
+
+- `int_relaxed_none_default`: 67 modules clean
+- `int_nodeid_none_default`: 67 modules clean
+- `int_nodeid_cse_default`: 67 modules clean
+- `int_nodeid_operand-unique_default`: 67 modules clean
+- `int_nodeid_commutative_default`: 67 modules clean
+- `int_nodeid_associative_default`: 33 modules clean
+
+The docs now also say explicitly that `tool_matrix` still has **no
+resume mode**: continuing these industrial sweeps currently means
+starting a fresh output tree and pushing it to a stronger checkpoint,
+not reusing an existing `--out` directory in place.
+
+**Why**
+
+The prior both-mode checkpoint at 288 modules was already useful, but
+the next worthwhile move was to see whether the stricter Yosys surface
+could stay warning-clean all the way through the full commutative rung
+and into associative territory.
+
+This checkpoint matters because it turns the both-mode lane from "real
+but still smaller than the baseline gate" into the strongest repo-owned
+Phase 1 frontier we have so far. The more demanding Yosys shape now
+stands slightly ahead of the original no-ABC baseline instead of behind
+it.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r11 --phase1-gate --yosys-mode both`
+  - manually stopped after the checkpoint
+  - `find /tmp/anvil-tool-matrix-phase1-real-r11 -name '*.sv' | wc -l` -> `368`
+  - `find /tmp/anvil-tool-matrix-phase1-real-r11 -name '*.verilator.stderr.log' | wc -l` -> `0`
+  - `rg -n "Warning:" /tmp/anvil-tool-matrix-phase1-real-r11/*/*.yosys-*.stdout.log | wc -l` -> `0`
+
+**Impact**
+
+- The real both-mode Phase 1 frontier advanced from 288 clean modules
+  to 368 clean modules.
+- The repo now has durable both-mode evidence through the full
+  `commutative` rung and 33 clean modules into `associative`.
+- The stronger both-mode gate has now edged past the older 365-module
+  no-ABC baseline frontier.
+- Until `tool_matrix` grows explicit resume support, the next PNT must
+  fork a fresh output tree for any further frontier push.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0099 — Advance the real both-mode frontier to 288 clean modules
+
+**Landed as:** `148ee8d`
 
 **What changed**
 
@@ -82,8 +166,9 @@ mere "it still works on the first couple of lanes" reassurance.
   to 288 clean modules.
 - The repo now has durable both-mode evidence through the full
   `operand-unique` rung and into the `commutative` rung.
-- The next PNT can resume `/tmp/anvil-tool-matrix-phase1-real-r10`
-  instead of re-establishing already-proven both-mode ground.
+- Until `tool_matrix` grows explicit resume support, the next PNT must
+  fork a fresh output tree rather than reusing the same `--out`
+  directory in place.
 
 **Files touched**
 
@@ -176,9 +261,8 @@ toy-case success, while still keeping the slice scoped and commit-ready.
   both-mode smoke probe.
 - The cleaned-up ABC harness lane is now proven through two full
   scenarios and into the next factorization rung.
-- Future PNT work can resume `/tmp/anvil-tool-matrix-phase1-real-r9`
-  from a known-good both-mode checkpoint rather than restarting from a
-  15-module smoke toy.
+- Future PNT work can start from a fresh output tree and target the
+  next unseen boundary instead of settling for the 15-module smoke toy.
 
 **Files touched**
 

@@ -57,6 +57,23 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### `tool_matrix` frontier runs do not resume yet
+Operational gotcha captured after the real both-mode frontier pushes:
+reusing the same `tool_matrix --out DIR` path does **not** resume a
+partially completed industrial sweep. `run_scenario` always writes a
+fresh set of module files and manifests into the scenario directory.
+
+That means the current evidence workflow is:
+
+- start a fresh output tree,
+- push until the run reaches a materially stronger clean checkpoint,
+- stop it deliberately,
+- record the exact counts in the docs.
+
+Do not write handoff notes that claim the next session can literally
+"resume" an existing output tree unless explicit resume support lands in
+the harness first.
+
 ### `constant_prob = 0.1`
 Default chosen to prevent constants from dominating cone leaves. Real synthesis-stress workloads may want lower (≤ 0.05); aggressive pattern coverage may want higher. Revisit after first seed sweep with metrics on what fraction of generated cones survive non-triviality on the first attempt.
 
