@@ -3,9 +3,83 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-22-0113 — Advance the live `r20` both-mode frontier through commutative
+## 2026-04-22-0114 — Close the current-code both-mode associative rung
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+No source changes in this slice either. I resumed the live current-code
+both-mode `tool_matrix` frontier in place again and pushed it past the
+partial `associative` checkpoint to full clean closure of that rung.
+
+The run was resumed from:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r20`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+
+and then intentionally interrupted at the next natural checkpoint,
+after `associative` was fully banked and `constant-fold` had already
+started cleanly.
+
+**Why**
+
+The previous recorded `r20` checkpoint had only banked 11 clean
+`associative` modules. The next useful question was whether current
+code could close the whole `associative` rung cleanly in the stricter
+both-mode lane, not just whether the earlier warning fixes held on a
+small prefix.
+
+That closure now exists, and the run even stepped into
+`constant-fold`, so this slice is another durable recovery/evidence
+checkpoint.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **424** completed checkpoints /
+    **425** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67
+    - `int_nodeid_none_default`: 67
+    - `int_nodeid_cse_default`: 67
+    - `int_nodeid_operand-unique_default`: 67
+    - `int_nodeid_commutative_default`: 67
+    - `int_nodeid_associative_default`: 67
+    - `int_nodeid_constant-fold_default`: 22
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- focused current-code `associative` module repro:
+  - `cargo run --bin anvil -- --seed 5 --count 16 --out /tmp/anvil-associative-seed5-repro-r8 --construction-strategy interleaved --identity-mode node-id --factorization-level associative`
+  - direct checks on `mod_5_0015.sv` are clean in:
+    - Verilator
+    - Yosys `synth -noabc`
+    - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The live current-code resumable both-mode frontier at
+  `/tmp/anvil-tool-matrix-phase1-real-r20` now covers all clean
+  scenarios through `associative`, plus 22 clean `constant-fold`
+  checkpoints.
+- The stronger both-mode current-code frontier now stands at **424**
+  completed checkpoints / **425** emitted `.sv` files with zero
+  warning artifacts.
+- `r20` remains the live resumable tree on current code, and the next
+  natural push is deeper into `int_nodeid_constant-fold_default`.
+
+## 2026-04-22-0113 — Advance the live `r20` both-mode frontier through commutative
+
+**Landed as:** `dfe3285`
 
 **What changed**
 
