@@ -546,6 +546,21 @@ dynamic overshift) in the proof path, which is enough to recover exact
 facts like "this `Shr` is forced to zero". Returning `None` too early
 throws away that whole proof chain.
 
+One more shift-specific wrinkle showed up later in the fresh
+`associative` frontier: some rhs cones are too large for the general
+small-support exact enumerator **as whole cones**, but still have a
+tiny value domain because they are really just boolean-mask arithmetic
+(`{8{bit}} + constant`, similar patterns). The durable rule is:
+
+- shift overshift proofs may use a tiny-domain rhs fallback for narrow
+  boolean-mask arithmetic, even when the whole cone is too large for
+  the main exact small-set engine.
+
+That fallback stays intentionally narrow: width <= 8, tiny result-set
+cap, and only a few structural forms. It exists to suppress pointless
+dynamic shifts whose rhs is semantically always oversized, not to
+replace the main semantic-sharing machinery.
+
 ### Finalisation liveness must be output-rooted, not flop-table-rooted (2026-04-20)
 
 The dead-register Verilator warning exposed a mismatch between Rule-18

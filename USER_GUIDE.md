@@ -258,15 +258,18 @@ warnings as failures, so a green run means "no errors, no warnings",
 not merely zero non-zero exits. A small `--yosys-mode both` probe is
 now clean in both Yosys sub-modes too:
 `without-abc = 15/15 pass`, `with-abc = 15/15 pass`. A real
-`--phase1-gate --yosys-mode both` rerun has now been pushed to 368
-clean modules with zero Verilator warning logs and zero Yosys warning
-lines, spanning the full `int_relaxed_none_default`,
+`--phase1-gate --yosys-mode both` rerun has now been pushed to 372
+completed module checkpoints with zero Verilator warning logs and zero
+Yosys warning lines, spanning the full `int_relaxed_none_default`,
 `int_nodeid_none_default`, `int_nodeid_cse_default`,
 `int_nodeid_operand-unique_default`, and
-`int_nodeid_commutative_default` scenarios plus 33 clean modules into
-`int_nodeid_associative_default`. `tool_matrix` now writes
-per-module checkpoint sidecars and supports `--resume`, so interrupted
-output trees can be continued in place.
+`int_nodeid_commutative_default` scenarios plus 37 clean modules into
+`int_nodeid_associative_default`. That fresh current-code tree lives at
+`/tmp/anvil-tool-matrix-phase1-real-r18` and was intentionally
+interrupted on a checkpoint boundary, so there is no final
+`tool_matrix_report.json` yet. `tool_matrix` now writes per-module
+checkpoint sidecars and supports `--resume`, so interrupted output trees
+can be continued in place.
 
 `--resume` only reuses saved tool results when the saved tool surface
 matches the current run (`skip_verilator`, `skip_yosys`, and

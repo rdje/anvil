@@ -3,9 +3,102 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0109 — Cap cleanup semantic proofs to tiny endpoint sets
+## 2026-04-21-0110 — Silence associative shiftadd warnings and push the both-mode frontier to 372
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+I tightened the generator-side shift proof in `src/gen/cone.rs`.
+
+The key change is that overshift detection no longer relies only on the
+general small-support value-set engine. `small_value_set_min_at_least`
+now has a tiny-domain fallback that can still reason about narrow
+boolean-mask arithmetic even when the cone's full support is too large
+for the normal exact enumerator.
+
+That tiny-domain fallback is deliberately narrow:
+
+- width must still be at most `8` bits;
+- it only tracks very small result sets (current cap: `8` values);
+- and it exists mainly to prove things like
+  "replicated 1-bit mask plus constant is always >= source width".
+
+I also added a regression test,
+`prove_node_exact_value_detects_overshift_from_wrapped_small_rhs_set`,
+which pins the exact warning pattern that showed up in the
+`associative` frontier: a shift amount built from a large-support
+1-bit control, replicated to an 8-bit mask and then offset by a
+constant.
+
+**Why**
+
+The fresh `r17` both-mode frontier got deeper than any earlier
+current-code run, then stopped on a real Yosys warning in
+`int_nodeid_associative_default/mod_5_0011.sv`:
+
+- `Warning: ... candiate for shiftadd optimization ... was ignored to avoid high resource usage`
+
+The offending line was:
+
+- `assign shr_15 = sub_25 >> add_44;`
+
+and the shift amount simplified downstream to a boolean-controlled
+mask-plus-constant expression that was **always** far above the source
+width. So this was not "Yosys being noisy"; it was ANVIL missing a real
+always-overshift proof and therefore emitting a pointless dynamic shift
+that downstream tools still had to analyze.
+
+The first fix attempt only helped when the rhs itself stayed inside the
+main small-support enumerator. The live warning proved that was still
+too conservative. The durable rule is now:
+
+- shift overshift proofs may use a tiny-domain rhs fallback for narrow
+  boolean-mask arithmetic, even when the whole cone is too large for
+  the general exact small-set engine.
+
+**Validation**
+
+- `cargo test prove_node_exact_value_detects_overshift_from_wrapped_small_rhs_set --lib`
+- focused current-code repro:
+  - `cargo run --bin anvil -- --seed 5 --count 12 --out /tmp/anvil-associative-seed5-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level associative`
+  - all 12 emitted modules are now clean in:
+    - Verilator
+    - Yosys `synth -noabc`
+    - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`
+- fresh current-code real both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r18 --phase1-gate --yosys-mode both`
+  - intentionally interrupted after **372** completed module
+    checkpoints / **373** emitted `.sv` files
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The old associative Yosys `peepopt` / `shiftadd` warning is now
+  fixed at the generator layer.
+- The fresh current-code both-mode frontier is now parked at
+  `/tmp/anvil-tool-matrix-phase1-real-r18` with **372** completed
+  checkpoints:
+  - `67` relaxed
+  - `67` nodeid-none
+  - `67` nodeid-cse
+  - `67` nodeid-operand-unique
+  - `67` nodeid-commutative
+  - `37` nodeid-associative
+- That overtakes the older 368-module both-mode checkpoint.
+- Because the run was intentionally interrupted on a checkpoint
+  boundary, there is no final `tool_matrix_report.json` yet; `r18`
+  remains resumable in place on this code.
+
+## 2026-04-21-0109 — Cap cleanup semantic proofs to tiny endpoint sets
+
+**Landed as:** `f0567ff`
 
 **What changed**
 

@@ -1185,6 +1185,8 @@ fn collect_small_set(seen: &[bool; 256], width: u32) -> Vec<u16> {
 
 const SMALL_VALUE_SET_WORK_BUDGET: usize = 200_000;
 const SMALL_VALUE_SET_MAX_SUPPORT: usize = 3;
+const TINY_VALUE_SET_WORK_BUDGET: usize = 512;
+const TINY_VALUE_SET_RESULT_LIMIT: usize = 8;
 
 #[derive(Clone)]
 enum SmallValueSetMemoEntry {
@@ -1217,6 +1219,37 @@ impl SmallValueSetContext {
     }
 }
 
+#[derive(Clone)]
+enum TinyValueSetMemoEntry {
+    Known(Vec<u16>),
+    Unknown,
+}
+
+#[derive(Clone)]
+struct TinyValueSetContext {
+    memo: HashMap<NodeId, TinyValueSetMemoEntry>,
+    remaining_work: usize,
+}
+
+impl Default for TinyValueSetContext {
+    fn default() -> Self {
+        Self {
+            memo: HashMap::new(),
+            remaining_work: TINY_VALUE_SET_WORK_BUDGET,
+        }
+    }
+}
+
+impl TinyValueSetContext {
+    fn spend(&mut self, amount: usize) -> bool {
+        if amount > self.remaining_work {
+            return false;
+        }
+        self.remaining_work -= amount;
+        true
+    }
+}
+
 fn remember_small_value_set(
     ctx: &mut SmallValueSetContext,
     id: NodeId,
@@ -1229,6 +1262,27 @@ fn remember_small_value_set(
 
 fn mark_small_value_set_unknown(ctx: &mut SmallValueSetContext, id: NodeId) -> Option<Vec<u16>> {
     ctx.memo.insert(id, SmallValueSetMemoEntry::Unknown);
+    None
+}
+
+fn remember_tiny_value_set(
+    ctx: &mut TinyValueSetContext,
+    id: NodeId,
+    mut values: Vec<u16>,
+) -> Option<Vec<u16>> {
+    values.sort_unstable();
+    values.dedup();
+    if values.len() > TINY_VALUE_SET_RESULT_LIMIT {
+        ctx.memo.insert(id, TinyValueSetMemoEntry::Unknown);
+        return None;
+    }
+    ctx.memo
+        .insert(id, TinyValueSetMemoEntry::Known(values.clone()));
+    Some(values)
+}
+
+fn mark_tiny_value_set_unknown(ctx: &mut TinyValueSetContext, id: NodeId) -> Option<Vec<u16>> {
+    ctx.memo.insert(id, TinyValueSetMemoEntry::Unknown);
     None
 }
 
@@ -1560,6 +1614,114 @@ fn node_small_value_set(
     remember_small_value_set(ctx, id, values)
 }
 
+fn fold_tiny_binary_sets<F>(
+    ctx: &mut TinyValueSetContext,
+    lhs: &[u16],
+    rhs: &[u16],
+    width: u32,
+    mut f: F,
+) -> Option<Vec<u16>>
+where
+    F: FnMut(u16, u16) -> u16,
+{
+    let work = lhs.len().saturating_mul(rhs.len()).max(1);
+    if !ctx.spend(work) {
+        return None;
+    }
+
+    let mut seen = [false; 256];
+    for &a in lhs {
+        for &b in rhs {
+            seen[f(a, b) as usize] = true;
+        }
+    }
+
+    let values = collect_small_set(&seen, width);
+    (values.len() <= TINY_VALUE_SET_RESULT_LIMIT).then_some(values)
+}
+
+fn node_tiny_value_set(m: &Module, id: NodeId, ctx: &mut TinyValueSetContext) -> Option<Vec<u16>> {
+    if let Some(entry) = ctx.memo.get(&id) {
+        return match entry {
+            TinyValueSetMemoEntry::Known(values) => Some(values.clone()),
+            TinyValueSetMemoEntry::Unknown => None,
+        };
+    }
+
+    let width = m.nodes[id as usize].width();
+    if width > 8 || !ctx.spend(1) {
+        return mark_tiny_value_set_unknown(ctx, id);
+    }
+
+    let mask = width_mask(width) as u16;
+    let values = match &m.nodes[id as usize] {
+        Node::PrimaryInput { width, .. } | Node::FlopQ { width, .. } => {
+            if *width == 1 {
+                vec![0, 1]
+            } else {
+                return mark_tiny_value_set_unknown(ctx, id);
+            }
+        }
+        Node::Constant { value, .. } => vec![(*value & u128::from(mask)) as u16],
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => {
+            if *width == 1 {
+                vec![0, 1]
+            } else {
+                match *op {
+                    GateOp::Concat
+                        if !operands.is_empty()
+                            && operands.iter().all(|operand| *operand == operands[0])
+                            && m.nodes[operands[0] as usize].width() == 1 =>
+                    {
+                        let src = node_tiny_value_set(m, operands[0], ctx)?;
+                        if !ctx.spend(src.len().saturating_mul(operands.len()).max(1)) {
+                            return mark_tiny_value_set_unknown(ctx, id);
+                        }
+                        let mut seen = [false; 256];
+                        for value in src {
+                            let mut out = 0u16;
+                            for _ in 0..operands.len() {
+                                out = ((out << 1) | (value & 1)) & mask;
+                            }
+                            seen[out as usize] = true;
+                        }
+                        let values = collect_small_set(&seen, *width);
+                        if values.len() > TINY_VALUE_SET_RESULT_LIMIT {
+                            return mark_tiny_value_set_unknown(ctx, id);
+                        }
+                        values
+                    }
+                    GateOp::Add => {
+                        let mut iter = operands.iter();
+                        let first = node_tiny_value_set(m, *iter.next()?, ctx)?;
+                        iter.try_fold(first, |acc, operand| {
+                            let rhs = node_tiny_value_set(m, *operand, ctx)?;
+                            fold_tiny_binary_sets(ctx, &acc, &rhs, *width, |a, b| {
+                                a.wrapping_add(b) & mask
+                            })
+                        })?
+                    }
+                    GateOp::Sub if operands.len() == 2 => {
+                        let lhs = node_tiny_value_set(m, operands[0], ctx)?;
+                        let rhs = node_tiny_value_set(m, operands[1], ctx)?;
+                        fold_tiny_binary_sets(ctx, &lhs, &rhs, *width, |a, b| {
+                            a.wrapping_sub(b) & mask
+                        })?
+                    }
+                    _ => return mark_tiny_value_set_unknown(ctx, id),
+                }
+            }
+        }
+    };
+
+    remember_tiny_value_set(ctx, id, values)
+}
+
 fn node_support_size(m: &Module, id: NodeId) -> usize {
     match &m.nodes[id as usize] {
         Node::PrimaryInput { .. } | Node::FlopQ { .. } => 1,
@@ -1580,6 +1742,20 @@ fn can_prove_compare_via_small_value_sets(m: &Module, lhs: NodeId, rhs: NodeId) 
     let lhs_deps = node_deps(m, lhs);
     let rhs_deps = node_deps(m, rhs);
     DepSet::union(&[&lhs_deps, &rhs_deps]).len() <= SMALL_VALUE_SET_MAX_SUPPORT
+}
+
+fn small_value_set_min_at_least(m: &Module, id: NodeId, threshold: u128) -> bool {
+    if can_enumerate_small_value_set(m, id) {
+        let mut ctx = SmallValueSetContext::default();
+        return node_small_value_set(m, id, &mut ctx)
+            .map(|values| values.iter().all(|&value| u128::from(value) >= threshold))
+            .unwrap_or(false);
+    }
+
+    let mut ctx = TinyValueSetContext::default();
+    node_tiny_value_set(m, id, &mut ctx)
+        .map(|values| values.iter().all(|&value| u128::from(value) >= threshold))
+        .unwrap_or(false)
 }
 
 fn node_unsigned_bounds(
@@ -1852,9 +2028,11 @@ fn node_unsigned_bounds(
                         let src_width = u128::from(m.nodes[operands[0] as usize].width());
                         let rhs_bounds = node_unsigned_bounds(m, operands[1], memo);
                         let rhs = exact_bound(rhs_bounds);
+                        let rhs_all_overshift = rhs_bounds.0 >= src_width
+                            || small_value_set_min_at_least(m, operands[1], src_width);
                         match rhs {
                             _ if lhs == (0, 0) => (0, 0),
-                            _ if rhs_bounds.0 >= src_width => (0, 0),
+                            _ if rhs_all_overshift => (0, 0),
                             Some(0) => lhs,
                             Some(amount) => {
                                 let shift = amount as u32;
@@ -1875,9 +2053,11 @@ fn node_unsigned_bounds(
                         let src_width = u128::from(m.nodes[operands[0] as usize].width());
                         let rhs_bounds = node_unsigned_bounds(m, operands[1], memo);
                         let rhs = exact_bound(rhs_bounds);
+                        let rhs_all_overshift = rhs_bounds.0 >= src_width
+                            || small_value_set_min_at_least(m, operands[1], src_width);
                         match rhs {
                             _ if lhs == (0, 0) => (0, 0),
-                            _ if rhs_bounds.0 >= src_width => (0, 0),
+                            _ if rhs_all_overshift => (0, 0),
                             Some(0) => lhs,
                             Some(amount) => {
                                 let shift = amount as u32;
@@ -4392,6 +4572,72 @@ mod tests {
             prove_node_exact_value(&m, shr),
             Some(0),
             "narrow slices of wider cones must still participate in the exact-value proof that detects dynamic overshifts"
+        );
+    }
+
+    #[test]
+    fn prove_node_exact_value_detects_overshift_from_wrapped_small_rhs_set() {
+        let (mut m, mut pool) = fixture_with_inputs(4, 8, 0);
+        m.factorization_level = FactorizationLevel::None;
+
+        let a = 0;
+        let b = 1;
+        let c = 2;
+        let d = 3;
+
+        let lhs_deps = DepSet::union(&[
+            &node_deps(&m, a),
+            &node_deps(&m, b),
+            &node_deps(&m, c),
+            &node_deps(&m, d),
+        ]);
+        let (lhs, lhs_is_new) = m.intern_gate(GateOp::Or, vec![a, b, c, d], 8, lhs_deps.clone());
+        if lhs_is_new {
+            pool.add(lhs, 8, lhs_deps.clone());
+        }
+
+        let one = make_constant(&mut m, &mut pool, 8, 1);
+        let (bit, bit_is_new) = m.intern_gate(GateOp::Eq, vec![lhs, one], 1, lhs_deps.clone());
+        if bit_is_new {
+            pool.add(bit, 1, lhs_deps.clone());
+        }
+
+        let rhs_deps = node_deps(&m, bit);
+        let (replicate, replicate_is_new) = m.intern_gate(
+            GateOp::Concat,
+            vec![bit, bit, bit, bit, bit, bit, bit, bit],
+            8,
+            rhs_deps.clone(),
+        );
+        if replicate_is_new {
+            pool.add(replicate, 8, rhs_deps.clone());
+        }
+
+        let cd4 = make_constant(&mut m, &mut pool, 8, 0xd4);
+        let (rhs, rhs_is_new) =
+            m.intern_gate(GateOp::Add, vec![replicate, cd4], 8, rhs_deps.clone());
+        if rhs_is_new {
+            pool.add(rhs, 8, rhs_deps);
+        }
+
+        let shr_deps = DepSet::union(&[&node_deps(&m, lhs), &node_deps(&m, rhs)]);
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![lhs, rhs], 8, shr_deps.clone());
+        if shr_is_new {
+            pool.add(shr, 8, shr_deps);
+        }
+
+        assert!(
+            !can_enumerate_small_value_set(&m, rhs),
+            "the rhs itself should exceed the exact small-set support cap so this proof exercises the tiny-domain fallback",
+        );
+        assert!(
+            !can_enumerate_small_value_set(&m, shr),
+            "the whole shift node should exceed the small-set support cap so this proof exercises the rhs-only overshift path"
+        );
+        assert_eq!(
+            prove_node_exact_value(&m, shr),
+            Some(0),
+            "a shift must still fold to zero when the rhs small-value set stays entirely above the source width, even if the whole node cannot use exact small-set enumeration"
         );
     }
 }
