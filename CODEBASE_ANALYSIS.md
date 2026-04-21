@@ -336,6 +336,12 @@ src/
 │   │                 combination operand lists
 │   │                 (pick_signals_with_dup_rate, honours
 │   │                 operand_duplication_rate).
+│   │                 Generator-side comparison cleanliness is also
+│   │                 enforced here: `obvious_unsigned_compare_result`
+│   │                 combines unsigned bounds with an exact
+│   │                 finite-set proof engine that is now both
+│   │                 budgeted and support-capped (up to 8 bits wide,
+│   │                 current endpoint-support cap = 3).
 │   │                 Coefficient motif: when pick_gate returns
 │   │                 Add/Sub/Mul and coefficient_prob fires,
 │   │                 build_linear_combination_{recursive,pool}
@@ -498,12 +504,12 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (155 passing tests: 131 unit + 24 integration).
+- `cargo test` — clean (159 passing tests: 135 unit + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); a real older both-mode `tool_matrix --phase1-gate --yosys-mode both` rerun has also been pushed to **368 generated modules** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 33 clean in `int_nodeid_associative_default` before checkpoint); a real partial both-mode smoke run interrupted at 14/15 scenarios was then completed successfully on the same output tree under `--resume`, ending at 15/15 clean in Verilator and both Yosys sub-modes; the legacy `r11` both-mode frontier has now been upgraded in place through **143** module checkpoints with the same zero-warning bar (67 relaxed, 67 nodeid-none, and 9 cse); after the exact-proof budget fix, a focused current-code repro (`cargo run --bin anvil -- --seed 2 --count 10 --out /tmp/anvil-cse-seed2-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`) now emits all 10 modules cleanly, with `fails=0` / `warns=0` under Verilator, Yosys `synth -noabc`, and the repo-owned ABC-enabled Yosys path; and there is now also a fresh current-code both-mode frontier at `/tmp/anvil-tool-matrix-phase1-real-r12` with **221 completed module checkpoints / 221 emitted modules**, still warning-clean through the full relaxed, `nodeid-none`, and `nodeid-cse` scenarios plus 20 clean modules into `nodeid-operand-unique`.
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); a real older both-mode `tool_matrix --phase1-gate --yosys-mode both` rerun has also been pushed to **368 generated modules** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 33 clean in `int_nodeid_associative_default` before checkpoint); a real partial both-mode smoke run interrupted at 14/15 scenarios was then completed successfully on the same output tree under `--resume`, ending at 15/15 clean in Verilator and both Yosys sub-modes; the legacy `r11` both-mode frontier has now been upgraded in place through **143** module checkpoints with the same zero-warning bar (67 relaxed, 67 nodeid-none, and 9 cse); after the exact-proof budget fix, a focused current-code repro (`cargo run --bin anvil -- --seed 2 --count 10 --out /tmp/anvil-cse-seed2-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`) now emits all 10 modules cleanly, with `fails=0` / `warns=0` under Verilator, Yosys `synth -noabc`, and the repo-owned ABC-enabled Yosys path; the next support-cap refinement is also now proven on the old `operand-unique` stall boundary (`cargo run --bin anvil -- --seed 3 --count 21 --out /tmp/anvil-operand-unique-seed3-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level operand-unique`), which emits all 21 modules cleanly through `mod_3_0020.sv`, and all 21 are warning-clean in Verilator plus both repo-owned Yosys modes; and there is now also a fresh current-code both-mode frontier at `/tmp/anvil-tool-matrix-phase1-real-r12` with **221 completed module checkpoints / 221 emitted modules**, still warning-clean through the full relaxed, `nodeid-none`, and `nodeid-cse` scenarios plus 20 clean modules into `nodeid-operand-unique`, though that tree is now evidence-only across the newer support-cap proof refinement.
 - `src/gen/cone.rs` now owns an always-on generator-side comparison
   proof in addition to the factorization ladder. The proof combines a
   conservative unsigned-bounds engine with an exact finite-set engine
@@ -513,7 +519,9 @@ In `ir::validate::validate`:
   short-circuit on absorbing / saturating exact prefixes and duplicate
   XOR parity, so small-width exact results are not lost just because an
   irrelevant tail depends on a wider cone. That exact finite-set engine
-  is now explicitly budgeted and memoizes both exact and unknown
-  results, so the proof remains useful on narrow cones without turning
-  into a runtime trap on correlation-heavy shared cartesian searches.
-  This is an enforced output-cleanliness invariant, not a user knob.
+  is now explicitly budgeted, memoizes both exact and unknown results,
+  and is further capped to small-support cones (current cap: 3
+  canonical leaf endpoints), so the proof remains useful on narrow
+  cones without turning into a runtime trap on correlation-heavy shared
+  cartesian searches. This is an enforced output-cleanliness invariant,
+  not a user knob.

@@ -428,6 +428,24 @@ into an exponential runtime trap on shared cartesian searches. The
 durable contract is "prove what is cheap and crisp; otherwise return
 `None` and fall back to the cheaper proof layers."
 
+The next fresh-current-code `operand-unique` frontier made one more
+refinement necessary: **budget alone is not a good enough admission
+rule.** Even a budgeted proof can still waste generator time if ANVIL
+keeps entering exact finite-set reasoning on larger shared cones whose
+endpoint support is already beyond the intended proof domain.
+
+So the contract is now sharper:
+
+- exact finite-set reasoning is for **small width and small endpoint
+  support**, not just small width; and
+- the current support cap is **3 canonical leaf endpoints**.
+
+That support cap applies both to `prove_node_exact_value` on one cone
+and to the combined endpoint set used by comparison folding. This keeps
+the proof useful where it is strongest, while making larger shared
+cones stay on the cheaper proof layers instead of burning CPU proving
+finite-set facts that are not load-bearing for cleanliness.
+
 ### Downstream warnings are a generator bug, and the final graph gets a last proof pass
 
 The follow-up slice closed the remaining `tool_matrix` warning bucket by

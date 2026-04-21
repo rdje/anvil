@@ -3,9 +3,97 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-21-0104 — Record a fresh current-code both-mode frontier through CSE
+## 2026-04-21-0105 — Cap exact finite-set proofs to small-support cones
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+`src/gen/cone.rs` now makes the generator-side exact finite-set proof
+path explicitly about **small width and small endpoint support**, not
+just small width plus a work budget.
+
+The always-on exact proof helpers already had a shared work budget and
+cached both exact and unknown results. That was enough to stop the
+first `cse` hotspot, but it still left ANVIL repeatedly invoking the
+same bounded proof on larger shared cones in the fresh
+`operand-unique` frontier.
+
+This slice adds a second guardrail:
+
+- exact finite-set reasoning now only runs on cones up to 8 bits wide
+  whose canonical leaf-endpoint support is at most **3** variables;
+- comparison folding now uses the same support discipline on the
+  combined endpoint set of both operands; and
+- a new regression test,
+  `small_value_set_skips_wide_support_cones`, pins that contract down.
+
+The effect is simple: ANVIL still keeps the crisp narrow exact proofs it
+needs for cleanliness, but it stops spending generator time proving
+finite-set facts on larger shared structures that are outside the
+intended "small-support" proof domain.
+
+**Why**
+
+The real fresh-current-code `r12` frontier had moved cleanly through
+`relaxed`, `nodeid-none`, and `nodeid-cse`, then stalled again at the
+start of `nodeid-operand-unique`.
+
+Sampling showed the same broad family as before:
+
+- generator CPU, not tool CPU;
+- `build_comb_mux_encoded` in the construction path; and
+- repeated time in `obvious_unsigned_compare_result ->
+  node_small_value_set`.
+
+The budget was preventing a single runaway proof, but it was not
+preventing ANVIL from repeatedly entering exact finite-set reasoning on
+cones whose endpoint support was already too large to be a good fit for
+that proof technique.
+
+The durable refinement is therefore:
+
+> exact finite-set reasoning is for small-width, small-support cones.
+
+Everything outside that stays on the cheaper proof layers (bounds,
+local exact-value shortcuts, and downstream cleanup), which is exactly
+where it belongs.
+
+**Validation**
+
+- `cargo test small_value_set --lib`
+- `cargo test prove_node_exact_value --lib`
+- Focused old-boundary repro:
+  - `cargo run --bin anvil -- --seed 3 --count 21 --out /tmp/anvil-operand-unique-seed3-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level operand-unique`
+  - now emits all 21 modules cleanly, including `mod_3_0020.sv`
+- Downstream tool proof on that 21-module batch:
+  - Verilator `--lint-only`: `21/21` pass, `0` warnings
+  - Yosys `synth -noabc; stat`: `21/21` pass, `0` warnings
+  - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`: `21/21`
+    pass, `0` warnings
+
+**Impact**
+
+- The fresh current-code `operand-unique` frontier no longer gets hung
+  up re-entering exact finite-set proofs on larger shared cones.
+- Generator-side comparison cleanliness remains intact, but the proof
+  engine now has a clearer operational boundary.
+- The old `/tmp/anvil-tool-matrix-phase1-real-r12` tree remains useful
+  evidence, but it is now byte-stale across this further proof-semantics
+  change; the next real frontier push should start from a fresh output
+  tree.
+
+**Files touched**
+
+- `src/gen/cone.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+
+## 2026-04-21-0104 — Record a fresh current-code both-mode frontier through CSE
+
+**Landed as:** `94bdf24`
 
 **What changed**
 

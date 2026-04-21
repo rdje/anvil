@@ -939,8 +939,7 @@ fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
 }
 
 pub(crate) fn prove_node_exact_value(m: &Module, id: NodeId) -> Option<u128> {
-    let width = m.nodes[id as usize].width();
-    if width <= 8 {
+    if can_enumerate_small_value_set(m, id) {
         let mut set_ctx = SmallValueSetContext::default();
         if let Some(values) = node_small_value_set(m, id, &mut set_ctx) {
             if let [value] = values.as_slice() {
@@ -1182,6 +1181,7 @@ fn collect_small_set(seen: &[bool; 256], width: u32) -> Vec<u16> {
 }
 
 const SMALL_VALUE_SET_WORK_BUDGET: usize = 200_000;
+const SMALL_VALUE_SET_MAX_SUPPORT: usize = 3;
 
 #[derive(Clone)]
 enum SmallValueSetMemoEntry {
@@ -1265,7 +1265,7 @@ fn node_small_value_set(
     }
 
     let width = m.nodes[id as usize].width();
-    if width > 8 {
+    if !can_enumerate_small_value_set(m, id) {
         return mark_small_value_set_unknown(ctx, id);
     }
     if !ctx.spend(1) {
@@ -1555,6 +1555,28 @@ fn node_small_value_set(
     };
 
     remember_small_value_set(ctx, id, values)
+}
+
+fn node_support_size(m: &Module, id: NodeId) -> usize {
+    match &m.nodes[id as usize] {
+        Node::PrimaryInput { .. } | Node::FlopQ { .. } => 1,
+        Node::Constant { .. } => 0,
+        Node::Gate { deps, .. } => deps.len(),
+    }
+}
+
+fn can_enumerate_small_value_set(m: &Module, id: NodeId) -> bool {
+    m.nodes[id as usize].width() <= 8 && node_support_size(m, id) <= SMALL_VALUE_SET_MAX_SUPPORT
+}
+
+fn can_prove_compare_via_small_value_sets(m: &Module, lhs: NodeId, rhs: NodeId) -> bool {
+    if !can_enumerate_small_value_set(m, lhs) || !can_enumerate_small_value_set(m, rhs) {
+        return false;
+    }
+
+    let lhs_deps = node_deps(m, lhs);
+    let rhs_deps = node_deps(m, rhs);
+    DepSet::union(&[&lhs_deps, &rhs_deps]).len() <= SMALL_VALUE_SET_MAX_SUPPORT
 }
 
 fn node_unsigned_bounds(
@@ -1881,9 +1903,7 @@ fn obvious_unsigned_compare_result(
         };
     }
 
-    let lhs_width = m.nodes[lhs as usize].width();
-    let rhs_width = m.nodes[rhs as usize].width();
-    if lhs_width <= 8 && rhs_width <= 8 {
+    if can_prove_compare_via_small_value_sets(m, lhs, rhs) {
         let mut set_ctx = SmallValueSetContext::default();
         if let (Some(lhs_values), Some(rhs_values)) = (
             node_small_value_set(m, lhs, &mut set_ctx),
@@ -4211,6 +4231,30 @@ mod tests {
             None,
             "budgeted exact finite-set reasoning should bail out instead of enumerating an unbounded cartesian product"
         );
+    }
+
+    #[test]
+    fn small_value_set_skips_wide_support_cones() {
+        let (mut m, mut pool) = fixture_with_inputs(4, 1, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let deps = DepSet::union(&[
+            &node_deps(&m, 0),
+            &node_deps(&m, 1),
+            &node_deps(&m, 2),
+            &node_deps(&m, 3),
+        ]);
+        let (or, is_new) = m.intern_gate(GateOp::Or, vec![0, 1, 2, 3], 1, deps.clone());
+        if is_new {
+            pool.add(or, 1, deps);
+        }
+
+        let mut memo = SmallValueSetContext::default();
+        assert_eq!(
+            node_small_value_set(&m, or, &mut memo),
+            None,
+            "exact finite-set reasoning should stay reserved for small-support cones"
+        );
+        assert_eq!(prove_node_exact_value(&m, or), None);
     }
 
     #[test]

@@ -327,7 +327,7 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-21): 131 unit + 24 integration = 155 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-21): 135 unit + 24 integration = 159 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
