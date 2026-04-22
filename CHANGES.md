@@ -3,6 +3,67 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0121 — Advance the fresh r21 both-mode frontier through commutative
+
+**Landed as:** this commit
+
+**What changed**
+
+No source changes in this slice. I resumed the live current-code
+both-mode frontier at:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+
+and pushed it cleanly through the full `commutative` rung, then into
+`associative`, before intentionally interrupting at the next useful
+checkpoint.
+
+**Why**
+
+The previous slice had already re-closed `operand-unique` on the fresh
+current-code tree. The next useful question was whether the repaired
+code would keep holding through the whole `commutative` rung on that
+same fresh both-mode tree.
+
+It does.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **355** completed checkpoints /
+    **356** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_cse_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_operand-unique_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_commutative_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_associative_default`: 20 checkpoints / 21 `.sv`
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21` remains the live resumable
+  current-code both-mode frontier tree.
+- The fresh-tree frontier has now fully re-closed `relaxed`,
+  `nodeid-none`, `nodeid-cse`, `nodeid-operand-unique`, and
+  `nodeid-commutative` on current code, with `associative` underway.
+- The next frontier push should resume `r21` in place and keep climbing
+  through `associative`, then `constant-fold`, toward the repaired
+  `e-graph` surface.
+
 ## 2026-04-22-0120 — Advance the fresh r21 both-mode frontier through operand-unique
 
 **Landed as:** this commit
