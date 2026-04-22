@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2210 — Land the procedural combinational case-mux block
+
+**Landed as:** this commit
+
+**What changed**
+
+- The leaf kernel now has a real structured `case` surface:
+  - new knob `case_mux_prob` in
+    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  - new gate kind `GateOp::CaseMux` plus module / knob counters in
+    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  - generator builders in
+    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  - emitter support in
+    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    that declares the target as `logic` and emits an
+    `always_comb case (sel)` block with explicit `default`
+  - validator support in
+    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  - metrics + matrix coverage plumbing in
+    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+
+- New proof tests:
+  - emitter unit test for `CaseMux`
+  - validator unit test for `CaseMux`
+  - integration test proving `case_mux_prob=1.0` emits
+    `always_comb case` across all strategies
+  - variable-shift proof tightened from one deterministic seed to a
+    32-seed sweep, so the regression now proves the surface instead of
+    overfitting to a lucky RNG path
+
+- Late settled-graph cleanup now folds mixed associative constants
+  after remap-heavy passes:
+  - new post-construction pass
+    `fold_mixed_associative_constants` in
+    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+  - wired after the posthoc associative-normalisation points in
+    [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  - keeps strict duplicate-free `Add` / `Mul` output intact when later
+    remaps expose shapes like `1 + x + 1`
+  - pinned with new unit tests in
+    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+    and [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+
+- Live docs and book now say the narrower truth:
+  - `case` is landed
+  - `casez` is still open
+  - `always_comb` is now part of the leaf lane specifically for the
+    structured case-mux block
+  - late mixed-constant cleanup is now part of the settled-graph
+    normalization story
+
+**Why**
+
+Phase 1 and Phase 2 are closed, and the next leaf-lane gap was no
+longer "can we emit valid RTL at all?" but "are we actually exercising
+the structured frontend surfaces we said we wanted?" A procedural case
+block is a meaningful new downstream path: same broad mux semantics,
+different parser/elaboration route, and still fully synthesizable by
+construction.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
 ## 2026-04-22-2115 — Prove and document the variable-shift surface
 
 **Landed as:** this commit

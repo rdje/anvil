@@ -675,7 +675,7 @@ e-graph layer.
 | `operand-unique` | + Rule 8 operand uniqueness for And/Or/Xor/Add/Mul (Add/Mul also gated by `operand_duplication_rate`). |
 | `commutative`  | + Commutative-operand sort at intern time (Rule 21b).              |
 | `associative`  | + Associative flattening at intern time: any `And`/`Or`/`Xor`/`Add`/`Mul` operand that is itself a same-op same-width gate is spliced into the outer operand list (`Add(a, Add(b, c)) → Add(a, b, c)`). Per-op semantic normalisation after the splice: `And`/`Or` dedup (`a & a = a`), `Xor` pair-cancel (`a ^ a = 0`), `Add`/`Mul` skip the flatten when it would produce duplicates (preserves `x + x = 2x` / `x * x = x²` under strict `operand_duplication_rate`). Inner gates orphaned by the splice are cleaned up by `compact_node_ids` at module finalisation. Fires counted in `Metrics::flatten_associative_applied`; residual nesting in `Metrics::nested_associative_operand_count` is zero at default knobs. |
-| `constant-fold` | + Constant folding at intern time. Identity drops (`x + 0 → x`, `x * 1 → x`, `x & all_ones → x`, `x \| 0 → x`, `x ^ 0 → x`, `x - 0 → x`, `x << 0 → x`, `x >> 0 → x`); absorbing constants now fire on mixed operands too (`x * 0 → 0`, `x & 0 → 0`, `x \| all_ones → all_ones`) because post-construction compaction removes dead gate operands; full all-constant evaluation for associative ops (bitwise AND/OR/XOR over values, sum/product mod 2^width) and 2-arity non-commutative ops (`Sub(c1, c2)`, `Shl(c1, c2)`, `Shr(c1, c2)` all with mod-2^width semantics and over-shift → 0). Fires counted in `Metrics::fold_identities_applied`. |
+| `constant-fold` | + Constant folding at intern time. Identity drops (`x + 0 → x`, `x * 1 → x`, `x & all_ones → x`, `x \| 0 → x`, `x ^ 0 → x`, `x - 0 → x`, `x << 0 → x`, `x >> 0 → x`); absorbing constants now fire on mixed operands too (`x * 0 → 0`, `x & 0 → 0`, `x \| all_ones → all_ones`) because post-construction compaction removes dead gate operands; mixed associative constants are aggregated (`1 + x + 1 → 2 + x`, `3 * x * 5 → 15 * x`); full all-constant evaluation for associative ops (bitwise AND/OR/XOR over values, sum/product mod 2^width) and 2-arity non-commutative ops (`Sub(c1, c2)`, `Shl(c1, c2)`, `Shr(c1, c2)` all with mod-2^width semantics and over-shift → 0). The settled graph also gets a late mixed-constant cleanup pass after remap-heavy normalization for the same doctrine. Fires counted in `Metrics::fold_identities_applied`. |
 | `peephole`    | + Local rewrites at intern time. Single-gate involutions: `Not(Not(x)) → x`. Cross-gate comparison inversions: `Not(Eq) → Neq`, `Not(Neq) → Eq`, `Not(Lt) → Ge`, `Not(Gt) → Le`, `Not(Le) → Gt`, `Not(Ge) → Lt`. Unsigned comparison-boundary tautologies: `x < 0`, `x >= 0`, `x <= all_ones`, `x > all_ones`, plus the symmetric lhs-constant forms. Constant-selector mux collapse: `Mux(0, a, b) → b`, `Mux(1, a, b) → a`. Constant evaluation (all-operand-constants → evaluated constant): comparisons (`Eq`/`Neq`/`Lt`/`Gt`/`Le`/`Ge`), `Not(c) → ~c & mask`, `Slice(hi, lo)(c) → (c >> lo) & mask`, `Concat([c1, c2, ...]) → MSB-first bit assembly`, `RedAnd(c) → (c == all_ones)`, `RedOr(c) → (c != 0)`, `RedXor(c) → popcount(c) & 1`. Structural identities: full-width `Slice(hi, 0)` where `hi+1 == src_width` returns the source, single-operand `Concat([x]) → x`. In every case the inner gate may be orphaned by the rewrite; the post-construction `compact_node_ids` pass cleans it up. Fires counted in `Metrics::peephole_rewrites_applied`; removed nodes in `Metrics::nodes_compacted`. Broader cross-gate rewrites like `(a + b) - b → a` still await the e-graph layer. |
 | `e-graph`    | Bounded semantic equivalence fragment. Under `identity_mode = node-id`, small-support combinational cones proven equal over the same canonical leaf endpoints collapse post-construction. Full semantic equivalence remains open. |
 
@@ -934,6 +934,36 @@ left-to-right from highest-index fall-through up to index-0-wins.
 
 ---
 
+## 16 — Procedural combinational case-mux block
+
+**Rule:** A procedural case mux is a *block* with one encoded select
+bus plus M data inputs (all width W). It emits a synthesizable
+`always_comb` block:
+
+- `case (sel)`
+- one arm per explicit index `0 .. M-1`
+- explicit `default: out = 0`
+
+So when `sel` is out of range (for non-power-of-two M), the output is
+0 by construction.
+
+- **M** is drawn from `[max(2, min_mux_arms), max_mux_arms]`.
+- **Select width** is `ceil(log2(M))`.
+- **Output width** is the caller's target width W.
+
+This is intentionally a syntax-surface motif distinct from the
+expression-level encoded comb mux. The downstream logic function is the
+same kind of indexed mux, but the emitted RTL goes through a different
+frontend/elaboration path because it uses `always_comb case`.
+
+**Where enforced:** `src/gen/cone.rs` —
+`build_case_mux_recursive`, `build_case_mux_pool_only`,
+`make_case_mux`. Validator: `check_gate_shape`'s `CaseMux` arm.
+Emitter: `src/emit/sv.rs` declares the target as `logic` and emits one
+`always_comb begin ... case (...) ... endcase end` block per case mux.
+
+---
+
 ## 15 — M-to-1 combinational mux block
 
 **Rule:** A combinational mux is a *block* (not an operator) with
@@ -1033,7 +1063,7 @@ they get their own rules (Rules 2, 3, 5, 7, and future additions).
 As `anvil` grows, this catalog will too. Expected additions:
 
 - **Phase 3 (structured ops):** width rules for case/casez, priority
-  encoders, for-loop unrolling.
+  encoders, casez, for-loop unrolling.
 - **Phase 4 (hierarchy):** naming uniqueness across sub-modules,
   port-width matching at instance boundaries, acyclic hierarchy.
 - **Phase 5 (parameterization):** parameter-dependent width

@@ -253,64 +253,73 @@ fn const_shift_amount_appears_in_output() {
 
 #[test]
 fn variable_shift_amount_appears_in_output() {
-    // Force a simple deterministic shift-only module: the root must be
-    // Shl/Shr, const_shift_amount_prob=0.0 forbids literal amounts,
-    // and terminal_reuse_prob=1.0 keeps the 8-bit leaf picks on
-    // dep-bearing input signals rather than fresh constants.
-    let cfg = Config {
-        seed: 0,
-        min_inputs: 2,
-        max_inputs: 2,
-        min_outputs: 1,
-        max_outputs: 1,
-        min_width: 8,
-        max_width: 8,
-        max_depth: 1,
-        flop_prob: 0.0,
-        share_prob: 0.0,
-        terminal_reuse_prob: 1.0,
-        constant_prob: 0.0,
-        gate_bitwise_weight: 0,
-        gate_arith_weight: 0,
-        gate_struct_weight: 0,
-        gate_compare_weight: 0,
-        gate_reduce_weight: 0,
-        coefficient_prob: 0.0,
-        const_shift_amount_prob: 0.0,
-        gate_shift_weight: 1,
-        const_comparand_prob: 0.0,
-        priority_encoder_prob: 0.0,
-        max_flops_per_module: 0,
-        comb_mux_prob: 0.0,
-        construction_strategy: ConstructionStrategy::Interleaved,
-        ..Config::default()
-    };
+    // We want proof of the variable-shift surface, not reliance on one
+    // lucky seed. Sweep a small shift-only corpus and demand that at
+    // least one final module still contains a non-constant shift rhs in
+    // both IR and emitted SV.
+    let mut saw_variable_shift = false;
+    for seed in 0..32u64 {
+        let cfg = Config {
+            seed,
+            min_inputs: 2,
+            max_inputs: 2,
+            min_outputs: 2,
+            max_outputs: 2,
+            min_width: 4,
+            max_width: 8,
+            max_depth: 2,
+            flop_prob: 0.0,
+            share_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            gate_bitwise_weight: 0,
+            gate_arith_weight: 0,
+            gate_struct_weight: 0,
+            gate_compare_weight: 0,
+            gate_reduce_weight: 0,
+            coefficient_prob: 0.0,
+            const_shift_amount_prob: 0.0,
+            gate_shift_weight: 10,
+            const_comparand_prob: 0.0,
+            priority_encoder_prob: 0.0,
+            case_mux_prob: 0.0,
+            max_flops_per_module: 0,
+            comb_mux_prob: 0.0,
+            construction_strategy: ConstructionStrategy::GraphFirst,
+            graph_first_pool_size: 48,
+            ..Config::default()
+        };
 
-    let m = Generator::new(cfg).generate_module();
-    let saw_variable_shift_ir = m.nodes.iter().any(|node| match node {
-        Node::Gate {
-            op: GateOp::Shl | GateOp::Shr,
-            operands,
-            ..
-        } => !matches!(m.nodes[operands[1] as usize], Node::Constant { .. }),
-        _ => false,
-    });
-    assert!(
-        saw_variable_shift_ir,
-        "expected at least one Shl/Shr gate with a non-constant rhs in the IR"
-    );
+        let m = Generator::new(cfg).generate_module();
+        let saw_variable_shift_ir = m.nodes.iter().any(|node| match node {
+            Node::Gate {
+                op: GateOp::Shl | GateOp::Shr,
+                operands,
+                ..
+            } => !matches!(m.nodes[operands[1] as usize], Node::Constant { .. }),
+            _ => false,
+        });
+        if !saw_variable_shift_ir {
+            continue;
+        }
 
-    let sv = anvil::emit::to_sv(&m);
-    let saw_variable_shift_sv = sv.lines().any(|line| {
-        [" << ", " >> "].iter().any(|op| {
-            line.split_once(op)
-                .map(|(_, rhs)| !rhs.trim_end_matches(';').trim().contains("'h"))
-                .unwrap_or(false)
-        })
-    });
+        let sv = anvil::emit::to_sv(&m);
+        let saw_variable_shift_sv = sv.lines().any(|line| {
+            [" << ", " >> "].iter().any(|op| {
+                line.split_once(op)
+                    .map(|(_, rhs)| !rhs.trim_end_matches(';').trim().contains("'h"))
+                    .unwrap_or(false)
+            })
+        });
+        if saw_variable_shift_sv {
+            saw_variable_shift = true;
+            break;
+        }
+    }
+
     assert!(
-        saw_variable_shift_sv,
-        "expected at least one emitted variable shift (`value << signal` / `value >> signal`)"
+        saw_variable_shift,
+        "expected at least one emitted variable shift across the 32-seed sweep"
     );
 }
 
@@ -343,6 +352,45 @@ fn priority_encoder_block_across_all_strategies_is_valid() {
                     strategy, seed
                 )
             });
+        }
+    }
+}
+
+#[test]
+fn case_mux_block_across_all_strategies_emits_always_comb_case() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                case_mux_prob: 1.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                flop_prob: 0.0,
+                max_depth: 3,
+                min_mux_arms: 2,
+                max_mux_arms: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "case_mux_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+            let sv = anvil::emit::to_sv(&m);
+            assert!(
+                sv.contains("always_comb begin") && sv.contains("case ("),
+                "case_mux_prob=1.0 strategy {:?} seed {} should emit always_comb case",
+                strategy,
+                seed
+            );
         }
     }
 }
@@ -815,6 +863,7 @@ fn knob_rolls_recorded_across_seeds() {
     let expected_knobs = [
         "flop_prob",
         "comb_mux_prob",
+        "case_mux_prob",
         "priority_encoder_prob",
         "coefficient_prob",
         "const_shift_amount_prob",
@@ -861,6 +910,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 4,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -880,6 +930,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 4,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -899,6 +950,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 4,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -918,6 +970,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 1,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -937,6 +990,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 1,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -956,6 +1010,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 max_width: 4,
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
+                case_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()

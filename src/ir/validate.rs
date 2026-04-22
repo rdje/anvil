@@ -376,6 +376,47 @@ fn check_gate_shape(
                 }
             }
         }
+        // CaseMux: [sel (K bits), data_0, data_1, ...]. At least 2
+        // data arms, each data arm width == out_w, and the number of
+        // data arms must fit in the select domain.
+        CaseMux => {
+            let data_arms = operands.len().saturating_sub(1);
+            if data_arms < 2 {
+                return Err(arity_err("sel + >= 2 data arms"));
+            }
+            let sel_w = w(0);
+            if sel_w < 1 {
+                return Err(ValidateError::GateOperandWidth {
+                    node: id,
+                    op,
+                    operand_idx: 0,
+                    expected: 1,
+                    got: sel_w,
+                });
+            }
+            if sel_w < 32 {
+                let max_arms = 1usize << sel_w;
+                if data_arms > max_arms {
+                    return Err(ValidateError::GateArity {
+                        node: id,
+                        op,
+                        expected: format!("sel + 2..={} data arms", max_arms),
+                        got: operands.len(),
+                    });
+                }
+            }
+            for i in 1..operands.len() {
+                if w(i) != out_w {
+                    return Err(ValidateError::GateOperandWidth {
+                        node: id,
+                        op,
+                        operand_idx: i,
+                        expected: out_w,
+                        got: w(i),
+                    });
+                }
+            }
+        }
         // Comparisons: out_w == 1, operands equal width.
         Eq | Neq | Lt | Gt | Le | Ge => {
             if operands.len() != 2 {
@@ -690,6 +731,24 @@ mod tests {
         add_output(&mut m, "o", 4, mux_id);
         let err = validate(&m).expect_err("non-1-bit mux selector must be rejected");
         assert!(matches!(err, ValidateError::GateOperandWidth { .. }));
+    }
+
+    #[test]
+    fn accepts_case_mux_with_explicit_default_domain() {
+        let mut m = empty_module();
+        let (_p_sel, n_sel) = add_input(&mut m, "sel", 2);
+        let (_p_a, n_a) = add_input(&mut m, "a", 8);
+        let (_p_b, n_b) = add_input(&mut m, "b", 8);
+        let (_p_c, n_c) = add_input(&mut m, "c", 8);
+        let case = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::CaseMux,
+            operands: vec![n_sel, n_a, n_b, n_c],
+            width: 8,
+            deps: DepSet::from_port(0),
+        });
+        add_output(&mut m, "o", 8, case);
+        validate(&m).expect("valid case mux must pass");
     }
 
     #[test]

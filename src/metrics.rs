@@ -230,6 +230,8 @@ pub struct Metrics {
     /// Number of combinational encoded-style (chained-ternary)
     /// mux blocks built.
     pub num_comb_muxes_encoded: u32,
+    /// Number of procedural combinational `case` mux blocks built.
+    pub num_case_mux_blocks: u32,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -383,6 +385,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.num_priority_encoder_blocks = m.priority_encoder_built;
     out.num_comb_muxes_one_hot = m.comb_mux_one_hot_built;
     out.num_comb_muxes_encoded = m.comb_mux_encoded_built;
+    out.num_case_mux_blocks = m.case_mux_built;
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -489,6 +492,7 @@ fn gate_kind_name(op: GateOp) -> &'static str {
         Le => "le",
         Ge => "ge",
         Mux => "mux",
+        CaseMux => "case_mux",
         Slice { .. } => "slice",
         Concat => "concat",
         RedAnd => "red_and",

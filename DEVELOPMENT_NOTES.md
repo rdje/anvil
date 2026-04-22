@@ -245,6 +245,28 @@ Considered for the Encoded-style flop D: emit an `always_comb` block with a `cas
 
 If a future motif (e.g., FSM state encoding) genuinely requires `case`, revisit then.
 
+This remains the right decision for **flop D** muxes even after the
+Phase 3 case-mux slice landed. The new case surface is a separate
+combinational block motif with its own knob (`case_mux_prob`) and its
+own structured gate kind; the flop path stays expression-based and
+keeps its existing chained-ternary semantics.
+
+### Late mixed-constant cleanup after remaps
+
+Intern-time constant folding is not enough by itself once the
+post-construction cleanup passes start remapping settled graphs. A gate
+that was clean when originally interned can later become something like
+`1 + x + inner`, where `inner` is subsequently proven/remapped to `1`.
+
+The right place to address that is **not** to overcomplicate
+associative flattening or to relax the strict duplicate doctrine; it is
+to run a small late cleanup pass on the settled graph. That is now
+`fold_mixed_associative_constants` in `src/ir/compact.rs`, wired after
+the posthoc associative-normalisation points. It re-aggregates
+associative constants (`1 + x + 1 -> x` at width 1, `1 + x + 1 -> 2 +
+x` at width 8, `3 * x * 5 -> 15 * x`, etc.) after remaps expose those
+opportunities.
+
 ### M = 1 mux arm
 
 Excluded from `pick_mux_arm_count` by design. A 1-arm mux is algebraically `sel ? data_0 : 0` (ZeroDefault) or `sel ? data_0 : Q` (QFeedback) — in either case a trivially-simplified shape that adds no motif diversity over what a simple 2-arm mux or an M=0 direct cone already covers. Allowing M=1 would bloat the generator's decision space without expanding the generated-SV distribution meaningfully.

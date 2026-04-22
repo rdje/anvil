@@ -94,6 +94,8 @@ pub struct Module {
     /// Number of encoded-style combinational mux blocks built
     /// (chained-ternary form).
     pub comb_mux_encoded_built: u32,
+    /// Number of procedural combinational `case` mux blocks built.
+    pub case_mux_built: u32,
 
     /// Number of times the `ConstantFold` layer fired during
     /// construction of this module. Each fire is one algebraic
@@ -191,6 +193,9 @@ pub enum KnobId {
     /// `Config::priority_encoder_prob` — per-depth chance of a
     /// priority-encoder block.
     PriorityEncoderProb,
+    /// `Config::case_mux_prob` — per-depth chance of a procedural
+    /// combinational case-mux block.
+    CaseMuxProb,
     /// `Config::coefficient_prob` — chance that an Add/Sub/Mul
     /// becomes a linear-combination motif.
     CoefficientProb,
@@ -231,6 +236,7 @@ impl KnobId {
             KnobId::FlopProb => "flop_prob",
             KnobId::CombMuxProb => "comb_mux_prob",
             KnobId::PriorityEncoderProb => "priority_encoder_prob",
+            KnobId::CaseMuxProb => "case_mux_prob",
             KnobId::CoefficientProb => "coefficient_prob",
             KnobId::ConstShiftAmountProb => "const_shift_amount_prob",
             KnobId::ConstComparandProb => "const_comparand_prob",
@@ -771,13 +777,49 @@ impl Module {
             }
         }
 
-        // 2. Identity elements: drop in place.
+        // 2. Mixed-constant aggregation: for associative ops with
+        // at least two same-width constants and at least one
+        // dynamic operand, combine the constant side into one
+        // replacement constant before the identity pass. This keeps
+        // emitted Add/Mul surfaces free of repeated constant
+        // operands like `1 + x + 1`, while preserving semantics.
         let identity: u128 = match op {
             GateOp::Add | GateOp::Xor | GateOp::Or => 0,
             GateOp::Mul => 1,
             GateOp::And => all_ones,
             _ => return None,
         };
+        let mut const_count = 0usize;
+        let mut const_acc = identity;
+        for &id in operands.iter() {
+            if let Some(v) = const_of(id, &self.nodes) {
+                const_count += 1;
+                const_acc = match op {
+                    GateOp::And => const_acc & v,
+                    GateOp::Or => const_acc | v,
+                    GateOp::Xor => const_acc ^ v,
+                    GateOp::Add => const_acc.wrapping_add(v) & all_ones,
+                    GateOp::Mul => const_acc.wrapping_mul(v) & all_ones,
+                    _ => unreachable!(),
+                };
+            }
+        }
+        if const_count >= 2 {
+            operands.retain(|id| const_of(*id, &self.nodes).is_none());
+            let keep_aggregate = const_acc != identity || operands.is_empty();
+            if keep_aggregate {
+                let (cid, _is_new) = self.intern_constant(width, const_acc);
+                operands.push(cid);
+            }
+            self.fold_identities_applied += (const_count - usize::from(keep_aggregate)) as u64;
+            if self.effective_factorization_level()
+                >= crate::config::FactorizationLevel::Commutative
+            {
+                operands.sort_unstable();
+            }
+        }
+
+        // 3. Identity elements: drop in place.
         operands.retain(|id| {
             !matches!(
                 &self.nodes[*id as usize],
@@ -1465,7 +1507,8 @@ pub enum GateOp {
     Le,
     Ge,
     // Structured
-    Mux, // [sel, a, b] with sel.width == 1
+    Mux,     // [sel, a, b] with sel.width == 1
+    CaseMux, // [sel, data_0, data_1, ...], emitted as always_comb case
     Slice { hi: u32, lo: u32 },
     Concat, // variadic
     // Reductions (output is 1-bit)
@@ -1784,6 +1827,78 @@ mod tests {
         assert!(!is_new);
         assert_eq!(m.nodes.len(), before, "no new gate node created");
         assert_eq!(m.fold_identities_applied, 1);
+    }
+
+    #[test]
+    fn fold_add_mixed_constants_aggregates_to_one_operand() {
+        let (mut m, x, _, _) = fold_fixture(8);
+        let (one, _) = m.intern_constant(8, 1);
+        let before = m.nodes.len();
+        let (id, is_new) = m.intern_gate(GateOp::Add, vec![x, one, one], 8, DepSet::from_port(0));
+        assert!(is_new, "mixed Add should still materialize a gate");
+        assert_eq!(
+            m.nodes.len(),
+            before + 2,
+            "one new constant + one new Add gate"
+        );
+        match &m.nodes[id as usize] {
+            Node::Gate {
+                op: GateOp::Add,
+                operands,
+                width,
+                ..
+            } => {
+                assert_eq!(*width, 8);
+                assert_eq!(operands.len(), 2);
+                let const_values: Vec<u128> = operands
+                    .iter()
+                    .filter_map(|nid| match &m.nodes[*nid as usize] {
+                        Node::Constant { value, .. } => Some(*value),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(const_values, vec![2], "1 + x + 1 should become 2 + x");
+            }
+            other => panic!("expected Add gate, got {other:?}"),
+        }
+        assert_eq!(m.fold_identities_applied, 2);
+    }
+
+    #[test]
+    fn fold_mul_mixed_constants_aggregates_to_one_operand() {
+        let (mut m, x, _, _) = fold_fixture(8);
+        let (three, _) = m.intern_constant(8, 3);
+        let (five, _) = m.intern_constant(8, 5);
+        let before = m.nodes.len();
+        let (id, is_new) =
+            m.intern_gate(GateOp::Mul, vec![x, three, five], 8, DepSet::from_port(0));
+        assert!(is_new, "mixed Mul should still materialize a gate");
+        assert_eq!(
+            m.nodes.len(),
+            before + 2,
+            "one new constant + one new Mul gate"
+        );
+        match &m.nodes[id as usize] {
+            Node::Gate {
+                op: GateOp::Mul,
+                operands,
+                width,
+                ..
+            } => {
+                assert_eq!(*width, 8);
+                assert_eq!(operands.len(), 2);
+                let const_values: Vec<u128> = operands
+                    .iter()
+                    .filter_map(|nid| match &m.nodes[*nid as usize] {
+                        Node::Constant { value, .. } => Some(*value),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(const_values, vec![15], "3 * x * 5 should become 15 * x");
+            }
+            other => panic!("expected Mul gate, got {other:?}"),
+        }
+        assert_eq!(m.fold_identities_applied, 2);
     }
 
     /// `x & all_ones → x`.

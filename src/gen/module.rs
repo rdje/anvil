@@ -177,6 +177,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // do not survive purely because the proof became visible late.
     crate::ir::compact::fold_proven_gates(&mut m);
     crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
+    crate::ir::compact::fold_mixed_associative_constants(&mut m);
 
     // Bounded semantic gate-sharing pass: once every output and flop D
     // cone exists, `identity_mode = node-id` at the live `EGraph`
@@ -187,6 +188,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     let semantic_gates_merged = crate::ir::compact::merge_equivalent_gates(&mut m);
     m.semantic_gates_merged = semantic_gates_merged;
     crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
+    crate::ir::compact::fold_mixed_associative_constants(&mut m);
 
     // Endpoint-preserving sequential sharing pass: once every flop has
     // a concrete D-cone, `identity_mode = node-id` can conservatively
@@ -203,6 +205,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // downstream-clean proof pass once on the settled graph.
     crate::ir::compact::fold_proven_gates(&mut m);
     crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
+    crate::ir::compact::fold_mixed_associative_constants(&mut m);
 
     // Safety-net claimed-set audit (Rule 18): demand-driven
     // construction should leave zero orphan gates, but if the snapshot/

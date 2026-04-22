@@ -157,6 +157,15 @@ instead of creating fresh logic.
   `[min_mux_arms, max_mux_arms]` yields `ceil_log2(N) == target_width`.
 - N range reuses the block-level `min_mux_arms` / `max_mux_arms`.
 
+### Case-mux block
+
+- `case_mux_prob` — per-emission probability of a combinational
+  `always_comb case (sel)` block. Default `0.05`. The block uses one
+  encoded select bus, M data arms, and an explicit default-to-zero
+  assignment.
+- M (arm count) range reuses the block-level `min_mux_arms` /
+  `max_mux_arms` knobs; select width is `ceil(log2(M))`.
+
 ### Combinational mux block
 
 - `comb_mux_prob` — probability that a non-leaf recursion point
@@ -486,6 +495,7 @@ which are bugs worth investigating.
 | `construction_strategy`       | all structural metrics shift — compare runs at same seed   |
 | `graph_first_pool_size`       | legacy knob; no effect on the current live path            |
 | `priority_encoder_prob`       | `num_priority_encoder_blocks` — live counter, monotone in the knob |
+| `case_mux_prob`               | `num_case_mux_blocks` — live counter, monotone in the knob |
 | `comb_mux_prob`               | `num_muxes_2to1`, `num_comb_muxes_one_hot` + `num_comb_muxes_encoded` (sum) |
 | `comb_mux_encoding_prob`      | `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio — converges to the knob over large sweeps |
 | `coefficient_prob`            | `gates_by_kind["mul"]` uptick (each coefficient → `Mul`)   |

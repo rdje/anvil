@@ -25,8 +25,9 @@ emits:
 - `wire`, `logic` internal signal declarations
 - `assign` for combinational drives
 - `always_ff @(posedge clk [or negedge rst_n])` blocks for flops
-- In the current leaf lane: no `always @*`; `always_comb` only if a
-  future synthesizable artifact family explicitly adds it.
+- `always_comb` for the landed procedural case-mux block
+  (`case_mux_prob`); no latch-y partial-assignment form.
+- No `always @*`.
 - No `initial`. No `final`. No `fork`/`join`. No `wait`. No `#delay`.
 - No `$display`, `$monitor`, `$finish`, `$stop`, or similar.
 - No `real`, `time`, `event`, `class`, `queue`, dynamic arrays.
@@ -75,8 +76,9 @@ arbitrary combinational logic.
 
 Latches are not synthesized by accident. The cone-recursion never
 produces `always_comb` blocks with conditional assignments that leave
-some signals unassigned. `assign` statements always fully define their
-target. No latch can be inferred from `anvil` output.
+some signals unassigned: the procedural case-mux block always emits an
+explicit `default` assignment, and `assign` statements always fully
+define their target. No latch can be inferred from `anvil` output.
 
 ## Sanity check
 

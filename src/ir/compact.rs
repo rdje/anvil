@@ -28,6 +28,10 @@
 //! - `flatten_posthoc_associative_gates(&mut m)`: a normalisation pass
 //!   that restores associative flattening after later remap passes have
 //!   changed which already-built node an operand points at.
+//! - `fold_mixed_associative_constants(&mut m)`: a late constant-fold
+//!   cleanup that aggregates multiple constant operands inside settled
+//!   associative gates after remap passes expose opportunities that did
+//!   not exist at original intern time.
 //! - `compact_node_ids(&mut m)`: a defensive reachability pass that
 //!   walks from roots, identifies any node that became orphaned by a
 //!   construction-time rewrite (e.g. the `Not(Not(x)) → x`
@@ -319,6 +323,15 @@ fn evaluate_node_under_assignment(
                         operand_values[2] & width_mask
                     } else {
                         operand_values[1] & width_mask
+                    }
+                }
+                GateOp::CaseMux => {
+                    let sel = operand_values[0] as usize;
+                    let data_arms = operand_values.len().saturating_sub(1);
+                    if sel < data_arms {
+                        operand_values[sel + 1] & width_mask
+                    } else {
+                        0
                     }
                 }
                 GateOp::Slice { hi, lo } => {
@@ -829,6 +842,139 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
                 };
                 node_remap.insert(node_id, chosen);
                 simplified += 1;
+            }
+        }
+    }
+
+    if !node_remap.is_empty() {
+        simplified -= prune_duplicate_introducing_add_mul_remaps(m, &mut node_remap);
+        for node in &mut m.nodes {
+            if let Node::Gate { operands, .. } = node {
+                for operand in operands.iter_mut() {
+                    rewrite_node_id_if_mapped(operand, &node_remap);
+                }
+            }
+        }
+        for (_, root) in &mut m.drives {
+            rewrite_node_id_if_mapped(root, &node_remap);
+        }
+        for flop in &mut m.flops {
+            rewrite_flop_from_partial_map(flop, &node_remap);
+        }
+    }
+
+    if simplified > 0 || !node_remap.is_empty() {
+        rebuild_instance_tables(m);
+    }
+    simplified
+}
+
+/// Late mixed-constant aggregation for settled associative gates.
+///
+/// Intern-time constant folding already combines mixed constants when a
+/// gate is first created, but later remap passes can expose new
+/// opportunities (`1 + x + inner`, where `inner` later collapses to
+/// `1`). This pass revisits the settled graph and aggregates the
+/// constant side again without relying on reconstruction.
+pub fn fold_mixed_associative_constants(m: &mut Module) -> u32 {
+    if m.effective_factorization_level() < FactorizationLevel::ConstantFold {
+        return 0;
+    }
+
+    let mut node_remap: HashMap<NodeId, NodeId> = HashMap::new();
+    let mut simplified = 0u32;
+
+    for node_id in 0..m.nodes.len() as NodeId {
+        let snapshot = match &m.nodes[node_id as usize] {
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } if matches!(
+                op,
+                GateOp::And | GateOp::Or | GateOp::Xor | GateOp::Add | GateOp::Mul
+            ) =>
+            {
+                Some((*op, operands.clone(), *width))
+            }
+            _ => None,
+        };
+        let Some((op, operands, width)) = snapshot else {
+            continue;
+        };
+
+        if let Node::Gate {
+            operands: current_operands,
+            ..
+        } = &mut m.nodes[node_id as usize]
+        {
+            for operand in current_operands.iter_mut() {
+                rewrite_node_id_if_mapped(operand, &node_remap);
+            }
+        }
+
+        let identity = match op {
+            GateOp::Add | GateOp::Xor | GateOp::Or => 0,
+            GateOp::Mul => 1,
+            GateOp::And => bitmask(width),
+            _ => unreachable!(),
+        };
+
+        let mut const_count = 0usize;
+        let mut const_acc = identity;
+        let mut dynamic: Vec<NodeId> = Vec::with_capacity(operands.len());
+        for operand in operands {
+            let operand = node_remap.get(&operand).copied().unwrap_or(operand);
+            match &m.nodes[operand as usize] {
+                Node::Constant {
+                    width: const_width,
+                    value,
+                } if *const_width == width => {
+                    const_count += 1;
+                    const_acc = match op {
+                        GateOp::And => const_acc & *value,
+                        GateOp::Or => const_acc | *value,
+                        GateOp::Xor => const_acc ^ *value,
+                        GateOp::Add => const_acc.wrapping_add(*value) & bitmask(width),
+                        GateOp::Mul => const_acc.wrapping_mul(*value) & bitmask(width),
+                        _ => unreachable!(),
+                    };
+                }
+                _ => dynamic.push(operand),
+            }
+        }
+
+        if const_count < 2 {
+            continue;
+        }
+
+        let keep_aggregate = const_acc != identity || dynamic.is_empty();
+        if keep_aggregate {
+            let (cid, _is_new) = m.intern_constant(width, const_acc);
+            dynamic.push(cid);
+        }
+        if m.effective_factorization_level() >= FactorizationLevel::Commutative {
+            dynamic.sort_unstable();
+        }
+
+        match dynamic.len() {
+            0 => unreachable!("all-constant associative gate should have kept an aggregate"),
+            1 => {
+                node_remap.insert(node_id, dynamic[0]);
+                simplified += 1;
+            }
+            _ => {
+                if let Node::Gate {
+                    operands: current_operands,
+                    ..
+                } = &mut m.nodes[node_id as usize]
+                {
+                    if *current_operands != dynamic {
+                        *current_operands = dynamic;
+                        simplified += 1;
+                    }
+                }
             }
         }
     }
@@ -1793,6 +1939,34 @@ mod tests {
                 } if operands == &vec![a, inner]
             ),
             "duplicate-bearing Add nesting must remain intact under the strict duplicate policy"
+        );
+    }
+
+    #[test]
+    fn fold_mixed_associative_constants_cancels_duplicate_ones_in_width1_add() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::ConstantFold,
+            ..Module::default()
+        };
+        let x = push_primary(&mut m, 0, 1);
+        let y = push_primary(&mut m, 1, 1);
+        let one = push_constant(&mut m, 1, 1);
+        let add = push_raw_gate(&mut m, GateOp::Add, vec![one, x, one, y], 1);
+
+        let simplified = fold_mixed_associative_constants(&mut m);
+        assert_eq!(simplified, 1);
+        assert!(
+            matches!(
+                &m.nodes[add as usize],
+                Node::Gate {
+                    op: GateOp::Add,
+                    operands,
+                    width: 1,
+                    ..
+                } if operands == &vec![x, y]
+            ),
+            "1-bit Add with two literal ones should cancel them modulo 2"
         );
     }
 

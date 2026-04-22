@@ -316,6 +316,14 @@ pub struct Config {
     // `book/src/structural-rules.md`.
     pub priority_encoder_prob: f64,
 
+    // Case-mux block: takes one encoded select bus plus M data inputs
+    // and emits a procedural `always_comb case (sel)` block with an
+    // explicit default to zero. M is drawn from
+    // `[max(2, min_mux_arms), max_mux_arms]`; sel width is
+    // `ceil(log2(M))`. This is a syntax-surface motif distinct from
+    // the expression-level mux tree.
+    pub case_mux_prob: f64,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -440,6 +448,7 @@ impl Default for Config {
             min_comparand: 0,
             max_comparand: 255,
             priority_encoder_prob: 0.05,
+            case_mux_prob: 0.05,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -549,6 +558,7 @@ impl Config {
             ("const_shift_amount_prob", self.const_shift_amount_prob),
             ("const_comparand_prob", self.const_comparand_prob),
             ("priority_encoder_prob", self.priority_encoder_prob),
+            ("case_mux_prob", self.case_mux_prob),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
@@ -677,6 +687,9 @@ impl Config {
         if let Some(v) = o.priority_encoder_prob {
             self.priority_encoder_prob = v;
         }
+        if let Some(v) = o.case_mux_prob {
+            self.case_mux_prob = v;
+        }
         if let Some(v) = o.max_ast_instances {
             self.max_ast_instances = v;
         }
@@ -733,6 +746,7 @@ pub struct Overrides {
     pub min_comparand: Option<u32>,
     pub max_comparand: Option<u32>,
     pub priority_encoder_prob: Option<f64>,
+    pub case_mux_prob: Option<f64>,
     pub max_ast_instances: Option<u32>,
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,

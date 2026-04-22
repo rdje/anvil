@@ -249,6 +249,12 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    if roll_knob(g, m, KnobId::CaseMuxProb, g.cfg.case_mux_prob) {
+        trace!(width, "🧱 case-mux block");
+        build_case_mux_pool_only(g, m, pool, width);
+        return true;
+    }
+
     // Priority-encoder block (pool-only). Skip if no N compatible with
     // target width.
     if roll_knob(
@@ -377,6 +383,27 @@ fn build_comb_mux_pool_only(
         }
         or_reduce_terms(m, pool, &term_nodes, width)
     }
+}
+
+/// Pool-only procedural case-mux assembly. Semantics match the
+/// encoded comb-mux shape, but emission uses `always_comb case`.
+fn build_case_mux_pool_only(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+    let sel_width = ceil_log2(n_arms);
+    let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, None);
+    let datas: Vec<NodeId> = (0..n_arms)
+        .map(|_| pick_terminal(g, m, pool, width, None))
+        .collect();
+    let root = make_case_mux(m, pool, sel, &datas, width);
+    m.case_mux_built += 1;
+    root
 }
 
 /// Pool-only flop D-cone drain (mirrors `drain_flop_worklist` but
@@ -526,6 +553,20 @@ fn process_signal_frame(
     // block internals do not. This matches the "near-symmetric" scope.
     if roll_knob(g, m, KnobId::CombMuxProb, g.cfg.comb_mux_prob) {
         let node = build_comb_mux(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        );
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    if roll_knob(g, m, KnobId::CaseMuxProb, g.cfg.case_mux_prob) {
+        let node = build_case_mux_recursive(
             g,
             m,
             pool,
@@ -2342,9 +2383,25 @@ fn make_sub(m: &mut Module, pool: &mut SignalPool, a: NodeId, b: NodeId, width: 
 /// N-arity Add with all operands at `width`. N must be >= 2.
 fn make_nary_add(m: &mut Module, pool: &mut SignalPool, operands: &[NodeId], width: u32) -> NodeId {
     debug_assert!(operands.len() >= 2);
-    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let effective_operands: Vec<NodeId> = if m.operand_duplication_rate < 1.0 {
+        let mut seen = std::collections::HashSet::new();
+        operands
+            .iter()
+            .copied()
+            .filter(|o| seen.insert(*o))
+            .collect()
+    } else {
+        operands.to_vec()
+    };
+    if effective_operands.len() == 1 {
+        return effective_operands[0];
+    }
+    let deps_vec: Vec<DepSet> = effective_operands
+        .iter()
+        .map(|id| node_deps(m, *id))
+        .collect();
     let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
-    let (node_id, is_new) = m.intern_gate(GateOp::Add, operands.to_vec(), width, deps.clone());
+    let (node_id, is_new) = m.intern_gate(GateOp::Add, effective_operands, width, deps.clone());
     if is_new {
         pool.add(node_id, width, deps);
     }
@@ -2837,6 +2894,10 @@ pub fn build_cone(
         return build_comb_mux(g, m, pool, worklist, width, depth, exclude);
     }
 
+    if roll_knob(g, m, KnobId::CaseMuxProb, g.cfg.case_mux_prob) {
+        return build_case_mux_recursive(g, m, pool, worklist, width, depth, exclude);
+    }
+
     // Priority-encoder block: compatible only when target width matches
     // ceil_log2(N) for some N in the block-arity range.
     if roll_knob(
@@ -2982,6 +3043,29 @@ fn build_comb_mux(
     }
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
+fn build_case_mux_recursive(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+    let sel_width = ceil_log2(n_arms);
+    let sel = build_cone(g, m, pool, worklist, sel_width, depth + 1, exclude);
+    let datas: Vec<NodeId> = (0..n_arms)
+        .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
+        .collect();
+    let root = make_case_mux(m, pool, sel, &datas, width);
+    m.case_mux_built += 1;
+    root
+}
+
 fn build_comb_mux_one_hot(
     g: &mut Generator,
     m: &mut Module,
@@ -3034,6 +3118,26 @@ fn build_comb_mux_encoded(
         tail = make_mux(m, pool, eq, datas[idx as usize], tail, width);
     }
     tail
+}
+
+fn make_case_mux(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    sel: NodeId,
+    datas: &[NodeId],
+    width: u32,
+) -> NodeId {
+    debug_assert!(datas.len() >= 2);
+    let mut operands = Vec::with_capacity(datas.len() + 1);
+    operands.push(sel);
+    operands.extend_from_slice(datas);
+    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+    let (node_id, is_new) = m.intern_gate(GateOp::CaseMux, operands, width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
+    node_id
 }
 
 #[instrument(level = "trace", skip(g, m, pool, worklist))]
@@ -3429,6 +3533,15 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
         Sub => vec![out_w, out_w],
         Not => vec![out_w],
         Mux => vec![1, out_w, out_w],
+        CaseMux => {
+            let min_arms = cfg.min_mux_arms.max(2);
+            let max_arms = cfg.max_mux_arms.max(min_arms);
+            let n = rng.gen_range(min_arms..=max_arms);
+            let mut widths = Vec::with_capacity(n as usize + 1);
+            widths.push(ceil_log2(n));
+            widths.extend(std::iter::repeat_n(out_w, n as usize));
+            widths
+        }
         Eq | Neq | Lt | Gt | Le | Ge => {
             let w = rng.gen_range(1..=8);
             vec![w, w]
@@ -4267,6 +4380,31 @@ mod tests {
                 (1..=15).contains(&c8),
                 "width=8: coef bounded by max_coefficient=15, got {c8}"
             );
+        }
+    }
+
+    #[test]
+    fn make_nary_add_dedups_duplicate_terms_at_strict_rate() {
+        let (mut m, mut pool) = fixture_with_inputs(0, 8, 0);
+        m.identity_mode = IdentityMode::NodeId;
+        m.factorization_level = FactorizationLevel::OperandUnique;
+        m.operand_duplication_rate = 0.0;
+
+        let a = make_constant(&mut m, &mut pool, 8, 3);
+        let b = make_constant(&mut m, &mut pool, 8, 5);
+        let sum = make_nary_add(&mut m, &mut pool, &[a, b, a], 8);
+
+        match &m.nodes[sum as usize] {
+            Node::Gate {
+                op: GateOp::Add,
+                operands,
+                width,
+                ..
+            } => {
+                assert_eq!(*width, 8);
+                assert_eq!(operands, &vec![a, b]);
+            }
+            other => panic!("expected Add gate, got {other:?}"),
         }
     }
 
