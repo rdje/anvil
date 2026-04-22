@@ -1,6 +1,32 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2048 — Pin the crate MSRV to Rust 1.95
+
+**Landed as:** this commit
+
+**What changed**
+
+- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+  now declares `rust-version = "1.95"`.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+  no longer says the MSRV is unpinned; it now reflects the explicit
+  Rust 1.95 baseline.
+
+**Why**
+
+The toolchain floor is no longer aspirational or implicit. The user has
+already raised the local Rust baseline to 1.95, so the repo should say
+that directly in the manifest and the live docs.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
 ## 2026-04-22-2038 — Close the Phase 2 sharing gate with a normalized share metric
 
 **Landed as:** this commit
