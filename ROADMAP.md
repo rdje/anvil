@@ -220,9 +220,10 @@ node-count collapse.
   (Rule 17).**
 - Reduction operators (`&`, `|`, `^` unary). **Selectable gate
   category landed.**
-- Shift by variable amount. **Constant-amount shifts landed
-  (Rule 19 knob + const_shift_amount_prob); variable amount not
-  started.**
+- Shift by variable amount. **Landed.** `Shl` / `Shr` now have both
+  surfaces: constant-amount shifts via the Rule 19 motif
+  (`const_shift_amount_prob`) and variable-amount shifts via the
+  ordinary recursive operand path when that coin misses.
 - `for`-loop unrolled logic (statically bounded). **Not started.**
 - Linear-combination compound motif (`Σ sᵢ·cᵢ`, etc.) **landed.**
 

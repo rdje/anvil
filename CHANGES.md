@@ -1,6 +1,52 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2115 — Prove and document the variable-shift surface
+
+**Landed as:** this commit
+
+**What changed**
+
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now has `variable_shift_amount_appears_in_output`, a deterministic
+  regression that forces a shift-only module with:
+  - `const_shift_amount_prob = 0.0`
+  - `gate_shift_weight = 1`
+  - every other gate bucket disabled
+  - `terminal_reuse_prob = 1.0`
+  - `constant_prob = 0.0`
+  - fixed 8-bit ports and `max_depth = 1`
+
+  That test proves two things at once:
+  - the IR really does contain a `Shl`/`Shr` whose rhs is **not** a
+    `Constant`
+  - the emitted SV really does contain a variable shift
+    (`value << signal` / `value >> signal`)
+
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  and [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+  no longer describe variable shifts as "not started". The remaining
+  obvious Phase 3 breadth gaps are now `case` / `casez` and
+  statically bounded unrolled logic.
+
+**Why**
+
+The code and the book had already drifted apart in an interesting way:
+the generator had a real variable-shift path whenever
+`const_shift_amount_prob` missed, and `book/src/structural-rules.md`
+already said so, but the roadmap/live-doc layer still described
+variable shifts as missing. This slice pins the behavior down with a
+proof test and brings the steering docs back to the narrower truth.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
 ## 2026-04-22-2048 — Pin the crate MSRV to Rust 1.95
 
 **Landed as:** this commit

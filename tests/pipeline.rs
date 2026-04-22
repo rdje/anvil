@@ -2,6 +2,7 @@
 //! passes IR validation and produces non-empty SV output.
 
 use anvil::config::ConstructionStrategy;
+use anvil::ir::{GateOp, Node};
 use anvil::{Config, Generator};
 
 #[test]
@@ -247,6 +248,69 @@ fn const_shift_amount_appears_in_output() {
     assert!(
         saw_shift_const,
         "expected at least one constant-shift-amount emission across the 32-seed sweep"
+    );
+}
+
+#[test]
+fn variable_shift_amount_appears_in_output() {
+    // Force a simple deterministic shift-only module: the root must be
+    // Shl/Shr, const_shift_amount_prob=0.0 forbids literal amounts,
+    // and terminal_reuse_prob=1.0 keeps the 8-bit leaf picks on
+    // dep-bearing input signals rather than fresh constants.
+    let cfg = Config {
+        seed: 0,
+        min_inputs: 2,
+        max_inputs: 2,
+        min_outputs: 1,
+        max_outputs: 1,
+        min_width: 8,
+        max_width: 8,
+        max_depth: 1,
+        flop_prob: 0.0,
+        share_prob: 0.0,
+        terminal_reuse_prob: 1.0,
+        constant_prob: 0.0,
+        gate_bitwise_weight: 0,
+        gate_arith_weight: 0,
+        gate_struct_weight: 0,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        gate_shift_weight: 1,
+        const_comparand_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        max_flops_per_module: 0,
+        comb_mux_prob: 0.0,
+        construction_strategy: ConstructionStrategy::Interleaved,
+        ..Config::default()
+    };
+
+    let m = Generator::new(cfg).generate_module();
+    let saw_variable_shift_ir = m.nodes.iter().any(|node| match node {
+        Node::Gate {
+            op: GateOp::Shl | GateOp::Shr,
+            operands,
+            ..
+        } => !matches!(m.nodes[operands[1] as usize], Node::Constant { .. }),
+        _ => false,
+    });
+    assert!(
+        saw_variable_shift_ir,
+        "expected at least one Shl/Shr gate with a non-constant rhs in the IR"
+    );
+
+    let sv = anvil::emit::to_sv(&m);
+    let saw_variable_shift_sv = sv.lines().any(|line| {
+        [" << ", " >> "].iter().any(|op| {
+            line.split_once(op)
+                .map(|(_, rhs)| !rhs.trim_end_matches(';').trim().contains("'h"))
+                .unwrap_or(false)
+        })
+    });
+    assert!(
+        saw_variable_shift_sv,
+        "expected at least one emitted variable shift (`value << signal` / `value >> signal`)"
     );
 }
 
