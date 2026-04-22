@@ -3,6 +3,66 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0119 — Advance the fresh r21 both-mode frontier through cse
+
+**Landed as:** this commit
+
+**What changed**
+
+No source changes in this slice. I resumed the live current-code
+both-mode frontier at:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+
+and pushed it cleanly through the full `cse` rung, then into
+`operand-unique`, before intentionally interrupting at the next useful
+checkpoint.
+
+**Why**
+
+The previous slice only banked the fresh current-code tree through full
+`relaxed` and full `nodeid-none`, with `cse` just beginning. The next
+honest question was whether the repaired code would keep holding through
+the whole `cse` rung on a fresh both-mode tree, not just on a short
+prefix.
+
+It does.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **211** completed checkpoints /
+    **212** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_cse_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_operand-unique_default`: 10 checkpoints / 11 `.sv`
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21` remains the live resumable
+  current-code both-mode frontier tree.
+- The fresh-tree frontier has now fully re-closed `relaxed`,
+  `nodeid-none`, and `nodeid-cse` on current code, with
+  `operand-unique` underway.
+- The next frontier push should resume `r21` in place and keep climbing
+  through `operand-unique`, then `commutative`, toward the repaired
+  `e-graph` surface.
+
 ## 2026-04-22-0118 — Bank a fresh current-code both-mode frontier tree
 
 **Landed as:** this commit
