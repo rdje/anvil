@@ -1,6 +1,60 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-0128 — Deepen the sequential motif-heavy e-graph frontier
+
+**Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was another real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+This slice stayed on the same sequential `e-graph` lane and banked a
+deeper clean checkpoint inside
+`seq_nodeid_egraph_motif_heavy_seq`.
+
+The saved tree now stands at:
+
+- **690** completed module checkpoints / **690** emitted `.sv` files
+- full closure of:
+  - all interleaved `int_*` scenarios through `e-graph`
+  - `seq_nodeid_egraph_share_heavy_comb_only`
+- `seq_nodeid_egraph_motif_heavy_seq`: **20** clean checkpoints /
+  **20** emitted `.sv` files
+
+So the live `r21` tree now carries a more durable sequential
+`e-graph` bank instead of only a small toe-hold in that heavier lane.
+
+**Why**
+
+The previous slice had just entered the motif-heavy sequential lane. The
+most useful next move was not to switch context, but to stay on that
+same lane long enough to see whether it remained warning-clean under a
+more meaningful sample.
+
+It did, and that gives the next continuation a stronger recovery point
+right where the frontier is currently hardest.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after the motif-heavy sequential lane was
+    pushed to 20 clean checkpoints
+- resulting tree state:
+  - **690** completed module checkpoints / **690** emitted `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
 ## 2026-04-22-0127 — Close interleaved e-graph and enter sequential e-graph lanes
 
 **Landed as:** this commit
