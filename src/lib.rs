@@ -12,7 +12,7 @@ pub mod ir;
 pub mod metrics;
 
 pub use config::Config;
-pub use gen::Generator;
+pub use gen::{Generator, GeneratorCheckpoint};
 pub use ir::Module;
 
 // ---------------------------------------------------------------

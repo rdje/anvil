@@ -158,14 +158,12 @@ raw default `synth` script, because the latter's ABC flow was tripping
 non-actionable combinational-network warnings on valid generated
 designs. A small repo-owned `--yosys-mode both` probe is now clean in
 both sub-modes: `without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
-A real `--phase1-gate --yosys-mode both` rerun has now been pushed to
-372 completed module checkpoints with zero Verilator warning logs and
-zero Yosys warning lines, spanning the full `int_relaxed_none_default`,
-`int_nodeid_none_default`, `int_nodeid_cse_default`,
-`int_nodeid_operand-unique_default`, and
-`int_nodeid_commutative_default` scenarios plus 37 clean modules into
-`int_nodeid_associative_default`. That fresh current-code tree lives at
-`/tmp/anvil-tool-matrix-phase1-real-r18` and was intentionally
+A live current-code `--phase1-gate --yosys-mode both` tree now stands at
+500 completed checkpoints / 501 emitted `.sv` files with zero
+Verilator warning logs and zero Yosys warning lines, spanning full
+closure through `int_nodeid_constant-fold_default` plus 31 clean
+`int_nodeid_peephole_default` checkpoints. That live tree is
+`/tmp/anvil-tool-matrix-phase1-real-r21` and was intentionally
 interrupted on a checkpoint boundary, so there is no final
 `tool_matrix_report.json` yet. `tool_matrix` writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
@@ -197,12 +195,15 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
   whether the repo-owned Yosys harness runs the current `synth -noabc`
   path, the explicit ABC-enabled `abc -fast` path, or both.
 - `tool_matrix --resume` reuses per-module checkpoints from an existing
-  `--out` tree when the saved tool surface matches the current run; old
-  trees without checkpoints are bootstrapped from their saved `.sv`
-  artifacts. Resume is intentionally byte-stable: if regenerated `.sv`
-  no longer matches the saved artifact after a generator-semantics
-  change, start from a fresh `--out` tree instead of forcing reuse
-  across that boundary.
+  `--out` tree when the saved tool surface matches the current run. New
+  same-binary checkpoints also carry a generator checkpoint, an `sv`
+  hash, and a runtime fingerprint, so a rerun on the same binary can
+  skip replaying already-proven modules while still checking file
+  integrity. Older trees without that metadata fall back to the strict
+  replay-and-validate path and are upgraded in place. Resume is
+  intentionally byte-stable: if regenerated `.sv` no longer matches the
+  saved artifact after a generator-semantics change, start from a fresh
+  `--out` tree instead of forcing reuse across that boundary.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and

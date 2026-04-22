@@ -257,15 +257,13 @@ clean in Yosys under `--yosys-mode without-abc`. `tool_matrix` treats
 warnings as failures, so a green run means "no errors, no warnings",
 not merely zero non-zero exits. A small `--yosys-mode both` probe is
 now clean in both Yosys sub-modes too:
-`without-abc = 15/15 pass`, `with-abc = 15/15 pass`. A real
-`--phase1-gate --yosys-mode both` rerun has now been pushed to 372
-completed module checkpoints with zero Verilator warning logs and zero
-Yosys warning lines, spanning the full `int_relaxed_none_default`,
-`int_nodeid_none_default`, `int_nodeid_cse_default`,
-`int_nodeid_operand-unique_default`, and
-`int_nodeid_commutative_default` scenarios plus 37 clean modules into
-`int_nodeid_associative_default`. That fresh current-code tree lives at
-`/tmp/anvil-tool-matrix-phase1-real-r18` and was intentionally
+`without-abc = 15/15 pass`, `with-abc = 15/15 pass`. The live
+current-code `--phase1-gate --yosys-mode both` tree now stands at 500
+completed checkpoints / 501 emitted `.sv` files with zero Verilator
+warning logs and zero Yosys warning lines, spanning full closure
+through `int_nodeid_constant-fold_default` plus 31 clean
+`int_nodeid_peephole_default` checkpoints. That live tree is
+`/tmp/anvil-tool-matrix-phase1-real-r21` and was intentionally
 interrupted on a checkpoint boundary, so there is no final
 `tool_matrix_report.json` yet. `tool_matrix` now writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
@@ -273,11 +271,14 @@ can be continued in place.
 
 `--resume` only reuses saved tool results when the saved tool surface
 matches the current run (`skip_verilator`, `skip_yosys`, and
-`yosys_mode`). Older trees without checkpoints are upgraded by
-validating the saved `.sv` and rerunning the current tool surface once.
-Resume is intentionally byte-stable: if regenerated `.sv` no longer
-matches the saved artifact after a generator-semantics change, use a
-fresh output directory for the new run.
+`yosys_mode`). New same-binary checkpoints also carry a generator
+checkpoint, an `sv` hash, and a runtime fingerprint, so a rerun on the
+same binary can skip replaying already-proven modules while still
+checking file integrity. Older trees without that metadata are upgraded
+by the strict replay-and-validate path. Resume is intentionally
+byte-stable: if regenerated `.sv` no longer matches the saved artifact
+after a generator-semantics change, use a fresh output directory for
+the new run.
 
 ## Downstream verification
 

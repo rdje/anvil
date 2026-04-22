@@ -101,8 +101,11 @@ The resume contract is intentionally narrow:
 
 - checkpoint reuse is allowed only when the current tool surface matches
   the checkpoint (`skip_verilator`, `skip_yosys`, `yosys_mode`);
-- the regenerated module must still match the saved `.sv` text and
-  module identity; and
+- same-binary fast resume is allowed only when the checkpoint also
+  carries a matching runtime fingerprint, a matching saved-`sv` hash,
+  and a saved generator checkpoint;
+- otherwise the regenerated module must still match the saved `.sv`
+  text and module identity; and
 - metrics are refreshed locally on resume instead of being treated as
   the reuse key.
 
@@ -118,9 +121,27 @@ metrics are too strict a resume key even when the emitted artifact is
 unchanged. The load-bearing truth for reuse is therefore the emitted
 module, not the old metric blob.
 
+The newer fast path exists to avoid replaying hundreds of already-proven
+modules on the **same binary** just to reconstruct RNG state. Each
+fresh checkpoint now records:
+
+- a generator checkpoint (ChaCha stream position + next module index),
+- a hash of the emitted `.sv`, and
+- a fingerprint of the current `tool_matrix` binary.
+
+When all three match, resume can restore the generator directly and
+reuse the saved report without regenerating that module. If any of them
+do not match, the old strict replay path stays in force. That keeps the
+same byte-stable correctness bar while removing the most painful
+same-build resume cost.
+
 Older output trees without sidecars are still resumable: `--resume`
 will validate the saved `.sv`, rerun the current tool surface once for
 that module, and then write the new checkpoint sidecar.
+
+Likewise, older sidecars that predate the generator-checkpoint metadata
+still resume correctly; they simply pay the strict replay cost once and
+are upgraded in place to the newer, faster format.
 
 One more operational detail now matters in practice: once a proof or
 cleanup change alters emitted `.sv`, an older frontier tree becomes

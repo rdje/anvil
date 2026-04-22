@@ -3,6 +3,80 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0124 — Add same-binary fast resume checkpoints to tool_matrix
+
+**Landed as:** this commit
+
+**What changed**
+
+`tool_matrix --resume` no longer has to replay every already-proven
+module on the same binary just to reconstruct generator state.
+
+This slice added a real same-binary fast-resume path:
+
+- `Generator` now exposes a serializable checkpoint carrying its
+  `ChaCha8Rng` stream position plus `next_module_index`.
+- `tool_matrix` checkpoints now record:
+  - the generator checkpoint,
+  - a hash of the emitted `.sv`, and
+  - a fingerprint of the current `tool_matrix` binary.
+- On resume, when the saved tool surface still matches and those
+  checkpoint fields still match the current binary and saved `.sv`,
+  `tool_matrix` restores the generator directly and reuses the saved
+  report without regenerating that module.
+- Older checkpoints still work: if the fast-resume metadata is missing
+  or stale, the old strict replay-and-validate path stays in force and
+  upgrades the checkpoint in place.
+
+**Why**
+
+Sampling the live `r21` frontier showed that the expensive part was no
+longer downstream tools; it was replaying generator work to rebuild RNG
+state on resume. That strict replay is still the right fallback across
+binary or generator-semantic changes, but it was unnecessary drag for
+same-binary reruns of already-proven trees.
+
+So the target here was narrow and deliberate:
+
+- keep resume byte-stable,
+- keep old trees resumable,
+- keep file-integrity checks, and
+- remove the same-build replay tax.
+
+**Validation**
+
+- focused unit coverage:
+  - `cargo test --bin tool_matrix`
+  - new tests:
+    - same-binary fast resume restores generator state for the next
+      module exactly
+    - fast resume rejects `sv` hash mismatches
+    - older checkpoint shape still upgrades and resumes correctly
+- real same-binary smoke:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-resume-fast-smoke-r1 --modules-per-scenario 1 --skip-verilator --skip-yosys --yosys-mode both`
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-resume-fast-smoke-r1 --modules-per-scenario 1 --skip-verilator --skip-yosys --yosys-mode both --resume`
+  - rerun completed successfully on the same tree
+  - saved checkpoints now contain:
+    - `runtime_fingerprint`
+    - `sv_hash`
+    - `generator_checkpoint`
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- Same-binary `tool_matrix --resume` is now much cheaper on fresh
+  checkpoints written by the current binary.
+- Resume remains intentionally byte-stable across generator changes:
+  old trees still replay and validate instead of being trusted blindly.
+- The live `r21` frontier remains the next real frontier task, but its
+  older pre-upgrade checkpoints will still pay the one-time strict
+  replay cost before future same-binary resumes become cheap.
+
 ## 2026-04-22-0123 — Advance the fresh r21 both-mode frontier through constant-fold
 
 **Landed as:** this commit
