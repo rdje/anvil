@@ -1,6 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-0126 — Close r21 peephole and enter e-graph
+
+**Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was another real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+The frontier now crossed two useful boundaries:
+
+- full clean closure of `int_nodeid_peephole_default`
+- first clean bank into `int_nodeid_e-graph_default`
+
+The saved tree now stands at:
+
+- **559** completed module checkpoints / **559** emitted `.sv` files
+- full closure of:
+  - `int_relaxed_none_default`
+  - `int_nodeid_none_default`
+  - `int_nodeid_cse_default`
+  - `int_nodeid_operand-unique_default`
+  - `int_nodeid_commutative_default`
+  - `int_nodeid_associative_default`
+  - `int_nodeid_constant-fold_default`
+  - `int_nodeid_peephole_default`
+- `int_nodeid_e-graph_default`: **23** clean checkpoints / **23**
+  emitted `.sv` files
+
+The upgraded fast-resume metadata remains intact across the saved bank,
+so the next same-binary resume on `r21` can continue directly from this
+state.
+
+**Why**
+
+After the previous slice finished the one-time replay-and-upgrade pass,
+the natural next step was to cash in on that cheaper resume path and
+push the live frontier farther on current code.
+
+This slice does exactly that: it closes the remaining `peephole` work,
+establishes a clean `e-graph` bank on the same tree, and leaves the
+repo with a stronger live recovery point for the next continuation.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after full `peephole` closure and 23 clean
+    `e-graph` checkpoints were banked
+- resulting tree state:
+  - **559** completed module checkpoints / **559** emitted `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
 ## 2026-04-22-0125 — Upgrade the live r21 frontier to fast-resume checkpoints
 
 **Landed as:** this commit
