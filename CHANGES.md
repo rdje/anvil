@@ -3,9 +3,78 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
-## 2026-04-22-0114 — Close the current-code both-mode associative rung
+## 2026-04-22-0115 — Close the current-code both-mode constant-fold rung
 
 **Landed as:** _to be filled in after this commit_
+
+**What changed**
+
+No source changes in this slice either. I resumed the live current-code
+both-mode `tool_matrix` frontier in place once more and pushed it past
+the partial `constant-fold` checkpoint to full clean closure of that
+rung.
+
+The run was resumed from:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r20`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+
+and then intentionally interrupted at the next natural checkpoint,
+after `constant-fold` was fully banked and `peephole` had already
+started cleanly.
+
+**Why**
+
+The previous recorded `r20` checkpoint had only banked 22 clean
+`constant-fold` modules. The next useful question was whether current
+code could close the whole `constant-fold` rung cleanly in the stricter
+both-mode lane, not just whether the earlier warning/runtime repairs
+held on a prefix.
+
+That closure now exists, and the run even stepped into `peephole`, so
+this slice is another durable recovery/evidence checkpoint.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r20 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **482** completed checkpoints /
+    **483** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67
+    - `int_nodeid_none_default`: 67
+    - `int_nodeid_cse_default`: 67
+    - `int_nodeid_operand-unique_default`: 67
+    - `int_nodeid_commutative_default`: 67
+    - `int_nodeid_associative_default`: 67
+    - `int_nodeid_constant-fold_default`: 67
+    - `int_nodeid_peephole_default`: 13
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The live current-code resumable both-mode frontier at
+  `/tmp/anvil-tool-matrix-phase1-real-r20` now covers all clean
+  scenarios through `constant-fold`, plus 13 clean `peephole`
+  checkpoints.
+- The stronger both-mode current-code frontier now stands at **482**
+  completed checkpoints / **483** emitted `.sv` files with zero
+  warning artifacts.
+- `r20` remains the live resumable tree on current code, and the next
+  natural push is deeper into `int_nodeid_peephole_default`.
+
+## 2026-04-22-0114 — Close the current-code both-mode associative rung
+
+**Landed as:** `4fb5761`
 
 **What changed**
 
