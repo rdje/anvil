@@ -3,6 +3,70 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0123 — Advance the fresh r21 both-mode frontier through constant-fold
+
+**Landed as:** this commit
+
+**What changed**
+
+No source changes in this slice. I resumed the live current-code
+both-mode frontier at:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21`
+
+using:
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+
+and pushed it cleanly through the full `constant-fold` rung, then into
+`peephole`, before intentionally interrupting at the next useful
+checkpoint.
+
+**Why**
+
+The previous slice had already re-closed `associative` on the fresh
+current-code tree. The next useful question was whether the repaired
+code would keep holding through the whole `constant-fold` rung on that
+same fresh both-mode tree.
+
+It does.
+
+**Validation**
+
+- resumed current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after **500** completed checkpoints /
+    **501** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_cse_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_operand-unique_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_commutative_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_associative_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_constant-fold_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_peephole_default`: 31 checkpoints / 32 `.sv`
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21` remains the live resumable
+  current-code both-mode frontier tree.
+- The fresh-tree frontier has now fully re-closed `relaxed`,
+  `nodeid-none`, `nodeid-cse`, `nodeid-operand-unique`,
+  `nodeid-commutative`, `nodeid-associative`, and
+  `nodeid-constant-fold` on current code, with `peephole` underway.
+- The next frontier push should resume `r21` in place and keep climbing
+  through `peephole`, then `e-graph`, toward full fresh-tree both-mode
+  closure on current code.
+
 ## 2026-04-22-0122 — Advance the fresh r21 both-mode frontier through associative
 
 **Landed as:** this commit
