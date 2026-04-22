@@ -981,6 +981,18 @@ fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
     (bounds.0 == bounds.1).then_some(bounds.0)
 }
 
+fn shift_interval_by_exact_addend(
+    bounds: (u128, u128),
+    addend: u128,
+    width: u32,
+) -> Option<(u128, u128)> {
+    let mask = width_mask(width);
+    let addend = addend & mask;
+    let start = bounds.0.wrapping_add(addend) & mask;
+    let end = bounds.1.wrapping_add(addend) & mask;
+    (start <= end).then_some((start, end))
+}
+
 pub(crate) fn prove_node_exact_value(m: &Module, id: NodeId) -> Option<u128> {
     if can_enumerate_small_value_set(m, id) {
         let mut set_ctx = SmallValueSetContext::default();
@@ -1918,26 +1930,34 @@ fn node_unsigned_bounds(
                         (all_ones ^ src_max, all_ones ^ src_min)
                     }
                     GateOp::Add => {
+                        let mask = width_mask(*width);
+                        let mut exact_sum = 0u128;
                         let mut live = Vec::new();
                         for &operand in operands {
                             let bounds = node_unsigned_bounds(m, operand, memo);
-                            if exact_bound(bounds) == Some(0) {
-                                continue;
+                            match exact_bound(bounds) {
+                                Some(0) => {}
+                                Some(value) => exact_sum = exact_sum.wrapping_add(value) & mask,
+                                None => live.push(bounds),
                             }
-                            live.push(bounds);
                         }
                         if live.is_empty() {
-                            (0, 0)
+                            (exact_sum, exact_sum)
                         } else if live.len() == 1 {
-                            live[0]
+                            if exact_sum == 0 {
+                                live[0]
+                            } else {
+                                shift_interval_by_exact_addend(live[0], exact_sum, *width)
+                                    .unwrap_or(default)
+                            }
                         } else {
-                            let mut min_sum = 0u128;
-                            let mut max_sum = 0u128;
+                            let mut min_sum = exact_sum;
+                            let mut max_sum = exact_sum;
                             let mut overflow = false;
                             for (min, max) in live {
                                 min_sum = min_sum.saturating_add(min);
                                 max_sum = max_sum.saturating_add(max);
-                                if min_sum > width_mask(*width) || max_sum > width_mask(*width) {
+                                if min_sum > mask || max_sum > mask {
                                     overflow = true;
                                     break;
                                 }
@@ -4765,6 +4785,70 @@ mod tests {
             prove_node_exact_value(&m, shr),
             Some(0),
             "a shift must still fold to zero when the rhs small-value set stays entirely above the source width, even if the whole node cannot use exact small-set enumeration"
+        );
+    }
+
+    #[test]
+    fn add_bounds_preserve_shifted_single_interval_without_small_set_help() {
+        let (mut m, mut pool) = fixture_with_inputs(4, 2, 0);
+        m.factorization_level = FactorizationLevel::None;
+
+        let a = 0;
+        let b = 1;
+        let c = 2;
+        let d = 3;
+        let deps = DepSet::union(&[
+            &node_deps(&m, a),
+            &node_deps(&m, b),
+            &node_deps(&m, c),
+            &node_deps(&m, d),
+        ]);
+
+        let (concat, concat_is_new) =
+            m.intern_gate(GateOp::Concat, vec![a, b, c, d], 8, deps.clone());
+        if concat_is_new {
+            pool.add(concat, 8, deps.clone());
+        }
+
+        let e7 = make_constant(&mut m, &mut pool, 8, 0xe7);
+        let (rhs_base, rhs_base_is_new) =
+            m.intern_gate(GateOp::Or, vec![e7, concat], 8, deps.clone());
+        if rhs_base_is_new {
+            pool.add(rhs_base, 8, deps.clone());
+        }
+
+        let c0 = make_constant(&mut m, &mut pool, 8, 0x0c);
+        let c1 = make_constant(&mut m, &mut pool, 8, 0xc4);
+        let (rhs, rhs_is_new) = m.intern_gate(GateOp::Add, vec![rhs_base, c0, c1], 8, deps.clone());
+        if rhs_is_new {
+            pool.add(rhs, 8, deps.clone());
+        }
+
+        let lhs = make_constant(&mut m, &mut pool, 3, 0b101);
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![lhs, rhs], 3, deps.clone());
+        if shr_is_new {
+            pool.add(shr, 3, deps);
+        }
+
+        assert!(
+            !can_enumerate_small_value_set(&m, rhs),
+            "the rhs must exceed the exact small-set support cap so this regression exercises bounds, not enumeration"
+        );
+        assert!(
+            !can_enumerate_small_value_set(&m, shr),
+            "the shift node must also stay outside the exact small-set path"
+        );
+
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_unsigned_bounds(&m, rhs, &mut memo),
+            (183, 207),
+            "a single non-exact interval shifted by exact wrapped constants should keep its useful lower bound"
+        );
+        assert_eq!(
+            prove_node_exact_value(&m, shr),
+            Some(0),
+            "bounds alone should prove the overshift even when no small-set path is available"
         );
     }
 }

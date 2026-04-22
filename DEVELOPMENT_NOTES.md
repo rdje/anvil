@@ -57,6 +57,42 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Wrapped-add bounds must preserve a shifted single interval when it stays linear
+The `e-graph` warning in
+`/tmp/anvil-tool-matrix-phase1-real-r20/int_nodeid_e-graph_default/mod_8_0053.sv`
+turned out not to be a generic "Yosys got grumpy" case. It exposed a
+specific gap in ANVIL's unsigned-bounds reasoning for `GateOp::Add`.
+
+The old logic did this:
+
+- collect operand bounds;
+- if the sum might wrap the target width, fall back to full-range.
+
+That is safe, but it was too blunt for the real rhs shape:
+
+- one non-exact interval (`or_22` bounded to `[0xe7, 0xff]`);
+- plus exact constants (`0x0c` and `0xc4`).
+
+In that case, the exact constants are not adding uncertainty. They are
+just translating one interval around the unsigned ring. If the
+translated interval still lands as one linear interval in unsigned
+space, we should keep it. For the real failing case, `[0xe7, 0xff] +
+0xd0 (mod 256)` becomes `[183, 207]`, which is still linear and is more
+than enough to prove a 3-bit shift is always an overshift.
+
+So the deliberate rule now is:
+
+- if an `Add` node has exactly one non-exact interval operand and the
+  rest are exact constants, combine the exact constants first;
+- translate the one live interval by that exact wrapped addend; and
+- keep the translated interval only when it stays linear (`start <= end`
+  after modular translation), otherwise fall back to full-range.
+
+That rule is intentionally narrow. It improves downstream cleanliness on
+the real `shift >> wrapped_add` warning shape without reopening the
+broader exact-set proof surface that earlier slices had to cap for
+runtime reasons.
+
 ### `tool_matrix` frontier runs now use per-module checkpoints
 `tool_matrix` now writes `<stem>.module-report.json` after each fully
 processed module and supports `--resume`.

@@ -43,12 +43,16 @@ generator. The work still required falls into four explicit gaps:
    equivalence or future hierarchical objects.
 3. **Tool-clean confidence is still under-automated**
    The repo has strong internal validation and local smoke evidence,
-   including a real `tool_matrix --phase1-gate` frontier now pushed to
-   365 warning-clean modules across five full scenarios plus 30 modules
-   of a sixth. But it still does not yet have the broad
-   Verilator/Yosys sweep matrix implied by the signoff-grade goal. That
-   missing full-closure evidence remains one of the main quality gaps,
-   not an optional extra.
+   including a real `tool_matrix --phase1-gate` frontier pushed to 365
+   warning-clean modules in the older no-ABC lane, a later historical
+   both-mode frontier at 570 completed checkpoints / 571 emitted files,
+   and the latest focused current-code `e-graph` proof
+   (`seed=8 / interleaved / node-id / e-graph / count=54`) that is now
+   clean 54/54 in Verilator and both repo-owned Yosys modes. But it
+   still does not yet have the broad Verilator/Yosys sweep matrix
+   implied by the signoff-grade goal. That missing full-closure
+   evidence remains one of the main quality gaps, not an optional
+   extra.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

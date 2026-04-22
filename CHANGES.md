@@ -3,6 +3,79 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0117 — Preserve wrapped-add lower bounds for overshift proofs
+
+**Landed as:** this commit
+
+**What changed**
+
+Strengthened generator-side unsigned bounds in
+`src/gen/cone.rs` for one specific but important case: when an `Add`
+node has exactly one non-exact interval operand and the rest of its
+operands are exact constants, ANVIL now keeps the shifted interval
+instead of dropping straight to full-range as soon as wrapped addition
+appears.
+
+That repair is intentionally narrow. It does not reopen broad exact-set
+enumeration or relax the small-support guards. It only preserves the
+useful lower bound when a single live interval is translated by exact
+wrapped constants and the translated interval stays linear in unsigned
+space.
+
+This slice also adds a regression test that exercises the real failure
+shape without relying on the small-value-set engine:
+
+- `add_bounds_preserve_shifted_single_interval_without_small_set_help`
+
+**Why**
+
+The live current-code both-mode `r20` frontier surfaced a real Yosys
+warning in:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r20/int_nodeid_e-graph_default/mod_8_0053.sv`
+
+The warning came from `PEEPOPT` and complained that a shift-add
+candidate was ignored to avoid high resource usage. The underlying
+generator issue was narrower than that warning text: ANVIL had emitted a
+shift whose rhs was provably always oversized, but the proof was missed
+because the rhs was a wrapped add of one non-exact interval plus exact
+constants. The old `Add` bounds logic collapsed that case to full-range,
+so the overshift proof never fired even though the rhs lower bound was
+still available.
+
+**Validation**
+
+- `cargo test add_bounds_preserve_shifted_single_interval_without_small_set_help --lib`
+- `cargo test prove_node_exact_value_detects_overshift_from_wrapped_small_rhs_set --lib`
+- focused current-code repro:
+  - `cargo run --bin anvil -- --seed 8 --count 54 --out /tmp/anvil-egraph-seed8-repro-r2 --construction-strategy interleaved --identity-mode node-id --factorization-level e-graph`
+- direct culprit-file proof:
+  - `verilator --lint-only /tmp/anvil-egraph-seed8-repro-r2/mod_8_0053.sv`
+  - `yosys -p 'read_verilog -sv "/tmp/anvil-egraph-seed8-repro-r2/mod_8_0053.sv"; synth -noabc; stat'`
+  - `yosys -p 'read_verilog -sv "/tmp/anvil-egraph-seed8-repro-r2/mod_8_0053.sv"; synth -noabc; abc -fast; opt -fast; stat; check'`
+- full focused batch proof on the same seed-8 e-graph repro tree:
+  - Verilator: `54/54`
+  - Yosys `synth -noabc`: `54/54`
+  - Yosys `synth -noabc; abc -fast; opt -fast; stat; check`: `54/54`
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- The old `mod_8_0053.sv` `PEEPOPT` warning is gone on current code.
+- The focused seed-8 `e-graph` repro batch is now clean across all 54
+  modules in Verilator and both repo-owned Yosys modes.
+- `/tmp/anvil-tool-matrix-phase1-real-r20` remains valuable historical
+  evidence, but it should no longer be resumed on current code because
+  this generator semantic change can alter emitted `.sv` and
+  `tool_matrix --resume` is intentionally byte-stable.
+- The next frontier push should therefore start from a fresh current-code
+  tree, likely `/tmp/anvil-tool-matrix-phase1-real-r21`.
+
 ## 2026-04-22-0116 — Close the current-code both-mode peephole rung
 
 **Landed as:** _to be filled in after this commit_
