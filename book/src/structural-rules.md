@@ -1036,6 +1036,40 @@ same packed-chunk fold semantics under assignment.
 
 ---
 
+## 16c — Selectable Slice and Concat surfaces
+
+**Rule:** `Slice` and `Concat` are real selectable structured operators,
+not helper-only shapes. They must also be emitted in forms that survive
+the settled graph as genuine surface area rather than collapsing
+immediately into peephole identities.
+
+### Selectable `Slice`
+
+- `Slice { hi, lo }` remains 1-operand.
+- The output width is `hi - lo + 1`.
+- The generated source width must be **strictly greater than `hi`**.
+  This keeps the selectable shape from degenerating into the full-width
+  slice identity.
+
+### Selectable `Concat`
+
+- `Concat` remains variadic.
+- The generated operand widths must sum exactly to the output width.
+- The selectable form must use **at least 2 operands** so it cannot
+  collapse into the single-operand concat identity.
+
+The old width-adapter / block-assembly helpers still use `Slice` and
+`Concat` too, but the important doctrinal change is that the generator
+can now pick them directly as surface-carrying gates.
+
+**Where enforced:** `src/gen/cone.rs` —
+`pick_structured_gate`, `pick_slice_gate`, `pick_concat_operand_widths`,
+and `input_widths_for`. Validator: existing `Slice` / `Concat` shape
+checks in `check_gate_shape`. Emitter: existing `render_gate` paths in
+`src/emit/sv.rs`.
+
+---
+
 ## 15 — M-to-1 combinational mux block
 
 **Rule:** A combinational mux is a *block* (not an operator) with
@@ -1134,10 +1168,9 @@ they get their own rules (Rules 2, 3, 5, 7, and future additions).
 
 As `anvil` grows, this catalog will too. Expected additions:
 
-- **Phase 3 (structured ops):** width rules for case/casez, priority
-  encoders, generic Slice/Concat pickability, and any later structured
-  combinational motifs beyond the already-landed case/casez/for-fold
-  surfaces.
+- **Phase 3 (structured ops):** any later structured combinational
+  motifs beyond the already-landed case/casez/for-fold/selectable-
+  Slice/selectable-Concat surfaces.
 - **Phase 4 (hierarchy):** naming uniqueness across sub-modules,
   port-width matching at instance boundaries, acyclic hierarchy.
 - **Phase 5 (parameterization):** parameter-dependent width

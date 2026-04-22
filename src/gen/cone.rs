@@ -3587,7 +3587,7 @@ fn pick_signals_with_dup_rate(
 /// primary inputs are always added to the pool with non-empty deps,
 /// this is unreachable in normal generator flow.
 #[instrument(level = "trace", skip(g, m, pool))]
-fn pick_terminal_dep_bearing(
+pub(super) fn pick_terminal_dep_bearing(
     g: &mut Generator,
     m: &mut Module,
     pool: &mut SignalPool,
@@ -3688,52 +3688,120 @@ fn make_width_adapter(
 
 fn pick_gate(g: &mut Generator, target_width: u32) -> GateOp {
     use GateOp::*;
+    #[derive(Clone, Copy)]
+    enum GateBucket {
+        Bitwise,
+        Arith,
+        Structured,
+        Compare,
+        Reduce,
+        Shift,
+    }
+
     let bitwise: &[GateOp] = &[And, Or, Xor, Not];
     let arith: &[GateOp] = &[Add, Sub, Mul];
-    let structured: &[GateOp] = &[Mux];
-    let compare: &[GateOp] = if target_width == 1 {
-        &[Eq, Neq, Lt, Gt, Le, Ge]
-    } else {
-        &[]
-    };
-    let reduce: &[GateOp] = if target_width == 1 {
-        &[RedAnd, RedOr, RedXor]
-    } else {
-        &[]
-    };
-    // Shifts only make sense on multi-bit signals (shifting a 1-bit
-    // value by >= 1 always yields 0 for unsigned; a shift-by-0 is a
-    // wire). Keep them out of the pool at width 1.
-    let shifts: &[GateOp] = if target_width > 1 { &[Shl, Shr] } else { &[] };
 
     let w = &g.cfg;
-    let buckets: [(u32, &[GateOp]); 6] = [
-        (w.gate_bitwise_weight, bitwise),
-        (w.gate_arith_weight, arith),
-        (w.gate_struct_weight, structured),
-        (w.gate_compare_weight, compare),
-        (w.gate_reduce_weight, reduce),
-        (w.gate_shift_weight, shifts),
+    let buckets: [(u32, GateBucket); 6] = [
+        (w.gate_bitwise_weight, GateBucket::Bitwise),
+        (w.gate_arith_weight, GateBucket::Arith),
+        (w.gate_struct_weight, GateBucket::Structured),
+        (w.gate_compare_weight, GateBucket::Compare),
+        (w.gate_reduce_weight, GateBucket::Reduce),
+        (w.gate_shift_weight, GateBucket::Shift),
     ];
+    let bucket_live = |bucket: GateBucket| match bucket {
+        GateBucket::Bitwise | GateBucket::Arith | GateBucket::Structured => true,
+        GateBucket::Compare | GateBucket::Reduce => target_width == 1,
+        GateBucket::Shift => target_width > 1,
+    };
     let total: u32 = buckets
         .iter()
-        .filter(|(_, gs)| !gs.is_empty())
+        .filter(|(_, bucket)| bucket_live(*bucket))
         .map(|(wt, _)| *wt)
         .sum();
     if total == 0 {
         return And;
     }
     let mut pick = g.rng.gen_range(0..total);
-    for (wt, gs) in buckets.iter() {
-        if gs.is_empty() {
+    for (wt, bucket) in buckets.iter() {
+        if !bucket_live(*bucket) {
             continue;
         }
         if pick < *wt {
-            return gs[g.rng.gen_range(0..gs.len())];
+            return match bucket {
+                GateBucket::Bitwise => bitwise[g.rng.gen_range(0..bitwise.len())],
+                GateBucket::Arith => arith[g.rng.gen_range(0..arith.len())],
+                GateBucket::Structured => pick_structured_gate(g, target_width),
+                GateBucket::Compare => match g.rng.gen_range(0..6) {
+                    0 => Eq,
+                    1 => Neq,
+                    2 => Lt,
+                    3 => Gt,
+                    4 => Le,
+                    _ => Ge,
+                },
+                GateBucket::Reduce => match g.rng.gen_range(0..3) {
+                    0 => RedAnd,
+                    1 => RedOr,
+                    _ => RedXor,
+                },
+                GateBucket::Shift => {
+                    if g.rng.gen_bool(0.5) {
+                        Shl
+                    } else {
+                        Shr
+                    }
+                }
+            };
         }
         pick -= *wt;
     }
     And
+}
+
+fn pick_structured_gate(g: &mut Generator, target_width: u32) -> GateOp {
+    // Keep the selectable Slice/Concat surfaces explicitly
+    // non-degenerate: selectable Slice must not be a full-width
+    // identity, and selectable Concat must have >= 2 operands.
+    if target_width >= 2 {
+        match g.rng.gen_range(0..3) {
+            0 => GateOp::Mux,
+            1 => pick_slice_gate(g, target_width),
+            _ => GateOp::Concat,
+        }
+    } else {
+        match g.rng.gen_range(0..2) {
+            0 => GateOp::Mux,
+            _ => pick_slice_gate(g, target_width),
+        }
+    }
+}
+
+fn pick_slice_gate(g: &mut Generator, target_width: u32) -> GateOp {
+    debug_assert!(target_width >= 1);
+    let lo: u32 = g.rng.gen_range(0..=3);
+    let hi = lo
+        .checked_add(target_width - 1)
+        .expect("slice hi must fit in u32");
+    GateOp::Slice { hi, lo }
+}
+
+fn pick_concat_operand_widths(out_w: u32, cfg: &Config, rng: &mut impl Rng) -> Vec<u32> {
+    debug_assert!(out_w >= 2);
+    let max_parts = cfg.max_gate_arity.max(2).min(out_w);
+    let n_parts = rng.gen_range(2..=max_parts);
+    let mut remaining = out_w;
+    let mut widths = Vec::with_capacity(n_parts as usize);
+    for idx in 0..(n_parts - 1) {
+        let min_remaining_after = n_parts - idx - 1;
+        let max_this = remaining - min_remaining_after;
+        let w = rng.gen_range(1..=max_this);
+        widths.push(w);
+        remaining -= w;
+    }
+    widths.push(remaining);
+    widths
 }
 
 fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) -> Vec<u32> {
@@ -3791,8 +3859,14 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
             vec![w]
         }
         Shl | Shr => vec![out_w, 8],
-        Slice { .. } => vec![out_w.saturating_add(1)],
-        Concat => vec![out_w],
+        Slice { hi, .. } => vec![hi.saturating_add(2)],
+        Concat => {
+            if out_w >= 2 {
+                pick_concat_operand_widths(out_w, cfg, rng)
+            } else {
+                vec![out_w]
+            }
+        }
     }
 }
 
@@ -4177,9 +4251,16 @@ mod tests {
                 ..category_cfg(3)
             },
             4,
-            32,
+            128,
         );
-        assert_eq!(structured, HashSet::from([GateOp::Mux]));
+        assert!(structured.contains(&GateOp::Mux));
+        assert!(structured.contains(&GateOp::Concat));
+        assert!(
+            structured
+                .iter()
+                .any(|op| matches!(op, GateOp::Slice { .. })),
+            "structured bucket must include selectable Slice"
+        );
 
         let compare = collect_ops(
             Config {
@@ -4223,6 +4304,45 @@ mod tests {
             256,
         );
         assert_eq!(shifts, HashSet::from([GateOp::Shl, GateOp::Shr]));
+    }
+
+    #[test]
+    fn selectable_slice_gate_never_degenerates_to_identity_shape() {
+        let cfg = Config::default();
+        let mut g = Generator::new(cfg.clone());
+        for _ in 0..128 {
+            let op = pick_slice_gate(&mut g, 8);
+            let widths = input_widths_for(op, 8, &cfg, &mut g.rng);
+            match op {
+                GateOp::Slice { hi, lo } => {
+                    assert_eq!(hi - lo + 1, 8);
+                    assert_eq!(widths.len(), 1);
+                    assert!(
+                        widths[0] > hi,
+                        "selectable Slice must have a wider source than its high bit"
+                    );
+                }
+                other => panic!("expected Slice, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn selectable_concat_widths_partition_output_width() {
+        let cfg = Config::default();
+        let mut g = Generator::new(cfg.clone());
+        for _ in 0..128 {
+            let widths = pick_concat_operand_widths(8, &cfg, &mut g.rng);
+            assert!(
+                widths.len() >= 2,
+                "selectable Concat must have at least 2 operands"
+            );
+            assert_eq!(widths.iter().sum::<u32>(), 8);
+            assert!(
+                widths.iter().all(|w| *w >= 1),
+                "every Concat operand width must be positive"
+            );
+        }
     }
 
     #[test]

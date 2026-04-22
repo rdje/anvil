@@ -170,7 +170,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
 | `--gate-bitwise-weight` | 3        | Relative weight for bitwise gate selection      |
 | `--gate-arith-weight`   | 2        | Relative weight for arithmetic ops              |
-| `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, etc.)  |
+| `--gate-struct-weight`  | 1        | Relative weight for structured ops (mux, selectable `Slice` / `Concat`, etc.)  |
 | `--gate-compare-weight` | 1        | Relative weight for comparison ops at 1-bit targets |
 | `--gate-reduce-weight`  | 1        | Relative weight for reduction ops at 1-bit targets |
 | `--identity-mode`       | node-id  | Coarse NodeId semantics: `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), `relaxed` intentionally disables it |

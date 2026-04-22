@@ -488,6 +488,70 @@ fn for_fold_block_across_all_strategies_emits_bounded_always_comb_for() {
 }
 
 #[test]
+fn slice_and_concat_are_selectable_surfaces_across_all_strategies() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let mut saw_slice = false;
+        let mut saw_concat = false;
+        for seed in 0..64u64 {
+            let cfg = Config {
+                seed,
+                gate_bitwise_weight: 0,
+                gate_arith_weight: 0,
+                gate_struct_weight: 1,
+                gate_compare_weight: 0,
+                gate_reduce_weight: 0,
+                gate_shift_weight: 0,
+                case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
+                coefficient_prob: 0.0,
+                const_shift_amount_prob: 0.0,
+                const_comparand_prob: 0.0,
+                constant_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                flop_prob: 0.0,
+                min_width: 4,
+                max_width: 8,
+                min_outputs: 2,
+                max_outputs: 2,
+                max_depth: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!("slice/concat strategy {:?} seed {}: {e}", strategy, seed)
+            });
+            for node in &m.nodes {
+                if let Node::Gate { op, .. } = node {
+                    saw_slice |= matches!(op, GateOp::Slice { .. });
+                    saw_concat |= matches!(op, GateOp::Concat);
+                }
+            }
+            if saw_slice && saw_concat {
+                break;
+            }
+        }
+        assert!(
+            saw_slice,
+            "strategy {:?} should emit a live selectable Slice across the seed sweep",
+            strategy
+        );
+        assert!(
+            saw_concat,
+            "strategy {:?} should emit a live selectable Concat across the seed sweep",
+            strategy
+        );
+    }
+}
+
+#[test]
 fn const_comparand_across_all_strategies_is_valid() {
     // const_comparand_prob = 1.0: every comparison picks a constant
     // RHS. Verify all four strategies still produce IR-valid modules.

@@ -220,6 +220,11 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // for every strategy.
     let orphans_before_compact = count_orphan_gates(&m);
 
+    // Output roots must remain functions of primary inputs and/or flop-Q
+    // leaves rather than collapsing to trivial constants after the late
+    // proof-cleanup passes.
+    let repaired_constant_drives = repair_constant_output_roots(g, &mut m, &mut pool);
+
     // NodeId compaction pass: remove any nodes that are unreachable
     // from roots (drives, flop fields). Idempotent — a no-op when
     // the IR is already Rule-18-clean. Exists primarily to let
@@ -255,6 +260,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         drives = m.drives.len(),
         orphans,
         compacted,
+        repaired_constant_drives,
         "✅ module done"
     );
     m
@@ -276,6 +282,39 @@ fn summarize_flop_mux_metadata(m: &mut Module) {
                 data.clear();
             }
         }
+    }
+}
+
+fn repair_constant_output_roots(g: &mut Generator, m: &mut Module, pool: &mut SignalPool) -> u32 {
+    let repairs: Vec<(usize, u32)> = m
+        .drives
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, root))| output_root_has_empty_deps(m, *root))
+        .map(|(idx, (port, _root))| {
+            let width = m
+                .outputs
+                .iter()
+                .find(|out| out.id == *port)
+                .expect("drive port must exist in outputs")
+                .width;
+            (idx, width)
+        })
+        .collect();
+
+    for (idx, width) in &repairs {
+        let replacement = cone::pick_terminal_dep_bearing(g, m, pool, *width, None);
+        m.drives[*idx].1 = replacement;
+    }
+
+    repairs.len() as u32
+}
+
+fn output_root_has_empty_deps(m: &Module, root: NodeId) -> bool {
+    match &m.nodes[root as usize] {
+        Node::PrimaryInput { .. } | Node::FlopQ { .. } => false,
+        Node::Constant { .. } => true,
+        Node::Gate { deps, .. } => deps.is_empty(),
     }
 }
 

@@ -1,6 +1,48 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2351 — Make Slice and Concat first-class selectable surfaces
+
+**Landed as:** this commit
+
+**What changed**
+
+- `Slice` and `Concat` are no longer helper-only shapes. The generic
+  structured gate picker in
+  [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  now selects real `Slice` and variadic `Concat` gates alongside `Mux`.
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  now repairs any settled-graph output drive that has collapsed to an
+  empty-dep constant by swapping in a dep-bearing exact-width source (or
+  width-adapter) before final compaction. That keeps the generated
+  output-cone invariant honest even after late proof-cleanup passes.
+- The generator keeps the new surface non-degenerate by construction:
+  - selectable `Slice` now always uses a wider source than its high bit,
+    so it cannot collapse into the full-width slice identity
+  - selectable `Concat` now always has at least 2 operands whose widths
+    partition the output width, so it cannot collapse into the
+    single-operand concat identity
+- New proof tests:
+  - structured-bucket category test now proves `Mux`, `Slice`, and
+    `Concat` are all selectable
+  - direct unit tests prove selectable `Slice` and `Concat` shapes are
+    well-formed and non-degenerate
+  - new pipeline integration test proves live `Slice` and `Concat`
+    gates survive finalisation across all four construction strategies
+
+- Docs/book now stop calling generic `Slice` / `Concat` helper-only.
+  Phase 3 stays `in progress`, but the old feature-breadth gap has been
+  narrowed again: the remaining honest closure work is the dedicated
+  Phase 3 evidence gate.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test` = `191` passing (`142` lib + `5` main + `15` tool_matrix + `29` integration)
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+
 ## 2026-04-22-2219 — Land the bounded procedural for-fold surface
 
 **Landed as:** this commit
@@ -97,8 +139,9 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
     required to be exercised in the default seed sweep
 
 - Docs/book now treat `casez` as landed Phase 3 breadth rather than a
-  future placeholder. The remaining obvious Phase 3 breadth gap is
-  statically bounded unrolled logic.
+  future placeholder. At the time of this slice, the remaining obvious
+  Phase 3 breadth gap was statically bounded unrolled logic; that gap
+  has since been closed by the newer `for_fold` slice above.
 
 **Validation**
 

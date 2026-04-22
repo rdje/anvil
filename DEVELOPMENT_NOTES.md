@@ -294,6 +294,28 @@ This keeps the syntax surface real. Downstream tools see an actual
 procedural bounded loop, not just an expression tree that happens to
 resemble one semantically.
 
+### Selectable Slice/Concat must be non-degenerate by construction
+
+Making generic `Slice` / `Concat` first-class selectable shapes was not
+just a matter of adding them to `pick_gate`. The naive version would
+have "landed" them and then immediately lost them again:
+
+- selectable `Slice` would often degenerate to the full-width identity
+  and disappear under the peephole layer
+- selectable `Concat` would sometimes degenerate to the single-operand
+  identity and disappear the same way
+
+So the right design is to make the selectable forms intentionally
+non-degenerate:
+
+- selectable `Slice` always uses a source wider than its high bit
+- selectable `Concat` always partitions the output width across at
+  least 2 operands
+
+That keeps the new surface honest. We are exercising real frontend
+surface area, not just incrementing counters on gates that the settled
+graph will erase as trivial identities.
+
 ### Late mixed-constant cleanup after remaps
 
 Intern-time constant folding is not enough by itself once the
