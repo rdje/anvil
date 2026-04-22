@@ -1000,6 +1000,42 @@ mux.
 
 ---
 
+## 16b — Procedural bounded for-fold block
+
+**Rule:** A bounded `for` fold is a *block* with one packed source bus
+plus a fixed fold kind. It emits a synthesizable `always_comb` block:
+
+- initialize an accumulator of width `W`
+- `for (int i = 0; i < N; i++)`
+- fold `src[(i * W) +: W]` into the accumulator
+
+The block is intentionally procedural. The goal is to exercise the
+frontend/elaboration surface for statically bounded loops, not merely to
+construct an equivalent expression tree and hope the emitter happens to
+print it that way.
+
+- **Fold kind** today is one of `xor`, `or`, `and`, `add`.
+- **Trip count N** is drawn from `[max(2, min_gate_arity), max_gate_arity]`.
+- **Chunk width W** is the caller's target width.
+- **Packed source width** is exactly `N * W`.
+- The generated trip count is further constrained so the packed source
+  stays in the current small exact-evaluation comfort zone during
+  generation (`N * W <= 128` today).
+
+This is a structured combinational block distinct from both the
+expression-level operator family and the case/casez surfaces.
+
+**Where enforced:** `src/gen/cone.rs` —
+`build_for_fold_recursive`, `build_for_fold_pool_only`,
+`make_for_fold`, `pick_for_fold_trip_count`, `pick_for_fold_kind`.
+Validator: `check_gate_shape`'s `ForFold` arm. Emitter:
+`src/emit/sv.rs` declares the target as `logic` and emits one
+`always_comb begin ... for (int i = 0; i < N; i++) ... end end` block
+per for-fold node. Exact evaluator: `src/ir/compact.rs` evaluates the
+same packed-chunk fold semantics under assignment.
+
+---
+
 ## 15 — M-to-1 combinational mux block
 
 **Rule:** A combinational mux is a *block* (not an operator) with
@@ -1099,7 +1135,9 @@ they get their own rules (Rules 2, 3, 5, 7, and future additions).
 As `anvil` grows, this catalog will too. Expected additions:
 
 - **Phase 3 (structured ops):** width rules for case/casez, priority
-  encoders, and for-loop unrolling.
+  encoders, generic Slice/Concat pickability, and any later structured
+  combinational motifs beyond the already-landed case/casez/for-fold
+  surfaces.
 - **Phase 4 (hierarchy):** naming uniqueness across sub-modules,
   port-width matching at instance boundaries, acyclic hierarchy.
 - **Phase 5 (parameterization):** parameter-dependent width

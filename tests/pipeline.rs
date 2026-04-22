@@ -284,6 +284,7 @@ fn variable_shift_amount_appears_in_output() {
             priority_encoder_prob: 0.0,
             case_mux_prob: 0.0,
             casez_mux_prob: 0.0,
+            for_fold_prob: 0.0,
             max_flops_per_module: 0,
             comb_mux_prob: 0.0,
             construction_strategy: ConstructionStrategy::GraphFirst,
@@ -370,6 +371,7 @@ fn case_mux_block_across_all_strategies_emits_always_comb_case() {
                 seed,
                 case_mux_prob: 1.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 comb_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 flop_prob: 0.0,
@@ -410,6 +412,7 @@ fn casez_mux_block_across_all_strategies_emits_always_comb_casez() {
                 seed,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 1.0,
+                for_fold_prob: 0.0,
                 comb_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 flop_prob: 0.0,
@@ -430,6 +433,53 @@ fn casez_mux_block_across_all_strategies_emits_always_comb_casez() {
             assert!(
                 sv.contains("always_comb begin") && sv.contains("casez ("),
                 "casez_mux_prob=1.0 strategy {:?} seed {} should emit always_comb casez",
+                strategy,
+                seed
+            );
+        }
+    }
+}
+
+#[test]
+fn for_fold_block_across_all_strategies_emits_bounded_always_comb_for() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
+                for_fold_prob: 1.0,
+                constant_prob: 0.0,
+                coefficient_prob: 0.0,
+                const_shift_amount_prob: 0.0,
+                const_comparand_prob: 0.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                flop_prob: 0.0,
+                max_depth: 3,
+                min_width: 2,
+                max_width: 8,
+                min_gate_arity: 2,
+                max_gate_arity: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "for_fold_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+            let sv = anvil::emit::to_sv(&m);
+            assert!(
+                sv.contains("always_comb begin") && sv.contains("for (int i = 0; i < "),
+                "for_fold_prob=1.0 strategy {:?} seed {} should emit always_comb for-loop",
                 strategy,
                 seed
             );
@@ -907,6 +957,7 @@ fn knob_rolls_recorded_across_seeds() {
         "comb_mux_prob",
         "case_mux_prob",
         "casez_mux_prob",
+        "for_fold_prob",
         "priority_encoder_prob",
         "coefficient_prob",
         "const_shift_amount_prob",
@@ -955,6 +1006,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -976,6 +1028,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -997,6 +1050,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -1018,6 +1072,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -1039,6 +1094,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -1060,6 +1116,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
                 casez_mux_prob: 0.0,
+                for_fold_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()

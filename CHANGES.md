@@ -1,6 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2219 — Land the bounded procedural for-fold surface
+
+**Landed as:** this commit
+
+**What changed**
+
+- The leaf kernel now has a real structured statically bounded
+  unrolled-logic surface:
+  - new knob `for_fold_prob` in
+    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  - new gate kind `GateOp::ForFold { kind, trip_count, chunk_width }`
+    plus module / knob counters in
+    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  - generator builders in
+    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+    that emit bounded `always_comb` for-loop folds over packed chunks
+  - emitter support in
+    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    that declares the target as `logic` and emits a procedural
+    `for (int i = 0; i < N; i++)` block
+  - validator support in
+    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  - exact evaluator support in
+    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+  - metrics + matrix coverage plumbing in
+    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+
+- A latent width-domain bug surfaced while landing the new surface:
+  `pick_priority_encoder_n` could shift past the `u32` domain when a
+  recursive sub-cone asked for widths above 32. That helper now rejects
+  `target_width > 32` explicitly instead of overflowing.
+
+- New proof tests:
+  - emitter unit test for `ForFold`
+  - validator unit test for `ForFold`
+  - integration test proving `for_fold_prob=1.0` emits bounded
+    `always_comb` for-loops across all strategies
+  - knob-roll expectations updated so the new probability surface is
+    required to be exercised in the default seed sweep
+  - regression test proving priority-encoder compatibility rejects
+    widths above the helper's `u32` domain
+
+- Docs/book now treat the structured bounded `for` surface as landed
+  Phase 3 breadth. Phase 3 stays `in progress`, but the old "for-loop
+  unrolled logic is missing" statement is gone.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test` = `188` passing (`140` lib + `5` main + `15` tool_matrix + `28` integration)
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- real smoke emission:
+  [/tmp/anvil-forfold-smoke-r1/mod_1_0000.sv](/tmp/anvil-forfold-smoke-r1/mod_1_0000.sv)
+  contains live `always_comb` `for (int i = 0; i < ...)` blocks on
+  current HEAD
+
 ## 2026-04-22-2315 — Land the procedural combinational casez-mux block
 
 **Landed as:** this commit

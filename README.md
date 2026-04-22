@@ -82,7 +82,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `book/src/synthesizability.md`     subset-enforcement discipline
 - `book/src/non-triviality.md`       dep-set tracking, anti-collapse rules
 - `book/src/sequential.md`           Phase 2 cone boundaries
-- `book/src/sharing.md`              Phase 3 DAG sharing
+- `book/src/sharing.md`              Phase 2 DAG sharing
 - `book/src/hierarchy.md`            hierarchy and future composition layers
 - `book/src/knobs.md`                knob taxonomy, reproducibility contract
 - `book/src/architecture.md`         Rust module layout and testing strategy

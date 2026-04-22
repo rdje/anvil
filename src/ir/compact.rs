@@ -350,6 +350,33 @@ fn evaluate_node_under_assignment(
                     }
                     matched.unwrap_or(0)
                 }
+                GateOp::ForFold {
+                    kind,
+                    trip_count,
+                    chunk_width,
+                } => {
+                    let mut acc = match kind {
+                        crate::ir::ForFoldKind::And => bitmask(*chunk_width),
+                        crate::ir::ForFoldKind::Xor
+                        | crate::ir::ForFoldKind::Or
+                        | crate::ir::ForFoldKind::Add => 0,
+                    };
+                    for idx in 0..*trip_count {
+                        let shift = idx.saturating_mul(*chunk_width);
+                        let chunk = if shift >= 128 {
+                            0
+                        } else {
+                            (operand_values[0] >> shift) & bitmask(*chunk_width)
+                        };
+                        acc = match kind {
+                            crate::ir::ForFoldKind::Xor => (acc ^ chunk) & width_mask,
+                            crate::ir::ForFoldKind::Or => (acc | chunk) & width_mask,
+                            crate::ir::ForFoldKind::And => (acc & chunk) & width_mask,
+                            crate::ir::ForFoldKind::Add => acc.wrapping_add(chunk) & width_mask,
+                        };
+                    }
+                    acc & width_mask
+                }
                 GateOp::Slice { hi, lo } => {
                     let slice_width = hi - lo + 1;
                     (operand_values[0] >> lo) & bitmask(slice_width)

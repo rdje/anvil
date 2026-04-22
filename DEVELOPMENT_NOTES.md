@@ -271,6 +271,29 @@ by construction. That preserves the intended "wildcarded mux" surface
 without accidentally turning the new motif into a priority-case stressor
 on top of the syntax stress we actually wanted.
 
+### Bounded unrolled logic belongs in the IR as a block, not as emitter sugar
+
+The right shape for the statically bounded `for` slice was to model it
+as its own structured combinational block, not to hope that repeated
+operator trees would "look enough like a loop" in emitted SV.
+
+That is why the slice introduced a distinct
+`GateOp::ForFold { kind, trip_count, chunk_width }` plus its own knob
+(`for_fold_prob`). The IR carries the fold kind (`xor` / `or` / `and` /
+`add`), the exact static trip count, and the chunk width. The single
+operand is a packed source bus of width `trip_count * chunk_width`.
+
+The emitter then has one honest job: declare the target as `logic`,
+emit an `always_comb begin`, initialize the accumulator, and render a
+bounded `for (int i = 0; i < N; i++)` loop over
+`src[(i * chunk_width) +: chunk_width]`. The validator enforces that
+shape directly, and the exact evaluator in `ir::compact` evaluates the
+same chunk-fold semantics.
+
+This keeps the syntax surface real. Downstream tools see an actual
+procedural bounded loop, not just an expression tree that happens to
+resemble one semantically.
+
 ### Late mixed-constant cleanup after remaps
 
 Intern-time constant folding is not enough by itself once the

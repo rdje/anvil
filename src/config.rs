@@ -332,6 +332,13 @@ pub struct Config {
     // accidental priority encoder.
     pub casez_mux_prob: f64,
 
+    // For-fold block: takes one packed source bus whose width is
+    // `trip_count * chunk_width`, then emits an `always_comb` block
+    // with a statically bounded `for (int i = 0; i < N; i++)`
+    // accumulator over fixed-size chunks. This is a syntax-surface
+    // motif distinct from the expression-level N-ary operators.
+    pub for_fold_prob: f64,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -458,6 +465,7 @@ impl Default for Config {
             priority_encoder_prob: 0.05,
             case_mux_prob: 0.05,
             casez_mux_prob: 0.05,
+            for_fold_prob: 0.05,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -569,6 +577,7 @@ impl Config {
             ("priority_encoder_prob", self.priority_encoder_prob),
             ("case_mux_prob", self.case_mux_prob),
             ("casez_mux_prob", self.casez_mux_prob),
+            ("for_fold_prob", self.for_fold_prob),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
@@ -703,6 +712,9 @@ impl Config {
         if let Some(v) = o.casez_mux_prob {
             self.casez_mux_prob = v;
         }
+        if let Some(v) = o.for_fold_prob {
+            self.for_fold_prob = v;
+        }
         if let Some(v) = o.max_ast_instances {
             self.max_ast_instances = v;
         }
@@ -761,6 +773,7 @@ pub struct Overrides {
     pub priority_encoder_prob: Option<f64>,
     pub case_mux_prob: Option<f64>,
     pub casez_mux_prob: Option<f64>,
+    pub for_fold_prob: Option<f64>,
     pub max_ast_instances: Option<u32>,
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,

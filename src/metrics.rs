@@ -234,6 +234,9 @@ pub struct Metrics {
     pub num_case_mux_blocks: u32,
     /// Number of procedural combinational `casez` mux blocks built.
     pub num_casez_mux_blocks: u32,
+    /// Number of procedural combinational statically bounded for-fold
+    /// blocks built.
+    pub num_for_fold_blocks: u32,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -389,6 +392,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.num_comb_muxes_encoded = m.comb_mux_encoded_built;
     out.num_case_mux_blocks = m.case_mux_built;
     out.num_casez_mux_blocks = m.casez_mux_built;
+    out.num_for_fold_blocks = m.for_fold_built;
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -497,6 +501,12 @@ fn gate_kind_name(op: GateOp) -> &'static str {
         Mux => "mux",
         CaseMux => "case_mux",
         CasezMux => "casez_mux",
+        ForFold { kind, .. } => match kind {
+            crate::ir::ForFoldKind::Xor => "for_fold_xor",
+            crate::ir::ForFoldKind::Or => "for_fold_or",
+            crate::ir::ForFoldKind::And => "for_fold_and",
+            crate::ir::ForFoldKind::Add => "for_fold_add",
+        },
         Slice { .. } => "slice",
         Concat => "concat",
         RedAnd => "red_and",

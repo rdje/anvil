@@ -226,10 +226,20 @@ node-count collapse.
   surfaces: constant-amount shifts via the Rule 19 motif
   (`const_shift_amount_prob`) and variable-amount shifts via the
   ordinary recursive operand path when that coin misses.
-- `for`-loop unrolled logic (statically bounded). **Not started.**
+- `for`-loop unrolled logic (statically bounded). **Landed.** The leaf
+  kernel now has a structured bounded `always_comb` for-loop fold over
+  packed chunks via `for_fold_prob` and `GateOp::ForFold`.
 - Linear-combination compound motif (`Σ sᵢ·cᵢ`, etc.) **landed.**
 
-**Exit criteria:** motif library covers common synthesizable idioms.
+Phase 3 is still **in progress**. The old explicitly-missing breadth
+items are now landed (`case`, `casez`, variable shifts, bounded
+unrolled logic), but generic `Slice` / `Concat` are still helper-only
+shapes and there is not yet a repo-owned Phase 3 closure gate analogous
+to the finished Phase 1 / Phase 2 gates.
+
+**Exit criteria:** motif library covers common synthesizable idioms and
+the structured surface has its own representative clean-run closure
+evidence.
 
 ## Phase 4 — Hierarchy (not started)
 

@@ -98,6 +98,9 @@ pub struct Module {
     pub case_mux_built: u32,
     /// Number of procedural combinational `casez` mux blocks built.
     pub casez_mux_built: u32,
+    /// Number of procedural combinational statically bounded for-fold
+    /// blocks built.
+    pub for_fold_built: u32,
 
     /// Number of times the `ConstantFold` layer fired during
     /// construction of this module. Each fire is one algebraic
@@ -201,6 +204,9 @@ pub enum KnobId {
     /// `Config::casez_mux_prob` — per-depth chance of a procedural
     /// combinational casez-mux block.
     CasezMuxProb,
+    /// `Config::for_fold_prob` — per-depth chance of a procedural
+    /// combinational statically bounded for-fold block.
+    ForFoldProb,
     /// `Config::coefficient_prob` — chance that an Add/Sub/Mul
     /// becomes a linear-combination motif.
     CoefficientProb,
@@ -243,6 +249,7 @@ impl KnobId {
             KnobId::PriorityEncoderProb => "priority_encoder_prob",
             KnobId::CaseMuxProb => "case_mux_prob",
             KnobId::CasezMuxProb => "casez_mux_prob",
+            KnobId::ForFoldProb => "for_fold_prob",
             KnobId::CoefficientProb => "coefficient_prob",
             KnobId::ConstShiftAmountProb => "const_shift_amount_prob",
             KnobId::ConstComparandProb => "const_comparand_prob",
@@ -1495,6 +1502,14 @@ impl Node {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ForFoldKind {
+    Xor,
+    Or,
+    And,
+    Add,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GateOp {
     // Bitwise
     And,
@@ -1516,7 +1531,15 @@ pub enum GateOp {
     Mux,      // [sel, a, b] with sel.width == 1
     CaseMux,  // [sel, data_0, data_1, ...], emitted as always_comb case
     CasezMux, // [sel, value_0, wild_0, data_0, ...], emitted as always_comb casez
-    Slice { hi: u32, lo: u32 },
+    ForFold {
+        kind: ForFoldKind,
+        trip_count: u32,
+        chunk_width: u32,
+    }, // [src], emitted as always_comb for-loop over packed chunks
+    Slice {
+        hi: u32,
+        lo: u32,
+    },
     Concat, // variadic
     // Reductions (output is 1-bit)
     RedAnd,

@@ -176,6 +176,16 @@ instead of creating fresh logic.
   construction, so the surface stays a wildcarded mux motif rather than
   becoming an accidental priority chain.
 
+### Bounded for-fold block
+
+- `for_fold_prob` — per-emission probability of a combinational
+  statically bounded `always_comb` `for`-fold block. Default `0.05`.
+  The block takes one packed source bus, initializes an accumulator,
+  and folds fixed-width chunks with a static trip count.
+- The fold kind today is one of `xor`, `or`, `and`, or `add`.
+- The trip-count range reuses `min_gate_arity` / `max_gate_arity`; the
+  generated packed source width is `trip_count * chunk_width`.
+
 ### Combinational mux block
 
 - `comb_mux_prob` — probability that a non-leaf recursion point
@@ -507,6 +517,7 @@ which are bugs worth investigating.
 | `priority_encoder_prob`       | `num_priority_encoder_blocks` — live counter, monotone in the knob |
 | `case_mux_prob`               | `num_case_mux_blocks` — live counter, monotone in the knob |
 | `casez_mux_prob`              | `num_casez_mux_blocks` — live counter, monotone in the knob |
+| `for_fold_prob`               | `num_for_fold_blocks` — live counter, monotone in the knob |
 | `comb_mux_prob`               | `num_muxes_2to1`, `num_comb_muxes_one_hot` + `num_comb_muxes_encoded` (sum) |
 | `comb_mux_encoding_prob`      | `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio — converges to the knob over large sweeps |
 | `coefficient_prob`            | `gates_by_kind["mul"]` uptick (each coefficient → `Mul`)   |

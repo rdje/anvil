@@ -325,10 +325,11 @@ Three layers:
 generation + validation across all strategy values,
 byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, the landed case/casez structured
-surfaces, compaction/orphan guarantees, knob-roll telemetry, and
+surfaces, the landed bounded `for`-fold structured surface,
+compaction/orphan guarantees, knob-roll telemetry, and
 input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-22): 157 unit-target tests + 27 integration tests = 184 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-22): 160 unit-target tests + 28 integration tests = 188 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a

@@ -143,6 +143,7 @@ struct AggregateMetrics {
     total_comb_muxes_encoded: u64,
     total_case_mux_blocks: u64,
     total_casez_mux_blocks: u64,
+    total_for_fold_blocks: u64,
     total_semantic_gates_merged: u64,
     total_flops_merged: u64,
     gates_by_kind: BTreeMap<String, u64>,
@@ -167,6 +168,7 @@ struct CoverageSummary {
     saw_comb_mux_encoded: bool,
     saw_case_mux: bool,
     saw_casez_mux: bool,
+    saw_for_fold: bool,
     saw_flop_mux_one_hot: bool,
     saw_flop_mux_encoded: bool,
     saw_semantic_gate_merge: bool,
@@ -635,6 +637,7 @@ fn motif_heavy_sequential_config(
         priority_encoder_prob: 0.25,
         case_mux_prob: 0.25,
         casez_mux_prob: 0.25,
+        for_fold_prob: 0.25,
         comb_mux_prob: 0.35,
         gate_shift_weight: 3,
         gate_compare_weight: 3,
@@ -1195,6 +1198,7 @@ fn aggregate_metrics(modules: &[ModuleReport]) -> AggregateMetrics {
         aggregate.total_comb_muxes_encoded += u64::from(module.metrics.num_comb_muxes_encoded);
         aggregate.total_case_mux_blocks += u64::from(module.metrics.num_case_mux_blocks);
         aggregate.total_casez_mux_blocks += u64::from(module.metrics.num_casez_mux_blocks);
+        aggregate.total_for_fold_blocks += u64::from(module.metrics.num_for_fold_blocks);
         aggregate.total_semantic_gates_merged += u64::from(module.metrics.semantic_gates_merged);
         aggregate.total_flops_merged += u64::from(module.metrics.flops_merged);
 
@@ -1271,6 +1275,7 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
         coverage.saw_comb_mux_encoded |= module.metrics.num_comb_muxes_encoded > 0;
         coverage.saw_case_mux |= module.metrics.num_case_mux_blocks > 0;
         coverage.saw_casez_mux |= module.metrics.num_casez_mux_blocks > 0;
+        coverage.saw_for_fold |= module.metrics.num_for_fold_blocks > 0;
         coverage.saw_flop_mux_one_hot |= module.metrics.flops_mux_one_hot > 0;
         coverage.saw_flop_mux_encoded |= module.metrics.flops_mux_encoded > 0;
         coverage.saw_semantic_gate_merge |= module.metrics.semantic_gates_merged > 0;
@@ -1325,6 +1330,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_comb_mux_encoded |= src.saw_comb_mux_encoded;
     dst.saw_case_mux |= src.saw_case_mux;
     dst.saw_casez_mux |= src.saw_casez_mux;
+    dst.saw_for_fold |= src.saw_for_fold;
     dst.saw_flop_mux_one_hot |= src.saw_flop_mux_one_hot;
     dst.saw_flop_mux_encoded |= src.saw_flop_mux_encoded;
     dst.saw_semantic_gate_merge |= src.saw_semantic_gate_merge;
@@ -1437,6 +1443,9 @@ fn compute_coverage_gaps(
     if !coverage.saw_casez_mux {
         gaps.push("matrix never emitted a combinational casez mux block".to_string());
     }
+    if !coverage.saw_for_fold {
+        gaps.push("matrix never emitted a combinational for-fold block".to_string());
+    }
     if !coverage.saw_flop_mux_one_hot {
         gaps.push("matrix never emitted a one-hot flop mux".to_string());
     }
@@ -1449,6 +1458,7 @@ fn compute_coverage_gaps(
             "comb_mux_prob",
             "case_mux_prob",
             "casez_mux_prob",
+            "for_fold_prob",
             "coefficient_prob",
             "const_comparand_prob",
             "const_shift_amount_prob",
@@ -1522,7 +1532,8 @@ fn gate_kind_category(gate_kind: &str) -> &'static str {
         "eq" | "neq" | "lt" | "gt" | "le" | "ge" => "compare",
         "red_and" | "red_or" | "red_xor" => "reduce",
         "shl" | "shr" => "shift",
-        "mux" | "case_mux" | "casez_mux" | "slice" | "concat" => "structural",
+        "mux" | "case_mux" | "casez_mux" | "for_fold_xor" | "for_fold_or" | "for_fold_and"
+        | "for_fold_add" | "slice" | "concat" => "structural",
         _ => "other",
     }
 }
@@ -1812,6 +1823,7 @@ mod tests {
             saw_comb_mux_encoded: true,
             saw_case_mux: true,
             saw_casez_mux: true,
+            saw_for_fold: true,
             saw_flop_mux_one_hot: true,
             saw_flop_mux_encoded: true,
             ..CoverageSummary::default()

@@ -470,6 +470,41 @@ fn check_gate_shape(
                 }
             }
         }
+        ForFold {
+            trip_count,
+            chunk_width,
+            ..
+        } => {
+            if operands.len() != 1 {
+                return Err(arity_err("1"));
+            }
+            if trip_count < 2 {
+                return Err(ValidateError::GateArity {
+                    node: id,
+                    op,
+                    expected: "trip_count >= 2".to_string(),
+                    got: operands.len(),
+                });
+            }
+            if out_w != chunk_width {
+                return Err(ValidateError::GateOutputWidth {
+                    node: id,
+                    op,
+                    expected: chunk_width,
+                    got: out_w,
+                });
+            }
+            let expected_src_w = trip_count.saturating_mul(chunk_width);
+            if w(0) != expected_src_w {
+                return Err(ValidateError::GateOperandWidth {
+                    node: id,
+                    op,
+                    operand_idx: 0,
+                    expected: expected_src_w,
+                    got: w(0),
+                });
+            }
+        }
         // Comparisons: out_w == 1, operands equal width.
         Eq | Neq | Lt | Gt | Le | Ge => {
             if operands.len() != 2 {
@@ -839,6 +874,25 @@ mod tests {
         });
         add_output(&mut m, "o", 8, casez);
         validate(&m).expect("valid casez mux must pass");
+    }
+
+    #[test]
+    fn accepts_for_fold_with_packed_source() {
+        let mut m = empty_module();
+        let (_p_src, n_src) = add_input(&mut m, "src", 8);
+        let for_fold = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::ForFold {
+                kind: ForFoldKind::Xor,
+                trip_count: 4,
+                chunk_width: 2,
+            },
+            operands: vec![n_src],
+            width: 2,
+            deps: DepSet::from_port(0),
+        });
+        add_output(&mut m, "o", 2, for_fold);
+        validate(&m).expect("valid for-fold block must pass");
     }
 
     #[test]

@@ -10,8 +10,8 @@
 use super::{pool::SignalPool, Generator};
 use crate::config::Config;
 use crate::ir::{
-    DepSet, Flop, FlopId, FlopKind, FlopMux, GateOp, KnobId, Module, MuxArm, Node, NodeId,
-    ResetKind,
+    DepSet, Flop, FlopId, FlopKind, FlopMux, ForFoldKind, GateOp, KnobId, Module, MuxArm, Node,
+    NodeId, ResetKind,
 };
 use rand::Rng;
 use std::collections::HashMap;
@@ -261,6 +261,13 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    if roll_knob(g, m, KnobId::ForFoldProb, g.cfg.for_fold_prob)
+        && build_for_fold_pool_only(g, m, pool, width).is_some()
+    {
+        trace!(width, "🧱 for-fold block");
+        return true;
+    }
+
     // Priority-encoder block (pool-only). Skip if no N compatible with
     // target width.
     if roll_knob(
@@ -432,6 +439,24 @@ fn build_casez_mux_pool_only(
     let root = make_casez_mux(m, pool, sel, &patterns, &datas, width);
     m.casez_mux_built += 1;
     root
+}
+
+/// Pool-only procedural for-fold assembly. Emits a statically bounded
+/// `always_comb` loop over fixed-width packed chunks when the target
+/// width admits a bounded trip count.
+fn build_for_fold_pool_only(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+) -> Option<NodeId> {
+    let trip_count = pick_for_fold_trip_count(g, width)?;
+    let src_width = width.checked_mul(trip_count)?;
+    let src = pick_terminal_dep_bearing(g, m, pool, src_width, None);
+    let kind = pick_for_fold_kind(g);
+    let root = make_for_fold(m, pool, src, kind, trip_count, width);
+    m.for_fold_built += 1;
+    Some(root)
 }
 
 /// Pool-only flop D-cone drain (mirrors `drain_flop_worklist` but
@@ -619,6 +644,21 @@ fn process_signal_frame(
         );
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
+    }
+
+    if roll_knob(g, m, KnobId::ForFoldProb, g.cfg.for_fold_prob) {
+        if let Some(node) = build_for_fold_recursive(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        ) {
+            deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+            return;
+        }
     }
 
     // Priority-encoder block: compatible only when the frame's target
@@ -2739,7 +2779,7 @@ fn build_comparison_const_comparand(
 /// configured `[min_mux_arms, max_mux_arms]` range. Returns None if
 /// no N in range produces an output matching `target_width`.
 fn pick_priority_encoder_n(g: &mut Generator, target_width: u32) -> Option<u32> {
-    if target_width == 0 {
+    if target_width == 0 || target_width > 32 {
         return None;
     }
     // For W-bit output, N is in [2^(W-1) + 1 .. 2^W], except W=1 where
@@ -2749,7 +2789,7 @@ fn pick_priority_encoder_n(g: &mut Generator, target_width: u32) -> Option<u32> 
     } else {
         (1u32 << (target_width - 1)) + 1
     };
-    let n_max = if target_width >= 32 {
+    let n_max = if target_width == 32 {
         u32::MAX
     } else {
         1u32 << target_width
@@ -2944,6 +2984,12 @@ pub fn build_cone(
         return build_casez_mux_recursive(g, m, pool, worklist, width, depth, exclude);
     }
 
+    if roll_knob(g, m, KnobId::ForFoldProb, g.cfg.for_fold_prob) {
+        if let Some(node) = build_for_fold_recursive(g, m, pool, worklist, width, depth, exclude) {
+            return node;
+        }
+    }
+
     // Priority-encoder block: compatible only when target width matches
     // ceil_log2(N) for some N in the block-arity range.
     if roll_knob(
@@ -3135,6 +3181,25 @@ fn build_casez_mux_recursive(
     root
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
+fn build_for_fold_recursive(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> Option<NodeId> {
+    let trip_count = pick_for_fold_trip_count(g, width)?;
+    let src_width = width.checked_mul(trip_count)?;
+    let src = build_cone(g, m, pool, worklist, src_width, depth + 1, exclude);
+    let kind = pick_for_fold_kind(g);
+    let root = make_for_fold(m, pool, src, kind, trip_count, width);
+    m.for_fold_built += 1;
+    Some(root)
+}
+
 fn build_comb_mux_one_hot(
     g: &mut Generator,
     m: &mut Module,
@@ -3234,6 +3299,55 @@ fn make_casez_mux(
         pool.add(node_id, width, deps);
     }
     node_id
+}
+
+fn make_for_fold(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    src: NodeId,
+    kind: ForFoldKind,
+    trip_count: u32,
+    chunk_width: u32,
+) -> NodeId {
+    let operands = vec![src];
+    let deps = node_deps(m, src);
+    let (node_id, is_new) = m.intern_gate(
+        GateOp::ForFold {
+            kind,
+            trip_count,
+            chunk_width,
+        },
+        operands,
+        chunk_width,
+        deps.clone(),
+    );
+    if is_new {
+        pool.add(node_id, chunk_width, deps);
+    }
+    node_id
+}
+
+fn pick_for_fold_trip_count(g: &mut Generator, width: u32) -> Option<u32> {
+    let min_iters = g.cfg.min_gate_arity.max(2);
+    let max_iters = g.cfg.max_gate_arity.max(min_iters);
+    let valid: Vec<u32> = (min_iters..=max_iters)
+        .filter(|iters| {
+            width
+                .checked_mul(*iters)
+                .map(|src_width| src_width <= 128)
+                .unwrap_or(false)
+        })
+        .collect();
+    (!valid.is_empty()).then(|| valid[g.rng.gen_range(0..valid.len())])
+}
+
+fn pick_for_fold_kind(g: &mut Generator) -> ForFoldKind {
+    match g.rng.gen_range(0..4) {
+        0 => ForFoldKind::Xor,
+        1 => ForFoldKind::Or,
+        2 => ForFoldKind::And,
+        _ => ForFoldKind::Add,
+    }
 }
 
 fn build_casez_patterns(n_arms: u32) -> (u32, Vec<(u128, u128)>) {
@@ -3663,6 +3777,11 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
             }
             widths
         }
+        ForFold {
+            trip_count,
+            chunk_width,
+            ..
+        } => vec![trip_count.saturating_mul(chunk_width)],
         Eq | Neq | Lt | Gt | Le | Ge => {
             let w = rng.gen_range(1..=8);
             vec![w, w]
@@ -3984,6 +4103,13 @@ mod tests {
                 1u32 << bits
             );
         }
+    }
+
+    #[test]
+    fn pick_priority_encoder_n_rejects_target_widths_above_u32_domain() {
+        let mut g = Generator::new(Config::default());
+        assert_eq!(pick_priority_encoder_n(&mut g, 33), None);
+        assert_eq!(pick_priority_encoder_n(&mut g, 128), None);
     }
 
     fn make_generator(flop_prob: f64) -> Generator {

@@ -95,6 +95,7 @@ shift. Examples:
 - Raising `priority_encoder_prob` should raise `num_priority_encoder_blocks` monotonically.
 - Raising `case_mux_prob` should raise `num_case_mux_blocks` monotonically.
 - Raising `casez_mux_prob` should raise `num_casez_mux_blocks` monotonically.
+- Raising `for_fold_prob` should raise `num_for_fold_blocks` monotonically.
 - Raising `comb_mux_encoding_prob` should shift the `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio toward the knob value.
 - `nested_associative_operand_count` measures how many same-op nested
   operand slots are still flattenable under the current duplicate
@@ -163,6 +164,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--priority-encoder-prob`| 0.05    | Per-emission probability of a priority-encoder block (N 1-bit reqs → log2(N)-bit index)|
 | `--case-mux-prob`      | 0.05     | Per-emission probability of a combinational `always_comb case` block |
 | `--casez-mux-prob`     | 0.05     | Per-emission probability of a combinational `always_comb casez` block |
+| `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational `always_comb` `for`-fold block over packed chunks |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |

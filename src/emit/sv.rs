@@ -4,7 +4,7 @@
 //! Synchronous-design discipline: a single CLK (posedge) and a single
 //! RST_N (async, active-low) drive every flop in the module.
 
-use crate::ir::{GateOp, Module, Node, NodeId};
+use crate::ir::{ForFoldKind, GateOp, Module, Node, NodeId};
 use std::fmt::Write;
 use tracing::{debug, info, instrument};
 
@@ -78,7 +78,10 @@ pub fn to_sv(m: &Module) -> String {
     // driven procedurally (`logic` + `always_comb`).
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate { op, width, .. } = node {
-            let decl_kind = if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+            let decl_kind = if matches!(
+                op,
+                GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
+            ) {
                 "logic"
             } else {
                 "wire"
@@ -98,7 +101,10 @@ pub fn to_sv(m: &Module) -> String {
     // Combinational assigns for every gate.
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate { op, operands, .. } = node {
-            if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+            if matches!(
+                op,
+                GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
+            ) {
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -115,7 +121,7 @@ pub fn to_sv(m: &Module) -> String {
         writeln!(out).unwrap();
     }
 
-    // Procedural combinational blocks for structured case/casez muxes.
+    // Procedural combinational blocks for structured case/casez/for-fold muxes.
     for (idx, node) in m.nodes.iter().enumerate() {
         let Node::Gate {
             op,
@@ -126,15 +132,18 @@ pub fn to_sv(m: &Module) -> String {
         else {
             continue;
         };
-        if !matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+        if !matches!(
+            op,
+            GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
+        ) {
             continue;
         }
         let name = names[idx].as_ref().expect("gate name assigned");
-        let sel = node_ref(operands[0], m, &names);
-        let sel_width = m.nodes[operands[0] as usize].width();
         writeln!(out, "    always_comb begin").unwrap();
         match op {
             GateOp::CaseMux => {
+                let sel = node_ref(operands[0], m, &names);
+                let sel_width = m.nodes[operands[0] as usize].width();
                 writeln!(out, "        case ({sel})").unwrap();
                 for (arm_idx, data_id) in operands[1..].iter().enumerate() {
                     let data = node_ref(*data_id, m, &names);
@@ -147,6 +156,7 @@ pub fn to_sv(m: &Module) -> String {
                 }
             }
             GateOp::CasezMux => {
+                let sel = node_ref(operands[0], m, &names);
                 writeln!(out, "        casez ({sel})").unwrap();
                 for arm in operands[1..].chunks_exact(3) {
                     let pattern = render_casez_pattern(arm[0], arm[1], m);
@@ -154,10 +164,29 @@ pub fn to_sv(m: &Module) -> String {
                     writeln!(out, "            {pattern}: {name} = {data};").unwrap();
                 }
             }
+            GateOp::ForFold {
+                kind,
+                trip_count,
+                chunk_width,
+            } => {
+                let src = node_ref(operands[0], m, &names);
+                let init = for_fold_init_literal(kind, *chunk_width);
+                let symbol = for_fold_symbol(kind);
+                writeln!(out, "        {name} = {init};").unwrap();
+                writeln!(out, "        for (int i = 0; i < {trip_count}; i++) begin").unwrap();
+                writeln!(
+                    out,
+                    "            {name} = {name} {symbol} {src}[(i * {chunk_width}) +: {chunk_width}];"
+                )
+                .unwrap();
+                writeln!(out, "        end").unwrap();
+            }
             _ => unreachable!("non-procedural gate filtered above"),
         }
-        writeln!(out, "            default: {} = {}'h0;", name, width).unwrap();
-        writeln!(out, "        endcase").unwrap();
+        if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+            writeln!(out, "            default: {} = {}'h0;", name, width).unwrap();
+            writeln!(out, "        endcase").unwrap();
+        }
         writeln!(out, "    end").unwrap();
         writeln!(out).unwrap();
     }
@@ -227,6 +256,12 @@ fn gate_kind_name(op: GateOp) -> &'static str {
         Mux => "mux",
         CaseMux => "case_mux",
         CasezMux => "casez_mux",
+        ForFold { kind, .. } => match kind {
+            ForFoldKind::Xor => "for_fold_xor",
+            ForFoldKind::Or => "for_fold_or",
+            ForFoldKind::And => "for_fold_and",
+            ForFoldKind::Add => "for_fold_add",
+        },
         Slice { .. } => "slice",
         Concat => "concat",
         RedAnd => "red_and",
@@ -334,7 +369,9 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Le => format!("{} <= {}", a(0), a(1)),
         Ge => format!("{} >= {}", a(0), a(1)),
         Mux => format!("({}) ? ({}) : ({})", a(0), a(1), a(2)),
-        CaseMux | CasezMux => unreachable!("procedural case blocks are emitted via always_comb"),
+        CaseMux | CasezMux | ForFold { .. } => {
+            unreachable!("procedural structured blocks are emitted via always_comb")
+        }
         Slice { hi, lo } => {
             let src = a(0);
             let src_width = m.nodes[operands[0] as usize].width();
@@ -396,6 +433,29 @@ fn render_casez_pattern(value_id: NodeId, wild_mask_id: NodeId, m: &Module) -> S
         });
     }
     format!("{width}'b{bits}")
+}
+
+fn for_fold_symbol(kind: &ForFoldKind) -> &'static str {
+    match kind {
+        ForFoldKind::Xor => "^",
+        ForFoldKind::Or => "|",
+        ForFoldKind::And => "&",
+        ForFoldKind::Add => "+",
+    }
+}
+
+fn for_fold_init_literal(kind: &ForFoldKind, width: u32) -> String {
+    let value = match kind {
+        ForFoldKind::And => {
+            if width >= 128 {
+                u128::MAX
+            } else {
+                (1u128 << width) - 1
+            }
+        }
+        ForFoldKind::Xor | ForFoldKind::Or | ForFoldKind::Add => 0,
+    };
+    format!("{width}'h{value:x}")
 }
 
 #[cfg(test)]
@@ -696,5 +756,34 @@ mod tests {
         assert!(sv.contains("3'b00?: casez_mux_0 = a;"));
         assert!(sv.contains("3'b01?: casez_mux_0 = b;"));
         assert!(sv.contains("default: casez_mux_0 = 8'h0;"));
+    }
+
+    #[test]
+    fn for_fold_emits_logic_and_always_comb_for_loop() {
+        let mut m = Module {
+            name: "m_for_fold".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "src", 8, Direction::In));
+        m.outputs.push(port(1, "o", 2, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::ForFold {
+                kind: ForFoldKind::Xor,
+                trip_count: 4,
+                chunk_width: 2,
+            },
+            operands: vec![0],
+            width: 2,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((1, 1));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("logic [1:0] for_fold_xor_0;"));
+        assert!(sv.contains("always_comb begin"));
+        assert!(sv.contains("for_fold_xor_0 = 2'h0;"));
+        assert!(sv.contains("for (int i = 0; i < 4; i++) begin"));
+        assert!(sv.contains("for_fold_xor_0 = for_fold_xor_0 ^ src[(i * 2) +: 2];"));
     }
 }
