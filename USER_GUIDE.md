@@ -252,6 +252,10 @@ Useful options:
 - `--phase2-share-gate` to run the repo-owned representative
   `share_prob` sweep (`0.0`, `0.3`, `0.9`) and fail when the sharing
   gate's coverage or normalized share summary is incomplete.
+- `--phase3-structured-gate` to run the repo-owned structured-surface
+  closure matrix and fail unless the report proves the landed Phase 3
+  surfaces (`case`, `casez`, `for`-fold, priority encoder, mux
+  encodings, selectable `Slice` / `Concat`, variable shift).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -293,6 +297,18 @@ records:
   - `share_prob = 0.0`: `shared_node_fraction = 0.4122`
   - `share_prob = 0.3`: `shared_node_fraction = 0.4232`
   - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
+
+The completed current-code Phase 3 structured-surface report at
+`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+records:
+
+- `21` scenarios
+- `10` modules per scenario
+- `210` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 210/0`
+- `Yosys without-abc pass/fail = 210/0`
+- `Yosys with-abc pass/fail = 210/0`
 
 `tool_matrix` now writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees

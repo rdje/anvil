@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-22-2351 — Make Slice and Concat first-class selectable surfaces
+## 2026-04-23-0104 — Close the Phase 3 structured-surface gate cleanly
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tool_matrix` now has a repo-owned `--phase3-structured-gate` mode in
+  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs).
+  It runs a dedicated 21-scenario structured-surface matrix across the
+  three live construction strategies (`sequential`, `shuffled`,
+  `interleaved`) under `identity_mode = node-id` and
+  `factorization_level = e-graph`.
+- The Phase 3 gate is coverage-owned rather than anecdote-owned. Its
+  coverage contract requires real exercise of:
+  - combinational-only and sequential modules
+  - priority-encoder blocks
+  - one-hot and encoded combinational muxes
+  - procedural `case` and `casez` blocks
+  - bounded procedural `for`-fold blocks
+  - one-hot and encoded flop muxes
+  - selectable `Slice` and `Concat`
+  - variable shifts
+- `Metrics` in
+  [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now distinguish constant-rhs and variable-rhs shifts, so the gate can
+  prove the variable-shift surface from emitted IR facts instead of from
+  knob intent alone.
+- The first real Phase 3 gate attempt surfaced the actual runtime
+  hotspot in
+  [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs):
+  `merge_equivalent_gates` was still willing to run a full semantic
+  truth-table proof on very large settled cones as long as their leaf
+  support stayed small. That made compaction spend minutes in
+  `semantic_cone_proof` / `evaluate_node_under_assignment`.
+- The fix is now explicit and bounded:
+  - cleanup-time exact proofs stay on their already-strict tiny-cone
+    path
+  - semantic merge proofs now also require the reachable cone to stay
+    within a merge budget (`MAX_MERGE_SEMANTIC_CONE_NODES = 128`)
+  - when that budget is exceeded, compaction falls back cleanly to the
+    structural proof instead of turning semantic merge into a whole-cone
+    evaluator
+- New regression coverage:
+  - `phase3_structured_gate_raises_modules_per_scenario_for_surface_gate`
+  - `phase3_structured_matrix_covers_requested_surface_profiles`
+  - `phase3_structured_coverage_requires_slice_concat_and_variable_shift`
+  - `metrics_distinguish_constant_and_variable_shift_rhs`
+  - `semantic_merge_proof_skips_large_low_support_cones`
+
+**Proof**
+
+- The completed current-code Phase 3 report now exists at
+  `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`.
+- Final report summary:
+  - `21` scenarios
+  - `10` modules per scenario
+  - `210` total modules
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 210/0`
+  - `Yosys without-abc pass/fail = 210/0`
+  - `Yosys with-abc pass/fail = 210/0`
+- This closes the structured-surface evidence boundary. Phase 3 is no
+  longer missing either feature breadth or repo-owned closure evidence.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test` = `197` passing (`145` lib + `5` main + `18` tool_matrix + `29` integration)
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+
+## 2026-04-22-2351 — Make Slice and Concat first-class selectable surfaces
+
+**Landed as:** `d8b1556`
 
 **What changed**
 

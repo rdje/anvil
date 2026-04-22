@@ -195,6 +195,55 @@ Current closure proof on `/tmp/anvil-tool-matrix-phase2-share-r1`:
 `0.4122 @ share_prob=0.0`, `0.4232 @ 0.3`, `0.4386 @ 0.9`, while
 `avg_nodes/module` drops from `4727.56` to `3525.01` to `2117.76`.
 
+### Phase 3 should have its own structured-surface gate
+Once the `case`, `casez`, bounded `for`-fold, selectable
+`Slice` / `Concat`, and variable-shift surfaces were all landed, the
+remaining honest Phase 3 blocker was no longer feature breadth. It was
+evidence breadth.
+
+That shape now lives in the harness itself as `tool_matrix
+--phase3-structured-gate`. The dedicated matrix covers all three live
+construction strategies under `identity_mode = node-id` +
+`factorization_level = e-graph`, and the report is allowed to go green
+only if it proves the landed Phase 3 surfaces directly:
+
+- priority encoder
+- one-hot and encoded comb mux
+- procedural `case`
+- procedural `casez`
+- bounded procedural `for`-fold
+- one-hot and encoded flop mux
+- selectable `Slice`
+- selectable `Concat`
+- variable shifts
+
+The closure proof now lives at
+`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+with `21` scenarios, `210` total modules, `coverage_gaps = []`, and
+`210/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+
+### Semantic merge proofs also need a cone-size budget
+The first real Phase 3 gate run did not fail in Yosys or Verilator. It
+stalled inside `merge_equivalent_gates`, specifically
+`semantic_cone_proof -> evaluate_node_under_assignment`.
+
+The root cause was subtle but real: *small endpoint support is not a
+sufficient runtime guard by itself*. A settled cone can depend on only
+2 or 3 canonical leaf endpoints and still contain a very large internal
+graph. Brute-forcing every assignment through that whole graph turns
+compaction into a whole-cone evaluator.
+
+The durable fix is now explicit in `src/ir/compact.rs`:
+
+- cleanup-time exact proofs stay on their already-strict tiny-cone path
+- semantic merge proofs have their own reachable-cone budget
+- once that budget is exceeded, compaction falls back to the
+  structural proof path instead of chasing semantic equivalence at any
+  cost
+
+That keeps the semantic merge fragment live where it is valuable while
+stopping large settled cones from becoming a runtime trap.
+
 ### `gate_*_weight` defaults
 3:2:1:1:1 (bitwise:arith:struct:compare:reduce). Bitwise dominates because bitwise gates are the most type-flexible and produce the widest cones. Comparisons are weighted lower because they collapse the width to 1, which limits downstream cone depth. These are gut-feel; replace with measurements when phase-1 sweeps land.
 

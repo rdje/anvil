@@ -186,6 +186,18 @@ The completed current-code Phase 2 sharing report now also exists at
   - `share_prob = 0.3`: `shared_node_fraction = 0.4232`
   - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
 
+The completed current-code Phase 3 structured-surface report now also
+exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
+`tool_matrix_report.json` records:
+
+- `21` scenarios
+- `10` modules per scenario
+- `210` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 210/0`
+- `Yosys without-abc pass/fail = 210/0`
+- `Yosys with-abc pass/fail = 210/0`
+
 `tool_matrix` writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
 can be continued in place instead of always forking a fresh `--out`
@@ -216,6 +228,18 @@ across 18 built-in sharing scenarios and records a normalized
 `share_sweep` summary in the report so the knob can be proven against
 the landed graph shape rather than only against generator-side rolls.
 
+For the repo-owned Phase 3 structured-surface gate shape:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix-phase3 --phase3-structured-gate --yosys-mode both
+```
+
+That runs the dedicated structured-surface matrix and fails on coverage
+gaps unless the report proves live exercise of the landed Phase 3
+surfaces: priority encoder, comb/flop mux encodings, procedural
+`case` / `casez`, bounded procedural `for`-fold, selectable
+`Slice` / `Concat`, and variable shifts.
+
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.
@@ -242,6 +266,10 @@ the landed graph shape rather than only against generator-side rolls.
   normalized `shared_node_fraction` because stronger sharing collapses
   total node count and therefore makes the raw shared-node count a bad
   control metric.
+- `tool_matrix --phase3-structured-gate` runs the repo-owned
+  structured-surface closure matrix and fails on coverage gaps unless
+  the report proves the landed Phase 3 surfaces directly from emitted
+  metrics and tool results.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and

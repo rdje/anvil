@@ -82,10 +82,12 @@
 
 use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, PortId, ResetKind};
 use crate::config::FactorizationLevel;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 const MAX_SEMANTIC_SUPPORT_BITS: u32 = 10;
 const MAX_SEMANTIC_EXACT_ENDPOINTS: usize = 3;
+const MAX_MERGE_SEMANTIC_CONE_NODES: usize = 128;
+const MAX_CLEANUP_SEMANTIC_CONE_NODES: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
@@ -251,6 +253,29 @@ fn collect_leaf_endpoints(
 
     memo.insert(node_id, endpoints.clone());
     endpoints
+}
+
+fn cone_within_node_budget(
+    m: &Module,
+    node_id: NodeId,
+    budget: usize,
+    seen: &mut HashSet<NodeId>,
+) -> bool {
+    if !seen.insert(node_id) {
+        return true;
+    }
+    if seen.len() > budget {
+        return false;
+    }
+    let Node::Gate { operands, .. } = &m.nodes[node_id as usize] else {
+        return true;
+    };
+    for &operand in operands {
+        if !cone_within_node_budget(m, operand, budget, seen) {
+            return false;
+        }
+    }
+    true
 }
 
 fn evaluate_node_under_assignment(
@@ -440,6 +465,16 @@ fn semantic_cone_proof(
         return None;
     }
 
+    // Semantic merge proofs stay intentionally bounded: large settled
+    // cones with tiny endpoint support can still explode runtime if we
+    // brute-force every assignment through the whole cone. When that
+    // happens we fall back to the structural proof path instead of
+    // turning compaction into a second whole-graph evaluator.
+    let mut seen = HashSet::new();
+    if !cone_within_node_budget(m, node_id, MAX_MERGE_SEMANTIC_CONE_NODES, &mut seen) {
+        return None;
+    }
+
     let mut endpoint_offsets: HashMap<LeafEndpoint, u32> = HashMap::new();
     let mut next_offset = 0u32;
     for endpoint in &endpoints {
@@ -484,7 +519,12 @@ fn cleanup_exact_proof_eligible(
     }
 
     let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
-    support_bits <= MAX_SEMANTIC_SUPPORT_BITS
+    if support_bits > MAX_SEMANTIC_SUPPORT_BITS {
+        return false;
+    }
+
+    let mut seen = HashSet::new();
+    cone_within_node_budget(m, node_id, MAX_CLEANUP_SEMANTIC_CONE_NODES, &mut seen)
 }
 
 fn cleanup_exact_value(
@@ -520,8 +560,11 @@ fn cleanup_exact_value(
         if !cleanup_exact_proof_eligible(m, node_id, endpoint_memo) {
             return None;
         }
-        crate::gen::cone::prove_node_exact_value(m, node_id)
-            .or_else(|| semantic_exact_value(m, node_id, endpoint_memo, semantic_exact_memo))
+        // Cleanup is intentionally cheaper than the generator's own
+        // intern-time exact prover: at this late stage we only want
+        // cheap downstream-cleanliness wins, not a second pass over the
+        // full small-set / bounds search surface.
+        semantic_exact_value(m, node_id, endpoint_memo, semantic_exact_memo)
     });
     bounds_exact_memo.insert(node_id, exact);
     exact
@@ -1871,6 +1914,27 @@ mod tests {
         assert_eq!(removed, 0);
     }
 
+    #[test]
+    fn semantic_merge_proof_skips_large_low_support_cones() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        let x = push_primary(&mut m, 0, 1);
+        let y = push_primary(&mut m, 1, 1);
+        let mut root = x;
+        for _ in 0..(MAX_MERGE_SEMANTIC_CONE_NODES + 8) {
+            root = push_raw_gate(&mut m, GateOp::Xor, vec![root, y], 1);
+        }
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            semantic_cone_proof(&m, root, &mut endpoint_memo).is_none(),
+            "semantic merge proof must skip large cones even when endpoint support stays tiny"
+        );
+    }
+
     fn push_primary(m: &mut Module, port: PortId, width: u32) -> NodeId {
         if !m.inputs.iter().any(|existing| existing.id == port) {
             m.inputs.push(Port {
@@ -2159,6 +2223,27 @@ mod tests {
         assert!(
             !cleanup_exact_proof_eligible(&m, concat, &mut endpoint_memo),
             "post-construction exact cleanup must skip cones with more than three canonical leaf endpoints"
+        );
+    }
+
+    #[test]
+    fn cleanup_exact_proof_skips_large_low_support_cones() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let x = push_primary(&mut m, 0, 1);
+        let y = push_primary(&mut m, 1, 1);
+        let mut root = x;
+        for _ in 0..(MAX_CLEANUP_SEMANTIC_CONE_NODES + 8) {
+            root = push_raw_gate(&mut m, GateOp::Xor, vec![root, y], 1);
+        }
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            !cleanup_exact_proof_eligible(&m, root, &mut endpoint_memo),
+            "post-construction exact cleanup must skip large cones even when the endpoint support stays tiny"
         );
     }
 

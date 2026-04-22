@@ -213,7 +213,7 @@ therefore proves controllability with `shared_node_fraction`
 (`total_shared_nodes / total_nodes`) while also recording the expected
 node-count collapse.
 
-## Phase 3 — Structured combinational ops (in progress)
+## Phase 3 — Structured combinational ops (done)
 
 - `case`/`casez` expressions. **Both landed as structured
   combinational case-style blocks (`always_comb case` and
@@ -235,11 +235,14 @@ node-count collapse.
   packed chunks via `for_fold_prob` and `GateOp::ForFold`.
 - Linear-combination compound motif (`Σ sᵢ·cᵢ`, etc.) **landed.**
 
-Phase 3 is still **in progress**. The old explicitly-missing breadth
-items are now landed (`case`, `casez`, variable shifts, generic
-selectable `Slice` / `Concat`, bounded unrolled logic), but there is
-not yet a repo-owned Phase 3 closure gate analogous to the finished
-Phase 1 / Phase 2 gates.
+Phase 3 is now **done**. The previously explicit breadth gaps are
+landed (`case`, `casez`, variable shifts, generic selectable `Slice` /
+`Concat`, bounded unrolled logic), and the repo-owned closure evidence
+now exists too via
+`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+(`21` scenarios, `10` modules/scenario, `210` total modules,
+`coverage_gaps = []`, and `210/0` pass-fail in Verilator plus both
+repo-owned Yosys modes).
 
 **Exit criteria:** motif library covers common synthesizable idioms and
 the structured surface has its own representative clean-run closure

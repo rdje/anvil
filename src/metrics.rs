@@ -65,6 +65,16 @@ pub struct Metrics {
     pub num_concats_replication: usize,
     pub num_concats_heterogeneous: usize,
 
+    // --- Shift shape --------------------------------------------
+    /// Number of `Shl`/`Shr` gates whose rhs is a literal constant.
+    /// This is the constant-shift surface (`value << 3`,
+    /// `value >> 1`).
+    pub num_constant_shift_gates: usize,
+    /// Number of `Shl`/`Shr` gates whose rhs is not a literal
+    /// constant. This is the variable-shift surface
+    /// (`value << signal`, `value >> signal`).
+    pub num_variable_shift_gates: usize,
+
     // --- Sharing / fanout ---------------------------------------
     /// Number of internal nodes with fanout >= 2 (at least one
     /// other node references them). Measures sharing density
@@ -300,6 +310,13 @@ pub fn compute(m: &Module) -> Metrics {
                         out.num_concats_replication += 1;
                     } else {
                         out.num_concats_heterogeneous += 1;
+                    }
+                }
+                if matches!(op, GateOp::Shl | GateOp::Shr) && operands.len() == 2 {
+                    if matches!(m.nodes[operands[1] as usize], Node::Constant { .. }) {
+                        out.num_constant_shift_gates += 1;
+                    } else {
+                        out.num_variable_shift_gates += 1;
                     }
                 }
             }
@@ -595,5 +612,34 @@ mod tests {
         assert_eq!(met.flops_mux_one_hot, 1);
         assert_eq!(met.flops_merged, 1);
         assert_eq!(met.semantic_gates_merged, 2);
+    }
+
+    #[test]
+    fn metrics_distinguish_constant_and_variable_shift_rhs() {
+        let mut m = Module {
+            name: "shift_shapes".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "s".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 });
+        m.nodes.push(Node::Constant { width: 4, value: 1 });
+        let _ = m.intern_gate(GateOp::Shl, vec![0, 2], 4, DepSet::from_port(0));
+        let _ = m.intern_gate(GateOp::Shr, vec![0, 1], 4, DepSet::from_port(0));
+
+        let met = compute(&m);
+        assert_eq!(met.num_constant_shift_gates, 1);
+        assert_eq!(met.num_variable_shift_gates, 1);
     }
 }

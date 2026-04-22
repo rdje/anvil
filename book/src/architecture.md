@@ -330,7 +330,7 @@ selectable `Slice` / `Concat` surface,
 compaction/orphan guarantees, knob-roll telemetry, and
 input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-22): 162 unit-target tests + 29 integration tests = 191 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 168 unit-target tests + 29 integration tests = 197 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -348,7 +348,11 @@ closed too via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
 (216 modules, `coverage_gaps = []`, and 216/0 pass-fail in Verilator
 plus both repo-owned Yosys modes), with a normalized `share_sweep`
 summary proving that `shared_node_fraction` rises monotonically across
-`share_prob = 0.0`, `0.3`, and `0.9`.
+`share_prob = 0.0`, `0.3`, and `0.9`. The dedicated Phase 3
+structured-surface gate is now closed as well via
+`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+(210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
+plus both repo-owned Yosys modes).
 
 ## Error handling
 

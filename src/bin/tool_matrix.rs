@@ -12,6 +12,7 @@ use std::process::Command;
 
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
+const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -41,6 +42,12 @@ struct Cli {
     /// run the representative share_prob sweep and require its coverage.
     #[arg(long)]
     phase2_share_gate: bool,
+
+    /// Elevate the run to the repo-owned Phase 3 structured-surface
+    /// gate: run the representative structured-surface matrix and
+    /// require its coverage.
+    #[arg(long)]
+    phase3_structured_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -169,6 +176,7 @@ struct CoverageSummary {
     saw_case_mux: bool,
     saw_casez_mux: bool,
     saw_for_fold: bool,
+    saw_variable_shift: bool,
     saw_flop_mux_one_hot: bool,
     saw_flop_mux_encoded: bool,
     saw_semantic_gate_merge: bool,
@@ -179,6 +187,7 @@ struct CoverageSummary {
 enum ScenarioSet {
     Default,
     Phase2Share,
+    Phase3Structured,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -217,6 +226,7 @@ struct MatrixReport {
     scenario_set: String,
     phase1_gate: bool,
     phase2_share_gate: bool,
+    phase3_structured_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -303,6 +313,7 @@ fn main() -> Result<()> {
         scenario_set: scenario_set_slug(scenario_set).to_string(),
         phase1_gate: cli.phase1_gate,
         phase2_share_gate: cli.phase2_share_gate,
+        phase3_structured_gate: cli.phase3_structured_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -400,6 +411,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         PHASE1_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else if cli.phase2_share_gate {
         PHASE2_SHARE_MIN_TOTAL_MODULES.div_ceil(scenario_count)
+    } else if cli.phase3_structured_gate {
+        PHASE3_STRUCTURED_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else {
         1
     };
@@ -407,17 +420,27 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
     let total_modules = modules_per_scenario * scenario_count;
     RunPlan {
         modules_per_scenario,
-        fail_on_coverage_gap: cli.fail_on_coverage_gap || cli.phase1_gate || cli.phase2_share_gate,
+        fail_on_coverage_gap: cli.fail_on_coverage_gap
+            || cli.phase1_gate
+            || cli.phase2_share_gate
+            || cli.phase3_structured_gate,
         total_modules,
     }
 }
 
 fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
-    if cli.phase1_gate && cli.phase2_share_gate {
-        bail!("--phase1-gate and --phase2-share-gate are mutually exclusive");
+    let enabled_gates = usize::from(cli.phase1_gate)
+        + usize::from(cli.phase2_share_gate)
+        + usize::from(cli.phase3_structured_gate);
+    if enabled_gates > 1 {
+        bail!(
+            "--phase1-gate, --phase2-share-gate, and --phase3-structured-gate are mutually exclusive"
+        );
     }
     if cli.phase2_share_gate {
         Ok(ScenarioSet::Phase2Share)
+    } else if cli.phase3_structured_gate {
+        Ok(ScenarioSet::Phase3Structured)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -427,6 +450,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
     let scenarios = match scenario_set {
         ScenarioSet::Default => build_default_scenarios(base_seed)?,
         ScenarioSet::Phase2Share => build_phase2_share_scenarios(base_seed)?,
+        ScenarioSet::Phase3Structured => build_phase3_structured_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -561,6 +585,85 @@ fn build_phase2_share_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
     Ok(scenarios)
 }
 
+fn build_phase3_structured_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut next_seed = base_seed;
+
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ] {
+        let strategy_label = construction_strategy_name(strategy);
+        let strategy_slug = strategy_slug(strategy);
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_comb_mux"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused combinational mux surface."
+            ),
+            phase3_comb_mux_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_case_mux"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused procedural case-mux surface."
+            ),
+            phase3_case_mux_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_casez_mux"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused procedural casez-mux surface."
+            ),
+            phase3_casez_mux_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_for_fold"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused bounded for-fold surface."
+            ),
+            phase3_for_fold_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_priority_encoder"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused priority-encoder surface."
+            ),
+            phase3_priority_encoder_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_flop_mix"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused sequential flop / flop-mux surface."
+            ),
+            phase3_flop_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_phase3_slice_concat_varshift"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, focused selectable Slice/Concat plus variable-shift surface."
+            ),
+            phase3_slice_concat_varshift_focus_config(strategy, next_seed),
+        )?);
+        next_seed += 1;
+    }
+
+    Ok(scenarios)
+}
+
 fn make_scenario(name: &str, description: &str, config: Config) -> Result<Scenario> {
     config.validate().map_err(|err| anyhow::anyhow!("{err}"))?;
     Ok(Scenario {
@@ -650,6 +753,173 @@ fn motif_heavy_sequential_config(
         max_width: 16,
         max_depth: 7,
         ..Config::default()
+    }
+}
+
+fn phase3_base_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        share_prob: 0.5,
+        terminal_reuse_prob: 0.8,
+        constant_prob: 0.05,
+        min_inputs: 3,
+        max_inputs: 8,
+        min_outputs: 2,
+        max_outputs: 4,
+        min_width: 2,
+        max_width: 16,
+        max_depth: 6,
+        min_mux_arms: 2,
+        max_mux_arms: 5,
+        ..Config::default()
+    }
+}
+
+fn phase3_comb_mux_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 1.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        gate_bitwise_weight: 0,
+        gate_arith_weight: 0,
+        gate_struct_weight: 1,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        gate_shift_weight: 0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_case_mux_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 1.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_casez_mux_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 1.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_for_fold_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 1.0,
+        priority_encoder_prob: 0.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        min_width: 2,
+        max_width: 8,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_priority_encoder_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 1.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        constant_prob: 0.0,
+        gate_bitwise_weight: 0,
+        gate_arith_weight: 0,
+        gate_struct_weight: 1,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        gate_shift_weight: 0,
+        min_width: 2,
+        max_width: 3,
+        min_mux_arms: 3,
+        max_mux_arms: 5,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_flop_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 1.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        share_prob: 0.4,
+        terminal_reuse_prob: 0.6,
+        min_width: 2,
+        max_width: 16,
+        max_depth: 5,
+        ..phase3_base_config(strategy, seed)
+    }
+}
+
+fn phase3_slice_concat_varshift_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.0,
+        casez_mux_prob: 0.0,
+        for_fold_prob: 0.0,
+        priority_encoder_prob: 0.0,
+        coefficient_prob: 0.0,
+        const_shift_amount_prob: 0.0,
+        const_comparand_prob: 0.0,
+        share_prob: 0.0,
+        terminal_reuse_prob: 1.0,
+        constant_prob: 0.0,
+        gate_bitwise_weight: 0,
+        gate_arith_weight: 0,
+        gate_struct_weight: 1,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        gate_shift_weight: 2,
+        min_inputs: 2,
+        max_inputs: 4,
+        min_outputs: 2,
+        max_outputs: 2,
+        min_width: 4,
+        max_width: 8,
+        max_depth: 4,
+        ..phase3_base_config(strategy, seed)
     }
 }
 
@@ -1276,6 +1546,7 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
         coverage.saw_case_mux |= module.metrics.num_case_mux_blocks > 0;
         coverage.saw_casez_mux |= module.metrics.num_casez_mux_blocks > 0;
         coverage.saw_for_fold |= module.metrics.num_for_fold_blocks > 0;
+        coverage.saw_variable_shift |= module.metrics.num_variable_shift_gates > 0;
         coverage.saw_flop_mux_one_hot |= module.metrics.flops_mux_one_hot > 0;
         coverage.saw_flop_mux_encoded |= module.metrics.flops_mux_encoded > 0;
         coverage.saw_semantic_gate_merge |= module.metrics.semantic_gates_merged > 0;
@@ -1331,6 +1602,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_case_mux |= src.saw_case_mux;
     dst.saw_casez_mux |= src.saw_casez_mux;
     dst.saw_for_fold |= src.saw_for_fold;
+    dst.saw_variable_shift |= src.saw_variable_shift;
     dst.saw_flop_mux_one_hot |= src.saw_flop_mux_one_hot;
     dst.saw_flop_mux_encoded |= src.saw_flop_mux_encoded;
     dst.saw_semantic_gate_merge |= src.saw_semantic_gate_merge;
@@ -1407,16 +1679,28 @@ fn compute_coverage_gaps(
                 }
             }
         }
+        ScenarioSet::Phase3Structured => {
+            if !coverage.identity_modes.contains("node-id") {
+                gaps.push("missing identity mode node-id".to_string());
+            }
+            if !coverage.factorization_levels.contains("e-graph") {
+                gaps.push("missing factorization level e-graph".to_string());
+            }
+        }
     }
 
-    for category in [
-        "arithmetic",
-        "bitwise",
-        "compare",
-        "reduce",
-        "shift",
-        "structural",
-    ] {
+    let required_categories: &[&str] = match scenario_set {
+        ScenarioSet::Default | ScenarioSet::Phase2Share => &[
+            "arithmetic",
+            "bitwise",
+            "compare",
+            "reduce",
+            "shift",
+            "structural",
+        ],
+        ScenarioSet::Phase3Structured => &["shift", "structural"],
+    };
+    for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
             gaps.push(format!("missing gate category {category}"));
         }
@@ -1446,6 +1730,15 @@ fn compute_coverage_gaps(
     if !coverage.saw_for_fold {
         gaps.push("matrix never emitted a combinational for-fold block".to_string());
     }
+    if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
+        gaps.push("matrix never emitted a selectable slice gate".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("concat") {
+        gaps.push("matrix never emitted a selectable concat gate".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase3Structured && !coverage.saw_variable_shift {
+        gaps.push("matrix never emitted a variable shift".to_string());
+    }
     if !coverage.saw_flop_mux_one_hot {
         gaps.push("matrix never emitted a one-hot flop mux".to_string());
     }
@@ -1468,6 +1761,17 @@ fn compute_coverage_gaps(
             "terminal_reuse_prob",
         ],
         ScenarioSet::Phase2Share => &["share_prob", "terminal_reuse_prob", "flop_prob"],
+        ScenarioSet::Phase3Structured => &[
+            "flop_prob",
+            "flop_mux_encoding_prob",
+            "comb_mux_prob",
+            "comb_mux_encoding_prob",
+            "case_mux_prob",
+            "casez_mux_prob",
+            "for_fold_prob",
+            "priority_encoder_prob",
+            "const_shift_amount_prob",
+        ],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -1598,6 +1902,7 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
     match scenario_set {
         ScenarioSet::Default => "default",
         ScenarioSet::Phase2Share => "phase2-share",
+        ScenarioSet::Phase3Structured => "phase3-structured",
     }
 }
 
@@ -1637,6 +1942,7 @@ mod tests {
             modules_per_scenario: 1,
             phase1_gate: false,
             phase2_share_gate: false,
+            phase3_structured_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -1786,6 +2092,98 @@ mod tests {
             strategies,
             BTreeSet::from(["interleaved", "sequential", "shuffled"])
         );
+    }
+
+    #[test]
+    fn phase3_structured_gate_raises_modules_per_scenario_for_surface_gate() {
+        let mut cli = test_cli();
+        cli.phase3_structured_gate = true;
+
+        let plan = derive_run_plan(&cli, 21);
+        assert_eq!(plan.modules_per_scenario, 10);
+        assert_eq!(plan.total_modules, 210);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn phase3_structured_matrix_covers_requested_surface_profiles() {
+        let scenarios =
+            build_scenarios(0, ScenarioSet::Phase3Structured).expect("build phase3 scenarios");
+        let mut strategies = BTreeSet::new();
+        let mut names = BTreeSet::new();
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            names.insert(scenario.name.clone());
+            assert_eq!(scenario.config.identity_mode, IdentityMode::NodeId);
+            assert_eq!(
+                scenario.config.factorization_level,
+                FactorizationLevel::EGraph
+            );
+        }
+        assert_eq!(scenarios.len(), 21);
+        assert_eq!(names.len(), 21);
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["interleaved", "sequential", "shuffled"])
+        );
+        for suffix in [
+            "phase3_comb_mux",
+            "phase3_case_mux",
+            "phase3_casez_mux",
+            "phase3_for_fold",
+            "phase3_priority_encoder",
+            "phase3_flop_mix",
+            "phase3_slice_concat_varshift",
+        ] {
+            assert!(
+                names.iter().any(|name| name.ends_with(suffix)),
+                "expected at least one phase3 scenario ending with {suffix}"
+            );
+        }
+    }
+
+    #[test]
+    fn phase3_structured_coverage_requires_slice_concat_and_variable_shift() {
+        let coverage = CoverageSummary {
+            construction_strategies: BTreeSet::from([
+                "interleaved".to_string(),
+                "sequential".to_string(),
+                "shuffled".to_string(),
+            ]),
+            identity_modes: BTreeSet::from(["node-id".to_string()]),
+            factorization_levels: BTreeSet::from(["e-graph".to_string()]),
+            gate_categories: BTreeSet::from(["shift".to_string(), "structural".to_string()]),
+            gate_kinds: BTreeSet::from(["mux".to_string()]),
+            knob_attempts_seen: BTreeSet::from([
+                "flop_prob".to_string(),
+                "flop_mux_encoding_prob".to_string(),
+                "comb_mux_prob".to_string(),
+                "comb_mux_encoding_prob".to_string(),
+                "case_mux_prob".to_string(),
+                "casez_mux_prob".to_string(),
+                "for_fold_prob".to_string(),
+                "priority_encoder_prob".to_string(),
+                "const_shift_amount_prob".to_string(),
+            ]),
+            saw_comb_only_module: true,
+            saw_sequential_module: true,
+            saw_priority_encoder: true,
+            saw_comb_mux_one_hot: true,
+            saw_comb_mux_encoded: true,
+            saw_case_mux: true,
+            saw_casez_mux: true,
+            saw_for_fold: true,
+            saw_flop_mux_one_hot: true,
+            saw_flop_mux_encoded: true,
+            ..CoverageSummary::default()
+        };
+
+        let gaps = compute_coverage_gaps(ScenarioSet::Phase3Structured, &coverage, None);
+        assert!(gaps.iter().any(|gap| gap.contains("selectable slice")));
+        assert!(gaps.iter().any(|gap| gap.contains("selectable concat")));
+        assert!(gaps.iter().any(|gap| gap.contains("variable shift")));
     }
 
     #[test]
