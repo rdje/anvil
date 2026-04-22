@@ -1,9 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-22-1458 — Bank 40 clean motif-heavy sequential e-graph modules
+## 2026-04-22-1515 — Close sequential motif-heavy and shuffled share-heavy e-graph lanes
 
 **Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was another real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+This slice stayed on the remaining sequential / shuffled `e-graph`
+frontier and closed two more built-in scenarios in one run:
+
+- `seq_nodeid_egraph_motif_heavy_seq`
+- `shuf_nodeid_egraph_share_heavy_comb_only`
+
+The saved tree now stands at:
+
+- **804** completed module checkpoints / **804** emitted `.sv` files
+- full closure of:
+  - all interleaved `int_*` scenarios through `e-graph`
+  - `seq_nodeid_egraph_share_heavy_comb_only`
+  - `seq_nodeid_egraph_motif_heavy_seq`
+  - `shuf_nodeid_egraph_share_heavy_comb_only`
+
+So the live `r21` tree now covers the entire interleaved matrix plus the
+full sequential `e-graph` pair and the first shuffled `e-graph`
+scenario, all still under the zero-warning bar.
+
+**Why**
+
+Once the `710/710` bank was in place, the next most useful move was to
+finish the remaining sequential motif-heavy lane instead of stopping on
+another partial checkpoint. The run stayed healthy enough that it was
+worth continuing through the next shuffled share-heavy scenario too,
+which gives us a much stronger and cleaner recovery point than a
+mid-scenario stop.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after the tree reached the next strong
+    clean boundary
+- resulting tree state:
+  - **804** completed module checkpoints / **804** emitted `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+## 2026-04-22-1458 — Bank 40 clean motif-heavy sequential e-graph modules
+
+**Landed as:** `c77d9f2`
 
 **What changed**
 
