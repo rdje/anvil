@@ -126,7 +126,7 @@ instead of leaving them implicit.
 `cargo clippy -D warnings`, `cargo fmt --check` all clean. Reproducibility
 test passes byte-identical output for the same seed.
 
-## Phase 1 — Single-module MVP (mostly done)
+## Phase 1 — Single-module MVP (done)
 
 One module, no hierarchy, no inter-module sharing. Combinational *and*
 sequential logic from the start — flops are part of the same fanin-cone
@@ -147,42 +147,24 @@ recursion (Q is a leaf, D opens a new sub-cone, worklist drains).
 
 **Exit criteria:** 1000 modules generated from random seeds, all parse
 and elaborate in Verilator without error, all Yosys-synthesize to
-non-empty netlists, both with and without flops. **Not yet met:**
-local tools are now available and seed-level smoke checks pass, but
-the 1000-module Verilator+Yosys sweep has not been run yet. A new
-repo-owned `tool_matrix` harness now exists and already exercises a
-15-scenario adversarial matrix across strategies, identity modes,
-factorization levels, and stress profiles; the current smoke run is
-15/15 clean in Verilator and 15/15 clean in Yosys, with the harness
-treating warnings as failures rather than accepting noisy green runs.
-The harness now also has an explicit Yosys mode axis
-(`without-abc` / `with-abc` / `both`), so future industrialized sweeps
-can distinguish the stable no-ABC baseline from the explicit
-ABC-enabled harness path instead of baking that choice into one
-hardcoded script. The repo-owned gate shape is now explicit too: `tool_matrix
---phase1-gate` auto-raises the run to at least 1000 generated modules
-total and requires full matrix coverage, though that full gate has not
-been run to completion locally yet.
-Internal validation (155 tests after the
-wide-slice-proof / dead-state-cleanup slice, unused-signal Verilator
-sweep over seeds 0..4 for the default path and the `graph-first`
-alias, a warning-clean `seed=0 / interleaved / relaxed / none`
-repro on `mod_0_0006.sv`, plus a warning-clean seed-42 Verilator lint
-and seed-42 Yosys synthesis) is otherwise clean. The real repo-owned
-Phase 1 gate has now also been pushed to 365 generated modules with no
-Verilator warning logs and no Yosys warning lines in the saved stdout
-logs before checkpoint, spanning the full `int_relaxed_none_default`,
-`int_nodeid_none_default`, `int_nodeid_cse_default`,
-`int_nodeid_operand-unique_default`, and
-`int_nodeid_commutative_default` scenarios plus 30 modules into
-`int_nodeid_associative_default`. The stronger real both-mode gate
-shape (`tool_matrix --phase1-gate --yosys-mode both`) has now also
-been pushed to 368 clean modules with the same zero-warning bar,
-spanning the full `int_relaxed_none_default`,
-`int_nodeid_none_default`, `int_nodeid_cse_default`,
-`int_nodeid_operand-unique_default`, and
-`int_nodeid_commutative_default` scenarios plus 33 modules into
-`int_nodeid_associative_default`.
+non-empty netlists, both with and without flops. **Met locally.** The
+repo-owned `tool_matrix` harness now has a completed current-code Phase
+1 report at
+`/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`:
+
+- `scenario_count = 15`
+- `modules_per_scenario = 67`
+- `total_modules = 1005`
+- `coverage_gaps = []`
+- `Verilator pass/fail = 1005/0`
+- `Yosys without-abc pass/fail = 1005/0`
+- `Yosys with-abc pass/fail = 1005/0`
+
+That completed run exercises the full built-in adversarial matrix across
+construction strategies, identity modes, factorization levels, and the
+share-heavy / motif-heavy stress profiles. The harness treats warnings
+as failures, so this is a real zero-warning closure, not a noisy green
+run.
 
 ## Phase 2 — Signal sharing (DAG cones) (in progress)
 

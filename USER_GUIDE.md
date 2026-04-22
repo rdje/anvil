@@ -251,21 +251,25 @@ Useful options:
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
   downstream consumer.
 
-Current local smoke status after the post-construction proof-cleanup
-slice: the built-in matrix is now 15/15 clean in Verilator and 15/15
-clean in Yosys under `--yosys-mode without-abc`. `tool_matrix` treats
-warnings as failures, so a green run means "no errors, no warnings",
-not merely zero non-zero exits. A small `--yosys-mode both` probe is
-now clean in both Yosys sub-modes too:
-`without-abc = 15/15 pass`, `with-abc = 15/15 pass`. The live
-current-code `--phase1-gate --yosys-mode both` tree now stands at 500
-completed checkpoints / 501 emitted `.sv` files with zero Verilator
-warning logs and zero Yosys warning lines, spanning full closure
-through `int_nodeid_constant-fold_default` plus 31 clean
-`int_nodeid_peephole_default` checkpoints. That live tree is
-`/tmp/anvil-tool-matrix-phase1-real-r21` and was intentionally
-interrupted on a checkpoint boundary, so there is no final
-`tool_matrix_report.json` yet. `tool_matrix` now writes per-module
+Current local smoke status after the full current-code Phase 1 closure:
+the built-in matrix is 15/15 clean in Verilator and 15/15 clean in
+Yosys under `--yosys-mode without-abc`. `tool_matrix` treats warnings
+as failures, so a green run means "no errors, no warnings", not merely
+zero non-zero exits. A small `--yosys-mode both` probe is clean in both
+Yosys sub-modes too: `without-abc = 15/15 pass`, `with-abc = 15/15
+pass`. The completed current-code `--phase1-gate --yosys-mode both`
+report at `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
+records:
+
+- `15` scenarios
+- `67` modules per scenario
+- `1005` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 1005/0`
+- `Yosys without-abc pass/fail = 1005/0`
+- `Yosys with-abc pass/fail = 1005/0`
+
+`tool_matrix` now writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
 can be continued in place.
 

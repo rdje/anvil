@@ -1,7 +1,7 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-22-1515 — Close sequential motif-heavy and shuffled share-heavy e-graph lanes
+## 2026-04-22-1623 — Close the full current-code Phase 1 gate
 
 **Landed as:** this commit
 
@@ -12,44 +12,49 @@ No Rust source changed in this slice. The work was another real
 the live current-code frontier at
 `/tmp/anvil-tool-matrix-phase1-real-r21`.
 
-This slice stayed on the remaining sequential / shuffled `e-graph`
-frontier and closed two more built-in scenarios in one run:
-
-- `seq_nodeid_egraph_motif_heavy_seq`
-- `shuf_nodeid_egraph_share_heavy_comb_only`
+This slice did not stop at the earlier `804/804` bank. The resumed run
+kept going, closed the remaining shuffled motif-heavy lane, closed the
+remaining interleaved share-heavy lane, and then closed the final
+interleaved motif-heavy lane too.
 
 The saved tree now stands at:
 
-- **804** completed module checkpoints / **804** emitted `.sv` files
+- **1005** completed module checkpoints / **1005** emitted `.sv` files
 - full closure of:
-  - all interleaved `int_*` scenarios through `e-graph`
-  - `seq_nodeid_egraph_share_heavy_comb_only`
-  - `seq_nodeid_egraph_motif_heavy_seq`
-  - `shuf_nodeid_egraph_share_heavy_comb_only`
+  - all 15 built-in `tool_matrix` scenarios
+  - every construction strategy (`interleaved`, `sequential`,
+    `shuffled`)
+  - both identity modes
+  - every current factorization rung through `e-graph`
+  - both stress profiles (`share_heavy_comb_only`,
+    `motif_heavy_seq`)
 
-So the live `r21` tree now covers the entire interleaved matrix plus the
-full sequential `e-graph` pair and the first shuffled `e-graph`
-scenario, all still under the zero-warning bar.
+That means the repo-owned Phase 1 exit gate is now closed on current
+code, not merely partially banked. The completed report is:
+
+- [/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json](/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json)
 
 **Why**
 
-Once the `710/710` bank was in place, the next most useful move was to
-finish the remaining sequential motif-heavy lane instead of stopping on
-another partial checkpoint. The run stayed healthy enough that it was
-worth continuing through the next shuffled share-heavy scenario too,
-which gives us a much stronger and cleaner recovery point than a
-mid-scenario stop.
+The next useful question was no longer "can we push the frontier a bit
+farther?" It was "can the actual Phase 1 gate finish cleanly on current
+code?" Once the final three scenarios stayed warning-clean deep enough
+into the run, the right move was to keep going and answer that question
+for real instead of banking another intermediate checkpoint.
 
 **Validation**
 
 - real resumed frontier run:
   - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
-  - intentionally interrupted after the tree reached the next strong
-    clean boundary
+  - completed successfully
 - resulting tree state:
-  - **804** completed module checkpoints / **804** emitted `.sv` files
+  - **1005** completed module checkpoints / **1005** emitted `.sv` files
   - **0** Verilator warning logs
   - **0** Yosys `Warning:` lines across both Yosys modes
+  - `coverage_gaps: []`
+  - `Verilator pass/fail = 1005/0`
+  - `Yosys without-abc pass/fail = 1005/0`
+  - `Yosys with-abc pass/fail = 1005/0`
 - full repo hygiene:
   - `cargo check --all-targets`
   - `cargo test`

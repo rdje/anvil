@@ -158,14 +158,19 @@ raw default `synth` script, because the latter's ABC flow was tripping
 non-actionable combinational-network warnings on valid generated
 designs. A small repo-owned `--yosys-mode both` probe is now clean in
 both sub-modes: `without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
-A live current-code `--phase1-gate --yosys-mode both` tree now stands at
-500 completed checkpoints / 501 emitted `.sv` files with zero
-Verilator warning logs and zero Yosys warning lines, spanning full
-closure through `int_nodeid_constant-fold_default` plus 31 clean
-`int_nodeid_peephole_default` checkpoints. That live tree is
-`/tmp/anvil-tool-matrix-phase1-real-r21` and was intentionally
-interrupted on a checkpoint boundary, so there is no final
-`tool_matrix_report.json` yet. `tool_matrix` writes per-module
+A completed current-code `--phase1-gate --yosys-mode both` report now
+exists at `/tmp/anvil-tool-matrix-phase1-real-r21`. The final
+`tool_matrix_report.json` records:
+
+- `15` scenarios
+- `67` modules per scenario
+- `1005` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 1005/0`
+- `Yosys without-abc pass/fail = 1005/0`
+- `Yosys with-abc pass/fail = 1005/0`
+
+`tool_matrix` writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
 can be continued in place instead of always forking a fresh `--out`
 directory.

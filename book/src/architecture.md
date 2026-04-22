@@ -327,15 +327,20 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-21): 135 unit + 24 integration = 159 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-22): 146 unit-target tests + 24 integration tests = 170 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
 curated adversarial matrix and treats warnings as failures. The harness
 now has an explicit Yosys mode axis too (`without-abc`, `with-abc`, or
 `both`), so the stable no-ABC baseline and the explicit ABC-enabled
-harness path can be tracked separately. Scaling that green smoke matrix
-up is part of the remaining Phase 1 / Phase 2 exit work.
+harness path can be tracked separately. The full current-code Phase 1
+gate is now closed via
+`/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
+(1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
+Verilator plus both repo-owned Yosys modes). The explicit
+`--phase1-gate` mode turned the old roadmap arithmetic into a real
+repo-owned closure command.
 
 ## Error handling
 
