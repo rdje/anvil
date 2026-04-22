@@ -46,7 +46,10 @@ generator. The work still required falls into four explicit gaps:
    including a real `tool_matrix --phase1-gate` frontier pushed to 365
    warning-clean modules in the older no-ABC lane, a later historical
    both-mode frontier at 570 completed checkpoints / 571 emitted files,
-   and the latest focused current-code `e-graph` proof
+   a fresh current-code resumable both-mode tree at
+   `/tmp/anvil-tool-matrix-phase1-real-r21` already banked through 139
+   completed checkpoints / 140 emitted files with zero warning
+   artifacts, and the latest focused current-code `e-graph` proof
    (`seed=8 / interleaved / node-id / e-graph / count=54`) that is now
    clean 54/54 in Verilator and both repo-owned Yosys modes. But it
    still does not yet have the broad Verilator/Yosys sweep matrix

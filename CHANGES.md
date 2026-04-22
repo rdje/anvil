@@ -3,6 +3,64 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ---
 
+## 2026-04-22-0118 — Bank a fresh current-code both-mode frontier tree
+
+**Landed as:** this commit
+
+**What changed**
+
+No source changes in this slice. I started a fresh current-code
+`tool_matrix --phase1-gate --yosys-mode both` tree at:
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21`
+
+and pushed it cleanly past the initial repaired-code boundary instead of
+resuming the now-historical `r20` tree.
+
+I intentionally interrupted the run at the first useful fresh-tree
+checkpoint after the current-code `nodeid-none` rung had fully closed
+and `cse` had already started.
+
+**Why**
+
+The previous slice repaired a real `e-graph` warning by changing
+generator semantics in `src/gen/cone.rs`. Because `tool_matrix --resume`
+is intentionally byte-stable, that made `/tmp/anvil-tool-matrix-phase1-real-r20`
+evidence only rather than a safe live resume target.
+
+So the next honest move was not "pretend r20 is still live"; it was to
+start a fresh tree on current code and bank the first new frontier
+checkpoint there.
+
+**Validation**
+
+- fresh current-code both-mode frontier:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both`
+  - intentionally interrupted after **139** completed checkpoints /
+    **140** emitted `.sv` files
+  - scenario coverage at the checkpoint:
+    - `int_relaxed_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_none_default`: 67 checkpoints / 67 `.sv`
+    - `int_nodeid_cse_default`: 5 checkpoints / 6 `.sv`
+  - zero Verilator warning logs
+  - zero Yosys `Warning:` lines
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- `/tmp/anvil-tool-matrix-phase1-real-r21` is now the live resumable
+  current-code both-mode frontier tree.
+- The fresh-tree frontier has already re-closed the full relaxed and
+  full `nodeid-none` rungs on current code, with `cse` underway.
+- The next frontier push should resume `r21` in place and keep climbing
+  through `cse`, then `operand-unique`, toward the repaired `e-graph`
+  surface.
+
 ## 2026-04-22-0117 — Preserve wrapped-add lower bounds for overshift proofs
 
 **Landed as:** this commit
