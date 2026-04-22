@@ -1,6 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-0129 — Bank 32 clean motif-heavy sequential e-graph modules
+
+**Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was another real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+This slice stayed on the same hard sequential `e-graph` lane and pushed
+the clean checkpoint bank inside
+`seq_nodeid_egraph_motif_heavy_seq` from 20 modules to 32.
+
+The saved tree now stands at:
+
+- **702** completed module checkpoints / **703** emitted `.sv` files
+- full closure of:
+  - all interleaved `int_*` scenarios through `e-graph`
+  - `seq_nodeid_egraph_share_heavy_comb_only`
+- `seq_nodeid_egraph_motif_heavy_seq`: **32** clean checkpoints /
+  **33** emitted `.sv` files
+
+So the live `r21` tree now carries a substantially stronger recovery
+point in the heavier sequential motif lane rather than just a first
+sampling.
+
+**Why**
+
+The previous slice had established that the sequential motif-heavy lane
+could stay warning-clean for 20 modules. The sensible next move was to
+keep pressure on that exact lane long enough to tell whether the clean
+behavior was stable or just an early-run fluke.
+
+This deeper bank gives a much better answer: the lane is still clean,
+still resumable, and still worth pushing before we go hunting for some
+other problem.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after `seq_nodeid_egraph_motif_heavy_seq`
+    reached 32 clean checkpoints
+- resulting tree state:
+  - **702** completed module checkpoints / **703** emitted `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
 ## 2026-04-22-0128 — Deepen the sequential motif-heavy e-graph frontier
 
 **Landed as:** this commit
