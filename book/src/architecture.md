@@ -327,7 +327,7 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, compaction/orphan guarantees, knob-roll
 telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-22): 146 unit-target tests + 24 integration tests = 170 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-22): 149 unit-target tests + 24 integration tests = 173 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -340,7 +340,12 @@ gate is now closed via
 (1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
 Verilator plus both repo-owned Yosys modes). The explicit
 `--phase1-gate` mode turned the old roadmap arithmetic into a real
-repo-owned closure command.
+repo-owned closure command. The dedicated Phase 2 sharing gate is now
+closed too via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+(216 modules, `coverage_gaps = []`, and 216/0 pass-fail in Verilator
+plus both repo-owned Yosys modes), with a normalized `share_sweep`
+summary proving that `shared_node_fraction` rises monotonically across
+`share_prob = 0.0`, `0.3`, and `0.9`.
 
 ## Error handling
 

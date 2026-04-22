@@ -170,6 +170,22 @@ exists at `/tmp/anvil-tool-matrix-phase1-real-r21`. The final
 - `Yosys without-abc pass/fail = 1005/0`
 - `Yosys with-abc pass/fail = 1005/0`
 
+The completed current-code Phase 2 sharing report now also exists at
+`/tmp/anvil-tool-matrix-phase2-share-r1`. Its final
+`tool_matrix_report.json` records:
+
+- `18` scenarios
+- `12` modules per scenario
+- `216` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
+- normalized share sweep:
+  - `share_prob = 0.0`: `shared_node_fraction = 0.4122`
+  - `share_prob = 0.3`: `shared_node_fraction = 0.4232`
+  - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
+
 `tool_matrix` writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees
 can be continued in place instead of always forking a fresh `--out`
@@ -188,6 +204,17 @@ continue an interrupted run on the same tree:
 ```bash
 cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
 ```
+
+For the repo-owned Phase 2 sharing gate shape:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix-phase2-share --phase2-share-gate --yosys-mode both
+```
+
+That runs the representative `share_prob` sweep (`0.0`, `0.3`, `0.9`)
+across 18 built-in sharing scenarios and records a normalized
+`share_sweep` summary in the report so the knob can be proven against
+the landed graph shape rather than only against generator-side rolls.
 
 ## Current CLI truth
 - `anvil --seed N` generates a single module to stdout.
@@ -209,6 +236,12 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate --resume
   intentionally byte-stable: if regenerated `.sv` no longer matches the
   saved artifact after a generator-semantics change, start from a fresh
   `--out` tree instead of forcing reuse across that boundary.
+- `tool_matrix --phase2-share-gate` runs the repo-owned representative
+  sharing sweep over `share_prob ∈ {0.0, 0.3, 0.9}` and fails on
+  coverage gaps. Its report now includes a `share_sweep` summary with
+  normalized `shared_node_fraction` because stronger sharing collapses
+  total node count and therefore makes the raw shared-node count a bad
+  control metric.
 - Current scope: single-module combinational **and sequential**
   generation, DAG sharing default-on, bounded semantic `e-graph`
   fragment live under `--identity-mode node-id`, no hierarchy yet, and

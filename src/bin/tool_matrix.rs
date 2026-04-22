@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
+const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -35,6 +36,11 @@ struct Cli {
     /// require full coverage and at least 1000 generated modules total.
     #[arg(long)]
     phase1_gate: bool,
+
+    /// Elevate the run to the repo-owned Phase 2 sharing gate:
+    /// run the representative share_prob sweep and require its coverage.
+    #[arg(long)]
+    phase2_share_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -131,6 +137,7 @@ struct AggregateMetrics {
     total_nodes: usize,
     total_gates: usize,
     total_flops: usize,
+    total_shared_nodes: usize,
     total_priority_encoder_blocks: u64,
     total_comb_muxes_one_hot: u64,
     total_comb_muxes_encoded: u64,
@@ -146,6 +153,7 @@ struct CoverageSummary {
     construction_strategies: BTreeSet<String>,
     identity_modes: BTreeSet<String>,
     factorization_levels: BTreeSet<String>,
+    share_prob_values: BTreeSet<String>,
     gate_categories: BTreeSet<String>,
     gate_kinds: BTreeSet<String>,
     knob_attempts_seen: BTreeSet<String>,
@@ -159,6 +167,27 @@ struct CoverageSummary {
     saw_flop_mux_encoded: bool,
     saw_semantic_gate_merge: bool,
     saw_flop_merge: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScenarioSet {
+    Default,
+    Phase2Share,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct ShareSweepBucket {
+    scenarios: usize,
+    modules: usize,
+    total_nodes: usize,
+    total_shared_nodes: usize,
+    avg_nodes_per_module: f64,
+    shared_node_fraction: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct ShareSweepSummary {
+    buckets: BTreeMap<String, ShareSweepBucket>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -179,10 +208,13 @@ struct MatrixReport {
     modules_per_scenario: usize,
     scenario_count: usize,
     total_modules: usize,
+    scenario_set: String,
     phase1_gate: bool,
+    phase2_share_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
+    share_sweep: Option<ShareSweepSummary>,
     tool_summary: ToolSummary,
     scenarios: Vec<ScenarioReport>,
 }
@@ -217,8 +249,9 @@ fn main() -> Result<()> {
         bail!("--modules-per-scenario must be >= 1");
     }
     let runtime_fingerprint = current_runtime_fingerprint().ok();
+    let scenario_set = select_scenario_set(&cli)?;
 
-    let scenarios = build_scenarios(cli.base_seed)?;
+    let scenarios = build_scenarios(cli.base_seed, scenario_set)?;
     if cli.list_scenarios {
         for scenario in &scenarios {
             println!("{}: {}", scenario.name, scenario.description);
@@ -253,16 +286,21 @@ fn main() -> Result<()> {
         scenario_reports.push(report);
     }
 
-    let coverage_gaps = compute_coverage_gaps(&global_coverage);
+    let share_sweep = (scenario_set == ScenarioSet::Phase2Share)
+        .then(|| summarize_share_sweep(&scenario_reports));
+    let coverage_gaps = compute_coverage_gaps(scenario_set, &global_coverage, share_sweep.as_ref());
     let report = MatrixReport {
         base_seed: cli.base_seed,
         modules_per_scenario: plan.modules_per_scenario,
         scenario_count: scenario_reports.len(),
         total_modules: plan.total_modules,
+        scenario_set: scenario_set_slug(scenario_set).to_string(),
         phase1_gate: cli.phase1_gate,
+        phase2_share_gate: cli.phase2_share_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
+        share_sweep,
         tool_summary: global_tool_summary,
         scenarios: scenario_reports,
     };
@@ -287,6 +325,20 @@ fn main() -> Result<()> {
         report.tool_summary.yosys_with_abc_passed,
         report.tool_summary.yosys_with_abc_failed
     );
+    if let Some(share_sweep) = &report.share_sweep {
+        for (share_prob, bucket) in &share_sweep.buckets {
+            println!(
+                "tool_matrix: share_prob={} -> scenarios={}, modules={}, total_nodes={}, total_shared_nodes={}, avg_nodes/module={:.2}, shared_node_fraction={:.4}",
+                share_prob,
+                bucket.scenarios,
+                bucket.modules,
+                bucket.total_nodes,
+                bucket.total_shared_nodes,
+                bucket.avg_nodes_per_module,
+                bucket.shared_node_fraction
+            );
+        }
+    }
     if !report.coverage_gaps.is_empty() {
         println!(
             "tool_matrix: coverage gaps detected ({}): {}",
@@ -338,21 +390,50 @@ fn current_runtime_fingerprint() -> Result<String> {
 }
 
 fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
-    let phase1_modules_per_scenario = if cli.phase1_gate {
+    let gate_modules_per_scenario = if cli.phase1_gate {
         PHASE1_MIN_TOTAL_MODULES.div_ceil(scenario_count)
+    } else if cli.phase2_share_gate {
+        PHASE2_SHARE_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else {
         1
     };
-    let modules_per_scenario = cli.modules_per_scenario.max(phase1_modules_per_scenario);
+    let modules_per_scenario = cli.modules_per_scenario.max(gate_modules_per_scenario);
     let total_modules = modules_per_scenario * scenario_count;
     RunPlan {
         modules_per_scenario,
-        fail_on_coverage_gap: cli.fail_on_coverage_gap || cli.phase1_gate,
+        fail_on_coverage_gap: cli.fail_on_coverage_gap || cli.phase1_gate || cli.phase2_share_gate,
         total_modules,
     }
 }
 
-fn build_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
+    if cli.phase1_gate && cli.phase2_share_gate {
+        bail!("--phase1-gate and --phase2-share-gate are mutually exclusive");
+    }
+    if cli.phase2_share_gate {
+        Ok(ScenarioSet::Phase2Share)
+    } else {
+        Ok(ScenarioSet::Default)
+    }
+}
+
+fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scenario>> {
+    let scenarios = match scenario_set {
+        ScenarioSet::Default => build_default_scenarios(base_seed)?,
+        ScenarioSet::Phase2Share => build_phase2_share_scenarios(base_seed)?,
+    };
+
+    let mut seen = BTreeSet::new();
+    for scenario in &scenarios {
+        if !seen.insert(scenario.name.clone()) {
+            bail!("duplicate scenario name {}", scenario.name);
+        }
+    }
+
+    Ok(scenarios)
+}
+
+fn build_default_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
     let mut scenarios = Vec::new();
     let mut next_seed = base_seed;
 
@@ -402,7 +483,7 @@ fn build_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
         scenarios.push(make_scenario(
             &share_name,
             &share_desc,
-            share_heavy_comb_only_config(strategy, next_seed),
+            share_heavy_comb_only_config(strategy, next_seed, 0.9),
         )?);
         next_seed += 1;
 
@@ -414,15 +495,60 @@ fn build_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
         scenarios.push(make_scenario(
             &motif_name,
             &motif_desc,
-            motif_heavy_sequential_config(strategy, next_seed),
+            motif_heavy_sequential_config(strategy, next_seed, 0.4),
         )?);
         next_seed += 1;
     }
 
-    let mut seen = BTreeSet::new();
-    for scenario in &scenarios {
-        if !seen.insert(scenario.name.clone()) {
-            bail!("duplicate scenario name {}", scenario.name);
+    Ok(scenarios)
+}
+
+fn build_phase2_share_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut next_seed = base_seed;
+
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ] {
+        for share_prob in [0.0, 0.3, 0.9] {
+            let share_slug = share_prob_slug(share_prob);
+            let share_label = share_prob_label(share_prob);
+
+            let comb_name = format!(
+                "{}_nodeid_egraph_comb_share{}",
+                strategy_slug(strategy),
+                share_slug
+            );
+            let comb_desc = format!(
+                "{} strategy, node-id + e-graph, combinational sharing sweep at share_prob={}.",
+                construction_strategy_name(strategy),
+                share_label
+            );
+            scenarios.push(make_scenario(
+                &comb_name,
+                &comb_desc,
+                share_heavy_comb_only_config(strategy, next_seed, share_prob),
+            )?);
+            next_seed += 1;
+
+            let seq_name = format!(
+                "{}_nodeid_egraph_seq_share{}",
+                strategy_slug(strategy),
+                share_slug
+            );
+            let seq_desc = format!(
+                "{} strategy, node-id + e-graph, sequential sharing sweep at share_prob={}.",
+                construction_strategy_name(strategy),
+                share_label
+            );
+            scenarios.push(make_scenario(
+                &seq_name,
+                &seq_desc,
+                motif_heavy_sequential_config(strategy, next_seed, share_prob),
+            )?);
+            next_seed += 1;
         }
     }
 
@@ -462,14 +588,18 @@ fn nodeid_default_config(
     }
 }
 
-fn share_heavy_comb_only_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+fn share_heavy_comb_only_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    share_prob: f64,
+) -> Config {
     Config {
         seed,
         construction_strategy: strategy,
         identity_mode: IdentityMode::NodeId,
         factorization_level: FactorizationLevel::EGraph,
         flop_prob: 0.0,
-        share_prob: 0.9,
+        share_prob,
         terminal_reuse_prob: 0.9,
         constant_prob: 0.05,
         max_depth: 8,
@@ -481,14 +611,18 @@ fn share_heavy_comb_only_config(strategy: ConstructionStrategy, seed: u64) -> Co
     }
 }
 
-fn motif_heavy_sequential_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+fn motif_heavy_sequential_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    share_prob: f64,
+) -> Config {
     Config {
         seed,
         construction_strategy: strategy,
         identity_mode: IdentityMode::NodeId,
         factorization_level: FactorizationLevel::EGraph,
         flop_prob: 0.45,
-        share_prob: 0.4,
+        share_prob,
         terminal_reuse_prob: 0.6,
         constant_prob: 0.15,
         coefficient_prob: 0.6,
@@ -1048,6 +1182,7 @@ fn aggregate_metrics(modules: &[ModuleReport]) -> AggregateMetrics {
         aggregate.total_nodes += module.metrics.num_nodes;
         aggregate.total_gates += module.metrics.num_gates;
         aggregate.total_flops += module.metrics.num_flops;
+        aggregate.total_shared_nodes += module.metrics.num_shared_nodes;
         aggregate.total_priority_encoder_blocks +=
             u64::from(module.metrics.num_priority_encoder_blocks);
         aggregate.total_comb_muxes_one_hot += u64::from(module.metrics.num_comb_muxes_one_hot);
@@ -1112,6 +1247,9 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
     coverage
         .factorization_levels
         .insert(factorization_level_slug(scenario.config.factorization_level).to_string());
+    coverage
+        .share_prob_values
+        .insert(share_prob_label(scenario.config.share_prob));
 
     for module in modules {
         if module.metrics.num_flops == 0 {
@@ -1161,6 +1299,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         .extend(src.identity_modes.iter().cloned());
     dst.factorization_levels
         .extend(src.factorization_levels.iter().cloned());
+    dst.share_prob_values
+        .extend(src.share_prob_values.iter().cloned());
     dst.gate_categories
         .extend(src.gate_categories.iter().cloned());
     dst.gate_kinds.extend(src.gate_kinds.iter().cloned());
@@ -1179,7 +1319,33 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_flop_merge |= src.saw_flop_merge;
 }
 
-fn compute_coverage_gaps(coverage: &CoverageSummary) -> Vec<String> {
+fn summarize_share_sweep(scenarios: &[ScenarioReport]) -> ShareSweepSummary {
+    let mut summary = ShareSweepSummary::default();
+    for scenario in scenarios {
+        let share_prob = share_prob_label(scenario.config.share_prob);
+        let bucket = summary.buckets.entry(share_prob).or_default();
+        bucket.scenarios += 1;
+        bucket.modules += scenario.aggregate.modules;
+        bucket.total_nodes += scenario.aggregate.total_nodes;
+        bucket.total_shared_nodes += scenario.aggregate.total_shared_nodes;
+    }
+    for bucket in summary.buckets.values_mut() {
+        if bucket.modules > 0 {
+            bucket.avg_nodes_per_module = bucket.total_nodes as f64 / bucket.modules as f64;
+        }
+        if bucket.total_nodes > 0 {
+            bucket.shared_node_fraction =
+                bucket.total_shared_nodes as f64 / bucket.total_nodes as f64;
+        }
+    }
+    summary
+}
+
+fn compute_coverage_gaps(
+    scenario_set: ScenarioSet,
+    coverage: &CoverageSummary,
+    share_sweep: Option<&ShareSweepSummary>,
+) -> Vec<String> {
     let mut gaps = Vec::new();
 
     for strategy in ["sequential", "shuffled", "interleaved"] {
@@ -1187,25 +1353,44 @@ fn compute_coverage_gaps(coverage: &CoverageSummary) -> Vec<String> {
             gaps.push(format!("missing construction strategy {strategy}"));
         }
     }
-    for mode in ["relaxed", "node-id"] {
-        if !coverage.identity_modes.contains(mode) {
-            gaps.push(format!("missing identity mode {mode}"));
+
+    match scenario_set {
+        ScenarioSet::Default => {
+            for mode in ["relaxed", "node-id"] {
+                if !coverage.identity_modes.contains(mode) {
+                    gaps.push(format!("missing identity mode {mode}"));
+                }
+            }
+            for level in [
+                "none",
+                "cse",
+                "operand-unique",
+                "commutative",
+                "associative",
+                "constant-fold",
+                "peephole",
+                "e-graph",
+            ] {
+                if !coverage.factorization_levels.contains(level) {
+                    gaps.push(format!("missing factorization level {level}"));
+                }
+            }
+        }
+        ScenarioSet::Phase2Share => {
+            if !coverage.identity_modes.contains("node-id") {
+                gaps.push("missing identity mode node-id".to_string());
+            }
+            if !coverage.factorization_levels.contains("e-graph") {
+                gaps.push("missing factorization level e-graph".to_string());
+            }
+            for share_prob in ["0.0", "0.3", "0.9"] {
+                if !coverage.share_prob_values.contains(share_prob) {
+                    gaps.push(format!("missing share_prob scenario {share_prob}"));
+                }
+            }
         }
     }
-    for level in [
-        "none",
-        "cse",
-        "operand-unique",
-        "commutative",
-        "associative",
-        "constant-fold",
-        "peephole",
-        "e-graph",
-    ] {
-        if !coverage.factorization_levels.contains(level) {
-            gaps.push(format!("missing factorization level {level}"));
-        }
-    }
+
     for category in [
         "arithmetic",
         "bitwise",
@@ -1241,18 +1426,52 @@ fn compute_coverage_gaps(coverage: &CoverageSummary) -> Vec<String> {
         gaps.push("matrix never emitted an encoded flop mux".to_string());
     }
 
-    for knob in [
-        "comb_mux_prob",
-        "coefficient_prob",
-        "const_comparand_prob",
-        "const_shift_amount_prob",
-        "flop_prob",
-        "priority_encoder_prob",
-        "share_prob",
-        "terminal_reuse_prob",
-    ] {
+    let required_knobs: &[&str] = match scenario_set {
+        ScenarioSet::Default => &[
+            "comb_mux_prob",
+            "coefficient_prob",
+            "const_comparand_prob",
+            "const_shift_amount_prob",
+            "flop_prob",
+            "priority_encoder_prob",
+            "share_prob",
+            "terminal_reuse_prob",
+        ],
+        ScenarioSet::Phase2Share => &["share_prob", "terminal_reuse_prob", "flop_prob"],
+    };
+    for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
             gaps.push(format!("matrix never reached decision sites for {knob}"));
+        }
+    }
+
+    if scenario_set == ScenarioSet::Phase2Share {
+        let Some(summary) = share_sweep else {
+            gaps.push("phase2-share coverage missing share sweep summary".to_string());
+            return gaps;
+        };
+        let low = summary
+            .buckets
+            .get("0.0")
+            .map(|bucket| bucket.shared_node_fraction);
+        let mid = summary
+            .buckets
+            .get("0.3")
+            .map(|bucket| bucket.shared_node_fraction);
+        let high = summary
+            .buckets
+            .get("0.9")
+            .map(|bucket| bucket.shared_node_fraction);
+        match (low, mid, high) {
+            (Some(low), Some(mid), Some(high)) => {
+                if !(low < mid && mid < high) {
+                    gaps.push(format!(
+                        "share sweep did not increase shared-node fraction monotonically: 0.0={low:.4}, 0.3={mid:.4}, 0.9={high:.4}"
+                    ));
+                }
+            }
+            _ => gaps
+                .push("phase2-share coverage missing one or more share sweep buckets".to_string()),
         }
     }
 
@@ -1336,6 +1555,21 @@ fn factorization_level_slug(level: FactorizationLevel) -> &'static str {
     factorization_level_name(level)
 }
 
+fn share_prob_label(share_prob: f64) -> String {
+    format!("{share_prob:.1}")
+}
+
+fn share_prob_slug(share_prob: f64) -> String {
+    share_prob_label(share_prob).replace('.', "p")
+}
+
+fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
+    match scenario_set {
+        ScenarioSet::Default => "default",
+        ScenarioSet::Phase2Share => "phase2-share",
+    }
+}
+
 fn yosys_mode_slug(mode: YosysMode) -> &'static str {
     match mode {
         YosysMode::WithoutAbc => "without-abc",
@@ -1371,6 +1605,7 @@ mod tests {
             base_seed: 0,
             modules_per_scenario: 1,
             phase1_gate: false,
+            phase2_share_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -1397,7 +1632,7 @@ mod tests {
 
     #[test]
     fn scenario_names_are_unique() {
-        let scenarios = build_scenarios(7).expect("build scenarios");
+        let scenarios = build_scenarios(7, ScenarioSet::Default).expect("build scenarios");
         let mut names = BTreeSet::new();
         for scenario in scenarios {
             assert!(names.insert(scenario.name));
@@ -1406,7 +1641,7 @@ mod tests {
 
     #[test]
     fn matrix_covers_every_factorization_rung() {
-        let scenarios = build_scenarios(0).expect("build scenarios");
+        let scenarios = build_scenarios(0, ScenarioSet::Default).expect("build scenarios");
         let mut levels = BTreeSet::new();
         let mut saw_relaxed = false;
         for scenario in scenarios {
@@ -1435,7 +1670,7 @@ mod tests {
 
     #[test]
     fn matrix_covers_all_construction_strategies() {
-        let scenarios = build_scenarios(0).expect("build scenarios");
+        let scenarios = build_scenarios(0, ScenarioSet::Default).expect("build scenarios");
         let mut strategies = BTreeSet::new();
         for scenario in scenarios {
             strategies.insert(construction_strategy_slug(
@@ -1451,7 +1686,7 @@ mod tests {
     #[test]
     fn coverage_gaps_detect_missing_categories() {
         let coverage = CoverageSummary::default();
-        let gaps = compute_coverage_gaps(&coverage);
+        let gaps = compute_coverage_gaps(ScenarioSet::Default, &coverage, None);
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("missing construction strategy sequential")));
@@ -1482,6 +1717,126 @@ mod tests {
         assert_eq!(plan.modules_per_scenario, 100);
         assert_eq!(plan.total_modules, 1500);
         assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn phase2_share_gate_raises_modules_per_scenario_for_share_sweep() {
+        let mut cli = test_cli();
+        cli.phase2_share_gate = true;
+
+        let plan = derive_run_plan(&cli, 18);
+        assert_eq!(plan.modules_per_scenario, 12);
+        assert_eq!(plan.total_modules, 216);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn phase2_share_matrix_covers_requested_share_prob_levels() {
+        let scenarios = build_scenarios(0, ScenarioSet::Phase2Share).expect("build scenarios");
+        let mut share_probs = BTreeSet::new();
+        let mut strategies = BTreeSet::new();
+        for scenario in &scenarios {
+            share_probs.insert(share_prob_label(scenario.config.share_prob));
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            assert_eq!(scenario.config.identity_mode, IdentityMode::NodeId);
+            assert_eq!(
+                scenario.config.factorization_level,
+                FactorizationLevel::EGraph
+            );
+        }
+        assert_eq!(scenarios.len(), 18);
+        assert_eq!(
+            share_probs,
+            BTreeSet::from(["0.0".to_string(), "0.3".to_string(), "0.9".to_string()])
+        );
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["interleaved", "sequential", "shuffled"])
+        );
+    }
+
+    #[test]
+    fn phase2_share_coverage_requires_monotonic_shared_node_fraction() {
+        let coverage = CoverageSummary {
+            construction_strategies: BTreeSet::from([
+                "interleaved".to_string(),
+                "sequential".to_string(),
+                "shuffled".to_string(),
+            ]),
+            identity_modes: BTreeSet::from(["node-id".to_string()]),
+            factorization_levels: BTreeSet::from(["e-graph".to_string()]),
+            share_prob_values: BTreeSet::from([
+                "0.0".to_string(),
+                "0.3".to_string(),
+                "0.9".to_string(),
+            ]),
+            gate_categories: BTreeSet::from([
+                "arithmetic".to_string(),
+                "bitwise".to_string(),
+                "compare".to_string(),
+                "reduce".to_string(),
+                "shift".to_string(),
+                "structural".to_string(),
+            ]),
+            knob_attempts_seen: BTreeSet::from([
+                "share_prob".to_string(),
+                "terminal_reuse_prob".to_string(),
+                "flop_prob".to_string(),
+            ]),
+            saw_comb_only_module: true,
+            saw_sequential_module: true,
+            saw_priority_encoder: true,
+            saw_comb_mux_one_hot: true,
+            saw_comb_mux_encoded: true,
+            saw_flop_mux_one_hot: true,
+            saw_flop_mux_encoded: true,
+            ..CoverageSummary::default()
+        };
+        let summary = ShareSweepSummary {
+            buckets: BTreeMap::from([
+                (
+                    "0.0".to_string(),
+                    ShareSweepBucket {
+                        scenarios: 6,
+                        modules: 72,
+                        total_nodes: 7200,
+                        total_shared_nodes: 720,
+                        avg_nodes_per_module: 100.0,
+                        shared_node_fraction: 0.1000,
+                    },
+                ),
+                (
+                    "0.3".to_string(),
+                    ShareSweepBucket {
+                        scenarios: 6,
+                        modules: 72,
+                        total_nodes: 7200,
+                        total_shared_nodes: 648,
+                        avg_nodes_per_module: 100.0,
+                        shared_node_fraction: 0.0900,
+                    },
+                ),
+                (
+                    "0.9".to_string(),
+                    ShareSweepBucket {
+                        scenarios: 6,
+                        modules: 72,
+                        total_nodes: 7200,
+                        total_shared_nodes: 1008,
+                        avg_nodes_per_module: 100.0,
+                        shared_node_fraction: 0.1400,
+                    },
+                ),
+            ]),
+        };
+
+        let gaps = compute_coverage_gaps(ScenarioSet::Phase2Share, &coverage, Some(&summary));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap
+                .contains("share sweep did not increase shared-node fraction monotonically")));
     }
 
     #[test]

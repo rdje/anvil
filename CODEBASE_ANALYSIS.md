@@ -41,7 +41,7 @@ generator. The work still required falls into four explicit gaps:
    sharing pass, but "same expression anywhere in the cone forest means
    same `NodeId`" is not yet fully true for stronger sequential
    equivalence or future hierarchical objects.
-3. **Tool-clean confidence still needs broader automation beyond Phase 1**
+3. **Tool-clean confidence still needs broader automation beyond Phases 1/2**
    The repo now has strong internal validation and strong local smoke
    evidence. That includes a real `tool_matrix --phase1-gate` frontier
    pushed to 365 warning-clean modules in the older no-ABC lane, a
@@ -58,10 +58,15 @@ generator. The work still required falls into four explicit gaps:
    in place to that checkpoint format. The latest focused current-code
    `e-graph` proof (`seed=8 / interleaved / node-id / e-graph /
    count=54`) is also clean 54/54 in Verilator and both repo-owned
-   Yosys modes. So the basic Phase 1 full-closure evidence now exists;
-   the remaining confidence gap is broader automation for later phases,
-   richer knob sweeps, and the larger artifact-family space implied by
-   the signoff-grade goal.
+   Yosys modes. On top of that, the new
+   `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+   closes the representative Phase 2 sharing sweep locally: 216/0 in
+   Verilator plus both repo-owned Yosys modes, `coverage_gaps = []`,
+   and a monotone normalized `share_sweep` summary across
+   `share_prob ∈ {0.0, 0.3, 0.9}`. So the basic Phase 1 and Phase 2
+   closure evidence now exists; the remaining confidence gap is broader
+   automation for later phases, richer knob sweeps, and the larger
+   artifact-family space implied by the signoff-grade goal.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
@@ -175,7 +180,12 @@ src/
 │                     baseline, the explicit ABC-enabled
 │                     `synth -noabc; abc -fast; opt -fast; check`
 │                     harness path, or both as separate sub-runs per
-│                     file.
+│                     file. `--phase2-share-gate` now adds the
+│                     repo-owned representative `share_prob`
+│                     sweep, and its report records a normalized
+│                     `share_sweep` summary so stronger sharing can be
+│                     proven even when the raw shared-node count falls
+│                     because the graph itself is collapsing.
 │                     Current recorded real frontiers: 365 clean
 │                     modules on the older no-ABC gate; a historical
 │                     372-checkpoint / 373-emitted-file both-mode tree
@@ -184,7 +194,11 @@ src/
 │                     checkpoints / 571 emitted `.sv` files; and the
 │                     completed current-code both-mode tree (`r21`) at
 │                     1005 completed checkpoints / 1005 emitted `.sv`
-│                     files, also warning-clean throughout.
+│                     files, also warning-clean throughout. The
+│                     completed current-code Phase 2 share-sweep tree
+│                     (`/tmp/anvil-tool-matrix-phase2-share-r1`) adds
+│                     216 warning-clean modules over the 18-scenario
+│                     representative sharing matrix.
 │                     Because `--resume` is intentionally byte-stable,
 │                     later proof-driven `.sv` changes turn old trees
 │                     into evidence only; `r18` and `r20` are
@@ -442,7 +456,7 @@ main  →  lib  →  gen  →  ir
 |-------|---------------|--------------|-------|
 | 0 — Scaffolding              | done         | All files (initial) | Historical scaffold landed; current HEAD builds/tests/lints/formats clean again (see Build hygiene). |
 | 1 — Single-module MVP        | done         | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; final compaction now also drops dead flops whose `Q` is never observed, and the emitted input surface is trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones, post-remap associative re-normalisation on the settled graph, endpoint-preserving post-drain flop merging under `identity_mode = node-id`, strict Add/Mul remap-pruning under `operand_duplication_rate < 1.0`, a final exact-value cleanup pass (`fold_proven_gates`) for downstream-tool cleanliness that keeps the general exact prover tiny-only (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints) while still revisiting compare gates with the bounded unsigned-compare proof and shift gates with a bounds-only exact check, plus a tiny-domain rhs fallback for shift overshift proofs when narrow boolean-mask arithmetic keeps the rhs domain small even though the whole cone is large. Exit gate now closed locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json` (1005 modules, `coverage_gaps = []`, 1005/0 in Verilator and both repo-owned Yosys modes). |
-| 2 — Sharing                  | in progress  | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; the live bounded `EGraph` fragment now merges small-support combinational cones post-construction under `identity_mode = node-id`, duplicate flops merge post-drain when they are proven equal over the same canonical leaf endpoints by the same proof discipline, and late remaps are pruned when they would violate the strict Add/Mul duplicate policy. Final compaction cleans orphaned intermediates and dead state from these rewrites. |
+| 2 — Sharing                  | done         | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; the live bounded `EGraph` fragment now merges small-support combinational cones post-construction under `identity_mode = node-id`, duplicate flops merge post-drain when they are proven equal over the same canonical leaf endpoints by the same proof discipline, and late remaps are pruned when they would violate the strict Add/Mul duplicate policy. Final compaction cleans orphaned intermediates and dead state from these rewrites. Exit gate now closed locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json` (216 modules, `coverage_gaps = []`, 216/0 in Verilator and both repo-owned Yosys modes). The representative sweep proves controllability with normalized `shared_node_fraction` rather than raw shared-node count, because stronger reuse collapses total node count. |
 | 3 — Structured combinational | in progress  | `gen/cone.rs`, `ir/types.rs`, `emit/sv.rs`, `ir/validate.rs` | Priority-encoder block (Rule 17), combinational mux block (Rule 15), coefficient motif, const-shift motif, const-comparand motif, and reduction-category gate picking landed. Generic Slice/Concat remain non-pickable helper shapes (width-adapter / block assembly only); case/casez, variable shifts, and loop-unrolled logic are not started. |
 | 4 — Hierarchy                | not started  | new `gen/hierarchy.rs`; `Design` already typed | Library + on-demand sourcing. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
@@ -515,18 +529,22 @@ In `ir::validate::validate`:
 - `src/emit/sv.rs` — 7 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, and Mux ternary form.
 - `src/metrics.rs` — 3 inline unit tests for empty-module, per-kind gate, and flop-shape metrics.
 - `src/ir/compact.rs` — inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, cleanup exact-proof eligibility caps, no-op compaction, orphan removal, dead-flop removal, strict post-remap duplicate protection, and topological-order preservation.
-- `src/bin/tool_matrix.rs` — 12 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 gate run-plan math, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
+- `src/bin/tool_matrix.rs` — 15 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 and Phase-2 gate run-plan math, representative `share_prob`-sweep coverage, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
 - `tests/pipeline.rs` — 24 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-22): **146 unit-target tests + 24 integration tests = 170 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-22): **149 unit-target tests + 24 integration tests = 173 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
-  sweeps; the smoke matrix is green, and the full current-code Phase 1
+  sweeps; the smoke matrix is green, the full current-code Phase 1
   gate is now closed via
   `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
   (1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
-  Verilator plus both repo-owned Yosys modes). Remaining downstream
-  evidence work now belongs to Phase 2 / Phase 3 breadth rather than
-  basic Phase 1 viability.
+  Verilator plus both repo-owned Yosys modes), and the representative
+  Phase 2 sharing gate is now closed via
+  `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+  (216 modules, `coverage_gaps = []`, and 216/0 pass-fail in Verilator
+  plus both repo-owned Yosys modes). Remaining downstream evidence work
+  now belongs to Phase 3 breadth and later artifact families rather
+  than basic Phase 1 / Phase 2 viability.
 
 ## Known weaknesses (visible in code today)
 
@@ -535,7 +553,11 @@ In `ir::validate::validate`:
   `src/bin/tool_matrix.rs`, and the smoke matrix is currently green:
   15/15 clean in Verilator and 15/15 clean in Yosys. The harness now
   treats warnings as failures, so "green" here means no errors and no
-  warnings, not merely zero non-zero exits.
+  warnings, not merely zero non-zero exits. The repo-owned gate surface
+  now also includes the dedicated `--phase2-share-gate`, whose
+  normalized `share_sweep` summary proves that stronger `share_prob`
+  increases the *fraction* of shared nodes even though the raw shared
+  node count falls as the graph collapses.
 - `NodeId`-as-identity is still conservative for state and does not yet
   extend to future hierarchical objects. Exact-signature duplicate
   flops merge; stronger sequential/hierarchical equivalence remains open
@@ -545,12 +567,12 @@ In `ir::validate::validate`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (170 passing tests: 129 lib + 5 main + 12 tool_matrix + 24 integration).
+- `cargo test` — clean (173 passing tests: 129 lib + 5 main + 15 tool_matrix + 24 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a same-binary fast-resume smoke on `/tmp/anvil-tool-matrix-resume-fast-smoke-r1` now completes cleanly both on the initial run and on the immediate `--resume` rerun, and saved checkpoints now include `runtime_fingerprint`, `sv_hash`, and `generator_checkpoint`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); the historical current-code real both-mode `tool_matrix --phase1-gate --yosys-mode both` tree at `/tmp/anvil-tool-matrix-phase1-real-r20` still stands at **570 completed module checkpoints / 571 emitted `.sv` files** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, `int_nodeid_commutative_default`, `int_nodeid_associative_default`, `int_nodeid_constant-fold_default`, and `int_nodeid_peephole_default`, plus 34 clean in `int_nodeid_e-graph_default` before intentional checkpoint); the completed current-code real both-mode `tool_matrix --phase1-gate --yosys-mode both --resume` tree at `/tmp/anvil-tool-matrix-phase1-real-r21` now has a final `tool_matrix_report.json` with **1005** completed module checkpoints / **1005** emitted `.sv` files, `coverage_gaps = []`, and the same zero-warning bar (`Verilator 1005/0`, `Yosys without-abc 1005/0`, `Yosys with-abc 1005/0`), with all **1005** saved checkpoints on `r21` already carrying the fast-resume metadata; a real partial both-mode smoke run interrupted at 14/15 scenarios was then completed successfully on the same output tree under `--resume`, ending at 15/15 clean in Verilator and both Yosys sub-modes; the legacy `r11` both-mode frontier has now been upgraded in place through **143** module checkpoints with the same zero-warning bar (67 relaxed, 67 nodeid-none, and 9 cse); after the exact-proof budget fix, a focused current-code repro (`cargo run --bin anvil -- --seed 2 --count 10 --out /tmp/anvil-cse-seed2-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`) now emits all 10 modules cleanly, with `fails=0` / `warns=0` under Verilator, Yosys `synth -noabc`, and the repo-owned ABC-enabled Yosys path; the stricter cleanup-proof eligibility cap is now also proven on the old `nodeid-cse` stall boundary (`cargo run --bin anvil -- --seed 2 --count 2 --out /tmp/anvil-cse-seed2-repro-r2 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`), which emits both modules cleanly under Verilator plus both repo-owned Yosys modes; the next support-cap refinement is also now proven on the old `operand-unique` stall boundary (`cargo run --bin anvil -- --seed 3 --count 21 --out /tmp/anvil-operand-unique-seed3-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level operand-unique`), which emits all 21 modules cleanly through `mod_3_0020.sv`, and all 21 are warning-clean in Verilator plus both repo-owned Yosys modes; the next warning fix is now also proven on the first fresh-current-code `nodeid-none` boundary (`cargo run --bin anvil -- --seed 1 --count 23 --out /tmp/anvil-nodeid-none-seed1-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level none`), which emits through `mod_1_0022.sv`, and all 23 modules are warning-clean in Verilator plus both repo-owned Yosys modes; the old associative warning boundary is now also proven clean on focused current-code repros (`cargo run --bin anvil -- --seed 5 --count 12 --out /tmp/anvil-associative-seed5-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level associative` and `cargo run --bin anvil -- --seed 5 --count 16 --out /tmp/anvil-associative-seed5-repro-r8 --construction-strategy interleaved --identity-mode node-id --factorization-level associative`), where the checked modules are warning-clean in Verilator plus both repo-owned Yosys modes; and the older `/tmp/anvil-tool-matrix-phase1-real-r16` and `/tmp/anvil-tool-matrix-phase1-real-r12` trees remain historical evidence only across older code.
+- Generator-output smoke: Verilator lint on seed 42 is clean with no warning-specific suppressions beyond the usual filename noise; the previous `UNSIGNED` / `CMPCONST` tautology residue is now folded away in the IR; a default + graph-first-alias seed sweep (0..4) is clean for `UNUSEDSIGNAL`; the live `seed=0 / interleaved / relaxed / none` repro (`mod_0_0006.sv`) is now clean in both Verilator and `yosys ... synth -noabc`; the built-in `tool_matrix` smoke run is 15/15 clean in Verilator and 15/15 clean in Yosys under `--yosys-mode without-abc`; a small `--yosys-mode both` probe is now clean in both Yosys sub-modes too (`without-abc = 15/15 pass`, `with-abc = 15/15 pass`) after moving the ABC-enabled harness path to `synth -noabc; abc -fast; opt -fast; stat; check`; a same-binary fast-resume smoke on `/tmp/anvil-tool-matrix-resume-fast-smoke-r1` now completes cleanly both on the initial run and on the immediate `--resume` rerun, and saved checkpoints now include `runtime_fingerprint`, `sv_hash`, and `generator_checkpoint`; a real baseline `tool_matrix --phase1-gate` rerun has now been pushed to **365 generated modules** with **0 Verilator warning logs** and **0 Yosys warning lines** across the saved stdout logs (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, and `int_nodeid_commutative_default`, plus 30 clean in `int_nodeid_associative_default` before checkpoint); the historical current-code real both-mode `tool_matrix --phase1-gate --yosys-mode both` tree at `/tmp/anvil-tool-matrix-phase1-real-r20` still stands at **570 completed module checkpoints / 571 emitted `.sv` files** with the same zero-warning bar (67 clean each in `int_relaxed_none_default`, `int_nodeid_none_default`, `int_nodeid_cse_default`, `int_nodeid_operand-unique_default`, `int_nodeid_commutative_default`, `int_nodeid_associative_default`, `int_nodeid_constant-fold_default`, and `int_nodeid_peephole_default`, plus 34 clean in `int_nodeid_e-graph_default` before intentional checkpoint); the completed current-code real both-mode `tool_matrix --phase1-gate --yosys-mode both --resume` tree at `/tmp/anvil-tool-matrix-phase1-real-r21` now has a final `tool_matrix_report.json` with **1005** completed module checkpoints / **1005** emitted `.sv` files, `coverage_gaps = []`, and the same zero-warning bar (`Verilator 1005/0`, `Yosys without-abc 1005/0`, `Yosys with-abc 1005/0`), with all **1005** saved checkpoints on `r21` already carrying the fast-resume metadata; the completed Phase 2 share-sweep tree at `/tmp/anvil-tool-matrix-phase2-share-r1` now has a final `tool_matrix_report.json` with **216** completed module checkpoints / **216** emitted `.sv` files, `coverage_gaps = []`, and the same zero-warning bar (`Verilator 216/0`, `Yosys without-abc 216/0`, `Yosys with-abc 216/0`), while the normalized `share_sweep` summary proves the representative sharing knob sweep directly (`shared_node_fraction = 0.4122`, `0.4232`, `0.4386` at `share_prob = 0.0`, `0.3`, `0.9` respectively, alongside the expected node-count collapse); a real partial both-mode smoke run interrupted at 14/15 scenarios was then completed successfully on the same output tree under `--resume`, ending at 15/15 clean in Verilator and both Yosys sub-modes; the legacy `r11` both-mode frontier has now been upgraded in place through **143** module checkpoints with the same zero-warning bar (67 relaxed, 67 nodeid-none, and 9 cse); after the exact-proof budget fix, a focused current-code repro (`cargo run --bin anvil -- --seed 2 --count 10 --out /tmp/anvil-cse-seed2-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`) now emits all 10 modules cleanly, with `fails=0` / `warns=0` under Verilator, Yosys `synth -noabc`, and the repo-owned ABC-enabled Yosys path; the stricter cleanup-proof eligibility cap is now also proven on the old `nodeid-cse` stall boundary (`cargo run --bin anvil -- --seed 2 --count 2 --out /tmp/anvil-cse-seed2-repro-r2 --construction-strategy interleaved --identity-mode node-id --factorization-level cse`), which emits both modules cleanly under Verilator plus both repo-owned Yosys modes; the next support-cap refinement is also now proven on the old `operand-unique` stall boundary (`cargo run --bin anvil -- --seed 3 --count 21 --out /tmp/anvil-operand-unique-seed3-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level operand-unique`), which emits all 21 modules cleanly through `mod_3_0020.sv`, and all 21 are warning-clean in Verilator plus both repo-owned Yosys modes; the next warning fix is now also proven on the first fresh-current-code `nodeid-none` boundary (`cargo run --bin anvil -- --seed 1 --count 23 --out /tmp/anvil-nodeid-none-seed1-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level none`), which emits through `mod_1_0022.sv`, and all 23 modules are warning-clean in Verilator plus both repo-owned Yosys modes; the old associative warning boundary is now also proven clean on focused current-code repros (`cargo run --bin anvil -- --seed 5 --count 12 --out /tmp/anvil-associative-seed5-repro-r1 --construction-strategy interleaved --identity-mode node-id --factorization-level associative` and `cargo run --bin anvil -- --seed 5 --count 16 --out /tmp/anvil-associative-seed5-repro-r8 --construction-strategy interleaved --identity-mode node-id --factorization-level associative`), where the checked modules are warning-clean in Verilator plus both repo-owned Yosys modes; and the older `/tmp/anvil-tool-matrix-phase1-real-r16` and `/tmp/anvil-tool-matrix-phase1-real-r12` trees remain historical evidence only across older code.
 - `src/gen/cone.rs` now owns an always-on generator-side comparison
   proof in addition to the factorization ladder. The proof combines a
   conservative unsigned-bounds engine with an exact finite-set engine

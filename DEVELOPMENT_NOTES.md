@@ -182,6 +182,19 @@ Probability that, when a cone reaches a leaf decision and the signal pool has ma
 ### `share_prob = 0.3` default
 The non-leaf DAG-sharing fork is enabled by default at a modest rate. Every operand has a 30% chance of terminating at an existing pool entry rather than recursing. This is the Phase 2 guiding mode: cones are a mix of tree and DAG shapes, chosen per recursion point. Raise (0.5–0.9) for fanout-stress generation; lower (0.0–0.1) for wide-sprawling tree-ish cones. `share_prob = 0.0` does not produce *pure* trees — `pick_terminal` still reuses matching-width pool entries at forced leaves. The distinction is: `share_prob` controls *non-leaf* sharing; leaf-level reuse is always on.
 
+### Phase 2 share-gate metric: normalize by total nodes
+The first repo-owned Phase 2 gate attempt tried to prove "controlled
+sharing factor" with raw `total_shared_nodes`. The real run showed that
+proxy was backwards: when `share_prob` rises, ANVIL often reuses enough
+existing structure that the entire graph collapses, so the *absolute*
+count of shared nodes can fall even while the graph becomes more
+shared. The repo-owned `tool_matrix --phase2-share-gate` therefore uses
+`shared_node_fraction = total_shared_nodes / total_nodes` as the
+monotonic proof metric and records node-count collapse alongside it.
+Current closure proof on `/tmp/anvil-tool-matrix-phase2-share-r1`:
+`0.4122 @ share_prob=0.0`, `0.4232 @ 0.3`, `0.4386 @ 0.9`, while
+`avg_nodes/module` drops from `4727.56` to `3525.01` to `2117.76`.
+
 ### `gate_*_weight` defaults
 3:2:1:1:1 (bitwise:arith:struct:compare:reduce). Bitwise dominates because bitwise gates are the most type-flexible and produce the widest cones. Comparisons are weighted lower because they collapse the width to 1, which limits downstream cone depth. These are gut-feel; replace with measurements when phase-1 sweeps land.
 

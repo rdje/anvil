@@ -243,6 +243,9 @@ Useful options:
 - `--modules-per-scenario N` to trade runtime for more coverage.
 - `--phase1-gate` to auto-enable coverage-gap failure and raise the
   run to at least 1000 generated modules total.
+- `--phase2-share-gate` to run the repo-owned representative
+  `share_prob` sweep (`0.0`, `0.3`, `0.9`) and fail when the sharing
+  gate's coverage or normalized share summary is incomplete.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -268,6 +271,22 @@ records:
 - `Verilator pass/fail = 1005/0`
 - `Yosys without-abc pass/fail = 1005/0`
 - `Yosys with-abc pass/fail = 1005/0`
+
+The completed current-code Phase 2 sharing report at
+`/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+records:
+
+- `18` scenarios
+- `12` modules per scenario
+- `216` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
+- normalized share sweep:
+  - `share_prob = 0.0`: `shared_node_fraction = 0.4122`
+  - `share_prob = 0.3`: `shared_node_fraction = 0.4232`
+  - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
 
 `tool_matrix` now writes per-module
 checkpoint sidecars and supports `--resume`, so interrupted output trees

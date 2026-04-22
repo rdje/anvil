@@ -166,7 +166,7 @@ share-heavy / motif-heavy stress profiles. The harness treats warnings
 as failures, so this is a real zero-warning closure, not a noisy green
 run.
 
-## Phase 2 — Signal sharing (DAG cones) (in progress)
+## Phase 2 — Signal sharing (DAG cones) (done)
 
 - Signal pool of already-created internal wires.
 - Per-operand `share_prob` decision: recurse (tree) or reuse (DAG).
@@ -185,9 +185,33 @@ run.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both
   operands come from pool reuse).
 
-**Exit criteria:** generator produces cones with controlled sharing
-factor; synthesis still succeeds; no multi-driver violations; Verilator
-lint passes on a representative seed sweep with `share_prob` ∈ {0.0, 0.3, 0.9}.
+**Exit criteria (met locally):** generator produces cones with
+controlled sharing factor; synthesis still succeeds; no multi-driver
+violations; Verilator lint passes on a representative seed sweep with
+`share_prob` ∈ {0.0, 0.3, 0.9}. The repo-owned `tool_matrix` harness
+now has a completed current-code Phase 2 sharing report at
+`/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`:
+
+- `scenario_count = 18`
+- `modules_per_scenario = 12`
+- `total_modules = 216`
+- `coverage_gaps = []`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
+- normalized sharing sweep:
+  - `share_prob = 0.0`: `shared_node_fraction = 0.4122`,
+    `avg_nodes/module = 4727.56`
+  - `share_prob = 0.3`: `shared_node_fraction = 0.4232`,
+    `avg_nodes/module = 3525.01`
+  - `share_prob = 0.9`: `shared_node_fraction = 0.4386`,
+    `avg_nodes/module = 2117.76`
+
+The normalized metric matters: raw `total_shared_nodes` falls as
+`share_prob` rises because stronger reuse collapses the graph. The gate
+therefore proves controllability with `shared_node_fraction`
+(`total_shared_nodes / total_nodes`) while also recording the expected
+node-count collapse.
 
 ## Phase 3 — Structured combinational ops (in progress)
 

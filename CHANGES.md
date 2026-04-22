@@ -1,6 +1,86 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2038 — Close the Phase 2 sharing gate with a normalized share metric
+
+**Landed as:** this commit
+
+**What changed**
+
+`src/bin/tool_matrix.rs` now has a repo-owned `--phase2-share-gate`
+mode alongside the existing `--phase1-gate`.
+
+The new gate builds a dedicated 18-scenario share sweep:
+
+- 3 construction strategies (`sequential`, `shuffled`,
+  `interleaved`)
+- 2 profiles (combinational share-stress and sequential share-stress)
+- 3 explicit `share_prob` points (`0.0`, `0.3`, `0.9`)
+
+It also records a `share_sweep` summary in
+`tool_matrix_report.json`, grouped by `share_prob`.
+
+One subtle correction landed during the slice: the first version of the
+gate tried to prove "controlled sharing factor" with raw
+`total_shared_nodes`. The real run showed that proxy was backwards:
+higher `share_prob` collapses the graph enough that the absolute count
+of shared nodes falls even though the graph becomes *more shared*. The
+gate now measures the right thing: normalized
+`shared_node_fraction = total_shared_nodes / total_nodes`, while still
+recording node-count collapse alongside it.
+
+That fixed gate has now been proven on a real current-code run at:
+
+- [/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json](/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json)
+
+The saved report records:
+
+- `18` scenarios
+- `12` modules per scenario
+- `216` total modules
+- `coverage_gaps = []`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
+- monotone sharing sweep:
+  - `share_prob = 0.0`: `shared_node_fraction = 0.4122`,
+    `avg_nodes/module = 4727.56`
+  - `share_prob = 0.3`: `shared_node_fraction = 0.4232`,
+    `avg_nodes/module = 3525.01`
+  - `share_prob = 0.9`: `shared_node_fraction = 0.4386`,
+    `avg_nodes/module = 2117.76`
+
+That closes the repo-owned Phase 2 exit criterion locally: clean
+Verilator/Yosys on the representative `share_prob` sweep, with an
+actual structural sharing metric that moves the right way.
+
+**Why**
+
+Phase 1 is already closed, so the next leaf-kernel question was no
+longer "does sharing exist?" It was "can we prove, on current code,
+that sharing remains tool-clean across a representative sweep and that
+the sharing knob measurably changes the landed graphs?" Making that a
+first-class gate in `tool_matrix` keeps the answer reproducible and
+recoverable after a crash.
+
+**Validation**
+
+- targeted harness tests:
+  - `cargo test --bin tool_matrix`
+- real downstream proof:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase2-share-r1 --phase2-share-gate --yosys-mode both`
+  - first run completed with `216/0` in all three tool lanes and
+    exposed the bad raw-shared-node proxy
+  - corrected-gate rerun:
+    `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase2-share-r1 --phase2-share-gate --yosys-mode both --resume`
+  - completed successfully with `coverage_gaps = []`
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
 ## 2026-04-22-1623 — Close the full current-code Phase 1 gate
 
 **Landed as:** this commit
