@@ -1,9 +1,49 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-22-0129 — Bank 32 clean motif-heavy sequential e-graph modules
+## 2026-04-22-1454 — Sync codebase analysis with the 702-module r21 bank
 
 **Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was a documentation
+recovery pass to bring `CODEBASE_ANALYSIS.md` back into sync with the
+actual live `r21` frontier that had already been banked and recorded in
+`CHANGES.md` and `MEMORY.md`.
+
+The real current-code resumable tree at
+`/tmp/anvil-tool-matrix-phase1-real-r21` remains unchanged at:
+
+- **702** completed module checkpoints / **703** emitted `.sv` files
+- full closure of:
+  - all interleaved `int_*` scenarios through `e-graph`
+  - `seq_nodeid_egraph_share_heavy_comb_only`
+- `seq_nodeid_egraph_motif_heavy_seq`: **32** clean checkpoints /
+  **33** emitted `.sv` files
+
+What changed here is only the handoff truth: the stale `690/690`
+references in `CODEBASE_ANALYSIS.md` are now aligned with the real saved
+tree and the already-landed `2026-04-22-0129` checkpoint.
+
+**Why**
+
+The previous checkpoint commit correctly landed the stronger sequential
+`e-graph` bank, but `CODEBASE_ANALYSIS.md` was left behind at the older
+`690/690` state. That is exactly the kind of recovery drift the commit
+workflow is supposed to prevent, so this slice closes that gap cleanly.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+## 2026-04-22-0129 — Bank 32 clean motif-heavy sequential e-graph modules
+
+**Landed as:** `7098a2f`
 
 **What changed**
 
