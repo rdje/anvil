@@ -1,6 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-2315 — Land the procedural combinational casez-mux block
+
+**Landed as:** this commit
+
+**What changed**
+
+- The leaf kernel now has a real structured `casez` surface:
+  - new knob `casez_mux_prob` in
+    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  - new gate kind `GateOp::CasezMux` plus module / knob counters in
+    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  - generator builders in
+    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+    that emit non-overlapping wildcard patterns by construction
+  - emitter support in
+    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    that declares the target as `logic` and emits an
+    `always_comb casez (sel)` block with explicit `default`
+  - validator support in
+    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  - exact evaluator support in
+    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+  - metrics + matrix coverage plumbing in
+    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+
+- New proof tests:
+  - emitter unit test for `CasezMux`
+  - validator unit test for `CasezMux`
+  - integration test proving `casez_mux_prob=1.0` emits
+    `always_comb casez` across all strategies
+  - knob-roll expectations updated so the new probability surface is
+    required to be exercised in the default seed sweep
+
+- Docs/book now treat `casez` as landed Phase 3 breadth rather than a
+  future placeholder. The remaining obvious Phase 3 breadth gap is
+  statically bounded unrolled logic.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test` = `184` passing (`137` lib + `5` main + `15` tool_matrix + `27` integration)
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+
 ## 2026-04-22-2210 — Land the procedural combinational case-mux block
 
 **Landed as:** this commit

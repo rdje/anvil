@@ -251,6 +251,26 @@ combinational block motif with its own knob (`case_mux_prob`) and its
 own structured gate kind; the flop path stays expression-based and
 keeps its existing chained-ternary semantics.
 
+### Casez muxes are a separate structured surface, not a decorated case-mux
+
+The right shape for the `casez` slice was **not** to smuggle wildcard
+syntax into the existing `CaseMux` gate or to make the emitter infer
+question-mark patterns from ordinary indexed arms. `case` and `casez`
+exercise different frontend/elaboration paths, so the IR should say so
+explicitly.
+
+That is why the slice introduced a distinct `GateOp::CasezMux` plus its
+own knob (`casez_mux_prob`). Each arm stores a constant pattern, a
+constant wildcard mask, and a data node. The emitter renders those as a
+procedural `always_comb casez (sel)` block; the validator enforces the
+constant-pattern contract; and the exact evaluator in `ir::compact`
+understands the same first-match semantics.
+
+Generation deliberately keeps the wildcard patterns **non-overlapping**
+by construction. That preserves the intended "wildcarded mux" surface
+without accidentally turning the new motif into a priority-case stressor
+on top of the syntax stress we actually wanted.
+
 ### Late mixed-constant cleanup after remaps
 
 Intern-time constant folding is not enough by itself once the

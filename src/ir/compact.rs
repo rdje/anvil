@@ -334,6 +334,22 @@ fn evaluate_node_under_assignment(
                         0
                     }
                 }
+                GateOp::CasezMux => {
+                    let sel_width = m.nodes[operands[0] as usize].width();
+                    let sel_mask = bitmask(sel_width);
+                    let sel = operand_values[0] & sel_mask;
+                    let mut matched = None;
+                    for arm in operand_values[1..].chunks_exact(3) {
+                        let pattern = arm[0] & sel_mask;
+                        let wildcard_mask = arm[1] & sel_mask;
+                        let care_mask = (!wildcard_mask) & sel_mask;
+                        if (sel & care_mask) == (pattern & care_mask) {
+                            matched = Some(arm[2] & width_mask);
+                            break;
+                        }
+                    }
+                    matched.unwrap_or(0)
+                }
                 GateOp::Slice { hi, lo } => {
                     let slice_width = hi - lo + 1;
                     (operand_values[0] >> lo) & bitmask(slice_width)

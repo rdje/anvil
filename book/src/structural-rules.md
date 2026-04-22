@@ -964,6 +964,42 @@ Emitter: `src/emit/sv.rs` declares the target as `logic` and emits one
 
 ---
 
+## 16a — Procedural combinational casez-mux block
+
+**Rule:** A procedural casez mux is a *block* with one encoded select
+bus plus M data inputs (all width W). It emits a synthesizable
+`always_comb` block:
+
+- `casez (sel)`
+- one arm per generated wildcard pattern
+- explicit `default: out = 0`
+
+The wildcard patterns are generated **non-overlapping by construction**,
+so the block behaves as a wildcarded indexed mux rather than an
+accidental priority chain.
+
+- **M** is drawn from `[max(2, min_mux_arms), max_mux_arms]`.
+- **Select width** is `ceil(log2(M)) + 1`.
+- **Pattern form** today is a unique encoded prefix plus one wildcard
+  low bit, which renders as literals like `3'b01?`.
+- **Output width** is the caller's target width W.
+
+This is intentionally a syntax-surface motif distinct from both the
+expression-level encoded comb mux and the plain indexed `case` block.
+The downstream logic family is still "indexed mux with a default", but
+the emitted RTL goes through the `casez` frontend/elaboration path and
+therefore exercises a different parser / elaborator surface.
+
+**Where enforced:** `src/gen/cone.rs` —
+`build_casez_mux_recursive`, `build_casez_mux_pool_only`,
+`make_casez_mux`, `build_casez_patterns`. Validator:
+`check_gate_shape`'s `CasezMux` arm. Emitter:
+`src/emit/sv.rs` declares the target as `logic` and emits one
+`always_comb begin ... casez (...) ... endcase end` block per casez
+mux.
+
+---
+
 ## 15 — M-to-1 combinational mux block
 
 **Rule:** A combinational mux is a *block* (not an operator) with
@@ -1063,7 +1099,7 @@ they get their own rules (Rules 2, 3, 5, 7, and future additions).
 As `anvil` grows, this catalog will too. Expected additions:
 
 - **Phase 3 (structured ops):** width rules for case/casez, priority
-  encoders, casez, for-loop unrolling.
+  encoders, and for-loop unrolling.
 - **Phase 4 (hierarchy):** naming uniqueness across sub-modules,
   port-width matching at instance boundaries, acyclic hierarchy.
 - **Phase 5 (parameterization):** parameter-dependent width

@@ -417,6 +417,59 @@ fn check_gate_shape(
                 }
             }
         }
+        // CasezMux: [sel (K bits), value_0, wild_0, data_0, ...].
+        // At least 2 arms, each value/wild constant width == sel_w,
+        // and each data arm width == out_w.
+        CasezMux => {
+            let tail = operands.len().saturating_sub(1);
+            if tail < 6 || !tail.is_multiple_of(3) {
+                return Err(arity_err("sel + >= 2 (value, wild, data) arms"));
+            }
+            let sel_w = w(0);
+            if sel_w < 1 {
+                return Err(ValidateError::GateOperandWidth {
+                    node: id,
+                    op,
+                    operand_idx: 0,
+                    expected: 1,
+                    got: sel_w,
+                });
+            }
+            for arm_base in (1..operands.len()).step_by(3) {
+                for operand_idx in [arm_base, arm_base + 1] {
+                    if w(operand_idx) != sel_w {
+                        return Err(ValidateError::GateOperandWidth {
+                            node: id,
+                            op,
+                            operand_idx,
+                            expected: sel_w,
+                            got: w(operand_idx),
+                        });
+                    }
+                    if !matches!(
+                        m.nodes[operands[operand_idx] as usize],
+                        Node::Constant { .. }
+                    ) {
+                        return Err(ValidateError::GateArity {
+                            node: id,
+                            op,
+                            expected: "constant pattern and wildcard operands".to_string(),
+                            got: operands.len(),
+                        });
+                    }
+                }
+                let data_idx = arm_base + 2;
+                if w(data_idx) != out_w {
+                    return Err(ValidateError::GateOperandWidth {
+                        node: id,
+                        op,
+                        operand_idx: data_idx,
+                        expected: out_w,
+                        got: w(data_idx),
+                    });
+                }
+            }
+        }
         // Comparisons: out_w == 1, operands equal width.
         Eq | Neq | Lt | Gt | Le | Ge => {
             if operands.len() != 2 {
@@ -749,6 +802,43 @@ mod tests {
         });
         add_output(&mut m, "o", 8, case);
         validate(&m).expect("valid case mux must pass");
+    }
+
+    #[test]
+    fn accepts_casez_mux_with_constant_patterns() {
+        let mut m = empty_module();
+        let (_p_sel, n_sel) = add_input(&mut m, "sel", 3);
+        let (_p_a, n_a) = add_input(&mut m, "a", 8);
+        let (_p_b, n_b) = add_input(&mut m, "b", 8);
+        let pat0 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b000,
+        });
+        let wild0 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        let pat1 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b010,
+        });
+        let wild1 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        let casez = m.nodes.len() as NodeId;
+        m.nodes.push(Node::Gate {
+            op: GateOp::CasezMux,
+            operands: vec![n_sel, pat0, wild0, n_a, pat1, wild1, n_b],
+            width: 8,
+            deps: DepSet::from_port(0),
+        });
+        add_output(&mut m, "o", 8, casez);
+        validate(&m).expect("valid casez mux must pass");
     }
 
     #[test]

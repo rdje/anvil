@@ -166,6 +166,16 @@ instead of creating fresh logic.
 - M (arm count) range reuses the block-level `min_mux_arms` /
   `max_mux_arms` knobs; select width is `ceil(log2(M))`.
 
+### Casez-mux block
+
+- `casez_mux_prob` — per-emission probability of a combinational
+  `always_comb casez (sel)` block. Default `0.05`. The block uses one
+  encoded select bus, M data arms, wildcard patterns, and an explicit
+  default-to-zero assignment.
+- Generation keeps the wildcard patterns non-overlapping by
+  construction, so the surface stays a wildcarded mux motif rather than
+  becoming an accidental priority chain.
+
 ### Combinational mux block
 
 - `comb_mux_prob` — probability that a non-leaf recursion point
@@ -496,6 +506,7 @@ which are bugs worth investigating.
 | `graph_first_pool_size`       | legacy knob; no effect on the current live path            |
 | `priority_encoder_prob`       | `num_priority_encoder_blocks` — live counter, monotone in the knob |
 | `case_mux_prob`               | `num_case_mux_blocks` — live counter, monotone in the knob |
+| `casez_mux_prob`              | `num_casez_mux_blocks` — live counter, monotone in the knob |
 | `comb_mux_prob`               | `num_muxes_2to1`, `num_comb_muxes_one_hot` + `num_comb_muxes_encoded` (sum) |
 | `comb_mux_encoding_prob`      | `num_comb_muxes_encoded / (num_comb_muxes_one_hot + num_comb_muxes_encoded)` ratio — converges to the knob over large sweeps |
 | `coefficient_prob`            | `gates_by_kind["mul"]` uptick (each coefficient → `Mul`)   |

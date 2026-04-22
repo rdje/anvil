@@ -324,6 +324,14 @@ pub struct Config {
     // the expression-level mux tree.
     pub case_mux_prob: f64,
 
+    // Casez-mux block: takes one encoded select bus plus M data inputs
+    // and emits a procedural `always_comb casez (sel)` block with
+    // wildcard patterns and an explicit default to zero. The emitted
+    // patterns are generated non-overlapping by construction so the
+    // block remains a pure wildcarded mux surface rather than an
+    // accidental priority encoder.
+    pub casez_mux_prob: f64,
+
     // Sequential bounds
     pub max_flops_per_module: u32,
     pub min_mux_arms: u32,
@@ -449,6 +457,7 @@ impl Default for Config {
             max_comparand: 255,
             priority_encoder_prob: 0.05,
             case_mux_prob: 0.05,
+            casez_mux_prob: 0.05,
             max_flops_per_module: 32,
             min_mux_arms: 1,
             max_mux_arms: 4,
@@ -559,6 +568,7 @@ impl Config {
             ("const_comparand_prob", self.const_comparand_prob),
             ("priority_encoder_prob", self.priority_encoder_prob),
             ("case_mux_prob", self.case_mux_prob),
+            ("casez_mux_prob", self.casez_mux_prob),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
@@ -690,6 +700,9 @@ impl Config {
         if let Some(v) = o.case_mux_prob {
             self.case_mux_prob = v;
         }
+        if let Some(v) = o.casez_mux_prob {
+            self.casez_mux_prob = v;
+        }
         if let Some(v) = o.max_ast_instances {
             self.max_ast_instances = v;
         }
@@ -747,6 +760,7 @@ pub struct Overrides {
     pub max_comparand: Option<u32>,
     pub priority_encoder_prob: Option<f64>,
     pub case_mux_prob: Option<f64>,
+    pub casez_mux_prob: Option<f64>,
     pub max_ast_instances: Option<u32>,
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,

@@ -186,6 +186,11 @@ struct Cli {
     /// default-to-zero arm.
     #[arg(long)]
     case_mux_prob: Option<f64>,
+    /// Per-emission probability of a combinational `always_comb casez`
+    /// block. The block uses wildcard patterns plus an explicit
+    /// default-to-zero arm.
+    #[arg(long)]
+    casez_mux_prob: Option<f64>,
 
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
@@ -406,6 +411,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_comparand: cli.max_comparand,
         priority_encoder_prob: cli.priority_encoder_prob,
         case_mux_prob: cli.case_mux_prob,
+        casez_mux_prob: cli.casez_mux_prob,
         max_ast_instances: cli.max_ast_instances,
         mux_arm_duplication_rate: cli.mux_arm_duplication_rate,
         operand_duplication_rate: cli.operand_duplication_rate,
@@ -484,6 +490,8 @@ mod tests {
             "5",
             "--case-mux-prob",
             "0.2",
+            "--casez-mux-prob",
+            "0.3",
         ]);
         let overrides = cli_overrides(&cli);
         assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
@@ -494,5 +502,6 @@ mod tests {
         assert_eq!(overrides.gate_compare_weight, Some(6));
         assert_eq!(overrides.gate_reduce_weight, Some(5));
         assert_eq!(overrides.case_mux_prob, Some(0.2));
+        assert_eq!(overrides.casez_mux_prob, Some(0.3));
     }
 }

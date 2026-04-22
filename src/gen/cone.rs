@@ -255,6 +255,12 @@ fn grow_pool_one_unit(
         return true;
     }
 
+    if roll_knob(g, m, KnobId::CasezMuxProb, g.cfg.casez_mux_prob) {
+        trace!(width, "🧱 casez-mux block");
+        build_casez_mux_pool_only(g, m, pool, width);
+        return true;
+    }
+
     // Priority-encoder block (pool-only). Skip if no N compatible with
     // target width.
     if roll_knob(
@@ -403,6 +409,28 @@ fn build_case_mux_pool_only(
         .collect();
     let root = make_case_mux(m, pool, sel, &datas, width);
     m.case_mux_built += 1;
+    root
+}
+
+/// Pool-only procedural casez-mux assembly. Semantics match a
+/// wildcarded indexed mux, but emission uses `always_comb casez`.
+/// The generated patterns are non-overlapping by construction.
+fn build_casez_mux_pool_only(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+    let (sel_width, patterns) = build_casez_patterns(n_arms);
+    let sel = pick_terminal_dep_bearing(g, m, pool, sel_width, None);
+    let datas: Vec<NodeId> = (0..n_arms)
+        .map(|_| pick_terminal(g, m, pool, width, None))
+        .collect();
+    let root = make_casez_mux(m, pool, sel, &patterns, &datas, width);
+    m.casez_mux_built += 1;
     root
 }
 
@@ -567,6 +595,20 @@ fn process_signal_frame(
 
     if roll_knob(g, m, KnobId::CaseMuxProb, g.cfg.case_mux_prob) {
         let node = build_case_mux_recursive(
+            g,
+            m,
+            pool,
+            worklist,
+            frame.width,
+            frame.depth,
+            frame.exclude,
+        );
+        deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
+        return;
+    }
+
+    if roll_knob(g, m, KnobId::CasezMuxProb, g.cfg.casez_mux_prob) {
+        let node = build_casez_mux_recursive(
             g,
             m,
             pool,
@@ -2898,6 +2940,10 @@ pub fn build_cone(
         return build_case_mux_recursive(g, m, pool, worklist, width, depth, exclude);
     }
 
+    if roll_knob(g, m, KnobId::CasezMuxProb, g.cfg.casez_mux_prob) {
+        return build_casez_mux_recursive(g, m, pool, worklist, width, depth, exclude);
+    }
+
     // Priority-encoder block: compatible only when target width matches
     // ceil_log2(N) for some N in the block-arity range.
     if roll_knob(
@@ -3066,6 +3112,29 @@ fn build_case_mux_recursive(
     root
 }
 
+#[instrument(level = "trace", skip(g, m, pool, worklist))]
+fn build_casez_mux_recursive(
+    g: &mut Generator,
+    m: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+    width: u32,
+    depth: u32,
+    exclude: Option<NodeId>,
+) -> NodeId {
+    let min_arms = g.cfg.min_mux_arms.max(2);
+    let max_arms = g.cfg.max_mux_arms.max(min_arms);
+    let n_arms = g.rng.gen_range(min_arms..=max_arms);
+    let (sel_width, patterns) = build_casez_patterns(n_arms);
+    let sel = build_cone(g, m, pool, worklist, sel_width, depth + 1, exclude);
+    let datas: Vec<NodeId> = (0..n_arms)
+        .map(|_| build_cone(g, m, pool, worklist, width, depth + 1, exclude))
+        .collect();
+    let root = make_casez_mux(m, pool, sel, &patterns, &datas, width);
+    m.casez_mux_built += 1;
+    root
+}
+
 fn build_comb_mux_one_hot(
     g: &mut Generator,
     m: &mut Module,
@@ -3138,6 +3207,44 @@ fn make_case_mux(
         pool.add(node_id, width, deps);
     }
     node_id
+}
+
+fn make_casez_mux(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    sel: NodeId,
+    patterns: &[(u128, u128)],
+    datas: &[NodeId],
+    width: u32,
+) -> NodeId {
+    debug_assert!(patterns.len() >= 2);
+    debug_assert_eq!(patterns.len(), datas.len());
+    let sel_width = m.nodes[sel as usize].width();
+    let mut operands = Vec::with_capacity(1 + patterns.len() * 3);
+    operands.push(sel);
+    for ((value, wild_mask), data) in patterns.iter().copied().zip(datas.iter().copied()) {
+        operands.push(make_constant(m, pool, sel_width, value));
+        operands.push(make_constant(m, pool, sel_width, wild_mask));
+        operands.push(data);
+    }
+    let deps_vec: Vec<DepSet> = operands.iter().map(|id| node_deps(m, *id)).collect();
+    let deps = DepSet::union(&deps_vec.iter().collect::<Vec<_>>());
+    let (node_id, is_new) = m.intern_gate(GateOp::CasezMux, operands, width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
+    node_id
+}
+
+fn build_casez_patterns(n_arms: u32) -> (u32, Vec<(u128, u128)>) {
+    debug_assert!(n_arms >= 2);
+    let wildcard_bits = 1;
+    let sel_width = ceil_log2(n_arms) + wildcard_bits;
+    let wildcard_mask = width_mask(wildcard_bits);
+    let patterns = (0..n_arms)
+        .map(|idx| (u128::from(idx) << wildcard_bits, wildcard_mask))
+        .collect();
+    (sel_width, patterns)
 }
 
 #[instrument(level = "trace", skip(g, m, pool, worklist))]
@@ -3540,6 +3647,20 @@ fn input_widths_for(op: GateOp, out_w: u32, cfg: &Config, rng: &mut impl Rng) ->
             let mut widths = Vec::with_capacity(n as usize + 1);
             widths.push(ceil_log2(n));
             widths.extend(std::iter::repeat_n(out_w, n as usize));
+            widths
+        }
+        CasezMux => {
+            let min_arms = cfg.min_mux_arms.max(2);
+            let max_arms = cfg.max_mux_arms.max(min_arms);
+            let n = rng.gen_range(min_arms..=max_arms);
+            let sel_w = ceil_log2(n) + 1;
+            let mut widths = Vec::with_capacity(1 + n as usize * 3);
+            widths.push(sel_w);
+            for _ in 0..n {
+                widths.push(sel_w);
+                widths.push(sel_w);
+                widths.push(out_w);
+            }
             widths
         }
         Eq | Neq | Lt | Gt | Le | Ge => {

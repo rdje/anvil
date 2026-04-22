@@ -215,8 +215,9 @@ node-count collapse.
 
 ## Phase 3 — Structured combinational ops (in progress)
 
-- `case`/`casez` expressions. **`case` landed as a structured
-  combinational case-mux block; `casez` not started yet.**
+- `case`/`casez` expressions. **Both landed as structured
+  combinational case-style blocks (`always_comb case` and
+  `always_comb casez`).**
 - Priority encoders, one-hot decoders. **Priority encoder landed
   (Rule 17).**
 - Reduction operators (`&`, `|`, `^` unary). **Selectable gate

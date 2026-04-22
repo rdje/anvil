@@ -96,6 +96,8 @@ pub struct Module {
     pub comb_mux_encoded_built: u32,
     /// Number of procedural combinational `case` mux blocks built.
     pub case_mux_built: u32,
+    /// Number of procedural combinational `casez` mux blocks built.
+    pub casez_mux_built: u32,
 
     /// Number of times the `ConstantFold` layer fired during
     /// construction of this module. Each fire is one algebraic
@@ -196,6 +198,9 @@ pub enum KnobId {
     /// `Config::case_mux_prob` — per-depth chance of a procedural
     /// combinational case-mux block.
     CaseMuxProb,
+    /// `Config::casez_mux_prob` — per-depth chance of a procedural
+    /// combinational casez-mux block.
+    CasezMuxProb,
     /// `Config::coefficient_prob` — chance that an Add/Sub/Mul
     /// becomes a linear-combination motif.
     CoefficientProb,
@@ -237,6 +242,7 @@ impl KnobId {
             KnobId::CombMuxProb => "comb_mux_prob",
             KnobId::PriorityEncoderProb => "priority_encoder_prob",
             KnobId::CaseMuxProb => "case_mux_prob",
+            KnobId::CasezMuxProb => "casez_mux_prob",
             KnobId::CoefficientProb => "coefficient_prob",
             KnobId::ConstShiftAmountProb => "const_shift_amount_prob",
             KnobId::ConstComparandProb => "const_comparand_prob",
@@ -1507,8 +1513,9 @@ pub enum GateOp {
     Le,
     Ge,
     // Structured
-    Mux,     // [sel, a, b] with sel.width == 1
-    CaseMux, // [sel, data_0, data_1, ...], emitted as always_comb case
+    Mux,      // [sel, a, b] with sel.width == 1
+    CaseMux,  // [sel, data_0, data_1, ...], emitted as always_comb case
+    CasezMux, // [sel, value_0, wild_0, data_0, ...], emitted as always_comb casez
     Slice { hi: u32, lo: u32 },
     Concat, // variadic
     // Reductions (output is 1-bit)

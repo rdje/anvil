@@ -283,6 +283,7 @@ fn variable_shift_amount_appears_in_output() {
             const_comparand_prob: 0.0,
             priority_encoder_prob: 0.0,
             case_mux_prob: 0.0,
+            casez_mux_prob: 0.0,
             max_flops_per_module: 0,
             comb_mux_prob: 0.0,
             construction_strategy: ConstructionStrategy::GraphFirst,
@@ -368,6 +369,7 @@ fn case_mux_block_across_all_strategies_emits_always_comb_case() {
             let cfg = Config {
                 seed,
                 case_mux_prob: 1.0,
+                casez_mux_prob: 0.0,
                 comb_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 flop_prob: 0.0,
@@ -388,6 +390,46 @@ fn case_mux_block_across_all_strategies_emits_always_comb_case() {
             assert!(
                 sv.contains("always_comb begin") && sv.contains("case ("),
                 "case_mux_prob=1.0 strategy {:?} seed {} should emit always_comb case",
+                strategy,
+                seed
+            );
+        }
+    }
+}
+
+#[test]
+fn casez_mux_block_across_all_strategies_emits_always_comb_casez() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        for seed in 0..5u64 {
+            let cfg = Config {
+                seed,
+                case_mux_prob: 0.0,
+                casez_mux_prob: 1.0,
+                comb_mux_prob: 0.0,
+                priority_encoder_prob: 0.0,
+                flop_prob: 0.0,
+                max_depth: 3,
+                min_mux_arms: 2,
+                max_mux_arms: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let m = Generator::new(cfg).generate_module();
+            anvil::ir::validate::validate(&m).unwrap_or_else(|e| {
+                panic!(
+                    "casez_mux_prob=1.0 strategy {:?} seed {}: {e}",
+                    strategy, seed
+                )
+            });
+            let sv = anvil::emit::to_sv(&m);
+            assert!(
+                sv.contains("always_comb begin") && sv.contains("casez ("),
+                "casez_mux_prob=1.0 strategy {:?} seed {} should emit always_comb casez",
                 strategy,
                 seed
             );
@@ -864,6 +906,7 @@ fn knob_rolls_recorded_across_seeds() {
         "flop_prob",
         "comb_mux_prob",
         "case_mux_prob",
+        "casez_mux_prob",
         "priority_encoder_prob",
         "coefficient_prob",
         "const_shift_amount_prob",
@@ -911,6 +954,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -931,6 +975,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -951,6 +996,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -971,6 +1017,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -991,6 +1038,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()
@@ -1011,6 +1059,7 @@ fn gate_categories_are_exercisable_end_to_end() {
                 flop_prob: 0.0,
                 comb_mux_prob: 0.0,
                 case_mux_prob: 0.0,
+                casez_mux_prob: 0.0,
                 priority_encoder_prob: 0.0,
                 coefficient_prob: 0.0,
                 ..Config::default()

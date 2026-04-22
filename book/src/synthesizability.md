@@ -25,8 +25,9 @@ emits:
 - `wire`, `logic` internal signal declarations
 - `assign` for combinational drives
 - `always_ff @(posedge clk [or negedge rst_n])` blocks for flops
-- `always_comb` for the landed procedural case-mux block
-  (`case_mux_prob`); no latch-y partial-assignment form.
+- `always_comb` for the landed procedural case/casez mux blocks
+  (`case_mux_prob`, `casez_mux_prob`); no latch-y partial-assignment
+  form.
 - No `always @*`.
 - No `initial`. No `final`. No `fork`/`join`. No `wait`. No `#delay`.
 - No `$display`, `$monitor`, `$finish`, `$stop`, or similar.

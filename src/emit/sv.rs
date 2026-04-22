@@ -78,7 +78,7 @@ pub fn to_sv(m: &Module) -> String {
     // driven procedurally (`logic` + `always_comb`).
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate { op, width, .. } = node {
-            let decl_kind = if matches!(op, GateOp::CaseMux) {
+            let decl_kind = if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
                 "logic"
             } else {
                 "wire"
@@ -98,7 +98,7 @@ pub fn to_sv(m: &Module) -> String {
     // Combinational assigns for every gate.
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate { op, operands, .. } = node {
-            if matches!(op, GateOp::CaseMux) {
+            if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -115,10 +115,10 @@ pub fn to_sv(m: &Module) -> String {
         writeln!(out).unwrap();
     }
 
-    // Procedural combinational blocks for structured case muxes.
+    // Procedural combinational blocks for structured case/casez muxes.
     for (idx, node) in m.nodes.iter().enumerate() {
         let Node::Gate {
-            op: GateOp::CaseMux,
+            op,
             operands,
             width,
             ..
@@ -126,19 +126,35 @@ pub fn to_sv(m: &Module) -> String {
         else {
             continue;
         };
+        if !matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+            continue;
+        }
         let name = names[idx].as_ref().expect("gate name assigned");
         let sel = node_ref(operands[0], m, &names);
         let sel_width = m.nodes[operands[0] as usize].width();
         writeln!(out, "    always_comb begin").unwrap();
-        writeln!(out, "        case ({sel})").unwrap();
-        for (arm_idx, data_id) in operands[1..].iter().enumerate() {
-            let data = node_ref(*data_id, m, &names);
-            writeln!(
-                out,
-                "            {}'d{}: {} = {};",
-                sel_width, arm_idx, name, data
-            )
-            .unwrap();
+        match op {
+            GateOp::CaseMux => {
+                writeln!(out, "        case ({sel})").unwrap();
+                for (arm_idx, data_id) in operands[1..].iter().enumerate() {
+                    let data = node_ref(*data_id, m, &names);
+                    writeln!(
+                        out,
+                        "            {}'d{}: {} = {};",
+                        sel_width, arm_idx, name, data
+                    )
+                    .unwrap();
+                }
+            }
+            GateOp::CasezMux => {
+                writeln!(out, "        casez ({sel})").unwrap();
+                for arm in operands[1..].chunks_exact(3) {
+                    let pattern = render_casez_pattern(arm[0], arm[1], m);
+                    let data = node_ref(arm[2], m, &names);
+                    writeln!(out, "            {pattern}: {name} = {data};").unwrap();
+                }
+            }
+            _ => unreachable!("non-procedural gate filtered above"),
         }
         writeln!(out, "            default: {} = {}'h0;", name, width).unwrap();
         writeln!(out, "        endcase").unwrap();
@@ -210,6 +226,7 @@ fn gate_kind_name(op: GateOp) -> &'static str {
         Ge => "ge",
         Mux => "mux",
         CaseMux => "case_mux",
+        CasezMux => "casez_mux",
         Slice { .. } => "slice",
         Concat => "concat",
         RedAnd => "red_and",
@@ -317,7 +334,7 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Le => format!("{} <= {}", a(0), a(1)),
         Ge => format!("{} >= {}", a(0), a(1)),
         Mux => format!("({}) ? ({}) : ({})", a(0), a(1), a(2)),
-        CaseMux => unreachable!("CaseMux is emitted procedurally via always_comb"),
+        CaseMux | CasezMux => unreachable!("procedural case blocks are emitted via always_comb"),
         Slice { hi, lo } => {
             let src = a(0);
             let src_width = m.nodes[operands[0] as usize].width();
@@ -348,6 +365,37 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Shl => format!("{} << {}", a(0), a(1)),
         Shr => format!("{} >> {}", a(0), a(1)),
     }
+}
+
+fn render_casez_pattern(value_id: NodeId, wild_mask_id: NodeId, m: &Module) -> String {
+    let Node::Constant {
+        width,
+        value: pattern_value,
+    } = m.nodes[value_id as usize]
+    else {
+        unreachable!("casez patterns must be constant nodes");
+    };
+    let Node::Constant {
+        width: mask_width,
+        value: wildcard_mask,
+    } = m.nodes[wild_mask_id as usize]
+    else {
+        unreachable!("casez wildcard masks must be constant nodes");
+    };
+    debug_assert_eq!(width, mask_width);
+    let mut bits = String::with_capacity(width as usize);
+    for bit in (0..width).rev() {
+        let mask_bit = (wildcard_mask >> bit) & 1;
+        let value_bit = (pattern_value >> bit) & 1;
+        bits.push(if mask_bit != 0 {
+            '?'
+        } else if value_bit != 0 {
+            '1'
+        } else {
+            '0'
+        });
+    }
+    format!("{width}'b{bits}")
 }
 
 #[cfg(test)]
@@ -602,5 +650,51 @@ mod tests {
         assert!(sv.contains("2'd1: case_mux_0 = b;"));
         assert!(sv.contains("2'd2: case_mux_0 = c;"));
         assert!(sv.contains("default: case_mux_0 = 8'h0;"));
+    }
+
+    #[test]
+    fn casez_mux_emits_logic_and_always_comb_casez() {
+        let mut m = Module {
+            name: "m_casez".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "sel", 3, Direction::In));
+        m.inputs.push(port(1, "a", 8, Direction::In));
+        m.inputs.push(port(2, "b", 8, Direction::In));
+        m.outputs.push(port(3, "o", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 3 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b000,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b010,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        m.nodes.push(Node::Gate {
+            op: GateOp::CasezMux,
+            operands: vec![0, 3, 4, 1, 5, 6, 2],
+            width: 8,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((3, 7));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("logic [7:0] casez_mux_0;"));
+        assert!(sv.contains("always_comb begin"));
+        assert!(sv.contains("casez (sel)"));
+        assert!(sv.contains("3'b00?: casez_mux_0 = a;"));
+        assert!(sv.contains("3'b01?: casez_mux_0 = b;"));
+        assert!(sv.contains("default: casez_mux_0 = 8'h0;"));
     }
 }
