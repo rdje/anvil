@@ -1,6 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-22-0127 — Close interleaved e-graph and enter sequential e-graph lanes
+
+**Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was another real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+This push cleared three useful boundaries:
+
+- full clean closure of `int_nodeid_e-graph_default`
+- full clean closure of `seq_nodeid_egraph_share_heavy_comb_only`
+- first clean bank into `seq_nodeid_egraph_motif_heavy_seq`
+
+The saved tree now stands at:
+
+- **675** completed module checkpoints / **676** emitted `.sv` files
+- full closure of:
+  - all interleaved `int_*` scenarios through `e-graph`
+  - `seq_nodeid_egraph_share_heavy_comb_only`
+- `seq_nodeid_egraph_motif_heavy_seq`: **5** clean checkpoints /
+  **6** emitted `.sv` files
+
+So `r21` is no longer just a fully-closed interleaved frontier; it now
+extends cleanly into the sequential `e-graph` half of the Phase 1 gate.
+
+**Why**
+
+Once the previous slice had closed the interleaved ladder through
+`peephole` and banked the first `e-graph` foothold, the natural next
+step was to keep cashing in on the fast-resume path and see how far the
+current code could go before the next real boundary appeared.
+
+This slice pushed well past the old `r20` `e-graph` bank, closed the
+entire interleaved matrix, and carried that momentum into the first
+sequential `e-graph` lanes on the same live tree.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after full interleaved `e-graph` closure,
+    full `seq_nodeid_egraph_share_heavy_comb_only`, and a first clean
+    `seq_nodeid_egraph_motif_heavy_seq` bank
+- resulting tree state:
+  - **675** completed module checkpoints / **676** emitted `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
 ## 2026-04-22-0126 — Close r21 peephole and enter e-graph
 
 **Landed as:** this commit
