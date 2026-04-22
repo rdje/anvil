@@ -1,7 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
----
+## 2026-04-22-0125 — Upgrade the live r21 frontier to fast-resume checkpoints
+
+**Landed as:** this commit
+
+**What changed**
+
+No Rust source changed in this slice. The work was a real
+`tool_matrix --phase1-gate --yosys-mode both --resume` continuation on
+the live current-code frontier at
+`/tmp/anvil-tool-matrix-phase1-real-r21`.
+
+The important state change is operational:
+
+- all existing `r21` checkpoint sidecars were replayed once and upgraded
+  in place to the new fast-resume format;
+- the tree now has **508** completed module checkpoints, and all **508**
+  carry:
+  - `runtime_fingerprint`
+  - `sv_hash`
+  - `generator_checkpoint`
+- the live frontier also advanced from the older `peephole` bank to
+  **39** completed `int_nodeid_peephole_default` checkpoints
+  (**40** emitted `.sv` files).
+
+So `r21` is no longer just "resumable after one more replay"; it is now
+the first live current-code frontier whose whole saved bank is already
+in the cheap same-binary resume format.
+
+**Why**
+
+The previous slice added the fast-resume machinery, but the live
+frontier was still carrying pre-upgrade sidecars. That meant the next
+real frontier run would still pay the old replay tax once before the new
+path could help.
+
+This slice paid that one-time upgrade cost on the real tree and banked
+the result, so future same-binary resumes can start from the upgraded
+state directly instead of rebuilding it again.
+
+**Validation**
+
+- real resumed frontier run:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase1-real-r21 --phase1-gate --yosys-mode both --resume`
+  - intentionally interrupted after the upgrade pass had completed and
+    new `peephole` progress was banked
+- resulting tree state:
+  - **508** completed module checkpoints / **509** emitted `.sv` files
+  - full closure of:
+    - `int_relaxed_none_default`
+    - `int_nodeid_none_default`
+    - `int_nodeid_cse_default`
+    - `int_nodeid_operand-unique_default`
+    - `int_nodeid_commutative_default`
+    - `int_nodeid_associative_default`
+    - `int_nodeid_constant-fold_default`
+  - `int_nodeid_peephole_default`: **39** checkpoints / **40** emitted
+    `.sv` files
+  - **0** Verilator warning logs
+  - **0** Yosys `Warning:` lines across both Yosys modes
+- full repo hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
 
 ## 2026-04-22-0124 — Add same-binary fast resume checkpoints to tool_matrix
 
