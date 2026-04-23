@@ -95,11 +95,11 @@ real, but it does not pretend Phase 4 is already solved.
 
 Two narrow implementation choices are load-bearing in this slice:
 
-- the wrapper top keeps shared `clk` / `rst_n` as ordinary top inputs
-  instead of marking them as `Module.clock` / `Module.reset`, because
-  the current emitter's special clock/reset hiding rules are leaf-local
-  and we do not want the first hierarchy slice to depend on a broader
-  "design-global special port" story yet;
+- the wrapper top marks shared `clk` / `rst_n` as
+  `Module.clock` / `Module.reset`, and control-port visibility is now
+  design-aware instead of leaf-local: pure comb-only modules omit those
+  ports, while wrappers keep them visible iff they carry sequential
+  descendants;
 - `Node::InstanceOutput` is treated as a leaf boundary by the existing
   proof / compaction helpers, because the wrapper top does not yet build
   new parent cones from child outputs. That keeps the current leaf-kernel
@@ -114,6 +114,46 @@ from simply generating more unique children. Under-instantiating the
 library is also useful because it exercises real unused-module cleanup
 in downstream tools. The wrapper slice still is not the final hierarchy
 algorithm, but this split is a real step toward a budget-driven one.
+
+### Hierarchy quality has to be visible in the numbers
+The user requirement here is the right one: for hierarchy, ANVIL should
+not depend on someone opening the emitted `.sv` and eyeballing whether
+the composition looks plausible. The reports and manifests need to
+carry enough exact facts that the result can be trusted numerically.
+
+That is why the current hierarchy slice now has a dedicated
+`DesignMetrics` layer instead of only per-module metrics and a few
+coarse booleans. The current trustworthy design facts are:
+
+- library size vs instantiated child count,
+- unique-instantiated-module count and unused-library count,
+- reuse / coverage ratios,
+- top interface shape, including `top_clock_inputs` and
+  `top_reset_inputs`,
+- control fanout to child instances,
+- weighted child interface / node / flop load, and
+- per-definition instantiation histograms.
+
+The smoke at `/tmp/anvil-hier-metrics-smoke-r1` mattered because it did
+more than prove the metrics serializer. It exposed two real root-cause
+bugs that would have made those numbers lie:
+
+- wrapper tops were creating shared `clk` / `rst_n` ports without
+  tagging them as `Module.clock` / `Module.reset`; and
+- control-port emission was using a too-local rule, so wrappers with no
+  local flops could hide `clk` / `rst_n` even when those ports were
+  still required by sequential descendants.
+
+The durable rule now is exact and inductive:
+
+- pure comb-only modules do not emit `clk` / `rst_n`;
+- sequential leaves do emit `clk` / `rst_n`; and
+- wrapper ancestors keep `clk` / `rst_n` visible iff they carry
+  sequential descendants, all the way up the instantiated chain.
+
+That rule is now pinned in IR helpers, validation, metrics, and the SV
+emitter, plus direct regression tests for both the comb-only and
+grandparent-wrapper cases.
 
 ### Literal-backed for-fold sources must be materialized before procedural part-selects
 The repo-owned Phase 4 hierarchy gate exposed a real emitter defect in

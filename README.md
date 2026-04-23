@@ -232,7 +232,9 @@ and `/tmp/anvil-hier-under-smoke-r2`; the fresh full rerun of the
 broadened Phase 4 matrix is the next runtime-closure pass after
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` exposed
 `seq_nodeid_egraph_phase4_hier4_inst4_seq` as the next Yosys hot
-corner.
+corner. Current hierarchy manifests and design reports now also embed
+per-design composition metrics, so wrapper quality can be read from
+exact numbers instead of by manually inspecting the emitted `.sv`.
 
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
@@ -317,7 +319,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   generates a depth-1 wrapper design that instantiates a generated
   library of leaf modules. `--num-child-instances` now lets that
   wrapper under-instantiate the library or reuse child definitions
-  instead of always instantiating every definition once. The original
+  instead of always instantiating every definition once. Control-port
+  visibility follows the hierarchy doctrine exactly: pure comb-only
+  modules omit `clk` / `rst_n`, sequential leaves emit them, and
+  wrapper ancestors keep them visible iff they carry sequential
+  descendants. The original
   wrapper slice still has a dedicated repo-owned clean-run gate at
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
   (`48` designs, `coverage_gaps = []`, and `48/0` pass-fail in

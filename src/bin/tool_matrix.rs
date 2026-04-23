@@ -1,5 +1,5 @@
 use anvil::config::{ConstructionStrategy, FactorizationLevel, IdentityMode};
-use anvil::metrics::Metrics;
+use anvil::metrics::{DesignMetrics, Metrics};
 use anvil::{Config, Design, Generator, GeneratorCheckpoint};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
@@ -159,6 +159,8 @@ struct DesignReport {
     modules: Vec<EmittedModuleReport>,
     #[serde(default)]
     hierarchy: HierarchyFacts,
+    #[serde(default)]
+    metrics: DesignMetrics,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
 }
@@ -346,6 +348,7 @@ struct PreparedDesign {
     index: usize,
     top: String,
     hierarchy: HierarchyFacts,
+    metrics: DesignMetrics,
     modules: Vec<PreparedEmittedModule>,
 }
 
@@ -1358,7 +1361,19 @@ fn resume_existing_design(
 
     let generator_checkpoint = generator.checkpoint();
     let report = if checkpoint_matches_design_cli(&checkpoint, cli) {
-        checkpoint.report
+        let mut report = checkpoint.report;
+        report.hierarchy = prepared.hierarchy.clone();
+        report.metrics = prepared.metrics.clone();
+        report.modules = prepared
+            .modules
+            .iter()
+            .map(|module| EmittedModuleReport {
+                file: module.file.clone(),
+                name: module.name.clone(),
+                metrics: module.metrics.clone(),
+            })
+            .collect();
+        report
     } else {
         run_design_tools(cli, &prepared)?
     };
@@ -1428,6 +1443,8 @@ fn write_design_scenario_manifest(
                 "index": design.index,
                 "top": design.top,
                 "files": design.files,
+                "hierarchy": design.hierarchy,
+                "metrics": design.metrics,
                 "modules": modules,
             })
         })
@@ -1500,6 +1517,7 @@ fn prepared_design_from_design(
     scenario_dir: &Path,
 ) -> Result<PreparedDesign> {
     let hierarchy = hierarchy_facts_from_design(design, design_index)?;
+    let metrics = anvil::metrics::compute_design(design);
     let mut modules = Vec::with_capacity(design.modules.len());
     for module in &design.modules {
         let metrics = anvil::metrics::compute(module);
@@ -1528,6 +1546,7 @@ fn prepared_design_from_design(
         index: design_index,
         top: design.top.clone(),
         hierarchy,
+        metrics,
         modules,
     })
 }
@@ -1719,6 +1738,7 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
         files,
         modules,
         hierarchy: prepared.hierarchy.clone(),
+        metrics: prepared.metrics.clone(),
         verilator,
         yosys,
     })
@@ -3670,6 +3690,89 @@ mod tests {
             .map(|module| module.file.clone())
             .collect();
         assert_eq!(actual_files, expected_files);
+
+        let _ = fs::remove_dir_all(out_root);
+    }
+
+    #[test]
+    fn run_design_tools_reports_design_metrics() {
+        let out_root = temp_test_dir("design-metrics-report");
+        let scenario = make_scenario(
+            "design_metrics_case",
+            "design metrics report test",
+            with_hierarchy_wrapper(
+                share_heavy_comb_only_config(ConstructionStrategy::Interleaved, 29, 0.9),
+                2,
+                4,
+            ),
+        )
+        .expect("scenario");
+        let scenario_dir = out_root.join(&scenario.name);
+        fs::create_dir_all(&scenario_dir).expect("create scenario dir");
+
+        let mut cli = test_cli();
+        cli.skip_verilator = true;
+        cli.skip_yosys = true;
+
+        let mut generator = Generator::new(scenario.config.clone());
+        let prepared = prepare_design(&mut generator, &scenario_dir, 0).unwrap();
+        let report = run_design_tools(&cli, &prepared).unwrap();
+
+        assert_eq!(report.metrics, prepared.metrics);
+        assert_eq!(report.metrics.design, report.top);
+        assert_eq!(report.metrics.num_instances, report.hierarchy.top_instances);
+        assert_eq!(
+            report.metrics.num_unique_instantiated_modules,
+            report.hierarchy.unique_instantiated_modules
+        );
+
+        let _ = fs::remove_dir_all(out_root);
+    }
+
+    #[test]
+    fn design_manifest_embeds_design_metrics() {
+        let out_root = temp_test_dir("design-metrics-manifest");
+        let scenario = make_scenario(
+            "design_manifest_case",
+            "design metrics manifest test",
+            with_hierarchy_wrapper(
+                share_heavy_comb_only_config(ConstructionStrategy::Interleaved, 31, 0.9),
+                4,
+                2,
+            ),
+        )
+        .expect("scenario");
+        let scenario_dir = out_root.join(&scenario.name);
+        fs::create_dir_all(&scenario_dir).expect("create scenario dir");
+
+        let mut cli = test_cli();
+        cli.skip_verilator = true;
+        cli.skip_yosys = true;
+
+        let mut generator = Generator::new(scenario.config.clone());
+        let prepared = prepare_design(&mut generator, &scenario_dir, 0).unwrap();
+        let report = run_design_tools(&cli, &prepared).unwrap();
+
+        write_design_scenario_manifest(&scenario_dir, &scenario, std::slice::from_ref(&report))
+            .unwrap();
+
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(scenario_dir.join("manifest.json")).unwrap())
+                .unwrap();
+        let design = &manifest["designs"][0];
+        assert_eq!(
+            design["metrics"]["num_instances"].as_u64(),
+            Some(report.metrics.num_instances as u64)
+        );
+        assert_eq!(
+            design["metrics"]["num_unused_leaf_modules"].as_u64(),
+            Some(report.metrics.num_unused_leaf_modules as u64)
+        );
+        assert_eq!(
+            design["hierarchy"]["top_instances"].as_u64(),
+            Some(report.hierarchy.top_instances as u64)
+        );
+        assert_eq!(design["top"].as_str(), Some(report.top.as_str()));
 
         let _ = fs::remove_dir_all(out_root);
     }

@@ -60,12 +60,19 @@ different cases:
 
 The wrapper top is intentionally simple:
 
-- if any instantiated child has local flops, the wrapper gets shared `clk` and
-  `rst_n` inputs;
+- if the instantiated children carry sequential state, the wrapper gets
+  shared `clk` and `rst_n` inputs;
 - every child emitted input becomes a wrapper input (prefixed with the
   instance name);
 - every instantiated child emitted output becomes a wrapper output; and
 - each wrapper output is driven by a `Node::InstanceOutput`.
+
+The control-port rule is deliberate and inductive:
+
+- pure comb-only modules do **not** emit `clk` / `rst_n`;
+- sequential leaves do emit `clk` / `rst_n`; and
+- once a wrapper carries sequential descendants, `clk` / `rst_n` stay
+  visible all the way up the instantiated ancestor chain.
 
 So the first hierarchy slice is **real** but also **honest**: the top
 module is presently a composition layer, not yet a new fanin-cone
@@ -152,6 +159,24 @@ Directory output in hierarchy mode now writes:
 - one `.sv` file per module in the design, and
 - a `manifest.json` whose top-level payload uses `designs: [...]`
   rather than the old flat `modules: [...]` list.
+
+Each design entry now carries both:
+
+- `hierarchy` facts (leaf count, child-instance count, reuse /
+  under-instantiation flags), and
+- exact per-design `metrics` describing composition quality directly.
+
+Those design metrics are the intended trust surface for the current
+Phase 4 slice. They let you judge wrapper quality without opening the
+emitted `.sv`, including:
+
+- library size vs instantiated child count,
+- unique-instantiated-module count and unused-library count,
+- reuse / coverage ratios,
+- top interface shape,
+- control fanout to child instances,
+- weighted child interface / node / flop load, and
+- per-definition instantiation histograms.
 
 ## Why the first slice is wrapper-only
 

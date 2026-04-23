@@ -1,9 +1,143 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-0209 — Decouple hierarchy library size from instance count
+## 2026-04-23-0210 — Land trustworthy hierarchy design metrics
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now exposes a real `DesignMetrics` walker alongside the existing
+  per-module `Metrics` walker. For the current Phase 4 wrapper slice it
+  records exact composition facts instead of forcing anyone to inspect
+  emitted `.sv` by hand:
+  - library size vs instantiated child count;
+  - unique-instantiated-module count, unused-leaf count, and reused
+    instance slots;
+  - normalized composition ratios
+    (`library_coverage_fraction`, `unused_library_fraction`,
+    `instance_reuse_fraction`, `instance_to_library_ratio`);
+  - top-interface shape (`top_inputs`, `top_data_inputs`,
+    `top_clock_inputs`, `top_reset_inputs`, `top_outputs`);
+  - control fanout to child instances;
+  - weighted child-interface load and weighted child complexity; and
+  - a per-definition instantiation histogram.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  now threads those design metrics through the user-facing hierarchy
+  output path:
+  - `--metrics` prints a design-level JSON block in hierarchy mode; and
+  - hierarchy `manifest.json` entries now embed `metrics` per design,
+    not only per module.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now carries `DesignMetrics` in design reports, design checkpoints,
+  resume upgrades, and hierarchy scenario manifests. Old hierarchy
+  checkpoints stay readable via `#[serde(default)]`, and resume now
+  refreshes both per-module and per-design metrics locally when the
+  emitted `.sv` is still byte-stable.
+- The proof run exposed two real Phase 4 source-of-truth bugs that
+  would have made the new metrics untrustworthy if left alone:
+  - [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+    now tags the wrapper's shared `clk` / `rst_n` ports as
+    `Module.clock` / `Module.reset`;
+  - [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs),
+    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs),
+    and [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    now all resolve control-port visibility from the same design-aware
+    rule instead of each relying on a looser local proxy; and
+  - [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+    now makes the control-port rule explicit: a module emits `clk` /
+    `rst_n` iff it carries sequential state locally or through
+    instantiated descendants. Pure comb-only modules stay control-free;
+    sequential wrappers keep those ports visible all the way up the
+    instantiated ancestor chain.
+- Regression coverage now pins the whole story:
+  - new `metrics.rs` tests for reuse and under-instantiation design
+    metrics;
+  - new `tool_matrix` tests for design-report and manifest embedding of
+    hierarchy metrics;
+  - a new hierarchy generator test proving wrapper tops tag shared
+    control ports; and
+  - new emitter + IR tests proving both sides of the boundary rule:
+    pure comb-only wrappers omit `clk` / `rst_n`, while wrapper
+    ancestors with sequential descendants keep them visible.
+
+**Why**
+
+- The user made the requirement explicit: hierarchy quality must be
+  measurable from trusted numbers, not by visual inspection of emitted
+  `.sv`.
+- "Hierarchy facts" alone (`reused_child_definition`,
+  `underinstantiated_library`) were too coarse. We needed exact,
+  machine-checkable composition metrics in manifests and reports.
+- The top-control tagging/emission bugs were root-cause issues. The
+  design metrics smoke found them because the first trustworthy numbers
+  must agree with the emitted hierarchy surface and downstream tools.
+
+**Proof**
+
+- Targeted tests:
+  - `cargo test design_metrics_capture_reused_child_definitions --lib`
+  - `cargo test design_metrics_capture_underinstantiated_library --lib`
+  - `cargo test wrapper_top_tags_shared_clock_and_reset_ports --lib`
+  - `cargo test hierarchy_wrapper_emits_clk_rst_n_without_local_flops --lib`
+  - `cargo test hierarchy_comb_only_wrapper_omits_clk_rst_n_even_if_tagged --lib`
+  - `cargo test hierarchy_grandparent_emits_clk_rst_n_for_sequential_descendants --lib`
+  - `cargo test sequential_descendants_keep_control_ports_visible --lib`
+  - `cargo test comb_only_descendants_keep_control_ports_hidden --lib`
+  - `cargo test --bin tool_matrix run_design_tools_reports_design_metrics`
+  - `cargo test --bin tool_matrix design_manifest_embeds_design_metrics`
+- Focused hierarchy metrics smoke at
+  `/tmp/anvil-hier-metrics-smoke-r1`:
+  - `cargo run --bin anvil -- --seed 41 --count 1 --out /tmp/anvil-hier-metrics-smoke-r1 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 5 --construction-strategy interleaved`
+  - emitted `manifest.json` now carries per-design `metrics` with
+    correct `top_clock_inputs = 1`, `top_reset_inputs = 1`,
+    `clock_fanout_instances = 5`, `reset_fanout_instances = 5`,
+    `instance_reuse_fraction = 0.4`, and
+    `library_coverage_fraction = 1.0`
+  - clean in Verilator, Yosys `synth -noabc`, and the repo-owned
+    ABC-enabled Yosys path
+- Full hygiene gate on the final tree:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- Hierarchy quality is now reportable from exact design facts instead
+  of ad hoc SV inspection.
+- `manifest.json` and `tool_matrix` design reports now carry enough
+  structure telemetry to reason about wrapper composition, reuse,
+  under-instantiation, control distribution, and weighted child
+  complexity directly.
+- Phase labels do **not** change in this slice. Phase 4 stays
+  `in progress`.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `src/main.rs`
+- `src/bin/tool_matrix.rs`
+- `src/gen/hierarchy.rs`
+- `src/ir/types.rs`
+- `src/ir/validate.rs`
+- `src/emit/sv.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+- `book/src/structural-rules.md`
+- `book/src/sequential.md`
+
+## 2026-04-23-0209 — Decouple hierarchy library size from instance count
+
+**Landed as:** `2eebe58`
 
 **What changed**
 

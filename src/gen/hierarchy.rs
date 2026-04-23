@@ -89,6 +89,8 @@ fn generate_wrapper_top(
         any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "clk", 1));
     let shared_reset =
         any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "rst_n", 1));
+    top.clock = shared_clock.map(|(port_id, _)| port_id);
+    top.reset = shared_reset.map(|(port_id, _)| port_id);
 
     for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
         let child = &library[child_idx];
@@ -172,4 +174,77 @@ fn add_top_input(
         width,
     });
     (port_id, node_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Flop, FlopKind, FlopMux, ResetKind};
+
+    fn sequential_leaf(name: &str) -> Module {
+        let mut module = Module {
+            name: name.to_string(),
+            ..Module::default()
+        };
+        module.clock = Some(0);
+        module.reset = Some(1);
+        module.inputs.push(Port {
+            id: 0,
+            name: "clk".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        module.inputs.push(Port {
+            id: 1,
+            name: "rst_n".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        module.inputs.push(Port {
+            id: 2,
+            name: "a".into(),
+            width: 8,
+            dir: Direction::In,
+        });
+        module.outputs.push(Port {
+            id: 3,
+            name: "y".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+        module.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        module.nodes.push(Node::PrimaryInput { port: 1, width: 1 });
+        module.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        module.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(2),
+            q: 3,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        module.nodes.push(Node::FlopQ { flop: 0, width: 8 });
+        module.drives.push((3, 3));
+        module
+    }
+
+    #[test]
+    fn wrapper_top_tags_shared_clock_and_reset_ports() {
+        let child = sequential_leaf("leaf");
+        let top = generate_wrapper_top(7, 1, &[child], &[0]);
+
+        let clock = top.clock.expect("wrapper top should tag shared clock");
+        let reset = top.reset.expect("wrapper top should tag shared reset");
+        assert_eq!(
+            top.input_port(clock).map(|port| port.name.as_str()),
+            Some("clk")
+        );
+        assert_eq!(
+            top.input_port(reset).map(|port| port.name.as_str()),
+            Some("rst_n")
+        );
+        assert_eq!(top.inputs.len(), 3, "clk + rst_n + one child data input");
+    }
 }

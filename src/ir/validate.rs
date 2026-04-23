@@ -373,9 +373,15 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
         }
     }
 
-    if !modules.contains_key(&d.top) {
+    if !modules.contains_key(d.top.as_str()) {
         return Err(DesignValidateError::MissingTop(d.top.clone()));
     }
+
+    let modules_view: BTreeMap<_, _> = d
+        .modules
+        .iter()
+        .map(|module| (module.name.as_str(), module))
+        .collect();
 
     for module in &d.modules {
         validate(module).map_err(|source| DesignValidateError::Module {
@@ -393,7 +399,7 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
             };
 
             let expected_inputs: BTreeMap<PortId, &Port> = child
-                .emitted_input_ports()
+                .emitted_input_ports_in(Some(&modules_view))
                 .map(|port| (port.id, port))
                 .collect();
             let mut seen_inputs = BTreeSet::new();

@@ -7,7 +7,7 @@
 //! like `And`, `Add`). Blocks (`Mux`, `Flop`) have "ports" or "arms", not
 //! arity. See `book/src/structural-rules.md` "Operators vs blocks".
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub type PortId = u32;
 pub type NodeId = u32;
@@ -301,23 +301,76 @@ impl Module {
         !self.flops.is_empty()
     }
 
+    /// Whether this module carries sequential state either locally or
+    /// through instantiated descendants in the provided design view.
+    /// Without design context, only local flops are visible.
+    pub fn carries_sequential_state_in(&self, modules: Option<&BTreeMap<&str, &Module>>) -> bool {
+        let Some(modules) = modules else {
+            return self.has_local_flops();
+        };
+        self.carries_sequential_state_with_visited(modules, &mut BTreeSet::new())
+    }
+
+    fn carries_sequential_state_with_visited(
+        &self,
+        modules: &BTreeMap<&str, &Module>,
+        visiting: &mut BTreeSet<String>,
+    ) -> bool {
+        if self.has_local_flops() {
+            return true;
+        }
+        if !visiting.insert(self.name.clone()) {
+            return false;
+        }
+
+        let carries = self.instances.iter().any(|instance| {
+            modules
+                .get(instance.module.as_str())
+                .is_some_and(|child| child.carries_sequential_state_with_visited(modules, visiting))
+        });
+
+        visiting.remove(&self.name);
+        carries
+    }
+
     /// Whether an input port is visible in the emitted module
     /// interface. `clk` / `rst_n` are construction-time IR ports for
-    /// every leaf module, but are suppressed by the emitter when the
-    /// module has no local flops.
-    pub fn is_emitted_input_port(&self, port_id: PortId) -> bool {
-        if !self.has_local_flops() && (self.clock == Some(port_id) || self.reset == Some(port_id)) {
+    /// leaf modules and hierarchy wrappers. A module emits them iff it
+    /// carries sequential state itself or through instantiated
+    /// descendants. Pure combinational modules stay free of control
+    /// ports even if they were tagged conservatively in the IR. Once a
+    /// module carries sequential descendants, those control ports stay
+    /// visible all the way up the instantiated ancestor chain.
+    pub fn is_emitted_input_port_in(
+        &self,
+        port_id: PortId,
+        modules: Option<&BTreeMap<&str, &Module>>,
+    ) -> bool {
+        if (self.clock == Some(port_id) || self.reset == Some(port_id))
+            && !self.carries_sequential_state_in(modules)
+        {
             return false;
         }
         self.inputs.iter().any(|port| port.id == port_id)
     }
 
+    pub fn is_emitted_input_port(&self, port_id: PortId) -> bool {
+        self.is_emitted_input_port_in(port_id, None)
+    }
+
     /// Iterate the input ports that appear in the emitted SystemVerilog
     /// module header.
-    pub fn emitted_input_ports(&self) -> impl Iterator<Item = &Port> {
+    pub fn emitted_input_ports_in<'a>(
+        &'a self,
+        modules: Option<&'a BTreeMap<&'a str, &'a Module>>,
+    ) -> impl Iterator<Item = &'a Port> + 'a {
         self.inputs
             .iter()
-            .filter(move |port| self.is_emitted_input_port(port.id))
+            .filter(move |port| self.is_emitted_input_port_in(port.id, modules))
+    }
+
+    pub fn emitted_input_ports(&self) -> impl Iterator<Item = &Port> {
+        self.emitted_input_ports_in(None)
     }
 
     pub fn input_port(&self, port_id: PortId) -> Option<&Port> {
@@ -1749,6 +1802,54 @@ pub struct Design {
 mod tests {
     use super::*;
 
+    fn port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
+        Port {
+            id,
+            name: name.into(),
+            width,
+            dir,
+        }
+    }
+
+    fn comb_child(name: &str) -> Module {
+        let mut module = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        module.inputs.push(port(0, "a", 8, Direction::In));
+        module.outputs.push(port(1, "o", 8, Direction::Out));
+        module.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        module.drives.push((1, 0));
+        module
+    }
+
+    fn seq_child(name: &str) -> Module {
+        let mut module = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        module.inputs.push(port(0, "clk", 1, Direction::In));
+        module.inputs.push(port(1, "rst_n", 1, Direction::In));
+        module.inputs.push(port(2, "a", 8, Direction::In));
+        module.outputs.push(port(3, "o", 8, Direction::Out));
+        module.clock = Some(0);
+        module.reset = Some(1);
+        module.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        module.nodes.push(Node::FlopQ { flop: 0, width: 8 });
+        module.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        module.drives.push((3, 1));
+        module
+    }
+
     /// Building two gates with the same operator, same operand
     /// *multiset*, same width — but in different orders — must
     /// return the same `NodeId`. This is commutative normalization
@@ -2810,5 +2911,66 @@ mod tests {
         assert!(is_new);
         assert_eq!(m.nodes.len(), before + 1);
         assert_eq!(m.peephole_rewrites_applied, 0);
+    }
+
+    #[test]
+    fn sequential_descendants_keep_control_ports_visible() {
+        let child = seq_child("child");
+
+        let mut parent = Module {
+            name: "parent".into(),
+            ..Module::default()
+        };
+        parent.inputs.push(port(0, "clk", 1, Direction::In));
+        parent.inputs.push(port(1, "rst_n", 1, Direction::In));
+        parent.inputs.push(port(2, "a", 8, Direction::In));
+        parent.clock = Some(0);
+        parent.reset = Some(1);
+        parent.instances.push(Instance {
+            id: 0,
+            name: "u_child".into(),
+            module: "child".into(),
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+        });
+
+        let modules: BTreeMap<_, _> = [(&child), (&parent)]
+            .into_iter()
+            .map(|module| (module.name.as_str(), module))
+            .collect();
+
+        assert!(parent.carries_sequential_state_in(Some(&modules)));
+        assert!(parent.is_emitted_input_port_in(0, Some(&modules)));
+        assert!(parent.is_emitted_input_port_in(1, Some(&modules)));
+    }
+
+    #[test]
+    fn comb_only_descendants_keep_control_ports_hidden() {
+        let child = comb_child("child");
+
+        let mut parent = Module {
+            name: "parent".into(),
+            ..Module::default()
+        };
+        parent.inputs.push(port(0, "clk", 1, Direction::In));
+        parent.inputs.push(port(1, "rst_n", 1, Direction::In));
+        parent.inputs.push(port(2, "a", 8, Direction::In));
+        parent.clock = Some(0);
+        parent.reset = Some(1);
+        parent.instances.push(Instance {
+            id: 0,
+            name: "u_child".into(),
+            module: "child".into(),
+            inputs: vec![(0, 2)],
+        });
+
+        let modules: BTreeMap<_, _> = [(&child), (&parent)]
+            .into_iter()
+            .map(|module| (module.name.as_str(), module))
+            .collect();
+
+        assert!(!parent.carries_sequential_state_in(Some(&modules)));
+        assert!(!parent.is_emitted_input_port_in(0, Some(&modules)));
+        assert!(!parent.is_emitted_input_port_in(1, Some(&modules)));
+        assert!(parent.is_emitted_input_port_in(2, Some(&modules)));
     }
 }

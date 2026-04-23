@@ -265,6 +265,12 @@ reset polarity. `Flop.reset_kind` is populated with `ResetKind::Async`
 unconditionally by `build_flop_leaf`. Multi-clock would require new
 IR fields and is an explicit future-phase item.
 
+**Boundary rule:** `clk` / `rst_n` are emitted at a module boundary iff
+that module carries sequential state locally or through instantiated
+descendants. Pure comb-only modules stay control-free. Sequential
+wrappers keep the ports visible all the way up the instantiated
+ancestor chain.
+
 ---
 
 ## 6 — Single-drive on every output port
@@ -413,8 +419,8 @@ within a module.
 
 | Pattern             | Meaning                                                                    |
 |---------------------|----------------------------------------------------------------------------|
-| `clk`               | Clock input (emitted only when module has flops)                           |
-| `rst_n`             | Async active-low reset (emitted only with flops)                           |
+| `clk`               | Clock input (emitted when module carries sequential state locally or through descendants) |
+| `rst_n`             | Async active-low reset (same visibility rule as `clk`)                     |
 | `i_N`               | Primary data input, `N` counts from 0                                      |
 | `o_N`               | Primary output, `N` counts from 0                                          |
 | `<gate_kind>_N`     | Internal gate wire. `<gate_kind>` is the lowercase `GateOp` name; `N` counts per-kind from 0. |

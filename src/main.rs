@@ -319,8 +319,10 @@ fn main() -> anyhow::Result<()> {
                 let design = gen.generate_design();
                 anvil::ir::validate::validate_design(&design)
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
+                let design_metrics = anvil::metrics::compute_design(&design);
                 print!("{}", anvil::emit::to_sv_design(&design));
                 if cli.metrics {
+                    eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
                     for module in &design.modules {
                         let metrics = anvil::metrics::compute(module);
                         eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
@@ -343,6 +345,7 @@ fn main() -> anyhow::Result<()> {
                     let design = gen.generate_design();
                     anvil::ir::validate::validate_design(&design)
                         .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    let design_metrics = anvil::metrics::compute_design(&design);
                     let mut modules = Vec::new();
                     for module in &design.modules {
                         let metrics = anvil::metrics::compute(module);
@@ -363,8 +366,12 @@ fn main() -> anyhow::Result<()> {
                     designs.push(serde_json::json!({
                         "index": design_index,
                         "top": design.top,
+                        "metrics": design_metrics,
                         "modules": modules,
                     }));
+                    if cli.metrics {
+                        eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
+                    }
                 }
                 std::fs::write(
                     dir.join("manifest.json"),

@@ -14,7 +14,7 @@
 //! whether it is doing its job, whether it is redundant with
 //! another knob, or whether a new knob is needed.
 
-use crate::ir::{GateOp, Module, Node};
+use crate::ir::{Design, GateOp, Module, Node};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -249,6 +249,64 @@ pub struct Metrics {
     /// Number of procedural combinational statically bounded for-fold
     /// blocks built.
     pub num_for_fold_blocks: u32,
+}
+
+/// Structural summary of a generated multi-module `Design`.
+/// These metrics quantify the current Phase 4 composition slice
+/// directly: library size, wrapper usage, reuse, under-instantiation,
+/// control fanout, and weighted child complexity.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DesignMetrics {
+    /// Design identifier (the top module name).
+    pub design: String,
+
+    // --- Overall size ------------------------------------------
+    pub num_modules: usize,
+    pub num_leaf_modules: usize,
+    pub num_instances: usize,
+    pub num_unique_instantiated_modules: usize,
+    pub num_unused_leaf_modules: usize,
+    pub num_reused_instance_slots: usize,
+
+    // --- Composition ratios ------------------------------------
+    pub library_coverage_fraction: f64,
+    pub unused_library_fraction: f64,
+    pub instance_reuse_fraction: f64,
+    pub instance_to_library_ratio: f64,
+
+    // --- Top interface -----------------------------------------
+    pub top_inputs: usize,
+    pub top_data_inputs: usize,
+    pub top_outputs: usize,
+    pub top_clock_inputs: usize,
+    pub top_reset_inputs: usize,
+    pub clock_fanout_instances: usize,
+    pub reset_fanout_instances: usize,
+
+    // --- Child interface load ----------------------------------
+    pub total_child_data_input_bindings: usize,
+    pub total_child_output_exposures: usize,
+    pub avg_child_data_inputs_per_instance: f64,
+    pub avg_child_outputs_per_instance: f64,
+
+    // --- Sequential / combinational mix ------------------------
+    pub num_sequential_leaf_modules: usize,
+    pub num_combinational_leaf_modules: usize,
+    pub num_sequential_instances: usize,
+    pub num_combinational_instances: usize,
+    pub sequential_instance_fraction: f64,
+
+    // --- Weighted child complexity -----------------------------
+    pub total_instantiated_child_nodes: usize,
+    pub total_instantiated_child_flops: usize,
+    pub avg_nodes_per_instance: f64,
+    pub avg_flops_per_instance: f64,
+    pub max_nodes_per_instance: usize,
+    pub max_flops_per_instance: usize,
+
+    // --- Reuse histogram ---------------------------------------
+    /// Instance count per instantiated child module definition.
+    pub instantiated_module_histogram: BTreeMap<String, usize>,
 }
 
 /// Compute metrics from a generated `Module`. Pure function — does
@@ -500,6 +558,146 @@ pub fn compute(m: &Module) -> Metrics {
     out
 }
 
+/// Compute design-level hierarchy metrics. For the current Phase 4
+/// slice, these describe the quality of wrapper composition without
+/// requiring manual SV inspection.
+pub fn compute_design(design: &Design) -> DesignMetrics {
+    let modules_by_name: BTreeMap<_, _> = design
+        .modules
+        .iter()
+        .map(|module| (module.name.as_str(), module))
+        .collect();
+    let top = design
+        .modules
+        .iter()
+        .find(|module| module.name == design.top)
+        .expect("design top must exist");
+    let library: Vec<_> = design
+        .modules
+        .iter()
+        .filter(|module| module.name != design.top)
+        .collect();
+
+    let num_leaf_modules = library.len();
+    let num_instances = top.instances.len();
+
+    let mut out = DesignMetrics {
+        design: design.top.clone(),
+        num_modules: design.modules.len(),
+        num_leaf_modules,
+        num_instances,
+        top_inputs: top.emitted_input_ports_in(Some(&modules_by_name)).count(),
+        top_outputs: top.outputs.len(),
+        ..Default::default()
+    };
+
+    let library_lookup: BTreeMap<_, _> = library
+        .iter()
+        .map(|module| (module.name.as_str(), *module))
+        .collect();
+    let mut unique_instantiated = std::collections::BTreeSet::new();
+
+    for port in top.emitted_input_ports_in(Some(&modules_by_name)) {
+        if top.clock == Some(port.id) {
+            out.top_clock_inputs += 1;
+        } else if top.reset == Some(port.id) {
+            out.top_reset_inputs += 1;
+        } else {
+            out.top_data_inputs += 1;
+        }
+    }
+
+    out.clock_fanout_instances = top
+        .instances
+        .iter()
+        .filter(|instance| {
+            library_lookup
+                .get(instance.module.as_str())
+                .is_some_and(|module| {
+                    module
+                        .emitted_input_ports_in(Some(&modules_by_name))
+                        .any(|port| module.clock == Some(port.id))
+                })
+        })
+        .count();
+    out.reset_fanout_instances = top
+        .instances
+        .iter()
+        .filter(|instance| {
+            library_lookup
+                .get(instance.module.as_str())
+                .is_some_and(|module| {
+                    module
+                        .emitted_input_ports_in(Some(&modules_by_name))
+                        .any(|port| module.reset == Some(port.id))
+                })
+        })
+        .count();
+
+    for module in &library {
+        if module.has_local_flops() {
+            out.num_sequential_leaf_modules += 1;
+        } else {
+            out.num_combinational_leaf_modules += 1;
+        }
+    }
+
+    for instance in &top.instances {
+        *out.instantiated_module_histogram
+            .entry(instance.module.clone())
+            .or_insert(0) += 1;
+        unique_instantiated.insert(instance.module.clone());
+
+        if let Some(child) = library_lookup.get(instance.module.as_str()) {
+            let child_data_inputs = child
+                .emitted_input_ports_in(Some(&modules_by_name))
+                .filter(|port| child.clock != Some(port.id) && child.reset != Some(port.id))
+                .count();
+            out.total_child_data_input_bindings += child_data_inputs;
+            out.total_child_output_exposures += child.outputs.len();
+            out.total_instantiated_child_nodes += child.nodes.len();
+            out.total_instantiated_child_flops += child.flops.len();
+            out.max_nodes_per_instance = out.max_nodes_per_instance.max(child.nodes.len());
+            out.max_flops_per_instance = out.max_flops_per_instance.max(child.flops.len());
+            if child.carries_sequential_state_in(Some(&modules_by_name)) {
+                out.num_sequential_instances += 1;
+            } else {
+                out.num_combinational_instances += 1;
+            }
+        }
+    }
+
+    out.num_unique_instantiated_modules = unique_instantiated.len();
+    out.num_unused_leaf_modules = out
+        .num_leaf_modules
+        .saturating_sub(out.num_unique_instantiated_modules);
+    out.num_reused_instance_slots = out
+        .num_instances
+        .saturating_sub(out.num_unique_instantiated_modules);
+
+    out.library_coverage_fraction =
+        ratio(out.num_unique_instantiated_modules, out.num_leaf_modules);
+    out.unused_library_fraction = ratio(out.num_unused_leaf_modules, out.num_leaf_modules);
+    out.instance_reuse_fraction = ratio(out.num_reused_instance_slots, out.num_instances);
+    out.instance_to_library_ratio = ratio(out.num_instances, out.num_leaf_modules);
+    out.avg_child_data_inputs_per_instance =
+        ratio(out.total_child_data_input_bindings, out.num_instances);
+    out.avg_child_outputs_per_instance = ratio(out.total_child_output_exposures, out.num_instances);
+    out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
+    out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
+    out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
+
+    out
+}
+
+fn ratio(numer: usize, denom: usize) -> f64 {
+    if denom == 0 {
+        0.0
+    } else {
+        numer as f64 / denom as f64
+    }
+}
+
 /// Canonical lowercase name per `GateOp`. Kept here (duplicated
 /// from `emit::sv::gate_kind_name`) to avoid a cross-module
 /// coupling — `metrics` must stay independent of `emit`.
@@ -542,6 +740,8 @@ fn gate_kind_name(op: GateOp) -> &'static str {
 mod tests {
     use super::*;
     use crate::ir::{DepSet, Direction, FlopKind, FlopMux, Port};
+    use crate::Config;
+    use crate::Generator;
 
     #[test]
     fn metrics_on_empty_module() {
@@ -645,5 +845,63 @@ mod tests {
         let met = compute(&m);
         assert_eq!(met.num_constant_shift_gates, 1);
         assert_eq!(met.num_variable_shift_gates, 1);
+    }
+
+    #[test]
+    fn design_metrics_capture_reused_child_definitions() {
+        let cfg = Config {
+            seed: 11,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 5,
+            ..Config::default()
+        };
+        cfg.validate().expect("reuse config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.num_leaf_modules, 2);
+        assert_eq!(met.num_instances, 5);
+        assert_eq!(met.num_unique_instantiated_modules, 2);
+        assert_eq!(met.num_unused_leaf_modules, 0);
+        assert_eq!(met.num_reused_instance_slots, 3);
+        assert_eq!(met.library_coverage_fraction, 1.0);
+        assert_eq!(met.unused_library_fraction, 0.0);
+        assert_eq!(met.instance_reuse_fraction, 3.0 / 5.0);
+        assert_eq!(met.instance_to_library_ratio, 2.5);
+        assert_eq!(
+            met.instantiated_module_histogram.values().sum::<usize>(),
+            5,
+            "histogram should account for every instantiated child"
+        );
+    }
+
+    #[test]
+    fn design_metrics_capture_underinstantiated_library() {
+        let cfg = Config {
+            seed: 17,
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("under-instantiation config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.num_leaf_modules, 4);
+        assert_eq!(met.num_instances, 2);
+        assert_eq!(met.num_unique_instantiated_modules, 2);
+        assert_eq!(met.num_unused_leaf_modules, 2);
+        assert_eq!(met.num_reused_instance_slots, 0);
+        assert_eq!(met.library_coverage_fraction, 0.5);
+        assert_eq!(met.unused_library_fraction, 0.5);
+        assert_eq!(met.instance_reuse_fraction, 0.0);
+        assert_eq!(met.instance_to_library_ratio, 0.5);
     }
 }

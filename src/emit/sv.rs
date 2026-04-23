@@ -74,10 +74,9 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
 
     let mut first = true;
 
-    // Port list. Modules decide locally which inputs are visible in
-    // their emitted interface (`clk` / `rst_n` are hidden on leaf
-    // modules with no local flops).
-    for p in m.emitted_input_ports() {
+    // Port list. Control ports are visible iff the module carries
+    // sequential state locally or through instantiated descendants.
+    for p in m.emitted_input_ports_in(modules) {
         if !first {
             writeln!(out, ",").unwrap();
         }
@@ -269,7 +268,7 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
             let input_bindings: BTreeMap<_, _> = instance.inputs.iter().copied().collect();
 
             let mut connections = Vec::new();
-            for input in child.emitted_input_ports() {
+            for input in child.emitted_input_ports_in(Some(modules)) {
                 let node_id = input_bindings
                     .get(&input.id)
                     .copied()
@@ -599,7 +598,7 @@ fn const_literal(width: u32, value: u128) -> String {
 mod tests {
     use super::*;
     use crate::ir::{
-        DepSet, Direction, Flop, FlopKind, FlopMux, GateOp, Module, Node, Port, ResetKind,
+        DepSet, Direction, Flop, FlopKind, FlopMux, GateOp, Instance, Module, Node, Port, ResetKind,
     };
 
     fn port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
@@ -609,6 +608,45 @@ mod tests {
             width,
             dir,
         }
+    }
+
+    fn comb_child(name: &str) -> Module {
+        let mut child = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 8, Direction::In));
+        child.outputs.push(port(1, "o", 8, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        child.drives.push((1, 0));
+        child
+    }
+
+    fn seq_child(name: &str) -> Module {
+        let mut child = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "clk", 1, Direction::In));
+        child.inputs.push(port(1, "rst_n", 1, Direction::In));
+        child.inputs.push(port(2, "a", 8, Direction::In));
+        child.outputs.push(port(3, "o", 8, Direction::Out));
+        child.clock = Some(0);
+        child.reset = Some(1);
+        child.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        child.nodes.push(Node::FlopQ { flop: 0, width: 8 });
+        child.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        child.drives.push((3, 1));
+        child
     }
 
     #[test]
@@ -657,6 +695,181 @@ mod tests {
             "rst_n must be omitted when module has no flops"
         );
         assert!(sv.contains("input  logic [3:0] a"));
+    }
+
+    #[test]
+    fn hierarchy_wrapper_emits_clk_rst_n_without_local_flops() {
+        let child = seq_child("child");
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "clk", 1, Direction::In));
+        top.inputs.push(port(1, "rst_n", 1, Direction::In));
+        top.inputs.push(port(2, "a", 8, Direction::In));
+        top.outputs.push(port(3, "o", 8, Direction::Out));
+        top.clock = Some(0);
+        top.reset = Some(1);
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // node 0
+        top.nodes.push(Node::PrimaryInput { port: 1, width: 1 }); // node 1
+        top.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // node 2
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 3,
+            width: 8,
+        }); // node 3
+        top.drives.push((3, 3));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![child, top.clone()],
+        };
+        let sv = to_sv_in_design(&top, &design);
+        assert!(
+            sv.contains("input  logic  clk"),
+            "wrapper must emit clk when it feeds child instances:\n{sv}"
+        );
+        assert!(
+            sv.contains("input  logic  rst_n"),
+            "wrapper must emit rst_n when it feeds child instances:\n{sv}"
+        );
+        assert!(sv.contains(".clk(clk)"));
+        assert!(sv.contains(".rst_n(rst_n)"));
+    }
+
+    #[test]
+    fn hierarchy_comb_only_wrapper_omits_clk_rst_n_even_if_tagged() {
+        let child = comb_child("child");
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "clk", 1, Direction::In));
+        top.inputs.push(port(1, "rst_n", 1, Direction::In));
+        top.inputs.push(port(2, "a", 8, Direction::In));
+        top.outputs.push(port(3, "o", 8, Direction::Out));
+        top.clock = Some(0);
+        top.reset = Some(1);
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.nodes.push(Node::PrimaryInput { port: 1, width: 1 });
+        top.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 2)],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 8,
+        });
+        top.drives.push((3, 3));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![child, top.clone()],
+        };
+        let sv = to_sv_in_design(&top, &design);
+        assert!(
+            !sv.contains("input  logic  clk"),
+            "comb-only wrappers must not expose clk:\n{sv}"
+        );
+        assert!(
+            !sv.contains("input  logic  rst_n"),
+            "comb-only wrappers must not expose rst_n:\n{sv}"
+        );
+        assert!(
+            !sv.contains(".clk("),
+            "comb-only wrapper bound stray clk:\n{sv}"
+        );
+        assert!(
+            !sv.contains(".rst_n("),
+            "comb-only wrapper bound stray rst_n:\n{sv}"
+        );
+        assert!(sv.contains("input  logic [7:0] a"));
+    }
+
+    #[test]
+    fn hierarchy_grandparent_emits_clk_rst_n_for_sequential_descendants() {
+        let child = seq_child("child");
+
+        let mut parent = Module {
+            name: "parent".into(),
+            ..Module::default()
+        };
+        parent.inputs.push(port(0, "clk", 1, Direction::In));
+        parent.inputs.push(port(1, "rst_n", 1, Direction::In));
+        parent.inputs.push(port(2, "a", 8, Direction::In));
+        parent.outputs.push(port(3, "o", 8, Direction::Out));
+        parent.clock = Some(0);
+        parent.reset = Some(1);
+        parent.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        parent.nodes.push(Node::PrimaryInput { port: 1, width: 1 });
+        parent.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        parent.instances.push(Instance {
+            id: 0,
+            name: "u_child".into(),
+            module: "child".into(),
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+        });
+        parent.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 3,
+            width: 8,
+        });
+        parent.drives.push((3, 3));
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "clk", 1, Direction::In));
+        top.inputs.push(port(1, "rst_n", 1, Direction::In));
+        top.inputs.push(port(2, "a", 8, Direction::In));
+        top.outputs.push(port(3, "o", 8, Direction::Out));
+        top.clock = Some(0);
+        top.reset = Some(1);
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.nodes.push(Node::PrimaryInput { port: 1, width: 1 });
+        top.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_parent".into(),
+            module: "parent".into(),
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 3,
+            width: 8,
+        });
+        top.drives.push((3, 3));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![child, parent.clone(), top.clone()],
+        };
+        let parent_sv = to_sv_in_design(&parent, &design);
+        let top_sv = to_sv_in_design(&top, &design);
+
+        assert!(parent_sv.contains("input  logic  clk"), "{parent_sv}");
+        assert!(parent_sv.contains("input  logic  rst_n"), "{parent_sv}");
+        assert!(parent_sv.contains(".clk(clk)"), "{parent_sv}");
+        assert!(parent_sv.contains(".rst_n(rst_n)"), "{parent_sv}");
+
+        assert!(top_sv.contains("input  logic  clk"), "{top_sv}");
+        assert!(top_sv.contains("input  logic  rst_n"), "{top_sv}");
+        assert!(top_sv.contains(".clk(clk)"), "{top_sv}");
+        assert!(top_sv.contains(".rst_n(rst_n)"), "{top_sv}");
     }
 
     #[test]

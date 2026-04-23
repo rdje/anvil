@@ -301,6 +301,8 @@ impl Generator {
 // metrics.rs
 pub struct Metrics { /* ~25 public fields; see module doc */ }
 pub fn compute(m: &Module) -> Metrics;
+pub struct DesignMetrics { /* hierarchy composition facts */ }
+pub fn compute_design(d: &Design) -> DesignMetrics;
 
 // emit/sv.rs
 pub fn to_sv(m: &Module) -> String;
@@ -320,20 +322,23 @@ Three layers:
 **Unit tests** live inline in each source module under
 `#[cfg(test)] mod tests { ... }`. Current counts:
 
-- `src/ir/types.rs` — 38 tests covering factorization,
-  identity-mode, and rewrite-layer semantics.
+- `src/ir/types.rs` — 40 tests covering factorization,
+  identity-mode, rewrite-layer semantics, and design-aware
+  control-port visibility.
 - `src/ir/validate.rs` — 26 tests (valid modules, undefined drive
   roots, canonical flop/`FlopQ` backrefs, missing-D / mux-ref
   failures, representative gate-shape rejection classes, and
   design-level hierarchy acceptance/rejection).
 - `src/gen/cone.rs` — 40 tests covering picker, anti-collapse,
   width-adapter, and motif-edge cases.
-- `src/emit/sv.rs` — 11 tests (module header, clk/rst_n omission,
+- `src/emit/sv.rs` — 14 tests (module header, clk/rst_n omission,
   `always_ff` shape, operator + constant rendering, Slice/Concat,
-  Mux ternary, procedural structured surfaces, and hierarchical
-  instance wiring).
-- `src/metrics.rs` — 4 tests (empty module, per-kind gate
-  counting, per-shape flop counting).
+  Mux ternary, procedural structured surfaces, and hierarchy
+  control-port propagation across comb-only, direct-wrapper, and
+  grandparent-wrapper cases).
+- `src/metrics.rs` — 6 tests (empty module, per-kind gate
+  counting, per-shape flop counting, variable-vs-constant shift-rhs,
+  and hierarchy design metrics).
 - Other unit tests cover compaction, config validation, module
   finalisation, hierarchy validation, and CLI overrides.
 
@@ -347,7 +352,7 @@ surface (including repeated child-definition reuse and
 under-instantiated-library cases), compaction/orphan guarantees,
 knob-roll telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 182 unit-target tests + 32 integration tests = 214 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 192 unit-target tests + 32 integration tests = 224 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a

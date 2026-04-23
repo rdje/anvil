@@ -104,6 +104,11 @@ anvil --seed 42 --metrics 2> metrics.json
 # Multi-module runs: metrics are always embedded in manifest.json.
 anvil --seed 42 --count 100 --out ./generated
 # → ./generated/manifest.json has metrics per module.
+
+# Hierarchy mode also embeds per-design composition metrics.
+anvil --seed 41 --count 1 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 5
+# → ./generated-hier/manifest.json has both per-module metrics and
+#   per-design hierarchy metrics.
 ```
 
 Typical use: sweep a knob over a few values, grep the metrics
@@ -259,7 +264,22 @@ In that mode, `manifest.json` contains `designs: [...]`, and each
 design entry records:
 - `index`
 - `top`
+- `hierarchy`
+- `metrics`
 - `modules: [{ file, name, metrics }, ...]`
+
+The per-design `metrics` block is the intended trust surface for the
+current hierarchy slice. It lets you judge wrapper quality without
+opening the emitted `.sv`, including:
+
+- library size vs instantiated child count
+- unique-instantiated-module count and unused-library count
+- reuse ratio / library-coverage ratio
+- top interface shape (`top_inputs`, `top_data_inputs`,
+  `top_clock_inputs`, `top_reset_inputs`, `top_outputs`)
+- control fanout to child instances
+- weighted child interface / node / flop load
+- per-definition instantiation histogram
 
 The current Phase 4 slice is intentionally narrow:
 - only `hierarchy_depth = 0` or `1` is accepted
@@ -269,6 +289,10 @@ The current Phase 4 slice is intentionally narrow:
 - `num_child_instances < num_leaf_modules` under-instantiates the leaf
   library
 - `num_child_instances > num_leaf_modules` reuses leaf definitions
+- pure comb-only modules do **not** expose `clk` / `rst_n`
+- sequential leaves do expose `clk` / `rst_n`
+- wrappers keep `clk` / `rst_n` visible iff they carry sequential
+  descendants through instantiated children
 - parent-side cone construction from instance outputs is not live yet
 
 ## Tool matrix sweeps

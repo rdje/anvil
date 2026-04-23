@@ -142,9 +142,16 @@ gate named `<kind>_<N>` — `add_3` above stands in for whatever op
 the generator picked. See [Rule 12](structural-rules.md) for the
 full naming contract.)
 
-When a module happens to be generated with zero flops, the `clk` and
+When a module carries no sequential state anywhere, the `clk` and
 `rst_n` ports are omitted from the port list. This avoids spurious
-"unused input" lint warnings on the combinational-only outputs.
+"unused input" lint warnings on pure comb-only modules.
+
+For hierarchy, the rule is inductive:
+
+- a sequential leaf emits `clk` / `rst_n`;
+- a pure comb-only module does not; and
+- a wrapper emits `clk` / `rst_n` iff it carries sequential
+  descendants through instantiated children.
 
 Multi-clock and CDC are explicitly out of scope until Phase 6 (and
 optional even then).
