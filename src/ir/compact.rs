@@ -111,6 +111,11 @@ enum StructuralNodeShape {
         port: PortId,
         width: u32,
     },
+    InstanceOutput {
+        instance: crate::ir::InstanceId,
+        port: PortId,
+        width: u32,
+    },
     Constant {
         width: u32,
         value: u128,
@@ -146,14 +151,27 @@ impl StructuralSignatureCtx {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum LeafEndpoint {
-    PrimaryInput { port: PortId, width: u32 },
-    FlopQ { flop: FlopId, width: u32 },
+    PrimaryInput {
+        port: PortId,
+        width: u32,
+    },
+    InstanceOutput {
+        instance: crate::ir::InstanceId,
+        port: PortId,
+        width: u32,
+    },
+    FlopQ {
+        flop: FlopId,
+        width: u32,
+    },
 }
 
 impl LeafEndpoint {
     fn width(self) -> u32 {
         match self {
-            LeafEndpoint::PrimaryInput { width, .. } | LeafEndpoint::FlopQ { width, .. } => width,
+            LeafEndpoint::PrimaryInput { width, .. }
+            | LeafEndpoint::InstanceOutput { width, .. }
+            | LeafEndpoint::FlopQ { width, .. } => width,
         }
     }
 }
@@ -182,6 +200,15 @@ fn structural_node_sig_id(
 
     let sig_id = match &m.nodes[node_id as usize] {
         Node::PrimaryInput { port, width } => ctx.intern(StructuralNodeShape::PrimaryInput {
+            port: *port,
+            width: *width,
+        }),
+        Node::InstanceOutput {
+            instance,
+            port,
+            width,
+        } => ctx.intern(StructuralNodeShape::InstanceOutput {
+            instance: *instance,
             port: *port,
             width: *width,
         }),
@@ -234,6 +261,15 @@ fn collect_leaf_endpoints(
 
     let endpoints = match &m.nodes[node_id as usize] {
         Node::PrimaryInput { port, width } => BTreeSet::from([LeafEndpoint::PrimaryInput {
+            port: *port,
+            width: *width,
+        }]),
+        Node::InstanceOutput {
+            instance,
+            port,
+            width,
+        } => BTreeSet::from([LeafEndpoint::InstanceOutput {
+            instance: *instance,
             port: *port,
             width: *width,
         }]),
@@ -292,6 +328,19 @@ fn evaluate_node_under_assignment(
     let value = match &m.nodes[node_id as usize] {
         Node::PrimaryInput { port, width } => {
             let endpoint = LeafEndpoint::PrimaryInput {
+                port: *port,
+                width: *width,
+            };
+            let offset = endpoint_offsets[&endpoint];
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::InstanceOutput {
+            instance,
+            port,
+            width,
+        } => {
+            let endpoint = LeafEndpoint::InstanceOutput {
+                instance: *instance,
                 port: *port,
                 width: *width,
             };
@@ -821,7 +870,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 
     for node in &mut m.nodes {
         match node {
-            Node::PrimaryInput { .. } | Node::Constant { .. } => {}
+            Node::PrimaryInput { .. } | Node::Constant { .. } | Node::InstanceOutput { .. } => {}
             Node::FlopQ { flop, .. } => {
                 *flop = old_to_new[*flop as usize];
             }
@@ -1297,7 +1346,7 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                     }
                 }
             }
-            Node::PrimaryInput { .. } | Node::Constant { .. } => {}
+            Node::PrimaryInput { .. } | Node::Constant { .. } | Node::InstanceOutput { .. } => {}
         }
     }
 
@@ -1355,6 +1404,15 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
             Node::Constant { width, value } => Node::Constant { width, value },
             Node::FlopQ { flop, width } => Node::FlopQ {
                 flop: old_flop_to_new[flop as usize],
+                width,
+            },
+            Node::InstanceOutput {
+                instance,
+                port,
+                width,
+            } => Node::InstanceOutput {
+                instance,
+                port,
                 width,
             },
             Node::Gate {
@@ -1569,7 +1627,7 @@ fn rebuild_instance_tables(m: &mut Module) {
     for (id, node) in nodes.iter().enumerate() {
         let node_id = id as NodeId;
         match node {
-            Node::PrimaryInput { .. } | Node::FlopQ { .. } => {}
+            Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => {}
             Node::Constant { width, value } => {
                 const_instances
                     .entry((*width, *value))
@@ -1958,6 +2016,7 @@ mod tests {
         match &m.nodes[id as usize] {
             Node::PrimaryInput { port, .. } => DepSet::from_port(*port),
             Node::Constant { .. } => DepSet::new(),
+            Node::InstanceOutput { .. } => DepSet::new(),
             Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
             Node::Gate { deps, .. } => deps.clone(),
         }

@@ -27,6 +27,44 @@ fn generates_valid_modules_across_seeds() {
 }
 
 #[test]
+fn generates_valid_depth1_wrapper_designs() {
+    for seed in 0..5u64 {
+        let cfg = Config {
+            seed,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("depth-1 hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!("hierarchy seed {}: design validation failed: {}", seed, e);
+        });
+
+        assert_eq!(design.modules.len(), 3, "2 leaves + 1 top wrapper expected");
+        let top = design
+            .modules
+            .iter()
+            .find(|module| module.name == design.top)
+            .expect("top module must exist");
+        assert_eq!(top.instances.len(), 2, "top must instantiate every leaf");
+
+        let sv = anvil::emit::to_sv_design(&design);
+        assert!(
+            sv.matches("\nmodule ").count() >= 2 || sv.starts_with("module "),
+            "hierarchical emission should contain multiple module declarations"
+        );
+        assert!(
+            sv.contains(" u_0 (") || sv.contains(" u_1 ("),
+            "top wrapper should emit real child instances:\n{sv}"
+        );
+    }
+}
+
+#[test]
 fn reproducibility() {
     let cfg = Config {
         seed: 12345,

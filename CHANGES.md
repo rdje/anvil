@@ -1,9 +1,155 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-0104 — Close the Phase 3 structured-surface gate cleanly
+## 2026-04-23-0207 — Start Phase 4 with a real depth-1 hierarchy slice
 
 **Landed as:** this commit
+
+**What changed**
+
+- ANVIL now has a real hierarchy entry point in
+  [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  and a real `Generator::generate_design()` path wired from
+  [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs).
+  When `hierarchy_depth = 1`, generation now produces a `Design`
+  containing:
+  - a pre-generated library of leaf modules,
+  - a real top wrapper module,
+  - real `Instance` records in the top module, and
+  - real `Node::InstanceOutput` nodes exposing child outputs.
+- The first live Phase 4 slice is intentionally narrow and explicit:
+  it is **depth-1 wrapper hierarchy only**. The top wrapper
+  instantiates every generated leaf and exposes every child output as a
+  top-level output. Parent-side cone construction from instance outputs
+  is deliberately not live yet.
+- The IR is now hierarchy-capable:
+  [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  adds `InstanceId`, `Module.instances`, `Instance`, and
+  `Node::InstanceOutput`, plus helper methods that distinguish the
+  emitted input surface from internal clock/reset bookkeeping.
+- Validation now exists at both levels:
+  [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  still validates one module locally, and now also exposes
+  `validate_design(&Design)`, which checks:
+  - unique module names,
+  - top-module presence,
+  - local module validity,
+  - child-module existence,
+  - exact input-binding coverage and width matches,
+  - exact output-exposure coverage and width matches, and
+  - acyclic hierarchy.
+- Emission is now design-aware:
+  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+  adds `to_sv_in_design()` and `to_sv_design()`, emits real child
+  instances with named connections, and treats `Node::InstanceOutput`
+  as a first-class emitted wire.
+- The CLI now exposes the slice directly through
+  [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  and [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs):
+  - `--hierarchy-depth`
+  - `--num-leaf-modules`
+  Config validation currently accepts only depth `0` or `1`, and
+  `hierarchy_depth > 0` requires `num_leaf_modules >= 1`.
+- Directory output in hierarchy mode now writes one `.sv` file per
+  module in each generated design and records a `designs` array in
+  `manifest.json` instead of the old flat `modules` list.
+- Metrics now count hierarchy artifacts too:
+  [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  records `num_instances` and `num_instance_outputs`.
+- Regression coverage now proves the new surface from code, not just
+  from a smoke log:
+  - depth-1 design generation / validation / emission in
+    [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  - design-level validator acceptance/rejection in
+    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  - hierarchical emitter instance wiring in
+    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+
+**Why**
+
+- Phase 3 is now closed with repo-owned evidence. The next honest step
+  is to add hierarchy **above** the leaf kernel instead of smearing
+  inter-module behavior into `generate_leaf_module`.
+- The first slice is deliberately wrapper-only because it gives ANVIL
+  real module composition, real design-level validation, real multi-file
+  emission, and real downstream elaboration pressure without pretending
+  recursive parent-side instance-driven cone construction is already
+  solved.
+- Treating `Node::InstanceOutput` as a leaf boundary in the current
+  proof / compaction passes keeps the new hierarchy surface compatible
+  with the existing leaf-kernel proof machinery while the deeper
+  hierarchical identity story remains future work.
+
+**Proof**
+
+- New integration proof:
+  `generates_valid_depth1_wrapper_designs` in
+  [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  sweeps seeds, validates the full design, checks instance count, and
+  proves emitted SV contains multiple module declarations plus real
+  instantiation syntax.
+- New validator proofs:
+  - `accepts_valid_depth1_design`
+  - `rejects_missing_child_output_exposure_in_design`
+- New emitter proof:
+  `hierarchical_design_emits_real_instance_connections`
+- Real downstream smoke on
+  `/tmp/anvil-hierarchy-smoke-r1` is clean:
+  - `cargo run --bin anvil -- --seed 7 --out /tmp/anvil-hierarchy-smoke-r1 --hierarchy-depth 1 --num-leaf-modules 3`
+  - `verilator --lint-only /tmp/anvil-hierarchy-smoke-r1/*.sv`
+  - `yosys -p "read_verilog -sv /tmp/anvil-hierarchy-smoke-r1/*.sv; synth -top mod_7_0003 -noabc; stat; check"`
+  - `yosys -p "read_verilog -sv /tmp/anvil-hierarchy-smoke-r1/*.sv; synth -top mod_7_0003 -noabc; abc -fast; opt -fast; stat; check"`
+
+**Impact**
+
+- Phase 4 is no longer hypothetical. The roadmap state is now
+  `in progress`, not `not started`.
+- ANVIL can now emit a real multi-module synthesizable design rather
+  than only unrelated leaf modules.
+- The hierarchy story is still intentionally partial:
+  - only `hierarchy_depth = 1` is live,
+  - the top wrapper only instantiates and exposes leaves,
+  - instance outputs are not yet used as parent cone inputs, and
+  - there is no repo-owned Phase 4 closure gate yet.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/emit/mod.rs`
+- `src/emit/sv.rs`
+- `src/gen/cone.rs`
+- `src/gen/hierarchy.rs`
+- `src/gen/mod.rs`
+- `src/gen/module.rs`
+- `src/ir/compact.rs`
+- `src/ir/types.rs`
+- `src/ir/validate.rs`
+- `src/lib.rs`
+- `src/main.rs`
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `book/src/ir.md`
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test` = `203` passing (`150` lib + `5` main + `18` tool_matrix + `30` integration)
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+
+## 2026-04-23-0104 — Close the Phase 3 structured-surface gate cleanly
+
+**Landed as:** `f759403`
 
 **What changed**
 

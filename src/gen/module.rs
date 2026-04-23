@@ -312,7 +312,7 @@ fn repair_constant_output_roots(g: &mut Generator, m: &mut Module, pool: &mut Si
 
 fn output_root_has_empty_deps(m: &Module, root: NodeId) -> bool {
     match &m.nodes[root as usize] {
-        Node::PrimaryInput { .. } | Node::FlopQ { .. } => false,
+        Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => false,
         Node::Constant { .. } => true,
         Node::Gate { deps, .. } => deps.is_empty(),
     }

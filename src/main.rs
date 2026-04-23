@@ -196,6 +196,18 @@ struct Cli {
     #[arg(long)]
     for_fold_prob: Option<f64>,
 
+    /// Hierarchy depth. `0` keeps the Phase 1/2/3 leaf-module path.
+    /// `1` enables the current Phase 4 slice: a real top wrapper that
+    /// instantiates a generated library of leaf modules. Depths above 1
+    /// are not live yet.
+    #[arg(long)]
+    hierarchy_depth: Option<u32>,
+
+    /// Number of leaf modules in the pre-generated library when
+    /// `--hierarchy-depth 1` is enabled.
+    #[arg(long)]
+    num_leaf_modules: Option<u32>,
+
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
     /// strict uniqueness (CSE). Higher N permits N copies; `u32::MAX`
@@ -293,41 +305,94 @@ fn main() -> anyhow::Result<()> {
 
     info!(seed = cli.seed, count = cli.count, "🚀 anvil start");
     let mut gen = Generator::new(cfg.clone());
+    let hierarchical = cfg.hierarchy_depth > 0;
 
     match (&cli.out, cli.count) {
         (None, 1) => {
-            let m = gen.generate_module();
-            let metrics = anvil::metrics::compute(&m);
-            print!("{}", anvil::emit::to_sv(&m));
-            if cli.metrics {
-                eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
-            }
-        }
-        (Some(dir), n) => {
-            std::fs::create_dir_all(dir)?;
-            let mut manifest = Vec::new();
-            for i in 0..n {
+            if hierarchical {
+                let design = gen.generate_design();
+                anvil::ir::validate::validate_design(&design)
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                print!("{}", anvil::emit::to_sv_design(&design));
+                if cli.metrics {
+                    for module in &design.modules {
+                        let metrics = anvil::metrics::compute(module);
+                        eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                    }
+                }
+            } else {
                 let m = gen.generate_module();
                 let metrics = anvil::metrics::compute(&m);
-                let fname = format!("mod_{}_{:04}.sv", cli.seed, i);
-                std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
-                manifest.push(serde_json::json!({
-                    "file": fname,
-                    "name": m.name,
-                    "metrics": metrics,
-                }));
+                print!("{}", anvil::emit::to_sv(&m));
                 if cli.metrics {
                     eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
                 }
             }
-            std::fs::write(
-                dir.join("manifest.json"),
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "seed": cli.seed,
-                    "config": cfg,
-                    "modules": manifest,
-                }))?,
-            )?;
+        }
+        (Some(dir), n) => {
+            std::fs::create_dir_all(dir)?;
+            if hierarchical {
+                let mut designs = Vec::new();
+                for design_index in 0..n {
+                    let design = gen.generate_design();
+                    anvil::ir::validate::validate_design(&design)
+                        .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    let mut modules = Vec::new();
+                    for module in &design.modules {
+                        let metrics = anvil::metrics::compute(module);
+                        let fname = format!("{}.sv", module.name);
+                        std::fs::write(
+                            dir.join(&fname),
+                            anvil::emit::to_sv_in_design(module, &design),
+                        )?;
+                        modules.push(serde_json::json!({
+                            "file": fname,
+                            "name": module.name,
+                            "metrics": metrics,
+                        }));
+                        if cli.metrics {
+                            eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                        }
+                    }
+                    designs.push(serde_json::json!({
+                        "index": design_index,
+                        "top": design.top,
+                        "modules": modules,
+                    }));
+                }
+                std::fs::write(
+                    dir.join("manifest.json"),
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "seed": cli.seed,
+                        "config": cfg,
+                        "designs": designs,
+                    }))?,
+                )?;
+            } else {
+                let mut manifest = Vec::new();
+                for i in 0..n {
+                    let m = gen.generate_module();
+                    let metrics = anvil::metrics::compute(&m);
+                    let fname = format!("mod_{}_{:04}.sv", cli.seed, i);
+                    std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
+                    manifest.push(serde_json::json!({
+                        "file": fname,
+                        "name": m.name,
+                        "metrics": metrics,
+                    }));
+                    if cli.metrics {
+                        eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                    }
+                }
+                std::fs::write(
+                    dir.join("manifest.json"),
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "seed": cli.seed,
+                        "config": cfg,
+                        "modules": manifest,
+                    }))?,
+                )?;
+            }
         }
         (None, _) => {
             anyhow::bail!("--out is required when --count > 1");
@@ -427,6 +492,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         } else {
             cli.factorization_level
         },
+        hierarchy_depth: cli.hierarchy_depth,
+        num_leaf_modules: cli.num_leaf_modules,
     }
 }
 

@@ -13,7 +13,7 @@ pub mod metrics;
 
 pub use config::Config;
 pub use gen::{Generator, GeneratorCheckpoint};
-pub use ir::Module;
+pub use ir::{Design, Module};
 
 // ---------------------------------------------------------------
 // Trace verbosity toggle for `--trace debug` (highest verbosity).

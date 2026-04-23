@@ -1,114 +1,173 @@
 # Hierarchy: Modules of Modules
 
-The cone-recursion algorithm produces one **leaf module**: ports plus
-internal logic, no sub-instances. That is the first level of
-abstraction.
+ANVIL no longer stops at isolated leaf modules only. Phase 4 is now
+live in a deliberately narrow but real form: **depth-1 wrapper
+hierarchy**.
 
-The second level instantiates leaf (or sub-hierarchy) modules inside
-larger modules. The algorithm is structurally identical — it is *the
-same recursion* — with one extra choice at each cone node:
-"instantiate a sub-module and use one of its output ports."
+That means:
 
-This chapter describes hierarchy in the **current circuit-IR framing**.
-The broadened roadmap now also includes future source-level
-frontend/elaboration artifact families, which will likely need a
-parameter / package / type aware source-level IR in addition to this
-gate-and-instance view.
+- ANVIL can generate a **library of leaf modules** with the existing
+  leaf kernel,
+- then generate a real **top wrapper module**,
+- instantiate those leaves inside the wrapper, and
+- expose every child output as a top-level output.
 
-## Generation order
+This is genuine module composition. It exercises elaboration,
+inter-module port binding, multi-file emission, and downstream top
+selection. It is not yet the full future hierarchy story.
 
+## Current live slice
+
+The current entry point is:
+
+```text
+--hierarchy-depth 1 --num-leaf-modules N
 ```
+
+Depth `0` keeps the existing leaf-only path. Depth `1` enables the
+first Phase 4 slice. Depths above `1` are still rejected by config
+validation.
+
+Generation order today is:
+
+```text
 generate_design(rng, knobs):
     library = []
-    for _ in 0..knobs.num_leaf_modules:
+    for _ in 0..num_leaf_modules:
         library.push(generate_leaf_module(rng, knobs))
 
-    top = generate_hierarchical_module(rng, knobs, library, depth=0)
-    return Design { top, all_modules: library + top + ... }
+    top = generate_wrapper_top(library)
+    return Design { top, modules: library + [top] }
 ```
 
-Two sub-module sourcing strategies:
+The wrapper top is intentionally simple:
 
-**Library mode.** Pre-generate a pool of leaf modules. When the
-hierarchical generator needs a sub-module with specific port widths,
-search the pool. If a match exists, instantiate it. If not, either
-fall back to gate-level logic or generate one on demand.
+- if any child has local flops, the wrapper gets shared `clk` and
+  `rst_n` inputs;
+- every child emitted input becomes a wrapper input (prefixed with the
+  instance name);
+- every child emitted output becomes a wrapper output; and
+- each wrapper output is driven by a `Node::InstanceOutput`.
 
-**On-demand mode.** Whenever the hierarchical generator decides to
-emit an instance, generate a fresh sub-module sized to the parent's
-needs. The pool is appended-to, not searched first.
+So the first hierarchy slice is **real** but also **honest**: the top
+module is presently a composition layer, not yet a new fanin-cone
+generator that recursively mixes gates, flops, and sub-instances in the
+same parent cone.
 
-A mix of both, controlled by a knob (`--library-prob`), produces
-realistic patterns: some heavily-instantiated modules (memories,
-adders) and many one-off custom blocks.
+## Current IR shape
 
-## The extended choice set
+Hierarchy now lives directly in the circuit IR:
 
-In the leaf generator, `pick_node_kind` returns one of:
+```rust
+pub struct Design {
+    pub top: String,
+    pub modules: Vec<Module>,
+}
 
+pub struct Module {
+    // ...
+    pub instances: Vec<Instance>,
+}
+
+pub struct Instance {
+    pub id: InstanceId,
+    pub name: String,
+    pub module: String,
+    pub inputs: Vec<(PortId, NodeId)>,
+}
+
+pub enum Node {
+    // existing leaf forms ...
+    InstanceOutput { instance: InstanceId, port: PortId, width: u32 },
+}
 ```
-{ Terminal, Gate(g), Flop }
+
+Two details matter:
+
+1. `Instance.inputs` are keyed by the **child's input port ids**.
+   Design validation checks that every emitted child input is bound
+   exactly once and at the right width.
+2. `Node::InstanceOutput` is a real node kind, so parent modules can
+   name and emit child outputs explicitly instead of relying on emitter
+   side tables or implicit wiring.
+
+## Design validation
+
+Local module validation still exists, but hierarchy needs a second
+layer:
+
+```rust
+pub fn validate_design(d: &Design) -> Result<(), DesignValidateError>
 ```
 
-In the hierarchical generator, it also returns:
+The design-level validator checks:
 
+- the top module exists,
+- module names are unique,
+- every module passes local validation,
+- every instance references a real child module,
+- every child emitted input is bound exactly once,
+- every child output is exposed exactly once,
+- widths match at every binding/exposure point, and
+- the module graph is acyclic.
+
+That separation is deliberate. `validate(&Module)` guards one module's
+internal circuit invariants. `validate_design(&Design)` guards the
+cross-module contract.
+
+## Emission model
+
+The emitter now has three entry points:
+
+```rust
+to_sv(&Module)
+to_sv_in_design(&Module, &Design)
+to_sv_design(&Design)
 ```
-{ Terminal, Gate(g), Flop, Instance(m, output_port_idx) }
-```
 
-When `Instance(m, k)` is picked:
+`to_sv(&Module)` remains the leaf-only path. Hierarchical modules must
+be emitted with design context so child modules can be resolved and
+instantiation wiring can be rendered.
 
-1. Allocate a sub-module instance of module `m`.
-2. The chosen output port (index `k`, with matching width) becomes
-   the result of this cone node.
-3. The sub-module's input ports become *new sub-cones to drive*,
-   added to the worklist.
-4. The instance's other output ports become available in the signal
-   pool (they can be picked as terminals later).
+Directory output in hierarchy mode now writes:
 
-The worklist mechanism that already handles flop D-cones extends
-naturally: instance input cones go on the same worklist.
+- one `.sv` file per module in the design, and
+- a `manifest.json` whose top-level payload uses `designs: [...]`
+  rather than the old flat `modules: [...]` list.
 
-## Hierarchy depth
+## Why the first slice is wrapper-only
 
-`--hierarchy-depth N` bounds how many levels of sub-modules can nest.
-Depth 0 = leaf modules only (Phase 1 behavior). Depth 1 = top module
-instantiates leaves but leaves themselves contain no instances.
-Depth 2 = leaves can also instantiate sub-leaves. And so on.
+This was a deliberate engineering choice, not a half-finished accident.
 
-In practice, depth 2–3 is usually enough to produce interesting
-hierarchical patterns. Deeper than that and elaboration time grows
-fast.
+The wrapper slice buys several important things immediately:
 
-## Naming uniqueness
+- real multi-module emitted RTL,
+- real elaboration pressure in Verilator/Yosys,
+- real design-aware validation and emission APIs, and
+- a clean boundary above the leaf kernel instead of folding hierarchy
+  into `generate_leaf_module`.
 
-Module names: `mod_<seed>_<index>`. Instance names: `u_<idx>`. Port
-and wire naming follows the leaf convention. The emitter ensures
-uniqueness within each scope; cross-module name collisions are
-impossible because each module has its own namespace.
+It also keeps the open work honest. The following are **not** live yet:
 
-When emitting multiple files (one per module), the emitter writes a
-manifest so downstream tools know which file declares which module
-and which is the top.
+- using an instance output as a pickable signal inside a freshly-built
+  parent cone,
+- recursive depth > 1 hierarchy,
+- on-demand child generation sized to parent needs,
+- hierarchy-aware `NodeId` identity/factorization, and
+- a repo-owned Phase 4 closure gate comparable to the Phase 1/2/3
+  gates.
 
-## Width matching for instances
+## The next real steps
 
-When the parent cone requires width W and considers instantiating
-sub-module `m`, it filters `m`'s output ports to those with width W.
-If none match, it cannot use `m` here — fall back to a gate or
-generate on-demand. This filtering happens upfront when picking
-candidates; we never instantiate and then discover the widths don't
-fit.
+Phase 4 is now `in progress`, not `not started`. The next honest work
+items are:
 
-## Why this generalizes cleanly
+1. let parent cone generation choose sub-instances as one of the real
+   answers to "what drives this signal?";
+2. add deeper bounded recursion (`hierarchy_depth > 1`);
+3. add the on-demand child-sourcing path beside the current
+   pre-generated library path; and
+4. add repo-owned hierarchy closure evidence in `tool_matrix`.
 
-The choice "what drives this signal?" doesn't care whether the answer
-is a gate, a flop, a primary input, or a sub-module output port. They
-are all just nodes that produce a value of some width. The generation
-algorithm is one recursion; the IR has one node type per choice; the
-emitter has one printer per node type. Adding hierarchy is *not* a new
-algorithm — it is a new node kind in the same algorithm.
-
-This is the payoff of the circuit-graph framing. A grammar-based
-design would need separate productions and separate annotation flow
-for instantiation; the IR view absorbs it as a node variant.
+Only after that does Phase 4 become "done" in the same sense that the
+leaf-kernel phases are done today.

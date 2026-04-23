@@ -348,7 +348,7 @@ pub struct Config {
     pub comb_mux_prob: f64,
     pub comb_mux_encoding_prob: f64,
 
-    // Hierarchy (Phase 5+)
+    // Hierarchy (Phase 4+)
     pub hierarchy_depth: u32,
     pub num_leaf_modules: u32,
 
@@ -515,6 +515,12 @@ pub enum ConfigError {
     GateArityRange(u32, u32),
     #[error("invalid coefficient range: min={0}, max={1} (need 1 <= min <= max)")]
     CoefficientRange(u32, u32),
+    #[error(
+        "hierarchy_depth ({0}) is not supported yet; current Phase 4 slice supports only 0 or 1"
+    )]
+    HierarchyDepthUnsupported(u32),
+    #[error("hierarchy_depth > 0 requires num_leaf_modules >= 1 (got {0})")]
+    HierarchyRequiresLeafModules(u32),
 }
 
 impl Config {
@@ -559,6 +565,14 @@ impl Config {
             return Err(ConfigError::CoefficientRange(
                 self.min_coefficient,
                 self.max_coefficient,
+            ));
+        }
+        if self.hierarchy_depth > 1 {
+            return Err(ConfigError::HierarchyDepthUnsupported(self.hierarchy_depth));
+        }
+        if self.hierarchy_depth > 0 && self.num_leaf_modules < 1 {
+            return Err(ConfigError::HierarchyRequiresLeafModules(
+                self.num_leaf_modules,
             ));
         }
         for (name, value) in [
@@ -727,6 +741,12 @@ impl Config {
         if let Some(v) = o.factorization_level {
             self.factorization_level = v;
         }
+        if let Some(v) = o.hierarchy_depth {
+            self.hierarchy_depth = v;
+        }
+        if let Some(v) = o.num_leaf_modules {
+            self.num_leaf_modules = v;
+        }
     }
 }
 
@@ -778,6 +798,8 @@ pub struct Overrides {
     pub mux_arm_duplication_rate: Option<f64>,
     pub operand_duplication_rate: Option<f64>,
     pub factorization_level: Option<FactorizationLevel>,
+    pub hierarchy_depth: Option<u32>,
+    pub num_leaf_modules: Option<u32>,
 }
 
 #[cfg(test)]
@@ -830,5 +852,31 @@ mod tests {
             cfg.effective_factorization_level(),
             FactorizationLevel::None
         );
+    }
+
+    #[test]
+    fn validate_rejects_unsupported_hierarchy_depth() {
+        let cfg = Config {
+            hierarchy_depth: 2,
+            num_leaf_modules: 2,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::HierarchyDepthUnsupported(depth)) => assert_eq!(depth, 2),
+            other => panic!("expected hierarchy depth rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_zero_leaf_count_when_hierarchy_enabled() {
+        let cfg = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 0,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::HierarchyRequiresLeafModules(count)) => assert_eq!(count, 0),
+            other => panic!("expected hierarchy leaf-count rejection, got {other:?}"),
+        }
     }
 }

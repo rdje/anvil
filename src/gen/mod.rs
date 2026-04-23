@@ -1,9 +1,9 @@
 //! Generator entry points. See `book/src/algorithm.md`.
 
 pub mod cone;
+pub mod hierarchy;
 pub mod module;
 pub mod pool;
-// pub mod hierarchy; // Phase 5+
 
 use crate::config::Config;
 use crate::ir::{Design, Module};
@@ -74,12 +74,15 @@ impl Generator {
     }
 
     pub fn generate_design(&mut self) -> Design {
-        // Phase 5+: populate a library, generate a top with hierarchy.
-        let m = self.generate_module();
-        let name = m.name.clone();
-        Design {
-            top: name,
-            modules: vec![m],
+        if self.cfg.hierarchy_depth == 0 {
+            let m = self.generate_module();
+            let name = m.name.clone();
+            Design {
+                top: name,
+                modules: vec![m],
+            }
+        } else {
+            hierarchy::generate_design(self)
         }
     }
 }

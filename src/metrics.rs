@@ -33,7 +33,9 @@ pub struct Metrics {
     pub num_constants: usize,
     pub num_primary_inputs: usize,
     pub num_flop_q_refs: usize,
+    pub num_instance_outputs: usize,
     pub num_flops: usize,
+    pub num_instances: usize,
 
     // --- Per-gate-kind distribution -----------------------------
     /// Count of `Node::Gate` per `GateOp` kind (`"and"`, `"mux"`,
@@ -258,6 +260,7 @@ pub fn compute(m: &Module) -> Metrics {
         num_outputs: m.outputs.len(),
         num_nodes: m.nodes.len(),
         num_flops: m.flops.len(),
+        num_instances: m.instances.len(),
         ..Default::default()
     };
 
@@ -267,6 +270,7 @@ pub fn compute(m: &Module) -> Metrics {
         match node {
             Node::PrimaryInput { .. } => out.num_primary_inputs += 1,
             Node::FlopQ { .. } => out.num_flop_q_refs += 1,
+            Node::InstanceOutput { .. } => out.num_instance_outputs += 1,
             Node::Constant { width, value } => {
                 out.num_constants += 1;
                 *out.constants_by_width.entry(*width).or_insert(0) += 1;

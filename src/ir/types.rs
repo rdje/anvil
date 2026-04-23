@@ -12,6 +12,7 @@ use std::collections::{BTreeSet, HashMap};
 pub type PortId = u32;
 pub type NodeId = u32;
 pub type FlopId = u32;
+pub type InstanceId = u32;
 
 const FLOP_VIRTUAL_TAG: u32 = 0x8000_0000;
 
@@ -40,6 +41,7 @@ pub struct Module {
     pub reset: Option<PortId>,
     pub nodes: Vec<Node>,
     pub flops: Vec<Flop>,
+    pub instances: Vec<Instance>,
     /// (output_port_id, driving_node_id)
     pub drives: Vec<(PortId, NodeId)>,
     /// Construction-time AST-instance table: `(op, operands, width) →
@@ -294,6 +296,38 @@ impl KnobRollCounters {
 }
 
 impl Module {
+    /// Whether this module emits any sequential state locally.
+    pub fn has_local_flops(&self) -> bool {
+        !self.flops.is_empty()
+    }
+
+    /// Whether an input port is visible in the emitted module
+    /// interface. `clk` / `rst_n` are construction-time IR ports for
+    /// every leaf module, but are suppressed by the emitter when the
+    /// module has no local flops.
+    pub fn is_emitted_input_port(&self, port_id: PortId) -> bool {
+        if !self.has_local_flops() && (self.clock == Some(port_id) || self.reset == Some(port_id)) {
+            return false;
+        }
+        self.inputs.iter().any(|port| port.id == port_id)
+    }
+
+    /// Iterate the input ports that appear in the emitted SystemVerilog
+    /// module header.
+    pub fn emitted_input_ports(&self) -> impl Iterator<Item = &Port> {
+        self.inputs
+            .iter()
+            .filter(move |port| self.is_emitted_input_port(port.id))
+    }
+
+    pub fn input_port(&self, port_id: PortId) -> Option<&Port> {
+        self.inputs.iter().find(|port| port.id == port_id)
+    }
+
+    pub fn output_port(&self, port_id: PortId) -> Option<&Port> {
+        self.outputs.iter().find(|port| port.id == port_id)
+    }
+
     /// Effective factorization level after applying the coarse
     /// identity mode.
     pub fn effective_factorization_level(&self) -> crate::config::FactorizationLevel {
@@ -1469,6 +1503,15 @@ impl Module {
 }
 
 #[derive(Debug, Clone)]
+pub struct Instance {
+    pub id: InstanceId,
+    pub name: String,
+    pub module: String,
+    /// Child input port id -> parent driving node id.
+    pub inputs: Vec<(PortId, NodeId)>,
+}
+
+#[derive(Debug, Clone)]
 pub enum Node {
     PrimaryInput {
         port: PortId,
@@ -1480,6 +1523,11 @@ pub enum Node {
     },
     FlopQ {
         flop: FlopId,
+        width: u32,
+    },
+    InstanceOutput {
+        instance: InstanceId,
+        port: PortId,
         width: u32,
     },
     Gate {
@@ -1496,6 +1544,7 @@ impl Node {
             Node::PrimaryInput { width, .. }
             | Node::Constant { width, .. }
             | Node::FlopQ { width, .. }
+            | Node::InstanceOutput { width, .. }
             | Node::Gate { width, .. } => *width,
         }
     }

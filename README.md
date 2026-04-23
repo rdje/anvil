@@ -64,6 +64,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/mod.rs`          `Generator` entry points
 - `src/gen/cone.rs`         fanin-cone recursion
 - `src/gen/module.rs`       leaf-module generator
+- `src/gen/hierarchy.rs`    Phase 4 depth-1 hierarchy generator
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -102,6 +103,12 @@ cargo run -- --seed 42
 
 # Generate 100 modules into a directory
 cargo run -- --seed 42 --count 100 --out ./generated
+
+# Generate one real depth-1 hierarchical design
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 3
+
+# Generate hierarchical designs into a directory
+cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
 
 # Library-usage example
 cargo run --example generate_one
@@ -271,11 +278,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   the report proves the landed Phase 3 surfaces directly from emitted
   metrics and tool results.
 - Current scope: single-module combinational **and sequential**
-  generation, DAG sharing default-on, bounded semantic `e-graph`
-  fragment live under `--identity-mode node-id`, no hierarchy yet, and
-  no artifact-family selector yet. Broader valid-by-construction
-  synthesizable artifact families are roadmap work. See `ROADMAP.md`
-  for phase gating.
+  generation is mature, DAG sharing is default-on, the bounded semantic
+  `e-graph` fragment is live under `--identity-mode node-id`, and the
+  first real hierarchy slice is now live too: `--hierarchy-depth 1`
+  generates a depth-1 wrapper design that instantiates a generated
+  library of leaf modules. Recursive parent-side hierarchy generation,
+  parameterization, and broader artifact-family selection are still
+  roadmap work. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

@@ -2,6 +2,7 @@
 //! generator output in production, that's a generator bug to fix.
 
 use super::types::*;
+use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -61,6 +62,20 @@ pub enum ValidateError {
         field: &'static str,
         node: NodeId,
     },
+    #[error("instance table slot {index} stores id {id} (expected {expected})")]
+    InstanceIdMismatch {
+        index: usize,
+        id: InstanceId,
+        expected: InstanceId,
+    },
+    #[error("instance {instance} input port {port} is driven by undefined node {node}")]
+    UndefinedInstanceInput {
+        instance: InstanceId,
+        port: PortId,
+        node: NodeId,
+    },
+    #[error("instance-output node {node} references undefined instance {instance}")]
+    DanglingInstanceOutput { node: NodeId, instance: InstanceId },
     #[error("flop {flop} q node {q} is not a FlopQ node")]
     FlopQNotNode { flop: FlopId, q: NodeId },
     #[error("flop {flop} q node {q} points back to flop {got}")]
@@ -95,6 +110,84 @@ pub enum ValidateError {
     },
     #[error("output cone for port {0} has empty dep-set (trivially constant)")]
     TrivialOutput(PortId),
+}
+
+#[derive(Debug, Error)]
+pub enum DesignValidateError {
+    #[error("top module `{0}` not found in design")]
+    MissingTop(String),
+    #[error("duplicate module name `{0}` in design")]
+    DuplicateModuleName(String),
+    #[error("module `{module}` failed local validation: {source}")]
+    Module {
+        module: String,
+        #[source]
+        source: ValidateError,
+    },
+    #[error("module `{module}` instance `{instance}` references unknown child module `{child}`")]
+    UnknownChildModule {
+        module: String,
+        instance: String,
+        child: String,
+    },
+    #[error("module `{module}` instance `{instance}` binds unknown child input port {port}")]
+    UnknownChildInputPort {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error(
+        "module `{module}` instance `{instance}` binds child input port {port} more than once"
+    )]
+    DuplicateChildInputBinding {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error("module `{module}` instance `{instance}` is missing child input port {port}")]
+    MissingChildInputBinding {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error("module `{module}` instance `{instance}` child input port {port} width {expected} is driven by width {got}")]
+    ChildInputWidthMismatch {
+        module: String,
+        instance: String,
+        port: PortId,
+        expected: u32,
+        got: u32,
+    },
+    #[error("module `{module}` instance `{instance}` exposes unknown child output port {port}")]
+    UnknownChildOutputPort {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error(
+        "module `{module}` instance `{instance}` exposes child output port {port} more than once"
+    )]
+    DuplicateChildOutputExposure {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error("module `{module}` instance `{instance}` is missing child output port {port}")]
+    MissingChildOutputExposure {
+        module: String,
+        instance: String,
+        port: PortId,
+    },
+    #[error("module `{module}` instance `{instance}` child output port {port} width {expected} is exposed as width {got}")]
+    ChildOutputWidthMismatch {
+        module: String,
+        instance: String,
+        port: PortId,
+        expected: u32,
+        got: u32,
+    },
+    #[error("cyclic hierarchy detected at module `{0}`")]
+    CyclicHierarchy(String),
 }
 
 pub fn validate(m: &Module) -> Result<(), ValidateError> {
@@ -177,36 +270,66 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         validate_flop_mux_refs(flop, m)?;
     }
 
-    // 4. Every FlopQ node points at a real flop and is canonical.
-    for (node_id, node) in m.nodes.iter().enumerate() {
-        let Node::FlopQ { flop, width } = node else {
-            continue;
-        };
-        let node_id = node_id as NodeId;
-        let Some(owner) = m.flops.get(*flop as usize) else {
-            return Err(ValidateError::DanglingFlopQ {
-                node: node_id,
-                flop: *flop,
-            });
-        };
-        if owner.width != *width {
-            return Err(ValidateError::FlopNodeWidthMismatch {
-                node: node_id,
-                flop: *flop,
-                q_width: *width,
-                flop_width: owner.width,
+    // 4. Every instance's local references are self-consistent.
+    for (index, instance) in m.instances.iter().enumerate() {
+        let expected = index as InstanceId;
+        if instance.id != expected {
+            return Err(ValidateError::InstanceIdMismatch {
+                index,
+                id: instance.id,
+                expected,
             });
         }
-        if owner.q != node_id {
-            return Err(ValidateError::NonCanonicalFlopQ {
-                node: node_id,
-                flop: *flop,
-                expected_q: owner.q,
-            });
+        for (port, node) in &instance.inputs {
+            if !node_exists(m, *node) {
+                return Err(ValidateError::UndefinedInstanceInput {
+                    instance: instance.id,
+                    port: *port,
+                    node: *node,
+                });
+            }
         }
     }
 
-    // 5. Each output port is driven exactly once.
+    // 5. Every FlopQ node points at a real flop and is canonical.
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        let node_id = node_id as NodeId;
+        match node {
+            Node::FlopQ { flop, width } => {
+                let Some(owner) = m.flops.get(*flop as usize) else {
+                    return Err(ValidateError::DanglingFlopQ {
+                        node: node_id,
+                        flop: *flop,
+                    });
+                };
+                if owner.width != *width {
+                    return Err(ValidateError::FlopNodeWidthMismatch {
+                        node: node_id,
+                        flop: *flop,
+                        q_width: *width,
+                        flop_width: owner.width,
+                    });
+                }
+                if owner.q != node_id {
+                    return Err(ValidateError::NonCanonicalFlopQ {
+                        node: node_id,
+                        flop: *flop,
+                        expected_q: owner.q,
+                    });
+                }
+            }
+            Node::InstanceOutput { instance, .. } if (*instance as usize) >= m.instances.len() => {
+                return Err(ValidateError::DanglingInstanceOutput {
+                    node: node_id,
+                    instance: *instance,
+                });
+            }
+            Node::InstanceOutput { .. } => {}
+            _ => {}
+        }
+    }
+
+    // 6. Each output port is driven exactly once.
     for out in &m.outputs {
         let count = m.drives.iter().filter(|(p, _)| *p == out.id).count();
         if count != 1 {
@@ -214,7 +337,7 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
-    // 6. Cone roots have non-empty dep-sets.
+    // 7. Cone roots have non-empty dep-sets.
     for (port_id, node_id) in &m.drives {
         let node = &m.nodes[*node_id as usize];
         if let Node::Gate { deps, .. } = node {
@@ -224,7 +347,7 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         }
     }
 
-    // 7. Per-gate operand widths and arity.
+    // 8. Per-gate operand widths and arity.
     for (idx, node) in m.nodes.iter().enumerate() {
         if let Node::Gate {
             op,
@@ -235,6 +358,165 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
         {
             check_gate_shape(idx as NodeId, *op, operands, *width, m)?;
         }
+    }
+
+    Ok(())
+}
+
+pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
+    let mut modules = BTreeMap::new();
+    for module in &d.modules {
+        if modules.insert(module.name.clone(), module).is_some() {
+            return Err(DesignValidateError::DuplicateModuleName(
+                module.name.clone(),
+            ));
+        }
+    }
+
+    if !modules.contains_key(&d.top) {
+        return Err(DesignValidateError::MissingTop(d.top.clone()));
+    }
+
+    for module in &d.modules {
+        validate(module).map_err(|source| DesignValidateError::Module {
+            module: module.name.clone(),
+            source,
+        })?;
+
+        for instance in &module.instances {
+            let Some(child) = modules.get(&instance.module) else {
+                return Err(DesignValidateError::UnknownChildModule {
+                    module: module.name.clone(),
+                    instance: instance.name.clone(),
+                    child: instance.module.clone(),
+                });
+            };
+
+            let expected_inputs: BTreeMap<PortId, &Port> = child
+                .emitted_input_ports()
+                .map(|port| (port.id, port))
+                .collect();
+            let mut seen_inputs = BTreeSet::new();
+            for (port_id, node_id) in &instance.inputs {
+                let Some(child_port) = expected_inputs.get(port_id) else {
+                    return Err(DesignValidateError::UnknownChildInputPort {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port_id,
+                    });
+                };
+                if !seen_inputs.insert(*port_id) {
+                    return Err(DesignValidateError::DuplicateChildInputBinding {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port_id,
+                    });
+                }
+                let got = module.nodes[*node_id as usize].width();
+                if got != child_port.width {
+                    return Err(DesignValidateError::ChildInputWidthMismatch {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port_id,
+                        expected: child_port.width,
+                        got,
+                    });
+                }
+            }
+            for port_id in expected_inputs.keys() {
+                if !seen_inputs.contains(port_id) {
+                    return Err(DesignValidateError::MissingChildInputBinding {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port_id,
+                    });
+                }
+            }
+
+            let expected_outputs: BTreeMap<PortId, &Port> =
+                child.outputs.iter().map(|port| (port.id, port)).collect();
+            let mut seen_outputs = BTreeSet::new();
+            for node in &module.nodes {
+                let Node::InstanceOutput {
+                    instance: owner,
+                    port,
+                    width,
+                } = node
+                else {
+                    continue;
+                };
+                if *owner != instance.id {
+                    continue;
+                }
+                let Some(child_port) = expected_outputs.get(port) else {
+                    return Err(DesignValidateError::UnknownChildOutputPort {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port,
+                    });
+                };
+                if !seen_outputs.insert(*port) {
+                    return Err(DesignValidateError::DuplicateChildOutputExposure {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port,
+                    });
+                }
+                if *width != child_port.width {
+                    return Err(DesignValidateError::ChildOutputWidthMismatch {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port,
+                        expected: child_port.width,
+                        got: *width,
+                    });
+                }
+            }
+            for port_id in expected_outputs.keys() {
+                if !seen_outputs.contains(port_id) {
+                    return Err(DesignValidateError::MissingChildOutputExposure {
+                        module: module.name.clone(),
+                        instance: instance.name.clone(),
+                        port: *port_id,
+                    });
+                }
+            }
+        }
+    }
+
+    enum Mark {
+        Visiting,
+        Done,
+    }
+
+    fn dfs(
+        module_name: &str,
+        modules: &BTreeMap<String, &Module>,
+        marks: &mut BTreeMap<String, Mark>,
+    ) -> Result<(), DesignValidateError> {
+        match marks.get(module_name) {
+            Some(Mark::Done) => return Ok(()),
+            Some(Mark::Visiting) => {
+                return Err(DesignValidateError::CyclicHierarchy(
+                    module_name.to_string(),
+                ))
+            }
+            None => {}
+        }
+        marks.insert(module_name.to_string(), Mark::Visiting);
+        let module = modules
+            .get(module_name)
+            .expect("module exists while DFSing");
+        for instance in &module.instances {
+            dfs(&instance.module, modules, marks)?;
+        }
+        marks.insert(module_name.to_string(), Mark::Done);
+        Ok(())
+    }
+
+    let mut marks = BTreeMap::new();
+    for module_name in modules.keys() {
+        dfs(module_name, &modules, &mut marks)?;
     }
 
     Ok(())
@@ -1048,5 +1330,66 @@ mod tests {
         });
         add_output(&mut m, "o", 8, concat_id);
         validate(&m).expect("N-copy Concat must validate");
+    }
+
+    #[test]
+    fn accepts_valid_depth1_design() {
+        let mut child = empty_module();
+        let (_child_port, child_input_node) = add_input(&mut child, "a", 8);
+        add_output(&mut child, "o", 8, child_input_node);
+        child.name = "child".into();
+
+        let mut top = empty_module();
+        top.name = "top".into();
+        let (top_input_port, top_input_node) = add_input(&mut top, "u_0__a", 8);
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: child.name.clone(),
+            inputs: vec![(0, top_input_node)],
+        });
+        let instout = top.nodes.len() as NodeId;
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 8,
+        });
+        debug_assert_eq!(top_input_port, 0);
+        add_output(&mut top, "u_0__o", 8, instout);
+
+        let design = Design {
+            top: top.name.clone(),
+            modules: vec![child, top],
+        };
+        validate_design(&design).expect("valid wrapper design must validate");
+    }
+
+    #[test]
+    fn rejects_missing_child_output_exposure_in_design() {
+        let mut child = empty_module();
+        let (_child_port, child_input_node) = add_input(&mut child, "a", 8);
+        add_output(&mut child, "o", 8, child_input_node);
+        child.name = "child".into();
+
+        let mut top = empty_module();
+        top.name = "top".into();
+        let (_top_input_port, top_input_node) = add_input(&mut top, "u_0__a", 8);
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: child.name.clone(),
+            inputs: vec![(0, top_input_node)],
+        });
+
+        let design = Design {
+            top: top.name.clone(),
+            modules: vec![child, top],
+        };
+
+        let err = validate_design(&design).expect_err("missing child output should be rejected");
+        assert!(matches!(
+            err,
+            DesignValidateError::MissingChildOutputExposure { .. }
+        ));
     }
 }

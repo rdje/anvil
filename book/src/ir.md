@@ -6,6 +6,11 @@ operates on it.
 ## Core types
 
 ```rust
+pub struct Design {
+    pub top:     String,
+    pub modules: Vec<Module>,
+}
+
 pub struct Module {
     pub name:    String,
     pub inputs:  Vec<Port>,
@@ -14,6 +19,7 @@ pub struct Module {
     pub reset:   Option<PortId>,
     pub nodes:   Vec<Node>,                // arena of internal signals
     pub flops:   Vec<Flop>,
+    pub instances: Vec<Instance>,
     pub drives:  Vec<(PortId, NodeId)>,    // which node drives each output
 
     // Construction-time hash-consing tables (Rule 21).
@@ -51,10 +57,18 @@ pub struct Port {
     pub dir:   Direction,                  // In | Out
 }
 
+pub struct Instance {
+    pub id:     InstanceId,
+    pub name:   String,
+    pub module: String,                    // child module name
+    pub inputs: Vec<(PortId, NodeId)>,     // child input port -> parent node
+}
+
 pub enum Node {
     PrimaryInput { port: PortId, width: u32 },
     Constant     { width: u32, value: u128 },
     FlopQ        { flop: FlopId, width: u32 },
+    InstanceOutput { instance: InstanceId, port: PortId, width: u32 },
     Gate {
         op:       GateOp,
         operands: Vec<NodeId>,
@@ -109,6 +123,17 @@ pub struct Flop {
     pub mux:        FlopMux,                      // filled by drain
 }
 ```
+
+The hierarchy slice is intentionally narrow today:
+
+- `Design` is now real, not aspirational;
+- `Module.instances` and `Node::InstanceOutput` are now real, not
+  future placeholders; but
+- parent-side cone construction from instance outputs is still future
+  work.
+
+So the IR now has genuine design/module/instance structure, while the
+generator still uses it in a wrapper-style depth-1 composition pass.
 
 ## Node construction: `intern_gate` / `intern_constant`
 
@@ -295,6 +320,12 @@ In `validate.rs`:
   width; comparisons require equal operand widths; `Slice` source
   width must exceed `hi`; bitwise/arithmetic operands equal output
   width; etc.
+- Dense instance ids inside each module.
+- Every instance input binding points at a live node.
+- Every `Node::InstanceOutput` points at a real local instance.
+- At the design level: unique module names, real top module, complete
+  child input bindings, complete child output exposure, width matches
+  across bindings/exposures, and an acyclic module graph.
 
 Violation of any of these is a generator bug. The constructors do
 not panic; the validator rejects with a rich error variant (port,
@@ -302,14 +333,19 @@ flop field, node id, op, operand index, expected vs got widths).
 
 ## Emitter contract
 
-The emitter (`emit::to_sv`) is a pure function `Module -> String`. It
-assumes all invariants hold. It does not validate. It does not reject
-anything. If the IR is valid, the emitted SV is valid.
+The emitter now has two layers:
+
+- `emit::to_sv(&Module)` for leaf-only modules, and
+- `emit::to_sv_in_design(&Module, &Design)` /
+  `emit::to_sv_design(&Design)` for hierarchy-aware emission.
+
+It assumes all invariants hold. It does not validate. It does not
+reject anything. If the IR/design is valid, the emitted SV is valid.
 
 Name generation is deterministic and **typed per gate kind** (Rule 12):
 
 - `clk`, `rst_n` — clock and async-reset input ports (emitted only
-  when `!m.flops.is_empty()`).
+  when the module has local flops).
 - `i_0`, `i_1`, … — primary data inputs.
 - `o_0`, `o_1`, … — primary outputs.
 - `<gate_kind>_<N>` — internal gate wire. `<gate_kind>` is the
@@ -318,6 +354,8 @@ Name generation is deterministic and **typed per gate kind** (Rule 12):
   `slice`, `concat`, `red_and`, `red_or`, `red_xor`, `shl`,
   `shr`), and `<N>` counts per kind from 0 within the module.
 - `flop_<id>` — flop register, indexed by `FlopId`.
+- `instout_<instance>_<port>` — named wire for a child instance output
+  inside a parent module.
 
 Each kind carries its own counter — `and_0`, `mux_0`, `slice_0`
 coexist without collision. Per-kind counts are assigned by a
@@ -356,9 +394,11 @@ reused at multiple widths / depths. Requires:
 - **Emitter changes**: render parameter declarations in the
   module header and substitute symbolic widths in `logic [W-1:0]`
   where appropriate.
-- **Hard prerequisite: Phase 4 (hierarchy)**. Parameters only
-  matter at instantiation — without hierarchy, every module is
-  stand-alone and there is nothing to parameterise over.
+- **Prerequisite now satisfied in minimal form:** Phase 4 hierarchy is
+  live enough that parameters have a real place to attach
+  (instantiation), but the current wrapper-only hierarchy slice is not
+  yet the full parameter story. Parameter-aware child selection and
+  parameter-dependent parent generation remain future work.
 
 Value: stresses the parameter-resolution and elaboration code
 paths in every downstream tool. Generator output becomes

@@ -18,6 +18,12 @@ Generate a single module to stdout:
 anvil --seed 42
 ```
 
+Generate one real depth-1 hierarchical design to stdout:
+
+```bash
+anvil --seed 42 --hierarchy-depth 1 --num-leaf-modules 3
+```
+
 Generate 100 modules into a directory:
 
 ```bash
@@ -28,6 +34,11 @@ Each module lands in its own `.sv` file named by seed and index, e.g.
 `generated/mod_42_0007.sv`. A `manifest.json` in the output directory
 records the seed, knobs, and per-module summary (port counts, widths,
 node count, flop count).
+
+When hierarchy is enabled (`--hierarchy-depth 1`), each generated
+design still writes one `.sv` file per module, but `manifest.json`
+switches to a `designs` array. Each design entry records the `top`
+module name plus the module/file list for that design.
 
 ## Tracing and debugging
 
@@ -165,6 +176,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--case-mux-prob`      | 0.05     | Per-emission probability of a combinational `always_comb case` block |
 | `--casez-mux-prob`     | 0.05     | Per-emission probability of a combinational `always_comb casez` block |
 | `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational `always_comb` `for`-fold block over packed chunks |
+| `--hierarchy-depth`    | 0        | Hierarchy depth. `0` = leaf modules only; `1` = current Phase 4 wrapper slice |
+| `--num-leaf-modules`   | 0        | Number of leaf modules pre-generated for the current depth-1 hierarchy slice |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
@@ -216,6 +229,29 @@ generated/
 ├── mod_42_0001.sv
 └── ...
 ```
+
+Hierarchy mode (`--hierarchy-depth 1`) keeps the same file layout but
+changes the manifest shape:
+
+```text
+generated-hier/
+├── manifest.json            # seed, knobs, per-design metadata
+├── mod_42_0000.sv           # leaf module
+├── mod_42_0001.sv           # leaf module
+├── mod_42_0002.sv           # top wrapper
+└── ...
+```
+
+In that mode, `manifest.json` contains `designs: [...]`, and each
+design entry records:
+- `index`
+- `top`
+- `modules: [{ file, name, metrics }, ...]`
+
+The current Phase 4 slice is intentionally narrow:
+- only `hierarchy_depth = 0` or `1` is accepted
+- the top is a real wrapper that instantiates generated leaves
+- parent-side cone construction from instance outputs is not live yet
 
 ## Tool matrix sweeps
 
@@ -329,14 +365,20 @@ the new run.
 
 `anvil` does not ship an oracle or simulator. To sanity-check output:
 
-**Verilator elaboration:**
+**Verilator elaboration (leaf module):**
 ```bash
 verilator --lint-only generated/mod_42_0000.sv
 ```
 
-**Yosys synthesis:**
+**Yosys synthesis (leaf module):**
 ```bash
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
+```
+
+**Hierarchy elaboration / synthesis (directory output):**
+```bash
+verilator --lint-only generated-hier/*.sv
+yosys -p "read_verilog -sv generated-hier/*.sv; synth -top <top-module> -noabc; stat; check"
 ```
 
 To probe the ABC-enabled path explicitly:

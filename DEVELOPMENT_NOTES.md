@@ -57,6 +57,47 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Phase 4 starts as wrapper hierarchy on purpose
+The first hierarchy slice is deliberately **not** "instances can appear
+anywhere in any parent cone". That broader story is the destination,
+but it is not the cheapest truthful first landing.
+
+What landed instead is:
+
+- generate a library of leaf modules with the already-proven leaf
+  kernel,
+- build a real top wrapper module,
+- instantiate every leaf once,
+- expose every child output at the top, and
+- make emission / validation / manifest handling design-aware.
+
+That buys several real things immediately:
+
+- ANVIL now emits genuine multi-module SV, not just disconnected leaf
+  files;
+- downstream tools now see elaboration and inter-module port binding;
+- the IR and validator now carry explicit instance structure; and
+- the hierarchy layer stays above `generate_leaf_module` instead of
+  smearing inter-module behavior into the leaf kernel.
+
+Just as importantly, it keeps the open work honest. Parent-side cone
+construction from instance outputs, recursive sub-hierarchy growth, and
+hierarchical identity are all still future work. The wrapper slice is
+real, but it does not pretend Phase 4 is already solved.
+
+Two narrow implementation choices are load-bearing in this slice:
+
+- the wrapper top keeps shared `clk` / `rst_n` as ordinary top inputs
+  instead of marking them as `Module.clock` / `Module.reset`, because
+  the current emitter's special clock/reset hiding rules are leaf-local
+  and we do not want the first hierarchy slice to depend on a broader
+  "design-global special port" story yet;
+- `Node::InstanceOutput` is treated as a leaf boundary by the existing
+  proof / compaction helpers, because the wrapper top does not yet build
+  new parent cones from child outputs. That keeps the current leaf-kernel
+  proof machinery compatible with hierarchy without overclaiming
+  hierarchical equivalence.
+
 ### Wrapped-add bounds must preserve a shifted single interval when it stays linear
 The `e-graph` warning in
 `/tmp/anvil-tool-matrix-phase1-real-r20/int_nodeid_e-graph_default/mod_8_0053.sv`

@@ -248,30 +248,45 @@ repo-owned Yosys modes).
 the structured surface has its own representative clean-run closure
 evidence.
 
-## Phase 4 — Hierarchy (not started)
+## Phase 4 — Hierarchy (in progress)
 
-- Module instantiation: at any cone node, optionally emit a sub-module
-  call instead of a gate.
-- Two sourcing modes:
-  - **Library**: pre-generate a pool, pick from it.
-  - **On-demand**: generate a fresh sub-module with required port widths.
-- Arbitrary hierarchy depth, bounded by knob.
-- Name uniqueness across the module set.
-- Hierarchical identity is future required work: under
-  `identity_mode = node-id`, equivalent instantiated structures should
-  eventually participate in the same sharing story instead of creating a
-  second identity system beside gates/flops.
+- **Landed first slice:** `--hierarchy-depth 1 --num-leaf-modules N`
+  now generates a real `Design`: a pre-generated library of leaf
+  modules plus a real top wrapper that instantiates them and exposes
+  every child output. This is genuine module composition, not a fake
+  multi-file bundle.
+- Current slice constraints:
+  - depth `0` or `1` only; deeper recursion is still rejected
+  - wrapper-style top only; parent-side cone construction from instance
+    outputs is not live yet
+  - library sourcing only; on-demand child synthesis is not live yet
+- Open Phase 4 work:
+  - module instantiation as a first-class cone choice inside parent
+    generation, not just in the wrapper top
+  - two sourcing modes:
+    - **Library**: pre-generate a pool, pick from it
+    - **On-demand**: generate a fresh sub-module with required port widths
+  - arbitrary hierarchy depth, bounded by knob
+  - name uniqueness across the full module set
+  - repo-owned hierarchy closure evidence, not just one smoke run
+  - hierarchical identity as future required work: under
+    `identity_mode = node-id`, equivalent instantiated structures
+    should eventually participate in the same sharing story instead of
+    creating a second identity system beside gates/flops
 
-**Exit criteria:** multi-file output directory with correct top module
-declared; Verilator elaboration of hierarchy succeeds.
+**Exit criteria:** repo-owned hierarchy gate with multi-file output,
+correct top declaration, design-level validation, and clean Verilator +
+Yosys elaboration/synthesis on a representative hierarchy matrix.
 
 ## Phase 5 — Parameterization (not started)
 
 - Generated modules take `parameter` declarations for widths.
 - Instantiation picks parameter values from allowed ranges.
 - Parameter-dependent widths propagate correctly through cone generation.
-- **Hard prerequisite:** Phase 4 (hierarchy). Parameters only matter
-  at instantiation time.
+- **Hard prerequisite:** Phase 4 hierarchy as a real design/instance
+  layer. The current wrapper slice is the first foothold, not the full
+  parameter story; parameter-aware child selection and parameter-driven
+  parent generation still belong to this phase.
 - Parameter-aware identity must remain sound: different parameter values
   cannot accidentally alias to one `NodeId` or one module instance
   unless the resulting structure is genuinely equivalent.

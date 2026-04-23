@@ -8,7 +8,8 @@ src/
 │                    # motif knob as a dedicated flag; wires the
 │                    # tracing-subscriber from --trace <level> and
 │                    # --trace-file.
-├── lib.rs           # public API, re-exports Config, Generator, Module.
+├── lib.rs           # public API, re-exports Config, Generator, Module,
+│                    # Design.
 │                    # Trace infrastructure: TRACE_DEBUG AtomicBool,
 │                    # set_trace_debug(bool), trace_verbose! macro
 │                    # (gates tracing::trace! behind the debug flag so
@@ -31,7 +32,8 @@ src/
 │   ├── mod.rs       # re-exports.
 │   ├── types.rs     # Module, Port, Node, GateOp (with Hash derive),
 │   │                # Flop, FlopKind, FlopMux, MuxArm, DepSet,
-│   │                # KnobId, KnobRollCounters, Design. Module
+│   │                # KnobId, KnobRollCounters, Design, Instance.
+│   │                # Module
 │   │                # carries construction-time dedup tables
 │   │                # (gate_instances, const_instances), per-module
 │   │                # knob mirrors (max_ast_instances,
@@ -58,7 +60,9 @@ src/
 │   │                # m.nodes / m.drives / m.flops / dedup tables.
 │   │                # Keeps orphan-producing rewrites Rule-18-clean at
 │   │                # module finalisation. Inline unit tests.
-│   └── validate.rs  # invariant + canonical-state + per-gate shape checker; inline unit tests.
+│   └── validate.rs  # invariant + canonical-state + per-gate shape
+│                    # checker, plus design-level hierarchy
+│                    # validation; inline unit tests.
 ├── gen/
 │   ├── mod.rs       # Generator struct, public entry points.
 │   ├── cone.rs      # fanin-cone recursion (combinational + sequential);
@@ -74,17 +78,22 @@ src/
 │   ├── module.rs    # leaf-module generator (clk/rst_n reservation,
 │   │                # pool seeding, output cones, worklist drain,
 │   │                # Rule 18 safety-net orphan audit).
+│   ├── hierarchy.rs # current Phase 4 slice: depth-1 wrapper
+│   │                # hierarchy. Pre-generates a leaf library,
+│   │                # builds a real top wrapper, instantiates every
+│   │                # leaf once, exposes every child output.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
     └── sv.rs        # IR -> SystemVerilog. Dumb serialiser per doctrine —
                      # no filtering, no reachability checks. build_names
                      # assigns each gate a <kind>_<N> name (Rule 12);
-                     # flops are flop_<id>. Inline unit tests.
+                     # flops are flop_<id>; also emits design-aware
+                     # child-module instantiations. Inline unit tests.
 ```
 
-Phase 4 (hierarchy) will add `src/gen/hierarchy.rs`; it does not exist
-yet.
+Phase 4 is now in progress: `src/gen/hierarchy.rs` owns the first live
+depth-1 hierarchy slice.
 
 ## Dependency direction
 
@@ -283,7 +292,7 @@ pub struct Generator { rng: ChaCha8Rng, cfg: Config, ... }
 impl Generator {
     pub fn new(cfg: Config) -> Self;
     pub fn generate_module(&mut self) -> Module;
-    pub fn generate_design(&mut self) -> Design;   // Phase 4+ stub
+    pub fn generate_design(&mut self) -> Design;   // depth-0 leaf or depth-1 wrapper hierarchy
 }
 
 // metrics.rs
@@ -292,6 +301,8 @@ pub fn compute(m: &Module) -> Metrics;
 
 // emit/sv.rs
 pub fn to_sv(m: &Module) -> String;
+pub fn to_sv_in_design(m: &Module, design: &Design) -> String;
+pub fn to_sv_design(design: &Design) -> String;
 
 // lib.rs
 pub fn set_trace_debug(enabled: bool);
@@ -306,31 +317,33 @@ Three layers:
 **Unit tests** live inline in each source module under
 `#[cfg(test)] mod tests { ... }`. Current counts:
 
-- `src/ir/types.rs` — 36 tests covering factorization,
+- `src/ir/types.rs` — 38 tests covering factorization,
   identity-mode, and rewrite-layer semantics.
-- `src/ir/validate.rs` — 21 tests (valid modules, undefined drive
+- `src/ir/validate.rs` — 26 tests (valid modules, undefined drive
   roots, canonical flop/`FlopQ` backrefs, missing-D / mux-ref
-  failures, and representative gate-shape rejection classes).
-- `src/gen/cone.rs` — 18 tests covering picker, anti-collapse,
+  failures, representative gate-shape rejection classes, and
+  design-level hierarchy acceptance/rejection).
+- `src/gen/cone.rs` — 40 tests covering picker, anti-collapse,
   width-adapter, and motif-edge cases.
-- `src/emit/sv.rs` — 6 tests (module header, clk/rst_n omission,
+- `src/emit/sv.rs` — 11 tests (module header, clk/rst_n omission,
   `always_ff` shape, operator + constant rendering, Slice/Concat,
-  Mux ternary).
-- `src/metrics.rs` — 3 tests (empty module, per-kind gate
+  Mux ternary, procedural structured surfaces, and hierarchical
+  instance wiring).
+- `src/metrics.rs` — 4 tests (empty module, per-kind gate
   counting, per-shape flop counting).
 - Other unit tests cover compaction, config validation, module
-  finalisation, and CLI overrides.
+  finalisation, hierarchy validation, and CLI overrides.
 
 **Integration tests** in `tests/pipeline.rs` cover cross-seed
 generation + validation across all strategy values,
 byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, the landed case/casez structured
 surfaces, the landed bounded `for`-fold structured surface, the landed
-selectable `Slice` / `Concat` surface,
-compaction/orphan guarantees, knob-roll telemetry, and
+selectable `Slice` / `Concat` surface, the depth-1 hierarchy wrapper
+surface, compaction/orphan guarantees, knob-roll telemetry, and
 input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 168 unit-target tests + 29 integration tests = 197 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 173 unit-target tests + 30 integration tests = 203 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -352,7 +365,10 @@ summary proving that `shared_node_fraction` rises monotonically across
 structured-surface gate is now closed as well via
 `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
-plus both repo-owned Yosys modes).
+plus both repo-owned Yosys modes). Phase 4 does not have a repo-owned
+closure gate yet, but the first real hierarchy smoke at
+`/tmp/anvil-hierarchy-smoke-r1` is clean in Verilator, Yosys
+`synth -noabc`, and the repo-owned ABC path.
 
 ## Error handling
 
