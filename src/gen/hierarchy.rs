@@ -9,10 +9,9 @@
 //!   plus optional per-parent-depth branching overrides)
 //!
 //! In both cases, parent modules use child instance outputs as real
-//! leaf variables for their own combinational output cones, so this is
-//! genuine composition rather than a fake multi-file bundle. The
-//! parent-side layer is still combinational-only in the current slice:
-//! local parent flops remain disabled.
+//! leaf variables for their own parent-side cones, so this is genuine
+//! composition rather than a fake multi-file bundle. Parent-local
+//! flops are controlled by `hierarchy_parent_flop_prob`.
 
 use super::{
     cone::{self, FlopWorklist},
@@ -327,12 +326,15 @@ fn generate_parent_module(
     let any_sequential_child = instance_plan
         .iter()
         .any(|&child_idx| library[child_idx].carries_sequential_state_in(Some(&modules_by_name)));
+    let parent_state_possible =
+        g.cfg.hierarchy_parent_flop_prob > 0.0 && g.cfg.max_flops_per_module > 0;
+    let needs_control_ports = any_sequential_child || parent_state_possible;
     let mut next_port_id: PortId = 0;
 
     let shared_clock =
-        any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "clk", 1));
+        needs_control_ports.then(|| add_top_input(&mut top, &mut next_port_id, "clk", 1));
     let shared_reset =
-        any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "rst_n", 1));
+        needs_control_ports.then(|| add_top_input(&mut top, &mut next_port_id, "rst_n", 1));
     top.clock = shared_clock.map(|(port_id, _)| port_id);
     top.reset = shared_reset.map(|(port_id, _)| port_id);
 
@@ -533,14 +535,18 @@ fn build_child_input_parent_cone(
     width: u32,
 ) -> NodeId {
     let saved_flop_prob = g.cfg.flop_prob;
-    g.cfg.flop_prob = 0.0;
+    let saved_flop_knob = g.active_flop_knob;
+    g.cfg.flop_prob = g.cfg.hierarchy_parent_flop_prob;
+    g.active_flop_knob = KnobId::HierarchyParentFlopProb;
     let mut worklist: FlopWorklist = Vec::new();
     let root = cone::build_cone_with_retry(g, top, parent_source_pool, &mut worklist, width, None);
+    cone::drain_flop_worklist(g, top, parent_source_pool, &mut worklist);
     debug_assert!(
         worklist.is_empty(),
-        "Phase 4 child-input parent cones stay combinational in the current slice"
+        "parent child-input flop worklist drained"
     );
     g.cfg.flop_prob = saved_flop_prob;
+    g.active_flop_knob = saved_flop_knob;
     root
 }
 
@@ -551,7 +557,9 @@ fn build_parent_output_roots(
     worklist: &mut FlopWorklist,
 ) -> Vec<NodeId> {
     let saved_flop_prob = g.cfg.flop_prob;
-    g.cfg.flop_prob = 0.0;
+    let saved_flop_knob = g.active_flop_knob;
+    g.cfg.flop_prob = g.cfg.hierarchy_parent_flop_prob;
+    g.active_flop_knob = KnobId::HierarchyParentFlopProb;
     let roots = match g.cfg.construction_strategy {
         ConstructionStrategy::Sequential | ConstructionStrategy::Shuffled => {
             let mut build_order: Vec<usize> = (0..top.outputs.len()).collect();
@@ -573,7 +581,9 @@ fn build_parent_output_roots(
             cone::build_outputs_interleaved(g, top, pool, worklist)
         }
     };
+    cone::drain_flop_worklist(g, top, pool, worklist);
     g.cfg.flop_prob = saved_flop_prob;
+    g.active_flop_knob = saved_flop_knob;
     roots
 }
 

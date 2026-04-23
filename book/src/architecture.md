@@ -82,9 +82,9 @@ src/
 │   │                # wrapper lane plus bounded recursive lane.
 │   │                # Both now also expose explicit child sourcing
 │   │                # (library vs on-demand), and both build
-│   │                # parent-side combinational layers over child
-│   │                # InstanceOutput leaves plus sibling-routed
-│   │                # child-input binding.
+│   │                # parent-side layers over child InstanceOutput
+│   │                # leaves, sibling-routed child-input binding, and
+│   │                # optional local parent flops.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -102,7 +102,7 @@ in `tool_matrix`, and current HEAD now extends hierarchy with both
 parent-side composition, bounded recursive tree planning, mixed-depth
 leaf shaping inside a requested depth interval, and depth-specific
 branching overrides, plus a real combinational sibling-routing surface
-for child-input binding.
+for child-input binding and an explicit local-parent-state axis.
 
 ## Dependency direction
 
@@ -368,11 +368,12 @@ surfaces, the landed bounded `for`-fold structured surface, the landed
 selectable `Slice` / `Concat` surface, the hierarchy surface (legacy
 depth-1 wrapper exact/reuse/under-instantiation plus the bounded
 recursive tree planner, per-depth branching profiles, sibling-routed
-child inputs, and parent-composed child-input bindings),
+child inputs, parent-composed child-input bindings, and local parent
+flops),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 215 unit-target tests + 41 integration tests = 256 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-24): 215 unit-target tests + 42 integration tests = 257 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -396,18 +397,20 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
-(84 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-84/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+(96 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+96/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
 `library` and `on-demand`, exact profiled child-interface synthesis in
 the on-demand lane, the per-depth override profile `0=4:4,1=2:2`, real
-sibling-routed child inputs, and real parent-side composition above
-instance outputs. It also requires parent-composed child input bindings through
-`hierarchy_child_input_cone_prob` and records
-`saw_hierarchy_parent_composed_child_inputs = true`. The old hierarchy
+sibling-routed child inputs, real parent-side composition above
+instance outputs, parent-composed child input bindings through
+`hierarchy_child_input_cone_prob`, and local parent flops through
+`hierarchy_parent_flop_prob`. It records
+`saw_hierarchy_parent_composed_child_inputs = true` and
+`saw_hierarchy_parent_local_flops = true`. The old hierarchy
 smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,

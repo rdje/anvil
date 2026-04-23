@@ -289,9 +289,15 @@ struct Cli {
     /// Probability that a parent binds a child data input through a
     /// local combinational cone over already-available parent sources
     /// (parent data inputs, earlier sibling outputs, and earlier
-    /// parent-side route gates). Local parent flops stay disabled.
+    /// parent-side route gates).
     #[arg(long)]
     hierarchy_child_input_cone_prob: Option<f64>,
+
+    /// Probability that parent-side hierarchy cones may emit local
+    /// parent flops. Applies to parent output cones and
+    /// parent-composed child-input cones.
+    #[arg(long)]
+    hierarchy_parent_flop_prob: Option<f64>,
 
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
@@ -602,6 +608,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         child_instances_per_module_by_depth,
         hierarchy_sibling_route_prob: cli.hierarchy_sibling_route_prob,
         hierarchy_child_input_cone_prob: cli.hierarchy_child_input_cone_prob,
+        hierarchy_parent_flop_prob: cli.hierarchy_parent_flop_prob,
     }
 }
 
@@ -696,6 +703,8 @@ mod tests {
             "1=2:3",
             "--hierarchy-child-input-cone-prob",
             "0.75",
+            "--hierarchy-parent-flop-prob",
+            "0.6",
         ]);
         let overrides = cli_overrides(&cli);
         assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
@@ -727,5 +736,6 @@ mod tests {
             ]))
         );
         assert_eq!(overrides.hierarchy_child_input_cone_prob, Some(0.75));
+        assert_eq!(overrides.hierarchy_parent_flop_prob, Some(0.6));
     }
 }

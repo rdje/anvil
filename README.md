@@ -67,7 +67,8 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/hierarchy.rs`    Phase 4 hierarchy planner: legacy exact
                             depth-1 wrapper lane plus bounded recursive
                             lane, both with parent-side composition
-                            and sibling-routed child-input binding
+                            sibling-routed child-input binding, and
+                            optional parent-local state
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -126,6 +127,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force parent-composed hierarchy child-input bindings in the current
 # combinational parent-composition slice
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-child-input-cone-prob 1.0
+
+# Force local parent flops in hierarchy parent-side cones
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-parent-flop-prob 1.0
 
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
@@ -226,17 +230,17 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r15`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16`. Its final
 `tool_matrix_report.json` records:
 
-- `21` scenarios
+- `24` scenarios
 - `4` designs per scenario
-- `84` total designs
+- `96` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 84/0`
-- `Yosys without-abc pass/fail = 84/0`
-- `Yosys with-abc pass/fail = 84/0`
+- `Verilator pass/fail = 96/0`
+- `Yosys without-abc pass/fail = 96/0`
+- `Yosys with-abc pass/fail = 96/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 closure artifact for the current hierarchy surface, not only the older
@@ -251,7 +255,8 @@ the explicit hierarchy child-sourcing axis
 `--hierarchy-child-source-mode <library|on-demand>`, including exact
 profiled child-interface synthesis in the on-demand lane, plus real
 sibling-routed hierarchy child inputs and parent-composed child-input
-bindings proved numerically.
+bindings proved numerically, plus explicit local parent flops in
+hierarchy modules.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -350,13 +355,17 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
 - `anvil --hierarchy-sibling-route-prob <p>` controls whether later
   sibling child inputs may bind from earlier sibling instance outputs
   instead of always binding from parent-boundary inputs. The current
-  Phase 4 slice keeps that routing purely combinational; registered
-  parent-local routing is future work.
+  direct sibling-routing slice is combinational; registered routing is
+  now covered by the parent-local state knob below.
 - `anvil --hierarchy-child-input-cone-prob <p>` controls whether child
   data inputs may bind through parent-local combinational cones over
   already-available parent sources: parent data inputs, earlier sibling
-  instance outputs, and earlier parent-side route gates. Local parent
-  flops are still disabled in this slice.
+  instance outputs, and earlier parent-side route gates.
+- `anvil --hierarchy-parent-flop-prob <p>` controls whether
+  parent-side hierarchy cones may emit local parent flops. The default
+  is `0.0`, preserving the combinational hierarchy unless explicitly
+  requested; setting it high lets child inputs and parent outputs route
+  through registered parent state.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and
@@ -385,20 +394,23 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
   parent-side route gates.
+  Both lanes now also expose `--hierarchy-parent-flop-prob <p>`, which
+  lets those parent-side cones emit local parent flops under a separate
+  hierarchy-specific state knob.
   Control-port visibility follows the hierarchy doctrine exactly: pure
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
-  and wrapper ancestors keep them visible iff they carry sequential
-  descendants. Parent outputs can be genuine combinational functions of
-  child instance outputs, and hierarchy manifests now report both the
+  and hierarchy parents keep them visible iff they carry local state or
+  sequential descendants. Parent outputs can be genuine combinational
+  functions of child instance outputs, and hierarchy manifests now report both the
   composition facts and the realized tree shape numerically, including
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
-  binding, and per-depth-override profiles
+  binding, parent-local flop state, and per-depth-override profiles
   folded into `tool_matrix`, while the
   focused smokes
   at
@@ -428,10 +440,16 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   design metrics show
   `child_input_bindings_from_parent_composed_logic = 13` and
   `parent_composed_child_input_binding_fraction = 0.9285714285714286`.
+  Current HEAD also has a focused clean parent-state proof at
+  `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
+  design metrics show `hierarchy_parent_local_flops = 8`,
+  `top_local_flops = 8`, `top_clock_inputs = 1`,
+  `top_reset_inputs = 1`, and
+  `child_input_bindings_from_parent_flops = 1`.
   The next honest
-  work is deeper hierarchy capability beyond the banked gate: local
-  parent state, richer hierarchy composition/routing surfaces, and
-  later hierarchy-aware identity.
+  work is deeper hierarchy capability beyond the banked gate: richer
+  hierarchy composition/routing surfaces, later registered
+  child-to-child patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.

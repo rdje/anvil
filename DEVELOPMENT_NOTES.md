@@ -101,8 +101,8 @@ Two narrow implementation choices are load-bearing in this slice:
 - the wrapper top marks shared `clk` / `rst_n` as
   `Module.clock` / `Module.reset`, and control-port visibility is now
   design-aware instead of leaf-local: pure comb-only modules omit those
-  ports, while wrappers keep them visible iff they carry sequential
-  descendants;
+  ports, while hierarchy parents keep them visible iff they carry local
+  state or sequential descendants;
 - `Node::InstanceOutput` now carries a real dep-bearing leaf identity,
   so parent cones can use child outputs without being mistaken for
   empty-dep constants by later cleanup/finalisation passes.
@@ -153,9 +153,10 @@ than by reading emitted SV.
 
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
-repo-owned Phase 4 gate has now caught up at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`,
-so the mixed-depth story is no longer "focused-only" evidence.
+current repo-owned Phase 4 gate at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+also proves it, so the mixed-depth story is no longer "focused-only"
+evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
   only a subset of child outputs, so unused outputs are now rendered as
@@ -278,18 +279,19 @@ Without those numbers, `library` vs `on-demand` would still force a
 human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
-The repo-owned Phase 4 gate has now caught up here too. The refreshed
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`,
-not `r11`, and it now explicitly proves both child-sourcing modes
-(`library` and `on-demand`) together with structural proof that the
-on-demand scenarios really emitted fresh child definitions per planned
-instance slot and exact profiled child-interface synthesis.
+The repo-owned Phase 4 gate has now caught up here too. The current
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`,
+and it explicitly proves both child-sourcing modes (`library` and
+`on-demand`) together with structural proof that the on-demand
+scenarios really emitted fresh child definitions per planned instance
+slot and exact profiled child-interface synthesis.
 
-### Combinational sibling routing is the right next layer before local parent state
+### Combinational sibling routing was the right next layer before local parent state
 Once parent-composed outputs and exact profiled child sourcing were
-real, the next honest hierarchy question was not "should parents have
-local flops yet?" It was "can one child feed another through the parent
-without us faking it as a top-level wrapper input?"
+real, the next honest hierarchy question for that slice was not
+"should parents have local flops yet?" It was "can one child feed
+another through the parent without us faking it as a top-level wrapper
+input?"
 
 The current answer is now yes, but intentionally only on the simpler
 surface:
@@ -298,9 +300,9 @@ surface:
   outputs;
 - the routing stays acyclic by construction because only already-built
   sibling outputs are eligible;
-- the routing stays purely combinational in the current slice; and
-- local parent flops remain future work instead of being smuggled into
-  the same step.
+- the routing stayed purely combinational in that slice; and
+- local parent flops deliberately remained future work instead of being
+  smuggled into the same step.
 
 That last point matters. Child-output -> child-input through local flop
 layers is a valid future hierarchy surface, but it is a different
@@ -322,7 +324,7 @@ trustworthy feature. The design reports now distinguish:
 The focused proof artifact is now
 `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
 repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
 now requires `saw_hierarchy_sibling_routing = true`.
 
 ### Parent-composed child-input bindings are the cone-builder analogue of sibling routing
@@ -333,33 +335,75 @@ composed child-input binding answers "can the parent build a small
 combinational cone for a child input, using the same generator machinery
 as leaf cones?"
 
-The live rule is deliberately narrow and structural:
+For that slice, the rule was deliberately narrow and structural:
 
 - `hierarchy_child_input_cone_prob` controls the probability of this
   route;
 - the cone's source pool contains only already-available parent sources:
   parent data inputs, earlier sibling instance outputs, and earlier
   parent-side route gates;
-- local parent flops stay disabled, so this is still a purely
-  combinational composition surface; and
+- local parent flops stayed disabled, so the parent-composed
+  child-input route was a purely combinational composition surface; and
 - the rule applies to both the legacy wrapper lane and the bounded
   recursive lane.
 
 This is the shape the user suggested: at the composition level, replace
-"gate" by "child module" where it makes sense, but keep the first slice
-combinational. Registered child-to-child routing remains a later,
-separate hierarchy surface.
+"gate" by "child module" where it makes sense, but keep that first
+slice combinational. Local parent flops are now landed under
+`hierarchy_parent_flop_prob`; registered child-to-child routing remains
+a later, separate hierarchy surface.
 
 The metrics contract grew again with
 `child_input_bindings_from_parent_composed_logic`,
 `parent_composed_child_input_binding_fraction`, and
 `top_parent_composed_child_input_binding_fraction`. The repo-owned
-Phase 4 gate now treats this as a required coverage fact via
-`saw_hierarchy_parent_composed_child_inputs`, and
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
-proves it with `coverage_gaps = []` and 84/0 clean pass-fail in
-Verilator plus both repo-owned Yosys modes. The focused targeted proof
-is `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
+Phase 4 gate treats this as a required coverage fact via
+`saw_hierarchy_parent_composed_child_inputs`; the current banked gate
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+proves it together with local parent state, `coverage_gaps = []`, and
+96/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
+The focused targeted proof is
+`/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
+
+### Local parent flops are a separate hierarchy state axis
+The next Phase 4 step deliberately does not overload leaf `flop_prob`.
+Hierarchy parent state is controlled by its own knob,
+`hierarchy_parent_flop_prob`, because the parent layer is a different
+structural axis from leaf-module sequential richness. The default is
+`0.0`, which preserves the previously banked combinational hierarchy
+surface; setting it non-zero lets parent output cones and
+parent-composed child-input cones emit local parent flops.
+
+The important invariant is the same one used for sequential
+descendants: `clk` and `rst_n` are structural, not decorative. A parent
+module reserves those control ports when local parent state is possible,
+but the emitter only exposes them when the module actually carries
+local flops or sequential descendants. Pure comb-only modules remain
+free of control ports.
+
+The implementation reuses the normal cone/flop worklist machinery.
+While building a hierarchy parent cone, the generator temporarily maps
+flop rolls to `KnobId::HierarchyParentFlopProb`, then drains the parent
+flop worklist before finalization. That keeps telemetry honest: leaf
+flop attempts still count as `flop_prob`, while parent-state attempts
+count as `hierarchy_parent_flop_prob`.
+
+Metrics now expose this state surface directly:
+`hierarchy_parent_local_flops`,
+`internal_module_occurrences_with_local_flops`, `top_local_flops`,
+`child_input_bindings_from_parent_flops`,
+`parent_flop_child_input_binding_fraction`, and
+`top_parent_flop_child_input_binding_fraction`.
+The focused proof is
+`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`
+(`hierarchy_parent_local_flops = 8`, `top_local_flops = 8`,
+`top_clock_inputs = 1`, `top_reset_inputs = 1`,
+`child_input_bindings_from_parent_flops = 1`), clean in Verilator,
+Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
+repo-owned Phase 4 gate now also banks this as a required coverage fact
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+with `coverage_gaps = []` and 96/0 pass-fail in Verilator plus both
+repo-owned Yosys modes.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should
@@ -394,8 +438,9 @@ The durable rule now is exact and inductive:
 
 - pure comb-only modules do not emit `clk` / `rst_n`;
 - sequential leaves do emit `clk` / `rst_n`; and
-- wrapper ancestors keep `clk` / `rst_n` visible iff they carry
-  sequential descendants, all the way up the instantiated chain.
+- hierarchy parents keep `clk` / `rst_n` visible iff they carry local
+  state or sequential descendants, all the way up the instantiated
+  chain.
 
 That rule is now pinned in IR helpers, validation, metrics, and the SV
 emitter, plus direct regression tests for both the comb-only and

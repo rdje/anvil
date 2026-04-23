@@ -1,9 +1,114 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot9 — Land parent-composed hierarchy child inputs
+## 2026-04-24-boot1 — Land local parent state in hierarchy cones
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now carries `hierarchy_parent_flop_prob`, defaulting to `0.0`, as a
+  hierarchy-specific state knob.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  exposes the knob as `--hierarchy-parent-flop-prob <float>`.
+- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+  now tracks the active flop-roll telemetry key, so parent-side flops
+  can be measured separately from ordinary leaf `flop_prob`.
+- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  records flop-roll attempts through that active key instead of always
+  charging them to `flop_prob`.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets parent output cones and parent-composed child-input cones
+  emit local parent flops when `hierarchy_parent_flop_prob` is nonzero.
+  Parent flop worklists are drained before finalization, and control
+  ports are reserved only when local parent state is possible or a
+  sequential child requires them.
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  adds `KnobId::HierarchyParentFlopProb` and a `DepSet` helper for
+  detecting local flop endpoints.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports local parent-state facts:
+  `hierarchy_parent_local_flops`,
+  `internal_module_occurrences_with_local_flops`, `top_local_flops`,
+  `child_input_bindings_from_parent_flops`,
+  `parent_flop_child_input_binding_fraction`, and
+  `top_parent_flop_child_input_binding_fraction`.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  adds a Phase 4 parent-state scenario per construction strategy,
+  raises the Phase 4 gate to 24 scenarios / 96 designs, and requires
+  `saw_hierarchy_parent_local_flops = true`.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves local parent flops across the live construction strategies.
+- Live docs and the mdBook were refreshed:
+  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
+  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md),
+  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+
+**Why**
+
+- Phase 4 had already landed parent-composed outputs, sibling-routed
+  child inputs, and parent-composed child-input cones. The next honest
+  structural step was parent-local state, but as its own hierarchy axis
+  rather than a hidden reuse of leaf `flop_prob`.
+- Keeping the default at `0.0` preserves the clean combinational parent
+  layer unless the user explicitly asks for state, while still allowing
+  stress runs to exercise registered parent routing.
+- The control-port doctrine remains intact: pure comb-only modules
+  stay free of `clk` / `rst_n`; modules with local flops or sequential
+  descendants emit them.
+
+**Validation**
+
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+    - 184 lib tests
+    - 5 main tests
+    - 26 `tool_matrix` tests
+    - 42 integration tests
+    - 0 doctests
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused regressions:
+  - `cargo test --test pipeline hierarchy_parents_can_emit_local_flops`
+  - `cargo test --bin tool_matrix phase4_hierarchy`
+- Focused parent-state smoke:
+  `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` records
+  `hierarchy_parent_local_flops = 8`, `top_local_flops = 8`,
+  `top_clock_inputs = 1`, `top_reset_inputs = 1`, and
+  `child_input_bindings_from_parent_flops = 1`. The emitted design is
+  clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+  with-ABC path.
+- Refreshed repo-owned Phase 4 gate:
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+  closes at 24 scenarios, 4 designs/scenario, 96 total designs,
+  `coverage_gaps = []`, and `96/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes. Its coverage facts include
+  `saw_hierarchy_parent_local_flops = true` and
+  `hierarchy_parent_flop_prob` in both knob-attempts and knob-fires.
+
+**Impact**
+
+- Hierarchy parents can now be sequential modules because of their own
+  local state, not only because they instantiate sequential children.
+- Parent-side registered routing is now represented numerically in
+  manifests and matrix reports.
+- Remaining Phase 4 work moves to richer registered child-to-child
+  patterns, deeper hierarchy composition, and future hierarchy-aware
+  identity/factorization.
+
+## 2026-04-23-boot9 — Land parent-composed hierarchy child inputs
+
+**Landed as:** `30b1846a0bc2e611f97f864d6fa67cd4ffffced7`
 
 **What changed**
 

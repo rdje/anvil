@@ -340,15 +340,19 @@ instead of creating fresh logic.
 - `hierarchy_sibling_route_prob` — probability that later child data
   inputs bind from earlier sibling instance outputs instead of always
   binding from parent-boundary inputs. Range `[0.0, 1.0]`. Default
-  `0.35`. The current slice keeps this routing purely combinational;
-  parent-local registered routing is future work.
+  `0.35`. Direct sibling routing is combinational; registered routing
+  can be exercised through the parent-local state knob below.
 - `hierarchy_child_input_cone_prob` — probability that a child data
   input binds through a parent-local combinational cone instead of a
   direct parent-port or sibling-output route. The cone may use
   already-available parent sources: parent data inputs, earlier sibling
   instance outputs, and earlier parent-side route gates. Range
-  `[0.0, 1.0]`. Default `0.35`. Local parent flops are explicitly
-  disabled in this path for the current slice.
+  `[0.0, 1.0]`. Default `0.35`.
+- `hierarchy_parent_flop_prob` — probability that parent-side hierarchy
+  cones may emit local parent flops. This applies to parent output
+  cones and parent-composed child-input cones. Range `[0.0, 1.0]`.
+  Default `0.0`, so hierarchy remains combinational unless state is
+  explicitly requested.
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
@@ -422,6 +426,7 @@ Config {
     hierarchy_child_source_mode: HierarchyChildSourceMode::Library,
     hierarchy_sibling_route_prob: 0.35,
     hierarchy_child_input_cone_prob: 0.35,
+    hierarchy_parent_flop_prob: 0.0,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,
@@ -606,6 +611,7 @@ which are bugs worth investigating.
 | `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `e-graph`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above; `semantic_gates_merged` becomes eligible at `e-graph` |
 | `hierarchy_sibling_route_prob` | `child_input_bindings_from_instance_outputs`, `child_input_bindings_from_mixed_support`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
 | `hierarchy_child_input_cone_prob` | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
+| `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction` |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future
@@ -636,7 +642,7 @@ counts taken during construction. The empirical fire-rate
   `constant_prob`, `terminal_reuse_prob`,
   `comb_mux_encoding_prob`, `flop_mux_encoding_prob`,
   `share_prob`, `flop_qfeedback_prob`, `hierarchy_sibling_route_prob`,
-  `hierarchy_child_input_cone_prob`).
+  `hierarchy_child_input_cone_prob`, `hierarchy_parent_flop_prob`).
 
 This is the measurability doctrine in its most direct form:
 every probability dial's effect is a simple division away.

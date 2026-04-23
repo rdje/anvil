@@ -138,15 +138,18 @@ placeholder structure:
 - `Design` is real, not aspirational.
 - `Module.instances` and `Node::InstanceOutput` are real parent-side
   IR surfaces.
-- Parent modules now build a first combinational composition layer over
-  child `InstanceOutput` leaves.
+- Parent modules now build parent-side composition layers over child
+  `InstanceOutput` leaves, combinational by default and optionally
+  stateful when `hierarchy_parent_flop_prob` is requested.
 - The generator supports both the legacy exact depth-1 wrapper lane and
   the bounded recursive hierarchy lane, with library/on-demand child
-  sourcing and sibling-routed child-input bindings.
+  sourcing, sibling-routed child-input bindings, parent-composed
+  child-input cones, and optional local parent flops.
 
-The remaining open hierarchy work is richer parent-local behavior:
-local parent flops, later registered child-to-child routing when that
-phase is selected, and hierarchy-aware identity/factorization.
+The remaining open hierarchy work is richer parent-local behavior
+beyond the landed state surface: later registered child-to-child
+routing when that phase is selected, and hierarchy-aware
+identity/factorization.
 
 ## Node construction: `intern_gate` / `intern_constant`
 

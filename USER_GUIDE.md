@@ -312,13 +312,21 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_instance_outputs`,
   `child_input_bindings_from_mixed_support`,
   `child_input_bindings_from_constants`,
-  `child_input_bindings_from_parent_composed_logic`)
+  `child_input_bindings_from_parent_composed_logic`,
+  `child_input_bindings_from_parent_flops`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`)
 - hierarchy- and top-level parent-composed child-input fractions
   (`parent_composed_child_input_binding_fraction`,
   `top_parent_composed_child_input_binding_fraction`)
+- hierarchy- and top-level parent-flop child-input fractions
+  (`parent_flop_child_input_binding_fraction`,
+  `top_parent_flop_child_input_binding_fraction`)
+- local parent-state counts
+  (`hierarchy_parent_local_flops`,
+  `internal_module_occurrences_with_local_flops`,
+  `top_local_flops`)
 - control fanout to child instances
 - weighted child interface / node / flop load
 - per-definition instantiation histogram
@@ -343,11 +351,16 @@ The current Phase 4 slice now has two planning lanes:
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates
-- the two knob families are intentionally mutually exclusive
+- `hierarchy_parent_flop_prob` controls whether parent-side hierarchy
+  cones may emit local parent flops; default `0.0` keeps the hierarchy
+  parent layer combinational unless this state axis is explicitly
+  enabled
+- the legacy exact wrapper knobs and bounded recursive range knobs are
+  intentionally mutually exclusive planning lanes
 - pure comb-only modules do **not** expose `clk` / `rst_n`
 - sequential leaves do expose `clk` / `rst_n`
-- wrappers keep `clk` / `rst_n` visible iff they carry sequential
-  descendants through instantiated children
+- hierarchy parents keep `clk` / `rst_n` visible iff they carry local
+  state or sequential descendants through instantiated children
 - top outputs can now be real parent-side **combinational** cones over
   child instance outputs
 - unused child outputs are emitted as explicit unconnected ports
@@ -361,7 +374,8 @@ The current Phase 4 slice now has two planning lanes:
 - non-leaf modules still pick one child count inside the requested
   child-instance interval, with per-parent-depth overrides taking
   priority where specified
-- local parent flops in the composed parent layer are not live yet
+- local parent flops in the composed parent layer are live when
+  `hierarchy_parent_flop_prob` is non-zero
 
 ## Tool matrix sweeps
 
@@ -468,17 +482,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
 records:
 
-- `21` scenarios
+- `24` scenarios
 - `4` designs per scenario
-- `84` total designs
+- `96` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 84/0`
-- `Yosys without-abc pass/fail = 84/0`
-- `Yosys with-abc pass/fail = 84/0`
+- `Verilator pass/fail = 96/0`
+- `Yosys without-abc pass/fail = 96/0`
+- `Yosys with-abc pass/fail = 96/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
@@ -490,7 +504,8 @@ child-sourcing modes `library` and `on-demand`, exact profiled
 child-interface synthesis in the on-demand lane, real mixed
 shallow/deep leaf realization, real parent-side composition above
 instance outputs, real sibling-routed hierarchy child inputs, and real
-parent-composed child-input bindings.
+parent-composed child-input bindings, plus explicit parent-local flop
+state.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -502,6 +517,11 @@ useful targeted evidence. `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.js
 is the focused proof for parent-composed child-input bindings
 (`child_input_bindings_from_parent_composed_logic = 13`,
 `parent_composed_child_input_binding_fraction = 0.9285714285714286`).
+`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is the focused
+proof for local parent state
+(`hierarchy_parent_local_flops = 8`, `top_local_flops = 8`,
+`top_clock_inputs = 1`, `top_reset_inputs = 1`, and
+`child_input_bindings_from_parent_flops = 1`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

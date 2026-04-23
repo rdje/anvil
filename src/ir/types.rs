@@ -258,6 +258,9 @@ pub enum KnobId {
     /// parent binds a child data input through a local combinational
     /// cone over already-available parent sources.
     HierarchyChildInputConeProb,
+    /// `Config::hierarchy_parent_flop_prob` — chance that
+    /// parent-side hierarchy cones may emit local parent flops.
+    HierarchyParentFlopProb,
     /// `Config::flop_qfeedback_prob` — ZeroDefault vs QFeedback
     /// flop kind.
     FlopQFeedbackProb,
@@ -285,6 +288,7 @@ impl KnobId {
             KnobId::ShareProb => "share_prob",
             KnobId::HierarchySiblingRouteProb => "hierarchy_sibling_route_prob",
             KnobId::HierarchyChildInputConeProb => "hierarchy_child_input_cone_prob",
+            KnobId::HierarchyParentFlopProb => "hierarchy_parent_flop_prob",
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
         }
     }
@@ -364,8 +368,9 @@ impl Module {
     /// carries sequential state itself or through instantiated
     /// descendants. Pure combinational modules stay free of control
     /// ports even if they were tagged conservatively in the IR. Once a
-    /// module carries sequential descendants, those control ports stay
-    /// visible all the way up the instantiated ancestor chain.
+    /// module carries local state or sequential descendants, those
+    /// control ports stay visible all the way up the instantiated
+    /// ancestor chain.
     pub fn is_emitted_input_port_in(
         &self,
         port_id: PortId,
@@ -1828,6 +1833,12 @@ impl DepSet {
 
     pub fn contains_flop_virtual(&self, flop: FlopId) -> bool {
         self.set.contains(&DepAtom::FlopVirtual(flop))
+    }
+
+    pub fn has_flop_virtuals(&self) -> bool {
+        self.set
+            .iter()
+            .any(|atom| matches!(atom, DepAtom::FlopVirtual(_)))
     }
 
     pub fn contains_instance_output_virtual(&self, instance: InstanceId, port: PortId) -> bool {

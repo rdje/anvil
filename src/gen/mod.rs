@@ -6,7 +6,7 @@ pub mod module;
 pub mod pool;
 
 use crate::config::Config;
-use crate::ir::{Design, Module, ModuleInterfaceProfile};
+use crate::ir::{Design, KnobId, Module, ModuleInterfaceProfile};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,7 @@ pub struct Generator {
     pub(crate) rng: ChaCha8Rng,
     pub(crate) cfg: Config,
     pub(crate) next_module_index: u64,
+    pub(crate) active_flop_knob: KnobId,
 }
 
 impl Generator {
@@ -49,6 +50,7 @@ impl Generator {
             rng,
             cfg,
             next_module_index: 0,
+            active_flop_knob: KnobId::FlopProb,
         }
     }
 

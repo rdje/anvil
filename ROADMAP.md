@@ -255,7 +255,9 @@ evidence.
     `--hierarchy-depth 1 --num-leaf-modules N [--num-child-instances M]`
     generates a real `Design`: a pre-generated library of leaf modules
     plus a real top wrapper that instantiates them and builds a first
-    parent-side combinational output layer over child instance outputs.
+    parent-side output layer over child instance outputs. That layer is
+    combinational by default and can now become locally stateful when
+    `--hierarchy-parent-flop-prob` is explicitly requested.
     `M = 0` preserves the legacy exact-once behavior, `M < N`
     under-instantiates the library, and `M > N` reuses child
     definitions.
@@ -288,18 +290,24 @@ evidence.
     data inputs bind through parent-local combinational cones over
     already-available parent sources: parent data inputs, earlier
     sibling instance outputs, and earlier parent-side route gates.
+    `--hierarchy-parent-flop-prob <p>` now separately controls whether
+    those parent-side cones may emit local parent flops; default `0.0`
+    preserves the combinational parent layer unless state is explicitly
+    requested.
 - Current slice constraints:
-  - parent-side hierarchy is still combinational only in the current
-    slice; local parent flops are not live yet
+  - direct sibling routing is still combinational; registered
+    child-to-child routing patterns are the next stateful routing step
   - the fully banked repo-owned Phase 4 matrix now covers both the
     wrapper lane and the representative recursive lane, including the
-    mixed-depth recursive axis and the explicit child-sourcing axis
+    mixed-depth recursive axis, the explicit child-sourcing axis, and
+    local parent state
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
   - deeper parent-side routing/composition beyond the current
     combinational sibling-binding and parent-input-cone surfaces
-  - local parent state where it is structurally warranted
+  - richer registered child-to-child routing using the landed local
+    parent-state surface
   - name uniqueness across the full module set
   - hierarchical identity as future required work: under
     `identity_mode = node-id`, equivalent instantiated structures
@@ -308,12 +316,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`84/0` in Verilator plus both repo-owned Yosys modes). That report now
+(`96/0` in Verilator plus both repo-owned Yosys modes). That report now
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -327,6 +335,7 @@ proves all of the current representative hierarchy axes directly:
 - real parent-side composition above instance outputs
 - real sibling-routed hierarchy child inputs
 - real parent-composed hierarchy child-input bindings
+- real local parent flops in hierarchy modules
 - real structural proof that on-demand child sourcing emitted fresh
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane
@@ -383,20 +392,32 @@ path. The design metrics there prove the route numerically:
 `parent_composed_child_input_binding_fraction = 0.9285714285714286`,
 and `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
 
+**Focused local-parent-state proof (new targeted evidence):**
+current HEAD also supports local parent flops in hierarchy parent-side
+cones through `--hierarchy-parent-flop-prob`. The focused proof
+artifact is `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`,
+clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+with-ABC path. The design metrics there prove the state surface
+numerically: `hierarchy_parent_local_flops = 8`,
+`top_local_flops = 8`, `top_clock_inputs = 1`,
+`top_reset_inputs = 1`, and
+`child_input_bindings_from_parent_flops = 1`.
+
 **Broadened wrapper planning (landed, closure refreshed):** the legacy
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The old `r7` report is
 now the historical wrapper-baseline artifact; `r9` is the pre-mixed
 recursive bank, `r10` is the pre-child-sourcing recursive bank, and
-`r13` is the pre-parent-input-cone bank. `r15` is the current fully
+`r13` is the pre-parent-input-cone bank, while `r15` is the
+pre-parent-state bank. `r16` is the current fully
 banked Phase 4 hierarchy closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
 with richer parent-side routing/composition, local parent state where
-it is structurally warranted, and eventual hierarchy-aware
-identity/factorization.
+it can be further diversified, registered child-to-child routing
+patterns, and eventual hierarchy-aware identity/factorization.
 
 ## Phase 5 — Parameterization (not started)
 

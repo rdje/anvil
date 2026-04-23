@@ -599,6 +599,80 @@ fn hierarchy_child_inputs_can_be_bound_through_parent_composed_logic() {
 }
 
 #[test]
+fn hierarchy_parents_can_emit_local_flops() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let mut saw_parent_flops = false;
+        for seed in 0..32u64 {
+            let cfg = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 2,
+                num_child_instances: 4,
+                flop_prob: 0.0,
+                hierarchy_sibling_route_prob: 1.0,
+                hierarchy_child_input_cone_prob: 1.0,
+                hierarchy_parent_flop_prob: 1.0,
+                max_flops_per_module: 8,
+                max_depth: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            cfg.validate()
+                .expect("parent-local-flop hierarchy config should be valid");
+
+            let mut g = Generator::new(cfg);
+            let design = g.generate_design();
+            anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                panic!(
+                    "parent-local-flop hierarchy strategy {:?} seed {}: design validation failed: {}",
+                    strategy, seed, e
+                );
+            });
+
+            let metrics = anvil::metrics::compute_design(&design);
+            if metrics.hierarchy_parent_local_flops > 0 {
+                assert!(
+                    metrics.internal_module_occurrences_with_local_flops > 0,
+                    "strategy {:?} seed {} should report parent modules with local flops: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.top_local_flops > 0,
+                    "strategy {:?} seed {} should expose local parent flops at the top: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert_eq!(
+                    metrics.top_clock_inputs, 1,
+                    "strategy {:?} seed {} should emit a top clock for local parent flops: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert_eq!(
+                    metrics.top_reset_inputs, 1,
+                    "strategy {:?} seed {} should emit a top reset for local parent flops: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                saw_parent_flops = true;
+                break;
+            }
+        }
+        assert!(
+            saw_parent_flops,
+            "expected at least one local-parent-flop hierarchy design across the 32-seed sweep for strategy {:?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn reproducibility() {
     let cfg = Config {
         seed: 12345,

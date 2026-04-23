@@ -311,13 +311,16 @@ pub struct DesignMetrics {
     pub top_outputs: usize,
     pub top_clock_inputs: usize,
     pub top_reset_inputs: usize,
+    pub top_local_flops: usize,
     pub clock_fanout_instances: usize,
     pub reset_fanout_instances: usize,
+    pub top_total_child_data_input_bindings: usize,
     pub top_child_input_bindings_from_parent_ports: usize,
     pub top_child_input_bindings_from_instance_outputs: usize,
     pub top_child_input_bindings_from_mixed_support: usize,
     pub top_child_input_bindings_from_constants: usize,
     pub top_child_input_bindings_from_parent_composed_logic: usize,
+    pub top_child_input_bindings_from_parent_flops: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_outputs_reaching_instance_outputs: usize,
@@ -333,6 +336,8 @@ pub struct DesignMetrics {
     pub hierarchy_direct_instance_output_drives: usize,
     pub hierarchy_parent_composed_outputs: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
+    pub hierarchy_parent_local_flops: usize,
+    pub internal_module_occurrences_with_local_flops: usize,
     pub avg_instance_output_support_per_hierarchy_output: f64,
     pub max_instance_output_support_per_hierarchy_output: usize,
 
@@ -344,6 +349,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_mixed_support: usize,
     pub child_input_bindings_from_constants: usize,
     pub child_input_bindings_from_parent_composed_logic: usize,
+    pub child_input_bindings_from_parent_flops: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -355,6 +361,8 @@ pub struct DesignMetrics {
     pub instance_output_child_input_binding_fraction: f64,
     pub parent_port_child_input_binding_fraction: f64,
     pub parent_composed_child_input_binding_fraction: f64,
+    pub parent_flop_child_input_binding_fraction: f64,
+    pub top_parent_flop_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
     pub num_sequential_leaf_modules: usize,
@@ -690,6 +698,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_parent_composed_outputs = top_facts.parent_composed_outputs;
     out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
     out.top_outputs_without_instance_outputs = top_facts.outputs_without_instance_outputs;
+    out.top_local_flops = top.flops.len();
     out.max_instance_output_support_per_top_output = top_facts.max_support;
     out.avg_instance_output_support_per_top_output =
         ratio(top_facts.total_support, top.outputs.len());
@@ -781,6 +790,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_parent_composed_logic,
         out.total_child_data_input_bindings,
     );
+    out.parent_flop_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_parent_flops,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -794,17 +807,15 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_instance_output_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_instance_outputs
             + out.top_child_input_bindings_from_mixed_support,
-        out.top_child_input_bindings_from_parent_ports
-            + out.top_child_input_bindings_from_instance_outputs
-            + out.top_child_input_bindings_from_mixed_support
-            + out.top_child_input_bindings_from_constants,
+        out.top_total_child_data_input_bindings,
     );
     out.top_parent_composed_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_parent_composed_logic,
-        out.top_child_input_bindings_from_parent_ports
-            + out.top_child_input_bindings_from_instance_outputs
-            + out.top_child_input_bindings_from_mixed_support
-            + out.top_child_input_bindings_from_constants,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_parent_flop_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_parent_flops,
+        out.top_total_child_data_input_bindings,
     );
     for (depth, count) in internal_module_occurrences_by_depth {
         out.avg_child_instances_by_parent_depth.insert(
@@ -865,6 +876,10 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     }
 
     state.out.num_internal_module_occurrences += 1;
+    if module.has_local_flops() {
+        state.out.hierarchy_parent_local_flops += module.flops.len();
+        state.out.internal_module_occurrences_with_local_flops += 1;
+    }
     *state
         .internal_module_occurrences_by_depth
         .entry(depth)
@@ -944,6 +959,9 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
             .map(|port| port.id)
             .collect();
         state.out.total_child_data_input_bindings += child_data_inputs.len();
+        if module.name == state.out.design {
+            state.out.top_total_child_data_input_bindings += child_data_inputs.len();
+        }
         for (port_id, node_id) in &instance.inputs {
             if !child_data_inputs.contains(port_id) {
                 continue;
@@ -961,7 +979,14 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                 }
             }
             let has_ports = deps.has_ports();
+            let has_flops = deps.has_flop_virtuals();
             let has_instance_outputs = deps.has_instance_output_virtuals();
+            if has_flops {
+                state.out.child_input_bindings_from_parent_flops += 1;
+                if module.name == state.out.design {
+                    state.out.top_child_input_bindings_from_parent_flops += 1;
+                }
+            }
             match (has_ports, has_instance_outputs, deps.is_empty()) {
                 (_, _, true) => {
                     state.out.child_input_bindings_from_constants += 1;

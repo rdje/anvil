@@ -99,10 +99,13 @@ pass-through shell:
   combinational cones via `hierarchy_child_input_cone_prob`. Those
   cones are built over already-available parent sources: parent data
   inputs, earlier sibling instance outputs, and earlier parent-side
-  route gates. Local parent flops stay disabled in this slice;
+  route gates;
+- both parent output cones and parent-composed child-input cones may
+  now emit local parent flops when `hierarchy_parent_flop_prob` is
+  non-zero. The default is `0.0`, so the hierarchy layer stays
+  combinational unless the caller explicitly enables parent state;
 - top outputs are now built from those child-output leaves by the
-  existing cone builder, with local parent flops disabled in the
-  current slice; and
+  existing cone builder; and
 - unused child outputs are left explicitly unconnected at the instance
   site (`.port()`) instead of being forced into fake top-level
   pass-throughs.
@@ -111,15 +114,16 @@ The control-port rule is deliberate and inductive:
 
 - pure comb-only modules do **not** emit `clk` / `rst_n`;
 - sequential leaves do emit `clk` / `rst_n`; and
-- once a wrapper carries sequential descendants, `clk` / `rst_n` stay
-  visible all the way up the instantiated ancestor chain.
+- once a parent carries local state or sequential descendants, `clk` /
+  `rst_n` stay visible all the way up the instantiated ancestor chain.
 
 So the current hierarchy slice is **real** but also **honest**: parent
-modules are real parent-side combinational composition layers over
-child outputs, can now mix shallow and deep branches in one recursive
-tree, can now route later child inputs from earlier sibling outputs,
-can now compose child input bindings through parent-local logic, but
-still do not add local parent flops or solve hierarchy-aware identity.
+modules are real parent-side composition layers over child outputs,
+combinational by default and optionally stateful when requested. They
+can now mix shallow and deep branches in one recursive tree, route
+later child inputs from earlier sibling outputs, compose child input
+bindings through parent-local logic, and add local parent flops. It
+still does not solve hierarchy-aware identity.
 
 ## Current IR shape
 
@@ -226,13 +230,21 @@ emitted `.sv`, including:
   `child_input_bindings_from_instance_outputs`,
   `child_input_bindings_from_mixed_support`,
   `child_input_bindings_from_constants`,
-  `child_input_bindings_from_parent_composed_logic`),
+  `child_input_bindings_from_parent_composed_logic`,
+  `child_input_bindings_from_parent_flops`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`),
 - hierarchy- and top-level parent-composed child-input fractions
   (`parent_composed_child_input_binding_fraction`,
   `top_parent_composed_child_input_binding_fraction`),
+- hierarchy- and top-level parent-flop child-input fractions
+  (`parent_flop_child_input_binding_fraction`,
+  `top_parent_flop_child_input_binding_fraction`),
+- local parent-state counts
+  (`hierarchy_parent_local_flops`,
+  `internal_module_occurrences_with_local_flops`,
+  `top_local_flops`),
 - control fanout to child instances,
 - weighted child interface / node / flop load, and
 - per-definition instantiation histograms,
@@ -255,22 +267,21 @@ The wrapper slice buys several important things immediately:
 - a clean boundary above the leaf kernel instead of folding hierarchy
   into `generate_leaf_module`.
 
-It also keeps the open work honest. The following are **not** live yet:
+It also keeps the open work honest. The following is **not** live yet:
 
-- local parent flops inside the composed top layer,
 - hierarchy-aware `NodeId` identity/factorization.
 
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
-- `21` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+- `24` scenarios
 - `4` designs/scenario
-- `84` total designs
+- `96` total designs
 - `coverage_gaps = []`
-- `Verilator 84/0`
-- `Yosys without-abc 84/0`
-- `Yosys with-abc 84/0`
+- `Verilator 96/0`
+- `Yosys without-abc 96/0`
+- `Yosys with-abc 96/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -284,7 +295,7 @@ mixed shallow/deep recursive realization, real on-demand child
 sourcing, exact profiled child-interface synthesis in the on-demand
 lane, real sibling-routed hierarchy child inputs, and real parent-side
 composition above instance outputs, plus real parent-composed child-input
-bindings. The focused proof artifact for that composed-parent
+bindings, plus real local parent flops. The focused proof artifact for that composed-parent
 behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
@@ -327,15 +338,23 @@ local proofs remain useful:
   - `top_child_input_bindings_from_parent_composed_logic = 13`
   - `parent_composed_child_input_binding_fraction = 0.9285714285714286`
   - `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`
+- `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
+  the same three lanes and proves local parent state numerically:
+  - `hierarchy_parent_local_flops = 8`
+  - `top_local_flops = 8`
+  - `top_clock_inputs = 1`
+  - `top_reset_inputs = 1`
+  - `child_input_bindings_from_parent_flops = 1`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r15` closes them cleanly
-  with `coverage_gaps = []` and `84/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16` closes them cleanly
+  with `coverage_gaps = []` and `96/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
   explicit child-sourcing bank, `r12` is the first exact profiled
-  child-interface bank, `r13` is the pre-parent-input-cone bank, and
+  child-interface bank, `r13` is the pre-parent-input-cone bank, `r15`
+  is the pre-parent-state bank, and
   the aborted `r8` rerun is
   historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
@@ -392,9 +411,10 @@ branching in the recursive lane:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. add local parent flops where structurally warranted;
+1. deepen registered child-to-child routing using the local
+   parent-state surface;
 2. deepen the parent-side routing/composition surface beyond the current
-   combinational sibling-binding and parent-input-cone surfaces.
+   sibling-binding, parent-input-cone, and local-parent-flop surfaces.
 
 Only after that does Phase 4 become "done" in the same sense that the
 leaf-kernel phases are done today.

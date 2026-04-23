@@ -237,7 +237,7 @@ fn grow_pool_one_unit(
     let width = g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width);
 
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    if flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob) {
+    if flop_allowed && roll_knob(g, m, g.active_flop_knob, g.cfg.flop_prob) {
         trace!(width, "🧱 flop block");
         build_flop_leaf(g, m, pool, worklist, width);
         return true;
@@ -596,7 +596,7 @@ fn process_signal_frame(
     // Flop block: allocates a Flop and enqueues its D-cone on the worklist.
     // The FlopQ node is returned immediately and the frame resolves.
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    if flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob) {
+    if flop_allowed && roll_knob(g, m, g.active_flop_knob, g.cfg.flop_prob) {
         let node = build_flop_leaf(g, m, pool, worklist, frame.width);
         deliver(g, m, pool, node, frame.dest, gate_frames, per_output_drive);
         return;
@@ -2970,7 +2970,7 @@ pub fn build_cone(
     // Blocks take priority over operator gates. Ordering between flop
     // and comb-mux is first-come by their independent probability rolls.
     let flop_allowed = (m.flops.len() as u32) < g.cfg.max_flops_per_module;
-    let pick_flop = flop_allowed && roll_knob(g, m, KnobId::FlopProb, g.cfg.flop_prob);
+    let pick_flop = flop_allowed && roll_knob(g, m, g.active_flop_knob, g.cfg.flop_prob);
     if pick_flop {
         trace!(depth, width, "🧱 flop block");
         return build_flop_leaf(g, m, pool, worklist, width);
