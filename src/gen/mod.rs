@@ -74,7 +74,7 @@ impl Generator {
     }
 
     pub fn generate_design(&mut self) -> Design {
-        if self.cfg.hierarchy_depth == 0 {
+        if self.cfg.effective_hierarchy_depth_range().is_none() {
             let m = self.generate_module();
             let name = m.name.clone();
             Design {

@@ -1,13 +1,18 @@
 //! Phase 4 hierarchy generation.
 //!
-//! The first live slice is intentionally narrow: depth-1 wrapper
-//! hierarchy only. We generate a library of leaf modules, then a real
-//! top module that instantiates a planned selection of leaf
-//! definitions and builds a real top module above them. The top uses
-//! child instance outputs as real leaf variables for its own
-//! combinational output cones, so this is genuine composition rather
-//! than a fake multi-file bundle, but it still does not recurse beyond
-//! that parent-side combinational layer.
+//! The current Phase 4 slice has two hierarchy planning modes:
+//!
+//! - the legacy exact depth-1 wrapper mode (`hierarchy_depth = 1`)
+//! - the newer bounded recursive mode
+//!   (`min_hierarchy_depth..=max_hierarchy_depth`,
+//!   `min_child_instances_per_module..=max_child_instances_per_module`,
+//!   plus optional per-parent-depth branching overrides)
+//!
+//! In both cases, parent modules use child instance outputs as real
+//! leaf variables for their own combinational output cones, so this is
+//! genuine composition rather than a fake multi-file bundle. The
+//! parent-side layer is still combinational-only in the current slice:
+//! local parent flops remain disabled.
 
 use super::{
     cone::{self, FlopWorklist},
@@ -21,26 +26,40 @@ use crate::ir::{
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
+use std::collections::BTreeMap;
+
+struct BuiltSubtree {
+    modules: Vec<Module>,
+}
 
 pub fn generate_design(g: &mut Generator) -> Design {
+    if g.cfg.uses_hierarchy_range_mode() {
+        generate_recursive_design(g)
+    } else {
+        generate_legacy_exact_design(g)
+    }
+}
+
+fn generate_legacy_exact_design(g: &mut Generator) -> Design {
     debug_assert!(
         g.cfg.hierarchy_depth == 1,
-        "config validation should reject hierarchy_depth > 1 for the current Phase 4 slice"
+        "legacy hierarchy mode expects exact depth-1 wrapper planning"
     );
     debug_assert!(
         g.cfg.num_leaf_modules >= 1,
-        "config validation should reject hierarchy with zero leaf modules"
+        "legacy hierarchy mode requires a non-empty leaf library"
     );
 
     let mut modules = Vec::with_capacity(g.cfg.num_leaf_modules as usize + 1);
     for _ in 0..g.cfg.num_leaf_modules {
         modules.push(g.generate_module());
     }
-    let instance_plan = plan_child_instance_indices(g, modules.len());
+    let exact_instances = g.cfg.effective_num_child_instances() as usize;
+    let instance_plan = plan_child_instance_indices(g, modules.len(), exact_instances);
 
     let top_index = g.next_module_index;
     g.next_module_index += 1;
-    let top = generate_wrapper_top(g, top_index, &modules, &instance_plan);
+    let top = generate_parent_module(g, top_index, &modules, &[], &instance_plan);
     let top_name = top.name.clone();
     modules.push(top);
 
@@ -50,22 +69,109 @@ pub fn generate_design(g: &mut Generator) -> Design {
     }
 }
 
-fn plan_child_instance_indices(g: &mut Generator, library_len: usize) -> Vec<usize> {
-    debug_assert!(
-        library_len > 0,
-        "hierarchy requires at least one leaf module"
-    );
-    let target = g.cfg.effective_num_child_instances() as usize;
-    debug_assert!(
-        target > 0,
-        "effective child instance count should stay positive under validated hierarchy configs"
+fn generate_recursive_design(g: &mut Generator) -> Design {
+    let (min_depth, max_depth) = g
+        .cfg
+        .effective_hierarchy_depth_range()
+        .expect("hierarchy range mode should have an effective depth range");
+    let target_depth = if min_depth == max_depth {
+        min_depth
+    } else {
+        g.rng.gen_range(min_depth..=max_depth)
+    };
+    let built = build_recursive_subtree(g, 0, target_depth);
+    let top_name = built
+        .modules
+        .last()
+        .expect("hierarchy subtree must produce a root")
+        .name
+        .clone();
+    Design {
+        top: top_name,
+        modules: built.modules,
+    }
+}
+
+fn build_recursive_subtree(
+    g: &mut Generator,
+    parent_depth: u32,
+    remaining_depth: u32,
+) -> BuiltSubtree {
+    if remaining_depth == 0 {
+        return BuiltSubtree {
+            modules: vec![g.generate_module()],
+        };
+    }
+
+    let (min_instances, max_instances) = g
+        .cfg
+        .effective_child_instance_range_for_parent_depth(parent_depth)
+        .expect("recursive hierarchy requires child instance bounds");
+    let target_instances = if min_instances == max_instances {
+        min_instances as usize
+    } else {
+        g.rng
+            .gen_range(min_instances as usize..=max_instances as usize)
+    };
+    let library_len = plan_child_library_len(g, target_instances);
+
+    let mut descendant_modules = Vec::new();
+    let mut direct_children = Vec::with_capacity(library_len);
+    for _ in 0..library_len {
+        let mut child = build_recursive_subtree(g, parent_depth + 1, remaining_depth - 1).modules;
+        let child_root = child
+            .pop()
+            .expect("recursive child subtree should end with its root");
+        descendant_modules.extend(child);
+        direct_children.push(child_root);
+    }
+
+    let instance_plan = plan_child_instance_indices(g, direct_children.len(), target_instances);
+    let parent_index = g.next_module_index;
+    g.next_module_index += 1;
+    let parent = generate_parent_module(
+        g,
+        parent_index,
+        &direct_children,
+        &descendant_modules,
+        &instance_plan,
     );
 
-    let mut plan = Vec::with_capacity(target);
-    if target <= library_len {
+    descendant_modules.extend(direct_children);
+    descendant_modules.push(parent);
+    BuiltSubtree {
+        modules: descendant_modules,
+    }
+}
+
+fn plan_child_library_len(g: &mut Generator, target_instances: usize) -> usize {
+    debug_assert!(target_instances >= 1);
+    if target_instances == 1 {
+        1
+    } else {
+        g.rng.gen_range(1..=target_instances)
+    }
+}
+
+fn plan_child_instance_indices(
+    g: &mut Generator,
+    library_len: usize,
+    target_instances: usize,
+) -> Vec<usize> {
+    debug_assert!(
+        library_len > 0,
+        "hierarchy requires at least one child module"
+    );
+    debug_assert!(
+        target_instances > 0,
+        "child instance count should stay positive under validated hierarchy configs"
+    );
+
+    let mut plan = Vec::with_capacity(target_instances);
+    if target_instances <= library_len {
         let mut indices: Vec<_> = (0..library_len).collect();
         indices.shuffle(&mut g.rng);
-        indices.truncate(target);
+        indices.truncate(target_instances);
         plan.extend(indices);
         return plan;
     }
@@ -73,18 +179,27 @@ fn plan_child_instance_indices(g: &mut Generator, library_len: usize) -> Vec<usi
     let mut indices: Vec<_> = (0..library_len).collect();
     indices.shuffle(&mut g.rng);
     plan.extend(indices);
-    while plan.len() < target {
+    while plan.len() < target_instances {
         plan.push(g.rng.gen_range(0..library_len));
     }
     plan
 }
 
-fn generate_wrapper_top(
+fn generate_parent_module(
     g: &mut Generator,
     index: u64,
     library: &[Module],
+    descendants: &[Module],
     instance_plan: &[usize],
 ) -> Module {
+    let mut modules_by_name = BTreeMap::new();
+    for module in descendants {
+        modules_by_name.insert(module.name.as_str(), module);
+    }
+    for module in library {
+        modules_by_name.insert(module.name.as_str(), module);
+    }
+
     let mut top = Module {
         name: format!("mod_{}_{:04}", g.cfg.seed, index),
         max_ast_instances: g.cfg.max_ast_instances.max(1),
@@ -97,7 +212,7 @@ fn generate_wrapper_top(
 
     let any_sequential_child = instance_plan
         .iter()
-        .any(|&child_idx| library[child_idx].has_local_flops());
+        .any(|&child_idx| library[child_idx].carries_sequential_state_in(Some(&modules_by_name)));
     let mut next_port_id: PortId = 0;
 
     let shared_clock =
@@ -116,7 +231,7 @@ fn generate_wrapper_top(
         let instance_name = format!("u_{}", instance_idx);
         let mut input_bindings = Vec::new();
 
-        if child.has_local_flops() {
+        if child.carries_sequential_state_in(Some(&modules_by_name)) {
             let (clk_port, clk_node) =
                 shared_clock.expect("sequential children require shared clk");
             let (rst_port, rst_node) =
@@ -133,7 +248,7 @@ fn generate_wrapper_top(
             input_bindings.push((child.reset.expect("leaf reset id"), rst_node));
         }
 
-        for child_input in child.emitted_input_ports() {
+        for child_input in child.emitted_input_ports_in(Some(&modules_by_name)) {
             if child.clock == Some(child_input.id) || child.reset == Some(child_input.id) {
                 continue;
             }
@@ -302,6 +417,7 @@ fn add_top_input(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Config;
     use crate::ir::{Flop, FlopKind, FlopMux, ResetKind};
 
     fn sequential_leaf(name: &str) -> Module {
@@ -362,7 +478,7 @@ mod tests {
             ..crate::config::Config::default()
         });
         let child = sequential_leaf("leaf");
-        let top = generate_wrapper_top(&mut g, 1, &[child], &[0]);
+        let top = generate_parent_module(&mut g, 1, &[child], &[], &[0]);
 
         let clock = top.clock.expect("wrapper top should tag shared clock");
         let reset = top.reset.expect("wrapper top should tag shared reset");
@@ -375,5 +491,77 @@ mod tests {
             Some("rst_n")
         );
         assert_eq!(top.inputs.len(), 3, "clk + rst_n + one child data input");
+    }
+
+    #[test]
+    fn recursive_range_generation_builds_requested_exact_depth() {
+        let mut g = Generator::new(Config {
+            seed: 3,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 3,
+            ..Config::default()
+        });
+
+        let design = generate_design(&mut g);
+        let top = design
+            .modules
+            .iter()
+            .find(|m| m.name == design.top)
+            .expect("top exists");
+        assert!(
+            !top.instances.is_empty(),
+            "depth-2 top should instantiate children"
+        );
+        assert!(
+            design
+                .modules
+                .iter()
+                .any(|m| !m.instances.is_empty() && m.name != design.top),
+            "depth-2 design should contain at least one nested non-leaf child"
+        );
+    }
+
+    #[test]
+    fn recursive_range_generation_respects_per_depth_branching_overrides() {
+        let mut g = Generator::new(Config {
+            seed: 11,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 1,
+            max_child_instances_per_module: 3,
+            child_instances_per_module_by_depth: BTreeMap::from([
+                (0, crate::config::CountRange { min: 4, max: 4 }),
+                (1, crate::config::CountRange { min: 2, max: 2 }),
+            ]),
+            ..Config::default()
+        });
+
+        let design = generate_design(&mut g);
+        let modules_by_name = design
+            .modules
+            .iter()
+            .map(|module| (module.name.as_str(), module))
+            .collect::<BTreeMap<_, _>>();
+        let top = modules_by_name
+            .get(design.top.as_str())
+            .expect("top exists");
+        assert_eq!(
+            top.instances.len(),
+            4,
+            "top-level branching should follow depth-0 override"
+        );
+
+        for instance in &top.instances {
+            let child = modules_by_name
+                .get(instance.module.as_str())
+                .expect("child exists");
+            assert_eq!(
+                child.instances.len(),
+                2,
+                "nested branching should follow depth-1 override"
+            );
+        }
     }
 }

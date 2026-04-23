@@ -78,13 +78,14 @@ src/
 │   ├── module.rs    # leaf-module generator (clk/rst_n reservation,
 │   │                # pool seeding, output cones, worklist drain,
 │   │                # Rule 18 safety-net orphan audit).
-│   ├── hierarchy.rs # current Phase 4 slice: depth-1 wrapper
-│   │                # hierarchy. Pre-generates a leaf library,
-│   │                # plans instantiated-child count separately,
-│   │                # builds a real top wrapper, supports exact /
-│   │                # reuse / under-instantiation profiles, and now
-│   │                # builds a first parent-side combinational layer
-│   │                # over child InstanceOutput leaves.
+│   ├── hierarchy.rs # current Phase 4 slice: legacy exact depth-1
+│   │                # wrapper lane plus bounded recursive lane.
+│   │                # The legacy lane pre-generates a leaf library;
+│   │                # the recursive lane chooses one exact realized
+│   │                # depth and one per-parent child-count inside
+│   │                # requested ranges. Both build parent-side
+│   │                # combinational layers over child InstanceOutput
+│   │                # leaves.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -95,11 +96,12 @@ src/
                      # child-module instantiations. Inline unit tests.
 ```
 
-Phase 4 is now in progress: `src/gen/hierarchy.rs` owns the first live
-depth-1 hierarchy slice. The older wrapper-baseline surface has a
-repo-owned closure gate in `tool_matrix`, and current HEAD now extends
-that slice with a first parent-side combinational output layer over
-child instance outputs.
+Phase 4 is now in progress: `src/gen/hierarchy.rs` owns both the older
+exact depth-1 wrapper lane and the newer bounded recursive hierarchy
+lane. The older wrapper-baseline surface has a repo-owned closure gate
+in `tool_matrix`, and current HEAD now extends hierarchy with both
+parent-side composition, bounded recursive tree planning, and
+depth-specific branching overrides.
 
 ## Dependency direction
 
@@ -298,7 +300,7 @@ pub struct Generator { rng: ChaCha8Rng, cfg: Config, ... }
 impl Generator {
     pub fn new(cfg: Config) -> Self;
     pub fn generate_module(&mut self) -> Module;
-    pub fn generate_design(&mut self) -> Design;   // depth-0 leaf or depth-1 wrapper hierarchy
+    pub fn generate_design(&mut self) -> Design;   // depth-0 leaf, exact depth-1 wrapper, or bounded recursive hierarchy
 }
 
 // metrics.rs
@@ -339,9 +341,11 @@ Three layers:
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 6 tests (empty module, per-kind gate
+- `src/metrics.rs` — 9 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
-  and hierarchy design metrics).
+  and hierarchy design metrics for reuse, under-instantiation,
+  parent-side composition, recursive tree shape, and per-depth
+  branching profiles).
 - Other unit tests cover compaction, config validation, module
   finalisation, hierarchy validation, and CLI overrides.
 
@@ -350,12 +354,13 @@ generation + validation across all strategy values,
 byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, the landed case/casez structured
 surfaces, the landed bounded `for`-fold structured surface, the landed
-selectable `Slice` / `Concat` surface, the depth-1 hierarchy wrapper
-surface (including repeated child-definition reuse and
-under-instantiated-library cases), compaction/orphan guarantees,
-knob-roll telemetry, and input-surface finalisation.
+selectable `Slice` / `Concat` surface, the hierarchy surface (legacy
+depth-1 wrapper exact/reuse/under-instantiation plus the bounded
+recursive tree planner and per-depth branching profiles),
+compaction/orphan guarantees, knob-roll telemetry, and input-surface
+finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 192 unit-target tests + 32 integration tests = 224 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 203 unit-target tests + 35 integration tests = 238 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -393,9 +398,13 @@ exact / reuse / under-instantiation matrix directly. The old `r6`
 partial rerun remains useful only as evidence that the heavy
 `seq_nodeid_egraph_phase4_hier4_inst4_seq` corner is runtime-expensive.
 Current HEAD now also has a focused clean proof for real parent-side top
-composition at `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`;
-refreshing the full Phase 4 matrix on that newer code is the next
-closure step.
+composition at `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
+and a focused clean proof for bounded recursive hierarchy at
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, plus a focused clean
+proof for depth-specific recursive branching at
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`; refreshing the
+full Phase 4 matrix on that newer recursive code is the next closure
+step.
 
 ## Error handling
 

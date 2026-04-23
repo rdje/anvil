@@ -1,6 +1,7 @@
 //! Knobs: shape, mix, and termination parameters for the generator.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 /// Strategy for constructing a module's internal logic.
@@ -32,6 +33,13 @@ pub enum ConstructionStrategy {
     /// See `book/src/construction-strategies.md`.
     #[serde(alias = "graph-first", alias = "graph_first")]
     GraphFirst,
+}
+
+/// Inclusive integer range used for hierarchy-planning bounds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CountRange {
+    pub min: u32,
+    pub max: u32,
 }
 
 /// Identity mode — the coarse answer to "what does a `NodeId`
@@ -353,6 +361,18 @@ pub struct Config {
     pub num_leaf_modules: u32,
     #[serde(default)]
     pub num_child_instances: u32,
+    #[serde(default)]
+    pub min_hierarchy_depth: u32,
+    #[serde(default)]
+    pub max_hierarchy_depth: u32,
+    #[serde(default)]
+    pub min_child_instances_per_module: u32,
+    #[serde(default)]
+    pub max_child_instances_per_module: u32,
+    /// Optional per-parent-depth override for recursive hierarchy
+    /// branching. Keys are internal parent depths (`0` = top).
+    #[serde(default)]
+    pub child_instances_per_module_by_depth: BTreeMap<u32, CountRange>,
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
@@ -486,6 +506,11 @@ impl Default for Config {
             hierarchy_depth: 0,
             num_leaf_modules: 0,
             num_child_instances: 0,
+            min_hierarchy_depth: 0,
+            max_hierarchy_depth: 0,
+            min_child_instances_per_module: 0,
+            max_child_instances_per_module: 0,
+            child_instances_per_module_by_depth: BTreeMap::new(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -522,12 +547,48 @@ pub enum ConfigError {
         "hierarchy_depth ({0}) is not supported yet; current Phase 4 slice supports only 0 or 1"
     )]
     HierarchyDepthUnsupported(u32),
+    #[error(
+        "hierarchy depth range is invalid: min={min}, max={max} (use both zero for leaf-only mode, or 1 <= min <= max)"
+    )]
+    HierarchyDepthRange { min: u32, max: u32 },
     #[error("hierarchy_depth > 0 requires num_leaf_modules >= 1 (got {0})")]
     HierarchyRequiresLeafModules(u32),
     #[error(
         "num_child_instances ({0}) requires hierarchy_depth > 0; the knob is ignored in leaf-only mode"
     )]
     ChildInstancesRequireHierarchy(u32),
+    #[error(
+        "child instance range is invalid: min={min}, max={max} (use both zero to keep legacy exact-child-count mode, or 1 <= min <= max)"
+    )]
+    ChildInstancesRange { min: u32, max: u32 },
+    #[error(
+        "child instance range override for parent depth {depth} is invalid: min={min}, max={max} (need 1 <= min <= max)"
+    )]
+    ChildInstancesRangeForDepth { depth: u32, min: u32, max: u32 },
+    #[error(
+        "child instance per-depth overrides require a global child instance range fallback via --min-child-instances-per-module / --max-child-instances-per-module"
+    )]
+    ChildInstancesByDepthRequireGlobalRange,
+    #[error(
+        "child instance per-depth override at parent depth {depth} is outside the valid realized internal-depth range [0:{max_parent_depth}] for max_hierarchy_depth {max_hierarchy_depth}"
+    )]
+    ChildInstancesByDepthOutOfRange {
+        depth: u32,
+        max_parent_depth: u32,
+        max_hierarchy_depth: u32,
+    },
+    #[error(
+        "hierarchy_depth exact knob ({exact}) conflicts with hierarchy depth range [{min}:{max}]"
+    )]
+    HierarchyDepthConflict { exact: u32, min: u32, max: u32 },
+    #[error(
+        "num_child_instances exact knob ({exact}) conflicts with child instance range [{min}:{max}]"
+    )]
+    ChildInstancesConflict { exact: u32, min: u32, max: u32 },
+    #[error(
+        "num_leaf_modules ({0}) is only valid in legacy exact depth-1 wrapper mode; recursive range mode plans child libraries on demand"
+    )]
+    LeafLibraryRequiresLegacyHierarchy(u32),
 }
 
 impl Config {
@@ -548,6 +609,53 @@ impl Config {
             self.num_leaf_modules
         } else {
             self.num_child_instances
+        }
+    }
+
+    pub fn uses_hierarchy_range_mode(&self) -> bool {
+        self.min_hierarchy_depth > 0
+            || self.max_hierarchy_depth > 0
+            || self.min_child_instances_per_module > 0
+            || self.max_child_instances_per_module > 0
+            || !self.child_instances_per_module_by_depth.is_empty()
+    }
+
+    pub fn effective_hierarchy_depth_range(&self) -> Option<(u32, u32)> {
+        if self.uses_hierarchy_range_mode() {
+            Some((self.min_hierarchy_depth, self.max_hierarchy_depth))
+        } else if self.hierarchy_depth > 0 {
+            Some((self.hierarchy_depth, self.hierarchy_depth))
+        } else {
+            None
+        }
+    }
+
+    pub fn effective_child_instance_range(&self) -> Option<(u32, u32)> {
+        self.effective_hierarchy_depth_range().map(|_| {
+            if self.uses_hierarchy_range_mode() {
+                (
+                    self.min_child_instances_per_module,
+                    self.max_child_instances_per_module,
+                )
+            } else {
+                let exact = self.effective_num_child_instances();
+                (exact, exact)
+            }
+        })
+    }
+
+    pub fn effective_child_instance_range_for_parent_depth(
+        &self,
+        parent_depth: u32,
+    ) -> Option<(u32, u32)> {
+        if self.uses_hierarchy_range_mode() {
+            if let Some(range) = self.child_instances_per_module_by_depth.get(&parent_depth) {
+                Some((range.min, range.max))
+            } else {
+                self.effective_child_instance_range()
+            }
+        } else {
+            self.effective_child_instance_range()
         }
     }
 
@@ -585,18 +693,78 @@ impl Config {
                 self.max_coefficient,
             ));
         }
-        if self.hierarchy_depth > 1 {
-            return Err(ConfigError::HierarchyDepthUnsupported(self.hierarchy_depth));
-        }
-        if self.hierarchy_depth > 0 && self.num_leaf_modules < 1 {
-            return Err(ConfigError::HierarchyRequiresLeafModules(
-                self.num_leaf_modules,
-            ));
-        }
-        if self.hierarchy_depth == 0 && self.num_child_instances > 0 {
-            return Err(ConfigError::ChildInstancesRequireHierarchy(
-                self.num_child_instances,
-            ));
+        if self.uses_hierarchy_range_mode() {
+            if self.min_hierarchy_depth == 0 || self.max_hierarchy_depth < self.min_hierarchy_depth
+            {
+                return Err(ConfigError::HierarchyDepthRange {
+                    min: self.min_hierarchy_depth,
+                    max: self.max_hierarchy_depth,
+                });
+            }
+            if self.min_child_instances_per_module == 0
+                || self.max_child_instances_per_module < self.min_child_instances_per_module
+            {
+                return Err(ConfigError::ChildInstancesRange {
+                    min: self.min_child_instances_per_module,
+                    max: self.max_child_instances_per_module,
+                });
+            }
+            if !self.child_instances_per_module_by_depth.is_empty()
+                && (self.min_child_instances_per_module == 0
+                    || self.max_child_instances_per_module == 0)
+            {
+                return Err(ConfigError::ChildInstancesByDepthRequireGlobalRange);
+            }
+            let max_parent_depth = self.max_hierarchy_depth - 1;
+            for (&depth, range) in &self.child_instances_per_module_by_depth {
+                if range.min == 0 || range.max < range.min {
+                    return Err(ConfigError::ChildInstancesRangeForDepth {
+                        depth,
+                        min: range.min,
+                        max: range.max,
+                    });
+                }
+                if depth > max_parent_depth {
+                    return Err(ConfigError::ChildInstancesByDepthOutOfRange {
+                        depth,
+                        max_parent_depth,
+                        max_hierarchy_depth: self.max_hierarchy_depth,
+                    });
+                }
+            }
+            if self.hierarchy_depth > 0 {
+                return Err(ConfigError::HierarchyDepthConflict {
+                    exact: self.hierarchy_depth,
+                    min: self.min_hierarchy_depth,
+                    max: self.max_hierarchy_depth,
+                });
+            }
+            if self.num_child_instances > 0 {
+                return Err(ConfigError::ChildInstancesConflict {
+                    exact: self.num_child_instances,
+                    min: self.min_child_instances_per_module,
+                    max: self.max_child_instances_per_module,
+                });
+            }
+            if self.num_leaf_modules > 0 {
+                return Err(ConfigError::LeafLibraryRequiresLegacyHierarchy(
+                    self.num_leaf_modules,
+                ));
+            }
+        } else {
+            if self.hierarchy_depth > 1 {
+                return Err(ConfigError::HierarchyDepthUnsupported(self.hierarchy_depth));
+            }
+            if self.hierarchy_depth > 0 && self.num_leaf_modules < 1 {
+                return Err(ConfigError::HierarchyRequiresLeafModules(
+                    self.num_leaf_modules,
+                ));
+            }
+            if self.hierarchy_depth == 0 && self.num_child_instances > 0 {
+                return Err(ConfigError::ChildInstancesRequireHierarchy(
+                    self.num_child_instances,
+                ));
+            }
         }
         for (name, value) in [
             ("flop_prob", self.flop_prob),
@@ -773,6 +941,21 @@ impl Config {
         if let Some(v) = o.num_child_instances {
             self.num_child_instances = v;
         }
+        if let Some(v) = o.min_hierarchy_depth {
+            self.min_hierarchy_depth = v;
+        }
+        if let Some(v) = o.max_hierarchy_depth {
+            self.max_hierarchy_depth = v;
+        }
+        if let Some(v) = o.min_child_instances_per_module {
+            self.min_child_instances_per_module = v;
+        }
+        if let Some(v) = o.max_child_instances_per_module {
+            self.max_child_instances_per_module = v;
+        }
+        if let Some(v) = &o.child_instances_per_module_by_depth {
+            self.child_instances_per_module_by_depth = v.clone();
+        }
     }
 }
 
@@ -827,6 +1010,11 @@ pub struct Overrides {
     pub hierarchy_depth: Option<u32>,
     pub num_leaf_modules: Option<u32>,
     pub num_child_instances: Option<u32>,
+    pub min_hierarchy_depth: Option<u32>,
+    pub max_hierarchy_depth: Option<u32>,
+    pub min_child_instances_per_module: Option<u32>,
+    pub max_child_instances_per_module: Option<u32>,
+    pub child_instances_per_module_by_depth: Option<BTreeMap<u32, CountRange>>,
 }
 
 #[cfg(test)]
@@ -937,5 +1125,150 @@ mod tests {
             ..Config::default()
         };
         assert_eq!(cfg.effective_num_child_instances(), 7);
+    }
+
+    #[test]
+    fn effective_hierarchy_ranges_support_legacy_exact_and_new_bounded_modes() {
+        let legacy = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 7,
+            ..Config::default()
+        };
+        assert_eq!(legacy.effective_hierarchy_depth_range(), Some((1, 1)));
+        assert_eq!(legacy.effective_child_instance_range(), Some((7, 7)));
+
+        let ranged = Config {
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 4,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 5,
+            child_instances_per_module_by_depth: BTreeMap::from([(
+                1,
+                CountRange { min: 4, max: 4 },
+            )]),
+            ..Config::default()
+        };
+        assert_eq!(ranged.effective_hierarchy_depth_range(), Some((2, 4)));
+        assert_eq!(ranged.effective_child_instance_range(), Some((2, 5)));
+        assert_eq!(
+            ranged.effective_child_instance_range_for_parent_depth(0),
+            Some((2, 5))
+        );
+        assert_eq!(
+            ranged.effective_child_instance_range_for_parent_depth(1),
+            Some((4, 4))
+        );
+    }
+
+    #[test]
+    fn validate_accepts_bounded_recursive_hierarchy_ranges() {
+        let cfg = Config {
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 4,
+            child_instances_per_module_by_depth: BTreeMap::from([
+                (0, CountRange { min: 4, max: 4 }),
+                (1, CountRange { min: 2, max: 2 }),
+            ]),
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("bounded recursive hierarchy range should be valid");
+    }
+
+    #[test]
+    fn validate_rejects_conflicting_exact_and_range_hierarchy_knobs() {
+        let cfg = Config {
+            hierarchy_depth: 1,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 4,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::HierarchyDepthConflict { exact, min, max }) => {
+                assert_eq!(exact, 1);
+                assert_eq!(min, 2);
+                assert_eq!(max, 3);
+            }
+            other => panic!("expected hierarchy depth conflict, got {other:?}"),
+        }
+
+        let cfg = Config {
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            num_child_instances: 5,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 4,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::ChildInstancesConflict { exact, min, max }) => {
+                assert_eq!(exact, 5);
+                assert_eq!(min, 2);
+                assert_eq!(max, 4);
+            }
+            other => panic!("expected child instance conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_invalid_hierarchy_ranges() {
+        let cfg = Config {
+            min_hierarchy_depth: 0,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 4,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::HierarchyDepthRange { min, max }) => {
+                assert_eq!(min, 0);
+                assert_eq!(max, 2);
+            }
+            other => panic!("expected hierarchy depth range rejection, got {other:?}"),
+        }
+
+        let cfg = Config {
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 0,
+            max_child_instances_per_module: 4,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::ChildInstancesRange { min, max }) => {
+                assert_eq!(min, 0);
+                assert_eq!(max, 4);
+            }
+            other => panic!("expected child instance range rejection, got {other:?}"),
+        }
+
+        let cfg = Config {
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 4,
+            child_instances_per_module_by_depth: BTreeMap::from([(
+                3,
+                CountRange { min: 2, max: 2 },
+            )]),
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::ChildInstancesByDepthOutOfRange {
+                depth,
+                max_parent_depth,
+                max_hierarchy_depth,
+            }) => {
+                assert_eq!(depth, 3);
+                assert_eq!(max_parent_depth, 2);
+                assert_eq!(max_hierarchy_depth, 3);
+            }
+            other => panic!("expected per-depth range rejection, got {other:?}"),
+        }
     }
 }

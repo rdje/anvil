@@ -1,17 +1,19 @@
 # Hierarchy: Modules of Modules
 
 ANVIL no longer stops at isolated leaf modules only. Phase 4 is now
-live in a deliberately narrow but real form: **depth-1 wrapper
-hierarchy**.
+live in two deliberately scoped but real forms:
+
+- the legacy exact **depth-1 wrapper** lane, and
+- the newer **bounded recursive hierarchy** lane.
 
 That means:
 
 - ANVIL can generate a **library of leaf modules** with the existing
   leaf kernel,
-- choose a separate **instantiated child count** for the wrapper,
-- then generate a real **top wrapper module**,
-- instantiate those leaves inside the wrapper, and
-- build top-level outputs from child instance outputs as real leaf
+- choose separate hierarchy-planning knobs depending on the lane,
+- generate real parent modules above child modules,
+- instantiate those children inside the parent, and
+- build parent outputs from child instance outputs as real leaf
   variables.
 
 This is genuine module composition. It exercises elaboration,
@@ -20,15 +22,19 @@ selection. It is not yet the full future hierarchy story.
 
 ## Current live slice
 
-The current entry point is:
+The legacy exact wrapper entry point is:
 
 ```text
 --hierarchy-depth 1 --num-leaf-modules N [--num-child-instances M]
 ```
 
-Depth `0` keeps the existing leaf-only path. Depth `1` enables the
-first Phase 4 slice. Depths above `1` are still rejected by config
-validation.
+The bounded recursive entry point is:
+
+```text
+--min-hierarchy-depth A --max-hierarchy-depth B
+--min-child-instances-per-module C --max-child-instances-per-module D
+--child-instances-per-depth DEPTH=MIN:MAX   # optional, repeatable
+```
 
 `num_child_instances = 0` preserves the legacy wrapper behavior:
 instantiate every generated leaf definition exactly once. When it is
@@ -59,6 +65,20 @@ different cases:
   replacement to reach the requested child count
   (`num_child_instances > num_leaf_modules`)
 
+The bounded recursive planner follows a different rule set:
+
+- it picks one exact realized depth uniformly inside `[A:B]` for the
+  whole design;
+- every non-leaf module picks a child-instance count uniformly inside
+  `[C:D]`, unless a per-parent-depth override is present;
+- repeated `child_instances_per_depth` overrides are keyed by parent
+  depth (`0` = top, `1` = its direct children, ...), and they take
+  priority over the global fallback range at the matching depth;
+- every direct child definition generated for a parent is instantiated
+  at least once; and
+- the resulting design metrics report the realized depth and branching
+  numerically.
+
 The current top planner is intentionally narrow but no longer a pure
 pass-through shell:
 
@@ -82,11 +102,11 @@ The control-port rule is deliberate and inductive:
 - once a wrapper carries sequential descendants, `clk` / `rst_n` stay
   visible all the way up the instantiated ancestor chain.
 
-So the first hierarchy slice is **real** but also **honest**: the top
-module is now a real parent-side combinational composition layer over
-child outputs, but it is not yet a recursively self-similar hierarchy
-generator that mixes local flops, deeper sub-instances, and on-demand
-child synthesis at arbitrary depth.
+So the current hierarchy slice is **real** but also **honest**: parent
+modules are real parent-side combinational composition layers over
+child outputs, but the planner still does not yet mix shallow and deep
+branches in one tree, add local parent flops, or solve hierarchy-aware
+identity.
 
 ## Current IR shape
 
@@ -178,7 +198,7 @@ Each design entry now carries both:
 - exact per-design `metrics` describing composition quality directly.
 
 Those design metrics are the intended trust surface for the current
-Phase 4 slice. They let you judge wrapper quality without opening the
+Phase 4 slice. They let you judge hierarchy quality without opening the
 emitted `.sv`, including:
 
 - library size vs instantiated child count,
@@ -190,7 +210,12 @@ emitted `.sv`, including:
 - average / maximum child-output support per top output,
 - control fanout to child instances,
 - weighted child interface / node / flop load, and
-- per-definition instantiation histograms.
+- per-definition instantiation histograms,
+- realized leaf depth / module depth,
+- module-definition and module-occurrence depth histograms, and
+- child-instance histograms plus per-depth instance-slot totals, and
+- per-parent-depth branching summaries
+  (`avg/min/max_child_instances_by_parent_depth`).
 
 ## Why the first slice is wrapper-only
 
@@ -206,9 +231,8 @@ The wrapper slice buys several important things immediately:
 
 It also keeps the open work honest. The following are **not** live yet:
 
-- recursive depth > 1 hierarchy,
 - local parent flops inside the composed top layer,
-- on-demand child generation sized to parent needs,
+- mixed shallow/deep branches in one bounded recursive tree,
 - hierarchy-aware `NodeId` identity/factorization.
 
 What **is** now live beyond the original smoke is the repo-owned Phase 4
@@ -257,16 +281,50 @@ local proofs remain useful:
   only historical evidence that the heavy sequential hierarchy corners
   are runtime-expensive rather than malformed.
 
+Current HEAD now also has a focused clean proof for the bounded
+recursive lane:
+
+- `/tmp/anvil-hier-range-smoke-r1/manifest.json`
+- clean in Verilator
+- clean in Yosys `synth -noabc`
+- clean in the repo-owned Yosys with-ABC path
+- metrics proving the realized tree directly:
+  - `realized_min_leaf_depth = 2`
+  - `realized_max_leaf_depth = 2`
+  - `instance_slots_by_parent_depth = {0: 2, 1: 5}`
+  - `min_child_instances_per_internal_module = 2`
+  - `max_child_instances_per_internal_module = 3`
+  - `hierarchy_parent_composed_outputs = 22`
+
+Current HEAD also has a focused clean proof for depth-specific
+branching in the recursive lane:
+
+- `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`
+- clean in Verilator
+- clean in Yosys `synth -noabc`
+- clean in the repo-owned Yosys with-ABC path
+- metrics proving the depth-specific branching profile directly:
+  - `realized_min_leaf_depth = 2`
+  - `realized_max_leaf_depth = 2`
+  - `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`
+  - `min_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+  - `max_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+  - `hierarchy_parent_composed_outputs = 36`
+  - `top_parent_composed_outputs = 18`
+
 ## The next real steps
 
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
 1. refresh the repo-owned Phase 4 matrix on the new parent-composition
-   code rather than only the older wrapper-only baseline;
-2. add deeper bounded recursion (`hierarchy_depth > 1`);
-3. add the on-demand child-sourcing path beside the current
-   pre-generated library path.
+   and recursive-hierarchy code rather than only the older
+   wrapper-baseline artifact;
+2. refine bounded recursion so one design can mix shallow and deep
+   branches inside the requested depth interval;
+3. add local parent flops where structurally warranted;
+4. add the on-demand child-sourcing / library-sourcing split as an
+   explicit user-controllable axis.
 
 Only after that does Phase 4 become "done" in the same sense that the
 leaf-kernel phases are done today.

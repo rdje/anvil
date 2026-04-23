@@ -262,17 +262,38 @@ pub struct DesignMetrics {
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
+    pub num_library_modules: usize,
+    pub num_internal_modules: usize,
     pub num_leaf_modules: usize,
     pub num_instances: usize,
     pub num_unique_instantiated_modules: usize,
+    pub num_unused_module_definitions: usize,
     pub num_unused_leaf_modules: usize,
     pub num_reused_instance_slots: usize,
+    pub num_internal_module_occurrences: usize,
+    pub num_leaf_module_occurrences: usize,
 
     // --- Composition ratios ------------------------------------
     pub library_coverage_fraction: f64,
     pub unused_library_fraction: f64,
     pub instance_reuse_fraction: f64,
     pub instance_to_library_ratio: f64,
+
+    // --- Hierarchy shape ---------------------------------------
+    pub realized_min_leaf_depth: usize,
+    pub realized_max_leaf_depth: usize,
+    pub avg_leaf_depth: f64,
+    pub max_module_depth: usize,
+    pub avg_child_instances_per_internal_module: f64,
+    pub min_child_instances_per_internal_module: usize,
+    pub max_child_instances_per_internal_module: usize,
+    pub module_defs_by_depth: BTreeMap<usize, usize>,
+    pub module_occurrences_by_depth: BTreeMap<usize, usize>,
+    pub instance_slots_by_parent_depth: BTreeMap<usize, usize>,
+    pub avg_child_instances_by_parent_depth: BTreeMap<usize, f64>,
+    pub min_child_instances_by_parent_depth: BTreeMap<usize, usize>,
+    pub max_child_instances_by_parent_depth: BTreeMap<usize, usize>,
+    pub child_instances_per_internal_module_histogram: BTreeMap<usize, usize>,
 
     // --- Top interface -----------------------------------------
     pub top_inputs: usize,
@@ -290,6 +311,13 @@ pub struct DesignMetrics {
     pub top_parent_composed_output_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
+
+    // --- Composition across the whole hierarchy ----------------
+    pub hierarchy_direct_instance_output_drives: usize,
+    pub hierarchy_parent_composed_outputs: usize,
+    pub module_occurrences_with_parent_composed_outputs: usize,
+    pub avg_instance_output_support_per_hierarchy_output: f64,
+    pub max_instance_output_support_per_hierarchy_output: usize,
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
@@ -589,27 +617,29 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .iter()
         .filter(|module| module.name != design.top)
         .collect();
-
-    let num_leaf_modules = library.len();
-    let num_instances = top.instances.len();
+    let num_leaf_modules = library
+        .iter()
+        .filter(|module| module.instances.is_empty())
+        .count();
+    let num_internal_modules = design.modules.len().saturating_sub(num_leaf_modules);
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
         num_modules: design.modules.len(),
+        num_library_modules: design.modules.len().saturating_sub(1),
+        num_internal_modules,
         num_leaf_modules,
-        num_instances,
         top_inputs: top.emitted_input_ports_in(Some(&modules_by_name)).count(),
         top_outputs: top.outputs.len(),
         ..Default::default()
     };
 
-    let library_lookup: BTreeMap<_, _> = library
-        .iter()
-        .map(|module| (module.name.as_str(), *module))
-        .collect();
-    let mut unique_instantiated = std::collections::BTreeSet::new();
-    let mut instance_output_support_memo = HashMap::new();
-    let mut total_instance_output_support = 0usize;
+    let mut unique_instantiated = BTreeSet::new();
+    let mut unique_instantiated_leafs = BTreeSet::new();
+    let mut defs_by_depth_sets: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+    let mut internal_module_occurrences_by_depth: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut leaf_depth_total = 0usize;
+    let mut hierarchy_output_support_total = 0usize;
 
     for port in top.emitted_input_ports_in(Some(&modules_by_name)) {
         if top.clock == Some(port.id) {
@@ -621,54 +651,24 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         }
     }
 
-    out.clock_fanout_instances = top
-        .instances
-        .iter()
-        .filter(|instance| {
-            library_lookup
-                .get(instance.module.as_str())
-                .is_some_and(|module| {
-                    module
-                        .emitted_input_ports_in(Some(&modules_by_name))
-                        .any(|port| module.clock == Some(port.id))
-                })
-        })
-        .count();
-    out.reset_fanout_instances = top
-        .instances
-        .iter()
-        .filter(|instance| {
-            library_lookup
-                .get(instance.module.as_str())
-                .is_some_and(|module| {
-                    module
-                        .emitted_input_ports_in(Some(&modules_by_name))
-                        .any(|port| module.reset == Some(port.id))
-                })
-        })
-        .count();
+    let top_facts = module_composition_facts(top);
+    out.top_direct_instance_output_drives = top_facts.direct_drives;
+    out.top_parent_composed_outputs = top_facts.parent_composed_outputs;
+    out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
+    out.top_outputs_without_instance_outputs = top_facts.outputs_without_instance_outputs;
+    out.max_instance_output_support_per_top_output = top_facts.max_support;
+    out.avg_instance_output_support_per_top_output =
+        ratio(top_facts.total_support, top.outputs.len());
+    out.top_instance_output_dependency_fraction =
+        ratio(out.top_outputs_reaching_instance_outputs, out.top_outputs);
+    out.top_parent_composed_output_fraction =
+        ratio(out.top_parent_composed_outputs, out.top_outputs);
 
-    for (_, root) in &top.drives {
-        let support =
-            collect_instance_output_support(top, *root, &mut instance_output_support_memo);
-        let support_len = support.len();
-        total_instance_output_support += support_len;
-        out.max_instance_output_support_per_top_output = out
-            .max_instance_output_support_per_top_output
-            .max(support_len);
-        if support_len > 0 {
-            out.top_outputs_reaching_instance_outputs += 1;
-        } else {
-            out.top_outputs_without_instance_outputs += 1;
-        }
-        if matches!(top.nodes[*root as usize], Node::InstanceOutput { .. }) {
-            out.top_direct_instance_output_drives += 1;
-        } else if support_len > 0 {
-            out.top_parent_composed_outputs += 1;
-        }
-    }
-
-    for module in &library {
+    for module in library
+        .iter()
+        .copied()
+        .filter(|module| module.instances.is_empty())
+    {
         if module.has_local_flops() {
             out.num_sequential_leaf_modules += 1;
         } else {
@@ -676,57 +676,232 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         }
     }
 
-    for instance in &top.instances {
-        *out.instantiated_module_histogram
-            .entry(instance.module.clone())
-            .or_insert(0) += 1;
-        unique_instantiated.insert(instance.module.clone());
-
-        if let Some(child) = library_lookup.get(instance.module.as_str()) {
-            let child_data_inputs = child
-                .emitted_input_ports_in(Some(&modules_by_name))
-                .filter(|port| child.clock != Some(port.id) && child.reset != Some(port.id))
-                .count();
-            out.total_child_data_input_bindings += child_data_inputs;
-            out.total_child_output_exposures += child.outputs.len();
-            out.total_instantiated_child_nodes += child.nodes.len();
-            out.total_instantiated_child_flops += child.flops.len();
-            out.max_nodes_per_instance = out.max_nodes_per_instance.max(child.nodes.len());
-            out.max_flops_per_instance = out.max_flops_per_instance.max(child.flops.len());
-            if child.carries_sequential_state_in(Some(&modules_by_name)) {
-                out.num_sequential_instances += 1;
-            } else {
-                out.num_combinational_instances += 1;
-            }
-        }
-    }
+    let mut walk = DesignWalkState {
+        modules_by_name: &modules_by_name,
+        out: &mut out,
+        unique_instantiated: &mut unique_instantiated,
+        unique_instantiated_leafs: &mut unique_instantiated_leafs,
+        defs_by_depth_sets: &mut defs_by_depth_sets,
+        internal_module_occurrences_by_depth: &mut internal_module_occurrences_by_depth,
+        leaf_depth_total: &mut leaf_depth_total,
+        hierarchy_output_support_total: &mut hierarchy_output_support_total,
+    };
+    walk_module_occurrence(top, 0, &mut walk);
 
     out.num_unique_instantiated_modules = unique_instantiated.len();
+    out.num_unused_module_definitions = out
+        .num_library_modules
+        .saturating_sub(out.num_unique_instantiated_modules);
     out.num_unused_leaf_modules = out
         .num_leaf_modules
-        .saturating_sub(out.num_unique_instantiated_modules);
+        .saturating_sub(unique_instantiated_leafs.len());
     out.num_reused_instance_slots = out
         .num_instances
         .saturating_sub(out.num_unique_instantiated_modules);
 
     out.library_coverage_fraction =
-        ratio(out.num_unique_instantiated_modules, out.num_leaf_modules);
-    out.unused_library_fraction = ratio(out.num_unused_leaf_modules, out.num_leaf_modules);
+        ratio(out.num_unique_instantiated_modules, out.num_library_modules);
+    out.unused_library_fraction = ratio(out.num_unused_module_definitions, out.num_library_modules);
     out.instance_reuse_fraction = ratio(out.num_reused_instance_slots, out.num_instances);
-    out.instance_to_library_ratio = ratio(out.num_instances, out.num_leaf_modules);
+    out.instance_to_library_ratio = ratio(out.num_instances, out.num_library_modules);
     out.avg_child_data_inputs_per_instance =
         ratio(out.total_child_data_input_bindings, out.num_instances);
     out.avg_child_outputs_per_instance = ratio(out.total_child_output_exposures, out.num_instances);
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
-    out.top_instance_output_dependency_fraction =
-        ratio(out.top_outputs_reaching_instance_outputs, out.top_outputs);
-    out.top_parent_composed_output_fraction =
-        ratio(out.top_parent_composed_outputs, out.top_outputs);
-    out.avg_instance_output_support_per_top_output =
-        ratio(total_instance_output_support, out.top_outputs);
+    out.avg_leaf_depth = ratio(leaf_depth_total, out.num_leaf_module_occurrences);
+    out.avg_child_instances_per_internal_module =
+        ratio(out.num_instances, out.num_internal_module_occurrences);
+    out.avg_instance_output_support_per_hierarchy_output = ratio(
+        hierarchy_output_support_total,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    for (depth, count) in internal_module_occurrences_by_depth {
+        out.avg_child_instances_by_parent_depth.insert(
+            depth,
+            ratio(
+                *out.instance_slots_by_parent_depth.get(&depth).unwrap_or(&0),
+                count,
+            ),
+        );
+    }
+    for (depth, names) in defs_by_depth_sets {
+        out.module_defs_by_depth.insert(depth, names.len());
+    }
 
+    out
+}
+
+struct DesignWalkState<'a> {
+    modules_by_name: &'a BTreeMap<&'a str, &'a Module>,
+    out: &'a mut DesignMetrics,
+    unique_instantiated: &'a mut BTreeSet<String>,
+    unique_instantiated_leafs: &'a mut BTreeSet<String>,
+    defs_by_depth_sets: &'a mut BTreeMap<usize, BTreeSet<String>>,
+    internal_module_occurrences_by_depth: &'a mut BTreeMap<usize, usize>,
+    leaf_depth_total: &'a mut usize,
+    hierarchy_output_support_total: &'a mut usize,
+}
+
+fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkState<'_>) {
+    state
+        .defs_by_depth_sets
+        .entry(depth)
+        .or_default()
+        .insert(module.name.clone());
+    *state
+        .out
+        .module_occurrences_by_depth
+        .entry(depth)
+        .or_insert(0) += 1;
+    state.out.max_module_depth = state.out.max_module_depth.max(depth);
+
+    if module.instances.is_empty() {
+        state.out.num_leaf_module_occurrences += 1;
+        if state.out.num_leaf_module_occurrences == 1 {
+            state.out.realized_min_leaf_depth = depth;
+        } else {
+            state.out.realized_min_leaf_depth = state.out.realized_min_leaf_depth.min(depth);
+        }
+        state.out.realized_max_leaf_depth = state.out.realized_max_leaf_depth.max(depth);
+        *state.leaf_depth_total += depth;
+        return;
+    }
+
+    state.out.num_internal_module_occurrences += 1;
+    *state
+        .internal_module_occurrences_by_depth
+        .entry(depth)
+        .or_insert(0) += 1;
+    let child_count = module.instances.len();
+    *state
+        .out
+        .instance_slots_by_parent_depth
+        .entry(depth)
+        .or_insert(0) += child_count;
+    state
+        .out
+        .min_child_instances_by_parent_depth
+        .entry(depth)
+        .and_modify(|min| *min = (*min).min(child_count))
+        .or_insert(child_count);
+    state
+        .out
+        .max_child_instances_by_parent_depth
+        .entry(depth)
+        .and_modify(|max| *max = (*max).max(child_count))
+        .or_insert(child_count);
+    *state
+        .out
+        .child_instances_per_internal_module_histogram
+        .entry(child_count)
+        .or_insert(0) += 1;
+    if state.out.num_internal_module_occurrences == 1 {
+        state.out.min_child_instances_per_internal_module = child_count;
+    } else {
+        state.out.min_child_instances_per_internal_module = state
+            .out
+            .min_child_instances_per_internal_module
+            .min(child_count);
+    }
+    state.out.max_child_instances_per_internal_module = state
+        .out
+        .max_child_instances_per_internal_module
+        .max(child_count);
+
+    let facts = module_composition_facts(module);
+    state.out.hierarchy_direct_instance_output_drives += facts.direct_drives;
+    state.out.hierarchy_parent_composed_outputs += facts.parent_composed_outputs;
+    *state.hierarchy_output_support_total += facts.total_support;
+    state.out.max_instance_output_support_per_hierarchy_output = state
+        .out
+        .max_instance_output_support_per_hierarchy_output
+        .max(facts.max_support);
+    if facts.parent_composed_outputs > 0 {
+        state.out.module_occurrences_with_parent_composed_outputs += 1;
+    }
+
+    for instance in &module.instances {
+        state.out.num_instances += 1;
+        *state
+            .out
+            .instantiated_module_histogram
+            .entry(instance.module.clone())
+            .or_insert(0) += 1;
+        state.unique_instantiated.insert(instance.module.clone());
+
+        let child = state
+            .modules_by_name
+            .get(instance.module.as_str())
+            .expect("instance child must exist in validated design");
+        if child.instances.is_empty() {
+            state.unique_instantiated_leafs.insert(child.name.clone());
+        }
+        let child_data_inputs = child
+            .emitted_input_ports_in(Some(state.modules_by_name))
+            .filter(|port| child.clock != Some(port.id) && child.reset != Some(port.id))
+            .count();
+        state.out.total_child_data_input_bindings += child_data_inputs;
+        state.out.total_child_output_exposures += child.outputs.len();
+        state.out.total_instantiated_child_nodes += child.nodes.len();
+        state.out.total_instantiated_child_flops += child.flops.len();
+        state.out.max_nodes_per_instance = state.out.max_nodes_per_instance.max(child.nodes.len());
+        state.out.max_flops_per_instance = state.out.max_flops_per_instance.max(child.flops.len());
+        if child.carries_sequential_state_in(Some(state.modules_by_name)) {
+            state.out.num_sequential_instances += 1;
+        } else {
+            state.out.num_combinational_instances += 1;
+        }
+
+        if module.name == state.out.design {
+            if child
+                .emitted_input_ports_in(Some(state.modules_by_name))
+                .any(|port| child.clock == Some(port.id))
+            {
+                state.out.clock_fanout_instances += 1;
+            }
+            if child
+                .emitted_input_ports_in(Some(state.modules_by_name))
+                .any(|port| child.reset == Some(port.id))
+            {
+                state.out.reset_fanout_instances += 1;
+            }
+        }
+
+        walk_module_occurrence(child, depth + 1, state);
+    }
+}
+
+#[derive(Default)]
+struct ModuleCompositionFacts {
+    direct_drives: usize,
+    parent_composed_outputs: usize,
+    outputs_reaching_instance_outputs: usize,
+    outputs_without_instance_outputs: usize,
+    total_support: usize,
+    max_support: usize,
+}
+
+fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
+    let mut memo = HashMap::new();
+    let mut out = ModuleCompositionFacts::default();
+    for (_, root) in &module.drives {
+        let support = collect_instance_output_support(module, *root, &mut memo);
+        let support_len = support.len();
+        out.total_support += support_len;
+        out.max_support = out.max_support.max(support_len);
+        if support_len > 0 {
+            out.outputs_reaching_instance_outputs += 1;
+        } else {
+            out.outputs_without_instance_outputs += 1;
+        }
+        if matches!(module.nodes[*root as usize], Node::InstanceOutput { .. }) {
+            out.direct_drives += 1;
+        } else if support_len > 0 {
+            out.parent_composed_outputs += 1;
+        }
+    }
     out
 }
 
@@ -997,5 +1172,82 @@ mod tests {
             met.avg_instance_output_support_per_top_output >= 1.0,
             "every top output should depend on at least one child output"
         );
+    }
+
+    #[test]
+    fn design_metrics_capture_recursive_depth_and_branching() {
+        let cfg = Config {
+            seed: 9,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 3,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("bounded recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.realized_min_leaf_depth, 2);
+        assert_eq!(met.realized_max_leaf_depth, 2);
+        assert_eq!(met.max_module_depth, 2);
+        assert!(met.num_internal_module_occurrences > 0);
+        assert!(met.num_leaf_module_occurrences > 0);
+        assert!(
+            (2..=3).contains(&met.min_child_instances_per_internal_module),
+            "min branching must respect the requested range"
+        );
+        assert!(
+            (2..=3).contains(&met.max_child_instances_per_internal_module),
+            "max branching must respect the requested range"
+        );
+        assert!(
+            met.module_defs_by_depth.contains_key(&0)
+                && met.module_defs_by_depth.contains_key(&1)
+                && met.module_defs_by_depth.contains_key(&2),
+            "depth histogram should record every realized level"
+        );
+        assert!(
+            met.instance_slots_by_parent_depth.contains_key(&0)
+                && met.instance_slots_by_parent_depth.contains_key(&1),
+            "branching histogram should record internal parent depths"
+        );
+        assert!(
+            met.avg_child_instances_by_parent_depth.contains_key(&0)
+                && met.avg_child_instances_by_parent_depth.contains_key(&1),
+            "per-depth branching averages should be recorded"
+        );
+    }
+
+    #[test]
+    fn design_metrics_capture_per_depth_branching_profile() {
+        let cfg = Config {
+            seed: 12,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 1,
+            max_child_instances_per_module: 3,
+            child_instances_per_module_by_depth: BTreeMap::from([
+                (0, crate::config::CountRange { min: 4, max: 4 }),
+                (1, crate::config::CountRange { min: 2, max: 2 }),
+            ]),
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("per-depth recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.min_child_instances_by_parent_depth.get(&0), Some(&4));
+        assert_eq!(met.max_child_instances_by_parent_depth.get(&0), Some(&4));
+        assert_eq!(met.avg_child_instances_by_parent_depth.get(&0), Some(&4.0));
+        assert_eq!(met.min_child_instances_by_parent_depth.get(&1), Some(&2));
+        assert_eq!(met.max_child_instances_by_parent_depth.get(&1), Some(&2));
+        assert_eq!(met.avg_child_instances_by_parent_depth.get(&1), Some(&2.0));
     }
 }

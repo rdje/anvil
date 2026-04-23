@@ -1,6 +1,7 @@
-use anvil::config::{ConstructionStrategy, FactorizationLevel, IdentityMode};
+use anvil::config::{ConstructionStrategy, CountRange, FactorizationLevel, IdentityMode};
 use anvil::{Config, Generator};
 use clap::{Parser, ValueEnum};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -39,6 +40,34 @@ impl TraceLevel {
     fn debug_verbose(self) -> bool {
         matches!(self, TraceLevel::Debug)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ChildInstancesPerDepthArg {
+    depth: u32,
+    range: CountRange,
+}
+
+fn parse_child_instances_per_depth_arg(s: &str) -> Result<ChildInstancesPerDepthArg, String> {
+    let (depth_text, range_text) = s
+        .split_once('=')
+        .ok_or_else(|| "expected DEPTH=MIN:MAX".to_string())?;
+    let depth = depth_text
+        .parse::<u32>()
+        .map_err(|_| format!("invalid depth `{depth_text}`"))?;
+    let (min_text, max_text) = range_text
+        .split_once(':')
+        .ok_or_else(|| "expected DEPTH=MIN:MAX".to_string())?;
+    let min = min_text
+        .parse::<u32>()
+        .map_err(|_| format!("invalid min `{min_text}`"))?;
+    let max = max_text
+        .parse::<u32>()
+        .map_err(|_| format!("invalid max `{max_text}`"))?;
+    Ok(ChildInstancesPerDepthArg {
+        depth,
+        range: CountRange { min, max },
+    })
 }
 
 #[derive(Parser, Debug)]
@@ -196,12 +225,22 @@ struct Cli {
     #[arg(long)]
     for_fold_prob: Option<f64>,
 
-    /// Hierarchy depth. `0` keeps the Phase 1/2/3 leaf-module path.
-    /// `1` enables the current Phase 4 slice: a real top wrapper that
-    /// instantiates a generated library of leaf modules. Depths above 1
-    /// are not live yet.
+    /// Legacy exact hierarchy depth. `0` keeps the Phase 1/2/3
+    /// leaf-module path. `1` enables the legacy exact depth-1 wrapper
+    /// slice. New bounded recursive hierarchy should use
+    /// `--min-hierarchy-depth` / `--max-hierarchy-depth` instead.
     #[arg(long)]
     hierarchy_depth: Option<u32>,
+
+    /// Minimum hierarchy depth for bounded recursive hierarchy mode.
+    /// Must be paired with `--max-hierarchy-depth`.
+    #[arg(long)]
+    min_hierarchy_depth: Option<u32>,
+
+    /// Maximum hierarchy depth for bounded recursive hierarchy mode.
+    /// Must be paired with `--min-hierarchy-depth`.
+    #[arg(long)]
+    max_hierarchy_depth: Option<u32>,
 
     /// Number of leaf modules in the pre-generated library when
     /// `--hierarchy-depth 1` is enabled.
@@ -213,6 +252,25 @@ struct Cli {
     /// instantiate every generated leaf definition exactly once.
     #[arg(long)]
     num_child_instances: Option<u32>,
+
+    /// Minimum child-instance count for each non-leaf module in
+    /// bounded recursive hierarchy mode. Must be paired with
+    /// `--max-child-instances-per-module`.
+    #[arg(long)]
+    min_child_instances_per_module: Option<u32>,
+
+    /// Maximum child-instance count for each non-leaf module in
+    /// bounded recursive hierarchy mode. Must be paired with
+    /// `--max-child-instances-per-module`.
+    #[arg(long)]
+    max_child_instances_per_module: Option<u32>,
+
+    /// Override the child-instance range at a specific parent depth in
+    /// bounded recursive hierarchy mode. Repeat this flag as needed.
+    /// Depth `0` is the top module, depth `1` its direct children, and
+    /// so on. Format: `DEPTH=MIN:MAX`.
+    #[arg(long, value_parser = parse_child_instances_per_depth_arg)]
+    child_instances_per_depth: Vec<ChildInstancesPerDepthArg>,
 
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
@@ -311,7 +369,7 @@ fn main() -> anyhow::Result<()> {
 
     info!(seed = cli.seed, count = cli.count, "🚀 anvil start");
     let mut gen = Generator::new(cfg.clone());
-    let hierarchical = cfg.hierarchy_depth > 0;
+    let hierarchical = cfg.effective_hierarchy_depth_range().is_some();
 
     match (&cli.out, cli.count) {
         (None, 1) => {
@@ -446,6 +504,13 @@ fn init_tracing(cli: &Cli) -> anyhow::Result<()> {
 }
 
 fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
+    let child_instances_per_module_by_depth =
+        (!cli.child_instances_per_depth.is_empty()).then(|| {
+            cli.child_instances_per_depth
+                .iter()
+                .map(|entry| (entry.depth, entry.range))
+                .collect::<BTreeMap<_, _>>()
+        });
     anvil::config::Overrides {
         min_inputs: cli.min_inputs,
         max_inputs: cli.max_inputs,
@@ -508,6 +573,11 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_depth: cli.hierarchy_depth,
         num_leaf_modules: cli.num_leaf_modules,
         num_child_instances: cli.num_child_instances,
+        min_hierarchy_depth: cli.min_hierarchy_depth,
+        max_hierarchy_depth: cli.max_hierarchy_depth,
+        min_child_instances_per_module: cli.min_child_instances_per_module,
+        max_child_instances_per_module: cli.max_child_instances_per_module,
+        child_instances_per_module_by_depth,
     }
 }
 
@@ -586,6 +656,18 @@ mod tests {
             "4",
             "--num-child-instances",
             "7",
+            "--min-hierarchy-depth",
+            "2",
+            "--max-hierarchy-depth",
+            "3",
+            "--min-child-instances-per-module",
+            "2",
+            "--max-child-instances-per-module",
+            "5",
+            "--child-instances-per-depth",
+            "0=4:4",
+            "--child-instances-per-depth",
+            "1=2:3",
         ]);
         let overrides = cli_overrides(&cli);
         assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
@@ -601,5 +683,16 @@ mod tests {
         assert_eq!(overrides.hierarchy_depth, Some(1));
         assert_eq!(overrides.num_leaf_modules, Some(4));
         assert_eq!(overrides.num_child_instances, Some(7));
+        assert_eq!(overrides.min_hierarchy_depth, Some(2));
+        assert_eq!(overrides.max_hierarchy_depth, Some(3));
+        assert_eq!(overrides.min_child_instances_per_module, Some(2));
+        assert_eq!(overrides.max_child_instances_per_module, Some(5));
+        assert_eq!(
+            overrides.child_instances_per_module_by_depth,
+            Some(BTreeMap::from([
+                (0, CountRange { min: 4, max: 4 }),
+                (1, CountRange { min: 2, max: 3 }),
+            ]))
+        );
     }
 }

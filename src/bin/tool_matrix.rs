@@ -1132,7 +1132,7 @@ fn run_scenario(
     out_root: &Path,
     runtime_fingerprint: Option<&str>,
 ) -> Result<ScenarioReport> {
-    if scenario.config.hierarchy_depth > 0 {
+    if scenario.config.effective_hierarchy_depth_range().is_some() {
         return run_design_scenario(scenario, cli, plan, out_root, runtime_fingerprint);
     }
 
@@ -2357,16 +2357,26 @@ fn seed_scenario_coverage(coverage: &mut CoverageSummary, scenario: &Scenario) {
     coverage
         .share_prob_values
         .insert(share_prob_label(scenario.config.share_prob));
-    coverage
-        .hierarchy_depths
-        .insert(scenario.config.hierarchy_depth.to_string());
-    if scenario.config.hierarchy_depth > 0 {
+    if let Some((min_depth, max_depth)) = scenario.config.effective_hierarchy_depth_range() {
+        let depth_label = if min_depth == max_depth {
+            min_depth.to_string()
+        } else {
+            format!("{min_depth}:{max_depth}")
+        };
+        coverage.hierarchy_depths.insert(depth_label);
         coverage
             .hierarchy_leaf_module_counts
             .insert(scenario.config.num_leaf_modules.to_string());
-        coverage
-            .hierarchy_child_instance_counts
-            .insert(scenario.config.effective_num_child_instances().to_string());
+        if let Some((min_instances, max_instances)) =
+            scenario.config.effective_child_instance_range()
+        {
+            let child_label = if min_instances == max_instances {
+                min_instances.to_string()
+            } else {
+                format!("{min_instances}:{max_instances}")
+            };
+            coverage.hierarchy_child_instance_counts.insert(child_label);
+        }
     }
 }
 

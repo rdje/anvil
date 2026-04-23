@@ -250,24 +250,37 @@ evidence.
 
 ## Phase 4 — Hierarchy (in progress)
 
-- **Landed first slice:** `--hierarchy-depth 1 --num-leaf-modules N`
-  now generates a real `Design`: a pre-generated library of leaf
-  modules plus a real top wrapper that instantiates them and now builds
-  a first parent-side combinational output layer over child instance
-  outputs. `--num-child-instances M` now decouples library
-  size from instantiated child count inside that wrapper slice:
-  `M = 0` preserves the legacy exact-once behavior, `M < N`
-  under-instantiates the library, and `M > N` reuses child
-  definitions. This is genuine module composition, not a fake
-  multi-file bundle.
+- **Landed slices so far:**
+  - the legacy exact wrapper lane:
+    `--hierarchy-depth 1 --num-leaf-modules N [--num-child-instances M]`
+    generates a real `Design`: a pre-generated library of leaf modules
+    plus a real top wrapper that instantiates them and builds a first
+    parent-side combinational output layer over child instance outputs.
+    `M = 0` preserves the legacy exact-once behavior, `M < N`
+    under-instantiates the library, and `M > N` reuses child
+    definitions.
+  - the newer bounded recursive lane:
+    `--min-hierarchy-depth A --max-hierarchy-depth B
+    --min-child-instances-per-module C
+    --max-child-instances-per-module D`
+    now builds a real recursive hierarchy tree. The current planner
+    picks one exact realized depth inside `[A:B]` for the whole design,
+    keeps each non-leaf module's child count inside `[C:D]`, and
+    reports the realized tree shape numerically in `DesignMetrics`.
+    Repeated `--child-instances-per-depth DEPTH=MIN:MAX` overrides are
+    now also live and take priority over the fallback branching range at
+    the matching parent depth.
 - Current slice constraints:
-  - depth `0` or `1` only; deeper recursion is still rejected
-  - parent-side hierarchy is combinational only in the current slice;
-    local parent flops are not live yet
-  - library sourcing only; on-demand child synthesis is not live yet
-  - current wrapper planning covers representative exact / reuse /
-    under-instantiation profiles, and the broadened repo-owned wrapper
-    gate is now banked
+  - parent-side hierarchy is still combinational only in the current
+    slice; local parent flops are not live yet
+  - the legacy exact wrapper lane still uses a pre-generated child
+    library; the recursive range lane generates child libraries
+    on demand per parent
+  - the recursive range lane does not yet mix shallow and deep branches
+    in one tree; it chooses one exact depth inside the requested range
+  - the fully banked repo-owned Phase 4 matrix is still the
+    wrapper-baseline report; the recursive range lane is currently
+    proven by focused clean smoke evidence
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -292,20 +305,38 @@ elaboration/synthesis on the broadened hierarchy matrix
 `r3` report remains useful historical evidence for the original wrapper
 baseline.
 
-**First parent-composition proof (landed locally, full matrix refresh
-pending):** current HEAD now lets the top build real combinational
-outputs from child instance outputs, and the focused proof artifact is
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, clean in
-Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
-path. The design metrics there show the intended structural step
-directly (`top_parent_composed_outputs = 10`,
-`top_direct_instance_output_drives = 0`,
-`top_instance_output_dependency_fraction = 1.0`). The next honest
-closure task is to rerun the full Phase 4 repo-owned matrix on this
-new parent-composition code rather than continuing to point at the
-older wrapper-only baseline.
+**Focused recursive-shape proof (landed locally, full matrix refresh
+pending):** current HEAD now also has bounded recursive hierarchy. The
+focused proof artifact is `/tmp/anvil-hier-range-smoke-r1/manifest.json`,
+clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+with-ABC path. The design metrics there prove the tree numerically:
+`realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
+`instance_slots_by_parent_depth = {0: 2, 1: 5}`,
+`min_child_instances_per_internal_module = 2`,
+`max_child_instances_per_internal_module = 3`,
+`hierarchy_parent_composed_outputs = 22`, and
+`top_parent_composed_outputs = 11`. The next honest closure task is to
+rerun the full repo-owned Phase 4 matrix on this newer recursive code
+rather than continuing to point only at the older wrapper-baseline
+artifact.
 
-**Broadened wrapper planning (landed, closure refreshed):** the current
+**Focused per-depth-branching proof (landed locally, full matrix refresh
+pending):** current HEAD also supports depth-specific recursive
+branching control via repeated `--child-instances-per-depth
+DEPTH=MIN:MAX` overrides. The focused proof artifact is
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
+path. The design metrics there prove the depth-specific shape without
+SV inspection:
+`realized_min_leaf_depth = 2`,
+`realized_max_leaf_depth = 2`,
+`avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
+`min_child_instances_by_parent_depth = {"0": 4, "1": 2}`,
+`max_child_instances_by_parent_depth = {"0": 4, "1": 2}`,
+`hierarchy_parent_composed_outputs = 36`, and
+`top_parent_composed_outputs = 18`.
+
+**Broadened wrapper planning (landed, closure refreshed):** the legacy
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The heavy

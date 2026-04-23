@@ -4,7 +4,7 @@
 use anvil::config::ConstructionStrategy;
 use anvil::ir::{GateOp, Node};
 use anvil::{Config, Generator};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn generates_valid_modules_across_seeds() {
@@ -61,6 +61,106 @@ fn generates_valid_depth1_wrapper_designs() {
         assert!(
             sv.contains(" u_0 (") || sv.contains(" u_1 ("),
             "top wrapper should emit real child instances:\n{sv}"
+        );
+    }
+}
+
+#[test]
+fn generates_valid_recursive_hierarchy_designs_with_bounded_shape() {
+    for seed in 0..5u64 {
+        let cfg = Config {
+            seed,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 3,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("bounded recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive hierarchy seed {}: design validation failed: {}",
+                seed, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            (2..=3).contains(&metrics.realized_max_leaf_depth),
+            "realized depth must stay within requested bound"
+        );
+        assert_eq!(
+            metrics.realized_min_leaf_depth, metrics.realized_max_leaf_depth,
+            "current recursive planner should pick one exact depth inside the requested range"
+        );
+        assert!(
+            (2..=3).contains(&metrics.min_child_instances_per_internal_module),
+            "internal branching floor must stay inside requested range"
+        );
+        assert!(
+            (2..=3).contains(&metrics.max_child_instances_per_internal_module),
+            "internal branching ceiling must stay inside requested range"
+        );
+    }
+}
+
+#[test]
+fn generates_valid_recursive_hierarchy_designs_with_per_depth_branching_controls() {
+    for seed in 0..4u64 {
+        let cfg = Config {
+            seed,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 1,
+            max_child_instances_per_module: 3,
+            child_instances_per_module_by_depth: BTreeMap::from([
+                (0, anvil::config::CountRange { min: 4, max: 4 }),
+                (1, anvil::config::CountRange { min: 2, max: 2 }),
+            ]),
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("per-depth recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "per-depth recursive hierarchy seed {}: design validation failed: {}",
+                seed, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert_eq!(
+            metrics.min_child_instances_by_parent_depth.get(&0),
+            Some(&4)
+        );
+        assert_eq!(
+            metrics.max_child_instances_by_parent_depth.get(&0),
+            Some(&4)
+        );
+        assert_eq!(
+            metrics.avg_child_instances_by_parent_depth.get(&0),
+            Some(&4.0)
+        );
+        assert_eq!(
+            metrics.min_child_instances_by_parent_depth.get(&1),
+            Some(&2)
+        );
+        assert_eq!(
+            metrics.max_child_instances_by_parent_depth.get(&1),
+            Some(&2)
+        );
+        assert_eq!(
+            metrics.avg_child_instances_by_parent_depth.get(&1),
+            Some(&2.0)
         );
     }
 }

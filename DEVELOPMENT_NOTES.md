@@ -132,6 +132,66 @@ library is also useful because it exercises real unused-module cleanup
 in downstream tools. The wrapper slice still is not the final hierarchy
 algorithm, but this split is a real step toward a budget-driven one.
 
+### Bounded recursive hierarchy keeps the old wrapper lane, then adds a real tree planner
+The next honest Phase 4 step was **not** to quietly overload the old
+depth-1 wrapper knobs until they accidentally meant recursion. That
+would have blurred the already-banked wrapper evidence and made the
+meaning of the config surface harder to recover later.
+
+So the deliberate rule now is:
+
+- keep the legacy exact wrapper lane alive:
+  `hierarchy_depth = 1`, `num_leaf_modules`, `num_child_instances`;
+- add a separate bounded recursive lane:
+  `min_hierarchy_depth..=max_hierarchy_depth` and
+  `min_child_instances_per_module..=max_child_instances_per_module`; and
+- make the two planning surfaces mutually exclusive.
+
+That gives us a clean story:
+
+- old repo-owned wrapper closure artifacts stay truthful;
+- new recursive hierarchy is explicit in configs and manifests; and
+- future recursive work can evolve without pretending the exact wrapper
+  lane already solved arbitrary tree planning.
+
+The current recursive planner is intentionally exact about one thing and
+limited about another:
+
+- it picks **one actual depth** uniformly inside the requested
+  `[min:max]` interval for the whole design, then builds to that depth
+  exactly; and
+- it picks each non-leaf module's child-instance count uniformly inside
+  the requested child-instance interval.
+
+So the current guarantees are:
+
+- realized depth always stays inside the requested interval;
+- realized branching always stays inside the requested interval; and
+- the metrics can prove both facts numerically.
+
+One more planning layer is now live on top of that baseline:
+
+- `min_child_instances_per_module..=max_child_instances_per_module`
+  remains the global fallback range for recursive branching; and
+- repeated `child_instances_per_depth` overrides can tighten or replace
+  that range at specific parent depths (`0` = top, `1` = its direct
+  children, ...).
+
+That keeps the control surface honest: users can ask for "top is wide,
+lower levels are narrower" without inventing a separate planner mode or
+forcing the manifest reader to reverse-engineer the realized tree by
+hand.
+
+What it does **not** do yet is mix shallow and deep branches in one
+tree. That is future work, not hidden behavior.
+
+One more planner rule is load-bearing here: in recursive range mode,
+child libraries are generated **on demand per parent**, and every
+generated direct child definition is instantiated at least once. That
+keeps reuse live without manufacturing dead unreachable subtrees just to
+inflate counts. The legacy exact wrapper lane remains the place where
+top-level under-instantiation of a pre-generated library is exercised.
+
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should
 not depend on someone opening the emitted `.sv` and eyeballing whether
@@ -171,6 +231,25 @@ The durable rule now is exact and inductive:
 That rule is now pinned in IR helpers, validation, metrics, and the SV
 emitter, plus direct regression tests for both the comb-only and
 grandparent-wrapper cases.
+
+The recursive planner widened the metrics contract too. Wrapper-only
+facts were no longer enough; the numbers now have to describe the
+**tree**. So `DesignMetrics` now also carries:
+
+- `realized_min_leaf_depth`, `realized_max_leaf_depth`,
+  `avg_leaf_depth`, `max_module_depth`;
+- `module_defs_by_depth`, `module_occurrences_by_depth`,
+  `instance_slots_by_parent_depth`;
+- `avg_child_instances_by_parent_depth`,
+  `min_child_instances_by_parent_depth`,
+  `max_child_instances_by_parent_depth`;
+- `child_instances_per_internal_module_histogram`,
+  `min/avg/max_child_instances_per_internal_module`; and
+- hierarchy-wide composition counters in addition to the top-only ones.
+
+That is the current trust surface for recursive hierarchy quality: the
+user should not have to inspect the `.sv` to tell whether ANVIL built
+the requested tree shape.
 
 ### Literal-backed for-fold sources must be materialized before procedural part-selects
 The repo-owned Phase 4 hierarchy gate exposed a real emitter defect in

@@ -31,6 +31,21 @@ leaf library across 5 child instances:
 anvil --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 5
 ```
 
+Generate one bounded recursive hierarchy tree whose realized depth is
+picked inside `[2:3]` and whose non-leaf modules each instantiate
+between 2 and 4 children:
+
+```bash
+anvil --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 3 --min-child-instances-per-module 2 --max-child-instances-per-module 4
+```
+
+Generate one bounded recursive hierarchy tree with a per-depth
+branching profile layered on top of the fallback range:
+
+```bash
+anvil --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-child-instances-per-module 1 --max-child-instances-per-module 3 --child-instances-per-depth 0=4:4 --child-instances-per-depth 1=2:2
+```
+
 Generate 100 modules into a directory:
 
 ```bash
@@ -193,9 +208,14 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--case-mux-prob`      | 0.05     | Per-emission probability of a combinational `always_comb case` block |
 | `--casez-mux-prob`     | 0.05     | Per-emission probability of a combinational `always_comb casez` block |
 | `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational `always_comb` `for`-fold block over packed chunks |
-| `--hierarchy-depth`    | 0        | Hierarchy depth. `0` = leaf modules only; `1` = current Phase 4 wrapper slice |
-| `--num-leaf-modules`   | 0        | Number of leaf modules pre-generated for the current depth-1 hierarchy slice |
-| `--num-child-instances`| 0        | Number of child instances in the current depth-1 wrapper slice. `0` preserves legacy exact-once instantiation of every generated leaf |
+| `--hierarchy-depth`    | 0        | Legacy exact hierarchy depth. `1` = depth-1 wrapper slice |
+| `--num-leaf-modules`   | 0        | Number of leaf modules pre-generated for the legacy exact depth-1 wrapper slice |
+| `--num-child-instances`| 0        | Child-instance count for the legacy exact depth-1 wrapper slice. `0` preserves exact-once instantiation of every generated leaf |
+| `--min-hierarchy-depth` | 0       | Minimum depth for bounded recursive hierarchy mode |
+| `--max-hierarchy-depth` | 0       | Maximum depth for bounded recursive hierarchy mode |
+| `--min-child-instances-per-module` | 0 | Minimum child-instance count for each non-leaf module in bounded recursive hierarchy mode |
+| `--max-child-instances-per-module` | 0 | Maximum child-instance count for each non-leaf module in bounded recursive hierarchy mode |
+| `--child-instances-per-depth DEPTH=MIN:MAX` | none | Optional per-parent-depth child-instance override layered on top of the bounded recursive fallback range |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
@@ -291,14 +311,14 @@ opening the emitted `.sv`, including:
 - weighted child interface / node / flop load
 - per-definition instantiation histogram
 
-The current Phase 4 slice is intentionally narrow:
-- only `hierarchy_depth = 0` or `1` is accepted
-- the top is a real wrapper that instantiates generated leaves
-- `num_child_instances = 0` preserves the old "instantiate every
-  generated leaf once" behavior
-- `num_child_instances < num_leaf_modules` under-instantiates the leaf
-  library
-- `num_child_instances > num_leaf_modules` reuses leaf definitions
+The current Phase 4 slice now has two planning lanes:
+- **legacy exact wrapper lane:** `hierarchy_depth = 1`,
+  `num_leaf_modules`, `num_child_instances`
+- **bounded recursive lane:** `min_hierarchy_depth..=max_hierarchy_depth`
+  plus `min_child_instances_per_module..=max_child_instances_per_module`
+  with optional repeated `child_instances_per_depth` overrides keyed by
+  parent depth (`0` = top, `1` = its direct children, ...)
+- the two knob families are intentionally mutually exclusive
 - pure comb-only modules do **not** expose `clk` / `rst_n`
 - sequential leaves do expose `clk` / `rst_n`
 - wrappers keep `clk` / `rst_n` visible iff they carry sequential
@@ -307,8 +327,14 @@ The current Phase 4 slice is intentionally narrow:
   child instance outputs
 - unused child outputs are emitted as explicit unconnected ports
   (`.port()`) rather than fake pass-through wires
-- deeper recursive hierarchy, local parent flops in the composed top
-  layer, and on-demand child sourcing are not live yet
+- in bounded recursive mode, ANVIL currently picks one exact realized
+  depth inside the requested `[min:max]` interval for the whole design
+  and one child count per non-leaf module inside the requested
+  child-instance interval, with per-parent-depth overrides taking
+  priority where specified
+- bounded recursive mode does not yet mix shallow and deep branches in
+  one tree
+- local parent flops in the composed parent layer are not live yet
 
 ## Tool matrix sweeps
 
@@ -440,6 +466,35 @@ which is clean in Verilator plus both repo-owned Yosys modes and whose
 metrics show genuine parent composition (`top_parent_composed_outputs >
 0`, `top_instance_output_dependency_fraction = 1.0`). Refreshing the
 full Phase 4 matrix on that newer code is the next closure step.
+
+Current HEAD also has a focused clean recursive-hierarchy proof at
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, with:
+
+- `realized_min_leaf_depth = 2`
+- `realized_max_leaf_depth = 2`
+- `instance_slots_by_parent_depth = {0: 2, 1: 5}`
+- `min_child_instances_per_internal_module = 2`
+- `max_child_instances_per_internal_module = 3`
+- `hierarchy_parent_composed_outputs = 22`
+
+That artifact is clean in Verilator plus both repo-owned Yosys modes
+and is the current numerical trust surface for the bounded recursive
+lane until the full Phase 4 matrix is refreshed on this newer code.
+
+Current HEAD also has a focused clean per-depth branching proof at
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, with:
+
+- `realized_min_leaf_depth = 2`
+- `realized_max_leaf_depth = 2`
+- `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`
+- `min_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+- `max_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+- `hierarchy_parent_composed_outputs = 36`
+- `top_parent_composed_outputs = 18`
+
+That artifact is also clean in Verilator plus both repo-owned Yosys
+modes and is the current trust surface for depth-specific hierarchy
+branching without `.sv` inspection.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

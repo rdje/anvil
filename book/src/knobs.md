@@ -91,8 +91,12 @@ Control the size and topology of generated modules.
 - `max_depth` — maximum cone recursion depth.
 - `max_nodes_per_module` — hard cap on node count; currently a safety
   ceiling, not hit in practice.
-- `num_leaf_modules` — pool size for hierarchical mode (Phase 4).
-- `hierarchy_depth` — max sub-module nesting (Phase 4).
+- `hierarchy_depth`, `num_leaf_modules`, `num_child_instances` —
+  legacy exact depth-1 wrapper hierarchy controls (Phase 4).
+- `min_hierarchy_depth`, `max_hierarchy_depth`,
+  `min_child_instances_per_module`,
+  `max_child_instances_per_module`, `child_instances_per_depth` —
+  bounded recursive hierarchy controls (Phase 4).
 
 ### Sequential knobs (flops and mux motifs)
 
@@ -306,15 +310,29 @@ instead of creating fresh logic.
 
 ### Hierarchy knobs (Phase 4+)
 
-- `hierarchy_depth` — current hierarchy depth knob. Today only `0`
-  (leaf-only) and `1` (depth-1 wrapper slice) are accepted.
-- `num_leaf_modules` — size of the pre-generated leaf library for the
-  current depth-1 wrapper slice.
-- `num_child_instances` — instantiated child count for the current
-  depth-1 wrapper slice. Default `0` preserves the legacy exact-once
+- `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`
+  keeps the leaf-only lane and `1` selects the legacy exact wrapper
+  lane.
+- `num_leaf_modules` — size of the pre-generated child library for the
+  legacy exact depth-1 wrapper lane.
+- `num_child_instances` — instantiated child count for the legacy exact
+  depth-1 wrapper lane. Default `0` preserves the legacy exact-once
   behavior ("instantiate every generated leaf definition once"). Values
   below `num_leaf_modules` under-instantiate the library; larger values
   reuse child definitions.
+- `min_hierarchy_depth`, `max_hierarchy_depth` — bounded recursive
+  hierarchy depth range. In the current slice, ANVIL picks one exact
+  realized depth inside `[min:max]` for the whole generated design.
+- `min_child_instances_per_module`,
+  `max_child_instances_per_module` — bounded recursive child-instance
+  range for each non-leaf module.
+- `child_instances_per_depth` — optional repeated override keyed by
+  parent depth (`DEPTH=MIN:MAX`). This layers on top of the bounded
+  recursive fallback range, so depth `0` can be forced to one
+  branching profile while depth `1` uses another.
+- The legacy exact wrapper knobs and the bounded recursive range knobs
+  are intentionally **mutually exclusive**. They are two different
+  planning lanes, not shorthand for the same behavior.
 - `library_prob` — probability of picking from the pre-generated
   module pool vs generating a fresh sub-module on demand.
 
@@ -380,6 +398,11 @@ Config {
     hierarchy_depth: 0,
     num_leaf_modules: 0,
     num_child_instances: 0,
+    min_hierarchy_depth: 0,
+    max_hierarchy_depth: 0,
+    min_child_instances_per_module: 0,
+    max_child_instances_per_module: 0,
+    child_instances_per_module_by_depth: {},
     library_prob: 0.5,
 }
 ```

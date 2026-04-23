@@ -64,9 +64,9 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/mod.rs`          `Generator` entry points
 - `src/gen/cone.rs`         fanin-cone recursion
 - `src/gen/module.rs`       leaf-module generator
-- `src/gen/hierarchy.rs`    Phase 4 depth-1 hierarchy generator with
-                            decoupled leaf-library / child-instance planning
-                            plus first parent-side top composition
+- `src/gen/hierarchy.rs`    Phase 4 hierarchy planner: legacy exact
+                            depth-1 wrapper lane plus bounded recursive
+                            lane, both with parent-side composition
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -111,6 +111,12 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 3
 
 # Generate one depth-1 hierarchical design that reuses child definitions
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 5
+
+# Generate one bounded recursive hierarchy tree
+cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 3 --min-child-instances-per-module 2 --max-child-instances-per-module 4
+
+# Generate one bounded recursive hierarchy tree with per-depth branching
+cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-child-instances-per-module 1 --max-child-instances-per-module 3 --child-instances-per-depth 0=4:4 --child-instances-per-depth 1=2:2
 
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
@@ -237,9 +243,11 @@ design reports now also embed exact per-design composition metrics, so
 hierarchy quality can be read from numbers instead of by manually
 inspecting the emitted `.sv`. Current HEAD has also landed the first
 real parent-composition step on top of that baseline, proven by
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`; refreshing the
-full repo-owned Phase 4 matrix on that newer code is the next closure
-step.
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, and the first
+bounded recursive hierarchy step, proven by
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`. Refreshing the full
+repo-owned Phase 4 matrix on that newer recursive code is the next
+closure step.
 
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
@@ -319,29 +327,35 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   profiles, and clean downstream tool results.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
-  `e-graph` fragment is live under `--identity-mode node-id`, and the
-  first real hierarchy slice is now live too: `--hierarchy-depth 1`
-  generates a depth-1 wrapper design that instantiates a generated
-  library of leaf modules. `--num-child-instances` now lets that
-  wrapper under-instantiate the library or reuse child definitions
-  instead of always instantiating every definition once. Control-port
-  visibility follows the hierarchy doctrine exactly: pure comb-only
-  modules omit `clk` / `rst_n`, sequential leaves emit them, and
-  wrapper ancestors keep them visible iff they carry sequential
-  descendants. Current HEAD now also takes the first honest step beyond
-  a pure wrapper: top outputs can be genuine parent-side combinational
-  functions of child instance outputs, and the hierarchy manifest now
-  reports that numerically (`top_direct_instance_output_drives`,
-  `top_parent_composed_outputs`,
-  `top_instance_output_dependency_fraction`,
-  `avg_instance_output_support_per_top_output`). The focused proof
-  artifact is `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-  clean in Verilator plus both repo-owned Yosys modes. The last fully
-  banked repo-owned Phase 4 matrix report remains the wrapper-baseline
-  run at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`;
-  refreshing that full matrix on the new parent-composition code is the
-  next honest closure step. Deeper recursive hierarchy, parameterization,
-  and broader artifact-family selection are still roadmap work. See
+  `e-graph` fragment is live under `--identity-mode node-id`, and
+  Phase 4 hierarchy now has two real lanes:
+  - legacy exact depth-1 wrapper mode via `--hierarchy-depth 1`
+    plus `--num-leaf-modules` / `--num-child-instances`
+  - bounded recursive hierarchy via
+    `--min-hierarchy-depth..--max-hierarchy-depth` and
+    `--min-child-instances-per-module..--max-child-instances-per-module`
+    with optional per-parent-depth overrides via repeated
+    `--child-instances-per-depth DEPTH=MIN:MAX`
+  Control-port visibility follows the hierarchy doctrine exactly: pure
+  comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
+  and wrapper ancestors keep them visible iff they carry sequential
+  descendants. Parent outputs can be genuine combinational functions of
+  child instance outputs, and hierarchy manifests now report both the
+  composition facts and the realized tree shape numerically, including
+  per-parent-depth branching summaries. The
+  wrapper-baseline Phase 4 matrix is still the last fully banked
+  repo-owned closure artifact at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`,
+  while the newer bounded recursive slice is currently proven by the
+  focused smokes at `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
+  `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`. The latter
+  proves depth-specific branching control numerically with
+  `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
+  `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
+  `hierarchy_parent_composed_outputs = 36`, and
+  `top_parent_composed_outputs = 18`. Full matrix refresh on the newer
+  recursive code is the next honest closure step. Parameterization and
+  broader artifact-family selection are still roadmap work. See
   `ROADMAP.md` for phase gating.
 
 ## Maintenance rule

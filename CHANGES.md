@@ -1,9 +1,118 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-1557 — Land parent-composed hierarchy tops and trustworthy composition metrics
+## 2026-04-23-1735 — Land bounded recursive hierarchy depth profiles and per-depth metrics
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now exposes two separate recursive-hierarchy control layers:
+  - the existing global fallback bounds
+    `min_hierarchy_depth..=max_hierarchy_depth` and
+    `min_child_instances_per_module..=max_child_instances_per_module`
+  - a new optional per-parent-depth override map
+    `child_instances_per_module_by_depth`
+  Validation is correspondingly stricter: legacy exact wrapper knobs and
+  recursive-range knobs are still mutually exclusive; per-depth
+  overrides must themselves satisfy `1 <= min <= max`; they require the
+  global child-instance fallback range to be present; and they may only
+  target realized internal parent depths inside
+  `[0, max_hierarchy_depth - 1]`.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  now exposes the new CLI surface:
+  `--child-instances-per-depth DEPTH=MIN:MAX`
+  (repeatable, depth `0` = top, depth `1` = the top's direct children,
+  and so on). CLI parsing now lifts that into the config override map.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now consults the effective child-instance range **per parent depth**
+  while recursively planning the hierarchy tree. The old global range is
+  still the fallback; the new per-depth overrides win where present.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports the realized branching profile per parent depth, not just
+  global branching summaries. New design metrics:
+  - `avg_child_instances_by_parent_depth`
+  - `min_child_instances_by_parent_depth`
+  - `max_child_instances_by_parent_depth`
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves the new surface end to end across multiple seeds: a
+  recursive design with fallback range `[1:3]`, top override `0=4:4`,
+  and depth-1 override `1=2:2` validates and lands the requested
+  realized shape numerically.
+
+**Why**
+
+- The user asked for hierarchy depth to be controllable by a reasonable
+  `[min:max]` interval and, separately, for the number of instances per
+  module to be controllable **at a certain level** in the hierarchy.
+- The first recursive slice already had the global bounded interval, but
+  not the level-specific steering. That was the missing seam.
+- Trustworthy hierarchy quality also requires metrics that answer
+  "what did level 0 do?" and "what did level 1 do?" numerically, rather
+  than asking the user to inspect emitted `.sv`.
+
+**Proof**
+
+- Focused unit / integration regressions:
+  - `cargo test --lib`
+  - `cargo test --bin anvil newly_exposed_cli_knobs_round_trip_into_overrides`
+  - `cargo test --test pipeline generates_valid_recursive_hierarchy_designs_with_per_depth_branching_controls`
+- Focused emitted-design smoke:
+  - `cargo run --bin anvil -- --seed 23 --count 1 --out /tmp/anvil-hier-depth-profile-smoke-r1 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-child-instances-per-module 1 --max-child-instances-per-module 3 --child-instances-per-depth 0=4:4 --child-instances-per-depth 1=2:2`
+  - manifest:
+    `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`
+  - key design metrics from that manifest:
+    - `realized_min_leaf_depth = 2`
+    - `realized_max_leaf_depth = 2`
+    - `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`
+    - `min_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+    - `max_child_instances_by_parent_depth = {"0": 4, "1": 2}`
+    - `hierarchy_parent_composed_outputs = 36`
+    - `top_parent_composed_outputs = 18`
+- Downstream proof on that emitted design:
+  - Verilator:
+    `verilator --lint-only --top-module mod_23_0007 /tmp/anvil-hier-depth-profile-smoke-r1/*.sv`
+  - Yosys without ABC:
+    `yosys -q -p "read_verilog -sv /tmp/anvil-hier-depth-profile-smoke-r1/*.sv; hierarchy -top mod_23_0007; synth -noabc; check"`
+  - Yosys with ABC:
+    `yosys -q -p "read_verilog -sv /tmp/anvil-hier-depth-profile-smoke-r1/*.sv; hierarchy -top mod_23_0007; synth -noabc; abc -fast; opt -fast; stat; check"`
+
+**Impact**
+
+- Recursive hierarchy is no longer only "bounded depth + one global
+  branching range." It now supports depth-specific branching control in
+  a way that is explicit in both CLI/config and manifests.
+- The hierarchy metrics surface is stronger: the user can now trust the
+  realized per-level branching from the manifest itself without opening
+  the emitted RTL.
+- Phase labels do **not** change in this slice. Phase 4 remains
+  `in progress`; the next honest work is still refreshing the full
+  repo-owned Phase 4 matrix on the newer recursive code and then moving
+  deeper into mixed-depth recursion / on-demand child sourcing.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/main.rs`
+- `src/gen/mod.rs`
+- `src/gen/hierarchy.rs`
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `book/src/knobs.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-04-23-1557 — Land parent-composed hierarchy tops and trustworthy composition metrics
+
+**Landed as:** `28713a0`
 
 **What changed**
 
