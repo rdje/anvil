@@ -164,20 +164,25 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     );
     cone::drain_flop_worklist(g, &mut m, &mut pool, &mut worklist);
 
+    finalize_generated_module(g, &mut m, &mut pool);
+    m
+}
+
+pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool: &mut SignalPool) {
     // Flop-mux operand NodeIds are construction-time metadata only:
     // once D has been assembled, emission and validation care about
     // `flop.d`, not the intermediate select/data leaves that happened
     // to build it. Keep the variant shape for metrics/debugging, but
     // discard those operand references before liveness/compaction so
     // metadata-only cones do not survive into emitted SV.
-    summarize_flop_mux_metadata(&mut m);
+    summarize_flop_mux_metadata(m);
 
     // Downstream-clean proof pass: revisit already-built cones using
     // the current graph so exact constants and constant-selector muxes
     // do not survive purely because the proof became visible late.
-    crate::ir::compact::fold_proven_gates(&mut m);
-    crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
-    crate::ir::compact::fold_mixed_associative_constants(&mut m);
+    crate::ir::compact::fold_proven_gates(m);
+    crate::ir::compact::flatten_posthoc_associative_gates(m);
+    crate::ir::compact::fold_mixed_associative_constants(m);
 
     // Bounded semantic gate-sharing pass: once every output and flop D
     // cone exists, `identity_mode = node-id` at the live `EGraph`
@@ -185,10 +190,10 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // proven functionally equal over the same canonical leaf
     // endpoints. Construction strategy is irrelevant here: this is a
     // post-construction identity pass, not a builder.
-    let semantic_gates_merged = crate::ir::compact::merge_equivalent_gates(&mut m);
+    let semantic_gates_merged = crate::ir::compact::merge_equivalent_gates(m);
     m.semantic_gates_merged = semantic_gates_merged;
-    crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
-    crate::ir::compact::fold_mixed_associative_constants(&mut m);
+    crate::ir::compact::flatten_posthoc_associative_gates(m);
+    crate::ir::compact::fold_mixed_associative_constants(m);
 
     // Endpoint-preserving sequential sharing pass: once every flop has
     // a concrete D-cone, `identity_mode = node-id` can conservatively
@@ -198,14 +203,14 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // normalized structural proof first, plus a bounded semantic check
     // for small-support cones. Duplicates become dead Q nodes that the
     // compaction pass below removes.
-    let flops_merged = crate::ir::compact::merge_equivalent_flops(&mut m);
+    let flops_merged = crate::ir::compact::merge_equivalent_flops(m);
     m.flops_merged = flops_merged;
 
     // Sharing/remap can expose new exact cones, so rerun the
     // downstream-clean proof pass once on the settled graph.
-    crate::ir::compact::fold_proven_gates(&mut m);
-    crate::ir::compact::flatten_posthoc_associative_gates(&mut m);
-    crate::ir::compact::fold_mixed_associative_constants(&mut m);
+    crate::ir::compact::fold_proven_gates(m);
+    crate::ir::compact::flatten_posthoc_associative_gates(m);
+    crate::ir::compact::fold_mixed_associative_constants(m);
 
     // Safety-net claimed-set audit (Rule 18): demand-driven
     // construction should leave zero orphan gates, but if the snapshot/
@@ -218,12 +223,12 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // just wastes a wire). Future work may promote this to a hard
     // assertion once the anti-collapse rollback is provably complete
     // for every strategy.
-    let orphans_before_compact = count_orphan_gates(&m);
+    let orphans_before_compact = count_orphan_gates(m);
 
-    // Output roots must remain functions of primary inputs and/or flop-Q
-    // leaves rather than collapsing to trivial constants after the late
-    // proof-cleanup passes.
-    let repaired_constant_drives = repair_constant_output_roots(g, &mut m, &mut pool);
+    // Output roots must remain functions of primary inputs and/or leaf
+    // endpoints rather than collapsing to trivial constants after the
+    // late proof-cleanup passes.
+    let repaired_constant_drives = repair_constant_output_roots(g, m, pool);
 
     // NodeId compaction pass: remove any nodes that are unreachable
     // from roots (drives, flop fields). Idempotent — a no-op when
@@ -232,14 +237,14 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     // peephole) orphan intermediate gates safely; this pass cleans
     // them up. The count is surfaced via `Metrics::nodes_compacted`
     // for empirical measurement.
-    let compacted = crate::ir::compact::compact_node_ids(&mut m);
+    let compacted = crate::ir::compact::compact_node_ids(m);
     m.nodes_compacted = compacted;
 
     // Post-compaction safety net. Should always be 0 — if compaction
     // leaves an orphan, it's a BFS or holder-enumeration bug in
     // `compact_node_ids`. Keep the warning (not an assertion) so a
     // release build degrades gracefully.
-    let orphans = count_orphan_gates(&m);
+    let orphans = count_orphan_gates(m);
     if orphans > 0 {
         tracing::warn!(
             orphans,
@@ -249,10 +254,11 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         );
     }
 
-    shrink_primary_inputs_to_live_width(&mut m);
-    prune_unused_input_ports(&mut m);
+    shrink_primary_inputs_to_live_width(m);
+    prune_unused_input_ports(m);
 
     info!(
+        module = %m.name,
         nodes = m.nodes.len(),
         flops = m.flops.len(),
         semantic_gates_merged,
@@ -261,9 +267,8 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         orphans,
         compacted,
         repaired_constant_drives,
-        "✅ module done"
+        "✅ module finalized"
     );
-    m
 }
 
 /// Flop-mux operand NodeIds are only needed while D is being assembled.

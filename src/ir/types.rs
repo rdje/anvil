@@ -14,8 +14,6 @@ pub type NodeId = u32;
 pub type FlopId = u32;
 pub type InstanceId = u32;
 
-const FLOP_VIRTUAL_TAG: u32 = 0x8000_0000;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     In,
@@ -1722,12 +1720,22 @@ pub struct Flop {
     pub mux: FlopMux,
 }
 
-/// Set of primary-input port ids (plus virtual ids for flops) that a node
-/// depends on. Empty dep-set on an output cone indicates the cone is
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum DepAtom {
+    Port(PortId),
+    FlopVirtual(FlopId),
+    InstanceOutputVirtual { instance: InstanceId, port: PortId },
+}
+
+/// Set of leaf variables that a node depends on.
+///
+/// These leaves are the endpoint variables of the current module:
+/// primary-input ports, local flop-Q leaves, and instantiated child
+/// output leaves. Empty dep-set on an output cone indicates the cone is
 /// trivially constant and must be regenerated.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DepSet {
-    set: BTreeSet<u32>,
+    set: BTreeSet<DepAtom>,
 }
 
 impl DepSet {
@@ -1737,15 +1745,19 @@ impl DepSet {
 
     pub fn from_port(p: PortId) -> Self {
         let mut s = BTreeSet::new();
-        s.insert(p);
+        s.insert(DepAtom::Port(p));
         Self { set: s }
     }
 
     pub fn from_flop_virtual(flop: FlopId) -> Self {
-        // Virtual ids live in a disjoint numeric space from port ids.
-        // We tag flop virtual ids with the high bit set.
         let mut s = BTreeSet::new();
-        s.insert(FLOP_VIRTUAL_TAG | flop);
+        s.insert(DepAtom::FlopVirtual(flop));
+        Self { set: s }
+    }
+
+    pub fn from_instance_output_virtual(instance: InstanceId, port: PortId) -> Self {
+        let mut s = BTreeSet::new();
+        s.insert(DepAtom::InstanceOutputVirtual { instance, port });
         Self { set: s }
     }
 
@@ -1765,8 +1777,23 @@ impl DepSet {
         self.set.len()
     }
 
-    pub fn contains(&self, id: u32) -> bool {
-        self.set.contains(&id)
+    pub fn contains_port(&self, port: PortId) -> bool {
+        self.set.contains(&DepAtom::Port(port))
+    }
+
+    pub fn contains_flop_virtual(&self, flop: FlopId) -> bool {
+        self.set.contains(&DepAtom::FlopVirtual(flop))
+    }
+
+    pub fn contains_instance_output_virtual(&self, instance: InstanceId, port: PortId) -> bool {
+        self.set
+            .contains(&DepAtom::InstanceOutputVirtual { instance, port })
+    }
+
+    pub fn has_instance_output_virtuals(&self) -> bool {
+        self.set
+            .iter()
+            .any(|atom| matches!(atom, DepAtom::InstanceOutputVirtual { .. }))
     }
 
     /// Rewrite virtual flop ids after a flop merge / renumbering
@@ -1775,16 +1802,15 @@ impl DepSet {
     /// table and deduplicated naturally by the set.
     pub(crate) fn remap_flop_virtuals(&mut self, old_to_new: &[FlopId]) {
         let mut next = BTreeSet::new();
-        for id in self.set.iter().copied() {
-            if (id & FLOP_VIRTUAL_TAG) != 0 {
-                let old = (id & !FLOP_VIRTUAL_TAG) as usize;
-                let new = old_to_new
-                    .get(old)
-                    .copied()
-                    .unwrap_or(id & !FLOP_VIRTUAL_TAG);
-                next.insert(FLOP_VIRTUAL_TAG | new);
-            } else {
-                next.insert(id);
+        for atom in self.set.iter().copied() {
+            match atom {
+                DepAtom::FlopVirtual(old) => {
+                    let new = old_to_new.get(old as usize).copied().unwrap_or(old);
+                    next.insert(DepAtom::FlopVirtual(new));
+                }
+                _ => {
+                    next.insert(atom);
+                }
             }
         }
         self.set = next;

@@ -277,6 +277,16 @@ opening the emitted `.sv`, including:
 - reuse ratio / library-coverage ratio
 - top interface shape (`top_inputs`, `top_data_inputs`,
   `top_clock_inputs`, `top_reset_inputs`, `top_outputs`)
+- direct-pass-through vs parent-composed top outputs
+  (`top_direct_instance_output_drives`,
+  `top_parent_composed_outputs`)
+- whether top outputs actually depend on child outputs
+  (`top_outputs_reaching_instance_outputs`,
+  `top_outputs_without_instance_outputs`,
+  `top_instance_output_dependency_fraction`)
+- average / maximum child-output support per top output
+  (`avg_instance_output_support_per_top_output`,
+  `max_instance_output_support_per_top_output`)
 - control fanout to child instances
 - weighted child interface / node / flop load
 - per-definition instantiation histogram
@@ -293,7 +303,12 @@ The current Phase 4 slice is intentionally narrow:
 - sequential leaves do expose `clk` / `rst_n`
 - wrappers keep `clk` / `rst_n` visible iff they carry sequential
   descendants through instantiated children
-- parent-side cone construction from instance outputs is not live yet
+- top outputs can now be real parent-side **combinational** cones over
+  child instance outputs
+- unused child outputs are emitted as explicit unconnected ports
+  (`.port()`) rather than fake pass-through wires
+- deeper recursive hierarchy, local parent flops in the composed top
+  layer, and on-demand child sourcing are not live yet
 
 ## Tool matrix sweeps
 
@@ -396,7 +411,7 @@ records:
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-The completed current-code Phase 4 wrapper-hierarchy report at
+The completed current-code Phase 4 wrapper-baseline report at
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 records:
 
@@ -409,8 +424,8 @@ records:
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
 
-That refreshed report is the current fully banked repo-owned Phase 4
-closure artifact. It already covers the broadened
+That refreshed report remains the fully banked repo-owned Phase 4
+wrapper-baseline artifact. It already covers the broadened
 `--num-child-instances` planner with representative exact / reuse /
 under-instantiation profiles, so those behaviors are no longer
 justified only by focused smokes. The focused clean proofs at
@@ -418,7 +433,13 @@ justified only by focused smokes. The focused clean proofs at
 still remain useful evidence. The old `r6` partial rerun is now only
 historical debugging evidence: the heavy `*_hier4_inst4_seq` corners are
 slow because they elaborate/synthesize very large sequential child
-libraries under tiny wrapper tops, but they do close cleanly.
+libraries under tiny wrapper tops, but they do close cleanly. Current
+HEAD has also landed the first real parent-composition step above that
+baseline, proven by `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
+which is clean in Verilator plus both repo-owned Yosys modes and whose
+metrics show genuine parent composition (`top_parent_composed_outputs >
+0`, `top_instance_output_dependency_fraction = 1.0`). Refreshing the
+full Phase 4 matrix on that newer code is the next closure step.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

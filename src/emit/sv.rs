@@ -280,14 +280,15 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
                 ));
             }
             for output in &child.outputs {
-                let node_id = *instance_outputs
-                    .get(&(instance.id, output.id))
-                    .expect("validated design exposes every child output");
-                connections.push(format!(
-                    "        .{}({})",
-                    output.name,
-                    node_ref(node_id, m, &names)
-                ));
+                if let Some(&node_id) = instance_outputs.get(&(instance.id, output.id)) {
+                    connections.push(format!(
+                        "        .{}({})",
+                        output.name,
+                        node_ref(node_id, m, &names)
+                    ));
+                } else {
+                    connections.push(format!("        .{}()", output.name));
+                }
             }
 
             writeln!(out, "{}", connections.join(",\n")).unwrap();
@@ -796,6 +797,40 @@ mod tests {
             "comb-only wrapper bound stray rst_n:\n{sv}"
         );
         assert!(sv.contains("input  logic [7:0] a"));
+    }
+
+    #[test]
+    fn hierarchy_emits_unconnected_child_outputs_when_unused() {
+        let mut child = comb_child("child");
+        child.outputs.push(port(2, "spare", 8, Direction::Out));
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.outputs.push(port(1, "o", 8, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 0)],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 8,
+        });
+        top.drives.push((1, 1));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![child, top.clone()],
+        };
+        let sv = to_sv_in_design(&top, &design);
+        assert!(sv.contains(".o(instout_0_1)"), "{sv}");
+        assert!(sv.contains(".spare()"), "{sv}");
     }
 
     #[test]

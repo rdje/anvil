@@ -14,9 +14,9 @@
 //! whether it is doing its job, whether it is redundant with
 //! another knob, or whether a new knob is needed.
 
-use crate::ir::{Design, GateOp, Module, Node};
+use crate::ir::{Design, GateOp, InstanceId, Module, Node, NodeId, PortId};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Structural summary of a single generated module. Serialisable as
 /// JSON for inclusion in `manifest.json` or stderr dumps.
@@ -282,9 +282,21 @@ pub struct DesignMetrics {
     pub top_reset_inputs: usize,
     pub clock_fanout_instances: usize,
     pub reset_fanout_instances: usize,
+    pub top_direct_instance_output_drives: usize,
+    pub top_parent_composed_outputs: usize,
+    pub top_outputs_reaching_instance_outputs: usize,
+    pub top_outputs_without_instance_outputs: usize,
+    pub top_instance_output_dependency_fraction: f64,
+    pub top_parent_composed_output_fraction: f64,
+    pub avg_instance_output_support_per_top_output: f64,
+    pub max_instance_output_support_per_top_output: usize,
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
+    /// Total child output-port slots across instantiated children.
+    /// This counts the raw observable supply available from child
+    /// modules, not necessarily the number of outputs that are still
+    /// wired through directly at the top boundary.
     pub total_child_output_exposures: usize,
     pub avg_child_data_inputs_per_instance: f64,
     pub avg_child_outputs_per_instance: f64,
@@ -596,6 +608,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .map(|module| (module.name.as_str(), *module))
         .collect();
     let mut unique_instantiated = std::collections::BTreeSet::new();
+    let mut instance_output_support_memo = HashMap::new();
+    let mut total_instance_output_support = 0usize;
 
     for port in top.emitted_input_ports_in(Some(&modules_by_name)) {
         if top.clock == Some(port.id) {
@@ -633,6 +647,26 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
                 })
         })
         .count();
+
+    for (_, root) in &top.drives {
+        let support =
+            collect_instance_output_support(top, *root, &mut instance_output_support_memo);
+        let support_len = support.len();
+        total_instance_output_support += support_len;
+        out.max_instance_output_support_per_top_output = out
+            .max_instance_output_support_per_top_output
+            .max(support_len);
+        if support_len > 0 {
+            out.top_outputs_reaching_instance_outputs += 1;
+        } else {
+            out.top_outputs_without_instance_outputs += 1;
+        }
+        if matches!(top.nodes[*root as usize], Node::InstanceOutput { .. }) {
+            out.top_direct_instance_output_drives += 1;
+        } else if support_len > 0 {
+            out.top_parent_composed_outputs += 1;
+        }
+    }
 
     for module in &library {
         if module.has_local_flops() {
@@ -686,8 +720,35 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
+    out.top_instance_output_dependency_fraction =
+        ratio(out.top_outputs_reaching_instance_outputs, out.top_outputs);
+    out.top_parent_composed_output_fraction =
+        ratio(out.top_parent_composed_outputs, out.top_outputs);
+    out.avg_instance_output_support_per_top_output =
+        ratio(total_instance_output_support, out.top_outputs);
 
     out
+}
+
+fn collect_instance_output_support(
+    module: &Module,
+    node_id: NodeId,
+    memo: &mut HashMap<NodeId, BTreeSet<(InstanceId, PortId)>>,
+) -> BTreeSet<(InstanceId, PortId)> {
+    if let Some(existing) = memo.get(&node_id) {
+        return existing.clone();
+    }
+
+    let support = match &module.nodes[node_id as usize] {
+        Node::InstanceOutput { instance, port, .. } => BTreeSet::from([(*instance, *port)]),
+        Node::Gate { operands, .. } => operands.iter().fold(BTreeSet::new(), |mut acc, operand| {
+            acc.extend(collect_instance_output_support(module, *operand, memo));
+            acc
+        }),
+        _ => BTreeSet::new(),
+    };
+    memo.insert(node_id, support.clone());
+    support
 }
 
 fn ratio(numer: usize, denom: usize) -> f64 {
@@ -903,5 +964,38 @@ mod tests {
         assert_eq!(met.unused_library_fraction, 0.5);
         assert_eq!(met.instance_reuse_fraction, 0.0);
         assert_eq!(met.instance_to_library_ratio, 0.5);
+    }
+
+    #[test]
+    fn design_metrics_capture_parent_side_composition() {
+        let cfg = Config {
+            seed: 3,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("hierarchy parent-composition config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.top_outputs_reaching_instance_outputs, met.top_outputs);
+        assert_eq!(met.top_outputs_without_instance_outputs, 0);
+        assert!(
+            met.top_parent_composed_outputs > 0,
+            "expected at least one top output to be driven by parent logic over child outputs"
+        );
+        assert_eq!(met.top_instance_output_dependency_fraction, 1.0);
+        assert!(
+            met.top_parent_composed_output_fraction > 0.0,
+            "expected a non-zero composed-output fraction"
+        );
+        assert!(
+            met.avg_instance_output_support_per_top_output >= 1.0,
+            "every top output should depend on at least one child output"
+        );
     }
 }

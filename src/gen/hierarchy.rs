@@ -3,12 +3,22 @@
 //! The first live slice is intentionally narrow: depth-1 wrapper
 //! hierarchy only. We generate a library of leaf modules, then a real
 //! top module that instantiates a planned selection of leaf
-//! definitions and exposes every child output as a top-level output.
-//! This is genuine module composition, not a fake multi-file bundle,
-//! but it does not yet recurse through parent-side cone construction.
+//! definitions and builds a real top module above them. The top uses
+//! child instance outputs as real leaf variables for its own
+//! combinational output cones, so this is genuine composition rather
+//! than a fake multi-file bundle, but it still does not recurse beyond
+//! that parent-side combinational layer.
 
-use super::Generator;
-use crate::ir::{Design, Direction, Instance, InstanceId, Module, Node, NodeId, Port, PortId};
+use super::{
+    cone::{self, FlopWorklist},
+    module,
+    pool::SignalPool,
+    Generator,
+};
+use crate::config::ConstructionStrategy;
+use crate::ir::{
+    DepSet, Design, Direction, GateOp, Instance, InstanceId, Module, Node, NodeId, Port, PortId,
+};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
@@ -30,7 +40,7 @@ pub fn generate_design(g: &mut Generator) -> Design {
 
     let top_index = g.next_module_index;
     g.next_module_index += 1;
-    let top = generate_wrapper_top(g.cfg.seed, top_index, &modules, &instance_plan);
+    let top = generate_wrapper_top(g, top_index, &modules, &instance_plan);
     let top_name = top.name.clone();
     modules.push(top);
 
@@ -70,13 +80,18 @@ fn plan_child_instance_indices(g: &mut Generator, library_len: usize) -> Vec<usi
 }
 
 fn generate_wrapper_top(
-    seed: u64,
+    g: &mut Generator,
     index: u64,
     library: &[Module],
     instance_plan: &[usize],
 ) -> Module {
     let mut top = Module {
-        name: format!("mod_{}_{:04}", seed, index),
+        name: format!("mod_{}_{:04}", g.cfg.seed, index),
+        max_ast_instances: g.cfg.max_ast_instances.max(1),
+        mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
+        operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
+        identity_mode: g.cfg.identity_mode,
+        factorization_level: g.cfg.factorization_level,
         ..Module::default()
     };
 
@@ -91,6 +106,9 @@ fn generate_wrapper_top(
         any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "rst_n", 1));
     top.clock = shared_clock.map(|(port_id, _)| port_id);
     top.reset = shared_reset.map(|(port_id, _)| port_id);
+
+    let mut instance_pool = SignalPool::new();
+    let mut planned_outputs = Vec::new();
 
     for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
         let child = &library[child_idx];
@@ -139,6 +157,11 @@ fn generate_wrapper_top(
                 port: child_output.id,
                 width: child_output.width,
             });
+            instance_pool.add(
+                node_id,
+                child_output.width,
+                DepSet::from_instance_output_virtual(instance_id, child_output.id),
+            );
             let top_output_id = next_port_id;
             next_port_id += 1;
             top.outputs.push(Port {
@@ -147,11 +170,111 @@ fn generate_wrapper_top(
                 width: child_output.width,
                 dir: Direction::Out,
             });
-            top.drives.push((top_output_id, node_id));
+            planned_outputs.push((top_output_id, child_output.width));
         }
     }
 
+    let mut pool = instance_pool.clone();
+    let mut worklist: FlopWorklist = Vec::new();
+    let roots = build_parent_output_roots(g, &mut top, &mut pool, &mut worklist);
+    debug_assert!(
+        worklist.is_empty(),
+        "Phase 4 top-level parent composition stays combinational in the current slice"
+    );
+
+    for ((port_id, width), root) in planned_outputs.into_iter().zip(roots) {
+        let promoted =
+            promote_parent_output_root(g, &mut top, &mut pool, &instance_pool, width, root);
+        top.drives.push((port_id, promoted));
+    }
+
+    module::finalize_generated_module(g, &mut top, &mut pool);
     top
+}
+
+fn build_parent_output_roots(
+    g: &mut Generator,
+    top: &mut Module,
+    pool: &mut SignalPool,
+    worklist: &mut FlopWorklist,
+) -> Vec<NodeId> {
+    let saved_flop_prob = g.cfg.flop_prob;
+    g.cfg.flop_prob = 0.0;
+    let roots = match g.cfg.construction_strategy {
+        ConstructionStrategy::Sequential | ConstructionStrategy::Shuffled => {
+            let mut build_order: Vec<usize> = (0..top.outputs.len()).collect();
+            if matches!(g.cfg.construction_strategy, ConstructionStrategy::Shuffled) {
+                build_order.shuffle(&mut g.rng);
+            }
+            let mut slots = vec![None; top.outputs.len()];
+            for idx in build_order {
+                let width = top.outputs[idx].width;
+                let root = cone::build_cone_with_retry(g, top, pool, worklist, width, None);
+                slots[idx] = Some(root);
+            }
+            slots
+                .into_iter()
+                .map(|slot| slot.expect("drive root"))
+                .collect()
+        }
+        ConstructionStrategy::Interleaved | ConstructionStrategy::GraphFirst => {
+            cone::build_outputs_interleaved(g, top, pool, worklist)
+        }
+    };
+    g.cfg.flop_prob = saved_flop_prob;
+    roots
+}
+
+fn promote_parent_output_root(
+    g: &mut Generator,
+    top: &mut Module,
+    pool: &mut SignalPool,
+    instance_pool: &SignalPool,
+    width: u32,
+    root: NodeId,
+) -> NodeId {
+    if matches!(top.nodes[root as usize], Node::Gate { .. }) {
+        return root;
+    }
+
+    let Some(companion) = try_pick_parent_companion(g, top, instance_pool, width, root) else {
+        return root;
+    };
+
+    let deps = DepSet::union(&[
+        &cone::node_deps(top, root),
+        &cone::node_deps(top, companion),
+    ]);
+    let (node_id, is_new) =
+        top.intern_gate(GateOp::Add, vec![root, companion], width, deps.clone());
+    if is_new {
+        pool.add(node_id, width, deps);
+    }
+    node_id
+}
+
+fn try_pick_parent_companion(
+    g: &mut Generator,
+    top: &mut Module,
+    instance_pool: &SignalPool,
+    width: u32,
+    exclude: NodeId,
+) -> Option<NodeId> {
+    if !instance_pool
+        .iter()
+        .any(|entry| entry.node != exclude && !entry.deps.is_empty())
+    {
+        return None;
+    }
+
+    let mut temp_pool = instance_pool.clone();
+    Some(cone::pick_terminal_dep_bearing(
+        g,
+        top,
+        &mut temp_pool,
+        width,
+        Some(exclude),
+    ))
 }
 
 fn add_top_input(
@@ -232,8 +355,14 @@ mod tests {
 
     #[test]
     fn wrapper_top_tags_shared_clock_and_reset_ports() {
+        let mut g = Generator::new(crate::config::Config {
+            seed: 7,
+            hierarchy_depth: 1,
+            num_leaf_modules: 1,
+            ..crate::config::Config::default()
+        });
         let child = sequential_leaf("leaf");
-        let top = generate_wrapper_top(7, 1, &[child], &[0]);
+        let top = generate_wrapper_top(&mut g, 1, &[child], &[0]);
 
         let clock = top.clock.expect("wrapper top should tag shared clock");
         let reset = top.reset.expect("wrapper top should tag shared reset");

@@ -166,6 +166,42 @@ fn depth1_wrapper_can_under_instantiate_the_leaf_library() {
 }
 
 #[test]
+fn depth1_parent_outputs_depend_on_child_instance_outputs() {
+    for seed in 0..5u64 {
+        let cfg = Config {
+            seed,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("depth-1 hierarchy composition config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!("hierarchy seed {}: design validation failed: {}", seed, e);
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(
+            metrics.top_outputs_reaching_instance_outputs, metrics.top_outputs,
+            "top outputs should stay functions of child instance outputs: {metrics:#?}"
+        );
+        assert_eq!(
+            metrics.top_outputs_without_instance_outputs,
+            0,
+            "the current parent-composition slice should not emit top outputs that bypass child outputs"
+        );
+        assert!(
+            metrics.top_parent_composed_outputs > 0,
+            "expected at least one genuine parent-composed output for seed {seed}: {metrics:#?}"
+        );
+    }
+}
+
+#[test]
 fn reproducibility() {
     let cfg = Config {
         seed: 12345,

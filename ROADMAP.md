@@ -252,8 +252,9 @@ evidence.
 
 - **Landed first slice:** `--hierarchy-depth 1 --num-leaf-modules N`
   now generates a real `Design`: a pre-generated library of leaf
-  modules plus a real top wrapper that instantiates them and exposes
-  every child output. `--num-child-instances M` now decouples library
+  modules plus a real top wrapper that instantiates them and now builds
+  a first parent-side combinational output layer over child instance
+  outputs. `--num-child-instances M` now decouples library
   size from instantiated child count inside that wrapper slice:
   `M = 0` preserves the legacy exact-once behavior, `M < N`
   under-instantiates the library, and `M > N` reuses child
@@ -261,8 +262,8 @@ evidence.
   multi-file bundle.
 - Current slice constraints:
   - depth `0` or `1` only; deeper recursion is still rejected
-  - wrapper-style top only; parent-side cone construction from instance
-    outputs is not live yet
+  - parent-side hierarchy is combinational only in the current slice;
+    local parent flops are not live yet
   - library sourcing only; on-demand child synthesis is not live yet
   - current wrapper planning covers representative exact / reuse /
     under-instantiation profiles, and the broadened repo-owned wrapper
@@ -291,6 +292,19 @@ elaboration/synthesis on the broadened hierarchy matrix
 `r3` report remains useful historical evidence for the original wrapper
 baseline.
 
+**First parent-composition proof (landed locally, full matrix refresh
+pending):** current HEAD now lets the top build real combinational
+outputs from child instance outputs, and the focused proof artifact is
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
+path. The design metrics there show the intended structural step
+directly (`top_parent_composed_outputs = 10`,
+`top_direct_instance_output_drives = 0`,
+`top_instance_output_dependency_fraction = 1.0`). The next honest
+closure task is to rerun the full Phase 4 repo-owned matrix on this
+new parent-composition code rather than continuing to point at the
+older wrapper-only baseline.
+
 **Broadened wrapper planning (landed, closure refreshed):** the current
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
@@ -300,9 +314,9 @@ cost shape to watch, but it is no longer an unclosed Phase 4 evidence
 gap.
 
 **Phase 4 still remains in progress** because the phase is broader than
-the current wrapper slice. The remaining substantive work is the parent
-using instance outputs as real cone inputs, deeper recursion, on-demand
-child sourcing beside the current library path, and eventual
+the current landed slice. The remaining substantive work is deeper
+recursion, on-demand child sourcing beside the current library path,
+local parent state where it is structurally warranted, and eventual
 hierarchy-aware identity/factorization.
 
 ## Phase 5 — Parameterization (not started)

@@ -1293,7 +1293,11 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         return 0;
     }
 
-    // 1. Mark reachable nodes by BFS from every output drive-root.
+    // 1. Mark reachable nodes by BFS from every surviving holder.
+    //    Today that means:
+    //    - every output drive-root
+    //    - every instance input binding
+    //
     //    Gates recurse through operands. A `FlopQ` leaf is the bridge
     //    into sequential state: once some live consumer reaches Q, the
     //    owning flop becomes live and its D / mux metadata join the walk.
@@ -1309,6 +1313,11 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
 
     for (_, root) in &m.drives {
         mark_node(*root, &mut reachable, &mut stack);
+    }
+    for instance in &m.instances {
+        for (_, node_id) in &instance.inputs {
+            mark_node(*node_id, &mut reachable, &mut stack);
+        }
     }
 
     while let Some(nid) = stack.pop() {
@@ -1441,6 +1450,11 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
     // 5. Rewrite `m.drives`.
     for (_, root) in m.drives.iter_mut() {
         *root = remap(*root, &old_to_new);
+    }
+    for instance in &mut m.instances {
+        for (_, node_id) in &mut instance.inputs {
+            *node_id = remap(*node_id, &old_to_new);
+        }
     }
 
     // 6. Rewrite flops, dropping any state element whose `Q` is not
@@ -1654,7 +1668,7 @@ mod tests {
     use super::*;
     use crate::config::{FactorizationLevel, IdentityMode};
     use crate::ir::validate::validate;
-    use crate::ir::{DepSet, Direction, Flop, FlopKind, FlopMux, Port, ResetKind};
+    use crate::ir::{DepSet, Direction, Flop, FlopKind, FlopMux, Instance, Port, ResetKind};
 
     /// No-op on a clean IR: all nodes reachable, nothing compacted.
     /// Built at `FactorizationLevel::Cse` so fold rules don't
@@ -1858,7 +1872,7 @@ mod tests {
         };
         assert_eq!(operands, &vec![1, 1]);
         assert_eq!(deps.len(), 1, "virtual flop deps should coalesce");
-        assert!(deps.contains(0x8000_0000));
+        assert!(deps.contains_flop_virtual(0));
 
         let compacted = compact_node_ids(&mut m);
         assert_eq!(compacted, 1, "duplicate FlopQ should become unreachable");
@@ -1871,6 +1885,27 @@ mod tests {
             }
             other => panic!("expected surviving canonical FlopQ, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn compact_remaps_instance_input_bindings() {
+        let mut m = Module {
+            name: "parent".into(),
+            ..Module::default()
+        };
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 1 });
+        m.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 1)],
+        });
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "dead primary input should be removed");
+        assert_eq!(m.nodes.len(), 1, "only the bound input should remain");
+        assert_eq!(m.instances[0].inputs, vec![(0, 0)]);
     }
 
     #[test]
@@ -2016,7 +2051,9 @@ mod tests {
         match &m.nodes[id as usize] {
             Node::PrimaryInput { port, .. } => DepSet::from_port(*port),
             Node::Constant { .. } => DepSet::new(),
-            Node::InstanceOutput { .. } => DepSet::new(),
+            Node::InstanceOutput { instance, port, .. } => {
+                DepSet::from_instance_output_virtual(*instance, *port)
+            }
             Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
             Node::Gate { deps, .. } => deps.clone(),
         }

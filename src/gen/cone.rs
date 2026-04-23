@@ -3939,12 +3939,14 @@ fn try_share(
     }
 }
 
-fn node_deps(m: &Module, id: NodeId) -> DepSet {
+pub(super) fn node_deps(m: &Module, id: NodeId) -> DepSet {
     match &m.nodes[id as usize] {
         Node::PrimaryInput { port, .. } => DepSet::from_port(*port),
         Node::Constant { .. } => DepSet::new(),
         Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
-        Node::InstanceOutput { .. } => DepSet::new(),
+        Node::InstanceOutput { instance, port, .. } => {
+            DepSet::from_instance_output_virtual(*instance, *port)
+        }
         Node::Gate { deps, .. } => deps.clone(),
     }
 }

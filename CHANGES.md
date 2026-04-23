@@ -1,9 +1,155 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-1507 — Close refreshed Phase 4 hierarchy matrix cleanly
+## 2026-04-23-1557 — Land parent-composed hierarchy tops and trustworthy composition metrics
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  upgrades `DepSet` from a flat tagged-integer trick to a typed leaf-set
+  that now distinguishes:
+  - primary-input leaves,
+  - local flop-Q virtual leaves, and
+  - instantiated child-output leaves.
+  That makes `Node::InstanceOutput` a real dep-bearing leaf variable for
+  generator-side cone construction instead of looking like an empty-dep
+  pseudo-constant.
+- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  now propagates that identity in `node_deps`, so parent-side cone
+  construction can reuse the existing leaf-kernel builder without
+  misclassifying child outputs as trivial roots.
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  now exposes a shared `finalize_generated_module` path. That means the
+  new hierarchy top goes through the same settled-graph cleanup,
+  bounded merge, constant-root repair, compaction, shrink/prune, and
+  liveness discipline as ordinary generated modules.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  is the real Phase 4 step: the depth-1 top is no longer only a
+  pass-through wrapper. It now:
+  - pre-generates the leaf library as before,
+  - instantiates the planned child set as before,
+  - seeds a parent signal pool from child `InstanceOutput` leaves,
+  - builds top-output cones from those child outputs with the current
+    construction strategy, and
+  - promotes any surviving direct child-output drive to parent logic
+    when a second child-output source exists.
+  The current slice stays honest: parent-local flops are still disabled,
+  so this is a first **combinational** parent-composition layer, not the
+  full recursive hierarchy destination yet.
+- The first real hierarchy-regression bug shaken loose by that work was
+  in [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs):
+  `compact_node_ids` was not treating instance input bindings as live
+  holders and was not remapping them through the compacted `NodeId`
+  space. That is now fixed and pinned by a regression.
+- The second old wrapper-era assumption was in
+  [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs):
+  design validation no longer requires every child output to be exposed
+  exactly once. The right rule is narrower: any referenced child output
+  node must name a real child output port with the right width, while
+  genuinely unused child outputs are allowed.
+- The third old wrapper-era assumption was in
+  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  unused child outputs are now emitted as explicit unconnected ports
+  (`.port()`) instead of panicking on the assumption that every child
+  output must have a corresponding `Node::InstanceOutput` wire.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now quantifies hierarchy composition directly, without requiring any
+  `.sv` inspection:
+  - `top_direct_instance_output_drives`
+  - `top_parent_composed_outputs`
+  - `top_outputs_reaching_instance_outputs`
+  - `top_outputs_without_instance_outputs`
+  - `top_instance_output_dependency_fraction`
+  - `top_parent_composed_output_fraction`
+  - `avg_instance_output_support_per_top_output`
+  - `max_instance_output_support_per_top_output`
+
+**Why**
+
+- The next honest Phase 4 step was to move beyond wrapper-only
+  composition and let parent outputs become real functions of child
+  outputs.
+- That only becomes trustworthy if the repo can prove the result
+  numerically rather than asking the user to visually inspect emitted
+  RTL.
+- The resulting work also had to fix the actual structural bugs that a
+  richer hierarchy slice exposed, rather than hiding them behind local
+  workarounds.
+
+**Proof**
+
+- Focused hierarchy composition smoke:
+  - `cargo run --bin anvil -- --seed 19 --out /tmp/anvil-hier-parent-compose-smoke-r1 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4`
+  - manifest:
+    `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
+  - key design metrics from that manifest:
+    - `top_parent_composed_outputs = 10`
+    - `top_direct_instance_output_drives = 0`
+    - `top_outputs_reaching_instance_outputs = 10`
+    - `top_outputs_without_instance_outputs = 0`
+    - `top_instance_output_dependency_fraction = 1.0`
+    - `avg_instance_output_support_per_top_output = 2.5`
+- Downstream proof on that emitted design:
+  - Verilator: `verilator --lint-only --top-module mod_19_0002 /tmp/anvil-hier-parent-compose-smoke-r1/*.sv`
+  - Yosys without ABC:
+    `yosys -q -p "read_verilog -sv /tmp/anvil-hier-parent-compose-smoke-r1/*.sv; hierarchy -top mod_19_0002; synth -noabc; check"`
+  - Yosys with ABC:
+    `yosys -q -p "read_verilog -sv /tmp/anvil-hier-parent-compose-smoke-r1/*.sv; hierarchy -top mod_19_0002; synth -noabc; abc -fast; opt -fast; stat; check"`
+- New focused regressions:
+  - `cargo test depth1_parent_outputs_depend_on_child_instance_outputs --test pipeline`
+  - `cargo test compact_remaps_instance_input_bindings --lib`
+  - `cargo test hierarchy_emits_unconnected_child_outputs_when_unused --lib`
+  - `cargo test accepts_design_with_unreferenced_child_output --lib`
+  - `cargo test design_metrics_capture_parent_side_composition --lib`
+- Full hygiene gate on the final tree:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- Phase 4 is no longer only a wrapper/pass-through story on current
+  HEAD; the top can now build a real combinational parent layer over
+  child outputs.
+- The repo now has trustworthy metrics for that structure, so hierarchy
+  quality can be judged from manifests and reports instead of eyeballing
+  `.sv`.
+- The older `/tmp/anvil-tool-matrix-phase4-hierarchy-r7` report remains
+  valuable, but it is now a **wrapper-baseline** closure artifact. The
+  next honest closure step is to rerun the full Phase 4 matrix on this
+  newer parent-composition code.
+- Roadmap phase labels do **not** change in this slice: Phase 4 stays
+  `in progress`.
+
+**Files touched**
+
+- `src/ir/types.rs`
+- `src/gen/cone.rs`
+- `src/gen/module.rs`
+- `src/gen/hierarchy.rs`
+- `src/ir/compact.rs`
+- `src/ir/validate.rs`
+- `src/emit/sv.rs`
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+- `book/src/structural-rules.md`
+
+## 2026-04-23-1507 — Close refreshed Phase 4 hierarchy matrix cleanly
+
+**Landed as:** `13ef73e`
 
 **What changed**
 

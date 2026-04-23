@@ -82,8 +82,9 @@ src/
 │   │                # hierarchy. Pre-generates a leaf library,
 │   │                # plans instantiated-child count separately,
 │   │                # builds a real top wrapper, supports exact /
-│   │                # reuse / under-instantiation profiles, exposes
-│   │                # every instantiated child output.
+│   │                # reuse / under-instantiation profiles, and now
+│   │                # builds a first parent-side combinational layer
+│   │                # over child InstanceOutput leaves.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -95,8 +96,10 @@ src/
 ```
 
 Phase 4 is now in progress: `src/gen/hierarchy.rs` owns the first live
-depth-1 hierarchy slice, and the current wrapper-only surface now has a
-repo-owned closure gate in `tool_matrix`.
+depth-1 hierarchy slice. The older wrapper-baseline surface has a
+repo-owned closure gate in `tool_matrix`, and current HEAD now extends
+that slice with a first parent-side combinational output layer over
+child instance outputs.
 
 ## Dependency direction
 
@@ -374,8 +377,8 @@ summary proving that `shared_node_fraction` rises monotonically across
 structured-surface gate is now closed as well via
 `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
-plus both repo-owned Yosys modes). The current Phase 4 wrapper slice now
-has its own repo-owned gate too via
+plus both repo-owned Yosys modes). The wrapper-baseline Phase 4 slice
+has its own repo-owned gate via
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 (48 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 48/0 pass-fail in Verilator plus both repo-owned Yosys modes). The old
@@ -389,6 +392,10 @@ are proven clean at `/tmp/anvil-hier-reuse-smoke-r1` and
 exact / reuse / under-instantiation matrix directly. The old `r6`
 partial rerun remains useful only as evidence that the heavy
 `seq_nodeid_egraph_phase4_hier4_inst4_seq` corner is runtime-expensive.
+Current HEAD now also has a focused clean proof for real parent-side top
+composition at `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`;
+refreshing the full Phase 4 matrix on that newer code is the next
+closure step.
 
 ## Error handling
 

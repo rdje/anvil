@@ -76,7 +76,8 @@ What landed instead is:
   library entry once and then fill the remaining slots by reuse with
   replacement,
 - build a real top wrapper module,
-- expose every child output at the top, and
+- treat child instance outputs as real parent-side leaf variables for
+  top-output construction, and
 - make emission / validation / manifest handling design-aware.
 
 That buys several real things immediately:
@@ -88,10 +89,11 @@ That buys several real things immediately:
 - the hierarchy layer stays above `generate_leaf_module` instead of
   smearing inter-module behavior into the leaf kernel.
 
-Just as importantly, it keeps the open work honest. Parent-side cone
-construction from instance outputs, recursive sub-hierarchy growth, and
-hierarchical identity are all still future work. The wrapper slice is
-real, but it does not pretend Phase 4 is already solved.
+Just as importantly, it keeps the open work honest. The newly-landed
+top layer is still **combinational only**; deeper recursive
+sub-hierarchy growth, local parent flops, on-demand child sourcing, and
+hierarchical identity are all still future work. The slice is real, but
+it does not pretend Phase 4 is already solved.
 
 Two narrow implementation choices are load-bearing in this slice:
 
@@ -100,11 +102,26 @@ Two narrow implementation choices are load-bearing in this slice:
   design-aware instead of leaf-local: pure comb-only modules omit those
   ports, while wrappers keep them visible iff they carry sequential
   descendants;
-- `Node::InstanceOutput` is treated as a leaf boundary by the existing
-  proof / compaction helpers, because the wrapper top does not yet build
-  new parent cones from child outputs. That keeps the current leaf-kernel
-  proof machinery compatible with hierarchy without overclaiming
-  hierarchical equivalence.
+- `Node::InstanceOutput` now carries a real dep-bearing leaf identity,
+  so parent cones can use child outputs without being mistaken for
+  empty-dep constants by later cleanup/finalisation passes.
+
+That second point shook loose three old wrapper-era assumptions that had
+to be fixed at the root instead of papered over:
+
+- `compact_node_ids` was only treating output drives and flop holders as
+  liveness roots, so instance input bindings could survive with stale
+  `NodeId`s after compaction. The real fix was to mark instance-input
+  bindings as holders and remap them just like drives and flops.
+- `validate_design` was still enforcing "every child output is exposed
+  exactly once", which was only true for the pass-through wrapper era.
+  The right rule is narrower: any *referenced* child output node must
+  name a real child port at the right width, but unreferenced child
+  outputs are legal.
+- the emitter was still assuming every child output had a corresponding
+  `Node::InstanceOutput`. That is no longer true once the parent may use
+  only a subset of child outputs, so unused outputs are now rendered as
+  explicit unconnected instance ports (`.port()`).
 
 The separation between **library size** and **instance count** matters
 enough to say plainly here: they are different planning decisions and

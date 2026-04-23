@@ -269,7 +269,10 @@ IR fields and is an explicit future-phase item.
 that module carries sequential state locally or through instantiated
 descendants. Pure comb-only modules stay control-free. Sequential
 wrappers keep the ports visible all the way up the instantiated
-ancestor chain.
+ancestor chain. Child output ports are different: a parent may either
+name them explicitly through `Node::InstanceOutput` and use them in
+parent logic, or leave them unconnected at the instance site when they
+are genuinely unused.
 
 ---
 

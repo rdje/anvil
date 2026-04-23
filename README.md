@@ -66,6 +66,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/module.rs`       leaf-module generator
 - `src/gen/hierarchy.rs`    Phase 4 depth-1 hierarchy generator with
                             decoupled leaf-library / child-instance planning
+                            plus first parent-side top composition
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -209,7 +210,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-The completed current-code Phase 4 wrapper-hierarchy report now also
+The completed current-code Phase 4 wrapper-baseline report now also
 exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7`. Its final
 `tool_matrix_report.json` records:
 
@@ -222,8 +223,8 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7`. Its final
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
 
-That refreshed report is the current fully banked repo-owned Phase 4
-closure artifact for the live wrapper slice. It covers the broadened
+That refreshed report remains the last fully banked repo-owned Phase 4
+closure artifact for the wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, so exact, reuse, and
 under-instantiation profiles are no longer justified only by focused
 smokes. Those focused clean smokes at `/tmp/anvil-hier-reuse-smoke-r1`
@@ -232,9 +233,13 @@ The old `r6` partial rerun is now only historical debugging evidence:
 the heavy `*_hier4_inst4_seq` corners are genuinely expensive in Yosys
 because they elaborate/synthesize very large sequential child
 libraries, but they do close cleanly. Current hierarchy manifests and
-design reports now also embed
-per-design composition metrics, so wrapper quality can be read from
-exact numbers instead of by manually inspecting the emitted `.sv`.
+design reports now also embed exact per-design composition metrics, so
+hierarchy quality can be read from numbers instead of by manually
+inspecting the emitted `.sv`. Current HEAD has also landed the first
+real parent-composition step on top of that baseline, proven by
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`; refreshing the
+full repo-owned Phase 4 matrix on that newer code is the next closure
+step.
 
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
@@ -323,15 +328,21 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   visibility follows the hierarchy doctrine exactly: pure comb-only
   modules omit `clk` / `rst_n`, sequential leaves emit them, and
   wrapper ancestors keep them visible iff they carry sequential
-  descendants. The refreshed
-  wrapper slice now has a dedicated repo-owned clean-run gate at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
-  (`48` designs, `coverage_gaps = []`, and `48/0` pass-fail in
-  Verilator plus both repo-owned Yosys modes), and that report already
-  covers the broadened exact / reuse / under-instantiation planner.
-  Recursive parent-side hierarchy generation,
-  parameterization, and broader artifact-family selection are still
-  roadmap work. See `ROADMAP.md` for phase gating.
+  descendants. Current HEAD now also takes the first honest step beyond
+  a pure wrapper: top outputs can be genuine parent-side combinational
+  functions of child instance outputs, and the hierarchy manifest now
+  reports that numerically (`top_direct_instance_output_drives`,
+  `top_parent_composed_outputs`,
+  `top_instance_output_dependency_fraction`,
+  `avg_instance_output_support_per_top_output`). The focused proof
+  artifact is `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
+  clean in Verilator plus both repo-owned Yosys modes. The last fully
+  banked repo-owned Phase 4 matrix report remains the wrapper-baseline
+  run at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`;
+  refreshing that full matrix on the new parent-composition code is the
+  next honest closure step. Deeper recursive hierarchy, parameterization,
+  and broader artifact-family selection are still roadmap work. See
+  `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

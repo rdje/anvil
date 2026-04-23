@@ -11,7 +11,8 @@ That means:
 - choose a separate **instantiated child count** for the wrapper,
 - then generate a real **top wrapper module**,
 - instantiate those leaves inside the wrapper, and
-- expose every child output as a top-level output.
+- build top-level outputs from child instance outputs as real leaf
+  variables.
 
 This is genuine module composition. It exercises elaboration,
 inter-module port binding, multi-file emission, and downstream top
@@ -58,14 +59,21 @@ different cases:
   replacement to reach the requested child count
   (`num_child_instances > num_leaf_modules`)
 
-The wrapper top is intentionally simple:
+The current top planner is intentionally narrow but no longer a pure
+pass-through shell:
 
 - if the instantiated children carry sequential state, the wrapper gets
   shared `clk` and `rst_n` inputs;
 - every child emitted input becomes a wrapper input (prefixed with the
   instance name);
-- every instantiated child emitted output becomes a wrapper output; and
-- each wrapper output is driven by a `Node::InstanceOutput`.
+- every instantiated child output is still available as a real
+  `Node::InstanceOutput` leaf in the parent IR;
+- top outputs are now built from those child-output leaves by the
+  existing cone builder, with local parent flops disabled in the
+  current slice; and
+- unused child outputs are left explicitly unconnected at the instance
+  site (`.port()`) instead of being forced into fake top-level
+  pass-throughs.
 
 The control-port rule is deliberate and inductive:
 
@@ -75,9 +83,10 @@ The control-port rule is deliberate and inductive:
   visible all the way up the instantiated ancestor chain.
 
 So the first hierarchy slice is **real** but also **honest**: the top
-module is presently a composition layer, not yet a new fanin-cone
-generator that recursively mixes gates, flops, and sub-instances in the
-same parent cone.
+module is now a real parent-side combinational composition layer over
+child outputs, but it is not yet a recursively self-similar hierarchy
+generator that mixes local flops, deeper sub-instances, and on-demand
+child synthesis at arbitrary depth.
 
 ## Current IR shape
 
@@ -112,9 +121,10 @@ Two details matter:
 1. `Instance.inputs` are keyed by the **child's input port ids**.
    Design validation checks that every emitted child input is bound
    exactly once and at the right width.
-2. `Node::InstanceOutput` is a real node kind, so parent modules can
-   name and emit child outputs explicitly instead of relying on emitter
-   side tables or implicit wiring.
+2. `Node::InstanceOutput` is a real node kind and now carries a real
+   leaf-variable identity in dependency tracking, so parent modules can
+   build new cones over child outputs instead of treating them as
+   emitter-only wiring.
 
 ## Design validation
 
@@ -132,7 +142,8 @@ The design-level validator checks:
 - every module passes local validation,
 - every instance references a real child module,
 - every child emitted input is bound exactly once,
-- every child output is exposed exactly once,
+- every referenced child output node names a real child output port at
+  the right width,
 - widths match at every binding/exposure point, and
 - the module graph is acyclic.
 
@@ -174,6 +185,9 @@ emitted `.sv`, including:
 - unique-instantiated-module count and unused-library count,
 - reuse / coverage ratios,
 - top interface shape,
+- direct-pass-through vs parent-composed top-output counts,
+- whether top outputs actually depend on child outputs at all,
+- average / maximum child-output support per top output,
 - control fanout to child instances,
 - weighted child interface / node / flop load, and
 - per-definition instantiation histograms.
@@ -192,14 +206,13 @@ The wrapper slice buys several important things immediately:
 
 It also keeps the open work honest. The following are **not** live yet:
 
-- using an instance output as a pickable signal inside a freshly-built
-  parent cone,
 - recursive depth > 1 hierarchy,
+- local parent flops inside the composed top layer,
 - on-demand child generation sized to parent needs,
 - hierarchy-aware `NodeId` identity/factorization.
 
 What **is** now live beyond the original smoke is the repo-owned Phase 4
-wrapper gate:
+wrapper-gate baseline:
 
 - `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 - `12` scenarios
@@ -210,9 +223,22 @@ wrapper gate:
 - `Yosys without-abc 48/0`
 - `Yosys with-abc 48/0`
 
-That gate proves the current wrapper slice directly from saved report
-facts: multifile hierarchy designs, correct top-module tool invocation,
-real child instances, and real `Node::InstanceOutput` use.
+That gate proves the broadened wrapper planner directly from saved
+report facts: multifile hierarchy designs, correct top-module tool
+invocation, real child instances, and real `Node::InstanceOutput` use.
+Current HEAD has now moved one step past that baseline by letting the
+top build real combinational outputs from child instance outputs too.
+The focused proof artifact for that new behavior is:
+
+- `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
+- clean in Verilator
+- clean in Yosys `synth -noabc`
+- clean in the repo-owned Yosys with-ABC path
+- metrics proving genuine parent composition:
+  - `top_parent_composed_outputs = 10`
+  - `top_direct_instance_output_drives = 0`
+  - `top_instance_output_dependency_fraction = 1.0`
+  - `avg_instance_output_support_per_top_output = 2.5`
 
 Current HEAD has widened the wrapper planner beyond the exact-once case,
 and that broadened repo-owned rerun is now banked too. The focused
@@ -236,8 +262,8 @@ local proofs remain useful:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. let parent cone generation choose sub-instances as one of the real
-   answers to "what drives this signal?";
+1. refresh the repo-owned Phase 4 matrix on the new parent-composition
+   code rather than only the older wrapper-only baseline;
 2. add deeper bounded recursion (`hierarchy_depth > 1`);
 3. add the on-demand child-sourcing path beside the current
    pre-generated library path.

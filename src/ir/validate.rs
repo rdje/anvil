@@ -172,12 +172,6 @@ pub enum DesignValidateError {
         instance: String,
         port: PortId,
     },
-    #[error("module `{module}` instance `{instance}` is missing child output port {port}")]
-    MissingChildOutputExposure {
-        module: String,
-        instance: String,
-        port: PortId,
-    },
     #[error("module `{module}` instance `{instance}` child output port {port} width {expected} is exposed as width {got}")]
     ChildOutputWidthMismatch {
         module: String,
@@ -475,15 +469,6 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
                         port: *port,
                         expected: child_port.width,
                         got: *width,
-                    });
-                }
-            }
-            for port_id in expected_outputs.keys() {
-                if !seen_outputs.contains(port_id) {
-                    return Err(DesignValidateError::MissingChildOutputExposure {
-                        module: module.name.clone(),
-                        instance: instance.name.clone(),
-                        port: *port_id,
                     });
                 }
             }
@@ -1371,7 +1356,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_child_output_exposure_in_design() {
+    fn accepts_design_with_unreferenced_child_output() {
         let mut child = empty_module();
         let (_child_port, child_input_node) = add_input(&mut child, "a", 8);
         add_output(&mut child, "o", 8, child_input_node);
@@ -1391,11 +1376,7 @@ mod tests {
             top: top.name.clone(),
             modules: vec![child, top],
         };
-
-        let err = validate_design(&design).expect_err("missing child output should be rejected");
-        assert!(matches!(
-            err,
-            DesignValidateError::MissingChildOutputExposure { .. }
-        ));
+        validate_design(&design)
+            .expect("unused child outputs are legal once parent composition can ignore them");
     }
 }
