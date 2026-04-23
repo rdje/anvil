@@ -278,6 +278,12 @@ evidence.
     reusable child-definition pool live; the currently-landed
     `on-demand` slice synthesizes children against parent-planned exact
     data-interface profiles for each planned instance slot.
+  - the current parent-side routing surface:
+    both hierarchy lanes now expose
+    `--hierarchy-sibling-route-prob <p>`, which lets later child data
+    inputs bind from earlier sibling instance outputs while staying
+    acyclic by construction. This routing is intentionally
+    combinational-only in the current slice.
 - Current slice constraints:
   - parent-side hierarchy is still combinational only in the current
     slice; local parent flops are not live yet
@@ -287,9 +293,8 @@ evidence.
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
-  - richer parent-side routing and composition surfaces, including
-    sibling-aware binding choices beyond the current exact data-boundary
-    planner
+  - deeper parent-side routing/composition beyond the current
+    combinational sibling-binding surface
   - local parent state where it is structurally warranted
   - name uniqueness across the full module set
   - hierarchical identity as future required work: under
@@ -299,7 +304,7 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
@@ -316,6 +321,7 @@ proves all of the current representative hierarchy axes directly:
 - real mixed shallow/deep recursive realization
 - real per-depth branching metrics
 - real parent-side composition above instance outputs
+- real sibling-routed hierarchy child inputs
 - real structural proof that on-demand child sourcing emitted fresh
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane

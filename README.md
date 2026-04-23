@@ -67,6 +67,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/hierarchy.rs`    Phase 4 hierarchy planner: legacy exact
                             depth-1 wrapper lane plus bounded recursive
                             lane, both with parent-side composition
+                            and sibling-routed child-input binding
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -117,6 +118,10 @@ cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 3 --min-chi
 
 # Generate one bounded recursive hierarchy tree with per-depth branching
 cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-child-instances-per-module 1 --max-child-instances-per-module 3 --child-instances-per-depth 0=4:4 --child-instances-per-depth 1=2:2
+
+# Force sibling-routed hierarchy child inputs in the current
+# combinational parent-composition slice
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 1.0
 
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
@@ -217,7 +222,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r12`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r13`. Its final
 `tool_matrix_report.json` records:
 
 - `21` scenarios
@@ -240,7 +245,8 @@ per-depth branching metrics, real mixed shallow/deep recursive
 realization, real parent-side composition above instance outputs, and
 the explicit hierarchy child-sourcing axis
 `--hierarchy-child-source-mode <library|on-demand>`, including exact
-profiled child-interface synthesis in the on-demand lane.
+profiled child-interface synthesis in the on-demand lane, plus real
+sibling-routed hierarchy child inputs proved numerically.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -336,6 +342,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child-definition pools; the current `on-demand` slice now
   synthesizes children against parent-planned exact data-interface
   profiles.
+- `anvil --hierarchy-sibling-route-prob <p>` controls whether later
+  sibling child inputs may bind from earlier sibling instance outputs
+  instead of always binding from parent-boundary inputs. The current
+  Phase 4 slice keeps that routing purely combinational; registered
+  parent-local routing is future work.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and
@@ -355,6 +366,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   realize that exact data boundary. Control ports remain structural:
   `clk` / `rst_n` still propagate only when sequential state is
   present.
+  Both lanes now also expose a sibling-routing dial via
+  `--hierarchy-sibling-route-prob <p>`, so later child inputs may bind
+  from earlier sibling instance outputs through the same dep-bearing
+  width-adaptation machinery used elsewhere in the generator. That
+  routing remains intentionally combinational in the current slice.
   Control-port visibility follows the hierarchy doctrine exactly: pure
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
   and wrapper ancestors keep them visible iff they carry sequential
@@ -364,10 +380,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
-  and per-depth-override profiles folded into `tool_matrix`, while the
+  sibling-routed child-input binding, and per-depth-override profiles
+  folded into `tool_matrix`, while the
   focused smokes
   at
   `/tmp/anvil-hier-range-smoke-r1/manifest.json` and

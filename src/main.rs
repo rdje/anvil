@@ -279,6 +279,13 @@ struct Cli {
     #[arg(long, value_parser = parse_child_instances_per_depth_arg)]
     child_instances_per_depth: Vec<ChildInstancesPerDepthArg>,
 
+    /// Probability that a parent binds a child data input from a
+    /// previously-instantiated sibling output when one is available.
+    /// The resulting parent-side sibling routing is always acyclic:
+    /// only earlier child outputs may feed later child inputs.
+    #[arg(long)]
+    hierarchy_sibling_route_prob: Option<f64>,
+
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
     /// strict uniqueness (CSE). Higher N permits N copies; `u32::MAX`
@@ -586,6 +593,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         min_child_instances_per_module: cli.min_child_instances_per_module,
         max_child_instances_per_module: cli.max_child_instances_per_module,
         child_instances_per_module_by_depth,
+        hierarchy_sibling_route_prob: cli.hierarchy_sibling_route_prob,
     }
 }
 

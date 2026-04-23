@@ -83,7 +83,8 @@ src/
 │   │                # Both now also expose explicit child sourcing
 │   │                # (library vs on-demand), and both build
 │   │                # parent-side combinational layers over child
-│   │                # InstanceOutput leaves.
+│   │                # InstanceOutput leaves plus sibling-routed
+│   │                # child-input binding.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -100,7 +101,8 @@ lane. The older wrapper-baseline surface has a repo-owned closure gate
 in `tool_matrix`, and current HEAD now extends hierarchy with both
 parent-side composition, bounded recursive tree planning, mixed-depth
 leaf shaping inside a requested depth interval, and depth-specific
-branching overrides.
+branching overrides, plus a real combinational sibling-routing surface
+for child-input binding.
 
 ## Dependency direction
 
@@ -359,7 +361,7 @@ recursive tree planner and per-depth branching profiles),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 212 unit-target tests + 39 integration tests = 251 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 213 unit-target tests + 40 integration tests = 253 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -383,15 +385,16 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
 (84 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 84/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
 `library` and `on-demand`, exact profiled child-interface synthesis in
-the on-demand lane, the per-depth override profile `0=4:4,1=2:2`, and
-real parent-side composition above instance outputs. The old hierarchy
+the on-demand lane, the per-depth override profile `0=4:4,1=2:2`, real
+sibling-routed child inputs, and real parent-side composition above
+instance outputs. The old hierarchy
 smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,

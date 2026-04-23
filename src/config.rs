@@ -47,11 +47,13 @@ pub struct CountRange {
 /// `Library` keeps the current reusable-definition story live:
 /// parent planning first builds a child library, then instance slots
 /// pick from that pool. `OnDemand` instead synthesizes a fresh child
-/// definition for each planned instance slot. This is intentionally
-/// orthogonal to hierarchy depth and branching: both the legacy
-/// depth-1 wrapper lane and the recursive lane can now choose whether
-/// children come from a reusable library or from fresh per-instance
-/// synthesis.
+/// definition for each planned instance slot. In the current stronger
+/// Phase 4 slice, those fresh children are synthesized against
+/// parent-planned exact data-interface profiles rather than choosing
+/// their own data boundary locally. This is intentionally orthogonal
+/// to hierarchy depth and branching: both the legacy depth-1 wrapper
+/// lane and the recursive lane can now choose whether children come
+/// from a reusable library or from fresh per-instance synthesis.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 #[clap(rename_all = "kebab-case")]
@@ -61,7 +63,8 @@ pub enum HierarchyChildSourceMode {
     #[default]
     Library,
     /// Synthesize a fresh child definition for each planned instance
-    /// slot. Reuse then has to be asked for explicitly in future
+    /// slot against a parent-planned exact data-interface profile.
+    /// Reuse then has to be asked for explicitly in future
     /// hierarchy-aware identity work rather than appearing from the
     /// child planner.
     OnDemand,
@@ -400,6 +403,13 @@ pub struct Config {
     /// branching. Keys are internal parent depths (`0` = top).
     #[serde(default)]
     pub child_instances_per_module_by_depth: BTreeMap<u32, CountRange>,
+    /// Probability that a parent binds a child data input from a
+    /// previously-instantiated sibling output when one is available.
+    /// The sibling-routing graph is always acyclic by construction:
+    /// only earlier sibling outputs may feed later sibling inputs.
+    /// When the roll misses, the current parent falls back to its
+    /// external input boundary.
+    pub hierarchy_sibling_route_prob: f64,
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
@@ -539,6 +549,7 @@ impl Default for Config {
             min_child_instances_per_module: 0,
             max_child_instances_per_module: 0,
             child_instances_per_module_by_depth: BTreeMap::new(),
+            hierarchy_sibling_route_prob: 0.35,
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -843,6 +854,10 @@ impl Config {
             ("case_mux_prob", self.case_mux_prob),
             ("casez_mux_prob", self.casez_mux_prob),
             ("for_fold_prob", self.for_fold_prob),
+            (
+                "hierarchy_sibling_route_prob",
+                self.hierarchy_sibling_route_prob,
+            ),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
@@ -1019,6 +1034,9 @@ impl Config {
         if let Some(v) = &o.child_instances_per_module_by_depth {
             self.child_instances_per_module_by_depth = v.clone();
         }
+        if let Some(v) = o.hierarchy_sibling_route_prob {
+            self.hierarchy_sibling_route_prob = v;
+        }
     }
 }
 
@@ -1079,6 +1097,7 @@ pub struct Overrides {
     pub min_child_instances_per_module: Option<u32>,
     pub max_child_instances_per_module: Option<u32>,
     pub child_instances_per_module_by_depth: Option<BTreeMap<u32, CountRange>>,
+    pub hierarchy_sibling_route_prob: Option<f64>,
 }
 
 #[cfg(test)]

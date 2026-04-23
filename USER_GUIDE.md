@@ -307,6 +307,14 @@ opening the emitted `.sv`, including:
 - average / maximum child-output support per top output
   (`avg_instance_output_support_per_top_output`,
   `max_instance_output_support_per_top_output`)
+- child-input provenance
+  (`child_input_bindings_from_parent_ports`,
+  `child_input_bindings_from_instance_outputs`,
+  `child_input_bindings_from_mixed_support`,
+  `child_input_bindings_from_constants`)
+- hierarchy- and top-level sibling-routing fractions
+  (`instance_output_child_input_binding_fraction`,
+  `top_instance_output_child_input_binding_fraction`)
 - control fanout to child instances
 - weighted child interface / node / flop load
 - per-definition instantiation histogram
@@ -324,6 +332,9 @@ The current Phase 4 slice now has two planning lanes:
 - the current `on-demand` slice synthesizes children against
   parent-planned exact data-interface profiles, one profiled child
   definition per planned instance slot
+- `hierarchy_sibling_route_prob` controls whether later child data
+  inputs may bind from earlier sibling instance outputs; the current
+  parent-side routing slice keeps that surface purely combinational
 - the two knob families are intentionally mutually exclusive
 - pure comb-only modules do **not** expose `clk` / `rst_n`
 - sequential leaves do expose `clk` / `rst_n`
@@ -449,7 +460,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
 records:
 
 - `21` scenarios
@@ -469,8 +480,8 @@ and `1:3`, the mixed recursive depth-range profile `2:3`, the
 per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
 child-sourcing modes `library` and `on-demand`, exact profiled
 child-interface synthesis in the on-demand lane, real mixed
-shallow/deep leaf realization, and real parent-side composition above
-instance outputs.
+shallow/deep leaf realization, real parent-side composition above
+instance outputs, and real sibling-routed hierarchy child inputs.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -539,6 +550,18 @@ Current HEAD also has a focused clean profiled on-demand proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for exact profiled `on-demand`
 child-interface synthesis without `.sv` inspection.
+
+Current HEAD also has a focused clean sibling-routing proof at
+`/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, with:
+
+- `child_input_bindings_from_instance_outputs = 6`
+- `top_child_input_bindings_from_instance_outputs = 6`
+- `instance_output_child_input_binding_fraction = 0.75`
+- `top_instance_output_child_input_binding_fraction = 0.75`
+
+That artifact is also clean in Verilator plus both repo-owned Yosys
+modes and is the current trust surface for combinational sibling-routed
+hierarchy child-input binding without `.sv` inspection.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

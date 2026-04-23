@@ -337,6 +337,11 @@ instead of creating fresh logic.
   definition per planned instance slot against a parent-planned exact
   data-interface profile. Control ports stay structural and are not
   part of that profile.
+- `hierarchy_sibling_route_prob` — probability that later child data
+  inputs bind from earlier sibling instance outputs instead of always
+  binding from parent-boundary inputs. Range `[0.0, 1.0]`. Default
+  `0.35`. The current slice keeps this routing purely combinational;
+  parent-local registered routing is future work.
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
@@ -408,6 +413,7 @@ Config {
     num_leaf_modules: 0,
     num_child_instances: 0,
     hierarchy_child_source_mode: HierarchyChildSourceMode::Library,
+    hierarchy_sibling_route_prob: 0.35,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,
@@ -515,6 +521,7 @@ is accurate as of this commit.
 --num-leaf-modules
 --num-child-instances
 --hierarchy-child-source-mode <library|on-demand>
+--hierarchy-sibling-route-prob
 --min-hierarchy-depth, --max-hierarchy-depth
 --min-child-instances-per-module, --max-child-instances-per-module
 --child-instances-per-depth DEPTH=MIN:MAX

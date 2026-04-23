@@ -154,7 +154,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 repo-owned Phase 4 gate has now caught up at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`,
 so the mixed-depth story is no longer "focused-only" evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
@@ -279,11 +279,51 @@ human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The refreshed
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`,
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`,
 not `r11`, and it now explicitly proves both child-sourcing modes
 (`library` and `on-demand`) together with structural proof that the
 on-demand scenarios really emitted fresh child definitions per planned
 instance slot and exact profiled child-interface synthesis.
+
+### Combinational sibling routing is the right next layer before local parent state
+Once parent-composed outputs and exact profiled child sourcing were
+real, the next honest hierarchy question was not "should parents have
+local flops yet?" It was "can one child feed another through the parent
+without us faking it as a top-level wrapper input?"
+
+The current answer is now yes, but intentionally only on the simpler
+surface:
+
+- later child data inputs may bind from earlier sibling instance
+  outputs;
+- the routing stays acyclic by construction because only already-built
+  sibling outputs are eligible;
+- the routing stays purely combinational in the current slice; and
+- local parent flops remain future work instead of being smuggled into
+  the same step.
+
+That last point matters. Child-output -> child-input through local flop
+layers is a valid future hierarchy surface, but it is a different
+question from the one we needed to close here. This slice was about
+making the parent behave more like the leaf generator's cone builder,
+except with child-module outputs as additional dep-bearing leaves, while
+keeping the phase boundary honest.
+
+The metrics contract had to grow again for the same reason. A sibling
+routing feature that can only be confirmed by opening `.sv` is not a
+trustworthy feature. The design reports now distinguish:
+
+- child inputs bound from parent ports,
+- child inputs bound from sibling instance outputs,
+- mixed-support child inputs, and
+- the hierarchy-wide and top-level fractions of child inputs that come
+  from sibling instance outputs.
+
+The focused proof artifact is now
+`/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
+repo-owned Phase 4 gate at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
+now requires `saw_hierarchy_sibling_routing = true`.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

@@ -1,9 +1,127 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot6 — Land exact profiled on-demand child synthesis
+## 2026-04-23-boot7 — Land sibling-routed hierarchy child inputs
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now carries `hierarchy_sibling_route_prob`, a real Phase 4 knob for
+  whether later sibling child inputs may bind from earlier sibling
+  instance outputs instead of always coming from parent-boundary
+  inputs.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  now exposes that knob directly as
+  `--hierarchy-sibling-route-prob <float>`.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now gives both the wrapper and recursive hierarchy lanes a genuine
+  sibling-routing composition surface: later child instances may now
+  bind data inputs from dep-bearing earlier sibling outputs through the
+  same width-adaptation machinery used elsewhere in the generator,
+  while staying acyclic by construction. This slice stays intentionally
+  combinational at the parent level; local parent flops remain future
+  work.
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  now records `KnobId::HierarchySiblingRouteProb`, and `DepSet`
+  exposes `has_ports()` so hierarchy metrics can distinguish pure
+  parent-port support from sibling-instance-output support and mixed
+  support.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports trustworthy child-input provenance metrics:
+  `child_input_bindings_from_parent_ports`,
+  `child_input_bindings_from_instance_outputs`,
+  `child_input_bindings_from_mixed_support`,
+  `child_input_bindings_from_constants`,
+  `instance_output_child_input_binding_fraction`,
+  plus the corresponding top-level variants.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now treats sibling-routed hierarchy child inputs as a required Phase 4
+  coverage fact, and the banked Phase 4 matrix explicitly exercises the
+  new knob.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves the sibling-routing surface across all live construction
+  strategies via a seed sweep, while the existing metrics unit tests pin
+  the direct counts.
+
+**Why**
+
+- The hierarchy planner had already grown real parent-side composition
+  over child outputs, but child input binding was still too close to a
+  pure wrapper discipline.
+- The next honest step was to let the parent route between siblings the
+  way the leaf generator routes between live dep-bearing signals, while
+  still keeping the current phase intentionally simpler than the later
+  local-parent-state surface.
+- The user also asked to trust the numbers without reading emitted SV,
+  so sibling routing had to land together with explicit provenance
+  metrics and a refreshed repo-owned Phase 4 gate.
+
+**Validation**
+
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused regressions:
+  - `cargo test hierarchy_child_inputs_can_be_routed_from_sibling_instance_outputs --test pipeline`
+  - `cargo test design_metrics_capture_sibling_routed_child_inputs --lib`
+  - `cargo test phase4_hierarchy_coverage_requires_design_facts --bin tool_matrix`
+- Focused sibling-routing smoke:
+  - `cargo run --bin anvil -- --seed 29 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 1.0 --count 1 --out /tmp/anvil-hier-sibling-routing-smoke-r1`
+  - report:
+    `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`
+  - key facts:
+    - `child_input_bindings_from_instance_outputs = 6`
+    - `top_child_input_bindings_from_instance_outputs = 6`
+    - `instance_output_child_input_binding_fraction = 0.75`
+    - `top_instance_output_child_input_binding_fraction = 0.75`
+- Refreshed repo-owned Phase 4 rerun:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r13 --phase4-hierarchy-gate --yosys-mode both`
+  - report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
+  - key facts:
+    - `scenario_count = 21`
+    - `total_modules = 84`
+    - `coverage_gaps = []`
+    - `tool_summary.verilator_passed = 84`
+    - `tool_summary.yosys_without_abc_passed = 84`
+    - `tool_summary.yosys_with_abc_passed = 84`
+    - hierarchy coverage facts:
+      - `hierarchy_child_source_modes = ["library", "on-demand"]`
+      - `saw_profiled_child_interface_synthesis = true`
+      - `saw_hierarchy_parent_composition = true`
+      - `saw_hierarchy_sibling_routing = true`
+
+**Impact**
+
+- Phase 4 parent-side composition is no longer only "child output up to
+  top output". Later sibling instances may now consume earlier sibling
+  instance outputs directly, and the result is measurable numerically.
+- The current hierarchy doctrine is sharper now too: routing is richer,
+  but the slice still stays **combinational**. Local parent flops remain
+  future work rather than being smuggled into this step.
+- The banked Phase 4 proof artifact is now `r13`, not `r12`.
+- Phase 4 remains `in progress`. The next honest work narrows to local
+  parent state, deeper hierarchy composition beyond the current
+  sibling-binding slice, and later hierarchy-aware identity.
+
+**Files touched**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-23-boot6 — Land exact profiled on-demand child synthesis
+
+**Landed as:** `57eef7e`
 
 **What changed**
 

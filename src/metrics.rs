@@ -313,12 +313,17 @@ pub struct DesignMetrics {
     pub top_reset_inputs: usize,
     pub clock_fanout_instances: usize,
     pub reset_fanout_instances: usize,
+    pub top_child_input_bindings_from_parent_ports: usize,
+    pub top_child_input_bindings_from_instance_outputs: usize,
+    pub top_child_input_bindings_from_mixed_support: usize,
+    pub top_child_input_bindings_from_constants: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_outputs_reaching_instance_outputs: usize,
     pub top_outputs_without_instance_outputs: usize,
     pub top_instance_output_dependency_fraction: f64,
     pub top_parent_composed_output_fraction: f64,
+    pub top_instance_output_child_input_binding_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
 
@@ -332,6 +337,10 @@ pub struct DesignMetrics {
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
     pub dep_bearing_child_input_bindings: usize,
+    pub child_input_bindings_from_parent_ports: usize,
+    pub child_input_bindings_from_instance_outputs: usize,
+    pub child_input_bindings_from_mixed_support: usize,
+    pub child_input_bindings_from_constants: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -340,6 +349,8 @@ pub struct DesignMetrics {
     pub avg_child_data_inputs_per_instance: f64,
     pub avg_child_outputs_per_instance: f64,
     pub dep_bearing_child_input_binding_fraction: f64,
+    pub instance_output_child_input_binding_fraction: f64,
+    pub parent_port_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
     pub num_sequential_leaf_modules: usize,
@@ -753,6 +764,15 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.dep_bearing_child_input_bindings,
         out.total_child_data_input_bindings,
     );
+    out.instance_output_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_instance_outputs
+            + out.child_input_bindings_from_mixed_support,
+        out.total_child_data_input_bindings,
+    );
+    out.parent_port_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_parent_ports + out.child_input_bindings_from_mixed_support,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -762,6 +782,14 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.avg_instance_output_support_per_hierarchy_output = ratio(
         hierarchy_output_support_total,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.top_instance_output_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_instance_outputs
+            + out.top_child_input_bindings_from_mixed_support,
+        out.top_child_input_bindings_from_parent_ports
+            + out.top_child_input_bindings_from_instance_outputs
+            + out.top_child_input_bindings_from_mixed_support
+            + out.top_child_input_bindings_from_constants,
     );
     for (depth, count) in internal_module_occurrences_by_depth {
         out.avg_child_instances_by_parent_depth.insert(
@@ -902,8 +930,41 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
             .collect();
         state.out.total_child_data_input_bindings += child_data_inputs.len();
         for (port_id, node_id) in &instance.inputs {
-            if child_data_inputs.contains(port_id) && node_has_nonempty_deps(module, *node_id) {
+            if !child_data_inputs.contains(port_id) {
+                continue;
+            }
+            let deps = node_deps(module, *node_id);
+            if !deps.is_empty() {
                 state.out.dep_bearing_child_input_bindings += 1;
+            }
+            let has_ports = deps.has_ports();
+            let has_instance_outputs = deps.has_instance_output_virtuals();
+            match (has_ports, has_instance_outputs, deps.is_empty()) {
+                (_, _, true) => {
+                    state.out.child_input_bindings_from_constants += 1;
+                    if module.name == state.out.design {
+                        state.out.top_child_input_bindings_from_constants += 1;
+                    }
+                }
+                (true, true, false) => {
+                    state.out.child_input_bindings_from_mixed_support += 1;
+                    if module.name == state.out.design {
+                        state.out.top_child_input_bindings_from_mixed_support += 1;
+                    }
+                }
+                (true, false, false) => {
+                    state.out.child_input_bindings_from_parent_ports += 1;
+                    if module.name == state.out.design {
+                        state.out.top_child_input_bindings_from_parent_ports += 1;
+                    }
+                }
+                (false, true, false) => {
+                    state.out.child_input_bindings_from_instance_outputs += 1;
+                    if module.name == state.out.design {
+                        state.out.top_child_input_bindings_from_instance_outputs += 1;
+                    }
+                }
+                (false, false, false) => {}
             }
         }
         state.out.total_child_output_exposures += child.outputs.len();
@@ -989,11 +1050,15 @@ fn collect_instance_output_support(
     support
 }
 
-fn node_has_nonempty_deps(module: &Module, node_id: NodeId) -> bool {
+fn node_deps(module: &Module, node_id: NodeId) -> crate::ir::DepSet {
     match &module.nodes[node_id as usize] {
-        Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => true,
-        Node::Constant { .. } => false,
-        Node::Gate { deps, .. } => !deps.is_empty(),
+        Node::PrimaryInput { port, .. } => crate::ir::DepSet::from_port(*port),
+        Node::FlopQ { flop, .. } => crate::ir::DepSet::from_flop_virtual(*flop),
+        Node::InstanceOutput { instance, port, .. } => {
+            crate::ir::DepSet::from_instance_output_virtual(*instance, *port)
+        }
+        Node::Constant { .. } => crate::ir::DepSet::new(),
+        Node::Gate { deps, .. } => deps.clone(),
     }
 }
 
@@ -1284,6 +1349,35 @@ mod tests {
             met.avg_instance_output_support_per_top_output >= 1.0,
             "every top output should depend on at least one child output"
         );
+    }
+
+    #[test]
+    fn design_metrics_capture_sibling_routed_child_inputs() {
+        let cfg = Config {
+            seed: 27,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            hierarchy_sibling_route_prob: 1.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("sibling-routing hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert!(
+            met.child_input_bindings_from_instance_outputs > 0,
+            "expected at least one child input to be sourced from a sibling output"
+        );
+        assert!(
+            met.top_child_input_bindings_from_instance_outputs > 0,
+            "top wrapper should expose sibling-routed child inputs directly"
+        );
+        assert!(met.instance_output_child_input_binding_fraction > 0.0);
+        assert!(met.top_instance_output_child_input_binding_fraction > 0.0);
     }
 
     #[test]

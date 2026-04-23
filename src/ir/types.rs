@@ -250,6 +250,10 @@ pub enum KnobId {
     /// `Config::share_prob` — chance of a DAG-sharing fork at
     /// operand slots.
     ShareProb,
+    /// `Config::hierarchy_sibling_route_prob` — chance that a parent
+    /// binds a child data input from a previously-instantiated
+    /// sibling output when such a source is available.
+    HierarchySiblingRouteProb,
     /// `Config::flop_qfeedback_prob` — ZeroDefault vs QFeedback
     /// flop kind.
     FlopQFeedbackProb,
@@ -275,6 +279,7 @@ impl KnobId {
             KnobId::CombMuxEncodingProb => "comb_mux_encoding_prob",
             KnobId::FlopMuxEncodingProb => "flop_mux_encoding_prob",
             KnobId::ShareProb => "share_prob",
+            KnobId::HierarchySiblingRouteProb => "hierarchy_sibling_route_prob",
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
         }
     }
@@ -1810,6 +1815,10 @@ impl DepSet {
 
     pub fn contains_port(&self, port: PortId) -> bool {
         self.set.contains(&DepAtom::Port(port))
+    }
+
+    pub fn has_ports(&self) -> bool {
+        self.set.iter().any(|atom| matches!(atom, DepAtom::Port(_)))
     }
 
     pub fn contains_flop_virtual(&self, flop: FlopId) -> bool {

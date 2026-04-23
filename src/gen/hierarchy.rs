@@ -22,8 +22,8 @@ use super::{
 };
 use crate::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use crate::ir::{
-    DepSet, Design, Direction, GateOp, Instance, InstanceId, Module, ModuleInterfaceProfile, Node,
-    NodeId, Port, PortId,
+    DepSet, Design, Direction, GateOp, Instance, InstanceId, KnobId, Module,
+    ModuleInterfaceProfile, Node, NodeId, Port, PortId,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -382,22 +382,29 @@ fn generate_parent_module(
             input_bindings.push((child.reset.expect("leaf reset id"), rst_node));
         }
 
+        let mut binding_ctx = ChildInputBindingContext {
+            top: &mut top,
+            instance_pool: &mut instance_pool,
+            external_input_pool: &mut external_input_pool,
+            next_port_id: &mut next_port_id,
+        };
         for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
-            let node_id = if external_profile.is_some() {
-                bind_child_input_from_parent_interface(
-                    g,
-                    &mut top,
-                    &mut external_input_pool,
-                    child_input.width,
-                )
-            } else {
-                let input_name = format!("{}__{}", instance_name, child_input.name);
-                let (_, node_id) =
-                    add_top_input(&mut top, &mut next_port_id, &input_name, child_input.width);
-                node_id
-            };
+            let node_id = bind_child_input_from_parent_sources(
+                g,
+                &mut binding_ctx,
+                &instance_name,
+                &child_input.name,
+                child_input.width,
+                external_profile.is_some(),
+            );
             input_bindings.push((child_input.id, node_id));
         }
+        let ChildInputBindingContext {
+            top,
+            instance_pool,
+            external_input_pool: _,
+            next_port_id,
+        } = binding_ctx;
 
         top.instances.push(Instance {
             id: instance_id,
@@ -419,8 +426,8 @@ fn generate_parent_module(
                 DepSet::from_instance_output_virtual(instance_id, child_output.id),
             );
             if external_profile.is_none() {
-                let top_output_id = next_port_id;
-                next_port_id += 1;
+                let top_output_id = *next_port_id;
+                *next_port_id += 1;
                 top.outputs.push(Port {
                     id: top_output_id,
                     name: format!("{}__{}", instance_name, child_output.name),
@@ -450,29 +457,48 @@ fn generate_parent_module(
     top
 }
 
-fn bind_child_input_from_parent_interface(
+struct ChildInputBindingContext<'a> {
+    top: &'a mut Module,
+    instance_pool: &'a mut SignalPool,
+    external_input_pool: &'a mut SignalPool,
+    next_port_id: &'a mut PortId,
+}
+
+fn bind_child_input_from_parent_sources(
     g: &mut Generator,
-    top: &mut Module,
-    external_input_pool: &mut SignalPool,
+    ctx: &mut ChildInputBindingContext<'_>,
+    instance_name: &str,
+    child_input_name: &str,
     width: u32,
+    allow_external_pool_reuse: bool,
 ) -> NodeId {
-    if external_input_pool
-        .iter()
-        .any(|entry| !entry.deps.is_empty())
+    if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
+        && roll_hierarchy_sibling_route(ctx.top, &mut g.rng, g.cfg.hierarchy_sibling_route_prob)
     {
-        return cone::pick_terminal_dep_bearing(g, top, external_input_pool, width, None);
+        return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.instance_pool, width, None);
     }
 
-    let value = if width >= 128 {
-        0
-    } else {
-        g.rng.gen::<u128>() & ((1u128 << width) - 1)
-    };
-    let (node_id, is_new) = top.intern_constant(width, value);
-    if is_new {
-        external_input_pool.add(node_id, width, DepSet::new());
+    if allow_external_pool_reuse
+        && ctx
+            .external_input_pool
+            .iter()
+            .any(|entry| !entry.deps.is_empty())
+    {
+        return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.external_input_pool, width, None);
     }
+
+    let input_name = format!("{instance_name}__{child_input_name}");
+    let (port_id, node_id) = add_top_input(ctx.top, ctx.next_port_id, &input_name, width);
+    ctx.external_input_pool
+        .add(node_id, width, DepSet::from_port(port_id));
     node_id
+}
+
+fn roll_hierarchy_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchySiblingRouteProb, fired);
+    fired
 }
 
 fn build_parent_output_roots(

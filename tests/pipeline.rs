@@ -471,6 +471,69 @@ fn depth1_parent_outputs_depend_on_child_instance_outputs() {
 }
 
 #[test]
+fn hierarchy_child_inputs_can_be_routed_from_sibling_instance_outputs() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let mut saw_sibling_routing = false;
+        for seed in 0..32u64 {
+            let cfg = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 2,
+                num_child_instances: 4,
+                hierarchy_sibling_route_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            cfg.validate()
+                .expect("sibling-routed hierarchy config should be valid");
+
+            let mut g = Generator::new(cfg);
+            let design = g.generate_design();
+            anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                panic!(
+                    "sibling-routed hierarchy strategy {:?} seed {}: design validation failed: {}",
+                    strategy, seed, e
+                );
+            });
+
+            let metrics = anvil::metrics::compute_design(&design);
+            if metrics.child_input_bindings_from_instance_outputs > 0 {
+                assert!(
+                    metrics.top_child_input_bindings_from_instance_outputs > 0,
+                    "strategy {:?} seed {} should expose sibling-routed child inputs at the top: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.instance_output_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero hierarchy-wide sibling-routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.top_instance_output_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero top-level sibling-routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                saw_sibling_routing = true;
+                break;
+            }
+        }
+        assert!(
+            saw_sibling_routing,
+            "expected at least one sibling-routed hierarchy design across the 32-seed sweep for strategy {:?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn reproducibility() {
     let cfg = Config {
         seed: 12345,
