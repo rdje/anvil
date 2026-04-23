@@ -1,7 +1,7 @@
 //! End-to-end: generate many modules across seeds and assert each
 //! passes IR validation and produces non-empty SV output.
 
-use anvil::config::ConstructionStrategy;
+use anvil::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use anvil::ir::{GateOp, Node};
 use anvil::{Config, Generator};
 use std::collections::{BTreeMap, BTreeSet};
@@ -66,6 +66,57 @@ fn generates_valid_depth1_wrapper_designs() {
 }
 
 #[test]
+fn generates_valid_depth1_ondemand_wrapper_designs() {
+    for seed in 0..5u64 {
+        let cfg = Config {
+            seed,
+            hierarchy_depth: 1,
+            num_child_instances: 3,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("depth-1 on-demand hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "on-demand hierarchy seed {}: design validation failed: {}",
+                seed, e
+            );
+        });
+
+        assert_eq!(
+            design.modules.len(),
+            4,
+            "3 fresh child definitions + 1 top wrapper expected"
+        );
+        let top = design
+            .modules
+            .iter()
+            .find(|module| module.name == design.top)
+            .expect("top module must exist");
+        let used_children: BTreeSet<_> = top
+            .instances
+            .iter()
+            .map(|instance| instance.module.as_str())
+            .collect();
+        assert_eq!(top.instances.len(), 3);
+        assert_eq!(
+            used_children.len(),
+            3,
+            "on-demand wrapper mode should synthesize one fresh child definition per instance slot"
+        );
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.num_reused_instance_slots, 0);
+        assert_eq!(metrics.num_single_use_instantiated_modules, 3);
+        assert_eq!(metrics.single_use_instantiated_module_fraction, 1.0);
+    }
+}
+
+#[test]
 fn generates_valid_recursive_hierarchy_designs_with_bounded_shape() {
     for seed in 0..5u64 {
         let cfg = Config {
@@ -105,6 +156,42 @@ fn generates_valid_recursive_hierarchy_designs_with_bounded_shape() {
             (2..=3).contains(&metrics.max_child_instances_per_internal_module),
             "internal branching ceiling must stay inside requested range"
         );
+    }
+}
+
+#[test]
+fn generates_valid_recursive_hierarchy_designs_with_ondemand_child_sourcing() {
+    for seed in 0..4u64 {
+        let cfg = Config {
+            seed,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("on-demand recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "on-demand recursive hierarchy seed {}: design validation failed: {}",
+                seed, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert_eq!(metrics.num_reused_instance_slots, 0);
+        assert_eq!(
+            metrics.num_single_use_instantiated_modules, metrics.num_unique_instantiated_modules,
+            "on-demand recursive sourcing should keep every instantiated definition single-use"
+        );
+        assert_eq!(metrics.single_use_instantiated_module_fraction, 1.0);
     }
 }
 

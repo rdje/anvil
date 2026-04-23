@@ -318,6 +318,13 @@ The current Phase 4 slice now has two planning lanes:
   plus `min_child_instances_per_module..=max_child_instances_per_module`
   with optional repeated `child_instances_per_depth` overrides keyed by
   parent depth (`0` = top, `1` = its direct children, ...)
+- both hierarchy lanes now also expose
+  `hierarchy_child_source_mode = library | on-demand`
+- `library` keeps the reusable child-definition pool live
+- the current `on-demand` slice synthesizes one fresh child definition
+  per planned instance slot
+- the stronger future shape of width-demand-driven child synthesis with
+  required port widths is still ahead of current HEAD
 - the two knob families are intentionally mutually exclusive
 - pure comb-only modules do **not** expose `clk` / `rst_n`
 - sequential leaves do expose `clk` / `rst_n`
@@ -385,8 +392,9 @@ Useful options:
   (`num_leaf_modules ∈ {2, 4}`, exact / reuse / under-instantiation),
   representative recursive profiles (depth `2`, child-instance ranges
   `[2:3]` and `[1:3]`), the per-depth override profile
-  `0=4:4,1=2:2`, and real parent-side composition above instance
-  outputs.
+  `0=4:4,1=2:2`, explicit child-sourcing modes
+  `library` and `on-demand`, and real parent-side composition above
+  instance outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -442,25 +450,27 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
 records:
 
-- `18` scenarios
+- `21` scenarios
 - `4` designs per scenario
-- `72` total designs
+- `84` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 72/0`
-- `Yosys without-abc pass/fail = 72/0`
-- `Yosys with-abc pass/fail = 72/0`
+- `Verilator pass/fail = 84/0`
+- `Yosys without-abc pass/fail = 84/0`
+- `Yosys with-abc pass/fail = 84/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
 baseline. It covers the broadened `--num-child-instances` planner,
 bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
 and `1:3`, the mixed recursive depth-range profile `2:3`, the
-per-depth override profile `0=4:4,1=2:2`, real mixed shallow/deep leaf
-realization, and real parent-side composition above instance outputs.
+per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
+child-sourcing modes `library` and `on-demand`, real mixed
+shallow/deep leaf realization, and real parent-side composition above
+instance outputs.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -517,6 +527,20 @@ Current HEAD also has a focused clean per-depth branching proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for depth-specific hierarchy
 branching without `.sv` inspection.
+
+Current HEAD also has a focused clean on-demand wrapper proof at
+`/tmp/anvil-hier-ondemand-wrapper-smoke-r1/manifest.json`, with:
+
+- `num_instances = 3`
+- `num_unique_instantiated_modules = 3`
+- `num_single_use_instantiated_modules = 3`
+- `single_use_instantiated_module_fraction = 1.0`
+- `instance_reuse_fraction = 0.0`
+- `unused_library_fraction = 0.0`
+
+That artifact is also clean in Verilator plus both repo-owned Yosys
+modes and is the current trust surface for the first live
+`on-demand` child-sourcing slice.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

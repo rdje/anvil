@@ -278,6 +278,10 @@ pub struct DesignMetrics {
     pub unused_library_fraction: f64,
     pub instance_reuse_fraction: f64,
     pub instance_to_library_ratio: f64,
+    pub avg_instances_per_unique_instantiated_module: f64,
+    pub num_single_use_instantiated_modules: usize,
+    pub num_multiuse_instantiated_modules: usize,
+    pub single_use_instantiated_module_fraction: f64,
 
     // --- Hierarchy shape ---------------------------------------
     pub realized_min_leaf_depth: usize,
@@ -705,6 +709,22 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.unused_library_fraction = ratio(out.num_unused_module_definitions, out.num_library_modules);
     out.instance_reuse_fraction = ratio(out.num_reused_instance_slots, out.num_instances);
     out.instance_to_library_ratio = ratio(out.num_instances, out.num_library_modules);
+    out.avg_instances_per_unique_instantiated_module =
+        ratio(out.num_instances, out.num_unique_instantiated_modules);
+    out.num_single_use_instantiated_modules = out
+        .instantiated_module_histogram
+        .values()
+        .filter(|&&count| count == 1)
+        .count();
+    out.num_multiuse_instantiated_modules = out
+        .instantiated_module_histogram
+        .values()
+        .filter(|&&count| count > 1)
+        .count();
+    out.single_use_instantiated_module_fraction = ratio(
+        out.num_single_use_instantiated_modules,
+        out.num_unique_instantiated_modules,
+    );
     out.avg_child_data_inputs_per_instance =
         ratio(out.total_child_data_input_bindings, out.num_instances);
     out.avg_child_outputs_per_instance = ratio(out.total_child_output_exposures, out.num_instances);
@@ -1113,6 +1133,10 @@ mod tests {
         assert_eq!(met.unused_library_fraction, 0.0);
         assert_eq!(met.instance_reuse_fraction, 3.0 / 5.0);
         assert_eq!(met.instance_to_library_ratio, 2.5);
+        assert_eq!(met.avg_instances_per_unique_instantiated_module, 2.5);
+        assert_eq!(met.num_single_use_instantiated_modules, 0);
+        assert_eq!(met.num_multiuse_instantiated_modules, 2);
+        assert_eq!(met.single_use_instantiated_module_fraction, 0.0);
         assert_eq!(
             met.instantiated_module_histogram.values().sum::<usize>(),
             5,
@@ -1145,6 +1169,37 @@ mod tests {
         assert_eq!(met.unused_library_fraction, 0.5);
         assert_eq!(met.instance_reuse_fraction, 0.0);
         assert_eq!(met.instance_to_library_ratio, 0.5);
+        assert_eq!(met.avg_instances_per_unique_instantiated_module, 1.0);
+        assert_eq!(met.num_single_use_instantiated_modules, 2);
+        assert_eq!(met.num_multiuse_instantiated_modules, 0);
+        assert_eq!(met.single_use_instantiated_module_fraction, 1.0);
+    }
+
+    #[test]
+    fn design_metrics_capture_on_demand_single_use_child_sourcing() {
+        let cfg = Config {
+            seed: 23,
+            hierarchy_depth: 1,
+            num_child_instances: 4,
+            hierarchy_child_source_mode: crate::config::HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("on-demand depth-1 hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.num_instances, 4);
+        assert_eq!(met.num_unique_instantiated_modules, 4);
+        assert_eq!(met.num_reused_instance_slots, 0);
+        assert_eq!(met.library_coverage_fraction, 1.0);
+        assert_eq!(met.unused_library_fraction, 0.0);
+        assert_eq!(met.avg_instances_per_unique_instantiated_module, 1.0);
+        assert_eq!(met.num_single_use_instantiated_modules, 4);
+        assert_eq!(met.num_multiuse_instantiated_modules, 0);
+        assert_eq!(met.single_use_instantiated_module_fraction, 1.0);
     }
 
     #[test]

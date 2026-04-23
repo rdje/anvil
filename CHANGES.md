@@ -1,9 +1,137 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot4 — Close mixed-depth Phase 4 hierarchy gate cleanly
+## 2026-04-23-boot5 — Land explicit hierarchy child sourcing
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now makes hierarchy child sourcing a first-class, typed Phase 4 axis:
+  `hierarchy_child_source_mode = library | on-demand`.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  now exposes that axis directly on the CLI as
+  `--hierarchy-child-source-mode <library|on-demand>`.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now keeps the old reusable-library planner as the `library` path and
+  adds the first live `on-demand` path, where each planned instance
+  slot gets a fresh child definition instead of picking from a reusable
+  child pool.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports explicit single-use vs reused child-definition facts:
+  `avg_instances_per_unique_instantiated_module`,
+  `num_single_use_instantiated_modules`,
+  `num_multiuse_instantiated_modules`, and
+  `single_use_instantiated_module_fraction`.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now folds the child-sourcing axis into the repo-owned Phase 4 gate,
+  requiring both `library` and `on-demand` scenarios plus structural
+  proof that on-demand really emitted one fresh child definition per
+  instance slot.
+- The repo-owned Phase 4 hierarchy artifact is now refreshed from
+  `r10` to `r11` and covers the widened surface.
+
+**Why**
+
+- The current hierarchy story had reached the point where "library
+  child reuse vs fresh child synthesis" needed to be an explicit,
+  measurable design axis, not just a future note in the roadmap.
+- The user also asked for hierarchy quality to be judgeable from
+  trusted numbers rather than by opening emitted `.sv`, so the first
+  live on-demand slice had to land together with structural metrics and
+  representative gate evidence.
+- The honest first slice is "fresh child definition per instance slot";
+  it is deliberately narrower than the later stronger target of
+  width-demand-driven child synthesis with required port widths.
+
+**Validation**
+
+- Focused config / planner / metrics / pipeline regressions:
+  - `cargo test validate_rejects_on_demand_hierarchy_knob_without_hierarchy --lib`
+  - `cargo test validate_rejects_on_demand_wrapper_without_explicit_child_instances --lib`
+  - `cargo test validate_rejects_leaf_library_knob_in_on_demand_wrapper_mode --lib`
+  - `cargo test legacy_wrapper_on_demand_synthesizes_one_child_definition_per_instance --lib`
+  - `cargo test design_metrics_capture_on_demand_single_use_child_sourcing --lib`
+  - `cargo test generates_valid_depth1_ondemand_wrapper_designs --test pipeline`
+  - `cargo test generates_valid_recursive_hierarchy_designs_with_ondemand_child_sourcing --test pipeline`
+- Focused `tool_matrix` regressions:
+  - `cargo test phase4_hierarchy_gate_raises_designs_per_scenario_for_matrix --bin tool_matrix`
+  - `cargo test phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles --bin tool_matrix`
+  - `cargo test phase4_hierarchy_coverage_requires_design_facts --bin tool_matrix`
+  - `cargo test recursive_hierarchy_facts_follow_design_metrics --bin tool_matrix`
+- Focused on-demand wrapper smoke:
+  - `cargo run --bin anvil -- --seed 23 --out /tmp/anvil-hier-ondemand-wrapper-smoke-r1 --hierarchy-depth 1 --num-child-instances 3 --hierarchy-child-source-mode on-demand`
+  - report:
+    `/tmp/anvil-hier-ondemand-wrapper-smoke-r1/manifest.json`
+  - key facts:
+    - `num_instances = 3`
+    - `num_unique_instantiated_modules = 3`
+    - `num_single_use_instantiated_modules = 3`
+    - `single_use_instantiated_module_fraction = 1.0`
+    - `instance_reuse_fraction = 0.0`
+    - `unused_library_fraction = 0.0`
+  - downstream proof:
+    clean in Verilator, Yosys `synth -noabc`, and the repo-owned
+    Yosys with-ABC path.
+- Full refreshed repo-owned Phase 4 rerun:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r11 --phase4-hierarchy-gate --yosys-mode both`
+  - report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
+  - key facts:
+    - `scenario_count = 21`
+    - `modules_per_scenario = 4`
+    - `total_modules = 84`
+    - `artifact_kind = "design"`
+    - `coverage_gaps = []`
+    - `tool_summary.verilator_passed = 84`
+    - `tool_summary.verilator_failed = 0`
+    - `tool_summary.yosys_without_abc_passed = 84`
+    - `tool_summary.yosys_without_abc_failed = 0`
+    - `tool_summary.yosys_with_abc_passed = 84`
+    - `tool_summary.yosys_with_abc_failed = 0`
+    - hierarchy coverage facts:
+      - `hierarchy_child_source_modes = ["library", "on-demand"]`
+      - `saw_on_demand_child_sourcing = true`
+      - `saw_recursive_hierarchy = true`
+      - `saw_mixed_leaf_depth_hierarchy = true`
+      - `saw_hierarchy_parent_composition = true`
+
+**Impact**
+
+- Phase 4 now has an explicit, user-facing child-sourcing axis instead
+  of only the reusable-library story.
+- Hierarchy quality numbers now distinguish "everything reused" from
+  "every child fresh" directly, without requiring emitted-SV
+  inspection.
+- The repo-owned Phase 4 gate now proves that both sourcing modes are
+  exercised cleanly on current HEAD.
+- Phase 4 remains `in progress`. The remaining work is now narrower:
+  width-demand-driven on-demand child synthesis, local parent state,
+  and later hierarchy-aware identity.
+
+**Files touched**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+
+## 2026-04-23-boot4 — Close mixed-depth Phase 4 hierarchy gate cleanly
+
+**Landed as:** `f706232`
 
 **What changed**
 

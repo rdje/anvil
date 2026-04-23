@@ -331,11 +331,18 @@ instead of creating fresh logic.
   parent depth (`DEPTH=MIN:MAX`). This layers on top of the bounded
   recursive fallback range, so depth `0` can be forced to one
   branching profile while depth `1` uses another.
+- `hierarchy_child_source_mode` — explicit child-sourcing mode for both
+  hierarchy lanes. `library` keeps a reusable child-definition pool.
+  The current `on-demand` slice synthesizes one fresh child definition
+  per planned instance slot. The stronger future shape of
+  width-demand-driven child synthesis is still later work.
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
-- `library_prob` — probability of picking from the pre-generated
-  module pool vs generating a fresh sub-module on demand.
+- `library_prob` — internal future probabilistic dial for a later
+  mixed-sourcing planner. It is not the current user-facing control
+  surface; current HEAD uses the explicit
+  `hierarchy_child_source_mode` axis instead.
 
 ## Knob defaults
 
@@ -399,6 +406,7 @@ Config {
     hierarchy_depth: 0,
     num_leaf_modules: 0,
     num_child_instances: 0,
+    hierarchy_child_source_mode: HierarchyChildSourceMode::Library,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,
@@ -505,11 +513,15 @@ is accurate as of this commit.
 --hierarchy-depth
 --num-leaf-modules
 --num-child-instances
+--hierarchy-child-source-mode <library|on-demand>
+--min-hierarchy-depth, --max-hierarchy-depth
+--min-child-instances-per-module, --max-child-instances-per-module
+--child-instances-per-depth DEPTH=MIN:MAX
 ```
 
 ### Not yet exposed via CLI (reachable via `--config FILE`)
 - `use_async_reset` — unused (flops are always async-reset by discipline).
-- Hierarchy field `library_prob` — future on-demand-vs-library sourcing dial for later Phase 4+ work.
+- Hierarchy field `library_prob` — future probabilistic mixed-sourcing dial for later Phase 4+ work.
 - `max_nodes_per_module` — safety ceiling, not typically tuned.
 
 ## Knob serialization

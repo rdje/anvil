@@ -1,4 +1,6 @@
-use anvil::config::{ConstructionStrategy, CountRange, FactorizationLevel, IdentityMode};
+use anvil::config::{
+    ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
+};
 use anvil::metrics::{DesignMetrics, Metrics};
 use anvil::{Config, Design, Generator, GeneratorCheckpoint};
 use anyhow::{bail, Context, Result};
@@ -13,7 +15,7 @@ use std::process::Command;
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
-const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 60;
+const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 84;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -221,6 +223,7 @@ struct CoverageSummary {
     hierarchy_depths: BTreeSet<String>,
     hierarchy_leaf_module_counts: BTreeSet<String>,
     hierarchy_child_instance_counts: BTreeSet<String>,
+    hierarchy_child_source_modes: BTreeSet<String>,
     hierarchy_child_instance_override_profiles: BTreeSet<String>,
     gate_categories: BTreeSet<String>,
     gate_kinds: BTreeSet<String>,
@@ -232,6 +235,7 @@ struct CoverageSummary {
     saw_instance_output_node: bool,
     saw_reused_child_definition: bool,
     saw_underinstantiated_library: bool,
+    saw_on_demand_child_sourcing: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
     saw_mixed_leaf_depth_hierarchy: bool,
@@ -815,6 +819,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 "bounded recursive hierarchy with leaf depths inside [2:3], exact child-instance count 2, and combinational share-heavy leaves so the realized tree mixes shallow and deep branches",
                 phase4_recursive_mixed_depth_comb_focus_config(strategy, next_seed + 5),
             ),
+            (
+                "phase4_recur_d2_b2_ondemand_comb",
+                "bounded recursive hierarchy at exact depth 2 with exact child-instance count 2 and fresh on-demand child synthesis per instance slot",
+                phase4_recursive_ondemand_comb_focus_config(strategy, next_seed + 6),
+            ),
         ] {
             scenarios.push(make_scenario(
                 &format!("{strategy_slug}_nodeid_egraph_{name_suffix}"),
@@ -824,7 +833,7 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 config,
             )?);
         }
-        next_seed += 6;
+        next_seed += 7;
     }
 
     Ok(scenarios)
@@ -1158,6 +1167,14 @@ fn with_recursive_hierarchy_profile(
     cfg
 }
 
+fn with_hierarchy_child_source_mode(
+    mut cfg: Config,
+    source_mode: HierarchyChildSourceMode,
+) -> Config {
+    cfg.hierarchy_child_source_mode = source_mode;
+    cfg
+}
+
 fn phase4_hierarchy_comb_focus_config(
     strategy: ConstructionStrategy,
     seed: u64,
@@ -1218,6 +1235,22 @@ fn phase4_recursive_mixed_depth_comb_focus_config(
         3,
         2,
         2,
+    )
+}
+
+fn phase4_recursive_ondemand_comb_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    with_hierarchy_child_source_mode(
+        with_recursive_hierarchy(
+            share_heavy_comb_only_config(strategy, seed, 0.9),
+            2,
+            2,
+            2,
+            2,
+        ),
+        HierarchyChildSourceMode::OnDemand,
     )
 }
 
@@ -2380,6 +2413,11 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
         coverage.saw_multifile_design |= design.files.len() > 1;
         coverage.saw_reused_child_definition |= design.hierarchy.reused_child_definition;
         coverage.saw_underinstantiated_library |= design.hierarchy.underinstantiated_library;
+        coverage.saw_on_demand_child_sourcing |= scenario.config.uses_on_demand_child_sourcing()
+            && design.metrics.num_reused_instance_slots == 0
+            && design.metrics.num_unused_module_definitions == 0
+            && design.metrics.num_single_use_instantiated_modules
+                == design.metrics.num_unique_instantiated_modules;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -2419,6 +2457,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         .extend(src.hierarchy_leaf_module_counts.iter().cloned());
     dst.hierarchy_child_instance_counts
         .extend(src.hierarchy_child_instance_counts.iter().cloned());
+    dst.hierarchy_child_source_modes
+        .extend(src.hierarchy_child_source_modes.iter().cloned());
     dst.hierarchy_child_instance_override_profiles.extend(
         src.hierarchy_child_instance_override_profiles
             .iter()
@@ -2437,6 +2477,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_instance_output_node |= src.saw_instance_output_node;
     dst.saw_reused_child_definition |= src.saw_reused_child_definition;
     dst.saw_underinstantiated_library |= src.saw_underinstantiated_library;
+    dst.saw_on_demand_child_sourcing |= src.saw_on_demand_child_sourcing;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
     dst.saw_mixed_leaf_depth_hierarchy |= src.saw_mixed_leaf_depth_hierarchy;
@@ -2476,6 +2517,10 @@ fn seed_scenario_coverage(coverage: &mut CoverageSummary, scenario: &Scenario) {
             format!("{min_depth}:{max_depth}")
         };
         coverage.hierarchy_depths.insert(depth_label);
+        coverage.hierarchy_child_source_modes.insert(
+            hierarchy_child_source_mode_slug(scenario.config.hierarchy_child_source_mode)
+                .to_string(),
+        );
         coverage
             .hierarchy_leaf_module_counts
             .insert(scenario.config.num_leaf_modules.to_string());
@@ -2496,6 +2541,13 @@ fn seed_scenario_coverage(coverage: &mut CoverageSummary, scenario: &Scenario) {
                 .hierarchy_child_instance_override_profiles
                 .insert(profile);
         }
+    }
+}
+
+fn hierarchy_child_source_mode_slug(mode: HierarchyChildSourceMode) -> &'static str {
+    match mode {
+        HierarchyChildSourceMode::Library => "library",
+        HierarchyChildSourceMode::OnDemand => "on-demand",
     }
 }
 
@@ -2711,6 +2763,11 @@ fn compute_coverage_gaps(
                     gaps.push(format!("missing child-instance profile {child_count}"));
                 }
             }
+            for source_mode in ["library", "on-demand"] {
+                if !coverage.hierarchy_child_source_modes.contains(source_mode) {
+                    gaps.push(format!("missing hierarchy child-source mode {source_mode}"));
+                }
+            }
             if !coverage
                 .hierarchy_child_instance_override_profiles
                 .contains("0=4:4,1=2:2")
@@ -2790,6 +2847,9 @@ fn compute_coverage_gaps(
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_underinstantiated_library {
         gaps.push("matrix never left generated leaf definitions unused by the wrapper".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_on_demand_child_sourcing {
+        gaps.push("matrix never proved on-demand child sourcing structurally".to_string());
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_recursive_hierarchy {
         gaps.push("matrix never emitted a recursive hierarchy design".to_string());
@@ -3293,9 +3353,9 @@ mod tests {
         let mut cli = test_cli();
         cli.phase4_hierarchy_gate = true;
 
-        let plan = derive_run_plan(&cli, 18);
+        let plan = derive_run_plan(&cli, 21);
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 72);
+        assert_eq!(plan.total_modules, 84);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -3306,6 +3366,7 @@ mod tests {
         let mut strategies = BTreeSet::new();
         let mut leaf_counts = BTreeSet::new();
         let mut child_counts = BTreeSet::new();
+        let mut child_source_modes = BTreeSet::new();
         let mut override_profiles = BTreeSet::new();
         let mut range_depths = BTreeSet::new();
         let mut names = BTreeSet::new();
@@ -3320,6 +3381,9 @@ mod tests {
                     .effective_child_instance_range()
                     .expect("phase4 scenarios should be hierarchical"),
             );
+            child_source_modes.insert(hierarchy_child_source_mode_slug(
+                scenario.config.hierarchy_child_source_mode,
+            ));
             if let Some(profile) = child_instances_override_profile_label(
                 &scenario.config.child_instances_per_module_by_depth,
             ) {
@@ -3338,13 +3402,14 @@ mod tests {
                 FactorizationLevel::EGraph
             );
         }
-        assert_eq!(scenarios.len(), 18);
-        assert_eq!(names.len(), 18);
+        assert_eq!(scenarios.len(), 21);
+        assert_eq!(names.len(), 21);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
             BTreeSet::from([(1, 3), (2, 2), (2, 3), (4, 4)])
         );
+        assert_eq!(child_source_modes, BTreeSet::from(["library", "on-demand"]));
         assert_eq!(range_depths, BTreeSet::from([(1, 1), (2, 2), (2, 3)]));
         assert_eq!(
             override_profiles,
@@ -3361,6 +3426,7 @@ mod tests {
             "phase4_recur_d2_b2to3_comb",
             "phase4_recur_profile_d2_top4_mid2_seq",
             "phase4_recur_d2to3_b2_mixed_comb",
+            "phase4_recur_d2_b2_ondemand_comb",
         ] {
             assert!(
                 names.iter().any(|name| name.ends_with(suffix)),
@@ -3382,6 +3448,7 @@ mod tests {
             hierarchy_depths: BTreeSet::from(["1".to_string()]),
             hierarchy_leaf_module_counts: BTreeSet::from(["2".to_string()]),
             hierarchy_child_instance_counts: BTreeSet::from(["2".to_string()]),
+            hierarchy_child_source_modes: BTreeSet::from(["library".to_string()]),
             gate_categories: BTreeSet::from([
                 "arithmetic".to_string(),
                 "bitwise".to_string(),
@@ -3428,6 +3495,9 @@ mod tests {
             .any(|gap| gap.contains("child-instance profile 4")));
         assert!(gaps
             .iter()
+            .any(|gap| gap.contains("child-source mode on-demand")));
+        assert!(gaps
+            .iter()
             .any(|gap| gap.contains("per-depth child-instance override profile")));
         assert!(gaps.iter().any(|gap| gap.contains("hierarchy design")));
         assert!(gaps
@@ -3436,6 +3506,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("module with child instances")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("on-demand child sourcing")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
         assert!(gaps
             .iter()

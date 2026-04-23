@@ -20,7 +20,7 @@ use super::{
     pool::SignalPool,
     Generator,
 };
-use crate::config::ConstructionStrategy;
+use crate::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use crate::ir::{
     DepSet, Design, Direction, GateOp, Instance, InstanceId, Module, Node, NodeId, Port, PortId,
 };
@@ -45,17 +45,25 @@ fn generate_legacy_exact_design(g: &mut Generator) -> Design {
         g.cfg.hierarchy_depth == 1,
         "legacy hierarchy mode expects exact depth-1 wrapper planning"
     );
-    debug_assert!(
-        g.cfg.num_leaf_modules >= 1,
-        "legacy hierarchy mode requires a non-empty leaf library"
-    );
-
-    let mut modules = Vec::with_capacity(g.cfg.num_leaf_modules as usize + 1);
-    for _ in 0..g.cfg.num_leaf_modules {
-        modules.push(g.generate_module());
-    }
     let exact_instances = g.cfg.effective_num_child_instances() as usize;
-    let instance_plan = plan_child_instance_indices(g, modules.len(), exact_instances);
+    let (mut modules, instance_plan) = match g.cfg.hierarchy_child_source_mode {
+        HierarchyChildSourceMode::Library => {
+            let mut modules = Vec::with_capacity(g.cfg.num_leaf_modules as usize + 1);
+            for _ in 0..g.cfg.num_leaf_modules {
+                modules.push(g.generate_module());
+            }
+            let instance_plan = plan_child_instance_indices(g, modules.len(), exact_instances);
+            (modules, instance_plan)
+        }
+        HierarchyChildSourceMode::OnDemand => {
+            let mut modules = Vec::with_capacity(exact_instances + 1);
+            for _ in 0..exact_instances {
+                modules.push(g.generate_module());
+            }
+            let instance_plan = (0..exact_instances).collect();
+            (modules, instance_plan)
+        }
+    };
 
     let top_index = g.next_module_index;
     g.next_module_index += 1;
@@ -132,12 +140,22 @@ fn build_recursive_subtree(
     let child_min_depth = min_remaining_depth.saturating_sub(1);
     let child_max_depth = max_remaining_depth - 1;
     let force_mixed_children = child_min_depth < child_max_depth && target_instances >= 2;
-    let library_len = plan_child_library_len(g, target_instances, force_mixed_children);
+    let (child_definition_count, instance_plan) = match g.cfg.hierarchy_child_source_mode {
+        HierarchyChildSourceMode::Library => {
+            let library_len = plan_child_library_len(g, target_instances, force_mixed_children);
+            let instance_plan = plan_child_instance_indices(g, library_len, target_instances);
+            (library_len, instance_plan)
+        }
+        HierarchyChildSourceMode::OnDemand => {
+            let instance_plan = (0..target_instances).collect();
+            (target_instances, instance_plan)
+        }
+    };
     let child_depth_ranges =
-        plan_child_depth_ranges(g, library_len, child_min_depth, child_max_depth);
+        plan_child_depth_ranges(g, child_definition_count, child_min_depth, child_max_depth);
 
     let mut descendant_modules = Vec::new();
-    let mut direct_children = Vec::with_capacity(library_len);
+    let mut direct_children = Vec::with_capacity(child_definition_count);
     for (child_min, child_max) in child_depth_ranges {
         let mut child = build_recursive_subtree(g, parent_depth + 1, child_min, child_max).modules;
         let child_root = child
@@ -147,7 +165,6 @@ fn build_recursive_subtree(
         direct_children.push(child_root);
     }
 
-    let instance_plan = plan_child_instance_indices(g, direct_children.len(), target_instances);
     let parent_index = g.next_module_index;
     g.next_module_index += 1;
     let parent = generate_parent_module(
@@ -555,6 +572,33 @@ mod tests {
             Some("rst_n")
         );
         assert_eq!(top.inputs.len(), 3, "clk + rst_n + one child data input");
+    }
+
+    #[test]
+    fn legacy_wrapper_on_demand_synthesizes_one_child_definition_per_instance() {
+        let mut g = Generator::new(Config {
+            seed: 23,
+            hierarchy_depth: 1,
+            num_child_instances: 3,
+            hierarchy_child_source_mode: crate::config::HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        });
+
+        let design = generate_design(&mut g);
+        let top = design
+            .modules
+            .iter()
+            .find(|m| m.name == design.top)
+            .expect("top exists");
+        let used_children: std::collections::BTreeSet<_> = top
+            .instances
+            .iter()
+            .map(|instance| instance.module.as_str())
+            .collect();
+
+        assert_eq!(top.instances.len(), 3);
+        assert_eq!(used_children.len(), 3);
+        assert_eq!(design.modules.len(), 4, "3 fresh children + top");
     }
 
     #[test]

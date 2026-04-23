@@ -1,4 +1,6 @@
-use anvil::config::{ConstructionStrategy, CountRange, FactorizationLevel, IdentityMode};
+use anvil::config::{
+    ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
+};
 use anvil::{Config, Generator};
 use clap::{Parser, ValueEnum};
 use std::collections::BTreeMap;
@@ -252,6 +254,11 @@ struct Cli {
     /// instantiate every generated leaf definition exactly once.
     #[arg(long)]
     num_child_instances: Option<u32>,
+
+    /// How Phase 4 parents source child module definitions: from a
+    /// reusable library or as fresh per-instance modules.
+    #[arg(long, value_enum)]
+    hierarchy_child_source_mode: Option<HierarchyChildSourceMode>,
 
     /// Minimum child-instance count for each non-leaf module in
     /// bounded recursive hierarchy mode. Must be paired with
@@ -573,6 +580,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_depth: cli.hierarchy_depth,
         num_leaf_modules: cli.num_leaf_modules,
         num_child_instances: cli.num_child_instances,
+        hierarchy_child_source_mode: cli.hierarchy_child_source_mode,
         min_hierarchy_depth: cli.min_hierarchy_depth,
         max_hierarchy_depth: cli.max_hierarchy_depth,
         min_child_instances_per_module: cli.min_child_instances_per_module,
@@ -656,6 +664,8 @@ mod tests {
             "4",
             "--num-child-instances",
             "7",
+            "--hierarchy-child-source-mode",
+            "on-demand",
             "--min-hierarchy-depth",
             "2",
             "--max-hierarchy-depth",
@@ -683,6 +693,10 @@ mod tests {
         assert_eq!(overrides.hierarchy_depth, Some(1));
         assert_eq!(overrides.num_leaf_modules, Some(4));
         assert_eq!(overrides.num_child_instances, Some(7));
+        assert_eq!(
+            overrides.hierarchy_child_source_mode,
+            Some(HierarchyChildSourceMode::OnDemand)
+        );
         assert_eq!(overrides.min_hierarchy_depth, Some(2));
         assert_eq!(overrides.max_hierarchy_depth, Some(3));
         assert_eq!(overrides.min_child_instances_per_module, Some(2));

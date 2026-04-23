@@ -91,7 +91,7 @@ That buys several real things immediately:
 
 Just as importantly, it keeps the open work honest. The newly-landed
 top layer is still **combinational only**; deeper recursive
-sub-hierarchy growth, local parent flops, on-demand child sourcing, and
+sub-hierarchy growth, local parent flops, width-demand-driven child synthesis, and
 hierarchical identity are all still future work. The slice is real, but
 it does not pretend Phase 4 is already solved.
 
@@ -153,7 +153,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 repo-owned Phase 4 gate has now caught up at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`,
 so the mixed-depth story is no longer "focused-only" evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
@@ -224,8 +224,8 @@ forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
 What it does **not** do yet is move beyond that banked mixed-depth gate
-into the next deeper hierarchy surfaces such as on-demand child
-sourcing and local parent state.
+into the next deeper hierarchy surfaces such as width-demand-driven
+child synthesis and local parent state.
 
 One more gate-level rule turned out to matter here: when a repo-owned
 matrix grows new representative scenarios, its minimum total artifact
@@ -241,6 +241,46 @@ generated direct child definition is instantiated at least once. That
 keeps reuse live without manufacturing dead unreachable subtrees just to
 inflate counts. The legacy exact wrapper lane remains the place where
 top-level under-instantiation of a pre-generated library is exercised.
+
+### Explicit child sourcing must be a real axis, not a vague future promise
+Once the wrapper/reuse/under-instantiation story and the recursive
+mixed-depth story were both banked, the next honest Phase 4 question
+was no longer "can hierarchy exist?" but "how do parents obtain child
+definitions?"
+
+That decision is too load-bearing to hide behind ad hoc planner
+behavior. It needs to be a user-visible, measurable axis:
+
+- `library` means pre-generate a reusable child-definition pool and let
+  instance slots pick from it;
+- `on-demand` means synthesize fresh child definitions per planned
+  instance slot.
+
+The current landed `on-demand` slice is intentionally the first honest
+one: one fresh child definition per instance slot, with the resulting
+single-use structure proven numerically by `DesignMetrics` and the
+Phase 4 gate. It does **not** yet claim the stronger future behavior of
+"synthesize a fresh child with exactly the port widths the parent
+needs." That narrower truth matters, because it keeps the docs from
+over-claiming signoff-grade machinery that has not landed yet.
+
+That is also why the metrics contract grew again. The hierarchy reports
+now need to distinguish:
+
+- reused child definitions,
+- single-use instantiated definitions, and
+- the average instance count per unique instantiated module.
+
+Without those numbers, `library` vs `on-demand` would still force a
+human to open the emitted `.sv`, which is exactly the trust failure we
+want to avoid.
+
+The repo-owned Phase 4 gate has now caught up here too. The refreshed
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`,
+not `r10`, and it now explicitly proves both child-sourcing modes
+(`library` and `on-demand`) together with structural proof that the
+on-demand scenarios really emitted fresh child definitions per planned
+instance slot.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

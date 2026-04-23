@@ -42,6 +42,31 @@ pub struct CountRange {
     pub max: u32,
 }
 
+/// How Phase 4 parents obtain child module definitions.
+///
+/// `Library` keeps the current reusable-definition story live:
+/// parent planning first builds a child library, then instance slots
+/// pick from that pool. `OnDemand` instead synthesizes a fresh child
+/// definition for each planned instance slot. This is intentionally
+/// orthogonal to hierarchy depth and branching: both the legacy
+/// depth-1 wrapper lane and the recursive lane can now choose whether
+/// children come from a reusable library or from fresh per-instance
+/// synthesis.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+#[clap(rename_all = "kebab-case")]
+pub enum HierarchyChildSourceMode {
+    /// Pre-generate a reusable child-definition pool and instantiate
+    /// from it.
+    #[default]
+    Library,
+    /// Synthesize a fresh child definition for each planned instance
+    /// slot. Reuse then has to be asked for explicitly in future
+    /// hierarchy-aware identity work rather than appearing from the
+    /// child planner.
+    OnDemand,
+}
+
 /// Identity mode — the coarse answer to "what does a `NodeId`
 /// mean?".
 ///
@@ -362,6 +387,8 @@ pub struct Config {
     #[serde(default)]
     pub num_child_instances: u32,
     #[serde(default)]
+    pub hierarchy_child_source_mode: HierarchyChildSourceMode,
+    #[serde(default)]
     pub min_hierarchy_depth: u32,
     #[serde(default)]
     pub max_hierarchy_depth: u32,
@@ -506,6 +533,7 @@ impl Default for Config {
             hierarchy_depth: 0,
             num_leaf_modules: 0,
             num_child_instances: 0,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::Library,
             min_hierarchy_depth: 0,
             max_hierarchy_depth: 0,
             min_child_instances_per_module: 0,
@@ -554,9 +582,17 @@ pub enum ConfigError {
     #[error("hierarchy_depth > 0 requires num_leaf_modules >= 1 (got {0})")]
     HierarchyRequiresLeafModules(u32),
     #[error(
+        "hierarchy_child_source_mode={0:?} requires hierarchy mode; the knob is ignored in leaf-only mode"
+    )]
+    HierarchyChildSourceRequiresHierarchy(HierarchyChildSourceMode),
+    #[error(
         "num_child_instances ({0}) requires hierarchy_depth > 0; the knob is ignored in leaf-only mode"
     )]
     ChildInstancesRequireHierarchy(u32),
+    #[error(
+        "hierarchy_child_source_mode=on-demand in legacy depth-1 wrapper mode requires num_child_instances >= 1"
+    )]
+    OnDemandWrapperRequiresChildInstances,
     #[error(
         "child instance range is invalid: min={min}, max={max} (use both zero to keep legacy exact-child-count mode, or 1 <= min <= max)"
     )]
@@ -589,6 +625,10 @@ pub enum ConfigError {
         "num_leaf_modules ({0}) is only valid in legacy exact depth-1 wrapper mode; recursive range mode plans child libraries on demand"
     )]
     LeafLibraryRequiresLegacyHierarchy(u32),
+    #[error(
+        "num_leaf_modules ({0}) is only valid when hierarchy_child_source_mode=library in legacy exact depth-1 wrapper mode"
+    )]
+    LeafLibraryRequiresLibrarySourcing(u32),
 }
 
 impl Config {
@@ -610,6 +650,10 @@ impl Config {
         } else {
             self.num_child_instances
         }
+    }
+
+    pub fn uses_on_demand_child_sourcing(&self) -> bool {
+        self.hierarchy_child_source_mode == HierarchyChildSourceMode::OnDemand
     }
 
     pub fn uses_hierarchy_range_mode(&self) -> bool {
@@ -752,13 +796,29 @@ impl Config {
                 ));
             }
         } else {
+            if self.hierarchy_depth == 0 && self.uses_on_demand_child_sourcing() {
+                return Err(ConfigError::HierarchyChildSourceRequiresHierarchy(
+                    self.hierarchy_child_source_mode,
+                ));
+            }
             if self.hierarchy_depth > 1 {
                 return Err(ConfigError::HierarchyDepthUnsupported(self.hierarchy_depth));
             }
-            if self.hierarchy_depth > 0 && self.num_leaf_modules < 1 {
-                return Err(ConfigError::HierarchyRequiresLeafModules(
-                    self.num_leaf_modules,
-                ));
+            if self.hierarchy_depth > 0 {
+                if self.uses_on_demand_child_sourcing() {
+                    if self.num_leaf_modules > 0 {
+                        return Err(ConfigError::LeafLibraryRequiresLibrarySourcing(
+                            self.num_leaf_modules,
+                        ));
+                    }
+                    if self.num_child_instances == 0 {
+                        return Err(ConfigError::OnDemandWrapperRequiresChildInstances);
+                    }
+                } else if self.num_leaf_modules < 1 {
+                    return Err(ConfigError::HierarchyRequiresLeafModules(
+                        self.num_leaf_modules,
+                    ));
+                }
             }
             if self.hierarchy_depth == 0 && self.num_child_instances > 0 {
                 return Err(ConfigError::ChildInstancesRequireHierarchy(
@@ -941,6 +1001,9 @@ impl Config {
         if let Some(v) = o.num_child_instances {
             self.num_child_instances = v;
         }
+        if let Some(v) = o.hierarchy_child_source_mode {
+            self.hierarchy_child_source_mode = v;
+        }
         if let Some(v) = o.min_hierarchy_depth {
             self.min_hierarchy_depth = v;
         }
@@ -1010,6 +1073,7 @@ pub struct Overrides {
     pub hierarchy_depth: Option<u32>,
     pub num_leaf_modules: Option<u32>,
     pub num_child_instances: Option<u32>,
+    pub hierarchy_child_source_mode: Option<HierarchyChildSourceMode>,
     pub min_hierarchy_depth: Option<u32>,
     pub max_hierarchy_depth: Option<u32>,
     pub min_child_instances_per_module: Option<u32>,
@@ -1109,6 +1173,50 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_on_demand_hierarchy_knob_without_hierarchy() {
+        let cfg = Config {
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::HierarchyChildSourceRequiresHierarchy(mode)) => {
+                assert_eq!(mode, HierarchyChildSourceMode::OnDemand);
+            }
+            other => panic!("expected hierarchy child-source rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_on_demand_wrapper_without_explicit_child_instances() {
+        let cfg = Config {
+            hierarchy_depth: 1,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::OnDemandWrapperRequiresChildInstances) => {}
+            other => panic!("expected on-demand wrapper child-count rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_rejects_leaf_library_knob_in_on_demand_wrapper_mode() {
+        let cfg = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::LeafLibraryRequiresLibrarySourcing(count)) => {
+                assert_eq!(count, 2);
+            }
+            other => panic!("expected on-demand leaf-library rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn effective_num_child_instances_preserves_legacy_zero_as_leaf_count() {
         let cfg = Config {
             hierarchy_depth: 1,
@@ -1125,6 +1233,15 @@ mod tests {
             ..Config::default()
         };
         assert_eq!(cfg.effective_num_child_instances(), 7);
+
+        let cfg = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 0,
+            num_child_instances: 5,
+            hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+            ..Config::default()
+        };
+        assert_eq!(cfg.effective_num_child_instances(), 5);
     }
 
     #[test]
