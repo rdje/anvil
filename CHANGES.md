@@ -1,9 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-1913 — Close refreshed recursive Phase 4 hierarchy gate cleanly
+## 2026-04-23-boot2 — Complete literal bootstrap pass and fix stale README closure note
 
 **Landed as:** this commit
+
+**What changed**
+
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md) no
+  longer says the refreshed recursive Phase 4 hierarchy matrix closure
+  is "the next honest closure step". That wording was stale after the
+  banked `r9` report landed. The README now says what the repo already
+  proves elsewhere: the recursive Phase 4 matrix is fully banked, and
+  the next honest work is deeper hierarchy capability rather than
+  another closure refresh.
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md) now
+  records that a literal `SESSION_BOOTSTRAP.md` pass was rerun against
+  current HEAD and that the only live-doc drift found was the stale
+  README sentence above.
+
+**Why**
+
+- The user correctly called out that the previous bootstrap response had
+  not fully executed `SESSION_BOOTSTRAP.md`.
+- Re-running the full bootstrap pass across the live docs, the full
+  mdBook, and the Rust workspace showed one real drift: the README was
+  still talking as if the Phase 4 closure refresh had not happened yet,
+  even though `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/` is already
+  the banked repo-owned artifact.
+
+**Validation**
+
+- Re-read all required live docs, the full mdBook, and every Rust
+  source / test / example per `SESSION_BOOTSTRAP.md`.
+- `cargo check --all-targets`
+- `cargo test`
+- `git --no-pager log -5 --oneline`
+- `git --no-pager status --short`
+
+**Impact**
+
+- Bootstrap recovery is now truthful again: a cold-start reader will not
+  be told that the Phase 4 closure refresh is still pending when it has
+  already been banked.
+- No code or roadmap state changed; this is a docs-recovery slice only.
+
+**Files touched**
+
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+
+## 2026-04-23-1913 — Close refreshed recursive Phase 4 hierarchy gate cleanly
+
+**Landed as:** `1bda5c7`
 
 **What changed**
 

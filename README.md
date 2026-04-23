@@ -352,8 +352,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
   `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
   `hierarchy_parent_composed_outputs = 36`, and
-  `top_parent_composed_outputs = 18`. Full matrix refresh on the newer
-  recursive code is the next honest closure step. Parameterization and
+  `top_parent_composed_outputs = 18`. The refreshed recursive Phase 4
+  matrix is now fully banked; the next honest work is deeper hierarchy
+  capability rather than another closure refresh. Parameterization and
   broader artifact-family selection are still roadmap work. See
   `ROADMAP.md` for phase gating.
 
