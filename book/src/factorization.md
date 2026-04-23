@@ -448,9 +448,11 @@ for lvl in none cse operand-unique commutative associative \
 done
 ```
 
-The gate count monotonically decreases (or stays equal) as the
-level climbs — more factorization always implies fewer named
-nodes.
+Higher rungs usually reduce named-node count on a broad seed sweep, but
+one fixed seed is not a strict monotonic proof: enabling a lower rung can
+change retry paths, compaction opportunities, and legal operand shapes.
+Use the metrics as evidence for each rung's effect rather than assuming
+per-seed gate-count monotonicity.
 
 ## Pointers
 

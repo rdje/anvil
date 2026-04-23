@@ -41,6 +41,9 @@ pub struct Module {
     pub priority_encoder_built:    u32,   // block-build counters
     pub comb_mux_one_hot_built:    u32,
     pub comb_mux_encoded_built:    u32,
+    pub case_mux_built:            u32,
+    pub casez_mux_built:           u32,
+    pub for_fold_built:            u32,
     pub fold_identities_applied:   u64,   // ConstantFold layer fires
     pub peephole_rewrites_applied: u64,   // Peephole layer fires
     pub flatten_associative_applied: u64, // Associative layer fires
@@ -86,6 +89,9 @@ pub enum GateOp {
     Eq, Neq, Lt, Gt, Le, Ge,
     // Structured
     Mux,                     // [sel, a, b]
+    CaseMux,                 // [sel, data_0, data_1, ...]
+    CasezMux,                // [sel, value_0, wild_0, data_0, ...]
+    ForFold { kind: ForFoldKind, trip_count: u32, chunk_width: u32 },
     Slice { hi: u32, lo: u32 },
     Concat,                  // variadic
     // Reductions (output is 1-bit)
@@ -93,6 +99,8 @@ pub enum GateOp {
     // Shifts
     Shl, Shr,                // [value, amount]
 }
+
+pub enum ForFoldKind { Xor, Or, And, Add }
 
 pub enum ResetKind { None, Sync, Async }   // always Async today
 
@@ -124,16 +132,21 @@ pub struct Flop {
 }
 ```
 
-The hierarchy slice is intentionally narrow today:
+The hierarchy slice is intentionally narrow, but it is no longer just
+placeholder structure:
 
-- `Design` is now real, not aspirational;
-- `Module.instances` and `Node::InstanceOutput` are now real, not
-  future placeholders; but
-- parent-side cone construction from instance outputs is still future
-  work.
+- `Design` is real, not aspirational.
+- `Module.instances` and `Node::InstanceOutput` are real parent-side
+  IR surfaces.
+- Parent modules now build a first combinational composition layer over
+  child `InstanceOutput` leaves.
+- The generator supports both the legacy exact depth-1 wrapper lane and
+  the bounded recursive hierarchy lane, with library/on-demand child
+  sourcing and sibling-routed child-input bindings.
 
-So the IR now has genuine design/module/instance structure, while the
-generator still uses it in a wrapper-style depth-1 composition pass.
+The remaining open hierarchy work is richer parent-local behavior:
+local parent flops, later registered child-to-child routing when that
+phase is selected, and hierarchy-aware identity/factorization.
 
 ## Node construction: `intern_gate` / `intern_constant`
 

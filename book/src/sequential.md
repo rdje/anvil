@@ -84,8 +84,10 @@ Inside `build_cone`, when the recursion picks "this node is a flop":
 5. Return the FlopQ node as the chosen sub-expression.
 
 The worklist may grow during draining (a D-cone may itself contain
-flops). The loop terminates because there is a maximum recursion depth
-on each cone, the gate set is finite, and `flop_prob` < 1.
+flops). The loop terminates because cone recursion has a finite depth
+budget and module construction has a finite `max_flops_per_module`
+budget; `flop_prob` may be set to `1.0` for stress profiles without
+making the worklist unbounded.
 
 ## Flop reuse
 

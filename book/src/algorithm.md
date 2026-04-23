@@ -138,10 +138,11 @@ build_cone(width, depth, exclude):
         return pick_terminal(width, exclude)
 
     # `intern_gate` enforces the effective identity mode: under
-    # `identity_mode = node-id`, Rule 21 (CSE) + Rule 21b
-    # (commutative normalization for And/Or/Xor/Add/Mul) + the
-    # AST-instance cap apply, so the same
-    # (op, sorted_operands, width) returns the same NodeId.
+    # `identity_mode = node-id`, the requested factorization rung
+    # selects the live ladder (CSE, operand uniqueness, commutative
+    # sort, associative flattening, constant folding, peephole rewrites,
+    # then the AST-instance cap). The settled graph also gets bounded
+    # semantic merges at the e-graph rung during finalisation.
     (node, is_new) = m.intern_gate(op, operands, width, deps)
     if is_new:
         pool.add(node, width, deps)             # new gate is shareable
@@ -273,9 +274,10 @@ plus virtual ids for flop Qs):
 - `Gate.deps         = union(operand.deps)`
 
 The cone root of each output must satisfy `deps.len() >= 1`. Flop-Q
-virtual ids count toward non-triviality because a flop is itself fed
-by a cone that eventually reaches primary inputs (recursively enforced
-when the flop's D-cone is built).
+virtual ids count toward non-triviality because fanin cones are allowed
+to be functions of primary inputs and/or flop Q endpoints. Each flop's
+D-cone is still required to be dep-bearing, but Rule 2 permits that
+dependency to include the flop's own Q.
 
 ## Structural anti-collapse rules
 
@@ -300,13 +302,14 @@ upgrade over `peephole`):
   through. Duplicates are algebraically meaningful here, so the
   user opts in.
 
-Lowering `factorization_level` relaxes these rules *within*
-`identity_mode = node-id`. At level `cse`, only the 2-operand
-algebraic-degeneracy cases (`Sub` / `Eq` / `Neq`) fire — the
-rest are permitted (and picked up by syntactic CSE at the AST-key
-level). At level `none`, or whenever `identity_mode = relaxed`,
-no anti-collapse rules fire and the dedup path is bypassed
-entirely.
+Lowering `factorization_level` relaxes the operand-uniqueness portion
+of these rules *within* `identity_mode = node-id`. At levels below
+`operand-unique`, duplicate operands in `And` / `Or` / `Xor` / `Add` /
+`Mul` are permitted. The base local degeneracy guards for `Sub`,
+`Eq`, and `Neq` still fire, and `Mux(s, a, a)` is still governed by
+`mux_arm_duplication_rate`. At `identity_mode = relaxed`, the dedup
+path is bypassed entirely, but these generator-side local cleanup
+guards still prevent the most obvious emitted degeneracies.
 
 On rejection, `build_cone` restores its pre-operand-construction
 snapshot and falls back to `pick_terminal`. This prevents the

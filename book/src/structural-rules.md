@@ -669,11 +669,11 @@ where equivalent expressions may keep different `NodeId`s. `e-graph` is
 the theoretical ceiling where the current build proves this for all
 semantic equivalences. Today we approximate it with syntactic CSE +
 operand-uniqueness + commutative normalization + associative
-flattening + constant folding + a narrow set of peephole rewrites.
-Future slices
+flattening + constant folding + a narrow set of peephole rewrites plus
+a bounded semantic merge fragment at the `e-graph` rung. Future slices
 will close the gap further via deeper peephole rewrites (e.g.
-cross-gate identities like `(a + b) - b → a`) and eventually a real
-e-graph layer.
+cross-gate identities like `(a + b) - b → a`) and a stronger e-graph
+engine.
 
 **How the ladder behaves inside `identity_mode = node-id`:**
 
@@ -706,10 +706,12 @@ first, then the ladder:
   *implemented* layer at or below the requested one, walking the
   enum order top-down.
 
-Unimplemented middle rungs are skipped cleanly: a user asking for
-`associative` drops to `commutative` (the nearest implemented
-layer below), while `e-graph` activates everything currently live
-— today that's the bounded semantic gate-sharing fragment plus every lower rung. When deeper
+Every current rung is implemented. `FactorizationLevel::effective()`
+still walks the ladder defensively so future aspirational rungs can be
+added without lying to the generator: a request for an unimplemented
+future rung will drop to the nearest implemented one below it, while
+`e-graph` activates everything currently live — today the bounded
+semantic gate-sharing fragment plus every lower rung. When deeper
 layers land, the same `--factorization-level e-graph` invocation
 automatically gains them — no config change required.
 

@@ -207,6 +207,9 @@ pub struct Module {
     pub priority_encoder_built:  u32,
     pub comb_mux_one_hot_built:  u32,
     pub comb_mux_encoded_built:  u32,
+    pub case_mux_built:          u32,
+    pub casez_mux_built:         u32,
+    pub for_fold_built:          u32,
     // Factorization-layer live counters:
     pub fold_identities_applied:     u64,
     pub peephole_rewrites_applied:   u64,
@@ -263,21 +266,26 @@ pub fn compact_node_ids(m: &mut Module) -> u32;
 
 // Per-probability-roll telemetry:
 pub enum KnobId { FlopProb, CombMuxProb, PriorityEncoderProb,
+                  CaseMuxProb, CasezMuxProb, ForFoldProb,
                   CoefficientProb, ConstShiftAmountProb,
                   ConstComparandProb, CombMuxEncodingProb,
                   FlopMuxEncodingProb, ShareProb,
-                  FlopQFeedbackProb }
+                  FlopQFeedbackProb, HierarchySiblingRouteProb }
 pub struct KnobRollCounters {
     pub attempts: HashMap<KnobId, u64>,
     pub fires:    HashMap<KnobId, u64>,
 }
 
-pub enum Node { PrimaryInput{..}, Constant{..}, FlopQ{..}, Gate{..} }
+pub enum Node {
+    PrimaryInput{..}, Constant{..}, FlopQ{..}, InstanceOutput{..}, Gate{..}
+}
 pub enum GateOp {
     And, Or, Xor, Not,              // bitwise (Not is unary)
     Add, Sub, Mul,                  // arithmetic
     Eq, Neq, Lt, Gt, Le, Ge,        // comparisons (1-bit output)
     Mux,                            // [sel, a, b]
+    CaseMux, CasezMux,              // procedural combinational cases
+    ForFold { kind, trip_count, chunk_width }, // bounded always_comb for
     Slice { hi: u32, lo: u32 },
     Concat,                         // variadic
     RedAnd, RedOr, RedXor,          // unary reductions (1-bit output)
@@ -337,16 +345,17 @@ Three layers:
   design-level hierarchy acceptance/rejection).
 - `src/gen/cone.rs` — 40 tests covering picker, anti-collapse,
   width-adapter, and motif-edge cases.
-- `src/emit/sv.rs` — 14 tests (module header, clk/rst_n omission,
+- `src/emit/sv.rs` — 17 tests (module header, clk/rst_n omission,
   `always_ff` shape, operator + constant rendering, Slice/Concat,
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 9 tests (empty module, per-kind gate
+- `src/metrics.rs` — 11 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
   and hierarchy design metrics for reuse, under-instantiation,
-  parent-side composition, recursive tree shape, and per-depth
-  branching profiles).
+  parent-side composition, sibling-routed child inputs, recursive tree
+  shape, per-depth branching profiles, mixed-depth recursion, and
+  profiled on-demand interface realization).
 - Other unit tests cover compaction, config validation, module
   finalisation, hierarchy validation, and CLI overrides.
 

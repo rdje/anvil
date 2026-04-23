@@ -1,6 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-23-boot8 — Refresh bootstrap doc drift
+
+**Landed as:** this commit
+
+**What changed**
+
+- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md)
+  now matches the live IR: `GateOp::CaseMux`, `GateOp::CasezMux`,
+  `GateOp::ForFold`, `ForFoldKind`, the structured block counters, and
+  the current hierarchy status are documented instead of the older
+  wrapper-only/future-parent-composition wording.
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+  refreshed the key-type snippets for `Node::InstanceOutput`,
+  procedural structured gates, the newer knob telemetry variants, and
+  the current emitter/metrics test counts.
+- [book/src/algorithm.md](/Users/richarddje/Documents/github/anvil/book/src/algorithm.md)
+  now describes flop-Q endpoints and anti-collapse gating the way the
+  generator actually enforces them: lower factorization rungs relax the
+  operand-uniqueness checks, while base `Sub` / `Eq` / `Neq` and
+  mux-arm cleanup still guard obvious degeneracies.
+- [book/src/non-triviality.md](/Users/richarddje/Documents/github/anvil/book/src/non-triviality.md)
+  now states the endpoint rule accurately: a cone may be a function of
+  primary inputs and/or flop Q endpoints, including a flop's own Q under
+  Rule 2, but not a pure constant.
+- [book/src/sequential.md](/Users/richarddje/Documents/github/anvil/book/src/sequential.md)
+  now explains worklist termination via finite recursion and
+  `max_flops_per_module`, not the stale assumption that `flop_prob < 1`.
+- [book/src/factorization.md](/Users/richarddje/Documents/github/anvil/book/src/factorization.md)
+  now warns that per-seed gate counts are not a strict monotonic proof
+  of factorization strength because enabling rungs can change retry
+  paths and legal shapes.
+- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+  now says every current factorization rung is implemented and that the
+  `e-graph` rung is the bounded semantic fragment plus lower layers,
+  while still leaving room for future stronger semantic engines.
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+  now consistently identifies `r13` as the current fully banked Phase 4
+  hierarchy closure artifact instead of leaving an older `r10`
+  reference in the wrapper-planning paragraph.
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  and [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  had stale comments corrected for the implemented factorization
+  ladder, `effective()` behavior, `GraphFirst` aliasing, and the
+  deliberate `exclude = None` Q-feedback doctrine for flop D-cones.
+
+**Why**
+
+- `README.md` / `SESSION_BOOTSTRAP.md` require a literal live-doc,
+  mdBook, and source walk before continuing work.
+- That walk found several stale descriptions left by earlier slices.
+  They were documentation/comment drift only, but they were exactly the
+  sort of drift that can steer later implementation in the wrong
+  direction if left behind.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+  - 182 lib tests
+  - 5 main tests
+  - 26 `tool_matrix` tests
+  - 40 integration tests
+  - 0 doctests
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
 ## 2026-04-23-boot7 — Land sibling-routed hierarchy child inputs
 
 **Landed as:** this commit

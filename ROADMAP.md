@@ -372,7 +372,8 @@ wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The old `r7` report is
 now the historical wrapper-baseline artifact; `r9` is the pre-mixed
-recursive bank, and `r10` is the real current Phase 4 closure artifact.
+recursive bank, `r10` is the pre-child-sourcing recursive bank, and
+`r13` is the current fully banked Phase 4 hierarchy closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue

@@ -200,12 +200,10 @@ pub enum FactorizationLevel {
 }
 
 impl FactorizationLevel {
-    /// Whether this specific layer is implemented today. Used by
-    /// `effective()` to walk down from a requested level and skip
-    /// any aspirational layers that sit *below* an implemented one
-    /// in the enum order. (For example, `ConstantFold` is
-    /// implemented while `Associative` — which sits just above
-    /// `Commutative` and just below `ConstantFold` — is not yet.)
+    /// Whether this specific layer is implemented today. Every
+    /// current rung is live; `effective()` keeps this helper so a
+    /// future aspirational rung can be added without accidentally
+    /// enabling a layer the generator does not yet implement.
     pub fn is_implemented(self) -> bool {
         matches!(
             self,
@@ -221,9 +219,8 @@ impl FactorizationLevel {
     }
 
     /// Highest layer that is actually implemented in the current
-    /// build. Levels above this are aspirational anchors; the
-    /// generator behaves as if the user requested the highest
-    /// implemented level instead.
+    /// build. Today this is `EGraph`'s bounded semantic fragment; the
+    /// walk remains defensive for future ladder extensions.
     pub fn highest_implemented() -> Self {
         // Walk down from EGraph until we find an implemented layer.
         for lvl in [
@@ -246,11 +243,8 @@ impl FactorizationLevel {
     /// Effective level: returns the highest *implemented* layer at
     /// or below `self`. Use this at every gating site instead of
     /// comparing `self` directly, so a user request like `EGraph`
-    /// activates everything that works today without misleading
-    /// them into thinking e-graph equivalence is live — and so a
-    /// request for an unimplemented middle rung (e.g.
-    /// `Associative`) drops to the nearest implemented one below
-    /// (`Commutative`) without accidentally enabling higher rungs.
+    /// activates every live layer today while preserving a clean
+    /// fallback path for future aspirational rungs.
     pub fn effective(self) -> Self {
         for lvl in [
             FactorizationLevel::EGraph,
@@ -468,9 +462,9 @@ pub struct Config {
     /// Factorization level — the rung requested within
     /// `identity_mode == node-id`. Default `e-graph` requests the
     /// strongest semantics the build knows how to provide;
-    /// `effective()` clamps that request down to the highest
-    /// implemented layer (today `peephole`). Lower settings
-    /// disable individual layers in order. See
+    /// `effective()` maps that request to the strongest implemented
+    /// layer at or below it (today the bounded `e-graph` fragment).
+    /// Lower settings disable individual layers in order. See
     /// `book/src/structural-rules.md` Rule 21b / 21c.
     ///
     /// Fine-grained knobs (`max_ast_instances`,

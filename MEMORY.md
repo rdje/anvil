@@ -5,10 +5,14 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
 - A literal `SESSION_BOOTSTRAP.md` pass has now been rerun against
   current HEAD: all live docs, the full mdBook, and every Rust source /
-  test / example were re-read, and the exact bootstrap sanity checks
-  were rerun. The only real drift found was one stale README sentence
-  that still described the recursive Phase 4 closure refresh as
-  pending; that wording is now fixed.
+  test / example were re-read. The current cleanup slice fixed
+  documentation/comment drift found during that pass: stale IR
+  `GateOp` / `Node::InstanceOutput` snippets, wrapper-only hierarchy
+  wording, anti-collapse gating text, factorization-ladder commentary,
+  Q-feedback endpoint language, and the sequential-worklist termination
+  rationale. The full gate (`cargo check --all-targets`, `cargo test`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`,
+  `mdbook build book`) is green.
 - The current live Phase 4 slice is no longer just a depth-1 wrapper. `hierarchy_depth = 1` plus `num_leaf_modules >= 1` still generates a library of leaf modules plus a real top module; `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions.
 - Current HEAD now also has an explicit hierarchy child-sourcing axis: `hierarchy_child_source_mode = library | on-demand`. Both the legacy wrapper lane and the bounded recursive lane can choose between reusable child-definition pools and fresh child-definition synthesis per planned instance slot.
 - Current HEAD now makes `on-demand` stronger than "fresh per slot":

@@ -93,11 +93,10 @@ fn roll_knob(g: &mut Generator, m: &mut Module, knob: KnobId, prob: f64) -> bool
 /// roots. Bounded to avoid pathological infinite retries; if we exceed
 /// the budget, the last attempt is accepted.
 ///
-/// `exclude` lets callers forbid a specific `NodeId` from terminal
-/// selection. Used for flop D-cone construction to forbid the flop's
-/// own Q from appearing in its data or select sub-cones (the only
-/// permitted Q→D path is the all-zeros-select feedback term in
-/// `FlopKind::QFeedback`).
+/// `exclude` lets rare callers forbid a specific `NodeId` from
+/// terminal selection. Flop D-cones deliberately pass `None`: Rule 2
+/// allows a flop's own Q to appear freely in direct-D, data, and select
+/// sub-cones.
 #[instrument(level = "debug", skip(g, m, pool, worklist))]
 pub fn build_cone_with_retry(
     g: &mut Generator,
@@ -133,9 +132,10 @@ pub fn build_cone_with_retry(
 ///   `D = OR_i({N{sel_i}} & data_i)`, plus an optional Q-feedback term
 ///   for `FlopKind::QFeedback`.
 ///
-/// All sub-cones (data, select, or the M==0 direct D-cone) forbid this
-/// flop's own Q from being a leaf — the *only* permitted Q→D path is
-/// the all-zeros-select feedback term in `FlopKind::QFeedback`.
+/// All sub-cones (data, select, or the M==0 direct D-cone) pass
+/// `exclude = None`. A flop's own Q may appear freely as a leaf in its
+/// D-cone; `FlopKind::QFeedback` is an additional structured feedback
+/// idiom, not the only legal Q→D path.
 ///
 /// The drain may itself enqueue more flops; the loop handles that
 /// until quiescence.
@@ -526,8 +526,9 @@ fn drain_flop_worklist_pool_only(
 /// `worklist` and drained synchronously after all output frames are
 /// processed, the same as under `Sequential` and `Shuffled`. That is
 /// the "near-symmetric" scope: output-cone construction interleaves,
-/// flop D-cones are built depth-first per flop. Full symmetry awaits
-/// `graph-first`.
+/// flop D-cones are built depth-first per flop. `GraphFirst` remains a
+/// compatibility alias for `Interleaved`; fuller symmetry is future
+/// work rather than the meaning of that retired strategy name.
 #[instrument(level = "info", skip(g, m, pool, worklist))]
 pub fn build_outputs_interleaved(
     g: &mut Generator,

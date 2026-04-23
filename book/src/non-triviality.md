@@ -49,11 +49,13 @@ Solution: assign each flop a *virtual input ID*. The flop's Q node
 has `deps = {virtual_id}`. The non-triviality check treats virtual IDs
 as contributing dependencies. Later, when the flop's D-cone is
 generated, we require the D-cone's deps to be non-empty too —
-recursively ensuring that every flop's D ultimately reaches primary
-inputs (possibly through other flops).
+ensuring that every flop's D is a function of at least one endpoint
+leaf: a primary input, another flop Q, or its own Q.
 
-This ensures sequential circuits are also non-trivial: no flop exists
-that is driven by constants, so the whole circuit is reactive.
+This ensures sequential circuits are structurally non-trivial: a flop
+may be fed by primary inputs, by other flop Q endpoints, or by its own Q
+under the Q-feedback freedom doctrine, but it is not accepted as a
+purely constant cone.
 
 ## Structural anti-collapse rules
 
@@ -75,13 +77,16 @@ pre-operand-construction snapshot and falls back to `pick_terminal`
 — the operand sub-trees built for the rejected gate vanish from
 the IR (Rule 18 α, ensuring no orphan gates).
 
-**Identity / factorization gating:** the rules above apply when
-`identity_mode = node-id` and
-`factorization_level ≥ OperandUnique` (the default, effectively
-`e-graph`). At level `cse` only the 2-operand
-algebraic-degeneracy cases (`Sub` / `Eq` / `Neq`) fire. At level
-`none`, or whenever `identity_mode = relaxed`, the dedup path is
-bypassed entirely and no anti-collapse checks run.
+**Identity / factorization gating:** operand-duplicate rejection for
+`And` / `Or` / `Xor` and the default duplicate rejection for `Add` /
+`Mul` are gated by
+`factorization_level >= OperandUnique` inside `identity_mode = node-id`.
+Below that rung, duplicate operands are permitted. The base local
+degeneracy guards for `Sub`, `Eq`, and `Neq` still fire, and
+`Mux(s, a, a)` is still governed by `mux_arm_duplication_rate`.
+At `identity_mode = relaxed`, the dedup path is bypassed entirely, but
+these generator-side local cleanup guards still prevent obvious emitted
+degeneracies.
 
 See [Structural Rules](structural-rules.md) Rule 8 for the
 authoritative catalog entry.
@@ -103,8 +108,9 @@ cone still references independent inputs.
 **Factorization ladder.** `anvil` has started climbing this
 ladder. The implemented layers — syntactic CSE (Rule 21),
 operand uniqueness (Rule 8 extended), commutative normalization
-(Rule 21b), constant folding, and a narrow set of peephole
-rewrites — together close the *within-gate* duplication surface:
+(Rule 21b), associative flattening, constant folding, a narrow set of
+peephole rewrites, and a bounded e-graph-style semantic merge fragment
+— together close the *within-gate* duplication surface:
 same AST ⇒ same NodeId, no duplicate operands (at default
 knobs), `a+b` and `b+a` share identity, algebraic identities
 such as `x + 0`, `x * 1`, `x & all_ones` collapse at intern
