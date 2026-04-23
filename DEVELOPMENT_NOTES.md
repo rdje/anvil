@@ -150,11 +150,11 @@ The metrics contract grew with the planner: `DesignMetrics` now expose
 and deep leaves?" is answerable numerically from the manifest rather
 than by reading emitted SV.
 
-This slice is intentionally honest about proof scope too: the new
-mixed-depth recursive axis is proven by the focused artifact at
-`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, but the repo-owned
-Phase 4 gate at `r9` predates this axis and should be refreshed in a
-follow-up slice rather than being quietly overclaimed.
+The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
+was the first clean proof of that new mixed-depth recursive axis. The
+repo-owned Phase 4 gate has now caught up at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`,
+so the mixed-depth story is no longer "focused-only" evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
   only a subset of child outputs, so unused outputs are now rendered as
@@ -223,9 +223,17 @@ lower levels are narrower" without inventing a separate planner mode or
 forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
-What it does **not** do yet is fold that new mixed-depth axis into the
-repo-owned Phase 4 gate. That is the next closure step, not hidden
-behavior.
+What it does **not** do yet is move beyond that banked mixed-depth gate
+into the next deeper hierarchy surfaces such as on-demand child
+sourcing and local parent state.
+
+One more gate-level rule turned out to matter here: when a repo-owned
+matrix grows new representative scenarios, its minimum total artifact
+budget should be revisited explicitly instead of shrinking per-scenario
+evidence by accident. The Phase 4 gate moved from 15 to 18 scenarios
+once the mixed-depth recursive axis was added, so its minimum total
+design budget was raised from 48 to 60 to preserve the old 4
+designs/scenario sampling depth instead of silently falling to 3.
 
 One more planner rule is load-bearing here: in recursive range mode,
 child libraries are generated **on demand per parent**, and every

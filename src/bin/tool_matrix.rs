@@ -13,7 +13,7 @@ use std::process::Command;
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
-const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 48;
+const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 60;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -51,8 +51,8 @@ struct Cli {
     phase3_structured_gate: bool,
 
     /// Elevate the run to the repo-owned Phase 4 hierarchy gate:
-    /// run the representative depth-1 hierarchy matrix and require
-    /// its coverage.
+    /// run the representative hierarchy matrix and require its
+    /// coverage.
     #[arg(long)]
     phase4_hierarchy_gate: bool,
 
@@ -234,6 +234,7 @@ struct CoverageSummary {
     saw_underinstantiated_library: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
+    saw_mixed_leaf_depth_hierarchy: bool,
     saw_hierarchy_parent_composition: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
@@ -809,6 +810,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 "bounded recursive hierarchy at exact depth 2 with depth-specific branching override top=4 and depth1=2 plus sequential motif-heavy leaves",
                 phase4_recursive_profile_seq_focus_config(strategy, next_seed + 4),
             ),
+            (
+                "phase4_recur_d2to3_b2_mixed_comb",
+                "bounded recursive hierarchy with leaf depths inside [2:3], exact child-instance count 2, and combinational share-heavy leaves so the realized tree mixes shallow and deep branches",
+                phase4_recursive_mixed_depth_comb_focus_config(strategy, next_seed + 5),
+            ),
         ] {
             scenarios.push(make_scenario(
                 &format!("{strategy_slug}_nodeid_egraph_{name_suffix}"),
@@ -818,7 +824,7 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 config,
             )?);
         }
-        next_seed += 5;
+        next_seed += 6;
     }
 
     Ok(scenarios)
@@ -1199,6 +1205,19 @@ fn phase4_recursive_profile_seq_focus_config(strategy: ConstructionStrategy, see
             (0, CountRange { min: 4, max: 4 }),
             (1, CountRange { min: 2, max: 2 }),
         ]),
+    )
+}
+
+fn phase4_recursive_mixed_depth_comb_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    with_recursive_hierarchy(
+        share_heavy_comb_only_config(strategy, seed, 0.9),
+        2,
+        3,
+        2,
+        2,
     )
 }
 
@@ -2364,6 +2383,8 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
+        coverage.saw_mixed_leaf_depth_hierarchy |=
+            design.metrics.realized_min_leaf_depth < design.metrics.realized_max_leaf_depth;
         coverage.saw_hierarchy_parent_composition |=
             design.metrics.hierarchy_parent_composed_outputs > 0;
         for module in &design.modules {
@@ -2418,6 +2439,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_underinstantiated_library |= src.saw_underinstantiated_library;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
+    dst.saw_mixed_leaf_depth_hierarchy |= src.saw_mixed_leaf_depth_hierarchy;
     dst.saw_hierarchy_parent_composition |= src.saw_hierarchy_parent_composition;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
@@ -2673,6 +2695,9 @@ fn compute_coverage_gaps(
             if !coverage.hierarchy_depths.contains("2") {
                 gaps.push("missing recursive hierarchy depth 2".to_string());
             }
+            if !coverage.hierarchy_depths.contains("2:3") {
+                gaps.push("missing mixed recursive hierarchy depth range 2:3".to_string());
+            }
             for leaf_count in ["2", "4"] {
                 if !coverage.hierarchy_leaf_module_counts.contains(leaf_count) {
                     gaps.push(format!("missing num_leaf_modules scenario {leaf_count}"));
@@ -2771,6 +2796,9 @@ fn compute_coverage_gaps(
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_per_depth_branching_metrics {
         gaps.push("matrix never reported per-depth branching metrics".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_mixed_leaf_depth_hierarchy {
+        gaps.push("matrix never realized mixed shallow/deep recursive leaf depths".to_string());
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_hierarchy_parent_composition {
         gaps.push(
@@ -3265,9 +3293,9 @@ mod tests {
         let mut cli = test_cli();
         cli.phase4_hierarchy_gate = true;
 
-        let plan = derive_run_plan(&cli, 15);
+        let plan = derive_run_plan(&cli, 18);
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 60);
+        assert_eq!(plan.total_modules, 72);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -3310,14 +3338,14 @@ mod tests {
                 FactorizationLevel::EGraph
             );
         }
-        assert_eq!(scenarios.len(), 15);
-        assert_eq!(names.len(), 15);
+        assert_eq!(scenarios.len(), 18);
+        assert_eq!(names.len(), 18);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
             BTreeSet::from([(1, 3), (2, 2), (2, 3), (4, 4)])
         );
-        assert_eq!(range_depths, BTreeSet::from([(1, 1), (2, 2)]));
+        assert_eq!(range_depths, BTreeSet::from([(1, 1), (2, 2), (2, 3)]));
         assert_eq!(
             override_profiles,
             BTreeSet::from(["0=4:4,1=2:2".to_string()])
@@ -3332,6 +3360,7 @@ mod tests {
             "phase4_hier4_inst2_comb",
             "phase4_recur_d2_b2to3_comb",
             "phase4_recur_profile_d2_top4_mid2_seq",
+            "phase4_recur_d2to3_b2_mixed_comb",
         ] {
             assert!(
                 names.iter().any(|name| name.ends_with(suffix)),
@@ -3390,6 +3419,9 @@ mod tests {
             .any(|gap| gap.contains("recursive hierarchy depth 2")));
         assert!(gaps
             .iter()
+            .any(|gap| gap.contains("mixed recursive hierarchy depth range 2:3")));
+        assert!(gaps
+            .iter()
             .any(|gap| gap.contains("num_leaf_modules scenario 4")));
         assert!(gaps
             .iter()
@@ -3417,6 +3449,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("per-depth branching metrics")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("mixed shallow/deep recursive leaf depths")));
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("composed above instance outputs")));

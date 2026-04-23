@@ -1,9 +1,103 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot3 — Land mixed-depth recursive hierarchy planning
+## 2026-04-23-boot4 — Close mixed-depth Phase 4 hierarchy gate cleanly
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now folds the mixed-depth recursive hierarchy axis into the
+  repo-owned `--phase4-hierarchy-gate` matrix instead of leaving it as
+  focused-smoke-only evidence.
+- The Phase 4 hierarchy scenario set now includes a dedicated mixed
+  recursive profile per construction strategy:
+  bounded hierarchy depth range `[2:3]` with exact child-instance count
+  `2`, chosen specifically so the realized tree contains both shallow
+  and deep branches.
+- Phase 4 coverage facts are now stronger and more honest:
+  the report records whether the matrix actually realized mixed
+  shallow/deep leaf depths (`saw_mixed_leaf_depth_hierarchy`), and the
+  coverage gate now requires both the requested open interval
+  `hierarchy_depths = ["2:3"]` and an actual mixed-depth realization.
+- The Phase 4 gate's minimum total design budget was raised from `48` to
+  `60` so that after the matrix grew from `15` to `18` scenarios it
+  still proves `4` designs per scenario instead of silently dropping to
+  `3`.
+- The repo-owned Phase 4 closure artifact is now refreshed from `r9` to
+  `r10`, and the live docs/book now point at the new report instead of
+  still describing mixed-depth recursion as a pending closure step.
+
+**Why**
+
+- The previous slice landed real mixed-depth recursive hierarchy in the
+  generator and proved it with the focused smoke at
+  `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`.
+- That left one honest gap: the repo-owned Phase 4 gate was still
+  banking the older representative hierarchy surface and therefore
+  could not prove the new mixed-depth capability from a closure report.
+- The right next task was to close that gap at the matrix layer, not to
+  leave the repo split between "current code" and "current banked gate."
+
+**Proof**
+
+- Focused `tool_matrix` regressions:
+  - `cargo test --bin tool_matrix phase4_hierarchy_gate_raises_designs_per_scenario_for_matrix`
+  - `cargo test --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+  - `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- Full refreshed repo-owned Phase 4 rerun:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r10 --phase4-hierarchy-gate --yosys-mode both`
+  - report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
+  - key facts:
+    - `scenario_count = 18`
+    - `modules_per_scenario = 4`
+    - `total_modules = 72`
+    - `artifact_kind = "design"`
+    - `coverage_gaps = []`
+    - `tool_summary.verilator_passed = 72`
+    - `tool_summary.verilator_failed = 0`
+    - `tool_summary.yosys_without_abc_passed = 72`
+    - `tool_summary.yosys_without_abc_failed = 0`
+    - `tool_summary.yosys_with_abc_passed = 72`
+    - `tool_summary.yosys_with_abc_failed = 0`
+    - hierarchy coverage facts:
+      - `hierarchy_depths = ["1", "2", "2:3"]`
+      - `hierarchy_leaf_module_counts = ["0", "2", "4"]`
+      - `hierarchy_child_instance_counts = ["1:3", "2", "2:3", "4"]`
+      - `hierarchy_child_instance_override_profiles = ["0=4:4,1=2:2"]`
+      - `saw_recursive_hierarchy = true`
+      - `saw_per_depth_branching_metrics = true`
+      - `saw_mixed_leaf_depth_hierarchy = true`
+      - `saw_hierarchy_parent_composition = true`
+
+**Impact**
+
+- The repo-owned Phase 4 closure artifact now matches current hierarchy
+  reality instead of lagging behind it.
+- Mixed-depth recursion is no longer merely "focused clean proof"; it is
+  a banked, gated part of the representative Phase 4 matrix.
+- Phase 4 remains `in progress`. The next honest work is deeper
+  hierarchy capability beyond the current bank: on-demand child
+  sourcing, local parent state, and later hierarchy-aware identity.
+
+**Files touched**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+
+## 2026-04-23-boot3 — Land mixed-depth recursive hierarchy planning
+
+**Landed as:** `8f6abfc`
 
 **What changed**
 

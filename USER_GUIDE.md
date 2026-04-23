@@ -442,29 +442,32 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
 records:
 
-- `15` scenarios
+- `18` scenarios
 - `4` designs per scenario
-- `60` total designs
+- `72` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 60/0`
-- `Yosys without-abc pass/fail = 60/0`
-- `Yosys with-abc pass/fail = 60/0`
+- `Verilator pass/fail = 72/0`
+- `Yosys without-abc pass/fail = 72/0`
+- `Yosys with-abc pass/fail = 72/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
 baseline. It covers the broadened `--num-child-instances` planner,
 bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
-and `1:3`, the per-depth override profile `0=4:4,1=2:2`, and real
-parent-side composition above instance outputs. The focused clean
+and `1:3`, the mixed recursive depth-range profile `2:3`, the
+per-depth override profile `0=4:4,1=2:2`, real mixed shallow/deep leaf
+realization, and real parent-side composition above instance outputs.
+The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
 `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` still remain
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json` still remain
 useful targeted evidence. The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -496,9 +499,9 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
-shape without `.sv` inspection. The repo-owned Phase 4 gate at `r9`
-does not include this new axis yet; the next Phase 4 closure refresh
-should fold it in.
+shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
+at `r10` now includes this axis too, so the focused smoke is no longer
+standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, with:

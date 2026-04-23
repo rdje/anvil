@@ -385,12 +385,13 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
-(60 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-60/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
+(72 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+72/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
-representative recursive depth-2 profiles, the per-depth override
-profile `0=4:4,1=2:2`, and real parent-side composition above instance
+representative recursive depth-2 profiles, the mixed recursive
+depth-range profile `2:3`, the per-depth override profile
+`0=4:4,1=2:2`, and real parent-side composition above instance
 outputs. The old hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,

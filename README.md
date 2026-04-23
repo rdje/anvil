@@ -217,31 +217,34 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r9`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r10`. Its final
 `tool_matrix_report.json` records:
 
-- `15` scenarios
+- `18` scenarios
 - `4` designs per scenario
-- `60` total designs
+- `72` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 60/0`
-- `Yosys without-abc pass/fail = 60/0`
-- `Yosys with-abc pass/fail = 60/0`
+- `Verilator pass/fail = 72/0`
+- `Yosys without-abc pass/fail = 72/0`
+- `Yosys with-abc pass/fail = 72/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 closure artifact for the current hierarchy surface, not only the older
 wrapper baseline. It covers the broadened `--num-child-instances`
 planner directly, and it also proves the current recursive hierarchy
-surface directly: depth `2`, child-instance profiles `2`, `4`, `2:3`,
-and `1:3`, the per-depth override profile `0=4:4,1=2:2`, real
-recursive design emission, real per-depth branching metrics, and real
-parent-side composition above instance outputs. The focused clean
+surface directly: depth `2`, mixed recursive depth range `2:3`,
+child-instance profiles `2`, `4`, `2:3`, and `1:3`, the per-depth
+override profile `0=4:4,1=2:2`, real recursive design emission, real
+per-depth branching metrics, real mixed shallow/deep recursive
+realization, and real parent-side composition above instance outputs.
+The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
 `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` still remain
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json` still remain
 useful targeted proof points. The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -322,8 +325,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   matrix and fails on coverage gaps unless the report proves multifile
   hierarchy designs with real instances, instance outputs, the declared
   top module, representative wrapper and recursive child-instance
-  profiles, per-depth branching overrides, and clean downstream tool
-  results.
+  profiles, per-depth branching overrides, mixed shallow/deep recursive
+  realization, and clean downstream tool results.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and
@@ -343,10 +346,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   composition facts and the realized tree shape numerically, including
   per-parent-depth branching summaries plus
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
-  repo-owned Phase 4 hierarchy matrix remains banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
-  for the wrapper, exact-depth recursive, and per-depth-override
-  profiles already folded into `tool_matrix`, while the focused smokes
+  repo-owned Phase 4 hierarchy matrix is now banked at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
+  for the wrapper, exact-depth recursive, mixed-depth recursive, and
+  per-depth-override profiles folded into `tool_matrix`, while the
+  focused smokes
   at
   `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
   `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` remain useful
@@ -363,9 +367,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `realized_max_leaf_depth = 3`, and
   `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}` with clean
   Verilator plus both repo-owned Yosys modes. The next honest work is
-  to fold that mixed-depth axis into the repo-owned Phase 4 gate, then
-  keep pushing deeper hierarchy capability. Parameterization and
-  broader artifact-family selection are still roadmap work. See
+  deeper hierarchy capability beyond the banked gate: on-demand child
+  sourcing, local parent state, and later hierarchy-aware identity.
+  Parameterization and broader artifact-family selection are still
+  roadmap work. See
   `ROADMAP.md` for phase gating.
 
 ## Maintenance rule

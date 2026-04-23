@@ -279,9 +279,8 @@ evidence.
     library; the recursive range lane generates child libraries
     on demand per parent
   - the fully banked repo-owned Phase 4 matrix now covers both the
-    wrapper lane and the pre-existing representative recursive lane,
-    while the newly-landed mixed-depth recursive axis is currently
-    backed by focused proof rather than by a refreshed full matrix
+    wrapper lane and the representative recursive lane, including the
+    mixed-depth recursive axis
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -297,18 +296,20 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r10/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`60/0` in Verilator plus both repo-owned Yosys modes). That report now
+(`72/0` in Verilator plus both repo-owned Yosys modes). That report now
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
+- mixed recursive depth range `2:3`
 - child-instance profiles `2`, `4`, `2:3`, and `1:3`
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
+- real mixed shallow/deep recursive realization
 - real per-depth branching metrics
 - real parent-side composition above instance outputs
 
@@ -357,13 +358,12 @@ SV inspection:
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The old `r7` report is
-now the historical wrapper-baseline artifact; `r9` is the real current
-Phase 4 closure artifact.
+now the historical wrapper-baseline artifact; `r9` is the pre-mixed
+recursive bank, and `r10` is the real current Phase 4 closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
-the current landed slice. The remaining substantive work is to fold the
-new mixed-depth recursive axis into the repo-owned Phase 4 gate, then
-continue with on-demand child sourcing beside the current library path,
+the current landed slice. The remaining substantive work is to continue
+with on-demand child sourcing beside the current library path,
 local parent state where it is structurally warranted, and eventual
 hierarchy-aware identity/factorization.
 
