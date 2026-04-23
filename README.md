@@ -205,10 +205,22 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-`tool_matrix` writes per-module
-checkpoint sidecars and supports `--resume`, so interrupted output trees
-can be continued in place instead of always forking a fresh `--out`
-directory.
+The completed current-code Phase 4 wrapper-hierarchy report now also
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3`. Its final
+`tool_matrix_report.json` records:
+
+- `12` scenarios
+- `4` designs per scenario
+- `48` total designs
+- `artifact_kind = "design"`
+- `coverage_gaps = []`
+- `Verilator pass/fail = 48/0`
+- `Yosys without-abc pass/fail = 48/0`
+- `Yosys with-abc pass/fail = 48/0`
+
+`tool_matrix` writes per-module or per-design checkpoint sidecars and
+supports `--resume`, so interrupted output trees can be continued in
+place instead of always forking a fresh `--out` directory.
 
 For the repo-owned Phase 1 gate shape:
 
@@ -277,14 +289,22 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   structured-surface closure matrix and fails on coverage gaps unless
   the report proves the landed Phase 3 surfaces directly from emitted
   metrics and tool results.
+- `tool_matrix --phase4-hierarchy-gate` runs the repo-owned depth-1
+  hierarchy wrapper matrix and fails on coverage gaps unless the report
+  proves multifile hierarchy designs with real instances, instance
+  outputs, the declared top module, and clean downstream tool results.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and the
   first real hierarchy slice is now live too: `--hierarchy-depth 1`
   generates a depth-1 wrapper design that instantiates a generated
-  library of leaf modules. Recursive parent-side hierarchy generation,
-  parameterization, and broader artifact-family selection are still
-  roadmap work. See `ROADMAP.md` for phase gating.
+  library of leaf modules, and that wrapper slice now has a dedicated
+  repo-owned clean-run gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+  (`48` designs, `coverage_gaps = []`, and `48/0` pass-fail in
+  Verilator plus both repo-owned Yosys modes). Recursive parent-side
+  hierarchy generation, parameterization, and broader artifact-family
+  selection are still roadmap work. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

@@ -221,14 +221,29 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
                 trip_count,
                 chunk_width,
             } => {
+                let src_node = &m.nodes[operands[0] as usize];
                 let src = node_ref(operands[0], m, &names);
                 let init = for_fold_init_literal(kind, *chunk_width);
                 let symbol = for_fold_symbol(kind);
+                let src_ref = if matches!(src_node, Node::Constant { .. }) {
+                    let tmp = format!("for_fold_src_{idx}");
+                    writeln!(
+                        out,
+                        "        logic {} {};",
+                        width_decl(src_node.width()),
+                        tmp
+                    )
+                    .unwrap();
+                    writeln!(out, "        {tmp} = {src};").unwrap();
+                    tmp
+                } else {
+                    src
+                };
                 writeln!(out, "        {name} = {init};").unwrap();
                 writeln!(out, "        for (int i = 0; i < {trip_count}; i++) begin").unwrap();
                 writeln!(
                     out,
-                    "            {name} = {name} {symbol} {src}[(i * {chunk_width}) +: {chunk_width}];"
+                    "            {name} = {name} {symbol} {src_ref}[(i * {chunk_width}) +: {chunk_width}];"
                 )
                 .unwrap();
                 writeln!(out, "        end").unwrap();
@@ -896,6 +911,35 @@ mod tests {
         assert!(sv.contains("for_fold_xor_0 = 2'h0;"));
         assert!(sv.contains("for (int i = 0; i < 4; i++) begin"));
         assert!(sv.contains("for_fold_xor_0 = for_fold_xor_0 ^ src[(i * 2) +: 2];"));
+    }
+
+    #[test]
+    fn for_fold_materializes_literal_sources_before_part_select() {
+        let mut m = Module {
+            name: "m_for_fold_const".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "o", 4, Direction::Out));
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0xa5,
+        });
+        m.nodes.push(Node::Gate {
+            op: GateOp::ForFold {
+                kind: ForFoldKind::And,
+                trip_count: 2,
+                chunk_width: 4,
+            },
+            operands: vec![0],
+            width: 4,
+            deps: DepSet::new(),
+        });
+        m.drives.push((0, 1));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("logic [7:0] for_fold_src_1;"));
+        assert!(sv.contains("for_fold_src_1 = 8'ha5;"));
+        assert!(sv.contains("for_fold_and_0 = for_fold_and_0 & for_fold_src_1[(i * 4) +: 4];"));
     }
 
     #[test]

@@ -274,10 +274,11 @@ What it does:
   identity mode, factorization level, and two stress profiles
   (share-heavy comb-only, motif-heavy sequential);
 - generates a per-scenario corpus under `./tool-matrix/<scenario>/`;
-- runs Verilator and Yosys on every generated file;
-- writes `./tool-matrix/tool_matrix_report.json` with per-file tool
+- runs Verilator and Yosys on every generated artifact;
+- writes `./tool-matrix/tool_matrix_report.json` with per-artifact tool
   results, aggregated metrics, and coverage facts; and
-- exits non-zero if either downstream tool fails on any generated file.
+- exits non-zero if either downstream tool fails on any generated
+  artifact.
 
 Useful options:
 
@@ -292,6 +293,12 @@ Useful options:
   closure matrix and fail unless the report proves the landed Phase 3
   surfaces (`case`, `casez`, `for`-fold, priority encoder, mux
   encodings, selectable `Slice` / `Concat`, variable shift).
+- `--phase4-hierarchy-gate` to run the repo-owned depth-1 hierarchy
+  wrapper matrix and fail unless the report proves multifile hierarchy
+  designs, correct top-module tool invocation, real child instances,
+  real instance-output nodes, and the representative wrapper profiles
+  (`construction_strategy ∈ {sequential, shuffled, interleaved}`,
+  `num_leaf_modules ∈ {2, 4}`, comb-heavy / seq-heavy child mixes).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -346,9 +353,22 @@ records:
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-`tool_matrix` now writes per-module
-checkpoint sidecars and supports `--resume`, so interrupted output trees
-can be continued in place.
+The completed current-code Phase 4 wrapper-hierarchy report at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+records:
+
+- `12` scenarios
+- `4` designs per scenario
+- `48` total designs
+- `artifact_kind = "design"`
+- `coverage_gaps = []`
+- `Verilator pass/fail = 48/0`
+- `Yosys without-abc pass/fail = 48/0`
+- `Yosys with-abc pass/fail = 48/0`
+
+`tool_matrix` now writes per-module or per-design checkpoint sidecars
+and supports `--resume`, so interrupted output trees can be continued in
+place.
 
 `--resume` only reuses saved tool results when the saved tool surface
 matches the current run (`skip_verilator`, `skip_yosys`, and

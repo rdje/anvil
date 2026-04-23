@@ -153,9 +153,23 @@ It also keeps the open work honest. The following are **not** live yet:
   parent cone,
 - recursive depth > 1 hierarchy,
 - on-demand child generation sized to parent needs,
-- hierarchy-aware `NodeId` identity/factorization, and
-- a repo-owned Phase 4 closure gate comparable to the Phase 1/2/3
-  gates.
+- hierarchy-aware `NodeId` identity/factorization.
+
+What **is** now live beyond the original smoke is the repo-owned Phase 4
+wrapper gate:
+
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+- `12` scenarios
+- `4` designs/scenario
+- `48` total designs
+- `coverage_gaps = []`
+- `Verilator 48/0`
+- `Yosys without-abc 48/0`
+- `Yosys with-abc 48/0`
+
+That gate proves the current wrapper slice directly from saved report
+facts: multifile hierarchy designs, correct top-module tool invocation,
+real child instances, and real `Node::InstanceOutput` use.
 
 ## The next real steps
 
@@ -166,8 +180,7 @@ items are:
    answers to "what drives this signal?";
 2. add deeper bounded recursion (`hierarchy_depth > 1`);
 3. add the on-demand child-sourcing path beside the current
-   pre-generated library path; and
-4. add repo-owned hierarchy closure evidence in `tool_matrix`.
+   pre-generated library path.
 
 Only after that does Phase 4 become "done" in the same sense that the
 leaf-kernel phases are done today.

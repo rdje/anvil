@@ -93,7 +93,8 @@ src/
 ```
 
 Phase 4 is now in progress: `src/gen/hierarchy.rs` owns the first live
-depth-1 hierarchy slice.
+depth-1 hierarchy slice, and the current wrapper-only surface now has a
+repo-owned closure gate in `tool_matrix`.
 
 ## Dependency direction
 
@@ -343,7 +344,7 @@ selectable `Slice` / `Concat` surface, the depth-1 hierarchy wrapper
 surface, compaction/orphan guarantees, knob-roll telemetry, and
 input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 173 unit-target tests + 30 integration tests = 203 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 179 unit-target tests + 30 integration tests = 209 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -365,10 +366,13 @@ summary proving that `shared_node_fraction` rises monotonically across
 structured-surface gate is now closed as well via
 `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
-plus both repo-owned Yosys modes). Phase 4 does not have a repo-owned
-closure gate yet, but the first real hierarchy smoke at
-`/tmp/anvil-hierarchy-smoke-r1` is clean in Verilator, Yosys
-`synth -noabc`, and the repo-owned ABC path.
+plus both repo-owned Yosys modes). The current Phase 4 wrapper slice now
+has its own repo-owned gate too via
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+(48 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+48/0 pass-fail in Verilator plus both repo-owned Yosys modes). The old
+hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1` remains clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned ABC path.
 
 ## Error handling
 

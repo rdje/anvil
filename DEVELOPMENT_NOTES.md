@@ -98,6 +98,30 @@ Two narrow implementation choices are load-bearing in this slice:
   proof machinery compatible with hierarchy without overclaiming
   hierarchical equivalence.
 
+### Literal-backed for-fold sources must be materialized before procedural part-selects
+The repo-owned Phase 4 hierarchy gate exposed a real emitter defect in
+the bounded procedural `for` surface.
+
+The bad shape was not subtle:
+
+- direct literal indexing such as `24'h86899[(i * 12) +: 12]`, and then
+- an attempted blanket fix that emitted `(signal)[(i * 12) +: 12]`.
+
+Neither is a robust answer for the downstream tools we care about.
+Verilator and Yosys both rejected those forms during the hierarchy
+matrix.
+
+The correct fix is narrower and more truthful:
+
+- keep ordinary named packed sources as `src[(i * K) +: K]`;
+- but when the fold source is a constant, materialize it through a
+  packed procedural temporary inside the surrounding `always_comb`;
+- then index that temporary.
+
+That preserves the intended structured surface, keeps the emitted SV
+legal, and fixes the root cause instead of weakening the gate or hiding
+the fold behind different syntax.
+
 ### Wrapped-add bounds must preserve a shifted single interval when it stays linear
 The `e-graph` warning in
 `/tmp/anvil-tool-matrix-phase1-real-r20/int_nodeid_e-graph_default/mod_8_0053.sv`

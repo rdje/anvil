@@ -268,15 +268,24 @@ evidence.
     - **On-demand**: generate a fresh sub-module with required port widths
   - arbitrary hierarchy depth, bounded by knob
   - name uniqueness across the full module set
-  - repo-owned hierarchy closure evidence, not just one smoke run
   - hierarchical identity as future required work: under
     `identity_mode = node-id`, equivalent instantiated structures
     should eventually participate in the same sharing story instead of
     creating a second identity system beside gates/flops
 
-**Exit criteria:** repo-owned hierarchy gate with multi-file output,
-correct top declaration, design-level validation, and clean Verilator +
-Yosys elaboration/synthesis on a representative hierarchy matrix.
+**Wrapper-slice closure (met locally):** the repo-owned hierarchy gate
+now exists at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+with multi-file output, correct top declaration, design-level
+validation, `coverage_gaps = []`, and clean Verilator + Yosys
+elaboration/synthesis on a representative hierarchy matrix
+(`48/0` in Verilator plus both repo-owned Yosys modes).
+
+**Phase 4 still remains in progress** because the phase is broader than
+the current wrapper slice. The remaining substantive work is the parent
+using instance outputs as real cone inputs, deeper recursion, on-demand
+child sourcing beside the current library path, and eventual
+hierarchy-aware identity/factorization.
 
 ## Phase 5 — Parameterization (not started)
 

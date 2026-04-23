@@ -1,6 +1,6 @@
 use anvil::config::{ConstructionStrategy, FactorizationLevel, IdentityMode};
 use anvil::metrics::Metrics;
-use anvil::{Config, Generator, GeneratorCheckpoint};
+use anvil::{Config, Design, Generator, GeneratorCheckpoint};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use std::process::Command;
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
+const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 48;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -48,6 +49,12 @@ struct Cli {
     /// require its coverage.
     #[arg(long)]
     phase3_structured_gate: bool,
+
+    /// Elevate the run to the repo-owned Phase 4 hierarchy gate:
+    /// run the representative depth-1 hierarchy matrix and require
+    /// its coverage.
+    #[arg(long)]
+    phase4_hierarchy_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -118,6 +125,13 @@ struct ModuleReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct EmittedModuleReport {
+    file: String,
+    name: String,
+    metrics: Metrics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModuleCheckpoint {
     skip_verilator: bool,
     skip_yosys: bool,
@@ -126,6 +140,33 @@ struct ModuleCheckpoint {
     sv_hash: Option<String>,
     generator_checkpoint: Option<GeneratorCheckpoint>,
     report: ModuleReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesignReport {
+    index: usize,
+    top: String,
+    files: Vec<String>,
+    modules: Vec<EmittedModuleReport>,
+    verilator: Option<ToolInvocation>,
+    yosys: Vec<ToolInvocation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesignFileHash {
+    file: String,
+    hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesignCheckpoint {
+    skip_verilator: bool,
+    skip_yosys: bool,
+    yosys_mode: String,
+    runtime_fingerprint: Option<String>,
+    files: Vec<DesignFileHash>,
+    generator_checkpoint: Option<GeneratorCheckpoint>,
+    report: DesignReport,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -164,10 +205,16 @@ struct CoverageSummary {
     identity_modes: BTreeSet<String>,
     factorization_levels: BTreeSet<String>,
     share_prob_values: BTreeSet<String>,
+    hierarchy_depths: BTreeSet<String>,
+    hierarchy_leaf_module_counts: BTreeSet<String>,
     gate_categories: BTreeSet<String>,
     gate_kinds: BTreeSet<String>,
     knob_attempts_seen: BTreeSet<String>,
     knob_fires_seen: BTreeSet<String>,
+    saw_hierarchy_design: bool,
+    saw_multifile_design: bool,
+    saw_instance_module: bool,
+    saw_instance_output_node: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -188,6 +235,7 @@ enum ScenarioSet {
     Default,
     Phase2Share,
     Phase3Structured,
+    Phase4Hierarchy,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -211,10 +259,12 @@ struct ScenarioReport {
     description: String,
     out_dir: String,
     config: Config,
+    artifact_kind: String,
     aggregate: AggregateMetrics,
     coverage: CoverageSummary,
     tool_summary: ToolSummary,
     modules: Vec<ModuleReport>,
+    designs: Vec<DesignReport>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -224,9 +274,11 @@ struct MatrixReport {
     scenario_count: usize,
     total_modules: usize,
     scenario_set: String,
+    artifact_kind: String,
     phase1_gate: bool,
     phase2_share_gate: bool,
     phase3_structured_gate: bool,
+    phase4_hierarchy_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -257,6 +309,29 @@ struct PreparedModule {
     metrics: Metrics,
     sv_text: String,
     sv_hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct DesignPaths {
+    checkpoint_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedEmittedModule {
+    file: String,
+    name: String,
+    metrics: Metrics,
+    sv_path: PathBuf,
+    sv_text: String,
+    sv_hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct PreparedDesign {
+    paths: DesignPaths,
+    index: usize,
+    top: String,
+    modules: Vec<PreparedEmittedModule>,
 }
 
 fn main() -> Result<()> {
@@ -311,9 +386,11 @@ fn main() -> Result<()> {
         scenario_count: scenario_reports.len(),
         total_modules: plan.total_modules,
         scenario_set: scenario_set_slug(scenario_set).to_string(),
+        artifact_kind: artifact_kind_slug(scenario_set).to_string(),
         phase1_gate: cli.phase1_gate,
         phase2_share_gate: cli.phase2_share_gate,
         phase3_structured_gate: cli.phase3_structured_gate,
+        phase4_hierarchy_gate: cli.phase4_hierarchy_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -327,9 +404,10 @@ fn main() -> Result<()> {
         .with_context(|| format!("write {}", report_path.display()))?;
 
     println!(
-        "tool_matrix: {} scenarios, {} modules/scenario, report {}",
+        "tool_matrix: {} scenarios, {} {}/scenario, report {}",
         report.scenario_count,
         report.modules_per_scenario,
+        report.artifact_kind,
         report_path.display()
     );
     println!("tool_matrix: total modules = {}", report.total_modules);
@@ -413,6 +491,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         PHASE2_SHARE_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else if cli.phase3_structured_gate {
         PHASE3_STRUCTURED_MIN_TOTAL_MODULES.div_ceil(scenario_count)
+    } else if cli.phase4_hierarchy_gate {
+        PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS.div_ceil(scenario_count)
     } else {
         1
     };
@@ -423,7 +503,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         fail_on_coverage_gap: cli.fail_on_coverage_gap
             || cli.phase1_gate
             || cli.phase2_share_gate
-            || cli.phase3_structured_gate,
+            || cli.phase3_structured_gate
+            || cli.phase4_hierarchy_gate,
         total_modules,
     }
 }
@@ -431,16 +512,19 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
 fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
     let enabled_gates = usize::from(cli.phase1_gate)
         + usize::from(cli.phase2_share_gate)
-        + usize::from(cli.phase3_structured_gate);
+        + usize::from(cli.phase3_structured_gate)
+        + usize::from(cli.phase4_hierarchy_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, and --phase3-structured-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, and --phase4-hierarchy-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
         Ok(ScenarioSet::Phase2Share)
     } else if cli.phase3_structured_gate {
         Ok(ScenarioSet::Phase3Structured)
+    } else if cli.phase4_hierarchy_gate {
+        Ok(ScenarioSet::Phase4Hierarchy)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -451,6 +535,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::Default => build_default_scenarios(base_seed)?,
         ScenarioSet::Phase2Share => build_phase2_share_scenarios(base_seed)?,
         ScenarioSet::Phase3Structured => build_phase3_structured_scenarios(base_seed)?,
+        ScenarioSet::Phase4Hierarchy => build_phase4_hierarchy_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -659,6 +744,42 @@ fn build_phase3_structured_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
             phase3_slice_concat_varshift_focus_config(strategy, next_seed),
         )?);
         next_seed += 1;
+    }
+
+    Ok(scenarios)
+}
+
+fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut next_seed = base_seed;
+
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ] {
+        let strategy_label = construction_strategy_name(strategy);
+        let strategy_slug = strategy_slug(strategy);
+
+        for leaf_modules in [2, 4] {
+            scenarios.push(make_scenario(
+                &format!("{strategy_slug}_nodeid_egraph_phase4_hier{leaf_modules}_comb"),
+                &format!(
+                    "{strategy_label} strategy, node-id + e-graph, depth-1 hierarchy with {leaf_modules} leaf modules and combinational share-heavy children."
+                ),
+                phase4_hierarchy_comb_focus_config(strategy, next_seed, leaf_modules),
+            )?);
+            next_seed += 1;
+
+            scenarios.push(make_scenario(
+                &format!("{strategy_slug}_nodeid_egraph_phase4_hier{leaf_modules}_seq"),
+                &format!(
+                    "{strategy_label} strategy, node-id + e-graph, depth-1 hierarchy with {leaf_modules} leaf modules and sequential motif-heavy children."
+                ),
+                phase4_hierarchy_seq_focus_config(strategy, next_seed, leaf_modules),
+            )?);
+            next_seed += 1;
+        }
     }
 
     Ok(scenarios)
@@ -923,7 +1044,49 @@ fn phase3_slice_concat_varshift_focus_config(strategy: ConstructionStrategy, see
     }
 }
 
+fn with_hierarchy_wrapper(mut cfg: Config, num_leaf_modules: u32) -> Config {
+    cfg.hierarchy_depth = 1;
+    cfg.num_leaf_modules = num_leaf_modules;
+    cfg
+}
+
+fn phase4_hierarchy_comb_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    num_leaf_modules: u32,
+) -> Config {
+    with_hierarchy_wrapper(
+        share_heavy_comb_only_config(strategy, seed, 0.9),
+        num_leaf_modules,
+    )
+}
+
+fn phase4_hierarchy_seq_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    num_leaf_modules: u32,
+) -> Config {
+    with_hierarchy_wrapper(
+        motif_heavy_sequential_config(strategy, seed, 0.4),
+        num_leaf_modules,
+    )
+}
+
 fn run_scenario(
+    scenario: &Scenario,
+    cli: &Cli,
+    plan: &RunPlan,
+    out_root: &Path,
+    runtime_fingerprint: Option<&str>,
+) -> Result<ScenarioReport> {
+    if scenario.config.hierarchy_depth > 0 {
+        return run_design_scenario(scenario, cli, plan, out_root, runtime_fingerprint);
+    }
+
+    run_module_scenario(scenario, cli, plan, out_root, runtime_fingerprint)
+}
+
+fn run_module_scenario(
     scenario: &Scenario,
     cli: &Cli,
     plan: &RunPlan,
@@ -977,10 +1140,73 @@ fn run_scenario(
             .unwrap_or(&scenario.name)
             .to_string(),
         config: scenario.config.clone(),
+        artifact_kind: "module".to_string(),
         aggregate,
         coverage,
         tool_summary,
         modules,
+        designs: Vec::new(),
+    })
+}
+
+fn run_design_scenario(
+    scenario: &Scenario,
+    cli: &Cli,
+    plan: &RunPlan,
+    out_root: &Path,
+    runtime_fingerprint: Option<&str>,
+) -> Result<ScenarioReport> {
+    let scenario_dir = out_root.join(&scenario.name);
+    std::fs::create_dir_all(&scenario_dir)
+        .with_context(|| format!("create scenario directory {}", scenario_dir.display()))?;
+
+    let mut generator = Generator::new(scenario.config.clone());
+    let mut designs = Vec::with_capacity(plan.modules_per_scenario);
+
+    for design_index in 0..plan.modules_per_scenario {
+        if let Some(report) = resume_existing_design(
+            &mut generator,
+            cli,
+            &scenario_dir,
+            design_index,
+            runtime_fingerprint,
+        )? {
+            designs.push(report);
+            continue;
+        }
+
+        let prepared = prepare_design(&mut generator, &scenario_dir, design_index)?;
+        let generator_checkpoint = generator.checkpoint();
+        designs.push(materialize_prepared_design(
+            cli,
+            &prepared,
+            &generator_checkpoint,
+            runtime_fingerprint,
+            true,
+        )?);
+    }
+
+    write_design_scenario_manifest(&scenario_dir, scenario, &designs)?;
+
+    let aggregate = aggregate_design_metrics(&designs);
+    let coverage = summarize_design_coverage(scenario, &designs);
+    let tool_summary = summarize_design_tools(&designs);
+
+    Ok(ScenarioReport {
+        name: scenario.name.clone(),
+        description: scenario.description.clone(),
+        out_dir: scenario_dir
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&scenario.name)
+            .to_string(),
+        config: scenario.config.clone(),
+        artifact_kind: "design".to_string(),
+        aggregate,
+        coverage,
+        tool_summary,
+        modules: Vec::new(),
+        designs,
     })
 }
 
@@ -1050,6 +1276,53 @@ fn resume_existing_module(
     .map(Some)
 }
 
+fn resume_existing_design(
+    generator: &mut Generator,
+    cli: &Cli,
+    scenario_dir: &Path,
+    design_index: usize,
+    runtime_fingerprint: Option<&str>,
+) -> Result<Option<DesignReport>> {
+    if !cli.resume {
+        return Ok(None);
+    }
+
+    let paths = design_paths(scenario_dir, design_index);
+    let Some(checkpoint) = load_design_checkpoint(&paths.checkpoint_path)? else {
+        return Ok(None);
+    };
+
+    if let Some(report) = try_fast_resume_design_checkpoint(
+        generator,
+        cli,
+        scenario_dir,
+        &checkpoint,
+        runtime_fingerprint,
+    )? {
+        return Ok(Some(report));
+    }
+
+    let prepared = prepare_design(generator, scenario_dir, design_index)?;
+    validate_checkpoint_against_prepared_design(&checkpoint.report, &prepared)?;
+    validate_design_files_against_prepared(&prepared)?;
+
+    let generator_checkpoint = generator.checkpoint();
+    let report = if checkpoint_matches_design_cli(&checkpoint, cli) {
+        checkpoint.report
+    } else {
+        run_design_tools(cli, &prepared)?
+    };
+    write_design_checkpoint(
+        cli,
+        &prepared.paths.checkpoint_path,
+        &report,
+        &generator_checkpoint,
+        runtime_fingerprint,
+        &prepared.modules,
+    )?;
+    Ok(Some(report))
+}
+
 fn write_scenario_manifest(
     scenario_dir: &Path,
     scenario: &Scenario,
@@ -1082,6 +1355,50 @@ fn write_scenario_manifest(
     Ok(())
 }
 
+fn write_design_scenario_manifest(
+    scenario_dir: &Path,
+    scenario: &Scenario,
+    designs: &[DesignReport],
+) -> Result<()> {
+    let manifest_designs: Vec<_> = designs
+        .iter()
+        .map(|design| {
+            let modules: Vec<_> = design
+                .modules
+                .iter()
+                .map(|module| {
+                    serde_json::json!({
+                        "file": module.file,
+                        "name": module.name,
+                        "metrics": module.metrics,
+                    })
+                })
+                .collect();
+            serde_json::json!({
+                "index": design.index,
+                "top": design.top,
+                "files": design.files,
+                "modules": modules,
+            })
+        })
+        .collect();
+
+    let manifest = serde_json::json!({
+        "scenario": {
+            "name": scenario.name,
+            "description": scenario.description,
+        },
+        "seed": scenario.config.seed,
+        "config": scenario.config,
+        "designs": manifest_designs,
+    });
+
+    let manifest_path = scenario_dir.join("manifest.json");
+    std::fs::write(&manifest_path, serde_json::to_string_pretty(&manifest)?)
+        .with_context(|| format!("write {}", manifest_path.display()))?;
+    Ok(())
+}
+
 fn module_paths(scenario_dir: &Path, seed: u64, module_index: usize) -> Result<ModulePaths> {
     let file = format!("mod_{}_{:04}.sv", seed, module_index);
     let sv_path = scenario_dir.join(&file);
@@ -1099,6 +1416,12 @@ fn module_paths(scenario_dir: &Path, seed: u64, module_index: usize) -> Result<M
     })
 }
 
+fn design_paths(scenario_dir: &Path, design_index: usize) -> DesignPaths {
+    DesignPaths {
+        checkpoint_path: scenario_dir.join(format!("design_{design_index:04}.design-report.json")),
+    }
+}
+
 fn prepare_module(
     generator: &mut Generator,
     scenario: &Scenario,
@@ -1107,6 +1430,54 @@ fn prepare_module(
 ) -> Result<PreparedModule> {
     let paths = module_paths(scenario_dir, scenario.config.seed, module_index)?;
     prepare_module_with_paths(generator, scenario, paths)
+}
+
+fn prepare_design(
+    generator: &mut Generator,
+    scenario_dir: &Path,
+    design_index: usize,
+) -> Result<PreparedDesign> {
+    let paths = design_paths(scenario_dir, design_index);
+    let design = generator.generate_design();
+    anvil::ir::validate::validate_design(&design).map_err(|err| anyhow::anyhow!("{err}"))?;
+    prepared_design_from_design(paths, design_index, &design, scenario_dir)
+}
+
+fn prepared_design_from_design(
+    paths: DesignPaths,
+    design_index: usize,
+    design: &Design,
+    scenario_dir: &Path,
+) -> Result<PreparedDesign> {
+    let mut modules = Vec::with_capacity(design.modules.len());
+    for module in &design.modules {
+        let metrics = anvil::metrics::compute(module);
+        let file = format!("{}.sv", module.name);
+        let sv_path = scenario_dir.join(&file);
+        let sv_text = anvil::emit::to_sv_in_design(module, design);
+        let sv_hash = hash_bytes(sv_text.as_bytes());
+        modules.push(PreparedEmittedModule {
+            file,
+            name: module.name.clone(),
+            metrics,
+            sv_path,
+            sv_text,
+            sv_hash,
+        });
+    }
+    if !modules.iter().any(|module| module.name == design.top) {
+        bail!(
+            "design {} missing top module {} in emitted module set",
+            design_index,
+            design.top
+        );
+    }
+    Ok(PreparedDesign {
+        paths,
+        index: design_index,
+        top: design.top.clone(),
+        modules,
+    })
 }
 
 fn prepare_module_with_paths(
@@ -1125,6 +1496,32 @@ fn prepare_module_with_paths(
         sv_text,
         sv_hash,
     })
+}
+
+fn materialize_prepared_design(
+    cli: &Cli,
+    prepared: &PreparedDesign,
+    generator_checkpoint: &GeneratorCheckpoint,
+    runtime_fingerprint: Option<&str>,
+    write_sv: bool,
+) -> Result<DesignReport> {
+    if write_sv {
+        for module in &prepared.modules {
+            std::fs::write(&module.sv_path, &module.sv_text)
+                .with_context(|| format!("write {}", module.sv_path.display()))?;
+        }
+    }
+
+    let report = run_design_tools(cli, prepared)?;
+    write_design_checkpoint(
+        cli,
+        &prepared.paths.checkpoint_path,
+        &report,
+        generator_checkpoint,
+        runtime_fingerprint,
+        &prepared.modules,
+    )?;
+    Ok(report)
 }
 
 fn materialize_prepared_module(
@@ -1191,6 +1588,65 @@ fn run_module_tools(
     Ok((verilator, yosys))
 }
 
+fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport> {
+    let sv_paths: Vec<_> = prepared
+        .modules
+        .iter()
+        .map(|module| module.sv_path.clone())
+        .collect();
+    let files: Vec<_> = prepared
+        .modules
+        .iter()
+        .map(|module| module.file.clone())
+        .collect();
+    let modules: Vec<_> = prepared
+        .modules
+        .iter()
+        .map(|module| EmittedModuleReport {
+            file: module.file.clone(),
+            name: module.name.clone(),
+            metrics: module.metrics.clone(),
+        })
+        .collect();
+    let scenario_dir = prepared
+        .modules
+        .first()
+        .and_then(|module| module.sv_path.parent())
+        .context("prepared design missing scenario directory")?;
+
+    let verilator = if cli.skip_verilator {
+        None
+    } else {
+        Some(run_verilator_design(
+            &cli.verilator_bin,
+            scenario_dir,
+            &sv_paths,
+            &prepared.top,
+        )?)
+    };
+
+    let yosys = if cli.skip_yosys {
+        Vec::new()
+    } else {
+        run_yosys_design(
+            cli.yosys_mode,
+            &cli.yosys_bin,
+            scenario_dir,
+            &sv_paths,
+            &prepared.top,
+        )?
+    };
+
+    Ok(DesignReport {
+        index: prepared.index,
+        top: prepared.top.clone(),
+        files,
+        modules,
+        verilator,
+        yosys,
+    })
+}
+
 fn write_module_checkpoint(
     cli: &Cli,
     path: &Path,
@@ -1213,6 +1669,35 @@ fn write_module_checkpoint(
     Ok(())
 }
 
+fn write_design_checkpoint(
+    cli: &Cli,
+    path: &Path,
+    report: &DesignReport,
+    generator_checkpoint: &GeneratorCheckpoint,
+    runtime_fingerprint: Option<&str>,
+    modules: &[PreparedEmittedModule],
+) -> Result<()> {
+    let files = modules
+        .iter()
+        .map(|module| DesignFileHash {
+            file: module.file.clone(),
+            hash: module.sv_hash.clone(),
+        })
+        .collect();
+    let checkpoint = DesignCheckpoint {
+        skip_verilator: cli.skip_verilator,
+        skip_yosys: cli.skip_yosys,
+        yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
+        runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
+        files,
+        generator_checkpoint: Some(generator_checkpoint.clone()),
+        report: report.clone(),
+    };
+    std::fs::write(path, serde_json::to_string_pretty(&checkpoint)?)
+        .with_context(|| format!("write {}", path.display()))?;
+    Ok(())
+}
+
 fn load_module_checkpoint(path: &Path) -> Result<Option<ModuleCheckpoint>> {
     if !path.exists() {
         return Ok(None);
@@ -1225,7 +1710,25 @@ fn load_module_checkpoint(path: &Path) -> Result<Option<ModuleCheckpoint>> {
     }
 }
 
+fn load_design_checkpoint(path: &Path) -> Result<Option<DesignCheckpoint>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    match serde_json::from_str::<DesignCheckpoint>(&text) {
+        Ok(checkpoint) => Ok(Some(checkpoint)),
+        Err(_) => Ok(None),
+    }
+}
+
 fn checkpoint_matches_cli(checkpoint: &ModuleCheckpoint, cli: &Cli) -> bool {
+    checkpoint.skip_verilator == cli.skip_verilator
+        && checkpoint.skip_yosys == cli.skip_yosys
+        && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
+}
+
+fn checkpoint_matches_design_cli(checkpoint: &DesignCheckpoint, cli: &Cli) -> bool {
     checkpoint.skip_verilator == cli.skip_verilator
         && checkpoint.skip_yosys == cli.skip_yosys
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
@@ -1271,6 +1774,42 @@ fn try_fast_resume_checkpoint(
     Ok(Some(checkpoint.report.clone()))
 }
 
+fn try_fast_resume_design_checkpoint(
+    generator: &mut Generator,
+    cli: &Cli,
+    scenario_dir: &Path,
+    checkpoint: &DesignCheckpoint,
+    runtime_fingerprint: Option<&str>,
+) -> Result<Option<DesignReport>> {
+    if !checkpoint_matches_design_cli(checkpoint, cli) {
+        return Ok(None);
+    }
+    let expected_fingerprint = match runtime_fingerprint {
+        Some(fingerprint) => fingerprint,
+        None => return Ok(None),
+    };
+    if checkpoint.runtime_fingerprint.as_deref() != Some(expected_fingerprint) {
+        return Ok(None);
+    }
+    let generator_checkpoint = match checkpoint.generator_checkpoint.as_ref() {
+        Some(state) => state,
+        None => return Ok(None),
+    };
+    for file in &checkpoint.files {
+        let path = scenario_dir.join(&file.file);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let existing_hash = hash_file(&path)?;
+        if existing_hash != file.hash {
+            return Ok(None);
+        }
+    }
+
+    generator.restore_checkpoint(generator_checkpoint);
+    Ok(Some(checkpoint.report.clone()))
+}
+
 fn validate_checkpoint_against_prepared(
     report: &ModuleReport,
     prepared: &PreparedModule,
@@ -1295,6 +1834,60 @@ fn validate_checkpoint_against_prepared(
     Ok(())
 }
 
+fn validate_checkpoint_against_prepared_design(
+    report: &DesignReport,
+    prepared: &PreparedDesign,
+) -> Result<()> {
+    if report.index != prepared.index {
+        bail!(
+            "resume mismatch for design {}: checkpoint index {}, expected {}",
+            prepared.top,
+            report.index,
+            prepared.index
+        );
+    }
+    if report.top != prepared.top {
+        bail!(
+            "resume mismatch for design {}: checkpoint top {}, expected {}",
+            prepared.index,
+            report.top,
+            prepared.top
+        );
+    }
+    let expected_files: Vec<_> = prepared
+        .modules
+        .iter()
+        .map(|module| module.file.clone())
+        .collect();
+    if report.files != expected_files {
+        bail!(
+            "resume mismatch for design {}: checkpoint file set differs from regenerated design",
+            prepared.top
+        );
+    }
+    if report.modules.len() != prepared.modules.len() {
+        bail!(
+            "resume mismatch for design {}: checkpoint module count {}, expected {}",
+            prepared.top,
+            report.modules.len(),
+            prepared.modules.len()
+        );
+    }
+    for (reported, expected) in report.modules.iter().zip(&prepared.modules) {
+        if reported.file != expected.file || reported.name != expected.name {
+            bail!(
+                "resume mismatch for design {}: checkpoint module {} / {} differs from regenerated {} / {}",
+                prepared.top,
+                reported.file,
+                reported.name,
+                expected.file,
+                expected.name
+            );
+        }
+    }
+    Ok(())
+}
+
 fn validate_legacy_sv_against_prepared(prepared: &PreparedModule) -> Result<()> {
     let existing = std::fs::read_to_string(&prepared.paths.sv_path)
         .with_context(|| format!("read {}", prepared.paths.sv_path.display()))?;
@@ -1307,6 +1900,21 @@ fn validate_legacy_sv_against_prepared(prepared: &PreparedModule) -> Result<()> 
     Ok(())
 }
 
+fn validate_design_files_against_prepared(prepared: &PreparedDesign) -> Result<()> {
+    for module in &prepared.modules {
+        let existing = std::fs::read_to_string(&module.sv_path)
+            .with_context(|| format!("read {}", module.sv_path.display()))?;
+        if existing != module.sv_text {
+            bail!(
+                "resume mismatch for design {}: existing SV differs from regenerated module {}",
+                prepared.top,
+                module.file
+            );
+        }
+    }
+    Ok(())
+}
+
 fn run_verilator(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
     run_tool(
         "verilator",
@@ -1315,6 +1923,21 @@ fn run_verilator(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Resul
         out_dir,
         stem,
     )
+}
+
+fn run_verilator_design(
+    bin: &str,
+    out_dir: &Path,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Result<ToolInvocation> {
+    let mut argv = vec![
+        "--lint-only".to_string(),
+        "--top-module".to_string(),
+        top.to_string(),
+    ];
+    argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
+    run_tool("verilator", bin, argv, out_dir, top)
 }
 
 fn run_yosys(
@@ -1332,6 +1955,26 @@ fn run_yosys(
             vec!["-p".to_string(), script],
             out_dir,
             stem,
+        )?);
+    }
+    Ok(invocations)
+}
+
+fn run_yosys_design(
+    mode: YosysMode,
+    bin: &str,
+    out_dir: &Path,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Result<Vec<ToolInvocation>> {
+    let mut invocations = Vec::new();
+    for (tool_label, script) in yosys_design_invocations(mode, sv_paths, top) {
+        invocations.push(run_tool(
+            tool_label,
+            bin,
+            vec!["-p".to_string(), script],
+            out_dir,
+            top,
         )?);
     }
     Ok(invocations)
@@ -1359,6 +2002,42 @@ fn yosys_invocations(mode: YosysMode, sv_path: &Path) -> Vec<(&'static str, Stri
                 "yosys-with-abc",
                 format!(
                     "read_verilog -sv \"{escaped}\"; synth -noabc; abc -fast; opt -fast; stat; check"
+                ),
+            ),
+        ],
+    }
+}
+
+fn yosys_design_invocations(
+    mode: YosysMode,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Vec<(&'static str, String)> {
+    let escaped_files = escape_paths_for_double_quotes(sv_paths);
+    match mode {
+        YosysMode::WithoutAbc => vec![(
+            "yosys-without-abc",
+            format!(
+                "read_verilog -sv {escaped_files}; synth -top {top} -noabc; stat; check"
+            ),
+        )],
+        YosysMode::WithAbc => vec![(
+            "yosys-with-abc",
+            format!(
+                "read_verilog -sv {escaped_files}; synth -top {top} -noabc; abc -fast; opt -fast; stat; check"
+            ),
+        )],
+        YosysMode::Both => vec![
+            (
+                "yosys-without-abc",
+                format!(
+                    "read_verilog -sv {escaped_files}; synth -top {top} -noabc; stat; check"
+                ),
+            ),
+            (
+                "yosys-with-abc",
+                format!(
+                    "read_verilog -sv {escaped_files}; synth -top {top} -noabc; abc -fast; opt -fast; stat; check"
                 ),
             ),
         ],
@@ -1457,30 +2136,17 @@ fn write_tool_log_if_needed(
 fn aggregate_metrics(modules: &[ModuleReport]) -> AggregateMetrics {
     let mut aggregate = AggregateMetrics::default();
     for module in modules {
-        aggregate.modules += 1;
-        aggregate.total_nodes += module.metrics.num_nodes;
-        aggregate.total_gates += module.metrics.num_gates;
-        aggregate.total_flops += module.metrics.num_flops;
-        aggregate.total_shared_nodes += module.metrics.num_shared_nodes;
-        aggregate.total_priority_encoder_blocks +=
-            u64::from(module.metrics.num_priority_encoder_blocks);
-        aggregate.total_comb_muxes_one_hot += u64::from(module.metrics.num_comb_muxes_one_hot);
-        aggregate.total_comb_muxes_encoded += u64::from(module.metrics.num_comb_muxes_encoded);
-        aggregate.total_case_mux_blocks += u64::from(module.metrics.num_case_mux_blocks);
-        aggregate.total_casez_mux_blocks += u64::from(module.metrics.num_casez_mux_blocks);
-        aggregate.total_for_fold_blocks += u64::from(module.metrics.num_for_fold_blocks);
-        aggregate.total_semantic_gates_merged += u64::from(module.metrics.semantic_gates_merged);
-        aggregate.total_flops_merged += u64::from(module.metrics.flops_merged);
+        accumulate_metrics(&mut aggregate, &module.metrics);
+    }
+    aggregate
+}
 
-        merge_usize_count_map_into_u64(&mut aggregate.gates_by_kind, &module.metrics.gates_by_kind);
-        merge_count_map(
-            &mut aggregate.knob_roll_attempts,
-            &module.metrics.knob_roll_attempts,
-        );
-        merge_count_map(
-            &mut aggregate.knob_roll_fires,
-            &module.metrics.knob_roll_fires,
-        );
+fn aggregate_design_metrics(designs: &[DesignReport]) -> AggregateMetrics {
+    let mut aggregate = AggregateMetrics::default();
+    for design in designs {
+        for module in &design.modules {
+            accumulate_metrics(&mut aggregate, &module.metrics);
+        }
     }
     aggregate
 }
@@ -1488,81 +2154,39 @@ fn aggregate_metrics(modules: &[ModuleReport]) -> AggregateMetrics {
 fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
     let mut summary = ToolSummary::default();
     for module in modules {
-        if let Some(verilator) = &module.verilator {
-            if verilator.success {
-                summary.verilator_passed += 1;
-            } else {
-                summary.verilator_failed += 1;
-            }
-        }
-        for yosys in &module.yosys {
-            match yosys.tool.as_str() {
-                "yosys-without-abc" => {
-                    if yosys.success {
-                        summary.yosys_without_abc_passed += 1;
-                    } else {
-                        summary.yosys_without_abc_failed += 1;
-                    }
-                }
-                "yosys-with-abc" => {
-                    if yosys.success {
-                        summary.yosys_with_abc_passed += 1;
-                    } else {
-                        summary.yosys_with_abc_failed += 1;
-                    }
-                }
-                _ => {}
-            }
-        }
+        accumulate_tool_summary(&mut summary, module.verilator.as_ref(), &module.yosys);
+    }
+    summary
+}
+
+fn summarize_design_tools(designs: &[DesignReport]) -> ToolSummary {
+    let mut summary = ToolSummary::default();
+    for design in designs {
+        accumulate_tool_summary(&mut summary, design.verilator.as_ref(), &design.yosys);
     }
     summary
 }
 
 fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> CoverageSummary {
     let mut coverage = CoverageSummary::default();
-    coverage
-        .construction_strategies
-        .insert(construction_strategy_slug(scenario.config.construction_strategy).to_string());
-    coverage
-        .identity_modes
-        .insert(identity_mode_slug(scenario.config.identity_mode).to_string());
-    coverage
-        .factorization_levels
-        .insert(factorization_level_slug(scenario.config.factorization_level).to_string());
-    coverage
-        .share_prob_values
-        .insert(share_prob_label(scenario.config.share_prob));
+    seed_scenario_coverage(&mut coverage, scenario);
 
     for module in modules {
-        if module.metrics.num_flops == 0 {
-            coverage.saw_comb_only_module = true;
-        } else {
-            coverage.saw_sequential_module = true;
-        }
+        accumulate_module_coverage(&mut coverage, &module.metrics);
+    }
 
-        coverage.saw_priority_encoder |= module.metrics.num_priority_encoder_blocks > 0;
-        coverage.saw_comb_mux_one_hot |= module.metrics.num_comb_muxes_one_hot > 0;
-        coverage.saw_comb_mux_encoded |= module.metrics.num_comb_muxes_encoded > 0;
-        coverage.saw_case_mux |= module.metrics.num_case_mux_blocks > 0;
-        coverage.saw_casez_mux |= module.metrics.num_casez_mux_blocks > 0;
-        coverage.saw_for_fold |= module.metrics.num_for_fold_blocks > 0;
-        coverage.saw_variable_shift |= module.metrics.num_variable_shift_gates > 0;
-        coverage.saw_flop_mux_one_hot |= module.metrics.flops_mux_one_hot > 0;
-        coverage.saw_flop_mux_encoded |= module.metrics.flops_mux_encoded > 0;
-        coverage.saw_semantic_gate_merge |= module.metrics.semantic_gates_merged > 0;
-        coverage.saw_flop_merge |= module.metrics.flops_merged > 0;
+    coverage
+}
 
-        for gate_kind in module.metrics.gates_by_kind.keys() {
-            coverage.gate_kinds.insert(gate_kind.clone());
-            coverage
-                .gate_categories
-                .insert(gate_kind_category(gate_kind).to_string());
-        }
-        for knob in module.metrics.knob_roll_attempts.keys() {
-            coverage.knob_attempts_seen.insert(knob.clone());
-        }
-        for knob in module.metrics.knob_roll_fires.keys() {
-            coverage.knob_fires_seen.insert(knob.clone());
+fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> CoverageSummary {
+    let mut coverage = CoverageSummary::default();
+    seed_scenario_coverage(&mut coverage, scenario);
+
+    for design in designs {
+        coverage.saw_hierarchy_design = true;
+        coverage.saw_multifile_design |= design.files.len() > 1;
+        for module in &design.modules {
+            accumulate_module_coverage(&mut coverage, &module.metrics);
         }
     }
 
@@ -1587,6 +2211,10 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         .extend(src.factorization_levels.iter().cloned());
     dst.share_prob_values
         .extend(src.share_prob_values.iter().cloned());
+    dst.hierarchy_depths
+        .extend(src.hierarchy_depths.iter().cloned());
+    dst.hierarchy_leaf_module_counts
+        .extend(src.hierarchy_leaf_module_counts.iter().cloned());
     dst.gate_categories
         .extend(src.gate_categories.iter().cloned());
     dst.gate_kinds.extend(src.gate_kinds.iter().cloned());
@@ -1594,6 +2222,10 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         .extend(src.knob_attempts_seen.iter().cloned());
     dst.knob_fires_seen
         .extend(src.knob_fires_seen.iter().cloned());
+    dst.saw_hierarchy_design |= src.saw_hierarchy_design;
+    dst.saw_multifile_design |= src.saw_multifile_design;
+    dst.saw_instance_module |= src.saw_instance_module;
+    dst.saw_instance_output_node |= src.saw_instance_output_node;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -1607,6 +2239,120 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_flop_mux_encoded |= src.saw_flop_mux_encoded;
     dst.saw_semantic_gate_merge |= src.saw_semantic_gate_merge;
     dst.saw_flop_merge |= src.saw_flop_merge;
+}
+
+fn seed_scenario_coverage(coverage: &mut CoverageSummary, scenario: &Scenario) {
+    coverage
+        .construction_strategies
+        .insert(construction_strategy_slug(scenario.config.construction_strategy).to_string());
+    coverage
+        .identity_modes
+        .insert(identity_mode_slug(scenario.config.identity_mode).to_string());
+    coverage
+        .factorization_levels
+        .insert(factorization_level_slug(scenario.config.factorization_level).to_string());
+    coverage
+        .share_prob_values
+        .insert(share_prob_label(scenario.config.share_prob));
+    coverage
+        .hierarchy_depths
+        .insert(scenario.config.hierarchy_depth.to_string());
+    if scenario.config.hierarchy_depth > 0 {
+        coverage
+            .hierarchy_leaf_module_counts
+            .insert(scenario.config.num_leaf_modules.to_string());
+    }
+}
+
+fn accumulate_metrics(aggregate: &mut AggregateMetrics, metrics: &Metrics) {
+    aggregate.modules += 1;
+    aggregate.total_nodes += metrics.num_nodes;
+    aggregate.total_gates += metrics.num_gates;
+    aggregate.total_flops += metrics.num_flops;
+    aggregate.total_shared_nodes += metrics.num_shared_nodes;
+    aggregate.total_priority_encoder_blocks += u64::from(metrics.num_priority_encoder_blocks);
+    aggregate.total_comb_muxes_one_hot += u64::from(metrics.num_comb_muxes_one_hot);
+    aggregate.total_comb_muxes_encoded += u64::from(metrics.num_comb_muxes_encoded);
+    aggregate.total_case_mux_blocks += u64::from(metrics.num_case_mux_blocks);
+    aggregate.total_casez_mux_blocks += u64::from(metrics.num_casez_mux_blocks);
+    aggregate.total_for_fold_blocks += u64::from(metrics.num_for_fold_blocks);
+    aggregate.total_semantic_gates_merged += u64::from(metrics.semantic_gates_merged);
+    aggregate.total_flops_merged += u64::from(metrics.flops_merged);
+
+    merge_usize_count_map_into_u64(&mut aggregate.gates_by_kind, &metrics.gates_by_kind);
+    merge_count_map(
+        &mut aggregate.knob_roll_attempts,
+        &metrics.knob_roll_attempts,
+    );
+    merge_count_map(&mut aggregate.knob_roll_fires, &metrics.knob_roll_fires);
+}
+
+fn accumulate_tool_summary(
+    summary: &mut ToolSummary,
+    verilator: Option<&ToolInvocation>,
+    yosys: &[ToolInvocation],
+) {
+    if let Some(verilator) = verilator {
+        if verilator.success {
+            summary.verilator_passed += 1;
+        } else {
+            summary.verilator_failed += 1;
+        }
+    }
+    for yosys in yosys {
+        match yosys.tool.as_str() {
+            "yosys-without-abc" => {
+                if yosys.success {
+                    summary.yosys_without_abc_passed += 1;
+                } else {
+                    summary.yosys_without_abc_failed += 1;
+                }
+            }
+            "yosys-with-abc" => {
+                if yosys.success {
+                    summary.yosys_with_abc_passed += 1;
+                } else {
+                    summary.yosys_with_abc_failed += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn accumulate_module_coverage(coverage: &mut CoverageSummary, metrics: &Metrics) {
+    if metrics.num_flops == 0 {
+        coverage.saw_comb_only_module = true;
+    } else {
+        coverage.saw_sequential_module = true;
+    }
+
+    coverage.saw_instance_module |= metrics.num_instances > 0;
+    coverage.saw_instance_output_node |= metrics.num_instance_outputs > 0;
+    coverage.saw_priority_encoder |= metrics.num_priority_encoder_blocks > 0;
+    coverage.saw_comb_mux_one_hot |= metrics.num_comb_muxes_one_hot > 0;
+    coverage.saw_comb_mux_encoded |= metrics.num_comb_muxes_encoded > 0;
+    coverage.saw_case_mux |= metrics.num_case_mux_blocks > 0;
+    coverage.saw_casez_mux |= metrics.num_casez_mux_blocks > 0;
+    coverage.saw_for_fold |= metrics.num_for_fold_blocks > 0;
+    coverage.saw_variable_shift |= metrics.num_variable_shift_gates > 0;
+    coverage.saw_flop_mux_one_hot |= metrics.flops_mux_one_hot > 0;
+    coverage.saw_flop_mux_encoded |= metrics.flops_mux_encoded > 0;
+    coverage.saw_semantic_gate_merge |= metrics.semantic_gates_merged > 0;
+    coverage.saw_flop_merge |= metrics.flops_merged > 0;
+
+    for gate_kind in metrics.gates_by_kind.keys() {
+        coverage.gate_kinds.insert(gate_kind.clone());
+        coverage
+            .gate_categories
+            .insert(gate_kind_category(gate_kind).to_string());
+    }
+    for knob in metrics.knob_roll_attempts.keys() {
+        coverage.knob_attempts_seen.insert(knob.clone());
+    }
+    for knob in metrics.knob_roll_fires.keys() {
+        coverage.knob_fires_seen.insert(knob.clone());
+    }
 }
 
 fn summarize_share_sweep(scenarios: &[ScenarioReport]) -> ShareSweepSummary {
@@ -1687,6 +2433,22 @@ fn compute_coverage_gaps(
                 gaps.push("missing factorization level e-graph".to_string());
             }
         }
+        ScenarioSet::Phase4Hierarchy => {
+            if !coverage.identity_modes.contains("node-id") {
+                gaps.push("missing identity mode node-id".to_string());
+            }
+            if !coverage.factorization_levels.contains("e-graph") {
+                gaps.push("missing factorization level e-graph".to_string());
+            }
+            if !coverage.hierarchy_depths.contains("1") {
+                gaps.push("missing hierarchy depth 1".to_string());
+            }
+            for leaf_count in ["2", "4"] {
+                if !coverage.hierarchy_leaf_module_counts.contains(leaf_count) {
+                    gaps.push(format!("missing num_leaf_modules scenario {leaf_count}"));
+                }
+            }
+        }
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -1699,6 +2461,14 @@ fn compute_coverage_gaps(
             "structural",
         ],
         ScenarioSet::Phase3Structured => &["shift", "structural"],
+        ScenarioSet::Phase4Hierarchy => &[
+            "arithmetic",
+            "bitwise",
+            "compare",
+            "reduce",
+            "shift",
+            "structural",
+        ],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -1729,6 +2499,18 @@ fn compute_coverage_gaps(
     }
     if !coverage.saw_for_fold {
         gaps.push("matrix never emitted a combinational for-fold block".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_hierarchy_design {
+        gaps.push("matrix never emitted a hierarchy design".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_multifile_design {
+        gaps.push("matrix never emitted a multi-file hierarchy design".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_instance_module {
+        gaps.push("matrix never emitted a module with child instances".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_instance_output_node {
+        gaps.push("matrix never emitted an instance-output node".to_string());
     }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
@@ -1771,6 +2553,16 @@ fn compute_coverage_gaps(
             "for_fold_prob",
             "priority_encoder_prob",
             "const_shift_amount_prob",
+        ],
+        ScenarioSet::Phase4Hierarchy => &[
+            "flop_prob",
+            "share_prob",
+            "terminal_reuse_prob",
+            "comb_mux_prob",
+            "case_mux_prob",
+            "casez_mux_prob",
+            "for_fold_prob",
+            "priority_encoder_prob",
         ],
     };
     for &knob in required_knobs {
@@ -1903,6 +2695,14 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::Default => "default",
         ScenarioSet::Phase2Share => "phase2-share",
         ScenarioSet::Phase3Structured => "phase3-structured",
+        ScenarioSet::Phase4Hierarchy => "phase4-hierarchy",
+    }
+}
+
+fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
+    match scenario_set {
+        ScenarioSet::Phase4Hierarchy => "design",
+        ScenarioSet::Default | ScenarioSet::Phase2Share | ScenarioSet::Phase3Structured => "module",
     }
 }
 
@@ -1927,6 +2727,14 @@ fn escape_for_double_quotes(path: &Path) -> String {
         .replace('"', "\\\"")
 }
 
+fn escape_paths_for_double_quotes(paths: &[PathBuf]) -> String {
+    paths
+        .iter()
+        .map(|path| format!("\"{}\"", escape_for_double_quotes(path)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1943,6 +2751,7 @@ mod tests {
             phase1_gate: false,
             phase2_share_gate: false,
             phase3_structured_gate: false,
+            phase4_hierarchy_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -2187,6 +2996,114 @@ mod tests {
     }
 
     #[test]
+    fn phase4_hierarchy_gate_raises_designs_per_scenario_for_matrix() {
+        let mut cli = test_cli();
+        cli.phase4_hierarchy_gate = true;
+
+        let plan = derive_run_plan(&cli, 12);
+        assert_eq!(plan.modules_per_scenario, 4);
+        assert_eq!(plan.total_modules, 48);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn phase4_hierarchy_matrix_covers_requested_wrapper_profiles() {
+        let scenarios =
+            build_scenarios(0, ScenarioSet::Phase4Hierarchy).expect("build phase4 scenarios");
+        let mut strategies = BTreeSet::new();
+        let mut leaf_counts = BTreeSet::new();
+        let mut names = BTreeSet::new();
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            leaf_counts.insert(scenario.config.num_leaf_modules);
+            names.insert(scenario.name.clone());
+            assert_eq!(scenario.config.identity_mode, IdentityMode::NodeId);
+            assert_eq!(
+                scenario.config.factorization_level,
+                FactorizationLevel::EGraph
+            );
+            assert_eq!(scenario.config.hierarchy_depth, 1);
+        }
+        assert_eq!(scenarios.len(), 12);
+        assert_eq!(names.len(), 12);
+        assert_eq!(leaf_counts, BTreeSet::from([2, 4]));
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["interleaved", "sequential", "shuffled"])
+        );
+        for suffix in [
+            "phase4_hier2_comb",
+            "phase4_hier2_seq",
+            "phase4_hier4_comb",
+            "phase4_hier4_seq",
+        ] {
+            assert!(
+                names.iter().any(|name| name.ends_with(suffix)),
+                "expected at least one phase4 scenario ending with {suffix}"
+            );
+        }
+    }
+
+    #[test]
+    fn phase4_hierarchy_coverage_requires_design_facts() {
+        let coverage = CoverageSummary {
+            construction_strategies: BTreeSet::from([
+                "interleaved".to_string(),
+                "sequential".to_string(),
+                "shuffled".to_string(),
+            ]),
+            identity_modes: BTreeSet::from(["node-id".to_string()]),
+            factorization_levels: BTreeSet::from(["e-graph".to_string()]),
+            hierarchy_depths: BTreeSet::from(["1".to_string()]),
+            hierarchy_leaf_module_counts: BTreeSet::from(["2".to_string()]),
+            gate_categories: BTreeSet::from([
+                "arithmetic".to_string(),
+                "bitwise".to_string(),
+                "compare".to_string(),
+                "reduce".to_string(),
+                "shift".to_string(),
+                "structural".to_string(),
+            ]),
+            knob_attempts_seen: BTreeSet::from([
+                "flop_prob".to_string(),
+                "share_prob".to_string(),
+                "terminal_reuse_prob".to_string(),
+                "comb_mux_prob".to_string(),
+                "case_mux_prob".to_string(),
+                "casez_mux_prob".to_string(),
+                "for_fold_prob".to_string(),
+                "priority_encoder_prob".to_string(),
+            ]),
+            saw_comb_only_module: true,
+            saw_sequential_module: true,
+            saw_priority_encoder: true,
+            saw_comb_mux_one_hot: true,
+            saw_comb_mux_encoded: true,
+            saw_case_mux: true,
+            saw_casez_mux: true,
+            saw_for_fold: true,
+            saw_flop_mux_one_hot: true,
+            saw_flop_mux_encoded: true,
+            ..CoverageSummary::default()
+        };
+
+        let gaps = compute_coverage_gaps(ScenarioSet::Phase4Hierarchy, &coverage, None);
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("num_leaf_modules scenario 4")));
+        assert!(gaps.iter().any(|gap| gap.contains("hierarchy design")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("multi-file hierarchy design")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("module with child instances")));
+        assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
+    }
+
+    #[test]
     fn phase2_share_coverage_requires_monotonic_shared_node_fraction() {
         let coverage = CoverageSummary {
             construction_strategies: BTreeSet::from([
@@ -2292,6 +3209,25 @@ mod tests {
         assert_eq!(both.len(), 2);
         assert_eq!(both[0].0, "yosys-without-abc");
         assert_eq!(both[1].0, "yosys-with-abc");
+    }
+
+    #[test]
+    fn hierarchy_yosys_mode_expands_to_expected_invocations() {
+        let paths = vec![PathBuf::from("/tmp/a.sv"), PathBuf::from("/tmp/b.sv")];
+
+        let without = yosys_design_invocations(YosysMode::WithoutAbc, &paths, "top_mod");
+        assert_eq!(without.len(), 1);
+        assert!(without[0].1.contains("read_verilog -sv"));
+        assert!(without[0].1.contains("\"/tmp/a.sv\" \"/tmp/b.sv\""));
+        assert!(without[0]
+            .1
+            .contains("synth -top top_mod -noabc; stat; check"));
+
+        let with = yosys_design_invocations(YosysMode::WithAbc, &paths, "top_mod");
+        assert_eq!(with.len(), 1);
+        assert!(with[0]
+            .1
+            .contains("synth -top top_mod -noabc; abc -fast; opt -fast; stat; check"));
     }
 
     #[test]
@@ -2550,6 +3486,72 @@ mod tests {
         assert_eq!(report.modules.len(), 2);
         assert!(scenario_dir.join("mod_13_0000.module-report.json").exists());
         assert!(scenario_dir.join("mod_13_0001.module-report.json").exists());
+
+        let _ = fs::remove_dir_all(out_root);
+    }
+
+    #[test]
+    fn fast_resume_restores_generator_state_for_next_design() {
+        let out_root = temp_test_dir("resume-fast-design");
+        let scenario = make_scenario(
+            "resume_fast_design_case",
+            "resume fast hierarchy path test",
+            with_hierarchy_wrapper(
+                share_heavy_comb_only_config(ConstructionStrategy::Interleaved, 23, 0.9),
+                1,
+            ),
+        )
+        .expect("scenario");
+        let scenario_dir = out_root.join(&scenario.name);
+        fs::create_dir_all(&scenario_dir).expect("create scenario dir");
+
+        let cli = test_cli_resume();
+        let mut baseline = Generator::new(scenario.config.clone());
+        let prepared0 = prepare_design(&mut baseline, &scenario_dir, 0).unwrap();
+        for module in &prepared0.modules {
+            fs::write(&module.sv_path, &module.sv_text).unwrap();
+        }
+        let report0 = run_design_tools(&cli, &prepared0).unwrap();
+        let checkpoint0 = baseline.checkpoint();
+        write_design_checkpoint(
+            &cli,
+            &prepared0.paths.checkpoint_path,
+            &report0,
+            &checkpoint0,
+            Some(TEST_RUNTIME_FINGERPRINT),
+            &prepared0.modules,
+        )
+        .unwrap();
+
+        let expected1 = prepare_design(&mut baseline, &scenario_dir, 1).unwrap();
+
+        let checkpoint = load_design_checkpoint(&prepared0.paths.checkpoint_path)
+            .unwrap()
+            .expect("checkpoint");
+        let mut resumed = Generator::new(scenario.config.clone());
+        let report = try_fast_resume_design_checkpoint(
+            &mut resumed,
+            &cli,
+            &scenario_dir,
+            &checkpoint,
+            Some(TEST_RUNTIME_FINGERPRINT),
+        )
+        .unwrap();
+        assert!(report.is_some());
+
+        let actual1 = prepare_design(&mut resumed, &scenario_dir, 1).unwrap();
+        assert_eq!(actual1.top, expected1.top);
+        let actual_files: Vec<_> = actual1
+            .modules
+            .iter()
+            .map(|module| module.file.clone())
+            .collect();
+        let expected_files: Vec<_> = expected1
+            .modules
+            .iter()
+            .map(|module| module.file.clone())
+            .collect();
+        assert_eq!(actual_files, expected_files);
 
         let _ = fs::remove_dir_all(out_root);
     }

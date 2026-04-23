@@ -1,9 +1,117 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-0207 — Start Phase 4 with a real depth-1 hierarchy slice
+## 2026-04-23-0208 — Close Phase 4 wrapper hierarchy gate cleanly
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tool_matrix` now has a first-class Phase 4 hierarchy gate in
+  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs):
+  `--phase4-hierarchy-gate`, a dedicated hierarchy scenario set,
+  design-aware execution/reporting/checkpointing, and hierarchy-specific
+  coverage facts.
+- The hierarchy gate runs a representative 12-scenario design matrix
+  over the currently-live wrapper slice:
+  - `construction_strategy ∈ {sequential, shuffled, interleaved}`
+  - `num_leaf_modules ∈ {2, 4}`
+  - child profile ∈ {comb-heavy, seq-heavy}
+  - `identity_mode = node-id`
+  - `factorization_level = e-graph`
+- `tool_matrix` now treats hierarchy artifacts as real designs rather
+  than pretending they are single-module runs with extra files around
+  them. The new design-aware path validates `Design`s, writes
+  `*.design-report.json` sidecars, records per-design file hashes and
+  generator checkpoints, and runs Verilator/Yosys against the full file
+  set with the declared top module.
+- Hierarchy Yosys runs are now repo-owned and explicit the same way the
+  leaf lanes are:
+  - without ABC:
+    `read_verilog -sv <files>; synth -top <top> -noabc; stat; check`
+  - with ABC:
+    `read_verilog -sv <files>; synth -top <top> -noabc; abc -fast; opt -fast; stat; check`
+- The real emitter root-cause fix that made the gate close is in
+  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  literal-backed procedural `for`-fold sources are now materialized
+  through a packed temporary before indexed part-select use inside
+  `always_comb`. This replaces both invalid forms that the hierarchy
+  gate exposed: direct literal indexing
+  (`24'h86899[(i * 12) +: 12]`) and the blanket parenthesized variant
+  (`(signal)[(i * 12) +: 12]`).
+- Regression coverage now proves both parts of the new surface:
+  hierarchy-gate planning / coverage / resume tests in
+  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  and a literal-backed `for`-fold emission regression in
+  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs).
+
+**Why**
+
+- A single hierarchy smoke was no longer enough. Phase 4 needed the
+  same repo-owned closure discipline as Phases 1-3 so the wrapper slice
+  could be recovered, replayed, and re-proved after interruptions.
+- The gate had to operate on real designs, not just leaf modules,
+  because the relevant downstream pressure here is multifile
+  elaboration/synthesis with a declared top module and real child
+  instances.
+- The emitter bug was worth fixing at the source rather than weakening
+  the gate: the hierarchy matrix exposed a real invalid-SV shape, and
+  the correct answer was to emit legal procedural indexing for
+  constant-backed fold sources.
+
+**Proof**
+
+- Dedicated hierarchy gate report at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`:
+  - `scenario_count = 12`
+  - `modules_per_scenario = 4`
+  - `total_modules = 48`
+  - `artifact_kind = "design"`
+  - `phase4_hierarchy_gate = true`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 48/0`
+  - `Yosys without-abc pass/fail = 48/0`
+  - `Yosys with-abc pass/fail = 48/0`
+- The saved coverage facts prove the intended wrapper-slice surface
+  directly:
+  - `hierarchy_depths = ["1"]`
+  - `hierarchy_leaf_module_counts = ["2", "4"]`
+  - `saw_hierarchy_design = true`
+  - `saw_multifile_design = true`
+  - `saw_instance_module = true`
+  - `saw_instance_output_node = true`
+- Focused emitter regression:
+  `for_fold_materializes_literal_sources_before_part_select`
+
+**Impact**
+
+- The repo now has a real Phase 4 closure gate for the currently-live
+  wrapper hierarchy slice.
+- Resume / checkpoint infrastructure now extends cleanly from module
+  artifacts to hierarchy designs.
+- Phase 4 **does not** move to `done` yet. The wrapper slice is now
+  closed with repo-owned evidence, but the phase still has real open
+  work: parent-side cone construction from instance outputs, depth `> 1`
+  recursion, on-demand child generation beside library sourcing, and
+  future hierarchy-aware identity/factorization.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `src/emit/sv.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+
+## 2026-04-23-0207 — Start Phase 4 with a real depth-1 hierarchy slice
+
+**Landed as:** 747a3b3
 
 **What changed**
 
