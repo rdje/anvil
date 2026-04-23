@@ -22,7 +22,8 @@ use super::{
 };
 use crate::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use crate::ir::{
-    DepSet, Design, Direction, GateOp, Instance, InstanceId, Module, Node, NodeId, Port, PortId,
+    DepSet, Design, Direction, GateOp, Instance, InstanceId, Module, ModuleInterfaceProfile, Node,
+    NodeId, Port, PortId,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -58,7 +59,8 @@ fn generate_legacy_exact_design(g: &mut Generator) -> Design {
         HierarchyChildSourceMode::OnDemand => {
             let mut modules = Vec::with_capacity(exact_instances + 1);
             for _ in 0..exact_instances {
-                modules.push(g.generate_module());
+                let profile = module::sample_leaf_interface_profile(g);
+                modules.push(g.generate_module_with_interface_profile(Some(&profile)));
             }
             let instance_plan = (0..exact_instances).collect();
             (modules, instance_plan)
@@ -67,7 +69,7 @@ fn generate_legacy_exact_design(g: &mut Generator) -> Design {
 
     let top_index = g.next_module_index;
     g.next_module_index += 1;
-    let top = generate_parent_module(g, top_index, &modules, &[], &instance_plan);
+    let top = generate_parent_module(g, top_index, &modules, &[], &instance_plan, None);
     let top_name = top.name.clone();
     modules.push(top);
 
@@ -82,7 +84,7 @@ fn generate_recursive_design(g: &mut Generator) -> Design {
         .cfg
         .effective_hierarchy_depth_range()
         .expect("hierarchy range mode should have an effective depth range");
-    let built = build_recursive_subtree(g, 0, min_depth, max_depth);
+    let built = build_recursive_subtree(g, 0, min_depth, max_depth, None);
     let top_name = built
         .modules
         .last()
@@ -100,6 +102,7 @@ fn build_recursive_subtree(
     parent_depth: u32,
     min_remaining_depth: u32,
     max_remaining_depth: u32,
+    demanded_profile: Option<ModuleInterfaceProfile>,
 ) -> BuiltSubtree {
     debug_assert!(
         min_remaining_depth <= max_remaining_depth,
@@ -112,7 +115,7 @@ fn build_recursive_subtree(
             "a zero max remaining depth implies an exact leaf"
         );
         return BuiltSubtree {
-            modules: vec![g.generate_module()],
+            modules: vec![g.generate_module_with_interface_profile(demanded_profile.as_ref())],
         };
     }
 
@@ -131,10 +134,16 @@ fn build_recursive_subtree(
         let chosen_depth = g.rng.gen_range(0..=max_remaining_depth);
         if chosen_depth == 0 {
             return BuiltSubtree {
-                modules: vec![g.generate_module()],
+                modules: vec![g.generate_module_with_interface_profile(demanded_profile.as_ref())],
             };
         }
-        return build_recursive_subtree(g, parent_depth, chosen_depth, chosen_depth);
+        return build_recursive_subtree(
+            g,
+            parent_depth,
+            chosen_depth,
+            chosen_depth,
+            demanded_profile,
+        );
     }
 
     let child_min_depth = min_remaining_depth.saturating_sub(1);
@@ -154,10 +163,31 @@ fn build_recursive_subtree(
     let child_depth_ranges =
         plan_child_depth_ranges(g, child_definition_count, child_min_depth, child_max_depth);
 
+    let child_profiles = if g.cfg.hierarchy_child_source_mode == HierarchyChildSourceMode::OnDemand
+    {
+        Some(
+            (0..child_definition_count)
+                .map(|_| module::sample_leaf_interface_profile(g))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
+
     let mut descendant_modules = Vec::new();
     let mut direct_children = Vec::with_capacity(child_definition_count);
-    for (child_min, child_max) in child_depth_ranges {
-        let mut child = build_recursive_subtree(g, parent_depth + 1, child_min, child_max).modules;
+    for (idx, (child_min, child_max)) in child_depth_ranges.into_iter().enumerate() {
+        let demanded_child_profile = child_profiles
+            .as_ref()
+            .map(|profiles| profiles[idx].clone());
+        let mut child = build_recursive_subtree(
+            g,
+            parent_depth + 1,
+            child_min,
+            child_max,
+            demanded_child_profile,
+        )
+        .modules;
         let child_root = child
             .pop()
             .expect("recursive child subtree should end with its root");
@@ -173,6 +203,7 @@ fn build_recursive_subtree(
         &direct_children,
         &descendant_modules,
         &instance_plan,
+        demanded_profile.as_ref(),
     );
 
     descendant_modules.extend(direct_children);
@@ -272,6 +303,7 @@ fn generate_parent_module(
     library: &[Module],
     descendants: &[Module],
     instance_plan: &[usize],
+    external_profile: Option<&ModuleInterfaceProfile>,
 ) -> Module {
     let mut modules_by_name = BTreeMap::new();
     for module in descendants {
@@ -288,6 +320,7 @@ fn generate_parent_module(
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        planned_interface_profile: external_profile.cloned(),
         ..Module::default()
     };
 
@@ -303,8 +336,28 @@ fn generate_parent_module(
     top.clock = shared_clock.map(|(port_id, _)| port_id);
     top.reset = shared_reset.map(|(port_id, _)| port_id);
 
-    let mut instance_pool = SignalPool::new();
+    let mut external_input_pool = SignalPool::new();
     let mut planned_outputs = Vec::new();
+    if let Some(profile) = external_profile {
+        for (idx, width) in profile.data_input_widths.iter().copied().enumerate() {
+            let (port_id, node_id) =
+                add_top_input(&mut top, &mut next_port_id, &format!("i_{}", idx), width);
+            external_input_pool.add(node_id, width, DepSet::from_port(port_id));
+        }
+        for (idx, width) in profile.output_widths.iter().copied().enumerate() {
+            let port_id = next_port_id;
+            next_port_id += 1;
+            top.outputs.push(Port {
+                id: port_id,
+                name: format!("o_{}", idx),
+                width,
+                dir: Direction::Out,
+            });
+            planned_outputs.push((port_id, width));
+        }
+    }
+
+    let mut instance_pool = SignalPool::new();
 
     for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
         let child = &library[child_idx];
@@ -329,13 +382,20 @@ fn generate_parent_module(
             input_bindings.push((child.reset.expect("leaf reset id"), rst_node));
         }
 
-        for child_input in child.emitted_input_ports_in(Some(&modules_by_name)) {
-            if child.clock == Some(child_input.id) || child.reset == Some(child_input.id) {
-                continue;
-            }
-            let input_name = format!("{}__{}", instance_name, child_input.name);
-            let (_, node_id) =
-                add_top_input(&mut top, &mut next_port_id, &input_name, child_input.width);
+        for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
+            let node_id = if external_profile.is_some() {
+                bind_child_input_from_parent_interface(
+                    g,
+                    &mut top,
+                    &mut external_input_pool,
+                    child_input.width,
+                )
+            } else {
+                let input_name = format!("{}__{}", instance_name, child_input.name);
+                let (_, node_id) =
+                    add_top_input(&mut top, &mut next_port_id, &input_name, child_input.width);
+                node_id
+            };
             input_bindings.push((child_input.id, node_id));
         }
 
@@ -358,15 +418,17 @@ fn generate_parent_module(
                 child_output.width,
                 DepSet::from_instance_output_virtual(instance_id, child_output.id),
             );
-            let top_output_id = next_port_id;
-            next_port_id += 1;
-            top.outputs.push(Port {
-                id: top_output_id,
-                name: format!("{}__{}", instance_name, child_output.name),
-                width: child_output.width,
-                dir: Direction::Out,
-            });
-            planned_outputs.push((top_output_id, child_output.width));
+            if external_profile.is_none() {
+                let top_output_id = next_port_id;
+                next_port_id += 1;
+                top.outputs.push(Port {
+                    id: top_output_id,
+                    name: format!("{}__{}", instance_name, child_output.name),
+                    width: child_output.width,
+                    dir: Direction::Out,
+                });
+                planned_outputs.push((top_output_id, child_output.width));
+            }
         }
     }
 
@@ -386,6 +448,31 @@ fn generate_parent_module(
 
     module::finalize_generated_module(g, &mut top, &mut pool);
     top
+}
+
+fn bind_child_input_from_parent_interface(
+    g: &mut Generator,
+    top: &mut Module,
+    external_input_pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    if external_input_pool
+        .iter()
+        .any(|entry| !entry.deps.is_empty())
+    {
+        return cone::pick_terminal_dep_bearing(g, top, external_input_pool, width, None);
+    }
+
+    let value = if width >= 128 {
+        0
+    } else {
+        g.rng.gen::<u128>() & ((1u128 << width) - 1)
+    };
+    let (node_id, is_new) = top.intern_constant(width, value);
+    if is_new {
+        external_input_pool.add(node_id, width, DepSet::new());
+    }
+    node_id
 }
 
 fn build_parent_output_roots(
@@ -559,7 +646,7 @@ mod tests {
             ..crate::config::Config::default()
         });
         let child = sequential_leaf("leaf");
-        let top = generate_parent_module(&mut g, 1, &[child], &[], &[0]);
+        let top = generate_parent_module(&mut g, 1, &[child], &[], &[0], None);
 
         let clock = top.clock.expect("wrapper top should tag shared clock");
         let reset = top.reset.expect("wrapper top should tag shared reset");
@@ -599,6 +686,40 @@ mod tests {
         assert_eq!(top.instances.len(), 3);
         assert_eq!(used_children.len(), 3);
         assert_eq!(design.modules.len(), 4, "3 fresh children + top");
+    }
+
+    #[test]
+    fn profiled_parent_module_honors_exact_data_interface_shape() {
+        let mut g = Generator::new(Config {
+            seed: 29,
+            hierarchy_depth: 1,
+            ..Config::default()
+        });
+        let child = Module {
+            name: "leaf".into(),
+            outputs: vec![Port {
+                id: 0,
+                name: "y".into(),
+                width: 8,
+                dir: Direction::Out,
+            }],
+            ..Module::default()
+        };
+        let profile = ModuleInterfaceProfile {
+            data_input_widths: vec![5, 9],
+            output_widths: vec![7, 11],
+        };
+
+        let top = generate_parent_module(&mut g, 1, &[child], &[], &[0], Some(&profile));
+        let got_inputs: Vec<_> = top
+            .emitted_data_input_ports()
+            .map(|port| port.width)
+            .collect();
+        let got_outputs: Vec<_> = top.outputs.iter().map(|port| port.width).collect();
+
+        assert_eq!(top.planned_interface_profile, Some(profile.clone()));
+        assert_eq!(got_inputs, profile.data_input_widths);
+        assert_eq!(got_outputs, profile.output_widths);
     }
 
     #[test]

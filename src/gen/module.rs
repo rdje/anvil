@@ -7,7 +7,9 @@ use super::{
     Generator,
 };
 use crate::config::ConstructionStrategy;
-use crate::ir::{DepSet, Direction, GateOp, Module, Node, NodeId, Port, PortId};
+use crate::ir::{
+    DepSet, Direction, GateOp, Module, ModuleInterfaceProfile, Node, NodeId, Port, PortId,
+};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use tracing::{debug, info, instrument};
@@ -22,8 +24,19 @@ const RST_N_NAME: &str = "rst_n";
 /// inter-module generation into it.
 #[instrument(level = "info", skip(g), fields(seed = g.cfg.seed))]
 pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
-    let n_in = g.rng.gen_range(g.cfg.min_inputs..=g.cfg.max_inputs);
-    let n_out = g.rng.gen_range(g.cfg.min_outputs..=g.cfg.max_outputs);
+    generate_leaf_module_with_interface_profile(g, index, None)
+}
+
+pub(super) fn generate_leaf_module_with_interface_profile(
+    g: &mut Generator,
+    index: u64,
+    interface_profile: Option<&ModuleInterfaceProfile>,
+) -> Module {
+    let planned_profile = interface_profile
+        .cloned()
+        .unwrap_or_else(|| sample_leaf_interface_profile(g));
+    let n_in = planned_profile.data_input_widths.len();
+    let n_out = planned_profile.output_widths.len();
     info!(
         n_in,
         n_out,
@@ -38,6 +51,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        planned_interface_profile: interface_profile.cloned(),
         ..Module::default()
     };
 
@@ -62,8 +76,12 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     m.reset = Some(rst_n_id);
 
     // Primary data inputs: port ids 2..2+n_in.
-    for i in 0..n_in {
-        let w = g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width);
+    for (i, w) in planned_profile
+        .data_input_widths
+        .iter()
+        .copied()
+        .enumerate()
+    {
         let port_id = (2 + i) as PortId;
         m.inputs.push(Port {
             id: port_id,
@@ -75,8 +93,7 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
 
     // Primary outputs: port ids start after all inputs.
     let out_id_base = 2 + n_in;
-    for i in 0..n_out {
-        let w = g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width);
+    for (i, w) in planned_profile.output_widths.iter().copied().enumerate() {
         let port_id = (out_id_base + i) as PortId;
         m.outputs.push(Port {
             id: port_id,
@@ -168,6 +185,19 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     m
 }
 
+pub(super) fn sample_leaf_interface_profile(g: &mut Generator) -> ModuleInterfaceProfile {
+    let n_in = g.rng.gen_range(g.cfg.min_inputs..=g.cfg.max_inputs) as usize;
+    let n_out = g.rng.gen_range(g.cfg.min_outputs..=g.cfg.max_outputs) as usize;
+    ModuleInterfaceProfile {
+        data_input_widths: (0..n_in)
+            .map(|_| g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width))
+            .collect(),
+        output_widths: (0..n_out)
+            .map(|_| g.rng.gen_range(g.cfg.min_width..=g.cfg.max_width))
+            .collect(),
+    }
+}
+
 pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool: &mut SignalPool) {
     // Flop-mux operand NodeIds are construction-time metadata only:
     // once D has been assembled, emission and validation care about
@@ -230,6 +260,12 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
     // late proof-cleanup passes.
     let repaired_constant_drives = repair_constant_output_roots(g, m, pool);
 
+    // Parent-planned exact data interfaces are load-bearing in Phase 4:
+    // if a profiled input would otherwise shrink or prune away, make it
+    // genuinely live at full width by threading a reduction of that
+    // full-width input into an output cone before compaction.
+    let repaired_profiled_inputs = repair_profiled_input_coverage(m, pool);
+
     // NodeId compaction pass: remove any nodes that are unreachable
     // from roots (drives, flop fields). Idempotent — a no-op when
     // the IR is already Rule-18-clean. Exists primarily to let
@@ -256,6 +292,7 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
 
     shrink_primary_inputs_to_live_width(m);
     prune_unused_input_ports(m);
+    let enforced_profiled_interface = enforce_planned_interface_profile(m, pool);
 
     info!(
         module = %m.name,
@@ -267,6 +304,8 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
         orphans,
         compacted,
         repaired_constant_drives,
+        repaired_profiled_inputs,
+        enforced_profiled_interface,
         "✅ module finalized"
     );
 }
@@ -328,7 +367,7 @@ fn output_root_has_empty_deps(m: &Module, root: NodeId) -> bool {
 /// "bits of signal are not used" on ports that only ever feed low-bit
 /// slices. The analysis is conservative: any non-Slice consumer
 /// demands the full current width.
-fn shrink_primary_inputs_to_live_width(m: &mut Module) {
+fn compute_required_primary_input_widths(m: &Module) -> std::collections::HashMap<PortId, u32> {
     use std::collections::HashMap;
 
     let mut required: HashMap<PortId, u32> = HashMap::new();
@@ -366,6 +405,12 @@ fn shrink_primary_inputs_to_live_width(m: &mut Module) {
             }
         }
     }
+
+    required
+}
+
+fn shrink_primary_inputs_to_live_width(m: &mut Module) {
+    let required = compute_required_primary_input_widths(m);
 
     for node in &mut m.nodes {
         if let Node::PrimaryInput { port, width } = node {
@@ -406,6 +451,191 @@ fn prune_unused_input_ports(m: &mut Module) {
         let is_reset = m.reset == Some(p.id);
         is_clock || is_reset || live_ports.contains(&p.id)
     });
+}
+
+fn repair_profiled_input_coverage(m: &mut Module, pool: &mut SignalPool) -> u32 {
+    if m.planned_interface_profile.is_none() || m.drives.is_empty() {
+        return 0;
+    }
+
+    let required = compute_required_primary_input_widths(m);
+    let primary_inputs = m
+        .nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, node)| match node {
+            Node::PrimaryInput { port, width } => Some((*port, (idx as NodeId, *width))),
+            _ => None,
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+    let profiled_ports: Vec<_> = m
+        .inputs
+        .iter()
+        .filter(|input| m.clock != Some(input.id) && m.reset != Some(input.id))
+        .map(|input| (input.id, input.width))
+        .collect();
+
+    let mut repairs = 0;
+    for (repair_idx, (port_id, width)) in profiled_ports.into_iter().enumerate() {
+        if required.get(&port_id).copied().unwrap_or(0) >= width {
+            continue;
+        }
+
+        let Some((src_node, _)) = primary_inputs.get(&port_id).copied() else {
+            continue;
+        };
+        thread_profiled_input_into_output(m, pool, repair_idx, port_id, src_node);
+        repairs += 1;
+    }
+
+    repairs
+}
+
+fn enforce_planned_interface_profile(m: &mut Module, pool: &mut SignalPool) -> u32 {
+    let Some(profile) = m.planned_interface_profile.clone() else {
+        return 0;
+    };
+    if m.drives.is_empty() {
+        return 0;
+    }
+
+    let mut repairs = 0;
+    let control_inputs = m
+        .inputs
+        .iter()
+        .take_while(|input| m.clock == Some(input.id) || m.reset == Some(input.id))
+        .count();
+
+    for (idx, expected_width) in profile.data_input_widths.iter().copied().enumerate() {
+        let expected_name = format!("i_{}", idx);
+        let port_id = if let Some(existing_port) = m
+            .inputs
+            .iter()
+            .find(|input| {
+                m.clock != Some(input.id)
+                    && m.reset != Some(input.id)
+                    && input.name == expected_name
+            })
+            .map(|input| input.id)
+        {
+            let port = m
+                .inputs
+                .iter_mut()
+                .find(|input| input.id == existing_port)
+                .expect("existing profiled data port must still be present");
+            if port.width != expected_width {
+                port.width = expected_width;
+                repairs += 1;
+            }
+            port.name = expected_name.clone();
+            existing_port
+        } else {
+            let new_port_id = m
+                .inputs
+                .iter()
+                .chain(m.outputs.iter())
+                .map(|port| port.id)
+                .max()
+                .map_or(0, |max_id| max_id + 1);
+            m.inputs.insert(
+                control_inputs + idx,
+                Port {
+                    id: new_port_id,
+                    name: expected_name,
+                    width: expected_width,
+                    dir: Direction::In,
+                },
+            );
+            repairs += 1;
+            new_port_id
+        };
+
+        let src_node = if let Some((node_id, _)) =
+            m.nodes
+                .iter_mut()
+                .enumerate()
+                .find_map(|(node_id, node)| match node {
+                    Node::PrimaryInput { port, width } if *port == port_id => {
+                        if *width != expected_width {
+                            *width = expected_width;
+                        }
+                        Some((node_id as NodeId, *width))
+                    }
+                    _ => None,
+                }) {
+            node_id
+        } else {
+            let node_id = m.nodes.len() as NodeId;
+            m.nodes.push(Node::PrimaryInput {
+                port: port_id,
+                width: expected_width,
+            });
+            repairs += 1;
+            node_id
+        };
+
+        if compute_required_primary_input_widths(m)
+            .get(&port_id)
+            .copied()
+            .unwrap_or(0)
+            < expected_width
+        {
+            thread_profiled_input_into_output(m, pool, idx, port_id, src_node);
+            repairs += 1;
+        }
+    }
+
+    let mut control_ports = Vec::new();
+    let mut data_ports = Vec::new();
+    for input in std::mem::take(&mut m.inputs) {
+        if m.clock == Some(input.id) || m.reset == Some(input.id) {
+            control_ports.push(input);
+        } else {
+            data_ports.push(input);
+        }
+    }
+    data_ports.sort_by_key(|input| {
+        input
+            .name
+            .strip_prefix("i_")
+            .and_then(|slot| slot.parse::<usize>().ok())
+            .unwrap_or(usize::MAX)
+    });
+    control_ports.extend(data_ports);
+    m.inputs = control_ports;
+
+    repairs
+}
+
+fn thread_profiled_input_into_output(
+    m: &mut Module,
+    pool: &mut SignalPool,
+    repair_idx: usize,
+    port_id: PortId,
+    src_node: NodeId,
+) {
+    let src_deps = DepSet::from_port(port_id);
+    let (reduced, is_new) = m.intern_gate(GateOp::RedXor, vec![src_node], 1, src_deps.clone());
+    if is_new {
+        pool.add(reduced, 1, src_deps);
+    }
+
+    let drive_idx = repair_idx % m.drives.len();
+    let (out_port, root) = m.drives[drive_idx];
+    let out_width = m
+        .outputs
+        .iter()
+        .find(|output| output.id == out_port)
+        .expect("drive output must exist")
+        .width;
+    let reduced_deps = cone::node_deps(m, reduced);
+    let widened = cone::make_width_adapter(m, pool, reduced, 1, reduced_deps, out_width);
+    let deps = DepSet::union(&[&cone::node_deps(m, root), &cone::node_deps(m, widened)]);
+    let (mixed, is_new) = m.intern_gate(GateOp::Xor, vec![root, widened], out_width, deps.clone());
+    if is_new {
+        pool.add(mixed, out_width, deps);
+    }
+    m.drives[drive_idx].1 = mixed;
 }
 
 /// Count gate nodes with no consumer. A consumer is: another gate's

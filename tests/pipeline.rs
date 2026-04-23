@@ -113,6 +113,8 @@ fn generates_valid_depth1_ondemand_wrapper_designs() {
         assert_eq!(metrics.num_reused_instance_slots, 0);
         assert_eq!(metrics.num_single_use_instantiated_modules, 3);
         assert_eq!(metrics.single_use_instantiated_module_fraction, 1.0);
+        assert_eq!(metrics.num_profiled_instance_slots, 3);
+        assert_eq!(metrics.profiled_instance_fraction, 1.0);
     }
 }
 
@@ -192,6 +194,61 @@ fn generates_valid_recursive_hierarchy_designs_with_ondemand_child_sourcing() {
             "on-demand recursive sourcing should keep every instantiated definition single-use"
         );
         assert_eq!(metrics.single_use_instantiated_module_fraction, 1.0);
+        assert_eq!(
+            metrics.num_profiled_instance_slots, metrics.num_instances,
+            "on-demand recursive sourcing should synthesize every instantiated child from a parent-planned exact profile"
+        );
+        assert_eq!(metrics.profiled_instance_fraction, 1.0);
+    }
+}
+
+#[test]
+fn on_demand_recursive_hierarchy_exactly_realizes_profiled_child_interfaces() {
+    let cfg = Config {
+        seed: 31,
+        min_hierarchy_depth: 2,
+        max_hierarchy_depth: 2,
+        min_child_instances_per_module: 2,
+        max_child_instances_per_module: 2,
+        hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+        ..Config::default()
+    };
+    cfg.validate()
+        .expect("profiled on-demand recursive hierarchy config should be valid");
+
+    let mut g = Generator::new(cfg);
+    let design = g.generate_design();
+    anvil::ir::validate::validate_design(&design)
+        .expect("profiled on-demand recursive hierarchy should validate");
+
+    let modules_view = design
+        .modules
+        .iter()
+        .map(|module| (module.name.as_str(), module))
+        .collect::<BTreeMap<_, _>>();
+
+    let profiled_modules: Vec<_> = design
+        .modules
+        .iter()
+        .filter(|module| module.planned_interface_profile.is_some())
+        .collect();
+    assert!(
+        !profiled_modules.is_empty(),
+        "on-demand recursive hierarchy should carry exact planned child-interface profiles"
+    );
+
+    for module in profiled_modules {
+        let profile = module
+            .planned_interface_profile
+            .as_ref()
+            .expect("profiled module should carry its planned profile");
+        let got_data_inputs: Vec<_> = module
+            .emitted_data_input_ports_in(Some(&modules_view))
+            .map(|port| port.width)
+            .collect();
+        let got_outputs: Vec<_> = module.outputs.iter().map(|port| port.width).collect();
+        assert_eq!(got_data_inputs, profile.data_input_widths);
+        assert_eq!(got_outputs, profile.output_widths);
     }
 }
 

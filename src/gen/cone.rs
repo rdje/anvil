@@ -3630,7 +3630,7 @@ pub(super) fn pick_terminal_dep_bearing(
 
 /// Build a Slice or replicating Concat (+ Slice) that adapts a source
 /// signal of width `src_width` to `target_width`, propagating deps.
-fn make_width_adapter(
+pub(super) fn make_width_adapter(
     m: &mut Module,
     pool: &mut SignalPool,
     src_node: NodeId,

@@ -239,7 +239,7 @@ It also keeps the open work honest. The following are **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
 - `21` scenarios
 - `4` designs/scenario
 - `84` total designs
@@ -257,7 +257,8 @@ explicit child-sourcing modes `library` and `on-demand`,
 child-instance profiles `2`, `4`, `2:3` and `1:3`, the per-depth
 override profile `0=4:4,1=2:2`, real per-depth branching metrics, real
 mixed shallow/deep recursive realization, real on-demand child
-sourcing, and real parent-side composition above instance outputs. The focused proof artifact for that composed-parent
+sourcing, exact profiled child-interface synthesis in the on-demand
+lane, and real parent-side composition above instance outputs. The focused proof artifact for that composed-parent
 behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
@@ -279,21 +280,22 @@ local proofs remain useful:
   repeated child-definition reuse;
 - `/tmp/anvil-hier-under-smoke-r2` is clean in the same three lanes and
   proves under-instantiation of the leaf library; and
-- `/tmp/anvil-hier-ondemand-wrapper-smoke-r1/manifest.json` is clean in
-  the same three lanes and proves the first live `on-demand`
-  child-sourcing slice numerically:
-  - `num_instances = 3`
-  - `num_unique_instantiated_modules = 3`
-  - `num_single_use_instantiated_modules = 3`
-  - `single_use_instantiated_module_fraction = 1.0`
+- `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json` is clean
+  in the same three lanes and proves exact profiled `on-demand`
+  child-interface synthesis numerically:
+  - `num_profiled_instance_slots = 3`
+  - `profiled_instance_fraction = 1.0`
+  - `profiled_instantiated_module_fraction = 1.0`
+  - `dep_bearing_child_input_binding_fraction = 1.0`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r11` closes them cleanly
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r12` closes them cleanly
   with `coverage_gaps = []` and `84/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
-  `r10` is the pre-on-demand mixed-depth bank, and the aborted `r8`
-  rerun is historical evidence that the Phase 4 gate should use a
+  `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
+  explicit child-sourcing bank, and the aborted `r8` rerun is
+  historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.
 
@@ -349,8 +351,8 @@ Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
 1. add local parent flops where structurally warranted;
-2. strengthen the current `on-demand` slice into width-demand-driven
-   child synthesis with required port widths.
+2. deepen the parent-side routing/composition surface beyond the current
+   exact data-boundary planner.
 
 Only after that does Phase 4 become "done" in the same sense that the
 leaf-kernel phases are done today.

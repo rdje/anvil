@@ -1,9 +1,127 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot5 — Land explicit hierarchy child sourcing
+## 2026-04-23-boot6 — Land exact profiled on-demand child synthesis
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  now carries `ModuleInterfaceProfile` plus
+  `Module::planned_interface_profile`, so exact data-interface demand
+  is part of the live IR contract rather than an implicit planner
+  side-channel.
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  now supports exact interface-profiled leaf synthesis, reusable
+  interface sampling, and a final exact-profile enforcement pass so a
+  planned data boundary survives compaction / shrink / pruning cleanly.
+- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+  now exposes `generate_module_with_interface_profile(...)`.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now plans exact data-interface profiles for `on-demand` child slots
+  and threads those profiles through both wrapper and recursive
+  hierarchy generation. Internal parent roots can now honor an exact
+  demanded external data interface too.
+- [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  now rejects any profiled module whose emitted data-input or output
+  widths drift from its planned profile.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports profile-quality facts directly:
+  `num_profiled_module_definitions`,
+  `num_profiled_instantiated_modules`,
+  `num_profiled_instance_slots`,
+  `profiled_instantiated_module_fraction`,
+  `profiled_instance_fraction`,
+  `dep_bearing_child_input_bindings`, and
+  `dep_bearing_child_input_binding_fraction`.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now requires the Phase 4 hierarchy gate to prove not only structural
+  on-demand sourcing, but exact profiled child-interface synthesis too
+  via `saw_profiled_child_interface_synthesis`.
+
+**Why**
+
+- The old `on-demand` truth was still too weak for the direction we had
+  agreed on. "Fresh child per slot" was useful, but it still left the
+  child's data boundary as a child-local random choice rather than a
+  parent-planned exact contract.
+- The repo already had the right architectural seam for a stronger
+  solution: parent modules bind child inputs through typed width
+  adaptation and already build composed outputs over child
+  `InstanceOutput` leaves. That meant we could land exact profiled
+  data-interface synthesis without faking it.
+- The user also asked to trust the numbers without opening `.sv`, so
+  the stronger on-demand slice had to land together with validator
+  enforcement, new hierarchy metrics, and a refreshed repo-owned gate.
+
+**Validation**
+
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused hierarchy regressions:
+  - `cargo test profiled_parent_module_honors_exact_data_interface_shape --lib`
+  - `cargo test design_metrics_capture_on_demand_single_use_child_sourcing --lib`
+  - `cargo test generates_valid_depth1_ondemand_wrapper_designs --test pipeline`
+  - `cargo test generates_valid_recursive_hierarchy_designs_with_ondemand_child_sourcing --test pipeline`
+  - `cargo test on_demand_recursive_hierarchy_exactly_realizes_profiled_child_interfaces --test pipeline`
+- Focused profiled on-demand smoke:
+  - `cargo run --bin anvil -- --seed 2 --out /tmp/anvil-hier-profiled-ondemand-smoke-r1 --hierarchy-depth 1 --num-child-instances 3 --hierarchy-child-source-mode on-demand`
+  - report:
+    `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`
+  - key facts:
+    - `num_profiled_instance_slots = 3`
+    - `profiled_instance_fraction = 1.0`
+    - `profiled_instantiated_module_fraction = 1.0`
+    - `dep_bearing_child_input_binding_fraction = 1.0`
+- Refreshed repo-owned Phase 4 rerun:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r12 --phase4-hierarchy-gate --yosys-mode both`
+  - report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
+  - key facts:
+    - `scenario_count = 21`
+    - `total_modules = 84`
+    - `coverage_gaps = []`
+    - `tool_summary.verilator_passed = 84`
+    - `tool_summary.yosys_without_abc_passed = 84`
+    - `tool_summary.yosys_with_abc_passed = 84`
+    - hierarchy coverage facts:
+      - `hierarchy_child_source_modes = ["library", "on-demand"]`
+      - `saw_on_demand_child_sourcing = true`
+      - `saw_profiled_child_interface_synthesis = true`
+
+**Impact**
+
+- `on-demand` in Phase 4 now means more than "fresh child per slot":
+  it means parent-planned exact data-interface synthesis for child
+  definitions, validated at the IR boundary and measurable in reports.
+- Hierarchy manifests can now tell the difference between merely
+  single-use child definitions and exact profiled child-interface
+  realization, without emitted-SV inspection.
+- The banked Phase 4 proof artifact is now `r12`, not `r11`.
+- Phase 4 remains `in progress`. The next honest work narrows to local
+  parent state, richer hierarchy composition/routing surfaces, and
+  later hierarchy-aware identity.
+
+**Files touched**
+
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+- [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-23-boot5 — Land explicit hierarchy child sourcing
+
+**Landed as:** `0fc7ae7`
 
 **What changed**
 

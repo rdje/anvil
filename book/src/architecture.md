@@ -359,7 +359,7 @@ recursive tree planner and per-depth branching profiles),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 211 unit-target tests + 38 integration tests = 249 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 212 unit-target tests + 39 integration tests = 251 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -383,25 +383,27 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
 (84 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 84/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
-`library` and `on-demand`, the per-depth override profile
-`0=4:4,1=2:2`, and real parent-side composition above instance
-outputs. The old hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1`
+`library` and `on-demand`, exact profiled child-interface synthesis in
+the on-demand lane, the per-depth override profile `0=4:4,1=2:2`, and
+real parent-side composition above instance outputs. The old hierarchy
+smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
 `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-ondemand-wrapper-smoke-r1/manifest.json` remain useful
+`/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json` remain useful
 targeted evidence. The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,
-and the aborted `r8` rerun remains useful as evidence that the Phase 4 gate should use a hierarchy-focused
+`r11` is the first explicit child-sourcing bank, and the aborted `r8`
+rerun remains useful as evidence that the Phase 4 gate should use a hierarchy-focused
 sequential leaf profile rather than silently borrowing the fattest
 Phase 1 leaf-stress shape.
 

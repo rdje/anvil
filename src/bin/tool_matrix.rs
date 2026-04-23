@@ -236,6 +236,7 @@ struct CoverageSummary {
     saw_reused_child_definition: bool,
     saw_underinstantiated_library: bool,
     saw_on_demand_child_sourcing: bool,
+    saw_profiled_child_interface_synthesis: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
     saw_mixed_leaf_depth_hierarchy: bool,
@@ -2418,6 +2419,10 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             && design.metrics.num_unused_module_definitions == 0
             && design.metrics.num_single_use_instantiated_modules
                 == design.metrics.num_unique_instantiated_modules;
+        coverage.saw_profiled_child_interface_synthesis |=
+            scenario.config.uses_on_demand_child_sourcing()
+                && design.metrics.num_profiled_instance_slots == design.metrics.num_instances
+                && design.metrics.profiled_instance_fraction == 1.0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -2478,6 +2483,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_reused_child_definition |= src.saw_reused_child_definition;
     dst.saw_underinstantiated_library |= src.saw_underinstantiated_library;
     dst.saw_on_demand_child_sourcing |= src.saw_on_demand_child_sourcing;
+    dst.saw_profiled_child_interface_synthesis |= src.saw_profiled_child_interface_synthesis;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
     dst.saw_mixed_leaf_depth_hierarchy |= src.saw_mixed_leaf_depth_hierarchy;
@@ -2850,6 +2856,11 @@ fn compute_coverage_gaps(
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_on_demand_child_sourcing {
         gaps.push("matrix never proved on-demand child sourcing structurally".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_profiled_child_interface_synthesis
+    {
+        gaps.push("matrix never proved exact profiled child-interface synthesis".to_string());
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_recursive_hierarchy {
         gaps.push("matrix never emitted a recursive hierarchy design".to_string());
@@ -3509,6 +3520,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("on-demand child sourcing")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("exact profiled child-interface synthesis")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
         assert!(gaps
             .iter()

@@ -333,9 +333,10 @@ instead of creating fresh logic.
   branching profile while depth `1` uses another.
 - `hierarchy_child_source_mode` — explicit child-sourcing mode for both
   hierarchy lanes. `library` keeps a reusable child-definition pool.
-  The current `on-demand` slice synthesizes one fresh child definition
-  per planned instance slot. The stronger future shape of
-  width-demand-driven child synthesis is still later work.
+  The current `on-demand` slice synthesizes one profiled child
+  definition per planned instance slot against a parent-planned exact
+  data-interface profile. Control ports stay structural and are not
+  part of that profile.
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.

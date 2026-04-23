@@ -276,24 +276,21 @@ evidence.
     `--hierarchy-child-source-mode <library|on-demand>` now applies to
     both the wrapper and recursive hierarchy lanes. `library` keeps the
     reusable child-definition pool live; the currently-landed
-    `on-demand` slice synthesizes one fresh child definition per
-    planned instance slot.
+    `on-demand` slice synthesizes children against parent-planned exact
+    data-interface profiles for each planned instance slot.
 - Current slice constraints:
   - parent-side hierarchy is still combinational only in the current
     slice; local parent flops are not live yet
-  - the current `on-demand` slice is a truthful first step, not the
-    full end-state: it creates one fresh child definition per planned
-    instance slot, but it does **not yet** synthesize children from
-    required parent-side port-width demand
   - the fully banked repo-owned Phase 4 matrix now covers both the
     wrapper lane and the representative recursive lane, including the
     mixed-depth recursive axis and the explicit child-sourcing axis
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
-  - strengthen the current `on-demand` slice into
-    width-demand-driven child synthesis with required port widths
-  - arbitrary hierarchy depth, bounded by knob
+  - richer parent-side routing and composition surfaces, including
+    sibling-aware binding choices beyond the current exact data-boundary
+    planner
+  - local parent state where it is structurally warranted
   - name uniqueness across the full module set
   - hierarchical identity as future required work: under
     `identity_mode = node-id`, equivalent instantiated structures
@@ -302,7 +299,7 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
@@ -321,6 +318,7 @@ proves all of the current representative hierarchy axes directly:
 - real parent-side composition above instance outputs
 - real structural proof that on-demand child sourcing emitted fresh
   child definitions per planned instance slot
+- real exact profiled child-interface synthesis in the on-demand lane
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -372,8 +370,8 @@ recursive bank, and `r10` is the real current Phase 4 closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
-with width-demand-driven on-demand child synthesis, local parent state
-where it is structurally warranted, and eventual hierarchy-aware
+with richer parent-side routing/composition, local parent state where
+it is structurally warranted, and eventual hierarchy-aware
 identity/factorization.
 
 ## Phase 5 — Parameterization (not started)

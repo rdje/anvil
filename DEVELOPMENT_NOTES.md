@@ -91,9 +91,10 @@ That buys several real things immediately:
 
 Just as importantly, it keeps the open work honest. The newly-landed
 top layer is still **combinational only**; deeper recursive
-sub-hierarchy growth, local parent flops, width-demand-driven child synthesis, and
-hierarchical identity are all still future work. The slice is real, but
-it does not pretend Phase 4 is already solved.
+sub-hierarchy growth, local parent flops, richer hierarchy-local
+routing/composition, and hierarchical identity are all still future
+work. The slice is real, but it does not pretend Phase 4 is already
+solved.
 
 Two narrow implementation choices are load-bearing in this slice:
 
@@ -153,7 +154,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 repo-owned Phase 4 gate has now caught up at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`,
 so the mixed-depth story is no longer "focused-only" evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
@@ -224,8 +225,8 @@ forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
 What it does **not** do yet is move beyond that banked mixed-depth gate
-into the next deeper hierarchy surfaces such as width-demand-driven
-child synthesis and local parent state.
+into the next deeper hierarchy surfaces such as richer parent-side
+routing/composition and local parent state.
 
 One more gate-level rule turned out to matter here: when a repo-owned
 matrix grows new representative scenarios, its minimum total artifact
@@ -253,34 +254,36 @@ behavior. It needs to be a user-visible, measurable axis:
 
 - `library` means pre-generate a reusable child-definition pool and let
   instance slots pick from it;
-- `on-demand` means synthesize fresh child definitions per planned
-  instance slot.
+- `on-demand` means synthesize child definitions against exact
+  parent-planned data-interface profiles per planned instance slot.
 
-The current landed `on-demand` slice is intentionally the first honest
-one: one fresh child definition per instance slot, with the resulting
-single-use structure proven numerically by `DesignMetrics` and the
-Phase 4 gate. It does **not** yet claim the stronger future behavior of
-"synthesize a fresh child with exactly the port widths the parent
-needs." That narrower truth matters, because it keeps the docs from
-over-claiming signoff-grade machinery that has not landed yet.
+The current landed `on-demand` slice is now the stronger honest one:
+each planned child slot carries an exact parent-planned data-interface
+profile, and the realized child definition is validated against that
+exact emitted data-input/output shape. Control ports stay structural,
+which is also the right rule: `clk` / `rst_n` are propagated by
+sequential-state presence, not by the data-profile planner.
 
 That is also why the metrics contract grew again. The hierarchy reports
 now need to distinguish:
 
 - reused child definitions,
 - single-use instantiated definitions, and
-- the average instance count per unique instantiated module.
+- the average instance count per unique instantiated module,
+- exact profiled instance-slot coverage, and
+- whether child data-input bindings stay dep-bearing instead of
+  collapsing to constants.
 
 Without those numbers, `library` vs `on-demand` would still force a
 human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The refreshed
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`,
-not `r10`, and it now explicitly proves both child-sourcing modes
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`,
+not `r11`, and it now explicitly proves both child-sourcing modes
 (`library` and `on-demand`) together with structural proof that the
 on-demand scenarios really emitted fresh child definitions per planned
-instance slot.
+instance slot and exact profiled child-interface synthesis.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

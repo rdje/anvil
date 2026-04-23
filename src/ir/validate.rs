@@ -180,6 +180,22 @@ pub enum DesignValidateError {
         expected: u32,
         got: u32,
     },
+    #[error(
+        "module `{module}` planned data-input profile {expected:?} != emitted data-input widths {got:?}"
+    )]
+    PlannedDataInputProfileMismatch {
+        module: String,
+        expected: Vec<u32>,
+        got: Vec<u32>,
+    },
+    #[error(
+        "module `{module}` planned output profile {expected:?} != emitted output widths {got:?}"
+    )]
+    PlannedOutputProfileMismatch {
+        module: String,
+        expected: Vec<u32>,
+        got: Vec<u32>,
+    },
     #[error("cyclic hierarchy detected at module `{0}`")]
     CyclicHierarchy(String),
 }
@@ -382,6 +398,29 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
             module: module.name.clone(),
             source,
         })?;
+
+        if let Some(profile) = &module.planned_interface_profile {
+            let got_data_inputs: Vec<_> = module
+                .emitted_data_input_ports_in(Some(&modules_view))
+                .map(|port| port.width)
+                .collect();
+            if got_data_inputs != profile.data_input_widths {
+                return Err(DesignValidateError::PlannedDataInputProfileMismatch {
+                    module: module.name.clone(),
+                    expected: profile.data_input_widths.clone(),
+                    got: got_data_inputs,
+                });
+            }
+
+            let got_outputs: Vec<_> = module.outputs.iter().map(|port| port.width).collect();
+            if got_outputs != profile.output_widths {
+                return Err(DesignValidateError::PlannedOutputProfileMismatch {
+                    module: module.name.clone(),
+                    expected: profile.output_widths.clone(),
+                    got: got_outputs,
+                });
+            }
+        }
 
         for instance in &module.instances {
             let Some(child) = modules.get(&instance.module) else {

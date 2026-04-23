@@ -270,6 +270,9 @@ pub struct DesignMetrics {
     pub num_unused_module_definitions: usize,
     pub num_unused_leaf_modules: usize,
     pub num_reused_instance_slots: usize,
+    pub num_profiled_module_definitions: usize,
+    pub num_profiled_instantiated_modules: usize,
+    pub num_profiled_instance_slots: usize,
     pub num_internal_module_occurrences: usize,
     pub num_leaf_module_occurrences: usize,
 
@@ -282,6 +285,8 @@ pub struct DesignMetrics {
     pub num_single_use_instantiated_modules: usize,
     pub num_multiuse_instantiated_modules: usize,
     pub single_use_instantiated_module_fraction: f64,
+    pub profiled_instantiated_module_fraction: f64,
+    pub profiled_instance_fraction: f64,
 
     // --- Hierarchy shape ---------------------------------------
     pub realized_min_leaf_depth: usize,
@@ -326,6 +331,7 @@ pub struct DesignMetrics {
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
+    pub dep_bearing_child_input_bindings: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -333,6 +339,7 @@ pub struct DesignMetrics {
     pub total_child_output_exposures: usize,
     pub avg_child_data_inputs_per_instance: f64,
     pub avg_child_outputs_per_instance: f64,
+    pub dep_bearing_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
     pub num_sequential_leaf_modules: usize,
@@ -641,10 +648,17 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
 
     let mut unique_instantiated = BTreeSet::new();
     let mut unique_instantiated_leafs = BTreeSet::new();
+    let mut unique_profiled_instantiated = BTreeSet::new();
     let mut defs_by_depth_sets: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
     let mut internal_module_occurrences_by_depth: BTreeMap<usize, usize> = BTreeMap::new();
     let mut leaf_depth_total = 0usize;
     let mut hierarchy_output_support_total = 0usize;
+
+    out.num_profiled_module_definitions = design
+        .modules
+        .iter()
+        .filter(|module| module.planned_interface_profile.is_some())
+        .count();
 
     for port in top.emitted_input_ports_in(Some(&modules_by_name)) {
         if top.clock == Some(port.id) {
@@ -686,6 +700,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out: &mut out,
         unique_instantiated: &mut unique_instantiated,
         unique_instantiated_leafs: &mut unique_instantiated_leafs,
+        unique_profiled_instantiated: &mut unique_profiled_instantiated,
         defs_by_depth_sets: &mut defs_by_depth_sets,
         internal_module_occurrences_by_depth: &mut internal_module_occurrences_by_depth,
         leaf_depth_total: &mut leaf_depth_total,
@@ -703,6 +718,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.num_reused_instance_slots = out
         .num_instances
         .saturating_sub(out.num_unique_instantiated_modules);
+    out.num_profiled_instantiated_modules = unique_profiled_instantiated.len();
 
     out.library_coverage_fraction =
         ratio(out.num_unique_instantiated_modules, out.num_library_modules);
@@ -725,9 +741,18 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.num_single_use_instantiated_modules,
         out.num_unique_instantiated_modules,
     );
+    out.profiled_instantiated_module_fraction = ratio(
+        out.num_profiled_instantiated_modules,
+        out.num_unique_instantiated_modules,
+    );
+    out.profiled_instance_fraction = ratio(out.num_profiled_instance_slots, out.num_instances);
     out.avg_child_data_inputs_per_instance =
         ratio(out.total_child_data_input_bindings, out.num_instances);
     out.avg_child_outputs_per_instance = ratio(out.total_child_output_exposures, out.num_instances);
+    out.dep_bearing_child_input_binding_fraction = ratio(
+        out.dep_bearing_child_input_bindings,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -759,6 +784,7 @@ struct DesignWalkState<'a> {
     out: &'a mut DesignMetrics,
     unique_instantiated: &'a mut BTreeSet<String>,
     unique_instantiated_leafs: &'a mut BTreeSet<String>,
+    unique_profiled_instantiated: &'a mut BTreeSet<String>,
     defs_by_depth_sets: &'a mut BTreeMap<usize, BTreeSet<String>>,
     internal_module_occurrences_by_depth: &'a mut BTreeMap<usize, usize>,
     leaf_depth_total: &'a mut usize,
@@ -864,11 +890,22 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
         if child.instances.is_empty() {
             state.unique_instantiated_leafs.insert(child.name.clone());
         }
-        let child_data_inputs = child
-            .emitted_input_ports_in(Some(state.modules_by_name))
-            .filter(|port| child.clock != Some(port.id) && child.reset != Some(port.id))
-            .count();
-        state.out.total_child_data_input_bindings += child_data_inputs;
+        if child.planned_interface_profile.is_some() {
+            state
+                .unique_profiled_instantiated
+                .insert(child.name.clone());
+            state.out.num_profiled_instance_slots += 1;
+        }
+        let child_data_inputs: BTreeSet<_> = child
+            .emitted_data_input_ports_in(Some(state.modules_by_name))
+            .map(|port| port.id)
+            .collect();
+        state.out.total_child_data_input_bindings += child_data_inputs.len();
+        for (port_id, node_id) in &instance.inputs {
+            if child_data_inputs.contains(port_id) && node_has_nonempty_deps(module, *node_id) {
+                state.out.dep_bearing_child_input_bindings += 1;
+            }
+        }
         state.out.total_child_output_exposures += child.outputs.len();
         state.out.total_instantiated_child_nodes += child.nodes.len();
         state.out.total_instantiated_child_flops += child.flops.len();
@@ -950,6 +987,14 @@ fn collect_instance_output_support(
     };
     memo.insert(node_id, support.clone());
     support
+}
+
+fn node_has_nonempty_deps(module: &Module, node_id: NodeId) -> bool {
+    match &module.nodes[node_id as usize] {
+        Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => true,
+        Node::Constant { .. } => false,
+        Node::Gate { deps, .. } => !deps.is_empty(),
+    }
 }
 
 fn ratio(numer: usize, denom: usize) -> f64 {
@@ -1200,6 +1245,12 @@ mod tests {
         assert_eq!(met.num_single_use_instantiated_modules, 4);
         assert_eq!(met.num_multiuse_instantiated_modules, 0);
         assert_eq!(met.single_use_instantiated_module_fraction, 1.0);
+        assert_eq!(met.num_profiled_module_definitions, 4);
+        assert_eq!(met.num_profiled_instantiated_modules, 4);
+        assert_eq!(met.num_profiled_instance_slots, 4);
+        assert_eq!(met.profiled_instantiated_module_fraction, 1.0);
+        assert_eq!(met.profiled_instance_fraction, 1.0);
+        assert_eq!(met.dep_bearing_child_input_binding_fraction, 1.0);
     }
 
     #[test]

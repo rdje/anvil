@@ -217,7 +217,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r11`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r12`. Its final
 `tool_matrix_report.json` records:
 
 - `21` scenarios
@@ -239,7 +239,8 @@ override profile `0=4:4,1=2:2`, real recursive design emission, real
 per-depth branching metrics, real mixed shallow/deep recursive
 realization, real parent-side composition above instance outputs, and
 the explicit hierarchy child-sourcing axis
-`--hierarchy-child-source-mode <library|on-demand>`.
+`--hierarchy-child-source-mode <library|on-demand>`, including exact
+profiled child-interface synthesis in the on-demand lane.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -332,8 +333,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   coverage, and clean downstream tool results.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
-  child-definition pools; the current `on-demand` slice synthesizes one
-  fresh child definition per planned instance slot.
+  child-definition pools; the current `on-demand` slice now
+  synthesizes children against parent-planned exact data-interface
+  profiles.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and
@@ -348,9 +350,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both hierarchy lanes now also expose an explicit child-sourcing mode
   via `--hierarchy-child-source-mode <library|on-demand>`. `library`
   keeps the reusable child-definition pool live; the currently-landed
-  `on-demand` slice synthesizes one fresh child definition per planned
-  instance slot. The stronger future shape of width-demand-driven child
-  synthesis with required port widths is still ahead of current HEAD.
+  `on-demand` slice now gives each child slot a parent-planned exact
+  data-interface profile and requires the emitted child module to
+  realize that exact data boundary. Control ports remain structural:
+  `clk` / `rst_n` still propagate only when sequential state is
+  present.
   Control-port visibility follows the hierarchy doctrine exactly: pure
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
   and wrapper ancestors keep them visible iff they carry sequential
@@ -360,10 +364,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r11/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r12/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
-  explicit child-sourcing, and per-depth-override profiles folded into
-  `tool_matrix`, while the
+  explicit child-sourcing, exact profiled on-demand child synthesis,
+  and per-depth-override profiles folded into `tool_matrix`, while the
   focused smokes
   at
   `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
@@ -381,15 +385,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `realized_max_leaf_depth = 3`, and
   `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}` with clean
   Verilator plus both repo-owned Yosys modes. Current HEAD also has a
-  focused clean on-demand wrapper proof at
-  `/tmp/anvil-hier-ondemand-wrapper-smoke-r1/manifest.json`, where the
-  design metrics show `num_instances = 3`,
-  `num_unique_instantiated_modules = 3`,
-  `num_single_use_instantiated_modules = 3`, and
-  `single_use_instantiated_module_fraction = 1.0`. The next honest work
-  is deeper hierarchy capability beyond the banked gate:
-  width-demand-driven on-demand child synthesis, local parent state,
-  and later hierarchy-aware identity.
+  focused clean profiled on-demand proof at
+  `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`, where
+  the design metrics show `num_profiled_instance_slots = 3`,
+  `profiled_instance_fraction = 1.0`,
+  `profiled_instantiated_module_fraction = 1.0`, and
+  `dep_bearing_child_input_binding_fraction = 1.0`. The next honest
+  work is deeper hierarchy capability beyond the banked gate: local
+  parent state, richer hierarchy composition/routing surfaces, and
+  later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.

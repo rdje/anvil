@@ -28,6 +28,19 @@ pub struct Port {
     pub dir: Direction,
 }
 
+/// Exact data-interface shape requested for a generated module.
+///
+/// This profile intentionally excludes `clk` / `rst_n`: control ports
+/// are structural consequences of sequential state and propagate
+/// through instantiated ancestors by rule, while data ports are the
+/// part of the interface that parent-side hierarchy planning may shape
+/// explicitly.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ModuleInterfaceProfile {
+    pub data_input_widths: Vec<u32>,
+    pub output_widths: Vec<u32>,
+}
+
 /// A circuit module: ports, internal nodes, flops, and a drive map
 /// from each output port to the node that drives it.
 #[derive(Debug, Clone, Default)]
@@ -37,6 +50,10 @@ pub struct Module {
     pub outputs: Vec<Port>,
     pub clock: Option<PortId>,
     pub reset: Option<PortId>,
+    /// Parent-planned exact data-interface shape, when this module was
+    /// synthesized to satisfy a demanded hierarchy boundary rather than
+    /// choosing its own input/output counts and widths locally.
+    pub planned_interface_profile: Option<ModuleInterfaceProfile>,
     pub nodes: Vec<Node>,
     pub flops: Vec<Flop>,
     pub instances: Vec<Instance>,
@@ -369,6 +386,20 @@ impl Module {
 
     pub fn emitted_input_ports(&self) -> impl Iterator<Item = &Port> {
         self.emitted_input_ports_in(None)
+    }
+
+    /// Iterate the emitted data inputs only, excluding structural
+    /// control ports.
+    pub fn emitted_data_input_ports_in<'a>(
+        &'a self,
+        modules: Option<&'a BTreeMap<&'a str, &'a Module>>,
+    ) -> impl Iterator<Item = &'a Port> + 'a {
+        self.emitted_input_ports_in(modules)
+            .filter(move |port| self.clock != Some(port.id) && self.reset != Some(port.id))
+    }
+
+    pub fn emitted_data_input_ports(&self) -> impl Iterator<Item = &Port> {
+        self.emitted_data_input_ports_in(None)
     }
 
     pub fn input_port(&self, port_id: PortId) -> Option<&Port> {

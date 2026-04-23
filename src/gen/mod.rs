@@ -6,7 +6,7 @@ pub mod module;
 pub mod pool;
 
 use crate::config::Config;
-use crate::ir::{Design, Module};
+use crate::ir::{Design, Module, ModuleInterfaceProfile};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,15 @@ impl Generator {
         let idx = self.next_module_index;
         self.next_module_index += 1;
         module::generate_leaf_module(self, idx)
+    }
+
+    pub fn generate_module_with_interface_profile(
+        &mut self,
+        interface_profile: Option<&ModuleInterfaceProfile>,
+    ) -> Module {
+        let idx = self.next_module_index;
+        self.next_module_index += 1;
+        module::generate_leaf_module_with_interface_profile(self, idx, interface_profile)
     }
 
     pub fn checkpoint(&self) -> GeneratorCheckpoint {
