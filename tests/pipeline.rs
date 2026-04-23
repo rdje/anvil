@@ -4,6 +4,7 @@
 use anvil::config::ConstructionStrategy;
 use anvil::ir::{GateOp, Node};
 use anvil::{Config, Generator};
+use std::collections::BTreeSet;
 
 #[test]
 fn generates_valid_modules_across_seeds() {
@@ -62,6 +63,106 @@ fn generates_valid_depth1_wrapper_designs() {
             "top wrapper should emit real child instances:\n{sv}"
         );
     }
+}
+
+#[test]
+fn depth1_wrapper_can_reuse_leaf_definitions_across_more_instances_than_library_entries() {
+    let cfg = Config {
+        seed: 11,
+        hierarchy_depth: 1,
+        num_leaf_modules: 2,
+        num_child_instances: 5,
+        ..Config::default()
+    };
+    cfg.validate()
+        .expect("depth-1 hierarchy reuse config should be valid");
+
+    let mut g = Generator::new(cfg);
+    let design = g.generate_design();
+    anvil::ir::validate::validate_design(&design)
+        .expect("reused-child depth-1 design should validate");
+
+    assert_eq!(design.modules.len(), 3, "2 leaves + 1 top wrapper expected");
+    let top = design
+        .modules
+        .iter()
+        .find(|module| module.name == design.top)
+        .expect("top module must exist");
+    let used_children: BTreeSet<_> = top
+        .instances
+        .iter()
+        .map(|instance| instance.module.as_str())
+        .collect();
+    assert_eq!(
+        top.instances.len(),
+        5,
+        "top must honor explicit child instance count"
+    );
+    assert_eq!(
+        used_children.len(),
+        2,
+        "the two library modules should both stay usable"
+    );
+    assert!(
+        top.instances.len() > used_children.len(),
+        "at least one leaf definition should be reused when instances exceed library size"
+    );
+}
+
+#[test]
+fn depth1_wrapper_can_under_instantiate_the_leaf_library() {
+    let cfg = Config {
+        seed: 17,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 2,
+        ..Config::default()
+    };
+    cfg.validate()
+        .expect("depth-1 hierarchy under-instantiation config should be valid");
+
+    let mut g = Generator::new(cfg);
+    let design = g.generate_design();
+    anvil::ir::validate::validate_design(&design)
+        .expect("under-instantiated depth-1 design should validate");
+
+    assert_eq!(design.modules.len(), 5, "4 leaves + 1 top wrapper expected");
+    let top = design
+        .modules
+        .iter()
+        .find(|module| module.name == design.top)
+        .expect("top module must exist");
+    let library_children: BTreeSet<_> = design
+        .modules
+        .iter()
+        .filter(|module| module.name != design.top)
+        .map(|module| module.name.as_str())
+        .collect();
+    let used_children: BTreeSet<_> = top
+        .instances
+        .iter()
+        .map(|instance| instance.module.as_str())
+        .collect();
+
+    assert_eq!(
+        top.instances.len(),
+        2,
+        "top must honor explicit child instance count"
+    );
+    assert_eq!(
+        library_children.len(),
+        4,
+        "the leaf library should still contain all definitions"
+    );
+    assert_eq!(
+        used_children.len(),
+        2,
+        "only two leaf definitions should be instantiated"
+    );
+    assert!(
+        used_children.len() < library_children.len(),
+        "under-instantiation should leave some generated leaf definitions unused by the wrapper"
+    );
 }
 
 #[test]

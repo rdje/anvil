@@ -456,7 +456,7 @@ fn node_ref(id: NodeId, m: &Module, names: &[Option<String>]) -> String {
             .unwrap()
             .name
             .clone(),
-        Node::Constant { width, value } => format!("{}'h{:x}", width, value),
+        Node::Constant { width, value } => const_literal(*width, *value),
         Node::FlopQ { flop, .. } => flop_name(*flop),
         Node::InstanceOutput { .. } => names[id as usize]
             .clone()
@@ -499,6 +499,11 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
             unreachable!("procedural structured blocks are emitted via always_comb")
         }
         Slice { hi, lo } => {
+            if let Node::Constant { value, .. } = m.nodes[operands[0] as usize] {
+                let slice_width = hi - lo + 1;
+                let sliced = (value >> lo) & bitmask(slice_width);
+                return const_literal(slice_width, sliced);
+            }
             let src = a(0);
             let src_width = m.nodes[operands[0] as usize].width();
             if src_width == 1 && hi == 0 && lo == 0 {
@@ -572,16 +577,22 @@ fn for_fold_symbol(kind: &ForFoldKind) -> &'static str {
 
 fn for_fold_init_literal(kind: &ForFoldKind, width: u32) -> String {
     let value = match kind {
-        ForFoldKind::And => {
-            if width >= 128 {
-                u128::MAX
-            } else {
-                (1u128 << width) - 1
-            }
-        }
+        ForFoldKind::And => bitmask(width),
         ForFoldKind::Xor | ForFoldKind::Or | ForFoldKind::Add => 0,
     };
-    format!("{width}'h{value:x}")
+    const_literal(width, value)
+}
+
+fn bitmask(width: u32) -> u128 {
+    if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    }
+}
+
+fn const_literal(width: u32, value: u128) -> String {
+    format!("{width}'h{:x}", value & bitmask(width))
 }
 
 #[cfg(test)]
@@ -779,6 +790,30 @@ mod tests {
         let sv = to_sv(&m);
         assert!(sv.contains("assign slice_0 = a;"));
         assert!(!sv.contains("a[0:0]"));
+    }
+
+    #[test]
+    fn constant_slice_renders_as_folded_literal_not_literal_indexing() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "o", 18, Direction::Out));
+        m.nodes.push(Node::Constant {
+            width: 20,
+            value: 0,
+        }); // 0
+        m.nodes.push(Node::Gate {
+            op: GateOp::Slice { hi: 18, lo: 1 },
+            operands: vec![0],
+            width: 18,
+            deps: DepSet::new(),
+        }); // 1
+        m.drives.push((0, 1));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("assign slice_0 = 18'h0;"));
+        assert!(!sv.contains("20'h0[18:1]"));
     }
 
     #[test]

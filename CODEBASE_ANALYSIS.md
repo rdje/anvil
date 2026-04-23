@@ -322,9 +322,12 @@ src/
 │   ├── hierarchy.rs  First live Phase 4 slice: depth-1 wrapper
 │   │                 hierarchy only. Pre-generates a library of
 │   │                 leaf modules, then builds a real top wrapper
-│   │                 module that instantiates every leaf and exposes
-│   │                 every child output. Shared `clk` / `rst_n`
-│   │                 inputs are added when any child is sequential.
+│   │                 module whose instantiated-child count is planned
+│   │                 separately from library size. The wrapper now
+│   │                 supports exact, reuse, and under-instantiation
+│   │                 profiles and exposes every instantiated child
+│   │                 output. Shared `clk` / `rst_n` inputs are added
+│   │                 only when some instantiated child is sequential.
 │   │                 This is real module composition, but not yet
 │   │                 recursive parent-side cone construction from
 │   │                 instance outputs.
@@ -478,7 +481,7 @@ main  →  lib  →  gen  →  ir
 | 1 — Single-module MVP        | done         | `gen/cone.rs`, `gen/module.rs`, `emit/sv.rs`, `gen/pool.rs`, `ir/types.rs`, `ir/compact.rs`, `metrics.rs` | Combinational + sequential cone recursion functional; flop worklist drained; `always_ff` emitted; single CLK + single RST_N (async). 22 structural rules enforced (Rules 1-22). Zero orphans restored at module finalisation via Rule-18 construction discipline plus `compact_node_ids`; final compaction now also drops dead flops whose `Q` is never observed, and the emitted input surface is trimmed to live ports/bits. Factorization ladder is live through a bounded `EGraph` fragment, with post-construction semantic gate merging for small-support cones, post-remap associative re-normalisation on the settled graph, a late mixed-associative-constant cleanup pass on that same settled graph, endpoint-preserving post-drain flop merging under `identity_mode = node-id`, strict Add/Mul remap-pruning under `operand_duplication_rate < 1.0`, a final exact-value cleanup pass (`fold_proven_gates`) for downstream-tool cleanliness that keeps the general exact prover tiny-only (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints) while still revisiting compare gates with the bounded unsigned-compare proof and shift gates with a bounds-only exact check, plus a tiny-domain rhs fallback for shift overshift proofs when narrow boolean-mask arithmetic keeps the rhs domain small even though the whole cone is large. Exit gate now closed locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json` (1005 modules, `coverage_gaps = []`, 1005/0 in Verilator and both repo-owned Yosys modes). |
 | 2 — Sharing                  | done         | `gen/cone.rs`, `ir/types.rs`, `ir/compact.rs` | Per-operand `share_prob` hook wired; internal gates enter the pool as they are built. Construction-time CSE (Rule 21) + operand-uniqueness (Rule 8 extended) + commutative normalization (Rule 21b) + associative flattening + constant folding + peephole rewrites all enforced via `intern_gate`; the live bounded `EGraph` fragment now merges small-support combinational cones post-construction under `identity_mode = node-id`, duplicate flops merge post-drain when they are proven equal over the same canonical leaf endpoints by the same proof discipline, and late remaps are pruned when they would violate the strict Add/Mul duplicate policy. Final compaction cleans orphaned intermediates and dead state from these rewrites. Exit gate now closed locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json` (216 modules, `coverage_gaps = []`, 216/0 in Verilator and both repo-owned Yosys modes). The representative sweep proves controllability with normalized `shared_node_fraction` rather than raw shared-node count, because stronger reuse collapses total node count. |
 | 3 — Structured combinational | done         | `gen/cone.rs`, `ir/types.rs`, `emit/sv.rs`, `ir/validate.rs`, `metrics.rs`, `bin/tool_matrix.rs`, `ir/compact.rs` | Priority-encoder block (Rule 17), combinational mux block (Rule 15), procedural case-mux block (`always_comb case`), procedural casez-mux block (`always_comb casez` with non-overlapping wildcard patterns), structured bounded `for`-fold blocks (`always_comb` + `for (int i = 0; i < N; i++)` over packed chunks), generic selectable `Slice` / variadic `Concat`, coefficient motif, both shift-amount paths (`const_shift_amount_prob` plus the ordinary variable-amount path), const-comparand motif, and reduction-category gate picking are all landed. The dedicated structured-surface closure gate now exists in `tool_matrix` as `--phase3-structured-gate`, and it is closed locally via `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json` (210 modules, `coverage_gaps = []`, 210/0 in Verilator and both repo-owned Yosys modes). The runtime hotspot that surfaced while proving that gate was addressed at the real seam: large settled cones with tiny support now skip semantic merge proofs and fall back to structural proof instead of stalling in `semantic_cone_proof`. |
-| 4 — Hierarchy                | in progress  | `gen/hierarchy.rs`, `ir/types.rs`, `ir/validate.rs`, `emit/sv.rs`, `main.rs`, `metrics.rs`, `bin/tool_matrix.rs` | Current live slice is depth-1 wrapper hierarchy: pre-generated leaf library + real top wrapper with instances and exposed child outputs. The wrapper slice now has repo-owned closure evidence at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json` (48 designs, `coverage_gaps = []`, 48/0 in Verilator and both repo-owned Yosys modes). Recursive parent-side cone construction, depth > 1, on-demand child sourcing, and future hierarchy-aware identity remain open. |
+| 4 — Hierarchy                | in progress  | `gen/hierarchy.rs`, `ir/types.rs`, `ir/validate.rs`, `emit/sv.rs`, `main.rs`, `metrics.rs`, `bin/tool_matrix.rs` | Current live slice is depth-1 wrapper hierarchy: pre-generated leaf library + real top wrapper with instances and exposed child outputs. Library size and instantiated child count are now separate (`num_child_instances`), so the wrapper can exercise exact, reuse, and under-instantiation profiles. The older wrapper baseline still has repo-owned closure evidence at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json` (48 designs, `coverage_gaps = []`, 48/0 in Verilator and both repo-owned Yosys modes); the broadened exact / reuse / under-instantiation matrix is implemented in `tool_matrix`, locally proven by focused smokes, and still needs its own fresh full runtime-closure pass. Recursive parent-side cone construction, depth > 1, on-demand child sourcing, and future hierarchy-aware identity remain open. |
 | 5 — Parameterization         | not started  | new module | Significant extension to IR (parameter env). |
 | 6 — Advanced motifs          | not started  | various | Memories, FSMs, optional multi-clock. |
 | 7 — Oracle-backed micro-design artifacts | not started | new artifact-family layer; manifest extensions; likely source-level artifact builders | Small self-contained synthesizable `.sv` artifacts with expected-facts manifests (parameter values, ranges, generate decisions, similar elaboration facts). |
@@ -522,8 +525,12 @@ In code (constructors / generator):
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
 - `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
-- `Config::validate()` currently rejects `hierarchy_depth > 1`, and
-  rejects `hierarchy_depth > 0` when `num_leaf_modules < 1`.
+- `Config::validate()` currently rejects `hierarchy_depth > 1`,
+  rejects `hierarchy_depth > 0` when `num_leaf_modules < 1`, and
+  rejects `num_child_instances > 0` in leaf-only mode
+  (`hierarchy_depth == 0`). `Config::effective_num_child_instances()`
+  preserves the legacy exact-once wrapper behavior when the stored knob
+  value is `0`.
 
 In `ir::validate::validate`:
 - Operand `NodeId`s in range.
@@ -559,12 +566,12 @@ In `ir::validate::validate_design`:
 - `src/gen/cone.rs` — 40 inline unit tests covering flop assemblers, `ceil_log2`, `pick_mux_arm_count`, width-adapter cases, comb-mux generation, DAG-sharing sanity, anti-collapse, dep-bearing terminal picking, coefficient-width clamping, dynamic overshift proofs, exact small-set budgeting, support caps, priority-encoder width-domain guards, selectable Slice/Concat shape guards, CLI alias behavior, and category / leaf-knob exercise coverage.
 - `src/gen/mod.rs` — 1 inline unit test proving that a saved generator checkpoint reproduces the exact next module after restore.
 - `src/gen/module.rs` — 2 inline unit tests covering primary-input width shrinking and the "do not shrink full-width non-slice uses" guard.
-- `src/emit/sv.rs` — 11 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, Mux ternary form, both procedural case surfaces, the procedural bounded `for` surface, and real hierarchical instance wiring.
+- `src/emit/sv.rs` — 12 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, constant-slice folding to legal literals, Mux ternary form, both procedural case surfaces, the procedural bounded `for` surface, and real hierarchical instance wiring.
 - `src/metrics.rs` — 4 inline unit tests for empty-module, per-kind gate, flop-shape metrics, and constant-vs-variable shift-rhs classification.
 - `src/ir/compact.rs` — 23 inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, cleanup exact-proof eligibility caps, the landed `ForFold` exact evaluator, late mixed-constant cleanup on the settled graph, no-op compaction, orphan removal, dead-flop removal, strict post-remap duplicate protection, topological-order preservation, and the large-low-support semantic-merge budget guard.
-- `src/bin/tool_matrix.rs` — 23 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 / Phase-2 / Phase-3 / Phase-4 gate run-plan math, representative `share_prob`-sweep coverage, Phase-3 structured-surface coverage, Phase-4 hierarchy wrapper coverage, design-level Yosys invocation shaping, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume for both module and design artifacts, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
-- `tests/pipeline.rs` — 30 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, both constant- and variable-shift surfaces, the landed procedural case/casez/for-fold surfaces, the landed selectable `Slice` / `Concat` surface, the new depth-1 hierarchy wrapper surface, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-23): **179 unit-target tests + 30 integration tests = 209 passing tests**. Doc-tests: 0.
+- `src/bin/tool_matrix.rs` — 23 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 / Phase-2 / Phase-3 / Phase-4 gate run-plan math, representative `share_prob`-sweep coverage, Phase-3 structured-surface coverage, the refreshed Phase-4 hierarchy wrapper coverage facts (leaf counts, child-instance counts, reuse, under-instantiation), design-level Yosys invocation shaping, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume for both module and design artifacts, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
+- `tests/pipeline.rs` — 32 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, both constant- and variable-shift surfaces, the landed procedural case/casez/for-fold surfaces, the landed selectable `Slice` / `Concat` surface, the new depth-1 hierarchy wrapper surface including repeated child-definition reuse and under-instantiated-library cases, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
+- Current executed counts (`cargo test`, 2026-04-23): **182 unit-target tests + 32 integration tests = 214 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps; the smoke matrix is green, the full current-code Phase 1
@@ -585,9 +592,16 @@ In `ir::validate::validate_design`:
   wrapper design, and the dedicated Phase 4 wrapper gate is now closed
   too at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
   (48 designs, `coverage_gaps = []`, and 48/0 pass-fail in Verilator
-  plus both repo-owned Yosys modes). Remaining downstream evidence work
-  now belongs to deeper hierarchy, advanced motifs, and later artifact
-  families rather than basic leaf-kernel or wrapper-slice viability.
+  plus both repo-owned Yosys modes). The newly-landed exact / reuse /
+  under-instantiation wrapper behaviors are also proven clean by the
+  focused smokes at `/tmp/anvil-hier-reuse-smoke-r1` and
+  `/tmp/anvil-hier-under-smoke-r2`. The fresh broadened Phase 4 rerun
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` was intentionally
+  stopped after 14 clean design checkpoints when
+  `seq_nodeid_egraph_phase4_hier4_inst4_seq` became the next runtime
+  hotspot, so the next downstream-evidence task on this axis is runtime
+  closure of the refreshed hierarchy matrix rather than basic leaf- or
+  wrapper-slice viability.
 
 ## Known weaknesses (visible in code today)
 
@@ -606,14 +620,17 @@ In `ir::validate::validate_design`:
   flops merge; stronger sequential/hierarchical equivalence remains open
   work.
 - Phase 4 is still only at the wrapper slice. `hierarchy_depth = 1` is
-  real and now has a repo-owned clean-run gate, but parent-side cone
+  real and now has a repo-owned clean-run gate for the original wrapper
+  baseline, while the broadened `num_child_instances` exact / reuse /
+  under-instantiation surface is currently proven by focused smokes and
+  awaits a fresh full runtime-closure rerun. Parent-side cone
   construction from instance outputs, deeper recursion, on-demand child
   sourcing, and future hierarchy-aware identity are still open.
 - `emit::sv::render_gate` for `Concat` joins operand names with commas (correct SV); the IR does not currently distinguish per-operand widths in storage because every current producer of `Concat` either replicates a single source or concatenates uniform-width bits. When variadic `Concat` with mixed widths becomes a real motif, the IR shape is still adequate (widths are a property of each operand node, not of the `Concat` itself), but a generator-side helper will need to compose such shapes carefully.
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (209 passing tests: 151 lib + 5 main + 23 tool_matrix + 30 integration).
+- `cargo test` — clean (214 passing tests: 154 lib + 5 main + 23 tool_matrix + 32 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.

@@ -351,6 +351,8 @@ pub struct Config {
     // Hierarchy (Phase 4+)
     pub hierarchy_depth: u32,
     pub num_leaf_modules: u32,
+    #[serde(default)]
+    pub num_child_instances: u32,
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
@@ -483,6 +485,7 @@ impl Default for Config {
             gate_reduce_weight: 1,
             hierarchy_depth: 0,
             num_leaf_modules: 0,
+            num_child_instances: 0,
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -521,6 +524,10 @@ pub enum ConfigError {
     HierarchyDepthUnsupported(u32),
     #[error("hierarchy_depth > 0 requires num_leaf_modules >= 1 (got {0})")]
     HierarchyRequiresLeafModules(u32),
+    #[error(
+        "num_child_instances ({0}) requires hierarchy_depth > 0; the knob is ignored in leaf-only mode"
+    )]
+    ChildInstancesRequireHierarchy(u32),
 }
 
 impl Config {
@@ -530,6 +537,17 @@ impl Config {
         match self.identity_mode {
             IdentityMode::Relaxed => FactorizationLevel::None,
             IdentityMode::NodeId => self.factorization_level.effective(),
+        }
+    }
+
+    /// Effective number of child instances in the current Phase 4
+    /// wrapper slice. `0` preserves the legacy behavior: instantiate
+    /// every generated leaf definition exactly once.
+    pub fn effective_num_child_instances(&self) -> u32 {
+        if self.num_child_instances == 0 {
+            self.num_leaf_modules
+        } else {
+            self.num_child_instances
         }
     }
 
@@ -573,6 +591,11 @@ impl Config {
         if self.hierarchy_depth > 0 && self.num_leaf_modules < 1 {
             return Err(ConfigError::HierarchyRequiresLeafModules(
                 self.num_leaf_modules,
+            ));
+        }
+        if self.hierarchy_depth == 0 && self.num_child_instances > 0 {
+            return Err(ConfigError::ChildInstancesRequireHierarchy(
+                self.num_child_instances,
             ));
         }
         for (name, value) in [
@@ -747,6 +770,9 @@ impl Config {
         if let Some(v) = o.num_leaf_modules {
             self.num_leaf_modules = v;
         }
+        if let Some(v) = o.num_child_instances {
+            self.num_child_instances = v;
+        }
     }
 }
 
@@ -800,6 +826,7 @@ pub struct Overrides {
     pub factorization_level: Option<FactorizationLevel>,
     pub hierarchy_depth: Option<u32>,
     pub num_leaf_modules: Option<u32>,
+    pub num_child_instances: Option<u32>,
 }
 
 #[cfg(test)]
@@ -878,5 +905,37 @@ mod tests {
             Err(ConfigError::HierarchyRequiresLeafModules(count)) => assert_eq!(count, 0),
             other => panic!("expected hierarchy leaf-count rejection, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn validate_rejects_child_instance_count_without_hierarchy() {
+        let cfg = Config {
+            hierarchy_depth: 0,
+            num_child_instances: 3,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::ChildInstancesRequireHierarchy(count)) => assert_eq!(count, 3),
+            other => panic!("expected child-instance-count rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn effective_num_child_instances_preserves_legacy_zero_as_leaf_count() {
+        let cfg = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 0,
+            ..Config::default()
+        };
+        assert_eq!(cfg.effective_num_child_instances(), 4);
+
+        let cfg = Config {
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 7,
+            ..Config::default()
+        };
+        assert_eq!(cfg.effective_num_child_instances(), 7);
     }
 }

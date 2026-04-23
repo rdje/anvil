@@ -64,7 +64,8 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/mod.rs`          `Generator` entry points
 - `src/gen/cone.rs`         fanin-cone recursion
 - `src/gen/module.rs`       leaf-module generator
-- `src/gen/hierarchy.rs`    Phase 4 depth-1 hierarchy generator
+- `src/gen/hierarchy.rs`    Phase 4 depth-1 hierarchy generator with
+                            decoupled leaf-library / child-instance planning
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 
@@ -106,6 +107,9 @@ cargo run -- --seed 42 --count 100 --out ./generated
 
 # Generate one real depth-1 hierarchical design
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 3
+
+# Generate one depth-1 hierarchical design that reuses child definitions
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 5
 
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
@@ -218,6 +222,18 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3`. Its final
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
 
+That report remains the last fully banked repo-owned Phase 4 closure
+artifact. Current HEAD has since broadened the wrapper slice with
+`--num-child-instances`, which separates leaf-library size from
+instantiated child count and makes exact, reuse, and
+under-instantiation profiles explicit. Those new behaviors are proven
+locally by the clean focused smokes at `/tmp/anvil-hier-reuse-smoke-r1`
+and `/tmp/anvil-hier-under-smoke-r2`; the fresh full rerun of the
+broadened Phase 4 matrix is the next runtime-closure pass after
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r6` exposed
+`seq_nodeid_egraph_phase4_hier4_inst4_seq` as the next Yosys hot
+corner.
+
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
 place instead of always forking a fresh `--out` directory.
@@ -292,19 +308,24 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
 - `tool_matrix --phase4-hierarchy-gate` runs the repo-owned depth-1
   hierarchy wrapper matrix and fails on coverage gaps unless the report
   proves multifile hierarchy designs with real instances, instance
-  outputs, the declared top module, and clean downstream tool results.
+  outputs, the declared top module, representative child-instance
+  profiles, and clean downstream tool results.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and the
   first real hierarchy slice is now live too: `--hierarchy-depth 1`
   generates a depth-1 wrapper design that instantiates a generated
-  library of leaf modules, and that wrapper slice now has a dedicated
-  repo-owned clean-run gate at
+  library of leaf modules. `--num-child-instances` now lets that
+  wrapper under-instantiate the library or reuse child definitions
+  instead of always instantiating every definition once. The original
+  wrapper slice still has a dedicated repo-owned clean-run gate at
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
   (`48` designs, `coverage_gaps = []`, and `48/0` pass-fail in
-  Verilator plus both repo-owned Yosys modes). Recursive parent-side
-  hierarchy generation, parameterization, and broader artifact-family
-  selection are still roadmap work. See `ROADMAP.md` for phase gating.
+  Verilator plus both repo-owned Yosys modes); the broadened
+  exact / reuse / under-instantiation matrix is the next Phase 4
+  runtime-closure pass. Recursive parent-side hierarchy generation,
+  parameterization, and broader artifact-family selection are still
+  roadmap work. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

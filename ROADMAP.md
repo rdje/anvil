@@ -253,13 +253,20 @@ evidence.
 - **Landed first slice:** `--hierarchy-depth 1 --num-leaf-modules N`
   now generates a real `Design`: a pre-generated library of leaf
   modules plus a real top wrapper that instantiates them and exposes
-  every child output. This is genuine module composition, not a fake
+  every child output. `--num-child-instances M` now decouples library
+  size from instantiated child count inside that wrapper slice:
+  `M = 0` preserves the legacy exact-once behavior, `M < N`
+  under-instantiates the library, and `M > N` reuses child
+  definitions. This is genuine module composition, not a fake
   multi-file bundle.
 - Current slice constraints:
   - depth `0` or `1` only; deeper recursion is still rejected
   - wrapper-style top only; parent-side cone construction from instance
     outputs is not live yet
   - library sourcing only; on-demand child synthesis is not live yet
+  - current wrapper planning now covers representative exact / reuse /
+    under-instantiation profiles, but the broadened repo-owned full-gate
+    rerun is not yet banked
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -280,6 +287,15 @@ with multi-file output, correct top declaration, design-level
 validation, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on a representative hierarchy matrix
 (`48/0` in Verilator plus both repo-owned Yosys modes).
+
+**Broadened wrapper planning (landed, closure refresh pending):** the
+current wrapper code and tests now separate `num_leaf_modules` from
+`num_child_instances`, and focused clean smokes prove both repeated
+child-definition reuse (`/tmp/anvil-hier-reuse-smoke-r1`) and
+under-instantiated libraries (`/tmp/anvil-hier-under-smoke-r2`). A
+fresh full rerun of the broadened exact / reuse / under-instantiation
+Phase 4 matrix is the next runtime-closure task; the current hot corner
+is `seq_nodeid_egraph_phase4_hier4_inst4_seq`.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current wrapper slice. The remaining substantive work is the parent

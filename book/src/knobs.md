@@ -306,6 +306,15 @@ instead of creating fresh logic.
 
 ### Hierarchy knobs (Phase 4+)
 
+- `hierarchy_depth` — current hierarchy depth knob. Today only `0`
+  (leaf-only) and `1` (depth-1 wrapper slice) are accepted.
+- `num_leaf_modules` — size of the pre-generated leaf library for the
+  current depth-1 wrapper slice.
+- `num_child_instances` — instantiated child count for the current
+  depth-1 wrapper slice. Default `0` preserves the legacy exact-once
+  behavior ("instantiate every generated leaf definition once"). Values
+  below `num_leaf_modules` under-instantiate the library; larger values
+  reuse child definitions.
 - `library_prob` — probability of picking from the pre-generated
   module pool vs generating a fresh sub-module on demand.
 
@@ -370,6 +379,7 @@ Config {
     // Hierarchy (Phase 4+)
     hierarchy_depth: 0,
     num_leaf_modules: 0,
+    num_child_instances: 0,
     library_prob: 0.5,
 }
 ```
@@ -466,9 +476,16 @@ is accurate as of this commit.
 --operand-duplication-rate
 ```
 
+### Hierarchy
+```
+--hierarchy-depth
+--num-leaf-modules
+--num-child-instances
+```
+
 ### Not yet exposed via CLI (reachable via `--config FILE`)
 - `use_async_reset` — unused (flops are always async-reset by discipline).
-- Hierarchy fields (`hierarchy_depth`, `num_leaf_modules`, `library_prob`) — Phase 4+.
+- Hierarchy field `library_prob` — future on-demand-vs-library sourcing dial for later Phase 4+ work.
 - `max_nodes_per_module` — safety ceiling, not typically tuned.
 
 ## Knob serialization

@@ -2,13 +2,15 @@
 //!
 //! The first live slice is intentionally narrow: depth-1 wrapper
 //! hierarchy only. We generate a library of leaf modules, then a real
-//! top module that instantiates every leaf and exposes every child
-//! output as a top-level output. This is genuine module composition,
-//! not a fake multi-file bundle, but it does not yet recurse through
-//! parent-side cone construction.
+//! top module that instantiates a planned selection of leaf
+//! definitions and exposes every child output as a top-level output.
+//! This is genuine module composition, not a fake multi-file bundle,
+//! but it does not yet recurse through parent-side cone construction.
 
 use super::Generator;
 use crate::ir::{Design, Direction, Instance, InstanceId, Module, Node, NodeId, Port, PortId};
+use rand::seq::SliceRandom;
+use rand::Rng;
 
 pub fn generate_design(g: &mut Generator) -> Design {
     debug_assert!(
@@ -24,10 +26,11 @@ pub fn generate_design(g: &mut Generator) -> Design {
     for _ in 0..g.cfg.num_leaf_modules {
         modules.push(g.generate_module());
     }
+    let instance_plan = plan_child_instance_indices(g, modules.len());
 
     let top_index = g.next_module_index;
     g.next_module_index += 1;
-    let top = generate_wrapper_top(g.cfg.seed, top_index, &modules);
+    let top = generate_wrapper_top(g.cfg.seed, top_index, &modules, &instance_plan);
     let top_name = top.name.clone();
     modules.push(top);
 
@@ -37,13 +40,49 @@ pub fn generate_design(g: &mut Generator) -> Design {
     }
 }
 
-fn generate_wrapper_top(seed: u64, index: u64, library: &[Module]) -> Module {
+fn plan_child_instance_indices(g: &mut Generator, library_len: usize) -> Vec<usize> {
+    debug_assert!(
+        library_len > 0,
+        "hierarchy requires at least one leaf module"
+    );
+    let target = g.cfg.effective_num_child_instances() as usize;
+    debug_assert!(
+        target > 0,
+        "effective child instance count should stay positive under validated hierarchy configs"
+    );
+
+    let mut plan = Vec::with_capacity(target);
+    if target <= library_len {
+        let mut indices: Vec<_> = (0..library_len).collect();
+        indices.shuffle(&mut g.rng);
+        indices.truncate(target);
+        plan.extend(indices);
+        return plan;
+    }
+
+    let mut indices: Vec<_> = (0..library_len).collect();
+    indices.shuffle(&mut g.rng);
+    plan.extend(indices);
+    while plan.len() < target {
+        plan.push(g.rng.gen_range(0..library_len));
+    }
+    plan
+}
+
+fn generate_wrapper_top(
+    seed: u64,
+    index: u64,
+    library: &[Module],
+    instance_plan: &[usize],
+) -> Module {
     let mut top = Module {
         name: format!("mod_{}_{:04}", seed, index),
         ..Module::default()
     };
 
-    let any_sequential_child = library.iter().any(Module::has_local_flops);
+    let any_sequential_child = instance_plan
+        .iter()
+        .any(|&child_idx| library[child_idx].has_local_flops());
     let mut next_port_id: PortId = 0;
 
     let shared_clock =
@@ -51,7 +90,8 @@ fn generate_wrapper_top(seed: u64, index: u64, library: &[Module]) -> Module {
     let shared_reset =
         any_sequential_child.then(|| add_top_input(&mut top, &mut next_port_id, "rst_n", 1));
 
-    for (instance_idx, child) in library.iter().enumerate() {
+    for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
+        let child = &library[child_idx];
         let instance_id = top.instances.len() as InstanceId;
         let instance_name = format!("u_{}", instance_idx);
         let mut input_bindings = Vec::new();

@@ -80,8 +80,10 @@ src/
 │   │                # Rule 18 safety-net orphan audit).
 │   ├── hierarchy.rs # current Phase 4 slice: depth-1 wrapper
 │   │                # hierarchy. Pre-generates a leaf library,
-│   │                # builds a real top wrapper, instantiates every
-│   │                # leaf once, exposes every child output.
+│   │                # plans instantiated-child count separately,
+│   │                # builds a real top wrapper, supports exact /
+│   │                # reuse / under-instantiation profiles, exposes
+│   │                # every instantiated child output.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -341,10 +343,11 @@ byte-identical reproducibility, motif boundary cases, the full
 live gate-category surface, the landed case/casez structured
 surfaces, the landed bounded `for`-fold structured surface, the landed
 selectable `Slice` / `Concat` surface, the depth-1 hierarchy wrapper
-surface, compaction/orphan guarantees, knob-roll telemetry, and
-input-surface finalisation.
+surface (including repeated child-definition reuse and
+under-instantiated-library cases), compaction/orphan guarantees,
+knob-roll telemetry, and input-surface finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 179 unit-target tests + 30 integration tests = 209 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 182 unit-target tests + 32 integration tests = 214 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -372,7 +375,13 @@ has its own repo-owned gate too via
 (48 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 48/0 pass-fail in Verilator plus both repo-owned Yosys modes). The old
 hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1` remains clean in
-Verilator, Yosys `synth -noabc`, and the repo-owned ABC path.
+Verilator, Yosys `synth -noabc`, and the repo-owned ABC path. Current
+HEAD has since widened wrapper planning with `num_child_instances`;
+repeated child-definition reuse and under-instantiated-library cases
+are proven clean at `/tmp/anvil-hier-reuse-smoke-r1` and
+`/tmp/anvil-hier-under-smoke-r2`, while the refreshed full rerun at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r6` identified the next
+runtime hotspot in `seq_nodeid_egraph_phase4_hier4_inst4_seq`.
 
 ## Error handling
 

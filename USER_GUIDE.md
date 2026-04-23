@@ -24,6 +24,13 @@ Generate one real depth-1 hierarchical design to stdout:
 anvil --seed 42 --hierarchy-depth 1 --num-leaf-modules 3
 ```
 
+Generate one depth-1 hierarchical design that reuses a 2-definition
+leaf library across 5 child instances:
+
+```bash
+anvil --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 5
+```
+
 Generate 100 modules into a directory:
 
 ```bash
@@ -38,7 +45,12 @@ node count, flop count).
 When hierarchy is enabled (`--hierarchy-depth 1`), each generated
 design still writes one `.sv` file per module, but `manifest.json`
 switches to a `designs` array. Each design entry records the `top`
-module name plus the module/file list for that design.
+module name plus the module/file list for that design. The current
+wrapper slice also separates leaf-library size
+(`--num-leaf-modules`) from instantiated child count
+(`--num-child-instances`): `0` preserves the legacy exact-once wrapper
+behavior, smaller values under-instantiate the library, and larger
+values reuse child definitions.
 
 ## Tracing and debugging
 
@@ -178,6 +190,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational `always_comb` `for`-fold block over packed chunks |
 | `--hierarchy-depth`    | 0        | Hierarchy depth. `0` = leaf modules only; `1` = current Phase 4 wrapper slice |
 | `--num-leaf-modules`   | 0        | Number of leaf modules pre-generated for the current depth-1 hierarchy slice |
+| `--num-child-instances`| 0        | Number of child instances in the current depth-1 wrapper slice. `0` preserves legacy exact-once instantiation of every generated leaf |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
@@ -251,6 +264,11 @@ design entry records:
 The current Phase 4 slice is intentionally narrow:
 - only `hierarchy_depth = 0` or `1` is accepted
 - the top is a real wrapper that instantiates generated leaves
+- `num_child_instances = 0` preserves the old "instantiate every
+  generated leaf once" behavior
+- `num_child_instances < num_leaf_modules` under-instantiates the leaf
+  library
+- `num_child_instances > num_leaf_modules` reuses leaf definitions
 - parent-side cone construction from instance outputs is not live yet
 
 ## Tool matrix sweeps
@@ -298,7 +316,8 @@ Useful options:
   designs, correct top-module tool invocation, real child instances,
   real instance-output nodes, and the representative wrapper profiles
   (`construction_strategy ∈ {sequential, shuffled, interleaved}`,
-  `num_leaf_modules ∈ {2, 4}`, comb-heavy / seq-heavy child mixes).
+  `num_leaf_modules ∈ {2, 4}`, `num_child_instances ∈ {2, 4}`, with
+  exact, reuse, and under-instantiation cases represented).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -365,6 +384,17 @@ records:
 - `Verilator pass/fail = 48/0`
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
+
+That report is still the last fully banked repo-owned Phase 4 closure
+artifact. Current HEAD has since broadened wrapper planning with
+`--num-child-instances` and matching `tool_matrix` coverage facts for
+exact / reuse / under-instantiation, but the fresh full rerun of that
+broadened matrix was intentionally stopped after 14 clean design
+checkpoints at `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` when the
+heavy `seq_nodeid_egraph_phase4_hier4_inst4_seq` corner became the next
+runtime hotspot. The new behaviors themselves are still locally proven
+clean at `/tmp/anvil-hier-reuse-smoke-r1` and
+`/tmp/anvil-hier-under-smoke-r2`.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

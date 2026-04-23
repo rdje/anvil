@@ -66,8 +66,16 @@ What landed instead is:
 
 - generate a library of leaf modules with the already-proven leaf
   kernel,
+- choose the wrapper's instantiated-child count separately from the
+  library size,
+- keep `num_child_instances = 0` as the legacy compatibility mode
+  meaning "instantiate every generated leaf definition exactly once",
+- if fewer instances than library entries are requested, instantiate a
+  shuffled subset without replacement,
+- if more instances than library entries are requested, cover every
+  library entry once and then fill the remaining slots by reuse with
+  replacement,
 - build a real top wrapper module,
-- instantiate every leaf once,
 - expose every child output at the top, and
 - make emission / validation / manifest handling design-aware.
 
@@ -98,6 +106,15 @@ Two narrow implementation choices are load-bearing in this slice:
   proof machinery compatible with hierarchy without overclaiming
   hierarchical equivalence.
 
+The separation between **library size** and **instance count** matters
+enough to say plainly here: they are different planning decisions and
+should not be welded together. Repeated instantiation of the same child
+definition stresses elaboration and sharing pressure in a different way
+from simply generating more unique children. Under-instantiating the
+library is also useful because it exercises real unused-module cleanup
+in downstream tools. The wrapper slice still is not the final hierarchy
+algorithm, but this split is a real step toward a budget-driven one.
+
 ### Literal-backed for-fold sources must be materialized before procedural part-selects
 The repo-owned Phase 4 hierarchy gate exposed a real emitter defect in
 the bounded procedural `for` surface.
@@ -121,6 +138,52 @@ The correct fix is narrower and more truthful:
 That preserves the intended structured surface, keeps the emitted SV
 legal, and fixes the root cause instead of weakening the gate or hiding
 the fold behind different syntax.
+
+### Constant-backed slices must fold to literals, not literal indexing
+The new under-instantiation hierarchy smoke exposed another emitter bug
+in a different surface:
+
+- `assign slice_26 = 20'h0[18:1];`
+
+That is just as wrong as the old procedural literal-indexing bug, but
+the right fix is even narrower here. When a `Slice` operand is a
+constant, there is no need to emit a slice at all. We already know the
+answer exactly.
+
+So the deliberate rule now is:
+
+- if the slice source is non-constant, emit the normal `src[hi:lo]` or
+  `src[bit]` form;
+- if the slice source is a constant, compute the sliced value in the
+  emitter and print the narrower constant literal directly.
+
+That keeps the output legal and simple, and it fixes the real cause
+instead of wrapping an invalid shape in more syntax.
+
+### The broadened Phase 4 matrix found the next runtime hotspot
+After landing `num_child_instances`, the Phase 4 `tool_matrix` planning
+was widened from the old "leaf count x comb/seq" wrapper sweep to four
+more truthful representative profiles:
+
+- `phase4_hier2_inst2_comb`  — exact library/instance cardinality
+- `phase4_hier2_inst4_seq`   — repeated child-definition reuse
+- `phase4_hier4_inst2_comb`  — under-instantiated library
+- `phase4_hier4_inst4_seq`   — exact cardinality at the heavier end
+
+That is the right coverage model for the current wrapper slice, but a
+fresh full rerun showed the next bottleneck clearly: the heavy
+sequential `hier4_inst4_seq` case spent minutes inside Yosys
+`synth -noabc` on one emitted design. That is a runtime calibration
+issue, not a correctness failure.
+
+So the honest state after this slice is:
+
+- the code and tests now model the right exact / reuse /
+  under-instantiation profiles;
+- focused clean downstream smokes prove the new behavior directly; and
+- the older `/tmp/anvil-tool-matrix-phase4-hierarchy-r3` report remains
+  the last fully banked repo-owned Phase 4 closure artifact until the
+  broadened matrix has a runtime-stable closure pass of its own.
 
 ### Wrapped-add bounds must preserve a shifted single interval when it stays linear
 The `e-graph` warning in

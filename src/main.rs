@@ -208,6 +208,12 @@ struct Cli {
     #[arg(long)]
     num_leaf_modules: Option<u32>,
 
+    /// Number of child instances the current Phase 4 top wrapper
+    /// should instantiate. `0` preserves the legacy wrapper behavior:
+    /// instantiate every generated leaf definition exactly once.
+    #[arg(long)]
+    num_child_instances: Option<u32>,
+
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
     /// strict uniqueness (CSE). Higher N permits N copies; `u32::MAX`
@@ -494,6 +500,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         },
         hierarchy_depth: cli.hierarchy_depth,
         num_leaf_modules: cli.num_leaf_modules,
+        num_child_instances: cli.num_child_instances,
     }
 }
 
@@ -566,6 +573,12 @@ mod tests {
             "0.3",
             "--for-fold-prob",
             "0.4",
+            "--hierarchy-depth",
+            "1",
+            "--num-leaf-modules",
+            "4",
+            "--num-child-instances",
+            "7",
         ]);
         let overrides = cli_overrides(&cli);
         assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
@@ -578,5 +591,8 @@ mod tests {
         assert_eq!(overrides.case_mux_prob, Some(0.2));
         assert_eq!(overrides.casez_mux_prob, Some(0.3));
         assert_eq!(overrides.for_fold_prob, Some(0.4));
+        assert_eq!(overrides.hierarchy_depth, Some(1));
+        assert_eq!(overrides.num_leaf_modules, Some(4));
+        assert_eq!(overrides.num_child_instances, Some(7));
     }
 }

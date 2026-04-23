@@ -131,6 +131,15 @@ struct EmittedModuleReport {
     metrics: Metrics,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct HierarchyFacts {
+    library_modules: usize,
+    top_instances: usize,
+    unique_instantiated_modules: usize,
+    reused_child_definition: bool,
+    underinstantiated_library: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModuleCheckpoint {
     skip_verilator: bool,
@@ -148,6 +157,8 @@ struct DesignReport {
     top: String,
     files: Vec<String>,
     modules: Vec<EmittedModuleReport>,
+    #[serde(default)]
+    hierarchy: HierarchyFacts,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
 }
@@ -207,6 +218,7 @@ struct CoverageSummary {
     share_prob_values: BTreeSet<String>,
     hierarchy_depths: BTreeSet<String>,
     hierarchy_leaf_module_counts: BTreeSet<String>,
+    hierarchy_child_instance_counts: BTreeSet<String>,
     gate_categories: BTreeSet<String>,
     gate_kinds: BTreeSet<String>,
     knob_attempts_seen: BTreeSet<String>,
@@ -215,6 +227,8 @@ struct CoverageSummary {
     saw_multifile_design: bool,
     saw_instance_module: bool,
     saw_instance_output_node: bool,
+    saw_reused_child_definition: bool,
+    saw_underinstantiated_library: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -331,6 +345,7 @@ struct PreparedDesign {
     paths: DesignPaths,
     index: usize,
     top: String,
+    hierarchy: HierarchyFacts,
     modules: Vec<PreparedEmittedModule>,
 }
 
@@ -761,22 +776,48 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
         let strategy_label = construction_strategy_name(strategy);
         let strategy_slug = strategy_slug(strategy);
 
-        for leaf_modules in [2, 4] {
+        for (leaf_modules, child_instances, flavor, description_suffix, config_builder) in [
+            (
+                2,
+                2,
+                "comb",
+                "exact child/library cardinality with combinational share-heavy children",
+                phase4_hierarchy_comb_focus_config
+                    as fn(ConstructionStrategy, u64, u32, u32) -> Config,
+            ),
+            (
+                2,
+                4,
+                "seq",
+                "reused child definitions with sequential motif-heavy children",
+                phase4_hierarchy_seq_focus_config
+                    as fn(ConstructionStrategy, u64, u32, u32) -> Config,
+            ),
+            (
+                4,
+                2,
+                "comb",
+                "under-instantiated library with combinational share-heavy children",
+                phase4_hierarchy_comb_focus_config
+                    as fn(ConstructionStrategy, u64, u32, u32) -> Config,
+            ),
+            (
+                4,
+                4,
+                "seq",
+                "exact child/library cardinality with sequential motif-heavy children",
+                phase4_hierarchy_seq_focus_config
+                    as fn(ConstructionStrategy, u64, u32, u32) -> Config,
+            ),
+        ] {
             scenarios.push(make_scenario(
-                &format!("{strategy_slug}_nodeid_egraph_phase4_hier{leaf_modules}_comb"),
                 &format!(
-                    "{strategy_label} strategy, node-id + e-graph, depth-1 hierarchy with {leaf_modules} leaf modules and combinational share-heavy children."
+                    "{strategy_slug}_nodeid_egraph_phase4_hier{leaf_modules}_inst{child_instances}_{flavor}"
                 ),
-                phase4_hierarchy_comb_focus_config(strategy, next_seed, leaf_modules),
-            )?);
-            next_seed += 1;
-
-            scenarios.push(make_scenario(
-                &format!("{strategy_slug}_nodeid_egraph_phase4_hier{leaf_modules}_seq"),
                 &format!(
-                    "{strategy_label} strategy, node-id + e-graph, depth-1 hierarchy with {leaf_modules} leaf modules and sequential motif-heavy children."
+                    "{strategy_label} strategy, node-id + e-graph, depth-1 hierarchy with {leaf_modules} leaf modules, {child_instances} child instances, and {description_suffix}."
                 ),
-                phase4_hierarchy_seq_focus_config(strategy, next_seed, leaf_modules),
+                config_builder(strategy, next_seed, leaf_modules, child_instances),
             )?);
             next_seed += 1;
         }
@@ -1044,9 +1085,14 @@ fn phase3_slice_concat_varshift_focus_config(strategy: ConstructionStrategy, see
     }
 }
 
-fn with_hierarchy_wrapper(mut cfg: Config, num_leaf_modules: u32) -> Config {
+fn with_hierarchy_wrapper(
+    mut cfg: Config,
+    num_leaf_modules: u32,
+    num_child_instances: u32,
+) -> Config {
     cfg.hierarchy_depth = 1;
     cfg.num_leaf_modules = num_leaf_modules;
+    cfg.num_child_instances = num_child_instances;
     cfg
 }
 
@@ -1054,10 +1100,12 @@ fn phase4_hierarchy_comb_focus_config(
     strategy: ConstructionStrategy,
     seed: u64,
     num_leaf_modules: u32,
+    num_child_instances: u32,
 ) -> Config {
     with_hierarchy_wrapper(
         share_heavy_comb_only_config(strategy, seed, 0.9),
         num_leaf_modules,
+        num_child_instances,
     )
 }
 
@@ -1065,10 +1113,12 @@ fn phase4_hierarchy_seq_focus_config(
     strategy: ConstructionStrategy,
     seed: u64,
     num_leaf_modules: u32,
+    num_child_instances: u32,
 ) -> Config {
     with_hierarchy_wrapper(
         motif_heavy_sequential_config(strategy, seed, 0.4),
         num_leaf_modules,
+        num_child_instances,
     )
 }
 
@@ -1449,6 +1499,7 @@ fn prepared_design_from_design(
     design: &Design,
     scenario_dir: &Path,
 ) -> Result<PreparedDesign> {
+    let hierarchy = hierarchy_facts_from_design(design, design_index)?;
     let mut modules = Vec::with_capacity(design.modules.len());
     for module in &design.modules {
         let metrics = anvil::metrics::compute(module);
@@ -1476,7 +1527,32 @@ fn prepared_design_from_design(
         paths,
         index: design_index,
         top: design.top.clone(),
+        hierarchy,
         modules,
+    })
+}
+
+fn hierarchy_facts_from_design(design: &Design, design_index: usize) -> Result<HierarchyFacts> {
+    let top = design
+        .modules
+        .iter()
+        .find(|module| module.name == design.top)
+        .with_context(|| format!("design {design_index} missing top module {}", design.top))?;
+    let library_modules = design.modules.len().saturating_sub(1);
+    let unique_instantiated_modules = top
+        .instances
+        .iter()
+        .map(|instance| instance.module.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
+    let top_instances = top.instances.len();
+
+    Ok(HierarchyFacts {
+        library_modules,
+        top_instances,
+        unique_instantiated_modules,
+        reused_child_definition: top_instances > unique_instantiated_modules,
+        underinstantiated_library: unique_instantiated_modules < library_modules,
     })
 }
 
@@ -1642,6 +1718,7 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
         top: prepared.top.clone(),
         files,
         modules,
+        hierarchy: prepared.hierarchy.clone(),
         verilator,
         yosys,
     })
@@ -2185,6 +2262,8 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
     for design in designs {
         coverage.saw_hierarchy_design = true;
         coverage.saw_multifile_design |= design.files.len() > 1;
+        coverage.saw_reused_child_definition |= design.hierarchy.reused_child_definition;
+        coverage.saw_underinstantiated_library |= design.hierarchy.underinstantiated_library;
         for module in &design.modules {
             accumulate_module_coverage(&mut coverage, &module.metrics);
         }
@@ -2215,6 +2294,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         .extend(src.hierarchy_depths.iter().cloned());
     dst.hierarchy_leaf_module_counts
         .extend(src.hierarchy_leaf_module_counts.iter().cloned());
+    dst.hierarchy_child_instance_counts
+        .extend(src.hierarchy_child_instance_counts.iter().cloned());
     dst.gate_categories
         .extend(src.gate_categories.iter().cloned());
     dst.gate_kinds.extend(src.gate_kinds.iter().cloned());
@@ -2226,6 +2307,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_multifile_design |= src.saw_multifile_design;
     dst.saw_instance_module |= src.saw_instance_module;
     dst.saw_instance_output_node |= src.saw_instance_output_node;
+    dst.saw_reused_child_definition |= src.saw_reused_child_definition;
+    dst.saw_underinstantiated_library |= src.saw_underinstantiated_library;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -2261,6 +2344,9 @@ fn seed_scenario_coverage(coverage: &mut CoverageSummary, scenario: &Scenario) {
         coverage
             .hierarchy_leaf_module_counts
             .insert(scenario.config.num_leaf_modules.to_string());
+        coverage
+            .hierarchy_child_instance_counts
+            .insert(scenario.config.effective_num_child_instances().to_string());
     }
 }
 
@@ -2448,6 +2534,16 @@ fn compute_coverage_gaps(
                     gaps.push(format!("missing num_leaf_modules scenario {leaf_count}"));
                 }
             }
+            for child_count in ["2", "4"] {
+                if !coverage
+                    .hierarchy_child_instance_counts
+                    .contains(child_count)
+                {
+                    gaps.push(format!(
+                        "missing num_child_instances scenario {child_count}"
+                    ));
+                }
+            }
         }
     }
 
@@ -2511,6 +2607,14 @@ fn compute_coverage_gaps(
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_instance_output_node {
         gaps.push("matrix never emitted an instance-output node".to_string());
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_reused_child_definition {
+        gaps.push(
+            "matrix never reused a child module definition across multiple instances".to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_underinstantiated_library {
+        gaps.push("matrix never left generated leaf definitions unused by the wrapper".to_string());
     }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
@@ -3012,12 +3116,14 @@ mod tests {
             build_scenarios(0, ScenarioSet::Phase4Hierarchy).expect("build phase4 scenarios");
         let mut strategies = BTreeSet::new();
         let mut leaf_counts = BTreeSet::new();
+        let mut child_counts = BTreeSet::new();
         let mut names = BTreeSet::new();
         for scenario in &scenarios {
             strategies.insert(construction_strategy_slug(
                 scenario.config.construction_strategy,
             ));
             leaf_counts.insert(scenario.config.num_leaf_modules);
+            child_counts.insert(scenario.config.effective_num_child_instances());
             names.insert(scenario.name.clone());
             assert_eq!(scenario.config.identity_mode, IdentityMode::NodeId);
             assert_eq!(
@@ -3029,15 +3135,16 @@ mod tests {
         assert_eq!(scenarios.len(), 12);
         assert_eq!(names.len(), 12);
         assert_eq!(leaf_counts, BTreeSet::from([2, 4]));
+        assert_eq!(child_counts, BTreeSet::from([2, 4]));
         assert_eq!(
             strategies,
             BTreeSet::from(["interleaved", "sequential", "shuffled"])
         );
         for suffix in [
-            "phase4_hier2_comb",
-            "phase4_hier2_seq",
-            "phase4_hier4_comb",
-            "phase4_hier4_seq",
+            "phase4_hier2_inst2_comb",
+            "phase4_hier2_inst4_seq",
+            "phase4_hier4_inst2_comb",
+            "phase4_hier4_inst4_seq",
         ] {
             assert!(
                 names.iter().any(|name| name.ends_with(suffix)),
@@ -3058,6 +3165,7 @@ mod tests {
             factorization_levels: BTreeSet::from(["e-graph".to_string()]),
             hierarchy_depths: BTreeSet::from(["1".to_string()]),
             hierarchy_leaf_module_counts: BTreeSet::from(["2".to_string()]),
+            hierarchy_child_instance_counts: BTreeSet::from(["2".to_string()]),
             gate_categories: BTreeSet::from([
                 "arithmetic".to_string(),
                 "bitwise".to_string(),
@@ -3093,6 +3201,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("num_leaf_modules scenario 4")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("num_child_instances scenario 4")));
         assert!(gaps.iter().any(|gap| gap.contains("hierarchy design")));
         assert!(gaps
             .iter()
@@ -3101,6 +3212,12 @@ mod tests {
             .iter()
             .any(|gap| gap.contains("module with child instances")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("reused a child module definition")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("left generated leaf definitions unused")));
     }
 
     #[test]
@@ -3498,6 +3615,7 @@ mod tests {
             "resume fast hierarchy path test",
             with_hierarchy_wrapper(
                 share_heavy_comb_only_config(ConstructionStrategy::Interleaved, 23, 0.9),
+                1,
                 1,
             ),
         )

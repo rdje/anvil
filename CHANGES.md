@@ -1,9 +1,145 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-0208 — Close Phase 4 wrapper hierarchy gate cleanly
+## 2026-04-23-0209 — Decouple hierarchy library size from instance count
 
 **Landed as:** this commit
+
+**What changed**
+
+- The Phase 4 wrapper slice now separates **leaf-library size** from
+  **instantiated child count**:
+  - [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+    now has `num_child_instances`,
+    `Config::effective_num_child_instances()`, and a validation error
+    for `num_child_instances > 0` in leaf-only mode;
+  - [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+    exposes the new `--num-child-instances` CLI flag;
+  - `num_child_instances = 0` preserves the legacy wrapper behavior:
+    instantiate every generated leaf definition exactly once.
+- The hierarchy generator in
+  [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now plans child instances separately from the pre-generated leaf
+  library:
+  - if the requested child count is smaller than the library, the top
+    instantiates a shuffled subset without replacement;
+  - if it matches, the top instantiates every definition once;
+  - if it is larger, the top first covers every definition once, then
+    fills the remaining slots by random reuse with replacement.
+- The wrapper top still stays intentionally narrow and honest:
+  shared `clk` / `rst_n` appear only if the actually-instantiated
+  children need them, every child data input still becomes a top input,
+  every instantiated child output still becomes a top output, and
+  parent-side cone construction from instance outputs is still not live.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now records hierarchy-specific design facts for the Phase 4 slice:
+  child-instance counts, unique-instantiated-module counts, and boolean
+  flags for both repeated child-definition reuse and
+  under-instantiated-library cases. The Phase 4 scenario set now targets
+  representative exact / reuse / under-instantiation profiles:
+  `phase4_hier2_inst2_comb`, `phase4_hier2_inst4_seq`,
+  `phase4_hier4_inst2_comb`, and `phase4_hier4_inst4_seq`.
+- Focused hierarchy proof exposed a second real emitter bug in
+  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  constant-backed slices were being rendered as illegal literal
+  indexing, e.g. `20'h0[18:1]`. The emitter now folds constant slices
+  directly to narrower legal literals instead.
+- Regression coverage now pins the new surface:
+  - config tests for `num_child_instances` validation and legacy `0`
+    semantics;
+  - CLI override coverage for `--num-child-instances`;
+  - pipeline tests proving both repeated child-definition reuse and
+    under-instantiation of the leaf library;
+  - Phase 4 `tool_matrix` tests for the new representative profiles and
+    hierarchy coverage facts; and
+  - an emitter unit test proving constant slices render as folded
+    literals instead of literal indexing.
+
+**Why**
+
+- The agreed Phase 4 direction is budget-driven wrapper planning, not a
+  hard-coded "instantiate every generated leaf once" rule forever.
+  Library size and instance count are different decisions and need to be
+  exercised independently.
+- Repeated instantiation of the same child definition and deliberate
+  non-instantiation of some generated leaf definitions are both useful
+  downstream stress surfaces for elaboration and pruning.
+- The literal-slice bug was a real emitter defect surfaced by the new
+  under-instantiation proof. The correct answer was to fix the emitted
+  SV at the source, not weaken the proof or hide the shape.
+
+**Proof**
+
+- Targeted tests:
+  - `cargo test depth1_wrapper --test pipeline`
+  - `cargo test phase4_hierarchy --bin tool_matrix`
+  - `cargo test newly_exposed_cli_knobs_round_trip_into_overrides --bin anvil`
+  - `cargo test validate_rejects_child_instance_count_without_hierarchy --lib`
+  - `cargo test constant_slice_renders_as_folded_literal_not_literal_indexing --lib`
+- Focused downstream reuse smoke at `/tmp/anvil-hier-reuse-smoke-r1`:
+  - `cargo run --bin anvil -- --seed 11 --count 1 --out /tmp/anvil-hier-reuse-smoke-r1 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --construction-strategy interleaved`
+  - clean in Verilator, Yosys `synth -noabc`, and the repo-owned
+    ABC-enabled Yosys path
+  - Yosys stats show real repeated instantiation of both generated leaf
+    definitions under the top wrapper.
+- Focused downstream under-instantiation smoke at
+  `/tmp/anvil-hier-under-smoke-r2`:
+  - `cargo run --bin anvil -- --seed 17 --count 1 --out /tmp/anvil-hier-under-smoke-r2 --hierarchy-depth 1 --num-leaf-modules 4 --num-child-instances 2 --construction-strategy interleaved`
+  - clean in Verilator, Yosys `synth -noabc`, and the repo-owned
+    ABC-enabled Yosys path
+  - Yosys removes two unused generated leaf modules during hierarchy
+    cleanup, proving that the wrapper can now under-instantiate the
+    library cleanly.
+- Full hygiene gate on the final tree:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Fresh repo-owned Phase 4 rerun attempt at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` was intentionally
+  stopped after **14** completed design checkpoints. The run stayed
+  clean, but `seq_nodeid_egraph_phase4_hier4_inst4_seq` exposed the next
+  runtime hotspot inside Yosys `synth -noabc`. So the broadened exact /
+  reuse / under-instantiation surface is proven here by focused clean
+  smokes plus tests, while the older
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+  remains the last fully banked repo-owned Phase 4 closure artifact.
+
+**Impact**
+
+- Phase 4 wrapper hierarchy is materially more truthful now: the
+  generator can represent exact library use, repeated child-definition
+  reuse, and under-instantiation without smuggling those behaviors in
+  through unrelated knobs.
+- The Phase 4 hierarchy gate code now models the right wrapper planning
+  axes directly, even though the fresh full rerun of that broadened
+  matrix is still pending runtime closure.
+- Phase labels do **not** change in this slice. Phase 4 stays
+  `in progress`.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/main.rs`
+- `src/gen/hierarchy.rs`
+- `src/bin/tool_matrix.rs`
+- `src/emit/sv.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `book/src/knobs.md`
+
+## 2026-04-23-0208 — Close Phase 4 wrapper hierarchy gate cleanly
+
+**Landed as:** 7dae70a
 
 **What changed**
 
