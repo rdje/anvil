@@ -236,23 +236,26 @@ It also keeps the open work honest. The following are **not** live yet:
 - hierarchy-aware `NodeId` identity/factorization.
 
 What **is** now live beyond the original smoke is the repo-owned Phase 4
-wrapper-gate baseline:
+hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
-- `12` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+- `15` scenarios
 - `4` designs/scenario
-- `48` total designs
+- `60` total designs
 - `coverage_gaps = []`
-- `Verilator 48/0`
-- `Yosys without-abc 48/0`
-- `Yosys with-abc 48/0`
+- `Verilator 60/0`
+- `Yosys without-abc 60/0`
+- `Yosys with-abc 60/0`
 
-That gate proves the broadened wrapper planner directly from saved
-report facts: multifile hierarchy designs, correct top-module tool
-invocation, real child instances, and real `Node::InstanceOutput` use.
-Current HEAD has now moved one step past that baseline by letting the
-top build real combinational outputs from child instance outputs too.
-The focused proof artifact for that new behavior is:
+That gate proves the current representative hierarchy surface directly
+from saved report facts: multifile hierarchy designs, correct
+top-module tool invocation, real child instances, real
+`Node::InstanceOutput` use, wrapper exact / reuse / under-instantiation
+profiles, recursive depth `2`, child-instance profiles `2`, `4`, `2:3`
+and `1:3`, the per-depth override profile `0=4:4,1=2:2`, real
+per-depth branching metrics, and real parent-side composition above
+instance outputs. The focused proof artifact for that composed-parent
+behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
 - clean in Verilator
@@ -274,12 +277,14 @@ local proofs remain useful:
 - `/tmp/anvil-hier-under-smoke-r2` is clean in the same three lanes and
   proves under-instantiation of the leaf library; and
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
-  targets exact / reuse / under-instantiation profiles, and the fresh
-  rerun at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7` closes them
-  cleanly with `coverage_gaps = []` and `48/0` pass-fail in Verilator
-  plus both repo-owned Yosys modes. The older `r6` partial rerun is now
-  only historical evidence that the heavy sequential hierarchy corners
-  are runtime-expensive rather than malformed.
+  targets wrapper and recursive hierarchy profiles, and the fresh rerun
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r9` closes them cleanly
+  with `coverage_gaps = []` and `60/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes. The older `r7` report is now the historical
+  wrapper-baseline artifact, and the aborted `r8` rerun is historical
+  evidence that the Phase 4 gate should use a hierarchy-focused
+  sequential leaf profile instead of silently borrowing the fattest
+  Phase 1 leaf-stress shape.
 
 Current HEAD now also has a focused clean proof for the bounded
 recursive lane:
@@ -317,13 +322,10 @@ branching in the recursive lane:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. refresh the repo-owned Phase 4 matrix on the new parent-composition
-   and recursive-hierarchy code rather than only the older
-   wrapper-baseline artifact;
-2. refine bounded recursion so one design can mix shallow and deep
+1. refine bounded recursion so one design can mix shallow and deep
    branches inside the requested depth interval;
-3. add local parent flops where structurally warranted;
-4. add the on-demand child-sourcing / library-sourcing split as an
+2. add local parent flops where structurally warranted;
+3. add the on-demand child-sourcing / library-sourcing split as an
    explicit user-controllable axis.
 
 Only after that does Phase 4 become "done" in the same sense that the

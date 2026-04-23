@@ -323,6 +323,37 @@ So the durable lesson is:
   corners, because they are the place where hierarchy cost surfaces
   first even when the emitted RTL is valid.
 
+### The recursive hierarchy gate must prove hierarchy, not quietly re-run the fattest leaf stress lane
+When the Phase 4 gate was widened again to cover the newer recursive
+and per-depth-branching surfaces, the first full rerun (`r8`) exposed a
+different version of the same problem. The new coverage logic itself
+was fine, but the recursive sequential scenarios were still borrowing
+the heaviest Phase 1 motif-heavy sequential leaf profile.
+
+That made the hierarchy gate pay for a huge amount of downstream Yosys
+work that belonged to leaf stress, not to hierarchy proof. The proof was
+therefore answering the right structural question with the wrong leaf
+payload.
+
+The right fix was not to drop the recursive scenarios and not to weaken
+the coverage facts. The right fix was to decouple concerns:
+
+- keep the recursive depth-2 and per-depth override profiles in the
+  repo-owned Phase 4 matrix;
+- keep the clean-tool requirement exactly the same; but
+- switch the Phase 4 sequential hierarchy scenarios to a
+  hierarchy-focused sequential leaf profile sized for hierarchy proof
+  rather than Phase-1-scale leaf stress.
+
+That is why the banked `r9` report closes quickly and honestly:
+
+- the gate still proves wrapper exact / reuse / under-instantiation;
+- it still proves recursive depth `2`;
+- it still proves the per-depth override profile `0=4:4,1=2:2`;
+- it still proves parent-side composition above instance outputs; and
+- it no longer burns runtime re-proving the fattest leaf-stress shape
+  just to answer a hierarchy question.
+
 ### Wrapped-add bounds must preserve a shifted single interval when it stays linear
 The `e-graph` warning in
 `/tmp/anvil-tool-matrix-phase1-real-r20/int_nodeid_e-graph_default/mod_8_0053.sv`

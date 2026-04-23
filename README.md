@@ -216,38 +216,36 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-The completed current-code Phase 4 wrapper-baseline report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7`. Its final
+The completed current-code Phase 4 hierarchy report now also
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r9`. Its final
 `tool_matrix_report.json` records:
 
-- `12` scenarios
+- `15` scenarios
 - `4` designs per scenario
-- `48` total designs
+- `60` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 48/0`
-- `Yosys without-abc pass/fail = 48/0`
-- `Yosys with-abc pass/fail = 48/0`
+- `Verilator pass/fail = 60/0`
+- `Yosys without-abc pass/fail = 60/0`
+- `Yosys with-abc pass/fail = 60/0`
 
-That refreshed report remains the last fully banked repo-owned Phase 4
-closure artifact for the wrapper baseline. It covers the broadened
-`--num-child-instances` planner directly, so exact, reuse, and
-under-instantiation profiles are no longer justified only by focused
-smokes. Those focused clean smokes at `/tmp/anvil-hier-reuse-smoke-r1`
-and `/tmp/anvil-hier-under-smoke-r2` still remain useful proof points.
-The old `r6` partial rerun is now only historical debugging evidence:
-the heavy `*_hier4_inst4_seq` corners are genuinely expensive in Yosys
-because they elaborate/synthesize very large sequential child
-libraries, but they do close cleanly. Current hierarchy manifests and
-design reports now also embed exact per-design composition metrics, so
-hierarchy quality can be read from numbers instead of by manually
-inspecting the emitted `.sv`. Current HEAD has also landed the first
-real parent-composition step on top of that baseline, proven by
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, and the first
-bounded recursive hierarchy step, proven by
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`. Refreshing the full
-repo-owned Phase 4 matrix on that newer recursive code is the next
-closure step.
+That refreshed report is now the fully banked repo-owned Phase 4
+closure artifact for the current hierarchy surface, not only the older
+wrapper baseline. It covers the broadened `--num-child-instances`
+planner directly, and it also proves the current recursive hierarchy
+surface directly: depth `2`, child-instance profiles `2`, `4`, `2:3`,
+and `1:3`, the per-depth override profile `0=4:4,1=2:2`, real
+recursive design emission, real per-depth branching metrics, and real
+parent-side composition above instance outputs. The focused clean
+smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
+`/tmp/anvil-hier-under-smoke-r2`,
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` still remain
+useful targeted proof points. The aborted `r8` rerun is now only
+historical runtime evidence: it showed that the Phase 4 gate should use
+a hierarchy-focused sequential leaf profile instead of reusing the
+fattest Phase 1 motif-heavy sequential stress shape.
 
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
@@ -320,11 +318,12 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   structured-surface closure matrix and fails on coverage gaps unless
   the report proves the landed Phase 3 surfaces directly from emitted
   metrics and tool results.
-- `tool_matrix --phase4-hierarchy-gate` runs the repo-owned depth-1
-  hierarchy wrapper matrix and fails on coverage gaps unless the report
-  proves multifile hierarchy designs with real instances, instance
-  outputs, the declared top module, representative child-instance
-  profiles, and clean downstream tool results.
+- `tool_matrix --phase4-hierarchy-gate` runs the repo-owned hierarchy
+  matrix and fails on coverage gaps unless the report proves multifile
+  hierarchy designs with real instances, instance outputs, the declared
+  top module, representative wrapper and recursive child-instance
+  profiles, per-depth branching overrides, and clean downstream tool
+  results.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id`, and
@@ -343,13 +342,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child instance outputs, and hierarchy manifests now report both the
   composition facts and the realized tree shape numerically, including
   per-parent-depth branching summaries. The
-  wrapper-baseline Phase 4 matrix is still the last fully banked
-  repo-owned closure artifact at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`,
-  while the newer bounded recursive slice is currently proven by the
-  focused smokes at `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
-  `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`. The latter
-  proves depth-specific branching control numerically with
+  Phase 4 hierarchy matrix is now fully banked at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`,
+  while the focused smokes at
+  `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
+  `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` remain useful
+  targeted proofs. The latter proves depth-specific branching control
+  numerically with
   `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
   `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
   `hierarchy_parent_composed_outputs = 36`, and

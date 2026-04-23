@@ -376,13 +376,15 @@ Useful options:
   closure matrix and fail unless the report proves the landed Phase 3
   surfaces (`case`, `casez`, `for`-fold, priority encoder, mux
   encodings, selectable `Slice` / `Concat`, variable shift).
-- `--phase4-hierarchy-gate` to run the repo-owned depth-1 hierarchy
-  wrapper matrix and fail unless the report proves multifile hierarchy
-  designs, correct top-module tool invocation, real child instances,
-  real instance-output nodes, and the representative wrapper profiles
-  (`construction_strategy ∈ {sequential, shuffled, interleaved}`,
-  `num_leaf_modules ∈ {2, 4}`, `num_child_instances ∈ {2, 4}`, with
-  exact, reuse, and under-instantiation cases represented).
+- `--phase4-hierarchy-gate` to run the repo-owned hierarchy matrix and
+  fail unless the report proves multifile hierarchy designs, correct
+  top-module tool invocation, real child instances, real
+  instance-output nodes, representative wrapper profiles
+  (`num_leaf_modules ∈ {2, 4}`, exact / reuse / under-instantiation),
+  representative recursive profiles (depth `2`, child-instance ranges
+  `[2:3]` and `[1:3]`), the per-depth override profile
+  `0=4:4,1=2:2`, and real parent-side composition above instance
+  outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -437,35 +439,34 @@ records:
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-The completed current-code Phase 4 wrapper-baseline report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
+The completed current-code Phase 4 hierarchy report at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
 records:
 
-- `12` scenarios
+- `15` scenarios
 - `4` designs per scenario
-- `48` total designs
+- `60` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 48/0`
-- `Yosys without-abc pass/fail = 48/0`
-- `Yosys with-abc pass/fail = 48/0`
+- `Verilator pass/fail = 60/0`
+- `Yosys without-abc pass/fail = 60/0`
+- `Yosys with-abc pass/fail = 60/0`
 
-That refreshed report remains the fully banked repo-owned Phase 4
-wrapper-baseline artifact. It already covers the broadened
-`--num-child-instances` planner with representative exact / reuse /
-under-instantiation profiles, so those behaviors are no longer
-justified only by focused smokes. The focused clean proofs at
-`/tmp/anvil-hier-reuse-smoke-r1` and `/tmp/anvil-hier-under-smoke-r2`
-still remain useful evidence. The old `r6` partial rerun is now only
-historical debugging evidence: the heavy `*_hier4_inst4_seq` corners are
-slow because they elaborate/synthesize very large sequential child
-libraries under tiny wrapper tops, but they do close cleanly. Current
-HEAD has also landed the first real parent-composition step above that
-baseline, proven by `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
-which is clean in Verilator plus both repo-owned Yosys modes and whose
-metrics show genuine parent composition (`top_parent_composed_outputs >
-0`, `top_instance_output_dependency_fraction = 1.0`). Refreshing the
-full Phase 4 matrix on that newer code is the next closure step.
+That refreshed report is now the fully banked repo-owned Phase 4
+artifact for the current hierarchy surface, not only the older wrapper
+baseline. It covers the broadened `--num-child-instances` planner,
+bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
+and `1:3`, the per-depth override profile `0=4:4,1=2:2`, and real
+parent-side composition above instance outputs. The focused clean
+proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
+`/tmp/anvil-hier-under-smoke-r2`,
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` still remain
+useful targeted evidence. The aborted `r8` rerun is now only
+historical runtime evidence: it showed that the Phase 4 gate should use
+a hierarchy-focused sequential leaf profile instead of reusing the
+fattest Phase 1 motif-heavy sequential stress shape.
 
 Current HEAD also has a focused clean recursive-hierarchy proof at
 `/tmp/anvil-hier-range-smoke-r1/manifest.json`, with:
@@ -478,8 +479,8 @@ Current HEAD also has a focused clean recursive-hierarchy proof at
 - `hierarchy_parent_composed_outputs = 22`
 
 That artifact is clean in Verilator plus both repo-owned Yosys modes
-and is the current numerical trust surface for the bounded recursive
-lane until the full Phase 4 matrix is refreshed on this newer code.
+and remains a useful targeted numerical trust surface for the bounded
+recursive lane even after the full Phase 4 matrix closure.
 
 Current HEAD also has a focused clean per-depth branching proof at
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, with:

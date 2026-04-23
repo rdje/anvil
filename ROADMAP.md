@@ -278,9 +278,10 @@ evidence.
     on demand per parent
   - the recursive range lane does not yet mix shallow and deep branches
     in one tree; it chooses one exact depth inside the requested range
-  - the fully banked repo-owned Phase 4 matrix is still the
-    wrapper-baseline report; the recursive range lane is currently
-    proven by focused clean smoke evidence
+  - the fully banked repo-owned Phase 4 matrix now covers both the
+    wrapper lane and the current representative recursive lane, but
+    deeper mixed-depth recursion and richer parent-side state are still
+    not landed
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -294,36 +295,39 @@ evidence.
     should eventually participate in the same sharing story instead of
     creating a second identity system beside gates/flops
 
-**Wrapper-slice closure (met locally):** the refreshed repo-owned
+**Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
-validation, representative exact / reuse / under-instantiation wrapper
-profiles, `coverage_gaps = []`, and clean Verilator + Yosys
+validation, representative wrapper and recursive profiles,
+`coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`48/0` in Verilator plus both repo-owned Yosys modes). The older
-`r3` report remains useful historical evidence for the original wrapper
-baseline.
+(`60/0` in Verilator plus both repo-owned Yosys modes). That report now
+proves all of the current representative hierarchy axes directly:
+- wrapper exact / reuse / under-instantiation profiles
+- recursive depth `2`
+- child-instance profiles `2`, `4`, `2:3`, and `1:3`
+- per-depth override profile `0=4:4,1=2:2`
+- real recursive design emission
+- real per-depth branching metrics
+- real parent-side composition above instance outputs
 
-**Focused recursive-shape proof (landed locally, full matrix refresh
-pending):** current HEAD now also has bounded recursive hierarchy. The
-focused proof artifact is `/tmp/anvil-hier-range-smoke-r1/manifest.json`,
-clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
-with-ABC path. The design metrics there prove the tree numerically:
+**Focused recursive-shape proof (still useful targeted evidence):**
+current HEAD also has bounded recursive hierarchy proven directly at
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, clean in Verilator,
+Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
+design metrics there still prove the tree numerically:
 `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
 `instance_slots_by_parent_depth = {0: 2, 1: 5}`,
 `min_child_instances_per_internal_module = 2`,
 `max_child_instances_per_internal_module = 3`,
 `hierarchy_parent_composed_outputs = 22`, and
-`top_parent_composed_outputs = 11`. The next honest closure task is to
-rerun the full repo-owned Phase 4 matrix on this newer recursive code
-rather than continuing to point only at the older wrapper-baseline
-artifact.
+`top_parent_composed_outputs = 11`.
 
-**Focused per-depth-branching proof (landed locally, full matrix refresh
-pending):** current HEAD also supports depth-specific recursive
-branching control via repeated `--child-instances-per-depth
-DEPTH=MIN:MAX` overrides. The focused proof artifact is
+**Focused per-depth-branching proof (still useful targeted evidence):**
+current HEAD also supports depth-specific recursive branching control
+via repeated `--child-instances-per-depth DEPTH=MIN:MAX` overrides.
+The focused proof artifact is
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The design metrics there prove the depth-specific shape without
@@ -339,10 +343,9 @@ SV inspection:
 **Broadened wrapper planning (landed, closure refreshed):** the legacy
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
-smokes and the fresh full repo-owned gate above. The heavy
-`seq_nodeid_egraph_phase4_hier4_inst4_seq` corner is still the runtime
-cost shape to watch, but it is no longer an unclosed Phase 4 evidence
-gap.
+smokes and the fresh full repo-owned gate above. The old `r7` report is
+now the historical wrapper-baseline artifact; `r9` is the real current
+Phase 4 closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is deeper

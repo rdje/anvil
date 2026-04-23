@@ -360,7 +360,7 @@ recursive tree planner and per-depth branching profiles),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-23): 203 unit-target tests + 35 integration tests = 238 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-23): 204 unit-target tests + 35 integration tests = 239 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -382,29 +382,26 @@ summary proving that `shared_node_fraction` rises monotonically across
 structured-surface gate is now closed as well via
 `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
-plus both repo-owned Yosys modes). The wrapper-baseline Phase 4 slice
-has its own repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
-(48 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-48/0 pass-fail in Verilator plus both repo-owned Yosys modes). The old
-hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1` remains clean in
-Verilator, Yosys `synth -noabc`, and the repo-owned ABC path. Current
-HEAD has since widened wrapper planning with `num_child_instances`;
-repeated child-definition reuse and under-instantiated-library cases
-are proven clean at `/tmp/anvil-hier-reuse-smoke-r1` and
-`/tmp/anvil-hier-under-smoke-r2`, and the refreshed full rerun at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r7` now banks the broadened
-exact / reuse / under-instantiation matrix directly. The old `r6`
-partial rerun remains useful only as evidence that the heavy
-`seq_nodeid_egraph_phase4_hier4_inst4_seq` corner is runtime-expensive.
-Current HEAD now also has a focused clean proof for real parent-side top
-composition at `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
-and a focused clean proof for bounded recursive hierarchy at
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, plus a focused clean
-proof for depth-specific recursive branching at
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`; refreshing the
-full Phase 4 matrix on that newer recursive code is the next closure
-step.
+plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
+its repo-owned gate via
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+(60 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+60/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+report banks wrapper exact / reuse / under-instantiation, the current
+representative recursive depth-2 profiles, the per-depth override
+profile `0=4:4,1=2:2`, and real parent-side composition above instance
+outputs. The old hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1`
+remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
+ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
+`/tmp/anvil-hier-under-smoke-r2`,
+`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` remain useful
+targeted evidence. The old `r7` report is now the historical
+wrapper-baseline artifact, and the aborted `r8` rerun remains useful as
+evidence that the Phase 4 gate should use a hierarchy-focused
+sequential leaf profile rather than silently borrowing the fattest
+Phase 1 leaf-stress shape.
 
 ## Error handling
 

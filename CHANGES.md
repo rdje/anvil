@@ -1,9 +1,122 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-1735 — Land bounded recursive hierarchy depth profiles and per-depth metrics
+## 2026-04-23-1913 — Close refreshed recursive Phase 4 hierarchy gate cleanly
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now treats the repo-owned Phase 4 gate as a real hierarchy gate, not
+  only a depth-1 wrapper baseline. The Phase 4 scenario matrix now
+  covers:
+  - legacy exact wrapper comb
+  - legacy reuse-heavy wrapper seq
+  - legacy under-instantiated wrapper comb
+  - bounded recursive comb at exact depth `2` with fallback child range
+    `[2:3]`
+  - bounded recursive seq at exact depth `2` with fallback child range
+    `[1:3]` and per-depth override profile `0=4:4,1=2:2`
+- The Phase 4 coverage summary and gap logic now require the new
+  hierarchy facts explicitly:
+  - depth set includes both `1` and `2`
+  - child-instance profiles include exact and ranged cases
+  - the per-depth override profile is present
+  - the matrix really emits recursive designs
+  - the matrix really reports per-depth branching metrics
+  - the matrix really emits top outputs composed above instance outputs
+- `HierarchyFacts` are now derived from trusted `DesignMetrics` rather
+  than top-wrapper-only heuristics, so reuse / under-instantiation facts
+  stay truthful in recursive designs too.
+- The recursive focused regression in
+  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now uses a deliberately tiny recursive profile. It still proves that
+  hierarchy facts mirror design metrics, but it no longer burns time in
+  a heavyweight sequential leaf shape that the assertion did not need.
+- The Phase 4 sequential hierarchy scenarios now use a
+  **hierarchy-focused sequential leaf profile** instead of reusing the
+  fattest Phase 1 motif-heavy sequential leaf stress configuration.
+  That keeps the hierarchy gate aimed at hierarchy structure,
+  control-port propagation, parent composition, and recursive shape
+  rather than accidentally turning it into a second leaf-stress gate.
+
+**Why**
+
+- The repo already had clean focused proofs for parent composition,
+  bounded recursion, and per-depth branching, but the last fully banked
+  Phase 4 report was still the older wrapper-baseline `r7` artifact.
+- The first broadened rerun (`r8`) made the real runtime issue clear:
+  the new gate logic was fine, but the recursive sequential hierarchy
+  scenarios were over-coupled to the heaviest leaf sequential profile,
+  so the proof was paying for a huge amount of downstream Yosys work
+  unrelated to the hierarchy contract it was supposed to prove.
+- The fix was to stabilize the gate at the right seam: keep the
+  recursive/per-depth hierarchy surfaces in the matrix, but use a
+  sequential leaf profile sized for hierarchy proof instead of
+  Phase-1-scale leaf stress.
+
+**Proof**
+
+- Focused `tool_matrix` regressions:
+  - `cargo test --bin tool_matrix phase4_hierarchy`
+  - `cargo test --bin tool_matrix recursive_hierarchy_facts_follow_design_metrics`
+- Full refreshed repo-owned Phase 4 rerun:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r9 --phase4-hierarchy-gate --yosys-mode both`
+  - report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+  - key facts:
+    - `scenario_count = 15`
+    - `modules_per_scenario = 4`
+    - `total_modules = 60`
+    - `artifact_kind = "design"`
+    - `coverage_gaps = []`
+    - `tool_summary.verilator_passed = 60`
+    - `tool_summary.verilator_failed = 0`
+    - `tool_summary.yosys_without_abc_passed = 60`
+    - `tool_summary.yosys_without_abc_failed = 0`
+    - `tool_summary.yosys_with_abc_passed = 60`
+    - `tool_summary.yosys_with_abc_failed = 0`
+    - hierarchy coverage facts:
+      - `hierarchy_depths = ["1", "2"]`
+      - `hierarchy_leaf_module_counts = ["0", "2", "4"]`
+      - `hierarchy_child_instance_counts = ["1:3", "2", "2:3", "4"]`
+      - `hierarchy_child_instance_override_profiles = ["0=4:4,1=2:2"]`
+      - `saw_recursive_hierarchy = true`
+      - `saw_per_depth_branching_metrics = true`
+      - `saw_hierarchy_parent_composition = true`
+      - `saw_reused_child_definition = true`
+      - `saw_underinstantiated_library = true`
+
+**Impact**
+
+- Phase 4 now has a fully banked repo-owned closure artifact for the
+  real current hierarchy surface, not only the older wrapper baseline.
+- The hierarchy gate is materially more trustworthy and more stable:
+  it proves wrapper exact/reuse/under-instantiation, recursive depth,
+  per-depth branching, and parent composition without dragging the
+  proof through oversized leaf sequential stress.
+- Phase labels do **not** change in this slice. Phase 4 remains
+  `in progress`; the next honest work is deeper mixed-depth recursion,
+  on-demand child sourcing as a first-class axis, local parent state,
+  and eventual hierarchy-aware identity.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-04-23-1735 — Land bounded recursive hierarchy depth profiles and per-depth metrics
+
+**Landed as:** `134e889`
 
 **What changed**
 
