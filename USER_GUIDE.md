@@ -327,13 +327,15 @@ The current Phase 4 slice now has two planning lanes:
   child instance outputs
 - unused child outputs are emitted as explicit unconnected ports
   (`.port()`) rather than fake pass-through wires
-- in bounded recursive mode, ANVIL currently picks one exact realized
-  depth inside the requested `[min:max]` interval for the whole design
-  and one child count per non-leaf module inside the requested
+- in bounded recursive mode, ANVIL now keeps every leaf depth inside
+  the requested `[min:max]` interval and can mix shallow and deep
+  branches inside one tree when the interval is open and the structure
+  allows it
+- `leaf_module_occurrences_by_depth` is now the direct trust metric for
+  that mixed-depth shape
+- non-leaf modules still pick one child count inside the requested
   child-instance interval, with per-parent-depth overrides taking
   priority where specified
-- bounded recursive mode does not yet mix shallow and deep branches in
-  one tree
 - local parent flops in the composed parent layer are not live yet
 
 ## Tool matrix sweeps
@@ -481,6 +483,22 @@ Current HEAD also has a focused clean recursive-hierarchy proof at
 That artifact is clean in Verilator plus both repo-owned Yosys modes
 and remains a useful targeted numerical trust surface for the bounded
 recursive lane even after the full Phase 4 matrix closure.
+
+Current HEAD also has a focused clean mixed-depth recursive proof at
+`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, with:
+
+- `realized_min_leaf_depth = 2`
+- `realized_max_leaf_depth = 3`
+- `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}`
+- `avg_child_instances_by_parent_depth = {"0": 2.0, "1": 2.0, "2": 2.0}`
+- `hierarchy_parent_composed_outputs = 40`
+- `top_parent_composed_outputs = 14`
+
+That artifact is also clean in Verilator plus both repo-owned Yosys
+modes and is the current trust surface for mixed shallow/deep recursive
+shape without `.sv` inspection. The repo-owned Phase 4 gate at `r9`
+does not include this new axis yet; the next Phase 4 closure refresh
+should fold it in.
 
 Current HEAD also has a focused clean per-depth branching proof at
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, with:

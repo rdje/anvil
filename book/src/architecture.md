@@ -100,8 +100,9 @@ Phase 4 is now in progress: `src/gen/hierarchy.rs` owns both the older
 exact depth-1 wrapper lane and the newer bounded recursive hierarchy
 lane. The older wrapper-baseline surface has a repo-owned closure gate
 in `tool_matrix`, and current HEAD now extends hierarchy with both
-parent-side composition, bounded recursive tree planning, and
-depth-specific branching overrides.
+parent-side composition, bounded recursive tree planning, mixed-depth
+leaf shaping inside a requested depth interval, and depth-specific
+branching overrides.
 
 ## Dependency direction
 

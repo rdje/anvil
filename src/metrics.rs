@@ -289,6 +289,7 @@ pub struct DesignMetrics {
     pub max_child_instances_per_internal_module: usize,
     pub module_defs_by_depth: BTreeMap<usize, usize>,
     pub module_occurrences_by_depth: BTreeMap<usize, usize>,
+    pub leaf_module_occurrences_by_depth: BTreeMap<usize, usize>,
     pub instance_slots_by_parent_depth: BTreeMap<usize, usize>,
     pub avg_child_instances_by_parent_depth: BTreeMap<usize, f64>,
     pub min_child_instances_by_parent_depth: BTreeMap<usize, usize>,
@@ -759,6 +760,11 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
 
     if module.instances.is_empty() {
         state.out.num_leaf_module_occurrences += 1;
+        *state
+            .out
+            .leaf_module_occurrences_by_depth
+            .entry(depth)
+            .or_insert(0) += 1;
         if state.out.num_leaf_module_occurrences == 1 {
             state.out.realized_min_leaf_depth = depth;
         } else {
@@ -1194,6 +1200,10 @@ mod tests {
         assert_eq!(met.realized_min_leaf_depth, 2);
         assert_eq!(met.realized_max_leaf_depth, 2);
         assert_eq!(met.max_module_depth, 2);
+        assert_eq!(
+            met.leaf_module_occurrences_by_depth.get(&2),
+            Some(&met.num_leaf_module_occurrences)
+        );
         assert!(met.num_internal_module_occurrences > 0);
         assert!(met.num_leaf_module_occurrences > 0);
         assert!(
@@ -1249,5 +1259,31 @@ mod tests {
         assert_eq!(met.min_child_instances_by_parent_depth.get(&1), Some(&2));
         assert_eq!(met.max_child_instances_by_parent_depth.get(&1), Some(&2));
         assert_eq!(met.avg_child_instances_by_parent_depth.get(&1), Some(&2.0));
+    }
+
+    #[test]
+    fn design_metrics_capture_mixed_leaf_depths() {
+        let cfg = Config {
+            seed: 19,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("mixed-depth recursive hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.realized_min_leaf_depth, 2);
+        assert_eq!(met.realized_max_leaf_depth, 3);
+        assert_eq!(met.max_module_depth, 3);
+        assert_eq!(met.leaf_module_occurrences_by_depth.get(&2), Some(&2));
+        assert_eq!(met.leaf_module_occurrences_by_depth.get(&3), Some(&4));
+        assert_eq!(met.module_occurrences_by_depth.get(&0), Some(&1));
+        assert_eq!(met.module_occurrences_by_depth.get(&1), Some(&2));
     }
 }

@@ -264,9 +264,11 @@ evidence.
     --min-child-instances-per-module C
     --max-child-instances-per-module D`
     now builds a real recursive hierarchy tree. The current planner
-    picks one exact realized depth inside `[A:B]` for the whole design,
-    keeps each non-leaf module's child count inside `[C:D]`, and
-    reports the realized tree shape numerically in `DesignMetrics`.
+    keeps every leaf depth inside `[A:B]`, can now mix shallow and deep
+    branches inside one tree when the requested interval is open and
+    the structure allows it, keeps each non-leaf module's child count
+    inside `[C:D]`, and reports the realized tree shape numerically in
+    `DesignMetrics`.
     Repeated `--child-instances-per-depth DEPTH=MIN:MAX` overrides are
     now also live and take priority over the fallback branching range at
     the matching parent depth.
@@ -276,12 +278,10 @@ evidence.
   - the legacy exact wrapper lane still uses a pre-generated child
     library; the recursive range lane generates child libraries
     on demand per parent
-  - the recursive range lane does not yet mix shallow and deep branches
-    in one tree; it chooses one exact depth inside the requested range
   - the fully banked repo-owned Phase 4 matrix now covers both the
-    wrapper lane and the current representative recursive lane, but
-    deeper mixed-depth recursion and richer parent-side state are still
-    not landed
+    wrapper lane and the pre-existing representative recursive lane,
+    while the newly-landed mixed-depth recursive axis is currently
+    backed by focused proof rather than by a refreshed full matrix
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -324,6 +324,19 @@ design metrics there still prove the tree numerically:
 `hierarchy_parent_composed_outputs = 22`, and
 `top_parent_composed_outputs = 11`.
 
+**Focused mixed-depth recursive proof (new targeted evidence):**
+current HEAD can now mix shallow and deep branches inside one bounded
+recursive tree. The focused proof artifact is
+`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
+path. The design metrics there prove the mixed shape numerically:
+`realized_min_leaf_depth = 2`,
+`realized_max_leaf_depth = 3`,
+`leaf_module_occurrences_by_depth = {"2": 2, "3": 4}`,
+`avg_child_instances_by_parent_depth = {"0": 2.0, "1": 2.0, "2": 2.0}`,
+`hierarchy_parent_composed_outputs = 40`, and
+`top_parent_composed_outputs = 14`.
+
 **Focused per-depth-branching proof (still useful targeted evidence):**
 current HEAD also supports depth-specific recursive branching control
 via repeated `--child-instances-per-depth DEPTH=MIN:MAX` overrides.
@@ -348,8 +361,9 @@ now the historical wrapper-baseline artifact; `r9` is the real current
 Phase 4 closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
-the current landed slice. The remaining substantive work is deeper
-recursion, on-demand child sourcing beside the current library path,
+the current landed slice. The remaining substantive work is to fold the
+new mixed-depth recursive axis into the repo-owned Phase 4 gate, then
+continue with on-demand child sourcing beside the current library path,
 local parent state where it is structurally warranted, and eventual
 hierarchy-aware identity/factorization.
 

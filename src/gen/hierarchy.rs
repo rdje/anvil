@@ -74,12 +74,7 @@ fn generate_recursive_design(g: &mut Generator) -> Design {
         .cfg
         .effective_hierarchy_depth_range()
         .expect("hierarchy range mode should have an effective depth range");
-    let target_depth = if min_depth == max_depth {
-        min_depth
-    } else {
-        g.rng.gen_range(min_depth..=max_depth)
-    };
-    let built = build_recursive_subtree(g, 0, target_depth);
+    let built = build_recursive_subtree(g, 0, min_depth, max_depth);
     let top_name = built
         .modules
         .last()
@@ -95,9 +90,19 @@ fn generate_recursive_design(g: &mut Generator) -> Design {
 fn build_recursive_subtree(
     g: &mut Generator,
     parent_depth: u32,
-    remaining_depth: u32,
+    min_remaining_depth: u32,
+    max_remaining_depth: u32,
 ) -> BuiltSubtree {
-    if remaining_depth == 0 {
+    debug_assert!(
+        min_remaining_depth <= max_remaining_depth,
+        "recursive hierarchy ranges must stay ordered"
+    );
+
+    if max_remaining_depth == 0 {
+        debug_assert_eq!(
+            min_remaining_depth, 0,
+            "a zero max remaining depth implies an exact leaf"
+        );
         return BuiltSubtree {
             modules: vec![g.generate_module()],
         };
@@ -113,12 +118,28 @@ fn build_recursive_subtree(
         g.rng
             .gen_range(min_instances as usize..=max_instances as usize)
     };
-    let library_len = plan_child_library_len(g, target_instances);
+
+    if min_remaining_depth == 0 && target_instances == 1 {
+        let chosen_depth = g.rng.gen_range(0..=max_remaining_depth);
+        if chosen_depth == 0 {
+            return BuiltSubtree {
+                modules: vec![g.generate_module()],
+            };
+        }
+        return build_recursive_subtree(g, parent_depth, chosen_depth, chosen_depth);
+    }
+
+    let child_min_depth = min_remaining_depth.saturating_sub(1);
+    let child_max_depth = max_remaining_depth - 1;
+    let force_mixed_children = child_min_depth < child_max_depth && target_instances >= 2;
+    let library_len = plan_child_library_len(g, target_instances, force_mixed_children);
+    let child_depth_ranges =
+        plan_child_depth_ranges(g, library_len, child_min_depth, child_max_depth);
 
     let mut descendant_modules = Vec::new();
     let mut direct_children = Vec::with_capacity(library_len);
-    for _ in 0..library_len {
-        let mut child = build_recursive_subtree(g, parent_depth + 1, remaining_depth - 1).modules;
+    for (child_min, child_max) in child_depth_ranges {
+        let mut child = build_recursive_subtree(g, parent_depth + 1, child_min, child_max).modules;
         let child_root = child
             .pop()
             .expect("recursive child subtree should end with its root");
@@ -144,13 +165,56 @@ fn build_recursive_subtree(
     }
 }
 
-fn plan_child_library_len(g: &mut Generator, target_instances: usize) -> usize {
+fn plan_child_library_len(
+    g: &mut Generator,
+    target_instances: usize,
+    force_mixed_children: bool,
+) -> usize {
     debug_assert!(target_instances >= 1);
-    if target_instances == 1 {
-        1
+    let min_library_len = if force_mixed_children { 2 } else { 1 };
+    debug_assert!(
+        min_library_len <= target_instances,
+        "mixed child planning requires at least two instance slots"
+    );
+    if min_library_len == target_instances {
+        target_instances
     } else {
-        g.rng.gen_range(1..=target_instances)
+        g.rng.gen_range(min_library_len..=target_instances)
     }
+}
+
+fn plan_child_depth_ranges(
+    g: &mut Generator,
+    library_len: usize,
+    child_min_depth: u32,
+    child_max_depth: u32,
+) -> Vec<(u32, u32)> {
+    debug_assert!(library_len >= 1);
+    debug_assert!(child_min_depth <= child_max_depth);
+
+    if library_len == 1 {
+        return vec![(child_min_depth, child_max_depth)];
+    }
+
+    let mut ranges = Vec::with_capacity(library_len);
+    ranges.push((child_min_depth, child_min_depth));
+    ranges.push((child_max_depth, child_max_depth));
+
+    for _ in 2..library_len {
+        if child_min_depth == child_max_depth {
+            ranges.push((child_min_depth, child_max_depth));
+            continue;
+        }
+
+        if g.rng.gen_bool(0.5) {
+            let exact_depth = g.rng.gen_range(child_min_depth..=child_max_depth);
+            ranges.push((exact_depth, exact_depth));
+        } else {
+            ranges.push((child_min_depth, child_max_depth));
+        }
+    }
+
+    ranges
 }
 
 fn plan_child_instance_indices(
@@ -520,6 +584,39 @@ mod tests {
                 .iter()
                 .any(|m| !m.instances.is_empty() && m.name != design.top),
             "depth-2 design should contain at least one nested non-leaf child"
+        );
+    }
+
+    #[test]
+    fn recursive_range_generation_can_mix_shallow_and_deep_branches() {
+        let mut g = Generator::new(Config {
+            seed: 19,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            ..Config::default()
+        });
+
+        let design = generate_design(&mut g);
+        let metrics = crate::metrics::compute_design(&design);
+        assert_eq!(
+            metrics.realized_min_leaf_depth, 2,
+            "mixed recursive planning should preserve the requested minimum depth"
+        );
+        assert_eq!(
+            metrics.realized_max_leaf_depth, 3,
+            "mixed recursive planning should preserve the requested maximum depth"
+        );
+        assert_eq!(
+            metrics.leaf_module_occurrences_by_depth.get(&2),
+            Some(&2),
+            "depth-2 leaves should be present in the mixed tree"
+        );
+        assert_eq!(
+            metrics.leaf_module_occurrences_by_depth.get(&3),
+            Some(&4),
+            "depth-3 leaves should be present in the mixed tree"
         );
     }
 

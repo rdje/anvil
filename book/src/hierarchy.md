@@ -67,8 +67,9 @@ different cases:
 
 The bounded recursive planner follows a different rule set:
 
-- it picks one exact realized depth uniformly inside `[A:B]` for the
-  whole design;
+- it keeps every realized leaf depth inside `[A:B]`, and can now mix
+  shallow and deep branches inside one tree when the interval is open
+  and the structure allows it;
 - every non-leaf module picks a child-instance count uniformly inside
   `[C:D]`, unless a per-parent-depth override is present;
 - repeated `child_instances_per_depth` overrides are keyed by parent
@@ -212,6 +213,7 @@ emitted `.sv`, including:
 - weighted child interface / node / flop load, and
 - per-definition instantiation histograms,
 - realized leaf depth / module depth,
+- leaf-occurrence depth histogram,
 - module-definition and module-occurrence depth histograms, and
 - child-instance histograms plus per-depth instance-slot totals, and
 - per-parent-depth branching summaries
@@ -232,7 +234,6 @@ The wrapper slice buys several important things immediately:
 It also keeps the open work honest. The following are **not** live yet:
 
 - local parent flops inside the composed top layer,
-- mixed shallow/deep branches in one bounded recursive tree,
 - hierarchy-aware `NodeId` identity/factorization.
 
 What **is** now live beyond the original smoke is the repo-owned Phase 4
@@ -298,8 +299,23 @@ recursive lane:
   - `realized_max_leaf_depth = 2`
   - `instance_slots_by_parent_depth = {0: 2, 1: 5}`
   - `min_child_instances_per_internal_module = 2`
-  - `max_child_instances_per_internal_module = 3`
-  - `hierarchy_parent_composed_outputs = 22`
+- `max_child_instances_per_internal_module = 3`
+- `hierarchy_parent_composed_outputs = 22`
+
+Current HEAD now also has a focused clean proof for mixed-depth
+recursive hierarchy:
+
+- `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
+- clean in Verilator
+- clean in Yosys `synth -noabc`
+- clean in the repo-owned Yosys with-ABC path
+- metrics proving the mixed tree directly:
+  - `realized_min_leaf_depth = 2`
+  - `realized_max_leaf_depth = 3`
+  - `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}`
+  - `avg_child_instances_by_parent_depth = {"0": 2.0, "1": 2.0, "2": 2.0}`
+  - `hierarchy_parent_composed_outputs = 40`
+  - `top_parent_composed_outputs = 14`
 
 Current HEAD also has a focused clean proof for depth-specific
 branching in the recursive lane:
@@ -322,8 +338,8 @@ branching in the recursive lane:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. refine bounded recursion so one design can mix shallow and deep
-   branches inside the requested depth interval;
+1. fold the new mixed-depth recursive axis into the repo-owned Phase 4
+   gate so the closure artifact matches current HEAD again;
 2. add local parent flops where structurally warranted;
 3. add the on-demand child-sourcing / library-sourcing split as an
    explicit user-controllable axis.

@@ -9,11 +9,11 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   were rerun. The only real drift found was one stale README sentence
   that still described the recursive Phase 4 closure refresh as
   pending; that wording is now fixed.
-- The current live Phase 4 slice is depth-1 hierarchy with a real `Design`: `hierarchy_depth = 1` plus `num_leaf_modules >= 1` generates a library of leaf modules plus a real top module. `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions.
-- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds a first **combinational** parent-side output layer over them. That parent layer still stays intentionally narrow: no local parent flops yet, no mixed shallow/deep recursion in one tree, no on-demand child sourcing, and no hierarchy-aware identity yet.
-- Current HEAD now also has a bounded recursive hierarchy lane driven by `min_hierarchy_depth..=max_hierarchy_depth` plus `min_child_instances_per_module..=max_child_instances_per_module`, with optional repeated `child_instances_per_depth` overrides keyed by parent depth (`0` = top, `1` = its direct children, ...). The current recursive planner still picks one exact realized depth inside the requested interval for the whole design, but branching can now vary by level instead of only globally.
+- The current live Phase 4 slice is no longer just a depth-1 wrapper. `hierarchy_depth = 1` plus `num_leaf_modules >= 1` still generates a library of leaf modules plus a real top module; `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions. On top of that, current HEAD now also supports bounded recursive hierarchy through `min_hierarchy_depth..=max_hierarchy_depth`.
+- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds a first **combinational** parent-side output layer over them, and bounded recursive hierarchy can now mix shallow and deep branches inside one legal tree. The parent layer still stays intentionally narrow in the remaining open ways: no local parent flops yet, no on-demand child sourcing, and no hierarchy-aware identity yet.
+- Current HEAD now also has a bounded recursive hierarchy lane driven by `min_hierarchy_depth..=max_hierarchy_depth` plus `min_child_instances_per_module..=max_child_instances_per_module`, with optional repeated `--child-instances-per-depth` overrides keyed by parent depth (`0` = top, `1` = its direct children, ...). The recursive planner now keeps subtree-local depth intervals live, so leaves stay inside the requested global range and the tree can realize both shallow and deep branches when the interval is open and the structure allows it.
 - The hierarchy surface is now measurable from trustworthy numbers rather than SV inspection. `manifest.json` and `tool_matrix` design reports carry per-design `DesignMetrics` such as library coverage, unused-library fraction, instance reuse, top-interface shape, control fanout, weighted child load/complexity, instantiation histograms, direct-vs-composed top-output counts, child-output dependency fractions, and instance-output support depth per top output.
-- Recursive-hierarchy metrics now also include per-parent-depth branching summaries (`avg/min/max_child_instances_by_parent_depth`) on top of the existing depth histograms and raw instance-slot totals, so the realized shape can be trusted from numbers alone.
+- Recursive-hierarchy metrics now also include per-parent-depth branching summaries (`avg/min/max_child_instances_by_parent_depth`) plus `leaf_module_occurrences_by_depth` on top of the existing depth histograms and raw instance-slot totals, so both branching shape and mixed-depth realization can be trusted from numbers alone.
 - The control-port doctrine is explicit and design-aware: pure comb-only modules do **not** emit `clk` / `rst_n`; sequential leaves do; and wrappers keep those ports visible all the way up the instantiated ancestor chain iff they carry sequential descendants.
 - The focused proof artifact for the metrics/control doctrine remains `/tmp/anvil-hier-metrics-smoke-r1`, which is clean in Verilator plus both repo-owned Yosys modes and records correct values such as `top_clock_inputs = 1`, `top_reset_inputs = 1`, `clock_fanout_instances = 5`, `reset_fanout_instances = 5`, `instance_reuse_fraction = 0.4`, and `library_coverage_fraction = 1.0`.
 - The focused proof artifact for the new parent-composition slice is `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, also clean in Verilator plus both repo-owned Yosys modes. Its key design metrics are:
@@ -31,6 +31,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `max_child_instances_by_parent_depth = {"0": 4, "1": 2}`
   - `hierarchy_parent_composed_outputs = 36`
   - `top_parent_composed_outputs = 18`
+- The focused proof artifact for the new mixed-depth recursive slice is `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, also clean in Verilator plus both repo-owned Yosys modes. Its key design metrics are:
+  - `realized_min_leaf_depth = 2`
+  - `realized_max_leaf_depth = 3`
+  - `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}`
+  - `avg_child_instances_by_parent_depth = {"0": 2.0, "1": 2.0, "2": 2.0}`
+  - `hierarchy_parent_composed_outputs = 40`
+  - `top_parent_composed_outputs = 14`
 - The refreshed repo-owned Phase 4 hierarchy closure report is now `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`: **15 scenarios**, **4 designs/scenario**, **60 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, and **60/0** pass-fail in Verilator plus both repo-owned Yosys modes.
 - That refreshed report now covers the real current hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
   - `hierarchy_depths = ["1", "2"]`
@@ -55,17 +62,24 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Completed a literal `SESSION_BOOTSTRAP.md`
-  rerun and corrected the one stale live-doc claim it exposed. See
-  `CHANGES.md` entry `2026-04-23-boot2`. The bootstrap now genuinely
-  re-reads the live docs, the full mdBook, and the Rust workspace
-  against current HEAD; the only drift found was stale README wording
-  that still implied the refreshed recursive Phase 4 closure refresh was
-  pending. That sentence now matches repo reality: the recursive Phase 4
-  matrix is already banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`,
-  and the next work is deeper hierarchy capability rather than closure
-  refresh.
+- **Last completed slice:** Landed mixed-depth recursive hierarchy planning. See
+  `CHANGES.md` entry `2026-04-23-boot3`. Bounded recursive hierarchy no longer
+  collapses the requested depth interval to one exact realized scalar for the
+  whole design. The planner now carries subtree-local depth intervals, can
+  realize both shallow and deep branches inside one legal tree, and exposes
+  that fact numerically via `leaf_module_occurrences_by_depth`. Validation was
+  the focused smoke at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`,
+  new unit/integration regressions, and downstream-clean runs in Verilator plus
+  both repo-owned Yosys modes.
+- **Prior slice:** Completed a literal `SESSION_BOOTSTRAP.md` rerun and
+  corrected the one stale live-doc claim it exposed. See `CHANGES.md` entry
+  `2026-04-23-boot2`. The bootstrap now genuinely re-reads the live docs, the
+  full mdBook, and the Rust workspace against current HEAD; the only drift
+  found was stale README wording that still implied the refreshed recursive
+  Phase 4 closure refresh was pending. That sentence now matches repo reality:
+  the recursive Phase 4 matrix is already banked at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`, and the
+  next work is deeper hierarchy capability rather than closure refresh.
 - **Prior slice:** Closed the refreshed recursive Phase 4 hierarchy gate cleanly. See `CHANGES.md` entry `2026-04-23-1913`. `tool_matrix` now treats Phase 4 as a real hierarchy gate instead of only a wrapper baseline: the repo-owned report at `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json` covers wrapper exact / reuse / under-instantiation, bounded recursion at depth `2`, the per-depth override profile `0=4:4,1=2:2`, and parent-side composition above instance outputs, all with `coverage_gaps = []` and `60/0` pass-fail in Verilator plus both repo-owned Yosys modes. The slice also fixes the real runtime seam by using a hierarchy-focused sequential leaf profile for the Phase 4 gate instead of reusing the fattest Phase 1 leaf-stress profile, and tightens the recursive hierarchy fact regression so it proves the contract cheaply and directly.
 - **Prior slice:** Landed bounded recursive hierarchy depth profiles and per-depth metrics. See `CHANGES.md` entry `2026-04-23-1735`. Recursive hierarchy now keeps the global child-instance fallback range and adds repeated `child_instances_per_depth` overrides keyed by parent depth; the recursive planner now consults those overrides while building the tree; and `DesignMetrics` now report `avg/min/max_child_instances_by_parent_depth` so the realized shape can be trusted from manifests. Validation was the focused smoke at `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, new unit / integration regressions, and downstream clean runs in Verilator plus both repo-owned Yosys modes.
 - **Prior slice:** Landed parent-composed hierarchy tops and trustworthy composition metrics. See `CHANGES.md` entry `2026-04-23-1557`. `DepSet` now tracks typed leaf identities including child instance outputs; `Node::InstanceOutput` is now a real dep-bearing parent-side leaf; the depth-1 top now builds a first combinational parent-output layer over child outputs; `compact_node_ids` now treats and remaps instance input bindings correctly; validation now allows genuinely unused child outputs; the SV emitter now renders unused child outputs as `.port()`; and `DesignMetrics` now quantify direct-vs-composed top outputs plus child-output dependency/support. Validation was the focused smoke at `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`, new unit/integration regressions, and the full hygiene gate.
@@ -156,16 +170,18 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the first banked recursive gate.** The next structural step is mixed shallow/deep recursion inside one tree plus richer on-demand child sourcing; after that come local parent state where it is structurally warranted and eventual hierarchy-aware identity. The hierarchy gate is now banked at `r9`, so the next work is no longer proof refresh; it is new hierarchy capability.
-  1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost.** The banked `r9` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress. Future hierarchy scenarios should preserve that separation of concerns.
-  2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
-  3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
-  4. **Memories (medium).** Inferrable single-port / simple-dual-port memory patterns (`reg [W-1:0] mem [0:DEPTH-1]` with an always_ff block driving read/write). Knob for depth range.
-  5. **FSMs (medium-large).** Explicit state encoding (binary / one-hot / gray), transition logic, optional output logic. The first real multi-part block motif.
-  6. **Hierarchy + parameterization.** Keep `generate_leaf_module` as the leaf kernel and add the higher layer rather than smearing inter-module behavior into the existing path.
-  7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
+  0. **Refresh the repo-owned Phase 4 gate to absorb the new mixed-depth axis.** The banked `r9` hierarchy matrix proves wrapper exact / reuse / under-instantiation, bounded recursion at exact depth `2`, per-depth branching overrides, and parent composition. The next closure step is to fold the new mixed shallow/deep recursive lane into that repo-owned gate so the broader Phase 4 proof surface catches up to current HEAD.
+  1. **Deepen Phase 4 hierarchy beyond composition-only parents.** After the mixed-depth gate refresh, the next structural work is richer on-demand child sourcing and then local parent state where it is structurally warranted; hierarchy-aware identity remains later work.
+  2. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost.** The banked `r9` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress. Future hierarchy scenarios should preserve that separation of concerns.
+  3. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
+  4. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
+  5. **Memories (medium).** Inferrable single-port / simple-dual-port memory patterns (`reg [W-1:0] mem [0:DEPTH-1]` with an always_ff block driving read/write). Knob for depth range.
+  6. **FSMs (medium-large).** Explicit state encoding (binary / one-hot / gray), transition logic, optional output logic. The first real multi-part block motif.
+  7. **Hierarchy + parameterization.** Keep `generate_leaf_module` as the leaf kernel and add the higher layer rather than smearing inter-module behavior into the existing path.
+  8. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `ce4327d` — Complete literal bootstrap and fix README drift.
 - `1bda5c7` — Refresh Phase 4 hierarchy gate.
 - `134e889` — Add per-depth recursive hierarchy controls.
 - `28713a0` — Land parent-composed hierarchy tops cleanly.

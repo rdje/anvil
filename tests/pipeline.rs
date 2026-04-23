@@ -94,8 +94,8 @@ fn generates_valid_recursive_hierarchy_designs_with_bounded_shape() {
             "realized depth must stay within requested bound"
         );
         assert_eq!(
-            metrics.realized_min_leaf_depth, metrics.realized_max_leaf_depth,
-            "current recursive planner should pick one exact depth inside the requested range"
+            metrics.realized_min_leaf_depth, 2,
+            "recursive hierarchy should preserve the requested minimum depth"
         );
         assert!(
             (2..=3).contains(&metrics.min_child_instances_per_internal_module),
@@ -106,6 +106,31 @@ fn generates_valid_recursive_hierarchy_designs_with_bounded_shape() {
             "internal branching ceiling must stay inside requested range"
         );
     }
+}
+
+#[test]
+fn generates_valid_recursive_hierarchy_designs_with_mixed_leaf_depths() {
+    let cfg = Config {
+        seed: 19,
+        min_hierarchy_depth: 2,
+        max_hierarchy_depth: 3,
+        min_child_instances_per_module: 2,
+        max_child_instances_per_module: 2,
+        ..Config::default()
+    };
+    cfg.validate()
+        .expect("mixed-depth recursive hierarchy config should be valid");
+
+    let mut g = Generator::new(cfg);
+    let design = g.generate_design();
+    anvil::ir::validate::validate_design(&design)
+        .expect("mixed recursive hierarchy should validate");
+
+    let metrics = anvil::metrics::compute_design(&design);
+    assert_eq!(metrics.realized_min_leaf_depth, 2);
+    assert_eq!(metrics.realized_max_leaf_depth, 3);
+    assert_eq!(metrics.leaf_module_occurrences_by_depth.get(&2), Some(&2));
+    assert_eq!(metrics.leaf_module_occurrences_by_depth.get(&3), Some(&4));
 }
 
 #[test]

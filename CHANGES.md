@@ -1,9 +1,105 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot2 — Complete literal bootstrap pass and fix stale README closure note
+## 2026-04-23-boot3 — Land mixed-depth recursive hierarchy planning
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  no longer collapses bounded recursive hierarchy depth to one exact
+  scalar for the whole design. The recursive planner now carries
+  subtree-local `[min_depth, max_depth]` intervals and can realize both
+  shallow and deep branches inside one legal tree when the requested
+  range is open and the branching structure allows it.
+- The recursive planner now deliberately forces mixed child depth
+  realization at the right seam: when a parent has at least two child
+  slots and the allowed child interval is genuinely open, one child can
+  realize the shallowest still-legal descendant depth and another can
+  realize the deepest still-legal descendant depth, while all leaves
+  still stay inside the requested global bounds.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports `leaf_module_occurrences_by_depth`, so mixed shallow/deep
+  recursion can be trusted numerically from the manifest rather than by
+  reading emitted `.sv`.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  and the new hierarchy unit tests now prove the mixed-depth contract
+  directly: realized leaf depths stay inside the requested interval, and
+  the depth histogram reflects the intended shallow/deep split.
+- The live docs and mdBook now say the same thing plainly: bounded
+  recursive hierarchy no longer means "pick one exact realized depth for
+  the whole design"; it means "keep leaves inside the requested
+  interval, and mix depths when the structure allows it."
+
+**Why**
+
+- The user asked for hierarchy depth to be controllable over a
+  reasonable `[min:max]` interval and for the resulting composition
+  quality to be measurable from trustworthy metrics rather than visual
+  inspection.
+- The previous recursive slice had only a foothold version of that:
+  depth was bounded, but the planner still collapsed the whole design to
+  one exact realized depth. That meant the interval was acting more like
+  a lottery than a true structural range.
+- The right fix was to keep the depth interval live all the way down the
+  recursive planner and expose the realized result numerically.
+
+**Proof**
+
+- Focused hierarchy regressions:
+  - `cargo test recursive_range_generation_can_mix_shallow_and_deep_branches --lib`
+  - `cargo test design_metrics_capture_mixed_leaf_depths --lib`
+  - `cargo test design_metrics_capture_recursive_depth_and_branching --lib`
+  - `cargo test generates_valid_recursive_hierarchy_designs_with_bounded_shape --test pipeline`
+  - `cargo test generates_valid_recursive_hierarchy_designs_with_mixed_leaf_depths --test pipeline`
+- Focused emitted-design smoke:
+  - `cargo run --bin anvil -- --seed 19 --count 1 --out /tmp/anvil-hier-mixed-depth-smoke-r1 --min-hierarchy-depth 2 --max-hierarchy-depth 3 --min-child-instances-per-module 2 --max-child-instances-per-module 2`
+  - artifact:
+    `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
+  - key facts:
+    - `realized_min_leaf_depth = 2`
+    - `realized_max_leaf_depth = 3`
+    - `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}`
+    - `avg_child_instances_by_parent_depth = {"0": 2.0, "1": 2.0, "2": 2.0}`
+    - `hierarchy_parent_composed_outputs = 40`
+    - `top_parent_composed_outputs = 14`
+  - downstream tools:
+    - Verilator clean
+    - Yosys `synth -noabc` clean
+    - repo-owned Yosys ABC path clean
+
+**Impact**
+
+- Recursive hierarchy ranges now behave like real structural ranges
+  rather than a single-depth chooser.
+- The repo has a trustworthy metric for mixed-depth realization, so the
+  user no longer has to inspect emitted RTL to verify that shallow and
+  deep branches really appeared.
+- Phase 4 remains `in progress`. The next honest closure step is to
+  absorb this mixed-depth axis into the repo-owned Phase 4 hierarchy
+  gate, then continue with on-demand child sourcing, local parent state,
+  and hierarchy-aware identity.
+
+**Files touched**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+
+## 2026-04-23-boot2 — Complete literal bootstrap pass and fix stale README closure note
+
+**Landed as:** `ce4327d`
 
 **What changed**
 

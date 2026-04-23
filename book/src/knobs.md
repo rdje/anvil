@@ -321,8 +321,9 @@ instead of creating fresh logic.
   below `num_leaf_modules` under-instantiate the library; larger values
   reuse child definitions.
 - `min_hierarchy_depth`, `max_hierarchy_depth` — bounded recursive
-  hierarchy depth range. In the current slice, ANVIL picks one exact
-  realized depth inside `[min:max]` for the whole generated design.
+  hierarchy depth range. In the current slice, ANVIL keeps every leaf
+  depth inside `[min:max]` and can now mix shallow and deep branches in
+  one tree when the interval is open and the structure allows it.
 - `min_child_instances_per_module`,
   `max_child_instances_per_module` — bounded recursive child-instance
   range for each non-leaf module.

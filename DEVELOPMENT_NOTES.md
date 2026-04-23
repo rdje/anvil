@@ -118,6 +118,43 @@ to be fixed at the root instead of papered over:
   The right rule is narrower: any *referenced* child output node must
   name a real child port at the right width, but unreferenced child
   outputs are legal.
+
+### Depth ranges must stay ranges in recursive hierarchy
+The original bounded recursive planner was honest enough as a first
+landing, but it was still throwing away too much information: it took
+`min_hierarchy_depth..=max_hierarchy_depth` and collapsed that interval
+to one exact realized depth for the whole design.
+
+That was acceptable as a foothold. It is not the right long-term
+algorithm, because the point of a bounded depth interval is to describe
+allowed leaf-depth variation, not to sample one global scalar and ignore
+the rest.
+
+The strengthened planner now carries a remaining `[min,max]` depth
+interval per subtree:
+
+- `max == 0` still means a mandatory leaf;
+- if a flexible subtree has only one child, it may sample one exact
+  depth inside the still-allowed interval for that chain; and
+- when a subtree is both depth-flexible and branching (`instances >= 2`)
+  it now deliberately generates child definitions that realize both the
+  shallowest and deepest still-legal descendants, instead of hoping RNG
+  stumbles into both.
+
+That last point is the load-bearing part. Mixed-depth recursion should
+not be a rare accident of repeated runs; when the structure can support
+it, the planner should intentionally exercise it.
+
+The metrics contract grew with the planner: `DesignMetrics` now expose
+`leaf_module_occurrences_by_depth`, so "did we really get both shallow
+and deep leaves?" is answerable numerically from the manifest rather
+than by reading emitted SV.
+
+This slice is intentionally honest about proof scope too: the new
+mixed-depth recursive axis is proven by the focused artifact at
+`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, but the repo-owned
+Phase 4 gate at `r9` predates this axis and should be refreshed in a
+follow-up slice rather than being quietly overclaimed.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
   only a subset of child outputs, so unused outputs are now rendered as
@@ -154,20 +191,24 @@ That gives us a clean story:
 - future recursive work can evolve without pretending the exact wrapper
   lane already solved arbitrary tree planning.
 
-The current recursive planner is intentionally exact about one thing and
-limited about another:
+The current recursive planner is now intentionally exact about the
+interval contract rather than about one sampled scalar:
 
-- it picks **one actual depth** uniformly inside the requested
-  `[min:max]` interval for the whole design, then builds to that depth
-  exactly; and
-- it picks each non-leaf module's child-instance count uniformly inside
-  the requested child-instance interval.
+- every realized leaf depth stays inside the requested `[min:max]`
+  interval;
+- when a subtree is both depth-flexible and branching, the planner
+  deliberately exercises both the shallowest and deepest still-legal
+  descendants instead of relying on luck; and
+- each non-leaf module still picks its child-instance count uniformly
+  inside the requested child-instance interval.
 
 So the current guarantees are:
 
-- realized depth always stays inside the requested interval;
+- realized leaf depths stay inside the requested interval;
+- mixed shallow/deep trees are now intentional when the structure can
+  support them;
 - realized branching always stays inside the requested interval; and
-- the metrics can prove both facts numerically.
+- the metrics can prove all of that numerically.
 
 One more planning layer is now live on top of that baseline:
 
@@ -182,8 +223,9 @@ lower levels are narrower" without inventing a separate planner mode or
 forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
-What it does **not** do yet is mix shallow and deep branches in one
-tree. That is future work, not hidden behavior.
+What it does **not** do yet is fold that new mixed-depth axis into the
+repo-owned Phase 4 gate. That is the next closure step, not hidden
+behavior.
 
 One more planner rule is load-bearing here: in recursive range mode,
 child libraries are generated **on demand per parent**, and every

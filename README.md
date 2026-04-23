@@ -341,10 +341,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   descendants. Parent outputs can be genuine combinational functions of
   child instance outputs, and hierarchy manifests now report both the
   composition facts and the realized tree shape numerically, including
-  per-parent-depth branching summaries. The
-  Phase 4 hierarchy matrix is now fully banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`,
-  while the focused smokes at
+  per-parent-depth branching summaries plus
+  `leaf_module_occurrences_by_depth` for mixed-depth trust. The
+  repo-owned Phase 4 hierarchy matrix remains banked at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r9/tool_matrix_report.json`
+  for the wrapper, exact-depth recursive, and per-depth-override
+  profiles already folded into `tool_matrix`, while the focused smokes
+  at
   `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
   `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` remain useful
   targeted proofs. The latter proves depth-specific branching control
@@ -352,9 +355,16 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
   `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
   `hierarchy_parent_composed_outputs = 36`, and
-  `top_parent_composed_outputs = 18`. The refreshed recursive Phase 4
-  matrix is now fully banked; the next honest work is deeper hierarchy
-  capability rather than another closure refresh. Parameterization and
+  `top_parent_composed_outputs = 18`. Current HEAD now also has focused
+  mixed-depth recursive proof at
+  `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, where the
+  design metrics show
+  `realized_min_leaf_depth = 2`,
+  `realized_max_leaf_depth = 3`, and
+  `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}` with clean
+  Verilator plus both repo-owned Yosys modes. The next honest work is
+  to fold that mixed-depth axis into the repo-owned Phase 4 gate, then
+  keep pushing deeper hierarchy capability. Parameterization and
   broader artifact-family selection are still roadmap work. See
   `ROADMAP.md` for phase gating.
 
