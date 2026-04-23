@@ -201,7 +201,7 @@ It also keeps the open work honest. The following are **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 wrapper gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 - `12` scenarios
 - `4` designs/scenario
 - `48` total designs
@@ -215,8 +215,8 @@ facts: multifile hierarchy designs, correct top-module tool invocation,
 real child instances, and real `Node::InstanceOutput` use.
 
 Current HEAD has widened the wrapper planner beyond the exact-once case,
-but the broadened repo-owned full rerun is not yet banked. The new
-behaviors are still proven locally:
+and that broadened repo-owned rerun is now banked too. The focused
+local proofs remain useful:
 
 - `/tmp/anvil-hier-reuse-smoke-r1` is clean in Verilator, Yosys
   `synth -noabc`, and the repo-owned ABC-enabled Yosys path, and proves
@@ -224,23 +224,22 @@ behaviors are still proven locally:
 - `/tmp/anvil-hier-under-smoke-r2` is clean in the same three lanes and
   proves under-instantiation of the leaf library; and
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
-  targets exact / reuse / under-instantiation profiles, but the fresh
-  rerun at `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` was
-  intentionally stopped after 14 clean design checkpoints when
-  `seq_nodeid_egraph_phase4_hier4_inst4_seq` exposed the next runtime
-  hotspot.
+  targets exact / reuse / under-instantiation profiles, and the fresh
+  rerun at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7` closes them
+  cleanly with `coverage_gaps = []` and `48/0` pass-fail in Verilator
+  plus both repo-owned Yosys modes. The older `r6` partial rerun is now
+  only historical evidence that the heavy sequential hierarchy corners
+  are runtime-expensive rather than malformed.
 
 ## The next real steps
 
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. close the refreshed exact / reuse / under-instantiation Phase 4
-   matrix with a runtime-stable repo-owned rerun;
-2. let parent cone generation choose sub-instances as one of the real
+1. let parent cone generation choose sub-instances as one of the real
    answers to "what drives this signal?";
-3. add deeper bounded recursion (`hierarchy_depth > 1`);
-4. add the on-demand child-sourcing path beside the current
+2. add deeper bounded recursion (`hierarchy_depth > 1`);
+3. add the on-demand child-sourcing path beside the current
    pre-generated library path.
 
 Only after that does Phase 4 become "done" in the same sense that the

@@ -397,7 +397,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 wrapper-hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 records:
 
 - `12` scenarios
@@ -409,16 +409,16 @@ records:
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
 
-That report is still the last fully banked repo-owned Phase 4 closure
-artifact. Current HEAD has since broadened wrapper planning with
-`--num-child-instances` and matching `tool_matrix` coverage facts for
-exact / reuse / under-instantiation, but the fresh full rerun of that
-broadened matrix was intentionally stopped after 14 clean design
-checkpoints at `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` when the
-heavy `seq_nodeid_egraph_phase4_hier4_inst4_seq` corner became the next
-runtime hotspot. The new behaviors themselves are still locally proven
-clean at `/tmp/anvil-hier-reuse-smoke-r1` and
-`/tmp/anvil-hier-under-smoke-r2`.
+That refreshed report is the current fully banked repo-owned Phase 4
+closure artifact. It already covers the broadened
+`--num-child-instances` planner with representative exact / reuse /
+under-instantiation profiles, so those behaviors are no longer
+justified only by focused smokes. The focused clean proofs at
+`/tmp/anvil-hier-reuse-smoke-r1` and `/tmp/anvil-hier-under-smoke-r2`
+still remain useful evidence. The old `r6` partial rerun is now only
+historical debugging evidence: the heavy `*_hier4_inst4_seq` corners are
+slow because they elaborate/synthesize very large sequential child
+libraries under tiny wrapper tops, but they do close cleanly.
 
 `tool_matrix` now writes per-module or per-design checkpoint sidecars
 and supports `--resume`, so interrupted output trees can be continued in

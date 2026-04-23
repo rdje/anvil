@@ -200,7 +200,7 @@ So the deliberate rule now is:
 That keeps the output legal and simple, and it fixes the real cause
 instead of wrapping an invalid shape in more syntax.
 
-### The broadened Phase 4 matrix found the next runtime hotspot
+### The broadened Phase 4 matrix found the next runtime cost shape
 After landing `num_child_instances`, the Phase 4 `tool_matrix` planning
 was widened from the old "leaf count x comb/seq" wrapper sweep to four
 more truthful representative profiles:
@@ -210,20 +210,22 @@ more truthful representative profiles:
 - `phase4_hier4_inst2_comb`  — under-instantiated library
 - `phase4_hier4_inst4_seq`   — exact cardinality at the heavier end
 
-That is the right coverage model for the current wrapper slice, but a
-fresh full rerun showed the next bottleneck clearly: the heavy
-sequential `hier4_inst4_seq` case spent minutes inside Yosys
-`synth -noabc` on one emitted design. That is a runtime calibration
-issue, not a correctness failure.
+That is the right coverage model for the current wrapper slice, and the
+full refreshed rerun now closes cleanly at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`.
+But the reruns also made the runtime story obvious: the heavy
+sequential `hier4_inst4_seq` cases spend real time inside Yosys because
+they elaborate/synthesize tiny wrapper tops over very large sequential
+child libraries.
 
-So the honest state after this slice is:
+So the durable lesson is:
 
-- the code and tests now model the right exact / reuse /
-  under-instantiation profiles;
-- focused clean downstream smokes prove the new behavior directly; and
-- the older `/tmp/anvil-tool-matrix-phase4-hierarchy-r3` report remains
-  the last fully banked repo-owned Phase 4 closure artifact until the
-  broadened matrix has a runtime-stable closure pass of its own.
+- this is a downstream cost shape, not a malformed-output bug;
+- the refreshed exact / reuse / under-instantiation matrix is now
+  actually banked cleanly at `r7`; and
+- future Phase 4 work should keep watching those heavy sequential
+  corners, because they are the place where hierarchy cost surfaces
+  first even when the emitted RTL is valid.
 
 ### Wrapped-add bounds must preserve a shifted single interval when it stays linear
 The `e-graph` warning in

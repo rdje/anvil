@@ -376,7 +376,7 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The current Phase 4 wrapper slice now
 has its own repo-owned gate too via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
 (48 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 48/0 pass-fail in Verilator plus both repo-owned Yosys modes). The old
 hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1` remains clean in
@@ -384,9 +384,11 @@ Verilator, Yosys `synth -noabc`, and the repo-owned ABC path. Current
 HEAD has since widened wrapper planning with `num_child_instances`;
 repeated child-definition reuse and under-instantiated-library cases
 are proven clean at `/tmp/anvil-hier-reuse-smoke-r1` and
-`/tmp/anvil-hier-under-smoke-r2`, while the refreshed full rerun at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r6` identified the next
-runtime hotspot in `seq_nodeid_egraph_phase4_hier4_inst4_seq`.
+`/tmp/anvil-hier-under-smoke-r2`, and the refreshed full rerun at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r7` now banks the broadened
+exact / reuse / under-instantiation matrix directly. The old `r6`
+partial rerun remains useful only as evidence that the heavy
+`seq_nodeid_egraph_phase4_hier4_inst4_seq` corner is runtime-expensive.
 
 ## Error handling
 

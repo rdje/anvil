@@ -210,7 +210,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 wrapper-hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r7`. Its final
 `tool_matrix_report.json` records:
 
 - `12` scenarios
@@ -222,17 +222,17 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r3`. Its final
 - `Yosys without-abc pass/fail = 48/0`
 - `Yosys with-abc pass/fail = 48/0`
 
-That report remains the last fully banked repo-owned Phase 4 closure
-artifact. Current HEAD has since broadened the wrapper slice with
-`--num-child-instances`, which separates leaf-library size from
-instantiated child count and makes exact, reuse, and
-under-instantiation profiles explicit. Those new behaviors are proven
-locally by the clean focused smokes at `/tmp/anvil-hier-reuse-smoke-r1`
-and `/tmp/anvil-hier-under-smoke-r2`; the fresh full rerun of the
-broadened Phase 4 matrix is the next runtime-closure pass after
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r6` exposed
-`seq_nodeid_egraph_phase4_hier4_inst4_seq` as the next Yosys hot
-corner. Current hierarchy manifests and design reports now also embed
+That refreshed report is the current fully banked repo-owned Phase 4
+closure artifact for the live wrapper slice. It covers the broadened
+`--num-child-instances` planner directly, so exact, reuse, and
+under-instantiation profiles are no longer justified only by focused
+smokes. Those focused clean smokes at `/tmp/anvil-hier-reuse-smoke-r1`
+and `/tmp/anvil-hier-under-smoke-r2` still remain useful proof points.
+The old `r6` partial rerun is now only historical debugging evidence:
+the heavy `*_hier4_inst4_seq` corners are genuinely expensive in Yosys
+because they elaborate/synthesize very large sequential child
+libraries, but they do close cleanly. Current hierarchy manifests and
+design reports now also embed
 per-design composition metrics, so wrapper quality can be read from
 exact numbers instead of by manually inspecting the emitted `.sv`.
 
@@ -323,13 +323,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   visibility follows the hierarchy doctrine exactly: pure comb-only
   modules omit `clk` / `rst_n`, sequential leaves emit them, and
   wrapper ancestors keep them visible iff they carry sequential
-  descendants. The original
-  wrapper slice still has a dedicated repo-owned clean-run gate at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r3/tool_matrix_report.json`
+  descendants. The refreshed
+  wrapper slice now has a dedicated repo-owned clean-run gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
   (`48` designs, `coverage_gaps = []`, and `48/0` pass-fail in
-  Verilator plus both repo-owned Yosys modes); the broadened
-  exact / reuse / under-instantiation matrix is the next Phase 4
-  runtime-closure pass. Recursive parent-side hierarchy generation,
+  Verilator plus both repo-owned Yosys modes), and that report already
+  covers the broadened exact / reuse / under-instantiation planner.
+  Recursive parent-side hierarchy generation,
   parameterization, and broader artifact-family selection are still
   roadmap work. See `ROADMAP.md` for phase gating.
 

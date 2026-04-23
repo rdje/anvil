@@ -1,9 +1,87 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-0210 — Land trustworthy hierarchy design metrics
+## 2026-04-23-1507 — Close refreshed Phase 4 hierarchy matrix cleanly
 
 **Landed as:** this commit
+
+**What changed**
+
+- No Rust source changed in this slice. The work was a fresh full rerun
+  of the broadened repo-owned Phase 4 hierarchy gate on current HEAD:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r7 --phase4-hierarchy-gate --yosys-mode both`
+- The saved report at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
+  is now the current repo-owned closure artifact for the live wrapper
+  slice. It proves the widened exact / reuse / under-instantiation
+  matrix directly:
+  - `12` scenarios
+  - `4` designs/scenario
+  - `48` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 48/0`
+  - `Yosys without-abc pass/fail = 48/0`
+  - `Yosys with-abc pass/fail = 48/0`
+- The report also banks the broader wrapper-coverage facts that matter
+  for trust:
+  - `hierarchy_child_instance_counts = ["2", "4"]`
+  - `saw_reused_child_definition = true`
+  - `saw_underinstantiated_library = true`
+  - `saw_hierarchy_design = true`
+  - `saw_multifile_design = true`
+- The old runtime suspicion is resolved more honestly now. The heavy
+  `*_hier4_inst4_seq` corners are genuinely expensive because they
+  elaborate/synthesize tiny wrapper tops over very large sequential
+  child libraries, but they do close cleanly. The root cause was
+  downstream cost, not malformed hierarchy output.
+
+**Why**
+
+- After `num_child_instances`, reuse, under-instantiation, and
+  design-level hierarchy metrics landed, the repo truth still said that
+  the broadened Phase 4 matrix was only proven by focused smokes. That
+  was no longer acceptable; the widened matrix needed the same kind of
+  repo-owned clean closure artifact as Phases 1-3.
+
+**Proof**
+
+- Fresh full gate:
+  - `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r7 --phase4-hierarchy-gate --yosys-mode both`
+  - final report:
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r7/tool_matrix_report.json`
+- Full hygiene gate on the final tree:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+
+**Impact**
+
+- The refreshed Phase 4 wrapper matrix is now banked as a real
+  repo-owned closure artifact, not just a set of focused smokes plus an
+  interrupted partial rerun.
+- Phase 4 still stays `in progress`, because the phase is broader than
+  the current wrapper slice: parent-side cone construction from
+  instance outputs, depth > 1, on-demand child sourcing, and eventual
+  hierarchy-aware identity are still open.
+
+**Files touched**
+
+- `CHANGES.md`
+- `MEMORY.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-04-23-0210 — Land trustworthy hierarchy design metrics
+
+**Landed as:** `8d7795d`
 
 **What changed**
 
