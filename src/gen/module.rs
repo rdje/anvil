@@ -398,6 +398,13 @@ fn compute_required_primary_input_widths(m: &Module) -> std::collections::HashMa
             note_use(*port, *width);
         }
     }
+    for instance in &m.instances {
+        for (_, node_id) in &instance.inputs {
+            if let Node::PrimaryInput { port, width } = &m.nodes[*node_id as usize] {
+                note_use(*port, *width);
+            }
+        }
+    }
     for flop in &m.flops {
         if let Some(d) = flop.d {
             if let Node::PrimaryInput { port, width } = &m.nodes[d as usize] {
@@ -662,6 +669,11 @@ fn count_orphan_gates(m: &Module) -> usize {
     for (_, root) in &m.drives {
         used[*root as usize] = true;
     }
+    for instance in &m.instances {
+        for (_, node_id) in &instance.inputs {
+            used[*node_id as usize] = true;
+        }
+    }
     m.nodes
         .iter()
         .enumerate()
@@ -672,6 +684,7 @@ fn count_orphan_gates(m: &Module) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::Instance;
 
     #[test]
     fn shrink_primary_input_trims_unused_high_bits() {
@@ -744,5 +757,64 @@ mod tests {
             Node::PrimaryInput { width, .. } => assert_eq!(*width, 12),
             other => panic!("expected primary input, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn shrink_primary_input_keeps_full_width_for_instance_input_binding() {
+        let mut m = Module::default();
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 25,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 3,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 25 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Slice { hi: 2, lo: 0 },
+            operands: vec![0],
+            width: 3,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((1, 1));
+        m.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(3, 0)],
+        });
+
+        shrink_primary_inputs_to_live_width(&mut m);
+
+        assert_eq!(m.inputs[0].width, 25);
+        match &m.nodes[0] {
+            Node::PrimaryInput { width, .. } => assert_eq!(*width, 25),
+            other => panic!("expected primary input, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn orphan_gate_count_treats_instance_input_binding_as_consumer() {
+        let mut m = Module::default();
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: DepSet::from_port(0),
+        });
+        m.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 1)],
+        });
+
+        assert_eq!(count_orphan_gates(&m), 0);
     }
 }

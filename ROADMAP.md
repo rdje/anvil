@@ -283,7 +283,11 @@ evidence.
     `--hierarchy-sibling-route-prob <p>`, which lets later child data
     inputs bind from earlier sibling instance outputs while staying
     acyclic by construction. This routing is intentionally
-    combinational-only in the current slice.
+    combinational-only in the current slice. The same slice now also
+    exposes `--hierarchy-child-input-cone-prob <p>`, which lets child
+    data inputs bind through parent-local combinational cones over
+    already-available parent sources: parent data inputs, earlier
+    sibling instance outputs, and earlier parent-side route gates.
 - Current slice constraints:
   - parent-side hierarchy is still combinational only in the current
     slice; local parent flops are not live yet
@@ -294,7 +298,7 @@ evidence.
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
   - deeper parent-side routing/composition beyond the current
-    combinational sibling-binding surface
+    combinational sibling-binding and parent-input-cone surfaces
   - local parent state where it is structurally warranted
   - name uniqueness across the full module set
   - hierarchical identity as future required work: under
@@ -304,7 +308,7 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
@@ -322,6 +326,7 @@ proves all of the current representative hierarchy axes directly:
 - real per-depth branching metrics
 - real parent-side composition above instance outputs
 - real sibling-routed hierarchy child inputs
+- real parent-composed hierarchy child-input bindings
 - real structural proof that on-demand child sourcing emitted fresh
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane
@@ -367,13 +372,25 @@ SV inspection:
 `hierarchy_parent_composed_outputs = 36`, and
 `top_parent_composed_outputs = 18`.
 
+**Focused parent-composed child-input proof (new targeted evidence):**
+current HEAD also supports parent-local combinational cones for child
+data input bindings. The focused proof artifact is
+`/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`, clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
+path. The design metrics there prove the route numerically:
+`child_input_bindings_from_parent_composed_logic = 13`,
+`top_child_input_bindings_from_parent_composed_logic = 13`,
+`parent_composed_child_input_binding_fraction = 0.9285714285714286`,
+and `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
+
 **Broadened wrapper planning (landed, closure refreshed):** the legacy
 wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The old `r7` report is
 now the historical wrapper-baseline artifact; `r9` is the pre-mixed
 recursive bank, `r10` is the pre-child-sourcing recursive bank, and
-`r13` is the current fully banked Phase 4 hierarchy closure artifact.
+`r13` is the pre-parent-input-cone bank. `r15` is the current fully
+banked Phase 4 hierarchy closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue

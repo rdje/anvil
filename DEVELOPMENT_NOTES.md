@@ -154,7 +154,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 repo-owned Phase 4 gate has now caught up at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`,
 so the mixed-depth story is no longer "focused-only" evidence.
 - the emitter was still assuming every child output had a corresponding
   `Node::InstanceOutput`. That is no longer true once the parent may use
@@ -279,7 +279,7 @@ human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The refreshed
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`,
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`,
 not `r11`, and it now explicitly proves both child-sourcing modes
 (`library` and `on-demand`) together with structural proof that the
 on-demand scenarios really emitted fresh child definitions per planned
@@ -322,8 +322,44 @@ trustworthy feature. The design reports now distinguish:
 The focused proof artifact is now
 `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
 repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
 now requires `saw_hierarchy_sibling_routing = true`.
+
+### Parent-composed child-input bindings are the cone-builder analogue of sibling routing
+The next hierarchy routing step keeps the same phase boundary but
+removes one more artificial flat-wrapper shape. Direct sibling routing
+answers "can a later child consume an earlier child output?" Parent-
+composed child-input binding answers "can the parent build a small
+combinational cone for a child input, using the same generator machinery
+as leaf cones?"
+
+The live rule is deliberately narrow and structural:
+
+- `hierarchy_child_input_cone_prob` controls the probability of this
+  route;
+- the cone's source pool contains only already-available parent sources:
+  parent data inputs, earlier sibling instance outputs, and earlier
+  parent-side route gates;
+- local parent flops stay disabled, so this is still a purely
+  combinational composition surface; and
+- the rule applies to both the legacy wrapper lane and the bounded
+  recursive lane.
+
+This is the shape the user suggested: at the composition level, replace
+"gate" by "child module" where it makes sense, but keep the first slice
+combinational. Registered child-to-child routing remains a later,
+separate hierarchy surface.
+
+The metrics contract grew again with
+`child_input_bindings_from_parent_composed_logic`,
+`parent_composed_child_input_binding_fraction`, and
+`top_parent_composed_child_input_binding_fraction`. The repo-owned
+Phase 4 gate now treats this as a required coverage fact via
+`saw_hierarchy_parent_composed_child_inputs`, and
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+proves it with `coverage_gaps = []` and 84/0 clean pass-fail in
+Verilator plus both repo-owned Yosys modes. The focused targeted proof
+is `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

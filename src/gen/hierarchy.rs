@@ -337,12 +337,15 @@ fn generate_parent_module(
     top.reset = shared_reset.map(|(port_id, _)| port_id);
 
     let mut external_input_pool = SignalPool::new();
+    let mut parent_source_pool = SignalPool::new();
     let mut planned_outputs = Vec::new();
     if let Some(profile) = external_profile {
         for (idx, width) in profile.data_input_widths.iter().copied().enumerate() {
             let (port_id, node_id) =
                 add_top_input(&mut top, &mut next_port_id, &format!("i_{}", idx), width);
-            external_input_pool.add(node_id, width, DepSet::from_port(port_id));
+            let deps = DepSet::from_port(port_id);
+            external_input_pool.add(node_id, width, deps.clone());
+            parent_source_pool.add(node_id, width, deps);
         }
         for (idx, width) in profile.output_widths.iter().copied().enumerate() {
             let port_id = next_port_id;
@@ -386,6 +389,7 @@ fn generate_parent_module(
             top: &mut top,
             instance_pool: &mut instance_pool,
             external_input_pool: &mut external_input_pool,
+            parent_source_pool: &mut parent_source_pool,
             next_port_id: &mut next_port_id,
         };
         for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
@@ -403,6 +407,7 @@ fn generate_parent_module(
             top,
             instance_pool,
             external_input_pool: _,
+            parent_source_pool,
             next_port_id,
         } = binding_ctx;
 
@@ -420,11 +425,9 @@ fn generate_parent_module(
                 port: child_output.id,
                 width: child_output.width,
             });
-            instance_pool.add(
-                node_id,
-                child_output.width,
-                DepSet::from_instance_output_virtual(instance_id, child_output.id),
-            );
+            let deps = DepSet::from_instance_output_virtual(instance_id, child_output.id);
+            instance_pool.add(node_id, child_output.width, deps.clone());
+            parent_source_pool.add(node_id, child_output.width, deps);
             if external_profile.is_none() {
                 let top_output_id = *next_port_id;
                 *next_port_id += 1;
@@ -461,6 +464,7 @@ struct ChildInputBindingContext<'a> {
     top: &'a mut Module,
     instance_pool: &'a mut SignalPool,
     external_input_pool: &'a mut SignalPool,
+    parent_source_pool: &'a mut SignalPool,
     next_port_id: &'a mut PortId,
 }
 
@@ -472,6 +476,19 @@ fn bind_child_input_from_parent_sources(
     width: u32,
     allow_external_pool_reuse: bool,
 ) -> NodeId {
+    if ctx
+        .parent_source_pool
+        .iter()
+        .any(|entry| !entry.deps.is_empty())
+        && roll_hierarchy_child_input_cone(
+            ctx.top,
+            &mut g.rng,
+            g.cfg.hierarchy_child_input_cone_prob,
+        )
+    {
+        return build_child_input_parent_cone(g, ctx.top, ctx.parent_source_pool, width);
+    }
+
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
         && roll_hierarchy_sibling_route(ctx.top, &mut g.rng, g.cfg.hierarchy_sibling_route_prob)
     {
@@ -489,8 +506,9 @@ fn bind_child_input_from_parent_sources(
 
     let input_name = format!("{instance_name}__{child_input_name}");
     let (port_id, node_id) = add_top_input(ctx.top, ctx.next_port_id, &input_name, width);
-    ctx.external_input_pool
-        .add(node_id, width, DepSet::from_port(port_id));
+    let deps = DepSet::from_port(port_id);
+    ctx.external_input_pool.add(node_id, width, deps.clone());
+    ctx.parent_source_pool.add(node_id, width, deps);
     node_id
 }
 
@@ -499,6 +517,31 @@ fn roll_hierarchy_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -
     m.knob_rolls
         .record(KnobId::HierarchySiblingRouteProb, fired);
     fired
+}
+
+fn roll_hierarchy_child_input_cone(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchyChildInputConeProb, fired);
+    fired
+}
+
+fn build_child_input_parent_cone(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let saved_flop_prob = g.cfg.flop_prob;
+    g.cfg.flop_prob = 0.0;
+    let mut worklist: FlopWorklist = Vec::new();
+    let root = cone::build_cone_with_retry(g, top, parent_source_pool, &mut worklist, width, None);
+    debug_assert!(
+        worklist.is_empty(),
+        "Phase 4 child-input parent cones stay combinational in the current slice"
+    );
+    g.cfg.flop_prob = saved_flop_prob;
+    root
 }
 
 fn build_parent_output_roots(

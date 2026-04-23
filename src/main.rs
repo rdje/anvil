@@ -286,6 +286,13 @@ struct Cli {
     #[arg(long)]
     hierarchy_sibling_route_prob: Option<f64>,
 
+    /// Probability that a parent binds a child data input through a
+    /// local combinational cone over already-available parent sources
+    /// (parent data inputs, earlier sibling outputs, and earlier
+    /// parent-side route gates). Local parent flops stay disabled.
+    #[arg(long)]
+    hierarchy_child_input_cone_prob: Option<f64>,
+
     /// Maximum number of times a given AST (gate expression / constant)
     /// may be materialised as a named node in one module. Default 1 =
     /// strict uniqueness (CSE). Higher N permits N copies; `u32::MAX`
@@ -594,6 +601,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         max_child_instances_per_module: cli.max_child_instances_per_module,
         child_instances_per_module_by_depth,
         hierarchy_sibling_route_prob: cli.hierarchy_sibling_route_prob,
+        hierarchy_child_input_cone_prob: cli.hierarchy_child_input_cone_prob,
     }
 }
 
@@ -686,6 +694,8 @@ mod tests {
             "0=4:4",
             "--child-instances-per-depth",
             "1=2:3",
+            "--hierarchy-child-input-cone-prob",
+            "0.75",
         ]);
         let overrides = cli_overrides(&cli);
         assert_eq!(overrides.terminal_reuse_prob, Some(0.25));
@@ -716,5 +726,6 @@ mod tests {
                 (1, CountRange { min: 2, max: 3 }),
             ]))
         );
+        assert_eq!(overrides.hierarchy_child_input_cone_prob, Some(0.75));
     }
 }

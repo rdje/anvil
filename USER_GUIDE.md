@@ -311,10 +311,14 @@ opening the emitted `.sv`, including:
   (`child_input_bindings_from_parent_ports`,
   `child_input_bindings_from_instance_outputs`,
   `child_input_bindings_from_mixed_support`,
-  `child_input_bindings_from_constants`)
+  `child_input_bindings_from_constants`,
+  `child_input_bindings_from_parent_composed_logic`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`)
+- hierarchy- and top-level parent-composed child-input fractions
+  (`parent_composed_child_input_binding_fraction`,
+  `top_parent_composed_child_input_binding_fraction`)
 - control fanout to child instances
 - weighted child interface / node / flop load
 - per-definition instantiation histogram
@@ -335,6 +339,10 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_sibling_route_prob` controls whether later child data
   inputs may bind from earlier sibling instance outputs; the current
   parent-side routing slice keeps that surface purely combinational
+- `hierarchy_child_input_cone_prob` controls whether child data inputs
+  bind through parent-local combinational cones over already-available
+  parent sources: parent data inputs, earlier sibling instance outputs,
+  and earlier parent-side route gates
 - the two knob families are intentionally mutually exclusive
 - pure comb-only modules do **not** expose `clk` / `rst_n`
 - sequential leaves do expose `clk` / `rst_n`
@@ -460,7 +468,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r13/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
 records:
 
 - `21` scenarios
@@ -481,7 +489,8 @@ per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
 child-sourcing modes `library` and `on-demand`, exact profiled
 child-interface synthesis in the on-demand lane, real mixed
 shallow/deep leaf realization, real parent-side composition above
-instance outputs, and real sibling-routed hierarchy child inputs.
+instance outputs, real sibling-routed hierarchy child inputs, and real
+parent-composed child-input bindings.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -489,7 +498,11 @@ proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-range-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
 `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json` still remain
-useful targeted evidence. The aborted `r8` rerun is now only
+useful targeted evidence. `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`
+is the focused proof for parent-composed child-input bindings
+(`child_input_bindings_from_parent_composed_logic = 13`,
+`parent_composed_child_input_binding_fraction = 0.9285714285714286`).
+The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
 fattest Phase 1 motif-heavy sequential stress shape.

@@ -486,6 +486,7 @@ fn hierarchy_child_inputs_can_be_routed_from_sibling_instance_outputs() {
                 num_leaf_modules: 2,
                 num_child_instances: 4,
                 hierarchy_sibling_route_prob: 1.0,
+                hierarchy_child_input_cone_prob: 0.0,
                 construction_strategy: strategy,
                 ..Config::default()
             };
@@ -528,6 +529,70 @@ fn hierarchy_child_inputs_can_be_routed_from_sibling_instance_outputs() {
         assert!(
             saw_sibling_routing,
             "expected at least one sibling-routed hierarchy design across the 32-seed sweep for strategy {:?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
+fn hierarchy_child_inputs_can_be_bound_through_parent_composed_logic() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let mut saw_parent_composed_binding = false;
+        for seed in 0..32u64 {
+            let cfg = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 2,
+                num_child_instances: 4,
+                hierarchy_sibling_route_prob: 0.0,
+                hierarchy_child_input_cone_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            cfg.validate()
+                .expect("parent-composed child-input hierarchy config should be valid");
+
+            let mut g = Generator::new(cfg);
+            let design = g.generate_design();
+            anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                panic!(
+                    "parent-composed hierarchy strategy {:?} seed {}: design validation failed: {}",
+                    strategy, seed, e
+                );
+            });
+
+            let metrics = anvil::metrics::compute_design(&design);
+            if metrics.child_input_bindings_from_parent_composed_logic > 0 {
+                assert!(
+                    metrics.top_child_input_bindings_from_parent_composed_logic > 0,
+                    "strategy {:?} seed {} should expose parent-composed child input bindings at the top: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.parent_composed_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero hierarchy-wide parent-composed binding fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.top_parent_composed_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero top-level parent-composed binding fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                saw_parent_composed_binding = true;
+                break;
+            }
+        }
+        assert!(
+            saw_parent_composed_binding,
+            "expected at least one parent-composed child-input hierarchy design across the 32-seed sweep for strategy {:?}",
             strategy,
         );
     }

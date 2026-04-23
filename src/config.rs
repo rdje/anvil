@@ -70,6 +70,10 @@ pub enum HierarchyChildSourceMode {
     OnDemand,
 }
 
+fn default_hierarchy_child_input_cone_prob() -> f64 {
+    0.35
+}
+
 /// Identity mode — the coarse answer to "what does a `NodeId`
 /// mean?".
 ///
@@ -404,6 +408,13 @@ pub struct Config {
     /// When the roll misses, the current parent falls back to its
     /// external input boundary.
     pub hierarchy_sibling_route_prob: f64,
+    /// Probability that a parent binds a child data input through a
+    /// local combinational cone over already-available parent sources:
+    /// current parent data inputs, earlier sibling instance outputs,
+    /// and parent-side route gates already built for previous child
+    /// bindings. Local parent flops remain disabled in this mode.
+    #[serde(default = "default_hierarchy_child_input_cone_prob")]
+    pub hierarchy_child_input_cone_prob: f64,
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
@@ -544,6 +555,7 @@ impl Default for Config {
             max_child_instances_per_module: 0,
             child_instances_per_module_by_depth: BTreeMap::new(),
             hierarchy_sibling_route_prob: 0.35,
+            hierarchy_child_input_cone_prob: default_hierarchy_child_input_cone_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -852,6 +864,10 @@ impl Config {
                 "hierarchy_sibling_route_prob",
                 self.hierarchy_sibling_route_prob,
             ),
+            (
+                "hierarchy_child_input_cone_prob",
+                self.hierarchy_child_input_cone_prob,
+            ),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
         ] {
@@ -1031,6 +1047,9 @@ impl Config {
         if let Some(v) = o.hierarchy_sibling_route_prob {
             self.hierarchy_sibling_route_prob = v;
         }
+        if let Some(v) = o.hierarchy_child_input_cone_prob {
+            self.hierarchy_child_input_cone_prob = v;
+        }
     }
 }
 
@@ -1092,6 +1111,7 @@ pub struct Overrides {
     pub max_child_instances_per_module: Option<u32>,
     pub child_instances_per_module_by_depth: Option<BTreeMap<u32, CountRange>>,
     pub hierarchy_sibling_route_prob: Option<f64>,
+    pub hierarchy_child_input_cone_prob: Option<f64>,
 }
 
 #[cfg(test)]

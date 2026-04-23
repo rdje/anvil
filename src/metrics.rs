@@ -317,6 +317,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_instance_outputs: usize,
     pub top_child_input_bindings_from_mixed_support: usize,
     pub top_child_input_bindings_from_constants: usize,
+    pub top_child_input_bindings_from_parent_composed_logic: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_outputs_reaching_instance_outputs: usize,
@@ -324,6 +325,7 @@ pub struct DesignMetrics {
     pub top_instance_output_dependency_fraction: f64,
     pub top_parent_composed_output_fraction: f64,
     pub top_instance_output_child_input_binding_fraction: f64,
+    pub top_parent_composed_child_input_binding_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
 
@@ -341,6 +343,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_instance_outputs: usize,
     pub child_input_bindings_from_mixed_support: usize,
     pub child_input_bindings_from_constants: usize,
+    pub child_input_bindings_from_parent_composed_logic: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -351,6 +354,7 @@ pub struct DesignMetrics {
     pub dep_bearing_child_input_binding_fraction: f64,
     pub instance_output_child_input_binding_fraction: f64,
     pub parent_port_child_input_binding_fraction: f64,
+    pub parent_composed_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
     pub num_sequential_leaf_modules: usize,
@@ -773,6 +777,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_parent_ports + out.child_input_bindings_from_mixed_support,
         out.total_child_data_input_bindings,
     );
+    out.parent_composed_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_parent_composed_logic,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -786,6 +794,13 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_instance_output_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_instance_outputs
             + out.top_child_input_bindings_from_mixed_support,
+        out.top_child_input_bindings_from_parent_ports
+            + out.top_child_input_bindings_from_instance_outputs
+            + out.top_child_input_bindings_from_mixed_support
+            + out.top_child_input_bindings_from_constants,
+    );
+    out.top_parent_composed_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_parent_composed_logic,
         out.top_child_input_bindings_from_parent_ports
             + out.top_child_input_bindings_from_instance_outputs
             + out.top_child_input_bindings_from_mixed_support
@@ -937,6 +952,14 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
             if !deps.is_empty() {
                 state.out.dep_bearing_child_input_bindings += 1;
             }
+            if is_parent_composed_logic_node(module, *node_id) {
+                state.out.child_input_bindings_from_parent_composed_logic += 1;
+                if module.name == state.out.design {
+                    state
+                        .out
+                        .top_child_input_bindings_from_parent_composed_logic += 1;
+                }
+            }
             let has_ports = deps.has_ports();
             let has_instance_outputs = deps.has_instance_output_virtuals();
             match (has_ports, has_instance_outputs, deps.is_empty()) {
@@ -1060,6 +1083,10 @@ fn node_deps(module: &Module, node_id: NodeId) -> crate::ir::DepSet {
         Node::Constant { .. } => crate::ir::DepSet::new(),
         Node::Gate { deps, .. } => deps.clone(),
     }
+}
+
+fn is_parent_composed_logic_node(module: &Module, node_id: NodeId) -> bool {
+    matches!(module.nodes[node_id as usize], Node::Gate { .. })
 }
 
 fn ratio(numer: usize, denom: usize) -> f64 {
@@ -1359,6 +1386,7 @@ mod tests {
             num_leaf_modules: 2,
             num_child_instances: 2,
             hierarchy_sibling_route_prob: 1.0,
+            hierarchy_child_input_cone_prob: 0.0,
             ..Config::default()
         };
         cfg.validate()

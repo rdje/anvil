@@ -1,9 +1,124 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-23-boot8 — Refresh bootstrap doc drift
+## 2026-04-23-boot9 — Land parent-composed hierarchy child inputs
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now carries `hierarchy_child_input_cone_prob`, defaulting to `0.35`,
+  as a first-class hierarchy routing knob.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  exposes that knob as `--hierarchy-child-input-cone-prob <float>`.
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  records `KnobId::HierarchyChildInputConeProb`, so the new surface is
+  visible in knob telemetry instead of being an undocumented branch.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets both wrapper and recursive hierarchy parents bind child data
+  inputs through parent-local combinational cones over already-available
+  parent sources: parent data inputs, earlier sibling instance outputs,
+  and earlier parent-side route gates. The cone builder is reused here
+  with local flops disabled, keeping the current Phase 4 surface purely
+  combinational while still mirroring the leaf generator's "drive this
+  sink from the live source pool" discipline.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports parent-composed child-input provenance through
+  `child_input_bindings_from_parent_composed_logic`,
+  `parent_composed_child_input_binding_fraction`, and their top-level
+  counterparts.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now treats parent-composed child-input bindings as required Phase 4
+  coverage, forces the knob in representative hierarchy scenarios, and
+  rejects a hierarchy gate that never proves the surface.
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  fixes a real width-finalization bug exposed by the broadened Phase 4
+  matrix: `Instance.inputs` are now treated as live consumers when
+  shrinking primary input widths and counting orphan gates, so a parent
+  primary input directly bound to a child port cannot be narrowed based
+  only on unrelated low-bit slice uses.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves parent-composed child-input bindings across the live
+  construction strategies and keeps the direct sibling-routing
+  regression isolated by disabling the new preempting cone knob.
+- Live docs and the mdBook were refreshed:
+  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
+  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+
+**Why**
+
+- The hierarchy planner had already learned to compose top outputs over
+  child outputs and to route child inputs directly from earlier
+  siblings. The next structural step was to replace direct-only child
+  input routing with a real parent-composition layer: child inputs can
+  now be driven by parent-local logic, not merely by raw top inputs or
+  raw sibling outputs.
+- The user explicitly asked for hierarchy routing to mirror the leaf
+  generator, with child modules playing the role gates play in the leaf
+  graph. This slice moves in that direction without adding local parent
+  state prematurely.
+- The Phase 4 matrix found a real generator defect while exercising the
+  new surface. Treating instance input bindings as live consumers fixes
+  the root cause rather than papering over the emitted width mismatch.
+
+**Validation**
+
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+    - 184 lib tests
+    - 5 main tests
+    - 26 `tool_matrix` tests
+    - 41 integration tests
+    - 0 doctests
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused regressions:
+  - `cargo test --test pipeline hierarchy_child_inputs`
+  - `cargo test --bin tool_matrix phase4_hierarchy`
+  - `cargo test --lib instance_input_binding`
+  - `cargo test --lib design_metrics_capture_sibling_routed_child_inputs`
+- Focused parent-composed child-input smoke:
+  `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json` records
+  `child_input_bindings_from_parent_composed_logic = 13`,
+  `top_child_input_bindings_from_parent_composed_logic = 13`,
+  `parent_composed_child_input_binding_fraction = 0.9285714285714286`,
+  and
+  `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
+  The emitted design is clean in Verilator, Yosys `synth -noabc`, and
+  the repo-owned Yosys with-ABC path.
+- Width-bug repro after the fix:
+  `/tmp/anvil-hier-child-cone-width-repro-r3` is clean in Verilator,
+  Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path.
+- Refreshed repo-owned Phase 4 gate:
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r15/tool_matrix_report.json`
+  closes at 21 scenarios, 4 designs/scenario, 84 total designs,
+  `coverage_gaps = []`, and `84/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes.
+
+**Impact**
+
+- Phase 4 hierarchy now has a measurable parent-composed child-input
+  lane in addition to direct sibling routing and parent-composed top
+  outputs.
+- Hierarchy quality can be judged from metrics instead of visually
+  inspecting emitted `.sv` files for this surface.
+- Remaining Phase 4 work stays explicit: richer parent-side
+  composition, local parent state where structurally warranted, and
+  future hierarchy-aware identity/factorization.
+
+## 2026-04-23-boot8 — Refresh bootstrap doc drift
+
+**Landed as:** `8944c1401bb3e66c87d3978d596bacb3adab0f26`
 
 **What changed**
 

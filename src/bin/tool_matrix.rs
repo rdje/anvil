@@ -238,6 +238,7 @@ struct CoverageSummary {
     saw_on_demand_child_sourcing: bool,
     saw_profiled_child_interface_synthesis: bool,
     saw_hierarchy_sibling_routing: bool,
+    saw_hierarchy_parent_composed_child_inputs: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
     saw_mixed_leaf_depth_hierarchy: bool,
@@ -1189,6 +1190,7 @@ fn phase4_hierarchy_comb_focus_config(
         num_child_instances,
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -1204,6 +1206,7 @@ fn phase4_hierarchy_seq_focus_config(
         num_child_instances,
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -1216,6 +1219,7 @@ fn phase4_recursive_comb_focus_config(strategy: ConstructionStrategy, seed: u64)
         3,
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -1232,6 +1236,7 @@ fn phase4_recursive_profile_seq_focus_config(strategy: ConstructionStrategy, see
         ]),
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -1247,6 +1252,7 @@ fn phase4_recursive_mixed_depth_comb_focus_config(
         2,
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -1265,6 +1271,7 @@ fn phase4_recursive_ondemand_comb_focus_config(
         HierarchyChildSourceMode::OnDemand,
     );
     cfg.hierarchy_sibling_route_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
     cfg
 }
 
@@ -2439,6 +2446,10 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
         coverage.saw_hierarchy_sibling_routing |=
             design.metrics.child_input_bindings_from_instance_outputs > 0
                 || design.metrics.child_input_bindings_from_mixed_support > 0;
+        coverage.saw_hierarchy_parent_composed_child_inputs |= design
+            .metrics
+            .child_input_bindings_from_parent_composed_logic
+            > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -2501,6 +2512,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_on_demand_child_sourcing |= src.saw_on_demand_child_sourcing;
     dst.saw_profiled_child_interface_synthesis |= src.saw_profiled_child_interface_synthesis;
     dst.saw_hierarchy_sibling_routing |= src.saw_hierarchy_sibling_routing;
+    dst.saw_hierarchy_parent_composed_child_inputs |=
+        src.saw_hierarchy_parent_composed_child_inputs;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
     dst.saw_mixed_leaf_depth_hierarchy |= src.saw_mixed_leaf_depth_hierarchy;
@@ -2882,6 +2895,11 @@ fn compute_coverage_gaps(
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_hierarchy_sibling_routing {
         gaps.push("matrix never proved sibling-routed hierarchy child inputs".to_string());
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_hierarchy_parent_composed_child_inputs
+    {
+        gaps.push("matrix never proved parent-composed hierarchy child input bindings".to_string());
+    }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_recursive_hierarchy {
         gaps.push("matrix never emitted a recursive hierarchy design".to_string());
     }
@@ -2947,6 +2965,7 @@ fn compute_coverage_gaps(
             "casez_mux_prob",
             "for_fold_prob",
             "priority_encoder_prob",
+            "hierarchy_child_input_cone_prob",
         ],
     };
     for &knob in required_knobs {
@@ -3432,6 +3451,7 @@ mod tests {
                 scenario.config.factorization_level,
                 FactorizationLevel::EGraph
             );
+            assert_eq!(scenario.config.hierarchy_child_input_cone_prob, 1.0);
         }
         assert_eq!(scenarios.len(), 21);
         assert_eq!(names.len(), 21);
@@ -3546,6 +3566,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("sibling-routed hierarchy child inputs")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("parent-composed hierarchy child input bindings")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
         assert!(gaps
             .iter()
@@ -3565,6 +3588,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("composed above instance outputs")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("hierarchy_child_input_cone_prob")));
     }
 
     #[test]
