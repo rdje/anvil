@@ -254,6 +254,10 @@ pub enum KnobId {
     /// binds a child data input from a previously-instantiated
     /// sibling output when such a source is available.
     HierarchySiblingRouteProb,
+    /// `Config::hierarchy_registered_sibling_route_prob` — chance
+    /// that a parent binds a later child data input from an earlier
+    /// sibling output through one local parent flop.
+    HierarchyRegisteredSiblingRouteProb,
     /// `Config::hierarchy_child_input_cone_prob` — chance that a
     /// parent binds a child data input through a local combinational
     /// cone over already-available parent sources.
@@ -287,6 +291,9 @@ impl KnobId {
             KnobId::FlopMuxEncodingProb => "flop_mux_encoding_prob",
             KnobId::ShareProb => "share_prob",
             KnobId::HierarchySiblingRouteProb => "hierarchy_sibling_route_prob",
+            KnobId::HierarchyRegisteredSiblingRouteProb => {
+                "hierarchy_registered_sibling_route_prob"
+            }
             KnobId::HierarchyChildInputConeProb => "hierarchy_child_input_cone_prob",
             KnobId::HierarchyParentFlopProb => "hierarchy_parent_flop_prob",
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
@@ -1839,6 +1846,13 @@ impl DepSet {
         self.set
             .iter()
             .any(|atom| matches!(atom, DepAtom::FlopVirtual(_)))
+    }
+
+    pub fn flop_virtuals(&self) -> impl Iterator<Item = FlopId> + '_ {
+        self.set.iter().filter_map(|atom| match atom {
+            DepAtom::FlopVirtual(flop) => Some(*flop),
+            _ => None,
+        })
     }
 
     pub fn contains_instance_output_virtual(&self, instance: InstanceId, port: PortId) -> bool {

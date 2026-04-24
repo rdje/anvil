@@ -340,8 +340,12 @@ instead of creating fresh logic.
 - `hierarchy_sibling_route_prob` — probability that later child data
   inputs bind from earlier sibling instance outputs instead of always
   binding from parent-boundary inputs. Range `[0.0, 1.0]`. Default
-  `0.35`. Direct sibling routing is combinational; registered routing
-  can be exercised through the parent-local state knob below.
+  `0.35`. Direct sibling routing is combinational.
+- `hierarchy_registered_sibling_route_prob` — probability that later
+  child data inputs bind from earlier sibling instance outputs through
+  one local parent flop. Range `[0.0, 1.0]`. Default `0.0`, so the
+  registered child-to-child axis is opt-in and remains distinct from
+  the direct combinational sibling route.
 - `hierarchy_child_input_cone_prob` — probability that a child data
   input binds through a parent-local combinational cone instead of a
   direct parent-port or sibling-output route. The cone may use
@@ -425,6 +429,7 @@ Config {
     num_child_instances: 0,
     hierarchy_child_source_mode: HierarchyChildSourceMode::Library,
     hierarchy_sibling_route_prob: 0.35,
+    hierarchy_registered_sibling_route_prob: 0.0,
     hierarchy_child_input_cone_prob: 0.35,
     hierarchy_parent_flop_prob: 0.0,
     min_hierarchy_depth: 0,
@@ -610,6 +615,7 @@ which are bugs worth investigating.
 | `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, `num_gates`, `semantic_gates_merged`, and `flops_merged`: `relaxed` disables the ladder entirely, so multiplicities rise, raw gate count rises, and both post-construction semantic merges drop to 0 |
 | `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `e-graph`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above; `semantic_gates_merged` becomes eligible at `e-graph` |
 | `hierarchy_sibling_route_prob` | `child_input_bindings_from_instance_outputs`, `child_input_bindings_from_mixed_support`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
+| `hierarchy_registered_sibling_route_prob` | `child_input_bindings_from_registered_instance_outputs`, `top_child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_child_input_cone_prob` | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction` |
 
@@ -642,6 +648,7 @@ counts taken during construction. The empirical fire-rate
   `constant_prob`, `terminal_reuse_prob`,
   `comb_mux_encoding_prob`, `flop_mux_encoding_prob`,
   `share_prob`, `flop_qfeedback_prob`, `hierarchy_sibling_route_prob`,
+  `hierarchy_registered_sibling_route_prob`,
   `hierarchy_child_input_cone_prob`, `hierarchy_parent_flop_prob`).
 
 This is the measurability doctrine in its most direct form:

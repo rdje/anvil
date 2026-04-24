@@ -313,7 +313,8 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_mixed_support`,
   `child_input_bindings_from_constants`,
   `child_input_bindings_from_parent_composed_logic`,
-  `child_input_bindings_from_parent_flops`)
+  `child_input_bindings_from_parent_flops`,
+  `child_input_bindings_from_registered_instance_outputs`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`)
@@ -323,6 +324,9 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level parent-flop child-input fractions
   (`parent_flop_child_input_binding_fraction`,
   `top_parent_flop_child_input_binding_fraction`)
+- hierarchy- and top-level registered sibling-route fractions
+  (`registered_instance_output_child_input_binding_fraction`,
+  `top_registered_instance_output_child_input_binding_fraction`)
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -347,6 +351,10 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_sibling_route_prob` controls whether later child data
   inputs may bind from earlier sibling instance outputs; the current
   parent-side routing slice keeps that surface purely combinational
+- `hierarchy_registered_sibling_route_prob` controls whether later
+  child data inputs bind from earlier sibling instance outputs through
+  one local parent flop; default `0.0` keeps this registered
+  child-to-child axis opt-in
 - `hierarchy_child_input_cone_prob` controls whether child data inputs
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
@@ -426,8 +434,9 @@ Useful options:
   representative recursive profiles (depth `2`, child-instance ranges
   `[2:3]` and `[1:3]`), the per-depth override profile
   `0=4:4,1=2:2`, explicit child-sourcing modes
-  `library` and `on-demand`, and real parent-side composition above
-  instance outputs.
+  `library` and `on-demand`, real sibling-routed and registered
+  sibling-routed child-input bindings, and real parent-side composition
+  above instance outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -483,17 +492,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
 records:
 
-- `24` scenarios
+- `27` scenarios
 - `4` designs per scenario
-- `96` total designs
+- `108` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 96/0`
-- `Yosys without-abc pass/fail = 96/0`
-- `Yosys with-abc pass/fail = 96/0`
+- `Verilator pass/fail = 108/0`
+- `Yosys without-abc pass/fail = 108/0`
+- `Yosys with-abc pass/fail = 108/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
@@ -506,7 +515,7 @@ child-interface synthesis in the on-demand lane, real mixed
 shallow/deep leaf realization, real parent-side composition above
 instance outputs, real sibling-routed hierarchy child inputs, and real
 parent-composed child-input bindings, plus explicit parent-local flop
-state.
+state and registered sibling-routed child-input bindings.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -523,6 +532,12 @@ proof for local parent state
 (`hierarchy_parent_local_flops = 8`, `top_local_flops = 8`,
 `top_clock_inputs = 1`, `top_reset_inputs = 1`, and
 `child_input_bindings_from_parent_flops = 1`).
+`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json` is the
+focused proof for registered sibling-routed child-input bindings
+(`child_input_bindings_from_registered_instance_outputs = 4`,
+`registered_instance_output_child_input_binding_fraction = 0.8`,
+`hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
+`top_reset_inputs = 1`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

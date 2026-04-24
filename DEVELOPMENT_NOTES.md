@@ -154,7 +154,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 current repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
 also proves it, so the mixed-depth story is no longer "focused-only"
 evidence.
 - the emitter was still assuming every child output had a corresponding
@@ -280,7 +280,7 @@ human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The current
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`,
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`,
 and it explicitly proves both child-sourcing modes (`library` and
 `on-demand`) together with structural proof that the on-demand
 scenarios really emitted fresh child definitions per planned instance
@@ -324,7 +324,7 @@ trustworthy feature. The design reports now distinguish:
 The focused proof artifact is now
 `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
 repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
 now requires `saw_hierarchy_sibling_routing = true`.
 
 ### Parent-composed child-input bindings are the cone-builder analogue of sibling routing
@@ -350,8 +350,10 @@ For that slice, the rule was deliberately narrow and structural:
 This is the shape the user suggested: at the composition level, replace
 "gate" by "child module" where it makes sense, but keep that first
 slice combinational. Local parent flops are now landed under
-`hierarchy_parent_flop_prob`; registered child-to-child routing remains
-a later, separate hierarchy surface.
+`hierarchy_parent_flop_prob`; the first one-flop registered sibling
+route is now landed under `hierarchy_registered_sibling_route_prob`,
+while richer registered child-to-child routing remains a later,
+separate hierarchy surface.
 
 The metrics contract grew again with
 `child_input_bindings_from_parent_composed_logic`,
@@ -359,9 +361,9 @@ The metrics contract grew again with
 `top_parent_composed_child_input_binding_fraction`. The repo-owned
 Phase 4 gate treats this as a required coverage fact via
 `saw_hierarchy_parent_composed_child_inputs`; the current banked gate
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
 proves it together with local parent state, `coverage_gaps = []`, and
-96/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
+108/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
 The focused targeted proof is
 `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
 
@@ -401,9 +403,35 @@ The focused proof is
 `child_input_bindings_from_parent_flops = 1`), clean in Verilator,
 Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
 repo-owned Phase 4 gate now also banks this as a required coverage fact
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
-with `coverage_gaps = []` and 96/0 pass-fail in Verilator plus both
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+with `coverage_gaps = []` and 108/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
+
+### Registered sibling routing is a distinct hierarchy route axis
+Direct sibling routing and registered sibling routing are deliberately
+separate knobs. `hierarchy_sibling_route_prob` keeps the acyclic
+combinational route live: earlier child output directly feeds a later
+child input. `hierarchy_registered_sibling_route_prob` adds exactly one
+parent-local flop between those two endpoints. That route is still
+acyclic at the module-instance level, but it introduces real state in
+the parent, so it must be measured as both child-input provenance and
+parent-local state.
+
+The first implementation intentionally uses one flop and no extra mux
+or cone around it. That is not "good enough"; it is the smallest
+signoff-clean primitive for this axis. Richer registered
+child-to-child patterns can build from the same invariant later:
+earlier child output -> parent state -> later child input, with metrics
+proving the route instead of requiring SV inspection.
+
+This slice exposed a real finalization gotcha: post-construction remap
+passes already rewrote output drives and flop fields, but instance
+input bindings were also live NodeId consumers. Once a child input
+could bind to a parent-local Q node, flop merging could leave an
+instance input pointing at a stale duplicate FlopQ. The fix belongs in
+`ir::compact`: every partial NodeId remap now rewrites instance input
+bindings too. The focused unit test covers that root cause, not only
+the hierarchy symptom.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

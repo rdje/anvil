@@ -747,6 +747,7 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
     for (_, root) in &mut m.drives {
         rewrite_node_id_if_mapped(root, &node_remap);
     }
+    rewrite_instance_inputs_from_partial_map(m, &node_remap);
     for flop in &mut m.flops {
         rewrite_flop_from_partial_map(flop, &node_remap);
     }
@@ -886,6 +887,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
     for (_, root) in &mut m.drives {
         rewrite_node_id_if_mapped(root, &q_node_remap);
     }
+    rewrite_instance_inputs_from_partial_map(m, &q_node_remap);
     for flop in &mut m.flops {
         rewrite_flop_from_partial_map(flop, &q_node_remap);
     }
@@ -993,6 +995,7 @@ pub fn fold_proven_gates(m: &mut Module) -> u32 {
         for (_, root) in &mut m.drives {
             rewrite_node_id_if_mapped(root, &node_remap);
         }
+        rewrite_instance_inputs_from_partial_map(m, &node_remap);
         for flop in &mut m.flops {
             rewrite_flop_from_partial_map(flop, &node_remap);
         }
@@ -1126,6 +1129,7 @@ pub fn fold_mixed_associative_constants(m: &mut Module) -> u32 {
         for (_, root) in &mut m.drives {
             rewrite_node_id_if_mapped(root, &node_remap);
         }
+        rewrite_instance_inputs_from_partial_map(m, &node_remap);
         for flop in &mut m.flops {
             rewrite_flop_from_partial_map(flop, &node_remap);
         }
@@ -1271,6 +1275,7 @@ pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32 {
         for (_, root) in &mut m.drives {
             rewrite_node_id_if_mapped(root, &node_remap);
         }
+        rewrite_instance_inputs_from_partial_map(m, &node_remap);
         for flop in &mut m.flops {
             rewrite_flop_from_partial_map(flop, &node_remap);
         }
@@ -1569,6 +1574,14 @@ fn rewrite_node_id_if_mapped(id: &mut NodeId, map: &HashMap<NodeId, NodeId>) {
     }
 }
 
+fn rewrite_instance_inputs_from_partial_map(m: &mut Module, map: &HashMap<NodeId, NodeId>) {
+    for instance in &mut m.instances {
+        for (_, node_id) in &mut instance.inputs {
+            rewrite_node_id_if_mapped(node_id, map);
+        }
+    }
+}
+
 fn prune_duplicate_introducing_add_mul_remaps(
     m: &Module,
     node_remap: &mut HashMap<NodeId, NodeId>,
@@ -1861,11 +1874,22 @@ mod tests {
     fn merge_equivalent_flops_rewrites_consumers_and_deps() {
         let mut m =
             exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 0);
+        m.instances.push(Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            inputs: vec![(0, 2)],
+        });
 
         let removed = merge_equivalent_flops(&mut m);
         assert_eq!(removed, 1);
         assert_eq!(m.flops.len(), 1);
         assert_eq!(m.flops_merged, 0, "pass returns count; caller records it");
+        assert_eq!(
+            m.instances[0].inputs,
+            vec![(0, 1)],
+            "instance inputs must be remapped away from stale duplicate Q nodes"
+        );
 
         let Node::Gate { operands, deps, .. } = &m.nodes[3] else {
             panic!("drive root should still be the add gate");

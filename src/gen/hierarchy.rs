@@ -21,8 +21,8 @@ use super::{
 };
 use crate::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use crate::ir::{
-    DepSet, Design, Direction, GateOp, Instance, InstanceId, KnobId, Module,
-    ModuleInterfaceProfile, Node, NodeId, Port, PortId,
+    DepSet, Design, Direction, Flop, FlopId, FlopKind, FlopMux, GateOp, Instance, InstanceId,
+    KnobId, Module, ModuleInterfaceProfile, Node, NodeId, Port, PortId, ResetKind,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -326,8 +326,9 @@ fn generate_parent_module(
     let any_sequential_child = instance_plan
         .iter()
         .any(|&child_idx| library[child_idx].carries_sequential_state_in(Some(&modules_by_name)));
-    let parent_state_possible =
-        g.cfg.hierarchy_parent_flop_prob > 0.0 && g.cfg.max_flops_per_module > 0;
+    let parent_state_possible = g.cfg.max_flops_per_module > 0
+        && (g.cfg.hierarchy_parent_flop_prob > 0.0
+            || g.cfg.hierarchy_registered_sibling_route_prob > 0.0);
     let needs_control_ports = any_sequential_child || parent_state_possible;
     let mut next_port_id: PortId = 0;
 
@@ -447,10 +448,7 @@ fn generate_parent_module(
     let mut pool = instance_pool.clone();
     let mut worklist: FlopWorklist = Vec::new();
     let roots = build_parent_output_roots(g, &mut top, &mut pool, &mut worklist);
-    debug_assert!(
-        worklist.is_empty(),
-        "Phase 4 top-level parent composition stays combinational in the current slice"
-    );
+    debug_assert!(worklist.is_empty(), "parent output flop worklist drained");
 
     for ((port_id, width), root) in planned_outputs.into_iter().zip(roots) {
         let promoted =
@@ -478,6 +476,23 @@ fn bind_child_input_from_parent_sources(
     width: u32,
     allow_external_pool_reuse: bool,
 ) -> NodeId {
+    if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
+        && (ctx.top.flops.len() as u32) < g.cfg.max_flops_per_module
+        && roll_hierarchy_registered_sibling_route(
+            ctx.top,
+            &mut g.rng,
+            g.cfg.hierarchy_registered_sibling_route_prob,
+        )
+    {
+        return build_registered_sibling_route(
+            g,
+            ctx.top,
+            ctx.instance_pool,
+            ctx.parent_source_pool,
+            width,
+        );
+    }
+
     if ctx
         .parent_source_pool
         .iter()
@@ -521,11 +536,47 @@ fn roll_hierarchy_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -
     fired
 }
 
+fn roll_hierarchy_registered_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchyRegisteredSiblingRouteProb, fired);
+    fired
+}
+
 fn roll_hierarchy_child_input_cone(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
     let fired = rng.gen_bool(prob);
     m.knob_rolls
         .record(KnobId::HierarchyChildInputConeProb, fired);
     fired
+}
+
+fn build_registered_sibling_route(
+    g: &mut Generator,
+    top: &mut Module,
+    instance_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let d_node = cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None);
+    let flop_id = top.flops.len() as FlopId;
+    let q_node_id = top.nodes.len() as NodeId;
+    top.nodes.push(Node::FlopQ {
+        flop: flop_id,
+        width,
+    });
+    top.flops.push(Flop {
+        id: flop_id,
+        width,
+        d: Some(d_node),
+        q: q_node_id,
+        reset_val: 0,
+        reset_kind: ResetKind::Async,
+        kind: FlopKind::ZeroDefault,
+        mux: FlopMux::None,
+    });
+    let deps = DepSet::from_flop_virtual(flop_id);
+    parent_source_pool.add(q_node_id, width, deps);
+    q_node_id
 }
 
 fn build_child_input_parent_cone(

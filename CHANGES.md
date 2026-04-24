@@ -1,9 +1,112 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-24-boot2 — Clarify hierarchy parent wording after bootstrap
+## 2026-04-24-boot3 — Land registered hierarchy sibling routing
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  now carries `hierarchy_registered_sibling_route_prob`, defaulting to
+  `0.0`, as an explicit hierarchy routing knob.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  exposes the knob as `--hierarchy-registered-sibling-route-prob <float>`.
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  adds `KnobId::HierarchyRegisteredSiblingRouteProb` and a `DepSet`
+  iterator for local flop virtual endpoints.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets a later child data input bind from an earlier sibling
+  instance output through one local parent flop. The route is
+  deliberately separate from direct combinational sibling routing and
+  from generic parent-composed child-input cones.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports registered sibling-route provenance:
+  `child_input_bindings_from_registered_instance_outputs`,
+  `top_child_input_bindings_from_registered_instance_outputs`,
+  `registered_instance_output_child_input_binding_fraction`, and
+  `top_registered_instance_output_child_input_binding_fraction`.
+- [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+  now rewrites child instance input bindings during partial NodeId
+  remaps. This fixes the root cause exposed by registered hierarchy
+  routing: instance inputs are live NodeId consumers just like output
+  drives and flop fields.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  adds a Phase 4 registered-sibling-state scenario per construction
+  strategy, raises the Phase 4 gate to 27 scenarios / 108 designs, and
+  requires `saw_hierarchy_registered_sibling_routing = true`.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves registered sibling-routed child-input binding across the
+  live construction strategies.
+- Live docs and the mdBook were refreshed:
+  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
+  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+
+**Why**
+
+- Direct sibling routing and parent-local state were already live, but
+  there was no explicit way to ask for the composition-level analogue
+  of a registered handoff: child output -> parent flop -> later child
+  input.
+- Keeping this as its own knob avoids hidden coupling to
+  `hierarchy_parent_flop_prob` and makes the adversarial-generation
+  axis measurable in `tool_matrix`.
+- The implementation uncovered a real finalization invariant:
+  hierarchy child inputs are NodeId consumers, so every post-construction
+  remap pass must rewrite instance input bindings too.
+
+**Validation**
+
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused regressions:
+  - `cargo test ir::compact::tests::merge_equivalent_flops_rewrites_consumers_and_deps`
+  - `cargo test --test pipeline hierarchy_child_inputs_can_be_registered_from_sibling_instance_outputs`
+  - `cargo test --bin tool_matrix phase4_hierarchy`
+- Focused registered-sibling smoke:
+  `/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json` records
+  `child_input_bindings_from_registered_instance_outputs = 4`,
+  `top_child_input_bindings_from_registered_instance_outputs = 4`,
+  `registered_instance_output_child_input_binding_fraction = 0.8`,
+  `top_registered_instance_output_child_input_binding_fraction = 0.8`,
+  `hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
+  `top_reset_inputs = 1`. The emitted design is clean in Verilator,
+  Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path.
+- Refreshed repo-owned Phase 4 gate:
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+  closes at 27 scenarios, 4 designs/scenario, 108 total designs,
+  `coverage_gaps = []`, and `108/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes. Its coverage facts include
+  `saw_hierarchy_registered_sibling_routing = true` and
+  `hierarchy_registered_sibling_route_prob` in both knob-attempts and
+  knob-fires.
+
+**Impact**
+
+- Phase 4 now has a measured registered child-to-child routing surface,
+  not only direct combinational sibling routing.
+- Parent-local state can now act as an explicit inter-child route
+  element.
+- The compact/remap infrastructure is stronger for all hierarchy
+  child-input bindings, not only this new route.
+- Phase 4 remains `in progress`: richer registered child-to-child
+  patterns, deeper hierarchy composition, and hierarchy-aware identity
+  are still open.
+
+## 2026-04-24-boot2 — Clarify hierarchy parent wording after bootstrap
+
+**Landed as:** `cf3dc3c164b0f8bb908d23d15b8248c275b683fb`
 
 **What changed**
 

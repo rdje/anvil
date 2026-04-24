@@ -78,6 +78,10 @@ fn default_hierarchy_parent_flop_prob() -> f64 {
     0.0
 }
 
+fn default_hierarchy_registered_sibling_route_prob() -> f64 {
+    0.0
+}
+
 /// Identity mode — the coarse answer to "what does a `NodeId`
 /// mean?".
 ///
@@ -412,6 +416,13 @@ pub struct Config {
     /// When the roll misses, the current parent falls back to its
     /// external input boundary.
     pub hierarchy_sibling_route_prob: f64,
+    /// Probability that a parent binds a later child data input from
+    /// an earlier sibling output through one local parent flop. This
+    /// is the registered sibling-routing counterpart to
+    /// `hierarchy_sibling_route_prob`; default 0.0 preserves the
+    /// current combinational direct route unless explicitly requested.
+    #[serde(default = "default_hierarchy_registered_sibling_route_prob")]
+    pub hierarchy_registered_sibling_route_prob: f64,
     /// Probability that a parent binds a child data input through a
     /// local combinational cone over already-available parent sources:
     /// current parent data inputs, earlier sibling instance outputs,
@@ -566,6 +577,8 @@ impl Default for Config {
             max_child_instances_per_module: 0,
             child_instances_per_module_by_depth: BTreeMap::new(),
             hierarchy_sibling_route_prob: 0.35,
+            hierarchy_registered_sibling_route_prob:
+                default_hierarchy_registered_sibling_route_prob(),
             hierarchy_child_input_cone_prob: default_hierarchy_child_input_cone_prob(),
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             use_async_reset: true,
@@ -877,6 +890,10 @@ impl Config {
                 self.hierarchy_sibling_route_prob,
             ),
             (
+                "hierarchy_registered_sibling_route_prob",
+                self.hierarchy_registered_sibling_route_prob,
+            ),
+            (
                 "hierarchy_child_input_cone_prob",
                 self.hierarchy_child_input_cone_prob,
             ),
@@ -1063,6 +1080,9 @@ impl Config {
         if let Some(v) = o.hierarchy_sibling_route_prob {
             self.hierarchy_sibling_route_prob = v;
         }
+        if let Some(v) = o.hierarchy_registered_sibling_route_prob {
+            self.hierarchy_registered_sibling_route_prob = v;
+        }
         if let Some(v) = o.hierarchy_child_input_cone_prob {
             self.hierarchy_child_input_cone_prob = v;
         }
@@ -1130,6 +1150,7 @@ pub struct Overrides {
     pub max_child_instances_per_module: Option<u32>,
     pub child_instances_per_module_by_depth: Option<BTreeMap<u32, CountRange>>,
     pub hierarchy_sibling_route_prob: Option<f64>,
+    pub hierarchy_registered_sibling_route_prob: Option<f64>,
     pub hierarchy_child_input_cone_prob: Option<f64>,
     pub hierarchy_parent_flop_prob: Option<f64>,
 }

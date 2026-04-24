@@ -294,13 +294,17 @@ evidence.
     those parent-side cones may emit local parent flops; default `0.0`
     preserves the combinational parent layer unless state is explicitly
     requested.
+    `--hierarchy-registered-sibling-route-prob <p>` adds the first
+    explicit registered child-to-child route: a later child input may
+    bind from an earlier sibling output through one local parent flop.
 - Current slice constraints:
-  - direct sibling routing is still combinational; registered
-    child-to-child routing patterns are the next stateful routing step
+  - direct sibling routing is still combinational; the first one-flop
+    registered sibling route is live, while richer registered
+    child-to-child routing patterns remain future work
   - the fully banked repo-owned Phase 4 matrix now covers both the
     wrapper lane and the representative recursive lane, including the
-    mixed-depth recursive axis, the explicit child-sourcing axis, and
-    local parent state
+    mixed-depth recursive axis, the explicit child-sourcing axis, local
+    parent state, and registered sibling routing
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -316,18 +320,20 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r16/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`96/0` in Verilator plus both repo-owned Yosys modes). That report now
+(`108/0` in Verilator plus both repo-owned Yosys modes). That report now
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
 - mixed recursive depth range `2:3`
 - explicit child-sourcing modes `library` and `on-demand`
 - child-instance profiles `2`, `4`, `2:3`, and `1:3`
+- registered sibling-routed hierarchy child inputs through parent-local
+  state
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -408,15 +414,15 @@ wrapper code and tests separate `num_leaf_modules` from
 `num_child_instances`, and that behavior is now backed by both focused
 smokes and the fresh full repo-owned gate above. The old `r7` report is
 now the historical wrapper-baseline artifact; `r9` is the pre-mixed
-recursive bank, `r10` is the pre-child-sourcing recursive bank, and
-`r13` is the pre-parent-input-cone bank, while `r15` is the
-pre-parent-state bank. `r16` is the current fully
-banked Phase 4 hierarchy closure artifact.
+recursive bank, `r10` is the pre-child-sourcing recursive bank,
+`r13` is the pre-parent-input-cone bank, `r15` is the pre-parent-state
+bank, and `r16` is the pre-registered-sibling-route bank. `r17` is the
+current fully banked Phase 4 hierarchy closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
 with richer parent-side routing/composition, local parent state where
-it can be further diversified, registered child-to-child routing
+it can be further diversified, richer registered child-to-child routing
 patterns, and eventual hierarchy-aware identity/factorization.
 
 ## Phase 5 — Parameterization (not started)
