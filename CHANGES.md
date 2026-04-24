@@ -1,6 +1,50 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot6 — Bank mixed parent-output hierarchy coverage
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now tracks `saw_hierarchy_parent_port_composed_outputs` in
+  `CoverageSummary`.
+- The Phase 4 hierarchy coverage gate now fails if the representative
+  matrix never emits hierarchy outputs that mix parent data ports with
+  child instance outputs.
+- The existing Phase 4 tool-matrix coverage unit test now asserts that
+  missing this fact produces a coverage gap.
+- Live docs were refreshed:
+  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+
+**Why**
+
+- The previous slice landed mixed parent-port / child-output parent
+  outputs and a focused smoke. The repo-owned Phase 4 matrix should
+  also treat that behavior as a required representative coverage fact.
+- This keeps the hierarchy gate from drifting back to child-output-only
+  parent composition if future scenario profiles change.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- Coverage-only Phase 4 matrix:
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  records `coverage_gaps = []` and
+  `saw_hierarchy_parent_port_composed_outputs = true`.
+
 ## 2026-04-24-boot5 — Land mixed parent-output hierarchy composition
 
 **Landed as:** this commit

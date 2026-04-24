@@ -502,6 +502,13 @@ Metrics expose the result as
 `hierarchy_parent_port_composed_output_fraction`. The focused
 regression is
 `cargo test --test pipeline hierarchy_parent_outputs_can_mix_parent_ports_with_child_outputs`.
+The repo-owned Phase 4 coverage gate now tracks this as
+`saw_hierarchy_parent_port_composed_outputs`; the current-code
+coverage-only matrix probe at
+`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+records `coverage_gaps = []` with that fact true. It skipped
+Verilator/Yosys, while the full downstream-clean Phase 4 bank remains
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

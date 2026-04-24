@@ -199,6 +199,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `saw_profiled_child_interface_synthesis = true`
   - `saw_reused_child_definition = true`
   - `saw_underinstantiated_library = true`
+- A current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  now proves the refreshed gate policy also requires
+  `saw_hierarchy_parent_port_composed_outputs = true`, with
+  `coverage_gaps = []`. This was run with `--skip-verilator
+  --skip-yosys`; the full downstream clean bank remains `r19`.
 - The older `/tmp/anvil-tool-matrix-phase4-hierarchy-r18` report now
   remains useful historical evidence for the first
   registered-parent-composed route bank,
@@ -231,7 +237,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Landed mixed parent-port / child-output
+- **Last completed slice:** Banked mixed parent-port / child-output
+  parent-output coverage in the Phase 4 hierarchy matrix. `tool_matrix`
+  now tracks `saw_hierarchy_parent_port_composed_outputs` and the
+  Phase 4 coverage gate rejects representative matrices that never emit
+  parent outputs mixing parent ports with child outputs. The
+  coverage-only proof is
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  with `coverage_gaps = []`.
+- **Prior slice:** Landed mixed parent-port / child-output
   hierarchy parent outputs. Parent output cones now build from the full
   parent source pool and receive a post-finalization repair that keeps
   child-output support live while adding parent-port support when live

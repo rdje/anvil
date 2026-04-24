@@ -322,7 +322,8 @@ override profile `0=4:4,1=2:2`, real per-depth branching metrics, real
 mixed shallow/deep recursive realization, real on-demand child
 sourcing, exact profiled child-interface synthesis in the on-demand
 lane, real sibling-routed hierarchy child inputs, and real parent-side
-composition above instance outputs, plus real parent-composed child-input
+composition above instance outputs, plus mixed parent-port /
+child-output parent outputs, plus real parent-composed child-input
 bindings, plus registered sibling-routed child-input bindings, plus
 registered parent-composed child-input bindings, plus real local
 parent flops. The focused proof artifact for that composed-parent
@@ -375,6 +376,13 @@ local proofs remain useful:
   - `hierarchy_parent_port_composed_outputs = 8`
   - `top_outputs_reaching_instance_outputs = 8`
   - `top_outputs_without_instance_outputs = 0`
+  The current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  now also banks this as a required coverage fact with
+  `coverage_gaps = []` and
+  `saw_hierarchy_parent_port_composed_outputs = true`. That probe
+  skipped Verilator/Yosys; the full downstream-clean bank remains
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
   - `hierarchy_parent_local_flops = 8`

@@ -499,6 +499,12 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `hierarchy_parent_port_composed_outputs = 8`,
   `top_outputs_reaching_instance_outputs = 8`, and
   `top_outputs_without_instance_outputs = 0`.
+  A current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  now also records `coverage_gaps = []` and
+  `saw_hierarchy_parent_port_composed_outputs = true`; it was run with
+  Verilator/Yosys skipped, while the full downstream-clean bank remains
+  the `r19` report above.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
   first-class module instantiation inside parent cone choice, richer

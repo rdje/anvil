@@ -420,7 +420,13 @@ registered parent-composed child-input bindings through
 `saw_hierarchy_parent_composed_child_inputs = true` and
 `saw_hierarchy_parent_local_flops = true`. It also records
 `saw_hierarchy_registered_sibling_routing = true` and
-`saw_hierarchy_registered_parent_composed_routing = true`. The old hierarchy
+`saw_hierarchy_registered_parent_composed_routing = true`. A
+current-code coverage-only probe at
+`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+now also records `coverage_gaps = []` and
+`saw_hierarchy_parent_port_composed_outputs = true`; that probe skipped
+Verilator/Yosys, while the full downstream-clean bank remains the
+`r19` report above. The old hierarchy
 smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,

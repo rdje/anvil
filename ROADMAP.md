@@ -361,6 +361,13 @@ proves all of the current representative hierarchy axes directly:
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane
 
+A current-code coverage-only Phase 4 matrix probe at
+`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+keeps that gate policy aligned with the mixed parent-output slice. It
+was run with Verilator/Yosys skipped and records `coverage_gaps = []`
+plus `saw_hierarchy_parent_port_composed_outputs = true`; the full
+downstream clean bank remains the `r19` report above.
+
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
 `/tmp/anvil-hier-range-smoke-r1/manifest.json`, clean in Verilator,

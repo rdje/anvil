@@ -246,6 +246,7 @@ struct CoverageSummary {
     saw_per_depth_branching_metrics: bool,
     saw_mixed_leaf_depth_hierarchy: bool,
     saw_hierarchy_parent_composition: bool,
+    saw_hierarchy_parent_port_composed_outputs: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -2528,6 +2529,8 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             design.metrics.realized_min_leaf_depth < design.metrics.realized_max_leaf_depth;
         coverage.saw_hierarchy_parent_composition |=
             design.metrics.hierarchy_parent_composed_outputs > 0;
+        coverage.saw_hierarchy_parent_port_composed_outputs |=
+            design.metrics.hierarchy_parent_port_composed_outputs > 0;
         for module in &design.modules {
             accumulate_module_coverage(&mut coverage, &module.metrics);
         }
@@ -2593,6 +2596,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
     dst.saw_mixed_leaf_depth_hierarchy |= src.saw_mixed_leaf_depth_hierarchy;
     dst.saw_hierarchy_parent_composition |= src.saw_hierarchy_parent_composition;
+    dst.saw_hierarchy_parent_port_composed_outputs |=
+        src.saw_hierarchy_parent_port_composed_outputs;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -3005,6 +3010,14 @@ fn compute_coverage_gaps(
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_hierarchy_parent_composition {
         gaps.push(
             "matrix never emitted hierarchy outputs composed above instance outputs".to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_hierarchy_parent_port_composed_outputs
+    {
+        gaps.push(
+            "matrix never emitted hierarchy outputs mixing parent ports with child outputs"
+                .to_string(),
         );
     }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
@@ -3698,6 +3711,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("composed above instance outputs")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("mixing parent ports with child outputs")));
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("hierarchy_registered_sibling_route_prob")));
