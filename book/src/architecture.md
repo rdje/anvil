@@ -271,7 +271,10 @@ pub enum KnobId { FlopProb, CombMuxProb, PriorityEncoderProb,
                   ConstComparandProb, CombMuxEncodingProb,
                   FlopMuxEncodingProb, ShareProb,
                   FlopQFeedbackProb, HierarchySiblingRouteProb,
-                  HierarchyChildInputConeProb }
+                  HierarchyRegisteredSiblingRouteProb,
+                  HierarchyRegisteredChildInputConeProb,
+                  HierarchyChildInputConeProb,
+                  HierarchyParentFlopProb }
 pub struct KnobRollCounters {
     pub attempts: HashMap<KnobId, u64>,
     pub fires:    HashMap<KnobId, u64>,
@@ -368,12 +371,14 @@ surfaces, the landed bounded `for`-fold structured surface, the landed
 selectable `Slice` / `Concat` surface, the hierarchy surface (legacy
 depth-1 wrapper exact/reuse/under-instantiation plus the bounded
 recursive tree planner, per-depth branching profiles, sibling-routed
-child inputs, parent-composed child-input bindings, and local parent
-flops),
+child inputs, parent-composed child-input bindings, local parent
+flops, registered sibling-routed child-input bindings, and registered
+parent-composed child-input bindings, plus mixed parent-port /
+child-output parent outputs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-24): 215 unit-target tests + 42 integration tests = 257 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-24): 215 unit-target tests + 45 integration tests = 260 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a

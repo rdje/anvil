@@ -281,6 +281,12 @@ evidence.
     `on-demand` slice synthesizes children against parent-planned exact
     data-interface profiles for each planned instance slot.
   - the current parent-side routing surface:
+    parent output cones are now built over the full parent source pool
+    and post-finalized so they can mix parent data inputs with child
+    instance outputs while every output still retains child-output
+    support. `DesignMetrics` report this via
+    `top_parent_port_composed_outputs`,
+    `hierarchy_parent_port_composed_outputs`, and their fractions.
     both hierarchy lanes now expose
     `--hierarchy-sibling-route-prob <p>`, which lets later child data
     inputs bind from earlier sibling instance outputs while staying
@@ -314,8 +320,9 @@ evidence.
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
-  - deeper parent-side routing/composition beyond the current
-    combinational sibling-binding and parent-input-cone surfaces
+  - deeper parent-side routing/composition beyond the current mixed
+    parent-output, combinational sibling-binding, and parent-input-cone
+    surfaces
   - richer registered child-to-child and parent-composed routing using
     the landed local parent-state surface
   - name uniqueness across the full module set
@@ -405,6 +412,18 @@ path. The design metrics there prove the route numerically:
 `top_child_input_bindings_from_parent_composed_logic = 13`,
 `parent_composed_child_input_binding_fraction = 0.9285714285714286`,
 and `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
+
+**Focused mixed parent-output proof (new targeted evidence):**
+current HEAD also supports parent outputs that mix parent data ports
+with child instance outputs while preserving child-output support. The
+focused proof artifact is
+`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, clean in
+Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
+path. The design metrics there prove the route numerically:
+`top_parent_port_composed_outputs = 8`,
+`hierarchy_parent_port_composed_outputs = 8`,
+`top_outputs_reaching_instance_outputs = 8`, and
+`top_outputs_without_instance_outputs = 0`.
 
 **Focused registered parent-composed child-input proof (new targeted evidence):**
 current HEAD also supports registered parent-composed child-input

@@ -325,10 +325,12 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_parent_composed_logic: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
+    pub top_parent_port_composed_outputs: usize,
     pub top_outputs_reaching_instance_outputs: usize,
     pub top_outputs_without_instance_outputs: usize,
     pub top_instance_output_dependency_fraction: f64,
     pub top_parent_composed_output_fraction: f64,
+    pub top_parent_port_composed_output_fraction: f64,
     pub top_instance_output_child_input_binding_fraction: f64,
     pub top_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_instance_output_child_input_binding_fraction: f64,
@@ -339,11 +341,13 @@ pub struct DesignMetrics {
     // --- Composition across the whole hierarchy ----------------
     pub hierarchy_direct_instance_output_drives: usize,
     pub hierarchy_parent_composed_outputs: usize,
+    pub hierarchy_parent_port_composed_outputs: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
     pub avg_instance_output_support_per_hierarchy_output: f64,
     pub max_instance_output_support_per_hierarchy_output: usize,
+    pub hierarchy_parent_port_composed_output_fraction: f64,
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
@@ -704,6 +708,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     let top_facts = module_composition_facts(top);
     out.top_direct_instance_output_drives = top_facts.direct_drives;
     out.top_parent_composed_outputs = top_facts.parent_composed_outputs;
+    out.top_parent_port_composed_outputs = top_facts.parent_port_composed_outputs;
     out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
     out.top_outputs_without_instance_outputs = top_facts.outputs_without_instance_outputs;
     out.top_local_flops = top.flops.len();
@@ -714,6 +719,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.top_outputs_reaching_instance_outputs, out.top_outputs);
     out.top_parent_composed_output_fraction =
         ratio(out.top_parent_composed_outputs, out.top_outputs);
+    out.top_parent_port_composed_output_fraction =
+        ratio(out.top_parent_port_composed_outputs, out.top_outputs);
 
     for module in library
         .iter()
@@ -818,6 +825,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.num_instances, out.num_internal_module_occurrences);
     out.avg_instance_output_support_per_hierarchy_output = ratio(
         hierarchy_output_support_total,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.hierarchy_parent_port_composed_output_fraction = ratio(
+        out.hierarchy_parent_port_composed_outputs,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
     );
     out.top_instance_output_child_input_binding_fraction = ratio(
@@ -947,6 +958,7 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     let facts = module_composition_facts(module);
     state.out.hierarchy_direct_instance_output_drives += facts.direct_drives;
     state.out.hierarchy_parent_composed_outputs += facts.parent_composed_outputs;
+    state.out.hierarchy_parent_port_composed_outputs += facts.parent_port_composed_outputs;
     *state.hierarchy_output_support_total += facts.total_support;
     state.out.max_instance_output_support_per_hierarchy_output = state
         .out
@@ -1093,6 +1105,7 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
 struct ModuleCompositionFacts {
     direct_drives: usize,
     parent_composed_outputs: usize,
+    parent_port_composed_outputs: usize,
     outputs_reaching_instance_outputs: usize,
     outputs_without_instance_outputs: usize,
     total_support: usize,
@@ -1105,10 +1118,14 @@ fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
     for (_, root) in &module.drives {
         let support = collect_instance_output_support(module, *root, &mut memo);
         let support_len = support.len();
+        let deps = node_deps(module, *root);
         out.total_support += support_len;
         out.max_support = out.max_support.max(support_len);
         if support_len > 0 {
             out.outputs_reaching_instance_outputs += 1;
+            if deps.has_ports() {
+                out.parent_port_composed_outputs += 1;
+            }
         } else {
             out.outputs_without_instance_outputs += 1;
         }

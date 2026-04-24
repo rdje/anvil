@@ -471,6 +471,58 @@ fn depth1_parent_outputs_depend_on_child_instance_outputs() {
 }
 
 #[test]
+fn hierarchy_parent_outputs_can_mix_parent_ports_with_child_outputs() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 7,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            min_inputs: 2,
+            max_inputs: 2,
+            min_outputs: 2,
+            max_outputs: 2,
+            flop_prob: 0.0,
+            max_flops_per_module: 0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("mixed parent-output hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "mixed parent-output hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(
+            metrics.top_outputs_reaching_instance_outputs, metrics.top_outputs,
+            "mixed parent outputs must still retain child-output support: {metrics:#?}"
+        );
+        assert!(
+            metrics.top_parent_port_composed_outputs > 0,
+            "expected parent outputs to mix parent data ports with child outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.top_parent_port_composed_output_fraction > 0.0,
+            "mixed parent-output fraction should be measurable for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_child_inputs_can_be_routed_from_sibling_instance_outputs() {
     for strategy in [
         ConstructionStrategy::Sequential,

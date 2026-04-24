@@ -547,6 +547,10 @@ is accurate as of this commit.
 --num-child-instances
 --hierarchy-child-source-mode <library|on-demand>
 --hierarchy-sibling-route-prob
+--hierarchy-registered-sibling-route-prob
+--hierarchy-registered-child-input-cone-prob
+--hierarchy-child-input-cone-prob
+--hierarchy-parent-flop-prob
 --min-hierarchy-depth, --max-hierarchy-depth
 --min-child-instances-per-module, --max-child-instances-per-module
 --child-instances-per-depth DEPTH=MIN:MAX

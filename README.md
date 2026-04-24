@@ -435,9 +435,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
   and hierarchy parents keep them visible iff they carry local state or
   sequential descendants. Parent outputs can be genuine parent-side
-  cones over child instance outputs, combinational by default and
-  optionally stateful when requested, and hierarchy manifests now
-  report both the composition facts and the realized tree shape numerically, including
+  cones that mix parent data inputs with child instance outputs while
+  preserving child-output support, combinational by default and
+  optionally stateful when requested. Hierarchy manifests now report
+  both the composition facts and the realized tree shape numerically, including
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
@@ -492,10 +493,16 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `registered_parent_composed_child_input_binding_fraction = 0.75`,
   `top_registered_parent_composed_child_input_binding_fraction = 0.75`,
   and `hierarchy_parent_local_flops = 3`.
+  Current HEAD also has a focused clean mixed parent-output proof at
+  `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, where
+  the design metrics show `top_parent_port_composed_outputs = 8`,
+  `hierarchy_parent_port_composed_outputs = 8`,
+  `top_outputs_reaching_instance_outputs = 8`, and
+  `top_outputs_without_instance_outputs = 0`.
   The next honest
-  work is deeper hierarchy capability beyond the banked gate: richer
-  hierarchy composition/routing surfaces, richer registered hierarchy
-  patterns, and later hierarchy-aware identity.
+  work is deeper hierarchy capability beyond the banked gate:
+  first-class module instantiation inside parent cone choice, richer
+  registered hierarchy patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.

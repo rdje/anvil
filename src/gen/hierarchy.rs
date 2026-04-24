@@ -446,19 +446,153 @@ fn generate_parent_module(
         }
     }
 
-    let mut pool = instance_pool.clone();
+    let mut pool = parent_source_pool.clone();
     let mut worklist: FlopWorklist = Vec::new();
     let roots = build_parent_output_roots(g, &mut top, &mut pool, &mut worklist);
     debug_assert!(worklist.is_empty(), "parent output flop worklist drained");
 
     for ((port_id, width), root) in planned_outputs.into_iter().zip(roots) {
-        let promoted =
-            promote_parent_output_root(g, &mut top, &mut pool, &instance_pool, width, root);
+        let promoted = promote_parent_output_root(
+            g,
+            &mut top,
+            &mut pool,
+            &instance_pool,
+            &parent_source_pool,
+            width,
+            root,
+        );
         top.drives.push((port_id, promoted));
     }
 
-    module::finalize_generated_module(g, &mut top, &mut pool);
+    let mut finalize_pool = hierarchy_parent_finalize_pool(&pool);
+    module::finalize_generated_module(g, &mut top, &mut finalize_pool);
+    repair_parent_output_roots_after_finalize(g, &mut top);
     top
+}
+
+fn hierarchy_parent_finalize_pool(pool: &SignalPool) -> SignalPool {
+    let mut out = SignalPool::new();
+    for entry in pool
+        .iter()
+        .filter(|entry| entry.deps.has_instance_output_virtuals())
+    {
+        out.add(entry.node, entry.width, entry.deps.clone());
+    }
+
+    if out.is_empty() {
+        pool.clone()
+    } else {
+        out
+    }
+}
+
+fn repair_parent_output_roots_after_finalize(g: &mut Generator, top: &mut Module) {
+    let instance_pool = current_instance_output_pool(top);
+    let parent_port_pool = current_parent_port_pool(top);
+    if instance_pool.is_empty() {
+        return;
+    }
+
+    let mut scratch_pool = SignalPool::new();
+    for drive_idx in 0..top.drives.len() {
+        let (port_id, root) = top.drives[drive_idx];
+        let width = top
+            .outputs
+            .iter()
+            .find(|output| output.id == port_id)
+            .expect("drive output must exist")
+            .width;
+
+        let with_child_support = if output_root_reaches_instance_output(top, root) {
+            root
+        } else {
+            let Some(companion) = try_pick_parent_companion(g, top, &instance_pool, width, root)
+            else {
+                continue;
+            };
+            add_parent_output_companion_gate(top, &mut scratch_pool, width, root, companion)
+        };
+
+        let with_parent_port_support = if cone::node_deps(top, with_child_support).has_ports()
+            || parent_port_pool.is_empty()
+        {
+            with_child_support
+        } else {
+            match try_pick_parent_port_companion(
+                g,
+                top,
+                &parent_port_pool,
+                width,
+                with_child_support,
+            ) {
+                Some(companion) => add_parent_output_companion_gate(
+                    top,
+                    &mut scratch_pool,
+                    width,
+                    with_child_support,
+                    companion,
+                ),
+                None => with_child_support,
+            }
+        };
+
+        top.drives[drive_idx].1 = with_parent_port_support;
+    }
+}
+
+fn current_instance_output_pool(top: &Module) -> SignalPool {
+    let mut pool = SignalPool::new();
+    for (node_id, node) in top.nodes.iter().enumerate() {
+        let Node::InstanceOutput {
+            instance,
+            port,
+            width,
+        } = node
+        else {
+            continue;
+        };
+        pool.add(
+            node_id as NodeId,
+            *width,
+            DepSet::from_instance_output_virtual(*instance, *port),
+        );
+    }
+    pool
+}
+
+fn current_parent_port_pool(top: &Module) -> SignalPool {
+    let mut pool = SignalPool::new();
+    for (node_id, node) in top.nodes.iter().enumerate() {
+        let Node::PrimaryInput { port, width } = node else {
+            continue;
+        };
+        if top.clock == Some(*port) || top.reset == Some(*port) {
+            continue;
+        }
+        pool.add(node_id as NodeId, *width, DepSet::from_port(*port));
+    }
+    pool
+}
+
+fn output_root_reaches_instance_output(top: &Module, root: NodeId) -> bool {
+    let mut memo = vec![None; top.nodes.len()];
+    node_reaches_instance_output(top, root, &mut memo)
+}
+
+fn node_reaches_instance_output(top: &Module, node_id: NodeId, memo: &mut [Option<bool>]) -> bool {
+    if let Some(reaches) = memo[node_id as usize] {
+        return reaches;
+    }
+
+    let reaches = match &top.nodes[node_id as usize] {
+        Node::InstanceOutput { .. } => true,
+        Node::Gate { operands, .. } => operands
+            .iter()
+            .any(|operand| node_reaches_instance_output(top, *operand, memo)),
+        _ => false,
+    };
+    memo[node_id as usize] = Some(reaches);
+    reaches
 }
 
 struct ChildInputBindingContext<'a> {
@@ -793,17 +927,40 @@ fn promote_parent_output_root(
     top: &mut Module,
     pool: &mut SignalPool,
     instance_pool: &SignalPool,
+    parent_source_pool: &SignalPool,
     width: u32,
     root: NodeId,
 ) -> NodeId {
-    if matches!(top.nodes[root as usize], Node::Gate { .. }) {
-        return root;
-    }
+    let with_child_support = if cone::node_deps(top, root).has_instance_output_virtuals() {
+        root
+    } else {
+        let Some(companion) = try_pick_parent_companion(g, top, instance_pool, width, root) else {
+            return root;
+        };
 
-    let Some(companion) = try_pick_parent_companion(g, top, instance_pool, width, root) else {
-        return root;
+        add_parent_output_companion_gate(top, pool, width, root, companion)
     };
 
+    if cone::node_deps(top, with_child_support).has_ports() {
+        return with_child_support;
+    }
+
+    let Some(parent_companion) =
+        try_pick_parent_port_companion(g, top, parent_source_pool, width, with_child_support)
+    else {
+        return with_child_support;
+    };
+
+    add_parent_output_companion_gate(top, pool, width, with_child_support, parent_companion)
+}
+
+fn add_parent_output_companion_gate(
+    top: &mut Module,
+    pool: &mut SignalPool,
+    width: u32,
+    root: NodeId,
+    companion: NodeId,
+) -> NodeId {
     let deps = DepSet::union(&[
         &cone::node_deps(top, root),
         &cone::node_deps(top, companion),
@@ -831,6 +988,34 @@ fn try_pick_parent_companion(
     }
 
     let mut temp_pool = instance_pool.clone();
+    Some(cone::pick_terminal_dep_bearing(
+        g,
+        top,
+        &mut temp_pool,
+        width,
+        Some(exclude),
+    ))
+}
+
+fn try_pick_parent_port_companion(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &SignalPool,
+    width: u32,
+    exclude: NodeId,
+) -> Option<NodeId> {
+    let mut temp_pool = SignalPool::new();
+    for entry in parent_source_pool
+        .iter()
+        .filter(|entry| entry.node != exclude && entry.deps.has_ports())
+    {
+        temp_pool.add(entry.node, entry.width, entry.deps.clone());
+    }
+
+    if temp_pool.is_empty() {
+        return None;
+    }
+
     Some(cone::pick_terminal_dep_bearing(
         g,
         top,

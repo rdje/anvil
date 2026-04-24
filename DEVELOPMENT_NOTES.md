@@ -89,12 +89,13 @@ That buys several real things immediately:
 - the hierarchy layer stays above `generate_leaf_module` instead of
   smearing inter-module behavior into the leaf kernel.
 
-Just as importantly, it keeps the open work honest. The newly-landed
-top layer is still **combinational only**; deeper recursive
-sub-hierarchy growth, local parent flops, richer hierarchy-local
-routing/composition, and hierarchical identity are all still future
-work. The slice is real, but it does not pretend Phase 4 is already
-solved.
+Just as importantly, it keeps the open work honest. The first-landed
+top layer was **combinational only**; since then, bounded recursive
+sub-hierarchy growth, local parent flops, child-input routing, and
+mixed parent-port / child-output parent outputs have landed as
+separate slices. First-class module instantiation inside arbitrary
+parent cone choice, richer registered hierarchy-local routing, and
+hierarchical identity remain future work.
 
 Two narrow implementation choices are load-bearing in this slice:
 
@@ -225,9 +226,9 @@ lower levels are narrower" without inventing a separate planner mode or
 forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
-What it does **not** do yet is move beyond that banked mixed-depth gate
-into the next deeper hierarchy surfaces such as richer parent-side
-routing/composition and local parent state.
+What it does **not** do yet is move beyond planned wrapper/tree
+instantiation into first-class module instantiation as a normal parent
+cone choice.
 
 One more gate-level rule turned out to matter here: when a repo-owned
 matrix grows new representative scenarios, its minimum total artifact
@@ -476,6 +477,32 @@ Phase 4 gate now banks this as a required coverage fact at
 with `coverage_gaps = []` and 120/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
+### Parent outputs can mix parent ports with child outputs
+The first parent-output composition slice built output cones from child
+`InstanceOutput` leaves only. That proved real parent-side logic above
+children, but it left parent data inputs out of the parent output
+surface.
+
+The current parent-output builder now starts from the full parent
+source pool. After module finalization, it rebuilds live pools from the
+settled parent module and repairs every parent output that lost
+structural child-output support. When live parent data inputs exist,
+the same repair path also adds parent-port support to outputs that
+otherwise only reached child outputs.
+
+The post-final repair point matters. Cleanup can fold or replace drive
+roots, so the invariant has to be checked after compaction, input
+pruning, and profile enforcement have settled. The repair adds ordinary
+parent gates over live nodes; it does not patch emitted SV.
+
+Metrics expose the result as
+`top_parent_port_composed_outputs`,
+`hierarchy_parent_port_composed_outputs`,
+`top_parent_port_composed_output_fraction`, and
+`hierarchy_parent_port_composed_output_fraction`. The focused
+regression is
+`cargo test --test pipeline hierarchy_parent_outputs_can_mix_parent_ports_with_child_outputs`.
+
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should
 not depend on someone opening the emitted `.sv` and eyeballing whether
@@ -491,6 +518,7 @@ coarse booleans. The current trustworthy design facts are:
 - reuse / coverage ratios,
 - top interface shape, including `top_clock_inputs` and
   `top_reset_inputs`,
+- direct-vs-composed outputs and parent-port-composed output counts,
 - control fanout to child instances,
 - weighted child interface / node / flop load, and
 - per-definition instantiation histograms.

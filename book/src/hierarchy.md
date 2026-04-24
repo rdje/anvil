@@ -115,8 +115,10 @@ pass-through shell:
   now emit local parent flops when `hierarchy_parent_flop_prob` is
   non-zero. The default is `0.0`, so the hierarchy layer stays
   combinational unless the caller explicitly enables parent state;
-- top outputs are now built from those child-output leaves by the
-  existing cone builder; and
+- top outputs are now built from the full parent source pool by the
+  existing cone builder, then repaired after finalization so every
+  output retains child-output support and, when parent data inputs are
+  live, can also carry parent-port support; and
 - unused child outputs are left explicitly unconnected at the instance
   site (`.port()`) instead of being forced into fake top-level
   pass-throughs.
@@ -131,10 +133,11 @@ The control-port rule is deliberate and inductive:
 So the current hierarchy slice is **real** but also **honest**: parent
 modules are real parent-side composition layers over child outputs,
 combinational by default and optionally stateful when requested. They
-can now mix shallow and deep branches in one recursive tree, route
-later child inputs from earlier sibling outputs directly or through one
-parent-local flop, compose child input bindings through parent-local
-logic, and add local parent flops. It still does not solve
+can now mix parent data inputs into parent outputs while preserving
+child-output support, mix shallow and deep branches in one recursive
+tree, route later child inputs from earlier sibling outputs directly or
+through one parent-local flop, compose child input bindings through
+parent-local logic, and add local parent flops. It still does not solve
 hierarchy-aware identity.
 
 ## Current IR shape
@@ -235,6 +238,11 @@ emitted `.sv`, including:
 - reuse / coverage ratios,
 - top interface shape,
 - direct-pass-through vs parent-composed top-output counts,
+- parent-port-composed output counts and fractions
+  (`top_parent_port_composed_outputs`,
+  `hierarchy_parent_port_composed_outputs`,
+  `top_parent_port_composed_output_fraction`,
+  `hierarchy_parent_port_composed_output_fraction`),
 - whether top outputs actually depend on child outputs at all,
 - average / maximum child-output support per top output,
 - child-input provenance
@@ -360,6 +368,13 @@ local proofs remain useful:
   - `top_child_input_bindings_from_parent_composed_logic = 13`
   - `parent_composed_child_input_binding_fraction = 0.9285714285714286`
   - `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`
+- `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
+  in the same three lanes and proves mixed parent-port / child-output
+  parent outputs numerically:
+  - `top_parent_port_composed_outputs = 8`
+  - `hierarchy_parent_port_composed_outputs = 8`
+  - `top_outputs_reaching_instance_outputs = 8`
+  - `top_outputs_without_instance_outputs = 0`
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
   - `hierarchy_parent_local_flops = 8`
@@ -451,10 +466,13 @@ branching in the recursive lane:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. deepen registered child-to-child routing using the local
+1. make module instantiation a first-class parent cone choice rather
+   than only a planned wrapper/tree operation;
+2. deepen registered child-to-child routing using the local
    parent-state surface;
-2. deepen the parent-side routing/composition surface beyond the current
-   sibling-binding, parent-input-cone, and local-parent-flop surfaces.
+3. deepen the parent-side routing/composition surface beyond the
+   current mixed-output, sibling-binding, parent-input-cone, and
+   local-parent-flop surfaces.
 
 Only after that does Phase 4 become "done" in the same sense that the
 leaf-kernel phases are done today.

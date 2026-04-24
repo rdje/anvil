@@ -1,6 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot5 — Land mixed parent-output hierarchy composition
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now builds hierarchy parent output cones from the full parent source
+  pool rather than only child instance outputs. After finalization, it
+  rebuilds live parent-source pools and repairs parent outputs so they
+  retain child-output support and, when live parent data inputs exist,
+  can also carry parent-port support.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports mixed parent-output composition through
+  `top_parent_port_composed_outputs`,
+  `hierarchy_parent_port_composed_outputs`,
+  `top_parent_port_composed_output_fraction`, and
+  `hierarchy_parent_port_composed_output_fraction`.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds an integration regression proving mixed parent-port /
+  child-output parent outputs across the live construction strategies.
+- Live docs and the mdBook were refreshed:
+  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+
+**Why**
+
+- The previous parent-output slice proved composition above child
+  instance outputs, but parent data inputs did not participate in the
+  parent output surface.
+- Building from the full parent source pool gives parent outputs a
+  richer legal support set while the post-final repair preserves the
+  key hierarchy invariant: parent outputs must still reach child
+  instance outputs.
+- Measuring parent-port-composed outputs keeps the feature auditable
+  from manifests and reports instead of relying on SV inspection.
+
+**Validation**
+
+- Focused regression:
+  - `cargo test --test pipeline hierarchy_parent_outputs_can_mix_parent_ports_with_child_outputs`
+  - `cargo test --test pipeline hierarchy_`
+- Full hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+- Focused downstream smoke:
+  - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`
+    records `top_parent_port_composed_outputs = 8`,
+    `hierarchy_parent_port_composed_outputs = 8`,
+    `top_outputs_reaching_instance_outputs = 8`, and
+    `top_outputs_without_instance_outputs = 0`.
+  - The emitted three-module design is clean in Verilator, Yosys
+    `synth -noabc`, and the repo-owned ABC-enabled Yosys path.
+
 ## 2026-04-24-boot4 — Land registered parent-composed hierarchy routing
 
 **Landed as:** this commit
