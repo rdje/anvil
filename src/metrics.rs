@@ -352,6 +352,7 @@ pub struct DesignMetrics {
     pub hierarchy_parent_port_composed_outputs: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
     pub hierarchy_parent_cone_instances: usize,
+    pub max_parent_cone_instances_per_internal_module: usize,
     pub hierarchy_outputs_reaching_parent_cone_instances: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
@@ -1022,6 +1023,16 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
         state.out.module_occurrences_with_parent_composed_outputs += 1;
     }
 
+    let parent_cone_instances_in_module = module
+        .instances
+        .iter()
+        .filter(|instance| instance.role == InstanceRole::ParentCone)
+        .count();
+    state.out.max_parent_cone_instances_per_internal_module = state
+        .out
+        .max_parent_cone_instances_per_internal_module
+        .max(parent_cone_instances_in_module);
+
     for instance in &module.instances {
         state.out.num_instances += 1;
         if instance.role == InstanceRole::ParentCone {
@@ -1677,6 +1688,39 @@ mod tests {
         );
         assert!(met.top_parent_cone_instance_output_fraction > 0.0);
         assert!(met.hierarchy_parent_cone_instance_output_fraction > 0.0);
+    }
+
+    #[test]
+    fn design_metrics_capture_multiple_parent_cone_instance_budget() {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("budgeted parent-cone helper hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert_eq!(met.top_parent_cone_instances, 3);
+        assert_eq!(met.hierarchy_parent_cone_instances, 3);
+        assert_eq!(met.max_parent_cone_instances_per_internal_module, 3);
+        assert!(
+            met.child_input_bindings_from_parent_cone_instances > 0,
+            "budgeted helpers should still source child-input bindings"
+        );
     }
 
     #[test]

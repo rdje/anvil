@@ -97,6 +97,8 @@ Control the size and topology of generated modules.
   `min_child_instances_per_module`,
   `max_child_instances_per_module`, `child_instances_per_depth` —
   bounded recursive hierarchy controls (Phase 4).
+- `max_parent_cone_instances_per_module` — per-parent helper-instance
+  budget for hierarchy parent-cone sources (Phase 4).
 
 ### Sequential knobs (flops and mux motifs)
 
@@ -369,6 +371,13 @@ instead of creating fresh logic.
   separate from planned child slots, and its outputs can feed later
   child inputs or parent outputs through parent logic. Range
   `[0.0, 1.0]`. Default `0.0`, so helper instantiation is opt-in.
+- `max_parent_cone_instances_per_module` — maximum number of helper
+  child instances one hierarchy parent may instantiate as parent-cone
+  sources. Default `1` preserves the first helper slice; `0` disables
+  helper insertion even when `hierarchy_parent_cone_instance_prob`
+  fires. In recursive designs this is a per-parent budget, so the
+  hierarchy-wide helper count can exceed this value across multiple
+  internal modules.
 - `hierarchy_parent_flop_prob` — probability that parent-side hierarchy
   cones may emit local parent flops. This applies to parent output
   cones and parent-composed child-input cones. Range `[0.0, 1.0]`.
@@ -450,6 +459,7 @@ Config {
     hierarchy_registered_child_input_cone_prob: 0.0,
     hierarchy_child_input_cone_prob: 0.35,
     hierarchy_parent_cone_instance_prob: 0.0,
+    max_parent_cone_instances_per_module: 1,
     hierarchy_parent_flop_prob: 0.0,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
@@ -667,7 +677,8 @@ which are bugs worth investigating.
 | `hierarchy_registered_sibling_route_prob` | `child_input_bindings_from_registered_instance_outputs`, `top_child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_registered_child_input_cone_prob` | `child_input_bindings_from_registered_parent_composed_logic`, `top_child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `top_registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `top_child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `top_registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `top_child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction`, `top_registered_multistage_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_child_input_cone_prob` | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
-| `hierarchy_parent_cone_instance_prob` | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `child_input_bindings_from_parent_cone_instances`, `top_child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
+| `hierarchy_parent_cone_instance_prob` | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `max_parent_cone_instances_per_internal_module`, `child_input_bindings_from_parent_cone_instances`, `top_child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
+| `max_parent_cone_instances_per_module` | `max_parent_cone_instances_per_internal_module`, `top_parent_cone_instances`, `hierarchy_parent_cone_instances` |
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction` |
 
 All knobs now have a concrete metric (or metric ratio) that

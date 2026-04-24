@@ -446,12 +446,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `--hierarchy-parent-cone-instance-prob <p>`, which lets those
   parent-local combinational cones instantiate a helper child as an
   internal parent-cone source. Helper outputs can now feed either
-  child-input bindings or parent-output composition, so this is the
-  first landed slice where
+  child-input bindings or parent-output composition, and
+  `--max-parent-cone-instances-per-module <N>` now controls the
+  per-parent helper budget. This is the first landed slice where
   module instantiation participates directly in parent-side cone choice:
   the helper instance is separate from the planned child slots, and
   manifests report the route through `top_parent_cone_instances`,
   `hierarchy_parent_cone_instances`,
+  `max_parent_cone_instances_per_internal_module`,
   `child_input_bindings_from_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
   `hierarchy_outputs_reaching_parent_cone_instances`, and the matching
@@ -483,7 +485,6 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child-input binding, multi-stage registered parent-composed
   child-input binding, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding,
-  parent-cone helper-instance parent-output binding,
   parent-local flop state, and
   per-depth-override profiles folded into `tool_matrix`,
   while the
@@ -531,6 +532,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   planned child slots and top outputs reach those helper outputs through
   `top_outputs_reaching_parent_cone_instances` /
   `hierarchy_outputs_reaching_parent_cone_instances`.
+  Current HEAD also has a focused clean budgeted helper proof through
+  `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`,
+  where `--max-parent-cone-instances-per-module 3` produces
+  `top_parent_cone_instances = 3` and
+  `max_parent_cone_instances_per_internal_module = 3`.
   Current HEAD also has a focused clean parent-state proof at
   `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
   design metrics show `hierarchy_parent_local_flops = 8`,
@@ -577,14 +583,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   remain useful focused policy breadcrumbs, but the full
   downstream-clean `r21` bank above now carries those coverage facts with
   Verilator and both repo-owned Yosys modes enabled.
-  Current HEAD has also added a repo-owned Phase 4 matrix scenario for
-  parent-output helper-instance composition; the next full Phase 4 bank
-  should refresh the historical `r21` counts from 33 scenarios / 132
-  designs to the now-planned 36 scenarios / 144 designs.
+  Current HEAD has also added repo-owned Phase 4 matrix scenarios for
+  parent-output helper-instance composition and budgeted helper
+  allocation; the next full Phase 4 bank should refresh the historical
+  `r21` counts from 33 scenarios / 132 designs to the now-planned
+  39 scenarios / 156 designs.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  broader helper-instance budgeting and placement beyond the current
-  child-input and parent-output cone slices, broader registered
+  broader helper-instance placement beyond the current child-input,
+  parent-output, and per-parent-budget slices, broader registered
   hierarchy patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See

@@ -363,7 +363,7 @@ fn generate_parent_module(
     }
 
     let mut instance_pool = SignalPool::new();
-    let mut parent_cone_instance_inserted = false;
+    let mut parent_cone_instances_inserted = 0u32;
 
     for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
         let child = &library[child_idx];
@@ -399,7 +399,7 @@ fn generate_parent_module(
             shared_clock,
             shared_reset,
             allow_external_pool_reuse: external_profile.is_some(),
-            parent_cone_instance_inserted: &mut parent_cone_instance_inserted,
+            parent_cone_instances_inserted: &mut parent_cone_instances_inserted,
         };
         for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
             let node_id = bind_child_input_from_parent_sources(
@@ -424,7 +424,7 @@ fn generate_parent_module(
             shared_clock: _,
             shared_reset: _,
             allow_external_pool_reuse: _,
-            parent_cone_instance_inserted: _,
+            parent_cone_instances_inserted: _,
         } = binding_ctx;
 
         let instance_id = top.instances.len() as InstanceId;
@@ -474,7 +474,7 @@ fn generate_parent_module(
                 shared_clock,
                 shared_reset,
                 allow_external_pool_reuse: external_profile.is_some(),
-                parent_cone_instance_inserted: &mut parent_cone_instance_inserted,
+                parent_cone_instances_inserted: &mut parent_cone_instances_inserted,
             };
             let source = maybe_add_parent_cone_instance_source(g, &mut helper_ctx, *width);
             let ChildInputBindingContext {
@@ -489,7 +489,7 @@ fn generate_parent_module(
                 shared_clock: _,
                 shared_reset: _,
                 allow_external_pool_reuse: _,
-                parent_cone_instance_inserted: _,
+                parent_cone_instances_inserted: _,
             } = helper_ctx;
             source
         })
@@ -681,7 +681,7 @@ struct ChildInputBindingContext<'a> {
     shared_clock: Option<(PortId, NodeId)>,
     shared_reset: Option<(PortId, NodeId)>,
     allow_external_pool_reuse: bool,
-    parent_cone_instance_inserted: &'a mut bool,
+    parent_cone_instances_inserted: &'a mut u32,
 }
 
 fn bind_child_input_from_parent_sources(
@@ -810,7 +810,7 @@ fn maybe_add_parent_cone_instance_source(
     ctx: &mut ChildInputBindingContext<'_>,
     target_width: u32,
 ) -> Option<NodeId> {
-    if *ctx.parent_cone_instance_inserted
+    if *ctx.parent_cone_instances_inserted >= g.cfg.max_parent_cone_instances_per_module
         || !roll_hierarchy_parent_cone_instance(
             ctx.top,
             &mut g.rng,
@@ -874,7 +874,7 @@ fn maybe_add_parent_cone_instance_source(
         role: InstanceRole::ParentCone,
         inputs: input_bindings,
     });
-    *ctx.parent_cone_instance_inserted = true;
+    *ctx.parent_cone_instances_inserted += 1;
 
     let mut helper_outputs = Vec::new();
     for child_output in &child_outputs {

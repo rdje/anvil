@@ -222,7 +222,31 @@ Useful metrics:
 - `child_input_bindings_from_parent_composed_logic`
 - `child_input_bindings_from_parent_cone_instances`
 - `top_parent_cone_instances`
+- `max_parent_cone_instances_per_internal_module`
 - the matching `*_fraction` fields
+
+To allow more than one helper child in a single parent:
+
+```bash
+anvil --seed 42 --out ./hier-helper-budget3 \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 0.0 \
+      --hierarchy-child-input-cone-prob 1.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --max-parent-cone-instances-per-module 3 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0
+```
+
+Useful metrics:
+
+- `max_parent_cone_instances_per_internal_module`
+- `top_parent_cone_instances`
+- `hierarchy_parent_cone_instances`
 
 To focus helper instances on parent-output composition instead of
 child-input bindings:

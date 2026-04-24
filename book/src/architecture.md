@@ -359,12 +359,13 @@ Three layers:
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 11 tests (empty module, per-kind gate
+- `src/metrics.rs` — 13 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
   and hierarchy design metrics for reuse, under-instantiation,
-  parent-side composition, sibling-routed child inputs, recursive tree
-  shape, per-depth branching profiles, mixed-depth recursion, and
-  profiled on-demand interface realization).
+  parent-side composition, sibling-routed child inputs,
+  parent-cone helper output support, budgeted parent-cone helpers,
+  recursive tree shape, per-depth branching profiles, mixed-depth
+  recursion, and profiled on-demand interface realization).
 - Other unit tests cover compaction, config validation, module
   finalisation, hierarchy validation, and CLI overrides.
 
@@ -380,12 +381,13 @@ child inputs, parent-composed child-input bindings, parent-cone
 helper-instance child-input bindings, parent-cone helper-instance
 parent-output composition, local parent flops, registered sibling-routed
 child-input bindings, registered parent-composed child-input bindings,
+budgeted parent-cone helper allocation,
 mixed parent-port / child-output parent outputs, and module-name
 uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-24): 216 unit-target tests + 48 integration tests = 264 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-24): 217 unit-target tests + 49 integration tests = 266 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -428,9 +430,11 @@ registered parent-composed child-input bindings through
 mixed-support child-input bindings, multi-stage registered
 parent-composed child-input bindings, and mixed parent-port /
 child-output parent outputs. Current HEAD adds parent-cone
-helper-instance parent-output composition after that `r21` bank, with a
-dedicated Phase 4 matrix scenario for the next full bank and focused
-tests proving `top_outputs_reaching_parent_cone_instances > 0`. The
+helper-instance parent-output composition and budgeted multi-helper
+allocation after that `r21` bank, with dedicated Phase 4 matrix
+scenarios for the next full bank and focused tests proving
+`top_outputs_reaching_parent_cone_instances > 0` and
+`max_parent_cone_instances_per_internal_module = 3`. The
 `r21` report records
 `saw_hierarchy_parent_composed_child_inputs = true` and
 `saw_hierarchy_parent_local_flops = true`. It also records

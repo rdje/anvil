@@ -245,6 +245,7 @@ struct CoverageSummary {
     saw_hierarchy_parent_composed_child_inputs: bool,
     saw_hierarchy_parent_cone_instance_routing: bool,
     saw_hierarchy_parent_cone_instance_outputs: bool,
+    saw_multiple_parent_cone_instances_per_parent: bool,
     saw_hierarchy_parent_local_flops: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
@@ -866,6 +867,14 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                     next_seed + 11,
                 ),
             ),
+            (
+                "phase4_hier2_inst4_parent_cone_instance_budget3",
+                "depth-1 hierarchy with combinational children and a three-helper parent-cone instance budget",
+                phase4_hierarchy_parent_cone_instance_budget_focus_config(
+                    strategy,
+                    next_seed + 12,
+                ),
+            ),
         ] {
             scenarios.push(make_scenario(
                 &format!("{strategy_slug}_nodeid_egraph_{name_suffix}"),
@@ -875,7 +884,7 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 config,
             )?);
         }
-        next_seed += 12;
+        next_seed += 13;
     }
 
     Ok(scenarios)
@@ -1383,6 +1392,15 @@ fn phase4_hierarchy_parent_output_cone_instance_focus_config(
     cfg.terminal_reuse_prob = 1.0;
     cfg.constant_prob = 0.0;
     cfg.max_depth = 4;
+    cfg
+}
+
+fn phase4_hierarchy_parent_cone_instance_budget_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    let mut cfg = phase4_hierarchy_parent_cone_instance_focus_config(strategy, seed);
+    cfg.max_parent_cone_instances_per_module = 3;
     cfg
 }
 
@@ -2591,6 +2609,8 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             .metrics
             .hierarchy_outputs_reaching_parent_cone_instances
             > 0;
+        coverage.saw_multiple_parent_cone_instances_per_parent |=
+            design.metrics.max_parent_cone_instances_per_internal_module > 1;
         coverage.saw_hierarchy_parent_local_flops |=
             design.metrics.hierarchy_parent_local_flops > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
@@ -2670,6 +2690,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_hierarchy_parent_cone_instance_routing;
     dst.saw_hierarchy_parent_cone_instance_outputs |=
         src.saw_hierarchy_parent_cone_instance_outputs;
+    dst.saw_multiple_parent_cone_instances_per_parent |=
+        src.saw_multiple_parent_cone_instances_per_parent;
     dst.saw_hierarchy_parent_local_flops |= src.saw_hierarchy_parent_local_flops;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
@@ -3103,6 +3125,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved parent outputs sourced from parent-cone helper instances"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_multiple_parent_cone_instances_per_parent
+    {
+        gaps.push(
+            "matrix never proved multiple parent-cone helper instances in one hierarchy parent"
                 .to_string(),
         );
     }
@@ -3679,8 +3709,8 @@ mod tests {
                     || scenario.config.hierarchy_parent_cone_instance_prob == 1.0
             );
         }
-        assert_eq!(scenarios.len(), 36);
-        assert_eq!(names.len(), 36);
+        assert_eq!(scenarios.len(), 39);
+        assert_eq!(names.len(), 39);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -3709,6 +3739,7 @@ mod tests {
             "phase4_hier2_inst4_registered_child_input_cone_state",
             "phase4_hier2_inst4_parent_cone_instance",
             "phase4_hier2_inst4_parent_output_cone_instance",
+            "phase4_hier2_inst4_parent_cone_instance_budget3",
         ] {
             assert!(
                 names.iter().any(|name| name.ends_with(suffix)),
@@ -3818,6 +3849,9 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("parent outputs sourced from parent-cone helper instances")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("multiple parent-cone helper instances")));
         assert!(gaps.iter().any(|gap| gap.contains("local parent flops")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
         assert!(gaps

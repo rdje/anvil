@@ -145,11 +145,12 @@ placeholder structure:
   the bounded recursive hierarchy lane, with library/on-demand child
   sourcing, sibling-routed child-input bindings, parent-composed
   child-input cones, parent-cone helper instances for child-input and
-  parent-output cones, and optional local parent flops.
+  parent-output cones, explicit per-parent helper budgeting, and
+  optional local parent flops.
 
 The remaining open hierarchy work is richer parent-local behavior
-beyond the landed state/helper surfaces: broader helper placement and
-budgeting, broader registered hierarchy routing, and hierarchy-aware
+beyond the landed state/helper surfaces: broader helper placement,
+broader registered hierarchy routing, and hierarchy-aware
 identity/factorization.
 
 ## Node construction: `intern_gate` / `intern_constant`

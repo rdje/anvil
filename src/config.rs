@@ -90,6 +90,10 @@ fn default_hierarchy_parent_cone_instance_prob() -> f64 {
     0.0
 }
 
+fn default_max_parent_cone_instances_per_module() -> u32 {
+    1
+}
+
 /// Identity mode — the coarse answer to "what does a `NodeId`
 /// mean?".
 ///
@@ -450,12 +454,18 @@ pub struct Config {
     /// `hierarchy_parent_flop_prob`.
     #[serde(default = "default_hierarchy_child_input_cone_prob")]
     pub hierarchy_child_input_cone_prob: f64,
-    /// Probability that a parent-composed child-input cone may instantiate
-    /// an extra child module as an internal parent-cone source before
-    /// building the cone. Default 0.0 preserves the current planned child
-    /// instance set unless this axis is explicitly requested.
+    /// Probability that a parent-composed child-input cone or parent-output
+    /// cone may instantiate an extra child module as an internal parent-cone
+    /// source before building the cone. Default 0.0 preserves the current
+    /// planned child instance set unless this axis is explicitly requested.
     #[serde(default = "default_hierarchy_parent_cone_instance_prob")]
     pub hierarchy_parent_cone_instance_prob: f64,
+    /// Maximum number of parent-cone helper child instances one hierarchy
+    /// parent may instantiate. Default 1 preserves the first landed helper
+    /// slice; set to 0 to disable helper insertion even when
+    /// `hierarchy_parent_cone_instance_prob` is non-zero.
+    #[serde(default = "default_max_parent_cone_instances_per_module")]
+    pub max_parent_cone_instances_per_module: u32,
     /// Probability that parent-side hierarchy cones may emit local
     /// parent flops. This applies to parent output cones and
     /// parent-composed child-input cones. Default 0.0 preserves the
@@ -608,6 +618,7 @@ impl Default for Config {
                 default_hierarchy_registered_child_input_cone_prob(),
             hierarchy_child_input_cone_prob: default_hierarchy_child_input_cone_prob(),
             hierarchy_parent_cone_instance_prob: default_hierarchy_parent_cone_instance_prob(),
+            max_parent_cone_instances_per_module: default_max_parent_cone_instances_per_module(),
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
@@ -1128,6 +1139,9 @@ impl Config {
         if let Some(v) = o.hierarchy_parent_cone_instance_prob {
             self.hierarchy_parent_cone_instance_prob = v;
         }
+        if let Some(v) = o.max_parent_cone_instances_per_module {
+            self.max_parent_cone_instances_per_module = v;
+        }
         if let Some(v) = o.hierarchy_parent_flop_prob {
             self.hierarchy_parent_flop_prob = v;
         }
@@ -1196,6 +1210,7 @@ pub struct Overrides {
     pub hierarchy_registered_child_input_cone_prob: Option<f64>,
     pub hierarchy_child_input_cone_prob: Option<f64>,
     pub hierarchy_parent_cone_instance_prob: Option<f64>,
+    pub max_parent_cone_instances_per_module: Option<u32>,
     pub hierarchy_parent_flop_prob: Option<f64>,
 }
 

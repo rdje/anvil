@@ -312,6 +312,9 @@ opening the emitted `.sv`, including:
   `hierarchy_outputs_reaching_parent_cone_instances`,
   `top_parent_cone_instance_output_fraction`,
   `hierarchy_parent_cone_instance_output_fraction`)
+- parent-cone helper-instance counts and budget realization
+  (`top_parent_cone_instances`, `hierarchy_parent_cone_instances`,
+  `max_parent_cone_instances_per_internal_module`)
 - child-input provenance
   (`child_input_bindings_from_parent_ports`,
   `child_input_bindings_from_instance_outputs`,
@@ -379,6 +382,10 @@ The current Phase 4 slice now has two planning lanes:
   child-input cones or parent-output cones may instantiate one helper
   child as an internal parent-cone source; default `0.0` keeps this
   helper-instantiation axis opt-in
+- `max_parent_cone_instances_per_module` controls how many helper
+  children one hierarchy parent may instantiate; default `1` preserves
+  the first helper slice, and `0` disables helper allocation even when
+  the probability fires
 - `hierarchy_parent_flop_prob` controls whether parent-side hierarchy
   cones may emit local parent flops; default `0.0` keeps the hierarchy
   parent layer combinational unless this state axis is explicitly
@@ -548,6 +555,11 @@ parent-output helper axis, and
 `cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`
 proves `top_outputs_reaching_parent_cone_instances > 0` without
 depending on child-input helper bindings.
+Current HEAD also has focused budgeted helper support after the `r21`
+bank: the Phase 4 matrix plan now has a dedicated budget-3 helper axis,
+and `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
+proves `top_parent_cone_instances = 3` and
+`max_parent_cone_instances_per_internal_module = 3`.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -599,6 +611,10 @@ is the focused proof for parent-output helper-instance composition
 (`top_outputs_reaching_parent_cone_instances > 0`,
 `hierarchy_outputs_reaching_parent_cone_instances > 0`,
 `top_parent_cone_instance_output_fraction > 0.0`).
+`cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
+is the focused proof for budgeted helper allocation
+(`top_parent_cone_instances = 3`,
+`max_parent_cone_instances_per_internal_module = 3`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

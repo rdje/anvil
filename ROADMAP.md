@@ -316,6 +316,9 @@ evidence.
     parent-composed child-input cones and parent-output cones can
     instantiate one helper child as an internal parent-cone source, then
     route its output through parent logic.
+    `--max-parent-cone-instances-per-module <N>` controls the
+    per-parent helper budget; default `1` preserves the first helper
+    slice, and focused tests now prove budget `3` is reachable.
 - Current slice constraints:
   - direct sibling routing is still combinational; the first one-flop
     registered sibling route and the first registered parent-composed
@@ -331,16 +334,18 @@ evidence.
     routing, multi-stage registered parent-composed routing, mixed
     parent-port / child-output parent outputs, and parent-cone
     helper-instance child-input routing. Current HEAD adds
-    parent-cone helper-instance parent-output composition as a focused
-    post-`r21` slice and matrix-plan axis.
+    parent-cone helper-instance parent-output composition and budgeted
+    multi-helper allocation as focused post-`r21` slices and
+    matrix-plan axes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
     output cannot collide or overwrite module definition files by
     reusing a name
 - Open Phase 4 work:
-  - broaden helper-instance placement and budgeting beyond the current
-    parent-composed child-input and parent-output cone slices
+  - broaden helper-instance placement beyond the current
+    parent-composed child-input, parent-output, and per-parent-budget
+    slices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
     surfaces
@@ -358,8 +363,8 @@ with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`132/0` in Verilator plus both repo-owned Yosys modes). That report now
-proves all of the current representative hierarchy axes directly:
+(`132/0` in Verilator plus both repo-owned Yosys modes). That report
+proves all of the then-banked representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
 - mixed recursive depth range `2:3`
@@ -375,7 +380,6 @@ proves all of the current representative hierarchy axes directly:
   through earlier parent-local Qs
 - parent-cone helper instances that source parent-composed child-input
   bindings
-- parent-cone helper instances that source parent-output composition
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -413,9 +417,21 @@ the design metrics prove the route numerically via
 `hierarchy_outputs_reaching_parent_cone_instances`, and
 `top_parent_cone_instance_output_fraction`. The repo-owned Phase 4
 scenario set now has a dedicated
-`phase4_hier2_inst4_parent_output_cone_instance` axis as well; the next
-full downstream-clean bank should refresh the historical `r21` counts
-from 33 scenarios / 132 designs to 36 scenarios / 144 designs.
+`phase4_hier2_inst4_parent_output_cone_instance` axis as well.
+
+**Focused budgeted helper-instance proof (new targeted evidence):**
+current HEAD lets one hierarchy parent instantiate more than one
+parent-cone helper child when
+`max_parent_cone_instances_per_module` is raised. The focused
+regression is
+`cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`;
+the design metrics prove budget `3` via `top_parent_cone_instances`
+and `max_parent_cone_instances_per_internal_module`. The repo-owned
+Phase 4 scenario set now has a dedicated
+`phase4_hier2_inst4_parent_cone_instance_budget3` axis too. Together
+with the parent-output helper axis, the next full downstream-clean bank
+should refresh the historical `r21` counts from 33 scenarios / 132
+designs to 39 scenarios / 156 designs.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -542,8 +558,9 @@ pre-registered-parent-composed-route bank, `r18` is the first
 registered-parent-composed bank, `r19` is the pre-full parent-port /
 registered-mixed / multi-stage bank, `r20` is the pre-parent-cone
 helper-instance bank, and `r21` is the latest full downstream-clean
-Phase 4 hierarchy closure artifact. The current scenario plan has one
-additional parent-output helper-instance axis after `r21`.
+Phase 4 hierarchy closure artifact. The current scenario plan has
+parent-output helper-instance and budgeted helper-instance axes after
+`r21`.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -558,10 +575,10 @@ adds the parent-cone helper-instance coverage fact as well.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
-with broader helper-instance budgeting and placement beyond the current
-child-input and parent-output cone slices, richer registered hierarchy
-patterns beyond the first multi-stage parent-flop chain, and eventual
-hierarchy-aware identity/factorization.
+with broader helper-instance placement beyond the current child-input,
+parent-output, and per-parent-budget slices, richer registered
+hierarchy patterns beyond the first multi-stage parent-flop chain, and
+eventual hierarchy-aware identity/factorization.
 
 ## Phase 5 — Parameterization (not started)
 

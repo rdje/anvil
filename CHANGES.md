@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot16 — Budget parent-cone helper instances per parent
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  add `max_parent_cone_instances_per_module`, exposed on the CLI as
+  `--max-parent-cone-instances-per-module`. The default is `1`, so old
+  configs keep the first helper-instance behavior; `0` disables helper
+  allocation; higher values let one hierarchy parent instantiate
+  multiple helper children when
+  `hierarchy_parent_cone_instance_prob` fires.
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  replaces the old per-parent boolean helper guard with a per-parent
+  helper count checked against the configured budget.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports `max_parent_cone_instances_per_internal_module`, so
+  manifests and matrix reports can prove that a local helper budget was
+  actually used.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds `hierarchy_parent_cone_helper_budget_allows_multiple_helpers`,
+  proving a budget of `3` across all construction strategies.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  adds the Phase 4
+  `phase4_hier2_inst4_parent_cone_instance_budget3` scenario and a
+  coverage gap for multiple parent-cone helper instances in one
+  hierarchy parent. The next planned Phase 4 bank is now 39 scenarios /
+  156 designs.
+- The mdBook and live docs now describe the new knob, metrics, recipe,
+  focused proof, and updated matrix-plan counts.
+
+**Why**
+
+- The previous helper-instance slice was intentionally limited to one
+  helper per parent. This lands the first explicit budgeting control
+  while keeping the default behavior stable.
+
+**Validation**
+
+- `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
+- `cargo test design_metrics_capture_multiple_parent_cone_instance_budget`
+- `cargo test --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo test newly_exposed_cli_knobs_round_trip_into_overrides`
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot15 — Route parent-output cones through helper instances
 
 **Landed as:** this commit
@@ -21,8 +73,8 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
   adds a dedicated Phase 4 scenario,
   `phase4_hier2_inst4_parent_output_cone_instance`, and a coverage gap
   for parent outputs sourced from parent-cone helper instances. The
-  current scenario plan is 36 scenarios / 144 designs; the latest full
-  downstream-clean bank remains the earlier `r21` report.
+  then-current scenario plan was 36 scenarios / 144 designs; the latest
+  full downstream-clean bank remained the earlier `r21` report.
 - [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
   proves the route across all construction strategies while keeping
   child-input helper bindings off, so the new surface is independent of
