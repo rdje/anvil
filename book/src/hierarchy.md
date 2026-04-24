@@ -349,7 +349,7 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
 - `30` scenarios
 - `4` designs/scenario
 - `120` total designs
@@ -374,8 +374,9 @@ child-output parent outputs, plus real parent-composed child-input
 bindings, plus registered sibling-routed child-input bindings, plus
 registered parent-composed child-input bindings, plus registered
 mixed-support child-input bindings that mix parent ports with child
-outputs, plus real local parent flops. The focused proof artifact for
-that composed-parent
+outputs, plus multi-stage registered parent-composed child-input
+bindings that chain through earlier parent-local Qs, plus real local
+parent flops. The focused proof artifact for that composed-parent
 behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
@@ -427,11 +428,11 @@ local proofs remain useful:
   - `top_registered_mixed_support_child_input_binding_fraction = 0.75`
   The current-code coverage-only Phase 4 matrix probe at
   `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
-  now also banks this as a required coverage fact with
+  first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean bank remains
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
+  skipped Verilator/Yosys; the full downstream-clean `r20` bank now
+  carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
   parent-composed child-input binding numerically:
@@ -440,11 +441,11 @@ local proofs remain useful:
   - `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`
   The current-code coverage-only Phase 4 matrix probe at
   `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
-  now also banks this as a required coverage fact with
+  first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean bank remains
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
+  skipped Verilator/Yosys; the full downstream-clean `r20` bank now
+  carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
   parent outputs numerically:
@@ -454,11 +455,11 @@ local proofs remain useful:
   - `top_outputs_without_instance_outputs = 0`
   The current-code coverage-only Phase 4 matrix probe at
   `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
-  now also banks this as a required coverage fact with
+  first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean bank remains
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
+  skipped Verilator/Yosys; the full downstream-clean `r20` bank now
+  carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
   - `hierarchy_parent_local_flops = 8`
@@ -485,7 +486,7 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19` closes them cleanly
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r20` closes them cleanly
   with `coverage_gaps = []` and `120/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
@@ -493,7 +494,9 @@ local proofs remain useful:
   explicit child-sourcing bank, `r12` is the first exact profiled
   child-interface bank, `r13` is the pre-parent-input-cone bank, `r15`
   is the pre-parent-state bank, `r16` is the pre-registered-sibling-route
-  bank, `r17` is the pre-registered-parent-composed-route bank, and
+  bank, `r17` is the pre-registered-parent-composed-route bank, `r19`
+  is the pre-full parent-port / registered-mixed / multi-stage bank,
+  `r20` is the current full downstream-clean hierarchy bank, and
   the aborted `r8` rerun is
   historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently

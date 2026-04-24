@@ -1,6 +1,46 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot10 — Refresh Phase 4 hierarchy gate for multi-stage routing
+
+**Landed as:** this commit
+
+**What changed**
+
+- The full repo-owned Phase 4 hierarchy matrix was rerun at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`,
+  promoting the current downstream-clean bank past the older `r19`
+  artifact.
+- README, roadmap, development notes, memory, codebase analysis, and the
+  mdBook hierarchy/architecture chapters now point at `r20` as the
+  authoritative current hierarchy proof.
+- The docs now distinguish the older coverage-only parent-port,
+  registered mixed-support, and registered multi-stage probes as focused
+  policy breadcrumbs; `r20` now carries those same facts with Verilator
+  and both repo-owned Yosys modes enabled.
+
+**Why**
+
+- The multi-stage registered routing slice had a focused downstream
+  smoke and a coverage-only matrix proof, but the user-facing docs should
+  cite the strongest current artifact. This keeps the book and live docs
+  aligned with the actual full Phase 4 gate.
+
+**Validation**
+
+- `cargo run --quiet --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --out /tmp/anvil-tool-matrix-phase4-hierarchy-r20`
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
+  records `coverage_gaps = []`, `120` total designs,
+  `Verilator pass/fail = 120/0`,
+  `Yosys without-abc pass/fail = 120/0`, and
+  `Yosys with-abc pass/fail = 120/0`.
+- The same report records
+  `saw_hierarchy_parent_port_composed_outputs = true`,
+  `saw_hierarchy_registered_mixed_support_routing = true`, and
+  `saw_hierarchy_registered_multistage_routing = true`.
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot9 — Land multi-stage registered hierarchy routing
 
 **Landed as:** this commit

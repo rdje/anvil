@@ -237,7 +237,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r20`. Its final
 `tool_matrix_report.json` records:
 
 - `30` scenarios
@@ -248,6 +248,9 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19`. Its final
 - `Verilator pass/fail = 120/0`
 - `Yosys without-abc pass/fail = 120/0`
 - `Yosys with-abc pass/fail = 120/0`
+- `saw_hierarchy_parent_port_composed_outputs = true`
+- `saw_hierarchy_registered_mixed_support_routing = true`
+- `saw_hierarchy_registered_multistage_routing = true`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 closure artifact for the current hierarchy surface, not only the older
@@ -265,12 +268,10 @@ sibling-routed hierarchy child inputs and parent-composed child-input
 bindings proved numerically, plus registered sibling-routed hierarchy
 child inputs through parent-local state, plus registered
 parent-composed child-input bindings through parent logic and
-parent-local state, plus explicit local parent flops in hierarchy
-modules. A current-code coverage-only matrix at
-`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
-now also proves the registered parent-composed route can mix parent
-ports with child outputs, with `coverage_gaps = []` and
-`saw_hierarchy_registered_mixed_support_routing = true`.
+parent-local state, plus registered mixed-support child-input binding,
+multi-stage registered parent-composed child-input binding, mixed
+parent-port / child-output parent outputs, and explicit local parent
+flops in hierarchy modules.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -451,12 +452,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
   binding, registered sibling-routed child-input binding, registered
-  parent-composed child-input binding, parent-local flop state, and
+  parent-composed child-input binding, registered mixed-support
+  child-input binding, multi-stage registered parent-composed
+  child-input binding, mixed parent-port / child-output parent outputs,
+  parent-local flop state, and
   per-depth-override profiles folded into `tool_matrix`,
   while the
   focused smokes
@@ -523,17 +527,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `hierarchy_parent_port_composed_outputs = 8`,
   `top_outputs_reaching_instance_outputs = 8`, and
   `top_outputs_without_instance_outputs = 0`.
-  A current-code coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
-  now also records `coverage_gaps = []` and
-  `saw_hierarchy_parent_port_composed_outputs = true`; it was run with
-  Verilator/Yosys skipped, while the full downstream-clean bank remains
-  the `r19` report above.
-  A second current-code coverage-only Phase 4 probe at
+  Earlier current-code coverage-only Phase 4 matrix probes at
+  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
+  `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
+  and
   `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
-  now records `coverage_gaps = []` and
-  `saw_hierarchy_registered_multistage_routing = true`; it was also
-  run with Verilator/Yosys skipped.
+  remain useful focused policy breadcrumbs, but the full
+  downstream-clean `r20` bank above now carries those coverage facts with
+  Verilator and both repo-owned Yosys modes enabled.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
   first-class module instantiation inside parent cone choice, broader

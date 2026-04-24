@@ -402,7 +402,7 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
 (120 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 120/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
@@ -416,28 +416,25 @@ instance outputs, parent-composed child input bindings through
 `hierarchy_parent_flop_prob`, plus registered sibling-routed child
 inputs through `hierarchy_registered_sibling_route_prob`, plus
 registered parent-composed child-input bindings through
-`hierarchy_registered_child_input_cone_prob`. It records
+`hierarchy_registered_child_input_cone_prob`, plus registered
+mixed-support child-input bindings, multi-stage registered
+parent-composed child-input bindings, and mixed parent-port /
+child-output parent outputs. It records
 `saw_hierarchy_parent_composed_child_inputs = true` and
 `saw_hierarchy_parent_local_flops = true`. It also records
 `saw_hierarchy_registered_sibling_routing = true` and
-`saw_hierarchy_registered_parent_composed_routing = true`. A
-current-code coverage-only probe at
-`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
-now also records `coverage_gaps = []` and
-`saw_hierarchy_registered_mixed_support_routing = true`, proving the
-registered parent-composed route can mix parent ports with child
-outputs. A second current-code coverage-only probe at
-`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
-records `coverage_gaps = []` and
-`saw_hierarchy_registered_multistage_routing = true`, proving later
-registered parent-composed routes can chain through earlier parent
-flops. A
-current-code coverage-only probe at
+`saw_hierarchy_registered_parent_composed_routing = true`,
+`saw_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_multistage_routing = true`, and
+`saw_hierarchy_parent_port_composed_outputs = true`. Earlier
+coverage-only probes at
+`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
+and
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
-now also records `coverage_gaps = []` and
-`saw_hierarchy_parent_port_composed_outputs = true`; that probe skipped
-Verilator/Yosys, while the full downstream-clean bank remains the
-`r19` report above. The old hierarchy
+remain useful focused policy breadcrumbs, but the full `r20` bank above
+now carries those facts through Verilator and both repo-owned Yosys
+modes. The old hierarchy
 smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,

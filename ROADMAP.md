@@ -321,7 +321,9 @@ evidence.
     wrapper lane and the representative recursive lane, including the
     mixed-depth recursive axis, the explicit child-sourcing axis, local
     parent state, registered sibling routing, and registered
-    parent-composed child-input routing
+    parent-composed child-input routing, registered mixed-support
+    routing, multi-stage registered parent-composed routing, and mixed
+    parent-port / child-output parent outputs
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
@@ -338,7 +340,7 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
@@ -354,11 +356,16 @@ proves all of the current representative hierarchy axes directly:
   state
 - registered parent-composed hierarchy child-input bindings through
   parent logic plus parent-local state
+- registered mixed-support child-input bindings that mix parent data
+  ports with child outputs
+- multi-stage registered parent-composed child-input bindings that chain
+  through earlier parent-local Qs
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
 - real per-depth branching metrics
 - real parent-side composition above instance outputs
+- real mixed parent-port / child-output parent outputs
 - real sibling-routed hierarchy child inputs
 - real parent-composed hierarchy child-input bindings
 - real local parent flops in hierarchy modules
@@ -366,12 +373,15 @@ proves all of the current representative hierarchy axes directly:
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane
 
-A current-code coverage-only Phase 4 matrix probe at
-`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
-keeps that gate policy aligned with the mixed parent-output slice. It
-was run with Verilator/Yosys skipped and records `coverage_gaps = []`
-plus `saw_hierarchy_parent_port_composed_outputs = true`; the full
-downstream clean bank remains the `r19` report above.
+Earlier current-code coverage-only Phase 4 matrix probes at
+`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
+`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
+and
+`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+remain useful targeted policy breadcrumbs for the mixed parent-output,
+registered mixed-support, and multi-stage registered slices. They were
+run with Verilator/Yosys skipped; the full downstream-clean `r20` bank
+above now carries those same coverage facts with real tool validation.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -495,18 +505,19 @@ recursive bank, `r10` is the pre-child-sourcing recursive bank,
 `r13` is the pre-parent-input-cone bank, `r15` is the pre-parent-state
 bank, `r16` is the pre-registered-sibling-route bank, `r17` is the
 pre-registered-parent-composed-route bank, `r18` is the first
-registered-parent-composed bank, and `r19` is the current fully banked
-Phase 4 hierarchy closure artifact.
+registered-parent-composed bank, `r19` is the pre-full parent-port /
+registered-mixed / multi-stage bank, and `r20` is the current fully
+banked Phase 4 hierarchy closure artifact.
 
-Current-code coverage-only probes after `r19` keep the gate policy
-aligned with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+Current-code coverage-only probes after `r19` first aligned the gate
+policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
 requires mixed parent-output composition, and
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
 requires registered mixed-support child-input routing, and
 `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
 requires multi-stage registered parent-composed routing. All record
-`coverage_gaps = []` with Verilator/Yosys skipped; the full
-downstream-clean bank remains `r19`.
+`coverage_gaps = []` with Verilator/Yosys skipped; `r20` now folds all
+three coverage facts into the full downstream-clean bank.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
