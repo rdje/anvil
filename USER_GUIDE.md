@@ -326,6 +326,7 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_registered_parent_composed_logic`,
   `child_input_bindings_from_registered_mixed_support`,
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_registered_parent_cone_instances`,
   `child_input_bindings_from_parent_cone_instances`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
@@ -342,6 +343,9 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level registered parent-composed route fractions
   (`registered_parent_composed_child_input_binding_fraction`,
   `top_registered_parent_composed_child_input_binding_fraction`)
+- hierarchy- and top-level registered helper-sourced route fractions
+  (`registered_parent_cone_instance_child_input_binding_fraction`,
+  `top_registered_parent_cone_instance_child_input_binding_fraction`)
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -373,15 +377,17 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_registered_child_input_cone_prob` controls whether later
   child data inputs bind through parent-local combinational logic over
   sibling-output-derived sources and then one local parent flop;
-  default `0.0` keeps this registered parent-composed route opt-in
+  when `hierarchy_parent_cone_instance_prob` also fires, the registered
+  D cone can include a parent-cone helper output; default `0.0` keeps
+  this registered parent-composed route opt-in
 - `hierarchy_child_input_cone_prob` controls whether child data inputs
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates
 - `hierarchy_parent_cone_instance_prob` controls whether those
-  child-input cones or parent-output cones may instantiate one helper
-  child as an internal parent-cone source; default `0.0` keeps this
-  helper-instantiation axis opt-in
+  child-input cones, registered child-input D cones, or parent-output
+  cones may instantiate one helper child as an internal parent-cone
+  source; default `0.0` keeps this helper-instantiation axis opt-in
 - `max_parent_cone_instances_per_module` controls how many helper
   children one hierarchy parent may instantiate; default `1` preserves
   the first helper slice, and `0` disables helper allocation even when
@@ -462,8 +468,11 @@ Useful options:
   `[2:3]` and `[1:3]`), the per-depth override profile
   `0=4:4,1=2:2`, explicit child-sourcing modes
   `library` and `on-demand`, real sibling-routed and registered
-  sibling-routed child-input bindings, and real parent-side composition
-  above instance outputs.
+  sibling-routed child-input bindings, real registered
+  parent-composed child-input bindings, helper-sourced child-input
+  bindings, helper-sourced parent outputs, registered helper-sourced
+  child-input D cones, budgeted helper allocation, and real parent-side
+  composition above instance outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
@@ -538,17 +547,17 @@ pre-parent-output-helper hierarchy surface: the broadened
 bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
 and `1:3`, the mixed recursive depth-range profile `2:3`, the
 per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
-child-sourcing modes `library` and `on-demand`, exact profiled
-child-interface synthesis in the on-demand lane, real mixed
-shallow/deep leaf realization, real parent-side composition above
-instance outputs, real sibling-routed hierarchy child inputs, and real
-parent-composed child-input bindings, plus explicit parent-local flop
-state, registered sibling-routed child-input bindings, and registered
-parent-composed child-input bindings, registered mixed-support
-child-input bindings, multi-stage registered parent-composed
-child-input bindings, mixed parent-port / child-output parent outputs,
-parent-cone helper-instance child-input bindings, and generator-global
-module-name allocation.
+  child-sourcing modes `library` and `on-demand`, exact profiled
+  child-interface synthesis in the on-demand lane, real mixed
+  shallow/deep leaf realization, real parent-side composition above
+  instance outputs, real sibling-routed hierarchy child inputs, and real
+  parent-composed child-input bindings, plus explicit parent-local flop
+  state, registered sibling-routed child-input bindings, and registered
+  parent-composed child-input bindings, registered mixed-support
+  child-input bindings, multi-stage registered parent-composed
+  child-input bindings, mixed parent-port / child-output parent outputs,
+  parent-cone helper-instance child-input bindings, and generator-global
+  module-name allocation.
 Current HEAD also has focused parent-output helper-instance support
 after the `r21` bank: the Phase 4 matrix plan now has a dedicated
 parent-output helper axis, and
@@ -560,6 +569,13 @@ bank: the Phase 4 matrix plan now has a dedicated budget-3 helper axis,
 and `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
 proves `top_parent_cone_instances = 3` and
 `max_parent_cone_instances_per_internal_module = 3`.
+Current HEAD also has focused registered helper support after the `r21`
+bank: the Phase 4 matrix plan now has a dedicated registered
+parent-cone helper axis, and
+`cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
+proves registered parent-composed child-input D cones can depend on
+helper outputs through
+`child_input_bindings_from_registered_parent_cone_instances > 0`.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -615,6 +631,10 @@ is the focused proof for parent-output helper-instance composition
 is the focused proof for budgeted helper allocation
 (`top_parent_cone_instances = 3`,
 `max_parent_cone_instances_per_internal_module = 3`).
+`cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
+is the focused proof for registered helper-sourced child-input D cones
+(`child_input_bindings_from_registered_parent_cone_instances > 0`,
+`registered_parent_cone_instance_child_input_binding_fraction > 0.0`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

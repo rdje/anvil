@@ -145,8 +145,8 @@ placeholder structure:
   the bounded recursive hierarchy lane, with library/on-demand child
   sourcing, sibling-routed child-input bindings, parent-composed
   child-input cones, parent-cone helper instances for child-input and
-  parent-output cones, explicit per-parent helper budgeting, and
-  optional local parent flops.
+  registered child-input D cones as well as parent-output cones,
+  explicit per-parent helper budgeting, and optional local parent flops.
 
 The remaining open hierarchy work is richer parent-local behavior
 beyond the landed state/helper surfaces: broader helper placement,

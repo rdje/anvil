@@ -310,12 +310,15 @@ evidence.
     and then one local parent flop. Current HEAD can mix parent data
     ports with earlier sibling outputs in that registered route, and
     later registered parent-composed routes can chain through earlier
-    parent-local flops when such Qs are already available.
+    parent-local flops when such Qs are already available. When
+    `--hierarchy-parent-cone-instance-prob` also fires, the registered
+    D cone can include a parent-cone helper instance output.
     `--hierarchy-parent-cone-instance-prob <p>` adds the first
     first-class module-instantiation route inside parent cone choice:
-    parent-composed child-input cones and parent-output cones can
-    instantiate one helper child as an internal parent-cone source, then
-    route its output through parent logic.
+    parent-composed child-input cones, registered child-input D cones,
+    and parent-output cones can instantiate one helper child as an
+    internal parent-cone source, then route its output through parent
+    logic.
     `--max-parent-cone-instances-per-module <N>` controls the
     per-parent helper budget; default `1` preserves the first helper
     slice, and focused tests now prove budget `3` is reachable.
@@ -334,9 +337,9 @@ evidence.
     routing, multi-stage registered parent-composed routing, mixed
     parent-port / child-output parent outputs, and parent-cone
     helper-instance child-input routing. Current HEAD adds
-    parent-cone helper-instance parent-output composition and budgeted
-    multi-helper allocation as focused post-`r21` slices and
-    matrix-plan axes.
+    parent-cone helper-instance parent-output composition, budgeted
+    multi-helper allocation, and registered helper-sourced child-input
+    D cones as focused post-`r21` slices and matrix-plan axes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -344,8 +347,8 @@ evidence.
     reusing a name
 - Open Phase 4 work:
   - broaden helper-instance placement beyond the current
-    parent-composed child-input, parent-output, and per-parent-budget
-    slices
+    parent-composed child-input, registered child-input, parent-output,
+    and per-parent-budget slices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
     surfaces
@@ -380,6 +383,8 @@ proves all of the then-banked representative hierarchy axes directly:
   through earlier parent-local Qs
 - parent-cone helper instances that source parent-composed child-input
   bindings
+- parent-cone helper instances that source registered parent-composed
+  child-input D cones
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -429,9 +434,26 @@ the design metrics prove budget `3` via `top_parent_cone_instances`
 and `max_parent_cone_instances_per_internal_module`. The repo-owned
 Phase 4 scenario set now has a dedicated
 `phase4_hier2_inst4_parent_cone_instance_budget3` axis too. Together
-with the parent-output helper axis, the next full downstream-clean bank
-should refresh the historical `r21` counts from 33 scenarios / 132
-designs to 39 scenarios / 156 designs.
+with the parent-output helper axis and the registered helper axis below,
+the next full downstream-clean bank should refresh the historical `r21`
+counts from 33 scenarios / 132 designs to 42 scenarios / 168 designs.
+
+**Focused registered helper-instance proof (new targeted evidence):**
+current HEAD now lets registered parent-composed child-input D cones
+instantiate and use parent-cone helper outputs when both
+`hierarchy_registered_child_input_cone_prob` and
+`hierarchy_parent_cone_instance_prob` are active. The focused
+regressions are
+`cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
+and
+`cargo test design_metrics_capture_registered_parent_cone_instance_routes`;
+the design metrics prove the route numerically through
+`child_input_bindings_from_registered_parent_cone_instances`,
+`top_child_input_bindings_from_registered_parent_cone_instances`,
+`registered_parent_cone_instance_child_input_binding_fraction`, and
+`top_registered_parent_cone_instance_child_input_binding_fraction`.
+The repo-owned Phase 4 scenario set now has a dedicated
+`phase4_hier2_inst4_registered_parent_cone_instance_state` axis too.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -575,8 +597,9 @@ adds the parent-cone helper-instance coverage fact as well.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
-with broader helper-instance placement beyond the current child-input,
-parent-output, and per-parent-budget slices, richer registered
+with broader helper-instance placement beyond the current unregistered
+child-input, registered child-input, parent-output, and
+per-parent-budget slices, richer registered
 hierarchy patterns beyond the first multi-stage parent-flop chain, and
 eventual hierarchy-aware identity/factorization.
 

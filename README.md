@@ -140,6 +140,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force registered parent-composed hierarchy child inputs
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --max-flops-per-module 8
 
+# Force registered parent-composed child inputs whose D cones use helper instances
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --max-flops-per-module 8 --terminal-reuse-prob 1.0 --constant-prob 0.0
+
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
 
@@ -391,7 +394,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   combinational logic over already-available parent sources and then
   one local parent flop. When parent data inputs and earlier sibling
   outputs are both live, this route can mix both supports; when earlier
-  parent flops are live, later routes can chain through those Qs.
+  parent flops are live, later routes can chain through those Qs; when
+  `--hierarchy-parent-cone-instance-prob` fires, the registered D cone
+  can also include a parent-cone helper instance output.
   Default `0.0`; this keeps the registered parent-composed route
   distinct from direct registered sibling routing.
 - `anvil --hierarchy-child-input-cone-prob <p>` controls whether child
@@ -437,7 +442,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   flop before binding a later child input. When parent data inputs and
   earlier sibling outputs are both live, that registered route can mix
   both supports; when earlier parent flops are live, later routes can
-  chain through those Qs.
+  chain through those Qs; when `--hierarchy-parent-cone-instance-prob`
+  fires, the registered D cone can also include a helper instance
+  output.
   Both lanes also expose `--hierarchy-child-input-cone-prob <p>`, which
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
@@ -445,8 +452,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both lanes also expose
   `--hierarchy-parent-cone-instance-prob <p>`, which lets those
   parent-local combinational cones instantiate a helper child as an
-  internal parent-cone source. Helper outputs can now feed either
-  child-input bindings or parent-output composition, and
+  internal parent-cone source. Helper outputs can now feed unregistered
+  child-input bindings, registered child-input D cones, or
+  parent-output composition, and
   `--max-parent-cone-instances-per-module <N>` now controls the
   per-parent helper budget. This is the first landed slice where
   module instantiation participates directly in parent-side cone choice:
@@ -455,6 +463,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `hierarchy_parent_cone_instances`,
   `max_parent_cone_instances_per_internal_module`,
   `child_input_bindings_from_parent_cone_instances`,
+  `child_input_bindings_from_registered_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
   `hierarchy_outputs_reaching_parent_cone_instances`, and the matching
   child-input / parent-output fractions.
@@ -537,6 +546,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   where `--max-parent-cone-instances-per-module 3` produces
   `top_parent_cone_instances = 3` and
   `max_parent_cone_instances_per_internal_module = 3`.
+  Current HEAD also has a focused clean registered helper proof through
+  `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`,
+  where registered parent-composed child-input D cones depend on
+  helper-instance outputs. The metrics prove this through
+  `child_input_bindings_from_registered_parent_cone_instances`,
+  `top_child_input_bindings_from_registered_parent_cone_instances`,
+  `registered_parent_cone_instance_child_input_binding_fraction`, and
+  `top_registered_parent_cone_instance_child_input_binding_fraction`.
   Current HEAD also has a focused clean parent-state proof at
   `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
   design metrics show `hierarchy_parent_local_flops = 8`,
@@ -584,15 +601,17 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   downstream-clean `r21` bank above now carries those coverage facts with
   Verilator and both repo-owned Yosys modes enabled.
   Current HEAD has also added repo-owned Phase 4 matrix scenarios for
-  parent-output helper-instance composition and budgeted helper
-  allocation; the next full Phase 4 bank should refresh the historical
-  `r21` counts from 33 scenarios / 132 designs to the now-planned
-  39 scenarios / 156 designs.
+  parent-output helper-instance composition, budgeted helper
+  allocation, and registered helper-sourced child-input D cones; the
+  next full Phase 4 bank should refresh the historical `r21` counts
+  from 33 scenarios / 132 designs to the now-planned 42 scenarios /
+  168 designs.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  broader helper-instance placement beyond the current child-input,
-  parent-output, and per-parent-budget slices, broader registered
-  hierarchy patterns, and later hierarchy-aware identity.
+  broader helper-instance placement beyond the current unregistered
+  child-input, registered child-input, parent-output, and
+  per-parent-budget slices, broader registered hierarchy patterns, and
+  later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.

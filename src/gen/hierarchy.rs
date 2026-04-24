@@ -703,7 +703,14 @@ fn bind_child_input_from_parent_sources(
             g.cfg.hierarchy_registered_child_input_cone_prob,
         )
     {
-        return build_registered_child_input_cone_route(g, ctx.top, ctx.parent_source_pool, width);
+        let parent_cone_instance_source = maybe_add_parent_cone_instance_source(g, ctx, width);
+        return build_registered_child_input_cone_route(
+            g,
+            ctx.top,
+            ctx.parent_source_pool,
+            width,
+            parent_cone_instance_source,
+        );
     }
 
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
@@ -974,6 +981,7 @@ fn build_registered_child_input_cone_route(
     top: &mut Module,
     parent_source_pool: &mut SignalPool,
     width: u32,
+    required_parent_cone_instance_source: Option<NodeId>,
 ) -> NodeId {
     let mut route_pool = parent_source_pool.clone();
 
@@ -998,6 +1006,7 @@ fn build_registered_child_input_cone_route(
         parent_source_pool,
         d_root,
         width,
+        required_parent_cone_instance_source,
     );
 
     register_parent_child_input_route(top, parent_source_pool, d_logic, width)
@@ -1010,6 +1019,7 @@ fn promote_registered_child_input_cone_root(
     parent_source_pool: &mut SignalPool,
     root: NodeId,
     width: u32,
+    required_parent_cone_instance_source: Option<NodeId>,
 ) -> NodeId {
     let with_child_support = if cone::node_deps(top, root).has_instance_output_virtuals() {
         root
@@ -1029,20 +1039,33 @@ fn promote_registered_child_input_cone_root(
         )
     };
 
-    let with_parent_port_support = if cone::node_deps(top, with_child_support).has_ports() {
+    let with_helper_support = if let Some(required_source) = required_parent_cone_instance_source {
+        ensure_registered_parent_cone_instance_support(
+            top,
+            local_pool,
+            parent_source_pool,
+            with_child_support,
+            required_source,
+            width,
+        )
+    } else {
         with_child_support
+    };
+
+    let with_parent_port_support = if cone::node_deps(top, with_helper_support).has_ports() {
+        with_helper_support
     } else {
         let Some(companion) =
-            try_pick_parent_port_companion(g, top, parent_source_pool, width, with_child_support)
+            try_pick_parent_port_companion(g, top, parent_source_pool, width, with_helper_support)
         else {
-            return with_child_support;
+            return with_helper_support;
         };
         add_registered_child_input_companion_gate(
             top,
             local_pool,
             parent_source_pool,
             width,
-            with_child_support,
+            with_helper_support,
             companion,
         )
     };
@@ -1082,6 +1105,46 @@ fn promote_registered_child_input_cone_root(
         parent_source_pool,
         with_parent_flop_support,
         width,
+    )
+}
+
+fn ensure_registered_parent_cone_instance_support(
+    top: &mut Module,
+    local_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    root: NodeId,
+    required_source: NodeId,
+    width: u32,
+) -> NodeId {
+    let Node::InstanceOutput {
+        instance,
+        port,
+        width: source_width,
+    } = &top.nodes[required_source as usize]
+    else {
+        return root;
+    };
+    let (instance, port, source_width) = (*instance, *port, *source_width);
+    if cone::node_deps(top, root).contains_instance_output_virtual(instance, port) {
+        return root;
+    }
+
+    let source_deps = cone::node_deps(top, required_source);
+    let adapted = cone::make_width_adapter(
+        top,
+        local_pool,
+        required_source,
+        source_width,
+        source_deps,
+        width,
+    );
+    add_registered_child_input_companion_gate(
+        top,
+        local_pool,
+        parent_source_pool,
+        width,
+        root,
+        adapted,
     )
 }
 

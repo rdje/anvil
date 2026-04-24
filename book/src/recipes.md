@@ -301,11 +301,32 @@ anvil --seed 42 --out ./hier-registered-parent-cone \
       --max-flops-per-module 8
 ```
 
+Registered parent-composed route whose D cones use helper instances:
+
+```bash
+anvil --seed 42 --out ./hier-registered-helper-cones \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 1.0 \
+      --hierarchy-child-input-cone-prob 0.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --max-parent-cone-instances-per-module 3 \
+      --max-flops-per-module 8 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0
+```
+
 The route metrics distinguish the shapes:
 `child_input_bindings_from_registered_instance_outputs`,
 `child_input_bindings_from_registered_parent_composed_logic`,
 `child_input_bindings_from_registered_mixed_support`, and
 `child_input_bindings_from_registered_multistage_parent_composed_logic`.
+When the helper route is active, also inspect
+`child_input_bindings_from_registered_parent_cone_instances` and
+`registered_parent_cone_instance_child_input_binding_fraction`.
 
 ## "I want fanout stress"
 

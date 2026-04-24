@@ -1,6 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot17 — Route registered child-input cones through helper instances
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets registered parent-composed child-input D cones request a
+  parent-cone helper instance when
+  `hierarchy_registered_child_input_cone_prob` and
+  `hierarchy_parent_cone_instance_prob` are both active.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports registered helper-sourced child-input bindings through
+  `child_input_bindings_from_registered_parent_cone_instances`,
+  `top_child_input_bindings_from_registered_parent_cone_instances`,
+  `registered_parent_cone_instance_child_input_binding_fraction`, and
+  `top_registered_parent_cone_instance_child_input_binding_fraction`.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds `hierarchy_registered_child_input_cones_can_use_helper_instances`,
+  proving the route across all construction strategies.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  adds the Phase 4
+  `phase4_hier2_inst4_registered_parent_cone_instance_state` scenario
+  and a coverage gap for registered parent-composed child inputs sourced
+  from parent-cone helper instances. The next planned Phase 4 bank is
+  now 42 scenarios / 168 designs.
+- The mdBook and live docs now describe the combined knob behavior,
+  new metrics, focused proof, recipe, and updated matrix-plan counts.
+
+**Why**
+
+- The helper-instance surface had reached unregistered child-input
+  cones, parent-output cones, and budgeting. This broadens helper
+  placement into the registered parent-composed path while keeping the
+  route opt-in and measurable.
+
+**Validation**
+
+- `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
+- `cargo test design_metrics_capture_registered_parent_cone_instance_routes`
+- `cargo test --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot16 — Budget parent-cone helper instances per parent
 
 **Landed as:** this commit
@@ -29,8 +78,9 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
   adds the Phase 4
   `phase4_hier2_inst4_parent_cone_instance_budget3` scenario and a
   coverage gap for multiple parent-cone helper instances in one
-  hierarchy parent. The next planned Phase 4 bank is now 39 scenarios /
-  156 designs.
+  hierarchy parent. At this commit's point in history, the next planned
+  Phase 4 bank grew; the current plan is tracked by the newest
+  changelog entry.
 - The mdBook and live docs now describe the new knob, metrics, recipe,
   focused proof, and updated matrix-plan counts.
 

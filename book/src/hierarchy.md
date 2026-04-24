@@ -173,6 +173,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Allow more helper children per parent | `max_parent_cone_instances_per_module` | multiple helper child outputs -> parent logic | `max_parent_cone_instances_per_internal_module`, `top_parent_cone_instances`, `hierarchy_parent_cone_instances` |
 | Bind later child inputs through one parent flop | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction` |
 | Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s), optionally including earlier parent Q -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction` |
+| Let registered parent-composed child-input D cones instantiate a helper child source | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_cone_instances`, `top_child_input_bindings_from_registered_parent_cone_instances`, `registered_parent_cone_instance_child_input_binding_fraction`, `top_registered_parent_cone_instance_child_input_binding_fraction` |
 | Allow parent cones to contain local flops | `hierarchy_parent_flop_prob` | parent source(s) -> parent cone with local flop(s) -> output or child input | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops` |
 
 The registered parent-composed route now uses the full available parent
@@ -200,6 +201,15 @@ per-parent budget, so `hierarchy_parent_cone_instances` can exceed the
 configured value across multiple internal modules. Use
 `max_parent_cone_instances_per_internal_module` to verify the local
 budget actually appeared.
+
+When helper placement combines with
+`hierarchy_registered_child_input_cone_prob`, the helper output is
+folded into the registered route's D cone before the final parent-local
+flop. The plain `child_input_bindings_from_parent_cone_instances`
+counter includes both combinational and registered helper-sourced
+child-input bindings; the stricter
+`child_input_bindings_from_registered_parent_cone_instances` counter
+proves the helper source appeared specifically on the registered D side.
 
 ## Current IR shape
 
@@ -330,6 +340,7 @@ emitted `.sv`, including:
   `child_input_bindings_from_registered_mixed_support`,
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
   `child_input_bindings_from_parent_cone_instances`,
+  `child_input_bindings_from_registered_parent_cone_instances`,
   `top_child_input_bindings_from_parent_cone_instances`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
@@ -356,6 +367,9 @@ emitted `.sv`, including:
 - hierarchy- and top-level parent-cone helper-instance route fractions
   (`parent_cone_instance_child_input_binding_fraction`,
   `top_parent_cone_instance_child_input_binding_fraction`),
+- hierarchy- and top-level registered parent-cone helper route fractions
+  (`registered_parent_cone_instance_child_input_binding_fraction`,
+  `top_registered_parent_cone_instance_child_input_binding_fraction`),
 - hierarchy- and top-level parent-cone helper-instance output support
   (`hierarchy_outputs_reaching_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
@@ -432,10 +446,13 @@ the Phase 4 scenario set now includes a dedicated
 `phase4_hier2_inst4_parent_output_cone_instance` axis. It also adds a
 budgeted helper slice through
 `max_parent_cone_instances_per_module`, with a dedicated
-`phase4_hier2_inst4_parent_cone_instance_budget3` axis. The next full
-bank should refresh the historical `r21` counts from 33 scenarios / 132
-designs to 39 scenarios / 156 designs. The focused proof artifact for
-that composed-parent
+`phase4_hier2_inst4_parent_cone_instance_budget3` axis. Current HEAD
+also adds registered helper-sourced child-input D cones, with a
+dedicated
+`phase4_hier2_inst4_registered_parent_cone_instance_state` axis. The
+next full bank should refresh the historical `r21` counts from 33
+scenarios / 132 designs to 42 scenarios / 168 designs. The focused
+proof artifact for that composed-parent
 behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
@@ -498,6 +515,12 @@ local proofs remain useful:
   - `top_parent_cone_instances = 3`
   - `max_parent_cone_instances_per_internal_module = 3`
   - `child_input_bindings_from_parent_cone_instances > 0`
+- `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
+  proves registered helper-sourced child-input D cones numerically:
+  - `child_input_bindings_from_registered_parent_cone_instances > 0`
+  - `top_child_input_bindings_from_registered_parent_cone_instances > 0`
+  - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `top_registered_parent_cone_instance_child_input_binding_fraction > 0.0`
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
   child-input binding numerically:
