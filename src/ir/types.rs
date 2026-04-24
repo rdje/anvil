@@ -260,8 +260,9 @@ pub enum KnobId {
     HierarchyRegisteredSiblingRouteProb,
     /// `Config::hierarchy_registered_child_input_cone_prob` — chance
     /// that a parent binds a later child data input through local
-    /// parent logic driven by sibling-output-derived sources and then
-    /// one local parent flop.
+    /// parent logic over already-available parent sources and then one
+    /// local parent flop, optionally chaining through earlier parent
+    /// flops when available.
     HierarchyRegisteredChildInputConeProb,
     /// `Config::hierarchy_child_input_cone_prob` — chance that a
     /// parent binds a child data input through a local combinational

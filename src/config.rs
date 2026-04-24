@@ -431,10 +431,11 @@ pub struct Config {
     /// local parent combinational logic over already-available parent
     /// sources and then one local parent flop. When parent data inputs
     /// and sibling outputs are both live, the route can mix both
-    /// supports. This is the registered counterpart to
-    /// `hierarchy_child_input_cone_prob` and proves the structure:
-    /// parent source(s) -> parent logic -> parent flop -> later child
-    /// input.
+    /// supports; when earlier parent flops are available, the route can
+    /// also build a multi-stage registered chain. This is the registered
+    /// counterpart to `hierarchy_child_input_cone_prob` and proves the
+    /// structure: parent source(s) -> parent logic -> parent flop ->
+    /// later child input.
     #[serde(default = "default_hierarchy_registered_child_input_cone_prob")]
     pub hierarchy_registered_child_input_cone_prob: f64,
     /// Probability that a parent binds a child data input through a

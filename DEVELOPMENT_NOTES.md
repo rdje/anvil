@@ -94,8 +94,8 @@ top layer was **combinational only**; since then, bounded recursive
 sub-hierarchy growth, local parent flops, child-input routing, and
 mixed parent-port / child-output parent outputs have landed as
 separate slices. First-class module instantiation inside arbitrary
-parent cone choice, richer multi-stage registered hierarchy-local
-routing, and hierarchical identity remain future work.
+parent cone choice, broader registered hierarchy-local routing, and
+hierarchical identity remain future work.
 
 Two narrow implementation choices are load-bearing in this slice:
 
@@ -354,9 +354,10 @@ slice combinational. Local parent flops are now landed under
 `hierarchy_parent_flop_prob`; the first one-flop registered sibling
 route is now landed under `hierarchy_registered_sibling_route_prob`,
 and the first registered parent-composed child-input route is now
-landed under `hierarchy_registered_child_input_cone_prob`, while
-richer multi-stage registered hierarchy routing remains a later,
-separate hierarchy surface.
+landed under `hierarchy_registered_child_input_cone_prob`. The first
+multi-stage registered parent-composed subcase is also live now, while
+broader registered hierarchy routing remains a later, separate
+hierarchy surface.
 
 The metrics contract grew again with
 `child_input_bindings_from_parent_composed_logic`,
@@ -452,14 +453,15 @@ through a parent-local flop whose D input is itself a parent-local gate
 with instance-output support.
 
 The implementation now builds the D cone from the full available parent
-source pool, with nested parent flops disabled for this route. It then
-repairs the root before allocating the flop: the D path must keep
-sibling-output support, and when parent data inputs are live it can add
-parent-port support too. If the repaired root is not already a
-substantive parent gate, the generator wraps it in a non-collapsing
-XOR-with-all-ones parent gate. That keeps the route signoff-clean and
-construction-time deterministic while preserving the structural proof
-obligation.
+source pool, with spontaneous nested flop generation disabled for this
+route. It then repairs the root before allocating the final flop: the D
+path must keep sibling-output support, when parent data inputs are live
+it can add parent-port support, and when earlier parent flops are live
+it can add a prior-Q companion to create a multi-stage registered
+chain. If the repaired root is not already a substantive parent gate,
+the generator wraps it in a non-collapsing XOR-with-all-ones parent
+gate. That keeps the route signoff-clean and construction-time
+deterministic while preserving the structural proof obligation.
 
 Metrics now expose the route directly through
 `child_input_bindings_from_registered_parent_composed_logic`,
@@ -470,8 +472,14 @@ HEAD also exposes the mixed registered-support subcase through
 `child_input_bindings_from_registered_mixed_support`,
 `top_child_input_bindings_from_registered_mixed_support`,
 `registered_mixed_support_child_input_binding_fraction`, and
-`top_registered_mixed_support_child_input_binding_fraction`. The
-original focused proof is
+`top_registered_mixed_support_child_input_binding_fraction`. Current
+HEAD also exposes the first multi-stage registered subcase through
+`child_input_bindings_from_registered_multistage_parent_composed_logic`,
+`top_child_input_bindings_from_registered_multistage_parent_composed_logic`,
+`registered_multistage_parent_composed_child_input_binding_fraction`,
+and
+`top_registered_multistage_parent_composed_child_input_binding_fraction`.
+The original focused proof is
 `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
 (`child_input_bindings_from_registered_parent_composed_logic = 3`,
 `top_child_input_bindings_from_registered_parent_composed_logic = 3`,
@@ -493,6 +501,17 @@ in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The current-code coverage-only Phase 4 matrix probe at
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
 now banks `saw_hierarchy_registered_mixed_support_routing = true` with
+`coverage_gaps = []`; the full downstream-clean bank remains `r19`.
+
+The focused multi-stage registered proof is
+`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+(`child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+`top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+`registered_multistage_parent_composed_child_input_binding_fraction = 0.5`),
+clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+with-ABC path. The current-code coverage-only Phase 4 matrix probe at
+`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+now banks `saw_hierarchy_registered_multistage_routing = true` with
 `coverage_gaps = []`; the full downstream-clean bank remains `r19`.
 
 ### Parent outputs can mix parent ports with child outputs

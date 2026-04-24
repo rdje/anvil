@@ -426,7 +426,12 @@ current-code coverage-only probe at
 now also records `coverage_gaps = []` and
 `saw_hierarchy_registered_mixed_support_routing = true`, proving the
 registered parent-composed route can mix parent ports with child
-outputs. A
+outputs. A second current-code coverage-only probe at
+`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+records `coverage_gaps = []` and
+`saw_hierarchy_registered_multistage_routing = true`, proving later
+registered parent-composed routes can chain through earlier parent
+flops. A
 current-code coverage-only probe at
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
 now also records `coverage_gaps = []` and
@@ -444,7 +449,9 @@ ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
 `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
 `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
+and
+`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
 remain useful targeted evidence. The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,
 `r11` is the first explicit child-sourcing bank, and the aborted `r8`

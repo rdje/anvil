@@ -295,7 +295,8 @@ struct Cli {
     /// Probability that a parent binds a later child data input through
     /// parent-local combinational logic over already-available parent
     /// sources, then one local parent flop. The logic can mix parent
-    /// data inputs with earlier sibling outputs when both are live.
+    /// data inputs with earlier sibling outputs and can chain through
+    /// earlier parent flops when those are live.
     #[arg(long)]
     hierarchy_registered_child_input_cone_prob: Option<f64>,
 

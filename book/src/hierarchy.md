@@ -107,7 +107,8 @@ pass-through shell:
   from direct registered sibling routing because its flop D input is
   parent-composed logic, not a direct sibling output, and it can mix
   parent data inputs with sibling child outputs when both supports are
-  live;
+  live. Later registered parent-composed routes can also chain through
+  earlier parent-local Qs when those are already available;
 - both lanes can also bind child data inputs through parent-local
   combinational cones via `hierarchy_child_input_cone_prob`. Those
   cones are built over already-available parent sources: parent data
@@ -159,7 +160,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Bind later child inputs from earlier sibling outputs | `hierarchy_sibling_route_prob` | earlier child output -> later child input | `child_input_bindings_from_instance_outputs`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
 | Bind later child inputs through parent combinational logic | `hierarchy_child_input_cone_prob` | parent source(s) -> parent logic -> later child input | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
 | Bind later child inputs through one parent flop | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction` |
-| Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s) -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction` |
+| Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s), optionally including earlier parent Q -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction` |
 | Allow parent cones to contain local flops | `hierarchy_parent_flop_prob` | parent source(s) -> parent cone with local flop(s) -> output or child input | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops` |
 
 The registered parent-composed route now uses the full available parent
@@ -170,6 +171,12 @@ time. That is why the book distinguishes the broader
 `registered_mixed_support_*` counters: the first proves registered
 parent logic exists; the second proves that registered parent logic
 actually mixed parent-port and child-output support.
+
+The same route can also chain through earlier parent-local flops. In
+that case the next registered D cone contains a prior parent Q and then
+allocates a new parent flop for the child input. The
+`registered_multistage_parent_composed_*` counters are the proof that
+this first multi-stage registered parent-composed pattern appeared.
 
 ## Current IR shape
 
@@ -285,7 +292,8 @@ emitted `.sv`, including:
   `child_input_bindings_from_parent_flops`,
   `child_input_bindings_from_registered_instance_outputs`,
   `child_input_bindings_from_registered_parent_composed_logic`,
-  `child_input_bindings_from_registered_mixed_support`),
+  `child_input_bindings_from_registered_mixed_support`,
+  `child_input_bindings_from_registered_multistage_parent_composed_logic`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`),
@@ -304,6 +312,10 @@ emitted `.sv`, including:
 - hierarchy- and top-level registered mixed-support route fractions
   (`registered_mixed_support_child_input_binding_fraction`,
   `top_registered_mixed_support_child_input_binding_fraction`),
+- hierarchy- and top-level multi-stage registered parent-composed route
+  fractions
+  (`registered_multistage_parent_composed_child_input_binding_fraction`,
+  `top_registered_multistage_parent_composed_child_input_binding_fraction`),
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -418,6 +430,19 @@ local proofs remain useful:
   now also banks this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
+  skipped Verilator/Yosys; the full downstream-clean bank remains
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
+- `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+  is clean in the same three lanes and proves multi-stage registered
+  parent-composed child-input binding numerically:
+  - `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
+  - `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
+  - `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`
+  The current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  now also banks this as a required coverage fact with
+  `coverage_gaps = []` and
+  `saw_hierarchy_registered_multistage_routing = true`. That probe
   skipped Verilator/Yosys; the full downstream-clean bank remains
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean

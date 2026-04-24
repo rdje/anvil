@@ -385,9 +385,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   whether later child data inputs bind through parent-local
   combinational logic over already-available parent sources and then
   one local parent flop. When parent data inputs and earlier sibling
-  outputs are both live, this route can mix both supports. Default
-  `0.0`; this keeps the registered parent-composed route distinct from
-  direct registered sibling routing.
+  outputs are both live, this route can mix both supports; when earlier
+  parent flops are live, later routes can chain through those Qs.
+  Default `0.0`; this keeps the registered parent-composed route
+  distinct from direct registered sibling routing.
 - `anvil --hierarchy-child-input-cone-prob <p>` controls whether child
   data inputs may bind through parent-local combinational cones over
   already-available parent sources: parent data inputs, earlier sibling
@@ -430,7 +431,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent source through parent-local logic and then one parent-local
   flop before binding a later child input. When parent data inputs and
   earlier sibling outputs are both live, that registered route can mix
-  both supports.
+  both supports; when earlier parent flops are live, later routes can
+  chain through those Qs.
   Both lanes also expose `--hierarchy-child-input-cone-prob <p>`, which
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
@@ -507,6 +509,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `child_input_bindings_from_registered_mixed_support = 3`,
   `top_child_input_bindings_from_registered_mixed_support = 3`, and
   `registered_mixed_support_child_input_binding_fraction = 0.75`.
+  Current HEAD also has a focused clean multi-stage registered
+  parent-composed child-input proof at
+  `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
+  where the design metrics show
+  `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+  `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+  and
+  `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`.
   Current HEAD also has a focused clean mixed parent-output proof at
   `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, where
   the design metrics show `top_parent_port_composed_outputs = 8`,
@@ -519,9 +529,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `saw_hierarchy_parent_port_composed_outputs = true`; it was run with
   Verilator/Yosys skipped, while the full downstream-clean bank remains
   the `r19` report above.
+  A second current-code coverage-only Phase 4 probe at
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  now records `coverage_gaps = []` and
+  `saw_hierarchy_registered_multistage_routing = true`; it was also
+  run with Verilator/Yosys skipped.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  first-class module instantiation inside parent cone choice, richer
+  first-class module instantiation inside parent cone choice, broader
   registered hierarchy patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See

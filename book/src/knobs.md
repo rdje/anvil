@@ -352,9 +352,11 @@ instead of creating fresh logic.
   Those sources can include parent data inputs, earlier sibling
   outputs, and earlier parent-side route gates. When parent data inputs
   and sibling outputs are both live, this route can mix both supports
-  in the flop D cone. Range `[0.0, 1.0]`. Default `0.0`, so the
-  registered parent-composed route is opt-in and remains distinct from
-  direct registered sibling routing.
+  in the flop D cone. When earlier parent flops are live, later routes
+  can also chain through those Qs before allocating the next parent
+  flop. Range `[0.0, 1.0]`. Default `0.0`, so the registered
+  parent-composed route is opt-in and remains distinct from direct
+  registered sibling routing.
 - `hierarchy_child_input_cone_prob` — probability that a child data
   input binds through a parent-local combinational cone instead of a
   direct parent-port or sibling-output route. The cone may use
@@ -630,7 +632,7 @@ which are bugs worth investigating.
 | `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `e-graph`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above; `semantic_gates_merged` becomes eligible at `e-graph` |
 | `hierarchy_sibling_route_prob` | `child_input_bindings_from_instance_outputs`, `child_input_bindings_from_mixed_support`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
 | `hierarchy_registered_sibling_route_prob` | `child_input_bindings_from_registered_instance_outputs`, `top_child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
-| `hierarchy_registered_child_input_cone_prob` | `child_input_bindings_from_registered_parent_composed_logic`, `top_child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `top_registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `top_child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `top_registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
+| `hierarchy_registered_child_input_cone_prob` | `child_input_bindings_from_registered_parent_composed_logic`, `top_child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `top_registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `top_child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `top_registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `top_child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction`, `top_registered_multistage_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_child_input_cone_prob` | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction` |
 

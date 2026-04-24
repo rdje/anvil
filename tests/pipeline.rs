@@ -881,6 +881,22 @@ fn hierarchy_child_inputs_can_be_registered_from_parent_composed_logic() {
                     seed,
                 );
                 assert!(
+                    metrics
+                        .child_input_bindings_from_registered_multistage_parent_composed_logic
+                        > 0,
+                    "strategy {:?} seed {} should prove multi-stage registered parent-composed routing: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics
+                        .top_child_input_bindings_from_registered_multistage_parent_composed_logic
+                        > 0,
+                    "strategy {:?} seed {} should expose multi-stage registered parent-composed routing at the top: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
                     metrics.child_input_bindings_from_parent_flops > 0,
                     "strategy {:?} seed {} should count the parent-local flop leg: {metrics:#?}",
                     strategy,
@@ -907,6 +923,22 @@ fn hierarchy_child_inputs_can_be_registered_from_parent_composed_logic() {
                 assert!(
                     metrics.top_registered_mixed_support_child_input_binding_fraction > 0.0,
                     "strategy {:?} seed {} should report a non-zero top-level registered mixed-support routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics
+                        .registered_multistage_parent_composed_child_input_binding_fraction
+                        > 0.0,
+                    "strategy {:?} seed {} should report a non-zero multi-stage registered parent-composed routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics
+                        .top_registered_multistage_parent_composed_child_input_binding_fraction
+                        > 0.0,
+                    "strategy {:?} seed {} should report a non-zero top-level multi-stage registered parent-composed routing fraction: {metrics:#?}",
                     strategy,
                     seed,
                 );

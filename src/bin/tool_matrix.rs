@@ -241,6 +241,7 @@ struct CoverageSummary {
     saw_hierarchy_registered_sibling_routing: bool,
     saw_hierarchy_registered_parent_composed_routing: bool,
     saw_hierarchy_registered_mixed_support_routing: bool,
+    saw_hierarchy_registered_multistage_routing: bool,
     saw_hierarchy_parent_composed_child_inputs: bool,
     saw_hierarchy_parent_local_flops: bool,
     saw_recursive_hierarchy: bool,
@@ -2523,6 +2524,12 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .metrics
                     .child_input_bindings_from_registered_mixed_support
                     > 0;
+        coverage.saw_hierarchy_registered_multistage_routing |=
+            scenario.config.hierarchy_registered_child_input_cone_prob > 0.0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_composed_logic
+                    > 0;
         coverage.saw_hierarchy_parent_composed_child_inputs |= design
             .metrics
             .child_input_bindings_from_parent_composed_logic
@@ -2598,6 +2605,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_hierarchy_registered_parent_composed_routing;
     dst.saw_hierarchy_registered_mixed_support_routing |=
         src.saw_hierarchy_registered_mixed_support_routing;
+    dst.saw_hierarchy_registered_multistage_routing |=
+        src.saw_hierarchy_registered_multistage_routing;
     dst.saw_hierarchy_parent_composed_child_inputs |=
         src.saw_hierarchy_parent_composed_child_inputs;
     dst.saw_hierarchy_parent_local_flops |= src.saw_hierarchy_parent_local_flops;
@@ -3004,6 +3013,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved registered hierarchy child input bindings mixing parent ports with child outputs"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_hierarchy_registered_multistage_routing
+    {
+        gaps.push(
+            "matrix never proved multi-stage registered parent-composed hierarchy child input bindings"
                 .to_string(),
         );
     }
@@ -3708,6 +3725,9 @@ mod tests {
         assert!(gaps.iter().any(
             |gap| gap.contains("registered hierarchy child input bindings mixing parent ports")
         ));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains("multi-stage registered parent-composed hierarchy child input bindings")
+        }));
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("parent-composed hierarchy child input bindings")));

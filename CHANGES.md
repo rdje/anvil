@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot9 — Land multi-stage registered hierarchy routing
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now promotes registered parent-composed child-input D cones with an
+  earlier parent-flop companion when one is available, so later
+  registered routes can form a real multi-stage parent-local chain.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports multi-stage registered parent-composed child-input
+  bindings through
+  `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  the matching top-level counter, and matching hierarchy/top fractions.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now tracks `saw_hierarchy_registered_multistage_routing`, and the
+  Phase 4 hierarchy coverage gate rejects representative matrices that
+  never prove the multi-stage registered route.
+- CLI/config/Rustdoc wording and live project docs were refreshed so
+  `hierarchy_registered_child_input_cone_prob` describes full parent
+  source support, mixed parent-port / child-output support, and
+  earlier parent-flop chaining.
+
+**Why**
+
+- The previous registered hierarchy slices proved one-flop registered
+  sibling routing and one-flop registered parent-composed routing. The
+  next small hierarchy-deepening step was to let the parent-composed
+  route reuse earlier parent-local Qs as part of the next D cone,
+  creating a measured multi-stage registered pattern without adding a
+  new knob.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test --test pipeline hierarchy_child_inputs_can_be_registered_from_parent_composed_logic`
+- `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- Focused smoke:
+  `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+  records
+  `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+  `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+  and
+  `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`.
+- The focused smoke is clean in Verilator, Yosys `synth -noabc`, and
+  the repo-owned Yosys with-ABC path.
+- Coverage-only Phase 4 matrix:
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  records `coverage_gaps = []` and
+  `saw_hierarchy_registered_multistage_routing = true`.
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot8 — Strengthen hierarchy book guidance
 
 **Landed as:** this commit

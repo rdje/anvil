@@ -48,8 +48,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   already-available parent sources and then one local parent flop via
   `hierarchy_registered_child_input_cone_prob`; when parent data ports
   and sibling outputs are both live, that registered route can mix both
-  supports. Default `0.0` keeps this stateful parent-composed route
-  opt-in and distinct from direct registered sibling routing.
+  supports, and later registered routes can chain through earlier
+  parent-local Qs when those are available. Default `0.0` keeps this
+  stateful parent-composed route opt-in and distinct from direct
+  registered sibling routing.
 - Current HEAD now also deepens parent output composition: hierarchy
   parent output cones are built over the full parent source pool, then
   repaired after finalization so every output keeps child-output
@@ -57,13 +59,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   parent-port support. Metrics expose this as
   `top_parent_port_composed_outputs`,
   `hierarchy_parent_port_composed_outputs`, and matching fractions.
-- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds parent-side output cones over them, and bounded recursive hierarchy can now mix shallow and deep branches inside one legal tree. The parent layer still stays intentionally narrow in the remaining open ways: the first one-flop registered sibling route and the first registered parent-composed child-input route are live, including registered routes that mix parent data ports with sibling outputs; richer multi-stage registered hierarchy patterns and hierarchy-aware identity remain open.
+- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds parent-side output cones over them, and bounded recursive hierarchy can now mix shallow and deep branches inside one legal tree. The parent layer still stays intentionally narrow in the remaining open ways: the first one-flop registered sibling route, the first registered parent-composed child-input route, registered mixed-support routing, and the first multi-stage registered parent-composed chain are live; broader multi-stage registered hierarchy patterns and hierarchy-aware identity remain open.
 - The remaining intentional narrowness in the parent layer is now
   clearer: local parent flops, the first one-flop registered sibling
-  route, and the first registered parent-composed child-input route are
-  live, including the mixed-support registered subcase, but richer
-  multi-stage registered hierarchy patterns and hierarchy-aware
-  identity are not.
+  route, the first registered parent-composed child-input route, the
+  mixed-support registered subcase, and the first multi-stage
+  registered parent-composed chain are live, but broader multi-stage
+  registered hierarchy patterns and hierarchy-aware identity are not.
 - Current HEAD now also has a bounded recursive hierarchy lane driven by `min_hierarchy_depth..=max_hierarchy_depth` plus `min_child_instances_per_module..=max_child_instances_per_module`, with optional repeated `--child-instances-per-depth` overrides keyed by parent depth (`0` = top, `1` = its direct children, ...). The recursive planner now keeps subtree-local depth intervals live, so leaves stay inside the requested global range and the tree can realize both shallow and deep branches when the interval is open and the structure allows it.
 - The hierarchy surface is now measurable from trustworthy numbers rather than SV inspection. `manifest.json` and `tool_matrix` design reports carry per-design `DesignMetrics` such as library coverage, unused-library fraction, instance reuse, top-interface shape, control fanout, weighted child load/complexity, instantiation histograms, direct-vs-composed top-output counts, parent-port-composed output counts/fractions, child-output dependency fractions, and instance-output support depth per top output.
 - Those design metrics now also distinguish single-use vs reused child-definition structure directly:
@@ -190,6 +192,14 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `top_child_input_bindings_from_registered_mixed_support = 3`
   - `registered_mixed_support_child_input_binding_fraction = 0.75`
   - `top_registered_mixed_support_child_input_binding_fraction = 0.75`
+- The focused proof artifact for the new multi-stage registered
+  parent-composed child-input route slice is
+  `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
+  clean in Verilator plus both repo-owned Yosys modes. Its key design
+  metrics are:
+  - `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
+  - `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
+  - `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`
 - The refreshed repo-owned Phase 4 hierarchy closure report is now `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`: **30 scenarios**, **4 designs/scenario**, **120 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, and **120/0** pass-fail in Verilator plus both repo-owned Yosys modes.
 - That refreshed report now covers the real current hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
   - `hierarchy_depths = ["1", "2", "2:3"]`
@@ -220,6 +230,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
   now proves the refreshed gate policy also requires
   `saw_hierarchy_registered_mixed_support_routing = true`, with
+  `coverage_gaps = []`. This was run with `--skip-verilator
+  --skip-yosys`; the full downstream clean bank remains `r19`.
+- A current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  now proves the refreshed gate policy also requires
+  `saw_hierarchy_registered_multistage_routing = true`, with
   `coverage_gaps = []`. This was run with `--skip-verilator
   --skip-yosys`; the full downstream clean bank remains `r19`.
 - The older `/tmp/anvil-tool-matrix-phase4-hierarchy-r18` report now
@@ -254,7 +270,19 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Landed registered mixed-support hierarchy
+- **Last completed slice:** Landed multi-stage registered
+  parent-composed hierarchy child-input routing. Later
+  `hierarchy_registered_child_input_cone_prob` routes now add an
+  earlier parent-flop companion when one is available, giving the
+  parent-composed D cone a prior-Q leg before the final parent flop.
+  Metrics now expose
+  `child_input_bindings_from_registered_multistage_parent_composed_logic`
+  and matching top / fraction fields. Focused proof:
+  `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`.
+  Coverage proof:
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  with `coverage_gaps = []`.
+- **Prior slice:** Landed registered mixed-support hierarchy
   child-input routing. `hierarchy_registered_child_input_cone_prob`
   now builds D cones from the full parent source pool, then repairs the
   route so it keeps sibling-output support and can add parent-port
@@ -457,7 +485,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, and registered mixed-support child-input routing are live; the next structural work is first-class module instantiation inside parent cone choice and richer multi-stage registered hierarchy routing/composition, with hierarchy-aware identity still later.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, and the first multi-stage registered parent-composed chain are live; the next structural work is first-class module instantiation inside parent cone choice and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
   1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost.** The banked `r19` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget was explicitly raised again when the scenario set grew. Future hierarchy scenarios should preserve that separation of concerns.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
@@ -611,7 +639,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) is met locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`, the Phase 2 sharing exit criterion is met locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`, and the Phase 3 structured-surface gate is met locally via `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`. The next real roadmap gap is therefore deeper Phase 4 hierarchy, not leaf-lane closure.
-- Phase 4 hierarchy is started and now has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, parent-composed child-input binding, and local parent state. Current work has now also added mixed parent-port / child-output parent outputs and registered mixed-support child-input routing beyond that banked report, with coverage-only probes for both. The roadmap gap is no longer proof refresh; it is first-class module instantiation inside parent cone choice, richer multi-stage registered hierarchy routing/composition, and future hierarchy-aware identity.
+- Phase 4 hierarchy is started and now has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, parent-composed child-input binding, and local parent state. Current work has now also added mixed parent-port / child-output parent outputs, registered mixed-support child-input routing, and multi-stage registered parent-composed routing beyond that banked report, with coverage-only probes for each. The roadmap gap is no longer proof refresh; it is first-class module instantiation inside parent cone choice, broader registered hierarchy routing/composition, and future hierarchy-aware identity.
 - Parameterization is still not started.
 
 ## Session handoff notes

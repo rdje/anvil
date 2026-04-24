@@ -817,11 +817,40 @@ fn promote_registered_child_input_cone_root(
         )
     };
 
+    let with_parent_flop_support =
+        if cone::node_deps(top, with_parent_port_support).has_flop_virtuals() {
+            with_parent_port_support
+        } else {
+            let Some(companion) = try_pick_parent_flop_companion(
+                g,
+                top,
+                parent_source_pool,
+                width,
+                with_parent_port_support,
+            ) else {
+                return ensure_parent_logic_above_instance_source(
+                    top,
+                    local_pool,
+                    parent_source_pool,
+                    with_parent_port_support,
+                    width,
+                );
+            };
+            add_registered_child_input_companion_gate(
+                top,
+                local_pool,
+                parent_source_pool,
+                width,
+                with_parent_port_support,
+                companion,
+            )
+        };
+
     ensure_parent_logic_above_instance_source(
         top,
         local_pool,
         parent_source_pool,
-        with_parent_port_support,
+        with_parent_flop_support,
         width,
     )
 }
@@ -1090,6 +1119,34 @@ fn try_pick_parent_port_companion(
     for entry in parent_source_pool
         .iter()
         .filter(|entry| entry.node != exclude && entry.deps.has_ports())
+    {
+        temp_pool.add(entry.node, entry.width, entry.deps.clone());
+    }
+
+    if temp_pool.is_empty() {
+        return None;
+    }
+
+    Some(cone::pick_terminal_dep_bearing(
+        g,
+        top,
+        &mut temp_pool,
+        width,
+        Some(exclude),
+    ))
+}
+
+fn try_pick_parent_flop_companion(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &SignalPool,
+    width: u32,
+    exclude: NodeId,
+) -> Option<NodeId> {
+    let mut temp_pool = SignalPool::new();
+    for entry in parent_source_pool
+        .iter()
+        .filter(|entry| entry.node != exclude && entry.deps.has_flop_virtuals())
     {
         temp_pool.add(entry.node, entry.width, entry.deps.clone());
     }
