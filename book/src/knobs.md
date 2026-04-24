@@ -364,11 +364,11 @@ instead of creating fresh logic.
   instance outputs, and earlier parent-side route gates. Range
   `[0.0, 1.0]`. Default `0.35`.
 - `hierarchy_parent_cone_instance_prob` — probability that a
-  parent-composed child-input cone instantiates one helper child as an
-  internal parent-cone source. The helper is separate from planned child
-  slots, and its outputs can feed later child inputs through parent
-  logic. Range `[0.0, 1.0]`. Default `0.0`, so helper instantiation is
-  opt-in.
+  parent-composed child-input cone or parent-output cone instantiates
+  one helper child as an internal parent-cone source. The helper is
+  separate from planned child slots, and its outputs can feed later
+  child inputs or parent outputs through parent logic. Range
+  `[0.0, 1.0]`. Default `0.0`, so helper instantiation is opt-in.
 - `hierarchy_parent_flop_prob` — probability that parent-side hierarchy
   cones may emit local parent flops. This applies to parent output
   cones and parent-composed child-input cones. Range `[0.0, 1.0]`.
@@ -667,7 +667,7 @@ which are bugs worth investigating.
 | `hierarchy_registered_sibling_route_prob` | `child_input_bindings_from_registered_instance_outputs`, `top_child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_registered_child_input_cone_prob` | `child_input_bindings_from_registered_parent_composed_logic`, `top_child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `top_registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `top_child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `top_registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `top_child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction`, `top_registered_multistage_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_parent_flops`, `hierarchy_parent_local_flops` |
 | `hierarchy_child_input_cone_prob` | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
-| `hierarchy_parent_cone_instance_prob` | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `child_input_bindings_from_parent_cone_instances`, `top_child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction` |
+| `hierarchy_parent_cone_instance_prob` | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `child_input_bindings_from_parent_cone_instances`, `top_child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction` |
 
 All knobs now have a concrete metric (or metric ratio) that

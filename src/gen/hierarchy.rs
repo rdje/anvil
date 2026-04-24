@@ -460,21 +460,54 @@ fn generate_parent_module(
         }
     }
 
+    let parent_output_helper_source = planned_outputs.first().and_then(|(_, width)| {
+        pick_parent_cone_instance_source(&top, &parent_source_pool, *width).or_else(|| {
+            let mut helper_ctx = ChildInputBindingContext {
+                top: &mut top,
+                instance_pool: &mut instance_pool,
+                external_input_pool: &mut external_input_pool,
+                parent_source_pool: &mut parent_source_pool,
+                next_port_id: &mut next_port_id,
+                library,
+                modules_by_name: &modules_by_name,
+                helper_child_indices: instance_plan,
+                shared_clock,
+                shared_reset,
+                allow_external_pool_reuse: external_profile.is_some(),
+                parent_cone_instance_inserted: &mut parent_cone_instance_inserted,
+            };
+            let source = maybe_add_parent_cone_instance_source(g, &mut helper_ctx, *width);
+            let ChildInputBindingContext {
+                top: _,
+                instance_pool: _,
+                external_input_pool: _,
+                parent_source_pool: _,
+                next_port_id: _,
+                library: _,
+                modules_by_name: _,
+                helper_child_indices: _,
+                shared_clock: _,
+                shared_reset: _,
+                allow_external_pool_reuse: _,
+                parent_cone_instance_inserted: _,
+            } = helper_ctx;
+            source
+        })
+    });
+
     let mut pool = parent_source_pool.clone();
     let mut worklist: FlopWorklist = Vec::new();
     let roots = build_parent_output_roots(g, &mut top, &mut pool, &mut worklist);
     debug_assert!(worklist.is_empty(), "parent output flop worklist drained");
 
     for ((port_id, width), root) in planned_outputs.into_iter().zip(roots) {
-        let promoted = promote_parent_output_root(
-            g,
-            &mut top,
-            &mut pool,
-            &instance_pool,
-            &parent_source_pool,
-            width,
-            root,
-        );
+        let mut promotion_ctx = ParentOutputPromotionContext {
+            pool: &mut pool,
+            instance_pool: &instance_pool,
+            parent_source_pool: &parent_source_pool,
+            required_parent_cone_instance_source: parent_output_helper_source,
+        };
+        let promoted = promote_parent_output_root(g, &mut top, &mut promotion_ctx, width, root);
         top.drives.push((port_id, promoted));
     }
 
@@ -586,6 +619,33 @@ fn current_parent_port_pool(top: &Module) -> SignalPool {
         pool.add(node_id as NodeId, *width, DepSet::from_port(*port));
     }
     pool
+}
+
+fn pick_parent_cone_instance_source(
+    top: &Module,
+    parent_source_pool: &SignalPool,
+    target_width: u32,
+) -> Option<NodeId> {
+    parent_source_pool
+        .iter()
+        .filter(|entry| node_is_parent_cone_instance_output(top, entry.node))
+        .find(|entry| entry.width == target_width)
+        .map(|entry| entry.node)
+        .or_else(|| {
+            parent_source_pool
+                .iter()
+                .find(|entry| node_is_parent_cone_instance_output(top, entry.node))
+                .map(|entry| entry.node)
+        })
+}
+
+fn node_is_parent_cone_instance_output(top: &Module, node_id: NodeId) -> bool {
+    let Node::InstanceOutput { instance, .. } = top.nodes[node_id as usize] else {
+        return false;
+    };
+    top.instances
+        .get(instance as usize)
+        .is_some_and(|inst| inst.role == InstanceRole::ParentCone)
 }
 
 fn output_root_reaches_instance_output(top: &Module, root: NodeId) -> bool {
@@ -1212,36 +1272,55 @@ fn build_parent_output_roots(
     roots
 }
 
+struct ParentOutputPromotionContext<'a> {
+    pool: &'a mut SignalPool,
+    instance_pool: &'a SignalPool,
+    parent_source_pool: &'a SignalPool,
+    required_parent_cone_instance_source: Option<NodeId>,
+}
+
 fn promote_parent_output_root(
     g: &mut Generator,
     top: &mut Module,
-    pool: &mut SignalPool,
-    instance_pool: &SignalPool,
-    parent_source_pool: &SignalPool,
+    ctx: &mut ParentOutputPromotionContext<'_>,
     width: u32,
     root: NodeId,
 ) -> NodeId {
     let with_child_support = if cone::node_deps(top, root).has_instance_output_virtuals() {
         root
     } else {
-        let Some(companion) = try_pick_parent_companion(g, top, instance_pool, width, root) else {
+        let Some(companion) = try_pick_parent_companion(g, top, ctx.instance_pool, width, root)
+        else {
             return root;
         };
 
-        add_parent_companion_gate(top, pool, width, root, companion)
+        add_parent_companion_gate(top, ctx.pool, width, root, companion)
     };
 
-    if cone::node_deps(top, with_child_support).has_ports() {
-        return with_child_support;
+    let with_helper_support =
+        if let Some(required_source) = ctx.required_parent_cone_instance_source {
+            ensure_parent_cone_instance_support(
+                top,
+                ctx.pool,
+                with_child_support,
+                required_source,
+                width,
+            )
+        } else {
+            with_child_support
+        };
+
+    if cone::node_deps(top, with_helper_support).has_ports() {
+        return with_helper_support;
     }
 
     let Some(parent_companion) =
-        try_pick_parent_port_companion(g, top, parent_source_pool, width, with_child_support)
+        try_pick_parent_port_companion(g, top, ctx.parent_source_pool, width, with_helper_support)
     else {
-        return with_child_support;
+        return with_helper_support;
     };
 
-    add_parent_companion_gate(top, pool, width, with_child_support, parent_companion)
+    add_parent_companion_gate(top, ctx.pool, width, with_helper_support, parent_companion)
 }
 
 fn add_parent_companion_gate(

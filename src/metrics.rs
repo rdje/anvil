@@ -327,6 +327,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
     pub top_child_input_bindings_from_parent_cone_instances: usize,
     pub top_parent_cone_instances: usize,
+    pub top_outputs_reaching_parent_cone_instances: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_parent_port_composed_outputs: usize,
@@ -341,6 +342,7 @@ pub struct DesignMetrics {
     pub top_registered_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_mixed_support_child_input_binding_fraction: f64,
     pub top_registered_multistage_parent_composed_child_input_binding_fraction: f64,
+    pub top_parent_cone_instance_output_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
 
@@ -350,11 +352,13 @@ pub struct DesignMetrics {
     pub hierarchy_parent_port_composed_outputs: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
     pub hierarchy_parent_cone_instances: usize,
+    pub hierarchy_outputs_reaching_parent_cone_instances: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
     pub avg_instance_output_support_per_hierarchy_output: f64,
     pub max_instance_output_support_per_hierarchy_output: usize,
     pub hierarchy_parent_port_composed_output_fraction: f64,
+    pub hierarchy_parent_cone_instance_output_fraction: f64,
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
@@ -723,6 +727,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_direct_instance_output_drives = top_facts.direct_drives;
     out.top_parent_composed_outputs = top_facts.parent_composed_outputs;
     out.top_parent_port_composed_outputs = top_facts.parent_port_composed_outputs;
+    out.top_outputs_reaching_parent_cone_instances =
+        top_facts.outputs_reaching_parent_cone_instances;
     out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
     out.top_outputs_without_instance_outputs = top_facts.outputs_without_instance_outputs;
     out.top_local_flops = top.flops.len();
@@ -735,6 +741,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.top_parent_composed_outputs, out.top_outputs);
     out.top_parent_port_composed_output_fraction =
         ratio(out.top_parent_port_composed_outputs, out.top_outputs);
+    out.top_parent_cone_instance_output_fraction = ratio(
+        out.top_outputs_reaching_parent_cone_instances,
+        out.top_outputs,
+    );
 
     for module in library
         .iter()
@@ -855,6 +865,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.hierarchy_parent_port_composed_output_fraction = ratio(
         out.hierarchy_parent_port_composed_outputs,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.hierarchy_parent_cone_instance_output_fraction = ratio(
+        out.hierarchy_outputs_reaching_parent_cone_instances,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
     );
     out.top_instance_output_child_input_binding_fraction = ratio(
@@ -997,6 +1011,8 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     state.out.hierarchy_direct_instance_output_drives += facts.direct_drives;
     state.out.hierarchy_parent_composed_outputs += facts.parent_composed_outputs;
     state.out.hierarchy_parent_port_composed_outputs += facts.parent_port_composed_outputs;
+    state.out.hierarchy_outputs_reaching_parent_cone_instances +=
+        facts.outputs_reaching_parent_cone_instances;
     *state.hierarchy_output_support_total += facts.total_support;
     state.out.max_instance_output_support_per_hierarchy_output = state
         .out
@@ -1176,6 +1192,7 @@ struct ModuleCompositionFacts {
     direct_drives: usize,
     parent_composed_outputs: usize,
     parent_port_composed_outputs: usize,
+    outputs_reaching_parent_cone_instances: usize,
     outputs_reaching_instance_outputs: usize,
     outputs_without_instance_outputs: usize,
     total_support: usize,
@@ -1193,6 +1210,14 @@ fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
         out.max_support = out.max_support.max(support_len);
         if support_len > 0 {
             out.outputs_reaching_instance_outputs += 1;
+            if support.iter().any(|(instance, _)| {
+                module
+                    .instances
+                    .get(*instance as usize)
+                    .is_some_and(|inst| inst.role == InstanceRole::ParentCone)
+            }) {
+                out.outputs_reaching_parent_cone_instances += 1;
+            }
             if deps.has_ports() {
                 out.parent_port_composed_outputs += 1;
             }
@@ -1613,6 +1638,45 @@ mod tests {
             met.avg_instance_output_support_per_top_output >= 1.0,
             "every top output should depend on at least one child output"
         );
+    }
+
+    #[test]
+    fn design_metrics_capture_parent_cone_instance_output_support() {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("parent-output helper instance hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert!(
+            met.top_parent_cone_instances > 0,
+            "expected at least one top-level helper instance"
+        );
+        assert!(
+            met.top_outputs_reaching_parent_cone_instances > 0,
+            "top outputs should depend on parent-cone helper outputs"
+        );
+        assert!(
+            met.hierarchy_outputs_reaching_parent_cone_instances > 0,
+            "hierarchy-wide output metrics should record helper output support"
+        );
+        assert!(met.top_parent_cone_instance_output_fraction > 0.0);
+        assert!(met.hierarchy_parent_cone_instance_output_fraction > 0.0);
     }
 
     #[test]

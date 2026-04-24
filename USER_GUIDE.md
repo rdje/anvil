@@ -307,6 +307,11 @@ opening the emitted `.sv`, including:
 - average / maximum child-output support per top output
   (`avg_instance_output_support_per_top_output`,
   `max_instance_output_support_per_top_output`)
+- parent-cone helper-instance support for parent outputs
+  (`top_outputs_reaching_parent_cone_instances`,
+  `hierarchy_outputs_reaching_parent_cone_instances`,
+  `top_parent_cone_instance_output_fraction`,
+  `hierarchy_parent_cone_instance_output_fraction`)
 - child-input provenance
   (`child_input_bindings_from_parent_ports`,
   `child_input_bindings_from_instance_outputs`,
@@ -315,7 +320,10 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_parent_composed_logic`,
   `child_input_bindings_from_parent_flops`,
   `child_input_bindings_from_registered_instance_outputs`,
-  `child_input_bindings_from_registered_parent_composed_logic`)
+  `child_input_bindings_from_registered_parent_composed_logic`,
+  `child_input_bindings_from_registered_mixed_support`,
+  `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_parent_cone_instances`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`)
@@ -367,6 +375,10 @@ The current Phase 4 slice now has two planning lanes:
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates
+- `hierarchy_parent_cone_instance_prob` controls whether those
+  child-input cones or parent-output cones may instantiate one helper
+  child as an internal parent-cone source; default `0.0` keeps this
+  helper-instantiation axis opt-in
 - `hierarchy_parent_flop_prob` controls whether parent-side hierarchy
   cones may emit local parent flops; default `0.0` keeps the hierarchy
   parent layer combinational unless this state axis is explicitly
@@ -512,9 +524,10 @@ records:
 - `Yosys without-abc pass/fail = 132/0`
 - `Yosys with-abc pass/fail = 132/0`
 
-That refreshed report is now the fully banked repo-owned Phase 4
-artifact for the current hierarchy surface, not only the older wrapper
-baseline. It covers the broadened `--num-child-instances` planner,
+That refreshed report is the latest fully banked repo-owned Phase 4
+artifact, not only the older wrapper baseline. It covers the
+pre-parent-output-helper hierarchy surface: the broadened
+`--num-child-instances` planner,
 bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
 and `1:3`, the mixed recursive depth-range profile `2:3`, the
 per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
@@ -529,6 +542,12 @@ child-input bindings, multi-stage registered parent-composed
 child-input bindings, mixed parent-port / child-output parent outputs,
 parent-cone helper-instance child-input bindings, and generator-global
 module-name allocation.
+Current HEAD also has focused parent-output helper-instance support
+after the `r21` bank: the Phase 4 matrix plan now has a dedicated
+parent-output helper axis, and
+`cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`
+proves `top_outputs_reaching_parent_cone_instances > 0` without
+depending on child-input helper bindings.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -575,6 +594,11 @@ focused proof for mixed parent-port / child-output parent outputs
 proof for parent-cone helper-instance routing
 (`top_parent_cone_instances = 1`,
 `child_input_bindings_from_parent_cone_instances = 4`).
+`cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`
+is the focused proof for parent-output helper-instance composition
+(`top_outputs_reaching_parent_cone_instances > 0`,
+`hierarchy_outputs_reaching_parent_cone_instances > 0`,
+`top_parent_cone_instance_output_fraction > 0.0`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

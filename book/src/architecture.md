@@ -83,8 +83,10 @@ src/
 │   │                # Both now also expose explicit child sourcing
 │   │                # (library vs on-demand), and both build
 │   │                # parent-side layers over child InstanceOutput
-│   │                # leaves, sibling-routed child-input binding, and
-│   │                # optional local parent flops.
+│   │                # leaves, sibling-routed child-input binding,
+│   │                # parent-composed child-input binding,
+│   │                # helper-instance sources, and optional local
+│   │                # parent flops.
 │   └── pool.rs      # SignalPool (width-indexed, cloneable for rewind).
 └── emit/
     ├── mod.rs       # re-exports.
@@ -101,8 +103,9 @@ lane. The older wrapper-baseline surface has a repo-owned closure gate
 in `tool_matrix`, and current HEAD now extends hierarchy with both
 parent-side composition, bounded recursive tree planning, mixed-depth
 leaf shaping inside a requested depth interval, and depth-specific
-branching overrides, plus a real combinational sibling-routing surface
-for child-input binding and an explicit local-parent-state axis.
+branching overrides, plus real child-input routing surfaces,
+helper-instance sources for child-input and parent-output cones, and an
+explicit local-parent-state axis.
 
 ## Dependency direction
 
@@ -374,14 +377,15 @@ selectable `Slice` / `Concat` surface, the hierarchy surface (legacy
 depth-1 wrapper exact/reuse/under-instantiation plus the bounded
 recursive tree planner, per-depth branching profiles, sibling-routed
 child inputs, parent-composed child-input bindings, parent-cone
-helper-instance child-input bindings, local parent flops, registered
-sibling-routed child-input bindings, registered parent-composed
-child-input bindings, mixed parent-port / child-output parent outputs,
-and module-name uniqueness across batched hierarchy designs),
+helper-instance child-input bindings, parent-cone helper-instance
+parent-output composition, local parent flops, registered sibling-routed
+child-input bindings, registered parent-composed child-input bindings,
+mixed parent-port / child-output parent outputs, and module-name
+uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-24): 215 unit-target tests + 47 integration tests = 262 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-24): 216 unit-target tests + 48 integration tests = 264 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -423,7 +427,11 @@ registered parent-composed child-input bindings through
 `hierarchy_registered_child_input_cone_prob`, plus registered
 mixed-support child-input bindings, multi-stage registered
 parent-composed child-input bindings, and mixed parent-port /
-child-output parent outputs. It records
+child-output parent outputs. Current HEAD adds parent-cone
+helper-instance parent-output composition after that `r21` bank, with a
+dedicated Phase 4 matrix scenario for the next full bank and focused
+tests proving `top_outputs_reaching_parent_cone_instances > 0`. The
+`r21` report records
 `saw_hierarchy_parent_composed_child_inputs = true` and
 `saw_hierarchy_parent_local_flops = true`. It also records
 `saw_hierarchy_registered_sibling_routing = true` and

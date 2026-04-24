@@ -200,7 +200,7 @@ anvil --seed 42 --out ./hier-parent-cones \
 ```
 
 Parent-cone helper instances, where the parent instantiates an extra
-helper child as a source for those cones:
+helper child as a source for child-input cones:
 
 ```bash
 anvil --seed 42 --out ./hier-helper-cones \
@@ -223,6 +223,30 @@ Useful metrics:
 - `child_input_bindings_from_parent_cone_instances`
 - `top_parent_cone_instances`
 - the matching `*_fraction` fields
+
+To focus helper instances on parent-output composition instead of
+child-input bindings:
+
+```bash
+anvil --seed 42 --out ./hier-helper-outputs \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 0.0 \
+      --hierarchy-child-input-cone-prob 0.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0
+```
+
+Useful metrics:
+
+- `top_outputs_reaching_parent_cone_instances`
+- `hierarchy_outputs_reaching_parent_cone_instances`
+- `top_parent_cone_instance_output_fraction`
+- `hierarchy_parent_cone_instance_output_fraction`
 
 ## "I want registered hierarchy routes"
 

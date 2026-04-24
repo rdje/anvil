@@ -1,6 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot15 — Route parent-output cones through helper instances
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets `hierarchy_parent_cone_instance_prob` instantiate one
+  parent-cone helper child for parent-output composition, not only for
+  parent-composed child-input bindings.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports helper-instance support on parent outputs through
+  `top_outputs_reaching_parent_cone_instances`,
+  `hierarchy_outputs_reaching_parent_cone_instances`,
+  `top_parent_cone_instance_output_fraction`, and
+  `hierarchy_parent_cone_instance_output_fraction`.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  adds a dedicated Phase 4 scenario,
+  `phase4_hier2_inst4_parent_output_cone_instance`, and a coverage gap
+  for parent outputs sourced from parent-cone helper instances. The
+  current scenario plan is 36 scenarios / 144 designs; the latest full
+  downstream-clean bank remains the earlier `r21` report.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  proves the route across all construction strategies while keeping
+  child-input helper bindings off, so the new surface is independent of
+  the earlier child-input helper slice.
+- The mdBook and live docs now describe the new helper-output metrics,
+  recipe, and roadmap status.
+
+**Why**
+
+- Phase 4's next open item was broader helper-instance placement beyond
+  child-input cones. Parent-output composition is the smallest useful
+  widening: it reuses the existing helper-instance machinery while
+  proving module instantiation can participate in another parent-side
+  cone surface.
+
+**Validation**
+
+- `cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`
+- `cargo test design_metrics_capture_parent_cone_instance_output_support`
+- `cargo test --bin tool_matrix`
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot14 — Align live docs with current hierarchy state
 
 **Landed as:** this commit
@@ -26,7 +75,8 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
   now avoid current-wrapper-only wording and describe hierarchy as a
   live planner above the leaf kernel.
 - [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-  also records the current executed test count: 262 passing tests.
+  also recorded the then-current executed test count: 262 passing
+  tests.
 
 **Why**
 
@@ -1724,8 +1774,8 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 **Impact**
 
-- Phase 4 now has a fully banked repo-owned closure artifact for the
-  real current hierarchy surface, not only the older wrapper baseline.
+- Phase 4 now had a fully banked repo-owned closure artifact for the
+  then-current hierarchy surface, not only the older wrapper baseline.
 - The hierarchy gate is materially more trustworthy and more stable:
   it proves wrapper exact/reuse/under-instantiation, recursive depth,
   per-depth branching, and parent composition without dragging the

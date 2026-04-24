@@ -255,9 +255,10 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r21`. Its final
 - `saw_hierarchy_registered_multistage_routing = true`
 - `saw_hierarchy_parent_cone_instance_routing = true`
 
-That refreshed report is now the fully banked repo-owned Phase 4
-closure artifact for the current hierarchy surface, not only the older
-wrapper baseline. It covers the broadened `--num-child-instances`
+That refreshed report is the latest fully banked repo-owned Phase 4
+closure artifact, not only the older wrapper baseline. It covers the
+pre-parent-output-helper hierarchy surface: the broadened
+`--num-child-instances`
 planner directly, and it also proves the current recursive hierarchy
 surface directly: depth `2`, mixed recursive depth range `2:3`,
 child-instance profiles `2`, `4`, `2:3`, and `1:3`, the per-depth
@@ -444,14 +445,17 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both lanes also expose
   `--hierarchy-parent-cone-instance-prob <p>`, which lets those
   parent-local combinational cones instantiate a helper child as an
-  internal parent-cone source. This is the first landed slice where
+  internal parent-cone source. Helper outputs can now feed either
+  child-input bindings or parent-output composition, so this is the
+  first landed slice where
   module instantiation participates directly in parent-side cone choice:
-  the helper instance is separate from the planned child slots, its
-  outputs can feed later child inputs through parent logic, and manifests
-  report the route through `top_parent_cone_instances`,
+  the helper instance is separate from the planned child slots, and
+  manifests report the route through `top_parent_cone_instances`,
   `hierarchy_parent_cone_instances`,
-  `child_input_bindings_from_parent_cone_instances`, and the matching
-  top/hierarchy fractions.
+  `child_input_bindings_from_parent_cone_instances`,
+  `top_outputs_reaching_parent_cone_instances`,
+  `hierarchy_outputs_reaching_parent_cone_instances`, and the matching
+  child-input / parent-output fractions.
   Both lanes now also expose `--hierarchy-parent-flop-prob <p>`, which
   lets those parent-side cones emit local parent flops under a separate
   hierarchy-specific state knob.
@@ -479,6 +483,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child-input binding, multi-stage registered parent-composed
   child-input binding, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding,
+  parent-cone helper-instance parent-output binding,
   parent-local flop state, and
   per-depth-override profiles folded into `tool_matrix`,
   while the
@@ -519,6 +524,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`,
   and
   `top_parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`.
+  Current HEAD also has a focused clean parent-output helper-instance
+  proof through
+  `cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`,
+  where the design metrics show helper instances are additional to the
+  planned child slots and top outputs reach those helper outputs through
+  `top_outputs_reaching_parent_cone_instances` /
+  `hierarchy_outputs_reaching_parent_cone_instances`.
   Current HEAD also has a focused clean parent-state proof at
   `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
   design metrics show `hierarchy_parent_local_flops = 8`,
@@ -565,10 +577,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   remain useful focused policy breadcrumbs, but the full
   downstream-clean `r21` bank above now carries those coverage facts with
   Verilator and both repo-owned Yosys modes enabled.
+  Current HEAD has also added a repo-owned Phase 4 matrix scenario for
+  parent-output helper-instance composition; the next full Phase 4 bank
+  should refresh the historical `r21` counts from 33 scenarios / 132
+  designs to the now-planned 36 scenarios / 144 designs.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  broader helper-instance placement beyond child-input cones, broader
-  registered hierarchy patterns, and later hierarchy-aware identity.
+  broader helper-instance budgeting and placement beyond the current
+  child-input and parent-output cone slices, broader registered
+  hierarchy patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.
