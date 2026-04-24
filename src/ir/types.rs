@@ -268,6 +268,10 @@ pub enum KnobId {
     /// parent binds a child data input through a local combinational
     /// cone over already-available parent sources.
     HierarchyChildInputConeProb,
+    /// `Config::hierarchy_parent_cone_instance_prob` — chance that a
+    /// parent-composed child-input cone instantiates an extra child module
+    /// as an internal parent-cone source.
+    HierarchyParentConeInstanceProb,
     /// `Config::hierarchy_parent_flop_prob` — chance that
     /// parent-side hierarchy cones may emit local parent flops.
     HierarchyParentFlopProb,
@@ -304,6 +308,7 @@ impl KnobId {
                 "hierarchy_registered_child_input_cone_prob"
             }
             KnobId::HierarchyChildInputConeProb => "hierarchy_child_input_cone_prob",
+            KnobId::HierarchyParentConeInstanceProb => "hierarchy_parent_cone_instance_prob",
             KnobId::HierarchyParentFlopProb => "hierarchy_parent_flop_prob",
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
         }
@@ -1615,11 +1620,18 @@ impl Module {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InstanceRole {
+    PlannedChild,
+    ParentCone,
+}
+
 #[derive(Debug, Clone)]
 pub struct Instance {
     pub id: InstanceId,
     pub name: String,
     pub module: String,
+    pub role: InstanceRole,
     /// Child input port id -> parent driving node id.
     pub inputs: Vec<(PortId, NodeId)>,
 }
@@ -1873,6 +1885,13 @@ impl DepSet {
         self.set
             .iter()
             .any(|atom| matches!(atom, DepAtom::InstanceOutputVirtual { .. }))
+    }
+
+    pub fn instance_output_virtuals(&self) -> impl Iterator<Item = (InstanceId, PortId)> + '_ {
+        self.set.iter().filter_map(|atom| match atom {
+            DepAtom::InstanceOutputVirtual { instance, port } => Some((*instance, *port)),
+            _ => None,
+        })
     }
 
     /// Rewrite virtual flop ids after a flop merge / renumbering
@@ -3035,6 +3054,7 @@ mod tests {
             id: 0,
             name: "u_child".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
         });
 
@@ -3065,6 +3085,7 @@ mod tests {
             id: 0,
             name: "u_child".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 2)],
         });
 

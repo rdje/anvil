@@ -310,6 +310,11 @@ evidence.
     ports with earlier sibling outputs in that registered route, and
     later registered parent-composed routes can chain through earlier
     parent-local flops when such Qs are already available.
+    `--hierarchy-parent-cone-instance-prob <p>` adds the first
+    first-class module-instantiation route inside parent cone choice:
+    parent-composed child-input cones can instantiate one helper child
+    as an internal parent-cone source, then route its output through
+    parent logic into later child inputs.
 - Current slice constraints:
   - direct sibling routing is still combinational; the first one-flop
     registered sibling route and the first registered parent-composed
@@ -322,11 +327,13 @@ evidence.
     mixed-depth recursive axis, the explicit child-sourcing axis, local
     parent state, registered sibling routing, and registered
     parent-composed child-input routing, registered mixed-support
-    routing, multi-stage registered parent-composed routing, and mixed
-    parent-port / child-output parent outputs
+    routing, multi-stage registered parent-composed routing, mixed
+    parent-port / child-output parent outputs, and parent-cone
+    helper-instance child-input routing
 - Open Phase 4 work:
-  - module instantiation as a first-class cone choice inside parent
-    generation, not just in the wrapper top
+  - broaden helper-instance placement beyond the current first
+    parent-composed child-input cone slice, including parent-output
+    composition and deeper budgeting choices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
     surfaces
@@ -340,12 +347,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`120/0` in Verilator plus both repo-owned Yosys modes). That report now
+(`132/0` in Verilator plus both repo-owned Yosys modes). That report now
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -360,6 +367,8 @@ proves all of the current representative hierarchy axes directly:
   ports with child outputs
 - multi-stage registered parent-composed child-input bindings that chain
   through earlier parent-local Qs
+- parent-cone helper instances that source parent-composed child-input
+  bindings
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -377,10 +386,13 @@ Earlier current-code coverage-only Phase 4 matrix probes at
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
 and
-`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
+and
+`/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
 remain useful targeted policy breadcrumbs for the mixed parent-output,
-registered mixed-support, and multi-stage registered slices. They were
-run with Verilator/Yosys skipped; the full downstream-clean `r20` bank
+registered mixed-support, multi-stage registered, and parent-cone
+helper-instance slices. They were
+run with Verilator/Yosys skipped; the full downstream-clean `r21` bank
 above now carries those same coverage facts with real tool validation.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
@@ -506,8 +518,9 @@ recursive bank, `r10` is the pre-child-sourcing recursive bank,
 bank, `r16` is the pre-registered-sibling-route bank, `r17` is the
 pre-registered-parent-composed-route bank, `r18` is the first
 registered-parent-composed bank, `r19` is the pre-full parent-port /
-registered-mixed / multi-stage bank, and `r20` is the current fully
-banked Phase 4 hierarchy closure artifact.
+registered-mixed / multi-stage bank, `r20` is the pre-parent-cone
+helper-instance bank, and `r21` is the current fully banked Phase 4
+hierarchy closure artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -516,12 +529,13 @@ requires mixed parent-output composition, and
 requires registered mixed-support child-input routing, and
 `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
 requires multi-stage registered parent-composed routing. All record
-`coverage_gaps = []` with Verilator/Yosys skipped; `r20` now folds all
-three coverage facts into the full downstream-clean bank.
+`coverage_gaps = []` with Verilator/Yosys skipped; `r20` folded those
+three coverage facts into the full downstream-clean bank, and `r21`
+adds the parent-cone helper-instance coverage fact as well.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
-with first-class module instantiation inside parent cone choice, richer
+with broader helper-instance placement beyond child-input cones, richer
 registered hierarchy patterns beyond the first multi-stage parent-flop
 chain, and eventual hierarchy-aware identity/factorization.
 

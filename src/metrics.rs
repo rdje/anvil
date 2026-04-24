@@ -14,7 +14,7 @@
 //! whether it is doing its job, whether it is redundant with
 //! another knob, or whether a new knob is needed.
 
-use crate::ir::{Design, GateOp, InstanceId, Module, Node, NodeId, PortId};
+use crate::ir::{Design, GateOp, InstanceId, InstanceRole, Module, Node, NodeId, PortId};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -325,6 +325,8 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_parent_composed_logic: usize,
     pub top_child_input_bindings_from_registered_mixed_support: usize,
     pub top_child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
+    pub top_child_input_bindings_from_parent_cone_instances: usize,
+    pub top_parent_cone_instances: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_parent_port_composed_outputs: usize,
@@ -347,6 +349,7 @@ pub struct DesignMetrics {
     pub hierarchy_parent_composed_outputs: usize,
     pub hierarchy_parent_port_composed_outputs: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
+    pub hierarchy_parent_cone_instances: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
     pub avg_instance_output_support_per_hierarchy_output: f64,
@@ -366,6 +369,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_registered_parent_composed_logic: usize,
     pub child_input_bindings_from_registered_mixed_support: usize,
     pub child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
+    pub child_input_bindings_from_parent_cone_instances: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -382,7 +386,9 @@ pub struct DesignMetrics {
     pub registered_parent_composed_child_input_binding_fraction: f64,
     pub registered_mixed_support_child_input_binding_fraction: f64,
     pub registered_multistage_parent_composed_child_input_binding_fraction: f64,
+    pub parent_cone_instance_child_input_binding_fraction: f64,
     pub top_parent_flop_child_input_binding_fraction: f64,
+    pub top_parent_cone_instance_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
     pub num_sequential_leaf_modules: usize,
@@ -833,6 +839,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_registered_multistage_parent_composed_logic,
         out.total_child_data_input_bindings,
     );
+    out.parent_cone_instance_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_parent_cone_instances,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -874,6 +884,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.top_parent_flop_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_parent_flops,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_parent_cone_instance_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_parent_cone_instances,
         out.top_total_child_data_input_bindings,
     );
     for (depth, count) in internal_module_occurrences_by_depth {
@@ -994,6 +1008,12 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
 
     for instance in &module.instances {
         state.out.num_instances += 1;
+        if instance.role == InstanceRole::ParentCone {
+            state.out.hierarchy_parent_cone_instances += 1;
+            if module.name == state.out.design {
+                state.out.top_parent_cone_instances += 1;
+            }
+        }
         *state
             .out
             .instantiated_module_histogram
@@ -1083,6 +1103,14 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                     state
                         .out
                         .top_child_input_bindings_from_registered_multistage_parent_composed_logic += 1;
+                }
+            }
+            if binding_uses_parent_cone_instance_output(module, &deps) {
+                state.out.child_input_bindings_from_parent_cone_instances += 1;
+                if module.name == state.out.design {
+                    state
+                        .out
+                        .top_child_input_bindings_from_parent_cone_instances += 1;
                 }
             }
             match (has_ports, has_instance_outputs, deps.is_empty()) {
@@ -1279,6 +1307,15 @@ fn binding_uses_registered_multistage_parent_composed_logic(
             })
     });
     uses_registered_multistage_parent_composed_logic
+}
+
+fn binding_uses_parent_cone_instance_output(module: &Module, deps: &crate::ir::DepSet) -> bool {
+    deps.instance_output_virtuals().any(|(instance, _)| {
+        module
+            .instances
+            .get(instance as usize)
+            .is_some_and(|inst| inst.role == InstanceRole::ParentCone)
+    })
 }
 
 fn is_registered_parent_composed_logic_node(module: &Module, node_id: NodeId) -> bool {

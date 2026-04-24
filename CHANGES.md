@@ -1,6 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot11 — Land parent-cone helper hierarchy instances
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets parent-composed child-input cones instantiate one helper
+  child as an internal parent-cone source under
+  `hierarchy_parent_cone_instance_prob`.
+- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  now distinguishes planned child instances from parent-cone helper
+  instances through `InstanceRole`, and dependency sets can expose
+  referenced instance-output virtuals directly.
+- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  expose the new config/CLI knob with a default of `0.0`.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports parent-cone helper instances and child-input bindings
+  sourced through them with top-level and hierarchy-wide counters plus
+  fractions.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now includes a Phase 4 parent-cone helper-instance scenario per
+  strategy and rejects Phase 4 matrices that never prove the route.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now has a strategy sweep proving helper child instantiation can feed
+  parent-composed child-input bindings.
+- README, roadmap, development notes, memory, codebase analysis, and
+  the mdBook hierarchy/architecture/knobs chapters were refreshed to
+  make the new user-facing behavior and metrics discoverable.
+
+**Why**
+
+- Phase 4 already had parent-side logic around child instances, but
+  module instantiation itself was still only a wrapper/planning action.
+  This lands the first narrow slice where a parent cone may choose a
+  module instance as an internal source, while keeping the behavior
+  measurable and opt-in.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test --test pipeline hierarchy_child_input_cones_can_instantiate_helper_children`
+- `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- `cargo test --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- Focused smoke:
+  `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json` records
+  `top_parent_cone_instances = 1`,
+  `hierarchy_parent_cone_instances = 1`,
+  `child_input_bindings_from_parent_cone_instances = 4`, and
+  `top_child_input_bindings_from_parent_cone_instances = 4`.
+- The focused smoke is clean in Verilator, Yosys `synth -noabc`, and
+  the repo-owned Yosys with-ABC path.
+- Full downstream-clean Phase 4 matrix:
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
+  records `33` scenarios, `132` total designs, `coverage_gaps = []`,
+  `Verilator pass/fail = 132/0`,
+  `Yosys without-abc pass/fail = 132/0`, and
+  `Yosys with-abc pass/fail = 132/0`.
+- The same report records
+  `saw_hierarchy_parent_cone_instance_routing = true`.
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot10 — Refresh Phase 4 hierarchy gate for multi-stage routing
 
 **Landed as:** this commit

@@ -307,6 +307,11 @@ struct Cli {
     #[arg(long)]
     hierarchy_child_input_cone_prob: Option<f64>,
 
+    /// Probability that a parent-composed child-input cone instantiates
+    /// an extra child module as an internal parent-cone source.
+    #[arg(long)]
+    hierarchy_parent_cone_instance_prob: Option<f64>,
+
     /// Probability that parent-side hierarchy cones may emit local
     /// parent flops. Applies to parent output cones and
     /// parent-composed child-input cones.
@@ -624,6 +629,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_registered_sibling_route_prob: cli.hierarchy_registered_sibling_route_prob,
         hierarchy_registered_child_input_cone_prob: cli.hierarchy_registered_child_input_cone_prob,
         hierarchy_child_input_cone_prob: cli.hierarchy_child_input_cone_prob,
+        hierarchy_parent_cone_instance_prob: cli.hierarchy_parent_cone_instance_prob,
         hierarchy_parent_flop_prob: cli.hierarchy_parent_flop_prob,
     }
 }
@@ -723,6 +729,8 @@ mod tests {
             "0.85",
             "--hierarchy-child-input-cone-prob",
             "0.75",
+            "--hierarchy-parent-cone-instance-prob",
+            "0.55",
             "--hierarchy-parent-flop-prob",
             "0.6",
         ]);
@@ -761,6 +769,7 @@ mod tests {
             Some(0.85)
         );
         assert_eq!(overrides.hierarchy_child_input_cone_prob, Some(0.75));
+        assert_eq!(overrides.hierarchy_parent_cone_instance_prob, Some(0.55));
         assert_eq!(overrides.hierarchy_parent_flop_prob, Some(0.6));
     }
 }

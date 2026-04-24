@@ -22,7 +22,7 @@ use super::{
 use crate::config::{ConstructionStrategy, HierarchyChildSourceMode};
 use crate::ir::{
     DepSet, Design, Direction, Flop, FlopId, FlopKind, FlopMux, GateOp, Instance, InstanceId,
-    KnobId, Module, ModuleInterfaceProfile, Node, NodeId, Port, PortId, ResetKind,
+    InstanceRole, KnobId, Module, ModuleInterfaceProfile, Node, NodeId, Port, PortId, ResetKind,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -365,10 +365,10 @@ fn generate_parent_module(
     }
 
     let mut instance_pool = SignalPool::new();
+    let mut parent_cone_instance_inserted = false;
 
     for (instance_idx, child_idx) in instance_plan.iter().copied().enumerate() {
         let child = &library[child_idx];
-        let instance_id = top.instances.len() as InstanceId;
         let instance_name = format!("u_{}", instance_idx);
         let mut input_bindings = Vec::new();
 
@@ -395,6 +395,13 @@ fn generate_parent_module(
             external_input_pool: &mut external_input_pool,
             parent_source_pool: &mut parent_source_pool,
             next_port_id: &mut next_port_id,
+            library,
+            modules_by_name: &modules_by_name,
+            helper_child_indices: instance_plan,
+            shared_clock,
+            shared_reset,
+            allow_external_pool_reuse: external_profile.is_some(),
+            parent_cone_instance_inserted: &mut parent_cone_instance_inserted,
         };
         for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
             let node_id = bind_child_input_from_parent_sources(
@@ -413,12 +420,21 @@ fn generate_parent_module(
             external_input_pool: _,
             parent_source_pool,
             next_port_id,
+            library: _,
+            modules_by_name: _,
+            helper_child_indices: _,
+            shared_clock: _,
+            shared_reset: _,
+            allow_external_pool_reuse: _,
+            parent_cone_instance_inserted: _,
         } = binding_ctx;
 
+        let instance_id = top.instances.len() as InstanceId;
         top.instances.push(Instance {
             id: instance_id,
             name: instance_name.clone(),
             module: child.name.clone(),
+            role: InstanceRole::PlannedChild,
             inputs: input_bindings,
         });
 
@@ -601,6 +617,13 @@ struct ChildInputBindingContext<'a> {
     external_input_pool: &'a mut SignalPool,
     parent_source_pool: &'a mut SignalPool,
     next_port_id: &'a mut PortId,
+    library: &'a [Module],
+    modules_by_name: &'a BTreeMap<&'a str, &'a Module>,
+    helper_child_indices: &'a [usize],
+    shared_clock: Option<(PortId, NodeId)>,
+    shared_reset: Option<(PortId, NodeId)>,
+    allow_external_pool_reuse: bool,
+    parent_cone_instance_inserted: &'a mut bool,
 }
 
 fn bind_child_input_from_parent_sources(
@@ -652,7 +675,14 @@ fn bind_child_input_from_parent_sources(
             g.cfg.hierarchy_child_input_cone_prob,
         )
     {
-        return build_child_input_parent_cone(g, ctx.top, ctx.parent_source_pool, width);
+        let parent_cone_instance_source = maybe_add_parent_cone_instance_source(g, ctx, width);
+        return build_child_input_parent_cone(
+            g,
+            ctx.top,
+            ctx.parent_source_pool,
+            width,
+            parent_cone_instance_source,
+        );
     }
 
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
@@ -708,6 +738,148 @@ fn roll_hierarchy_child_input_cone(m: &mut Module, rng: &mut impl Rng, prob: f64
     m.knob_rolls
         .record(KnobId::HierarchyChildInputConeProb, fired);
     fired
+}
+
+fn roll_hierarchy_parent_cone_instance(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchyParentConeInstanceProb, fired);
+    fired
+}
+
+fn maybe_add_parent_cone_instance_source(
+    g: &mut Generator,
+    ctx: &mut ChildInputBindingContext<'_>,
+    target_width: u32,
+) -> Option<NodeId> {
+    if *ctx.parent_cone_instance_inserted
+        || !roll_hierarchy_parent_cone_instance(
+            ctx.top,
+            &mut g.rng,
+            g.cfg.hierarchy_parent_cone_instance_prob,
+        )
+    {
+        return None;
+    }
+
+    let candidates: Vec<usize> = ctx
+        .helper_child_indices
+        .iter()
+        .copied()
+        .filter(|&idx| ctx.library[idx].outputs.iter().any(|port| port.width > 0))
+        .collect();
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let child_idx = candidates[g.rng.gen_range(0..candidates.len())];
+    let child = &ctx.library[child_idx];
+    let child_name = child.name.clone();
+    let child_outputs = child.outputs.clone();
+    let child_data_inputs: Vec<_> = child
+        .emitted_data_input_ports_in(Some(ctx.modules_by_name))
+        .cloned()
+        .collect();
+    let child_clock = child.clock;
+    let child_reset = child.reset;
+    let child_is_sequential = child.carries_sequential_state_in(Some(ctx.modules_by_name));
+    let instance_id = ctx.top.instances.len() as InstanceId;
+    let instance_name = format!("pc_{}", instance_id);
+    let mut input_bindings = Vec::new();
+
+    if child_is_sequential {
+        let (_, clk_node) = ctx
+            .shared_clock
+            .expect("parent-cone instance of sequential child requires shared clk");
+        let (_, rst_node) = ctx
+            .shared_reset
+            .expect("parent-cone instance of sequential child requires shared rst_n");
+        input_bindings.push((child_clock.expect("child clock id"), clk_node));
+        input_bindings.push((child_reset.expect("child reset id"), rst_node));
+    }
+
+    for child_input in child_data_inputs {
+        let node_id = bind_parent_cone_instance_input(
+            g,
+            ctx,
+            &instance_name,
+            &child_input.name,
+            child_input.width,
+        );
+        input_bindings.push((child_input.id, node_id));
+    }
+
+    ctx.top.instances.push(Instance {
+        id: instance_id,
+        name: instance_name,
+        module: child_name,
+        role: InstanceRole::ParentCone,
+        inputs: input_bindings,
+    });
+    *ctx.parent_cone_instance_inserted = true;
+
+    let mut helper_outputs = Vec::new();
+    for child_output in &child_outputs {
+        let node_id = ctx.top.nodes.len() as NodeId;
+        ctx.top.nodes.push(Node::InstanceOutput {
+            instance: instance_id,
+            port: child_output.id,
+            width: child_output.width,
+        });
+        let deps = DepSet::from_instance_output_virtual(instance_id, child_output.id);
+        ctx.instance_pool
+            .add(node_id, child_output.width, deps.clone());
+        ctx.parent_source_pool
+            .add(node_id, child_output.width, deps.clone());
+        helper_outputs.push((node_id, child_output.width));
+    }
+
+    helper_outputs
+        .iter()
+        .copied()
+        .find(|(_, width)| *width == target_width)
+        .map(|(node, _)| node)
+        .or_else(|| helper_outputs.first().map(|(node, _)| *node))
+}
+
+fn bind_parent_cone_instance_input(
+    g: &mut Generator,
+    ctx: &mut ChildInputBindingContext<'_>,
+    instance_name: &str,
+    child_input_name: &str,
+    width: u32,
+) -> NodeId {
+    if ctx
+        .parent_source_pool
+        .iter()
+        .any(|entry| !entry.deps.is_empty())
+    {
+        return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.parent_source_pool, width, None);
+    }
+
+    if ctx.allow_external_pool_reuse
+        && ctx
+            .external_input_pool
+            .iter()
+            .any(|entry| !entry.deps.is_empty())
+    {
+        return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.external_input_pool, width, None);
+    }
+
+    if ctx.allow_external_pool_reuse {
+        let (node, is_new) = ctx.top.intern_constant(width, 0);
+        if is_new {
+            ctx.parent_source_pool.add(node, width, DepSet::new());
+        }
+        return node;
+    }
+
+    let input_name = format!("{instance_name}__{child_input_name}");
+    let (port_id, node_id) = add_top_input(ctx.top, ctx.next_port_id, &input_name, width);
+    let deps = DepSet::from_port(port_id);
+    ctx.external_input_pool.add(node_id, width, deps.clone());
+    ctx.parent_source_pool.add(node_id, width, deps);
+    node_id
 }
 
 fn build_registered_sibling_route(
@@ -951,6 +1123,7 @@ fn build_child_input_parent_cone(
     top: &mut Module,
     parent_source_pool: &mut SignalPool,
     width: u32,
+    required_parent_cone_instance_source: Option<NodeId>,
 ) -> NodeId {
     let saved_flop_prob = g.cfg.flop_prob;
     let saved_flop_knob = g.active_flop_knob;
@@ -965,7 +1138,43 @@ fn build_child_input_parent_cone(
     );
     g.cfg.flop_prob = saved_flop_prob;
     g.active_flop_knob = saved_flop_knob;
-    root
+    if let Some(required_source) = required_parent_cone_instance_source {
+        ensure_parent_cone_instance_support(top, parent_source_pool, root, required_source, width)
+    } else {
+        root
+    }
+}
+
+fn ensure_parent_cone_instance_support(
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    root: NodeId,
+    required_source: NodeId,
+    width: u32,
+) -> NodeId {
+    let Node::InstanceOutput {
+        instance,
+        port,
+        width: source_width,
+    } = &top.nodes[required_source as usize]
+    else {
+        return root;
+    };
+    let (instance, port, source_width) = (*instance, *port, *source_width);
+    if cone::node_deps(top, root).contains_instance_output_virtual(instance, port) {
+        return root;
+    }
+
+    let source_deps = cone::node_deps(top, required_source);
+    let adapted = cone::make_width_adapter(
+        top,
+        parent_source_pool,
+        required_source,
+        source_width,
+        source_deps,
+        width,
+    );
+    add_parent_companion_gate(top, parent_source_pool, width, root, adapted)
 }
 
 fn build_parent_output_roots(

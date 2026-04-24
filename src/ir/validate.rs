@@ -1376,6 +1376,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: child.name.clone(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, top_input_node)],
         });
         let instout = top.nodes.len() as NodeId;
@@ -1408,6 +1409,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: child.name.clone(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, top_input_node)],
         });
 

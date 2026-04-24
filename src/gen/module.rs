@@ -786,6 +786,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(3, 0)],
         });
 
@@ -812,6 +813,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 1)],
         });
 

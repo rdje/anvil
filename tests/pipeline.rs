@@ -651,6 +651,66 @@ fn hierarchy_child_inputs_can_be_bound_through_parent_composed_logic() {
 }
 
 #[test]
+fn hierarchy_child_input_cones_can_instantiate_helper_children() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("parent-cone helper instance hierarchy config should be valid");
+        let planned_child_instances = cfg.num_child_instances as usize;
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "parent-cone helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.top_parent_cone_instances > 0,
+            "expected at least one top-level parent-cone helper instance for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_cone_instances > 0,
+            "expected child input bindings to depend on helper instance outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.parent_cone_instance_child_input_binding_fraction > 0.0,
+            "expected helper-instance binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_instances > planned_child_instances,
+            "helper instance should be additional to planned child slots for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_parents_can_emit_local_flops() {
     for strategy in [
         ConstructionStrategy::Sequential,

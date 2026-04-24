@@ -719,6 +719,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
         });
         top.nodes.push(Node::InstanceOutput {
@@ -766,6 +767,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 2)],
         });
         top.nodes.push(Node::InstanceOutput {
@@ -815,6 +817,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
         });
         top.nodes.push(Node::InstanceOutput {
@@ -854,6 +857,7 @@ mod tests {
             id: 0,
             name: "u_child".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
         });
         parent.nodes.push(Node::InstanceOutput {
@@ -880,6 +884,7 @@ mod tests {
             id: 0,
             name: "u_parent".into(),
             module: "parent".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
         });
         top.nodes.push(Node::InstanceOutput {
@@ -1247,6 +1252,7 @@ mod tests {
             id: 0,
             name: "u_0".into(),
             module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
         });
         top.nodes.push(Node::InstanceOutput {

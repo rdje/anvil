@@ -237,20 +237,21 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r20`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r21`. Its final
 `tool_matrix_report.json` records:
 
-- `30` scenarios
+- `33` scenarios
 - `4` designs per scenario
-- `120` total designs
+- `132` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 120/0`
-- `Yosys without-abc pass/fail = 120/0`
-- `Yosys with-abc pass/fail = 120/0`
+- `Verilator pass/fail = 132/0`
+- `Yosys without-abc pass/fail = 132/0`
+- `Yosys with-abc pass/fail = 132/0`
 - `saw_hierarchy_parent_port_composed_outputs = true`
 - `saw_hierarchy_registered_mixed_support_routing = true`
 - `saw_hierarchy_registered_multistage_routing = true`
+- `saw_hierarchy_parent_cone_instance_routing = true`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 closure artifact for the current hierarchy surface, not only the older
@@ -438,6 +439,17 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
   parent-side route gates.
+  Both lanes also expose
+  `--hierarchy-parent-cone-instance-prob <p>`, which lets those
+  parent-local combinational cones instantiate a helper child as an
+  internal parent-cone source. This is the first landed slice where
+  module instantiation participates directly in parent-side cone choice:
+  the helper instance is separate from the planned child slots, its
+  outputs can feed later child inputs through parent logic, and manifests
+  report the route through `top_parent_cone_instances`,
+  `hierarchy_parent_cone_instances`,
+  `child_input_bindings_from_parent_cone_instances`, and the matching
+  top/hierarchy fractions.
   Both lanes now also expose `--hierarchy-parent-flop-prob <p>`, which
   lets those parent-side cones emit local parent flops under a separate
   hierarchy-specific state knob.
@@ -452,7 +464,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r20/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -460,6 +472,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent-composed child-input binding, registered mixed-support
   child-input binding, multi-stage registered parent-composed
   child-input binding, mixed parent-port / child-output parent outputs,
+  parent-cone helper-instance child-input binding,
   parent-local flop state, and
   per-depth-override profiles folded into `tool_matrix`,
   while the
@@ -491,6 +504,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   design metrics show
   `child_input_bindings_from_parent_composed_logic = 13` and
   `parent_composed_child_input_binding_fraction = 0.9285714285714286`.
+  Current HEAD also has a focused clean parent-cone helper-instance
+  proof at `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json`,
+  where the design metrics show `top_parent_cone_instances = 1`,
+  `hierarchy_parent_cone_instances = 1`,
+  `child_input_bindings_from_parent_cone_instances = 4`,
+  `top_child_input_bindings_from_parent_cone_instances = 4`,
+  `parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`,
+  and
+  `top_parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`.
   Current HEAD also has a focused clean parent-state proof at
   `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
   design metrics show `hierarchy_parent_local_flops = 8`,
@@ -531,13 +553,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
   `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
   and
-  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
+  and
+  `/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
   remain useful focused policy breadcrumbs, but the full
-  downstream-clean `r20` bank above now carries those coverage facts with
+  downstream-clean `r21` bank above now carries those coverage facts with
   Verilator and both repo-owned Yosys modes enabled.
   The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  first-class module instantiation inside parent cone choice, broader
+  broader helper-instance placement beyond child-input cones, broader
   registered hierarchy patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
