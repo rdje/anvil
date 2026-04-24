@@ -361,8 +361,9 @@ The current Phase 4 slice now has two planning lanes:
 - sequential leaves do expose `clk` / `rst_n`
 - hierarchy parents keep `clk` / `rst_n` visible iff they carry local
   state or sequential descendants through instantiated children
-- top outputs can now be real parent-side **combinational** cones over
-  child instance outputs
+- top outputs can now be real parent-side cones over child instance
+  outputs, combinational by default and optionally stateful when
+  `hierarchy_parent_flop_prob` is enabled
 - unused child outputs are emitted as explicit unconnected ports
   (`.port()`) rather than fake pass-through wires
 - in bounded recursive mode, ANVIL now keeps every leaf depth inside

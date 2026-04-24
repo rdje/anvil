@@ -1,9 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-24-boot1 — Land local parent state in hierarchy cones
+## 2026-04-24-boot2 — Clarify hierarchy parent wording after bootstrap
 
 **Landed as:** this commit
+
+**What changed**
+
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+  now describes hierarchy parent outputs as parent-side cones over
+  child instance outputs, combinational by default and optionally
+  stateful when parent-local state is requested.
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+  now says the same thing in the hierarchy metrics/trust-surface
+  section instead of implying top outputs are only combinational cones.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+  now uses "hierarchy parents" instead of "wrappers" for the
+  control-port boundary doctrine, matching both wrapper and bounded
+  recursive parent modules.
+- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+  now phrases Rule 5's boundary rule in hierarchy-parent terms instead
+  of wrapper-only terms.
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+  was refreshed with this bootstrap result and the previous commit hash.
+
+**Why**
+
+- Executing `README.md` led through `SESSION_BOOTSTRAP.md`, which says
+  to amend live docs when the bootstrap pass finds facts that are
+  missed or misstated.
+- The code and most docs were already correct after the local
+  parent-state slice, but a few summaries still carried pre-state or
+  wrapper-only wording. That is exactly the kind of small drift that can
+  mislead a cold recovery session.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+
+**Impact**
+
+- The live docs now consistently describe parent-side hierarchy cones
+  as combinational by default, optionally stateful under
+  `hierarchy_parent_flop_prob`.
+- The control-port doctrine is described in terms of all hierarchy
+  parents, not only depth-1 wrappers.
+
+## 2026-04-24-boot1 — Land local parent state in hierarchy cones
+
+**Landed as:** `87d49406ab15ee771bffa9f9c75493f009e9da8f`
 
 **What changed**
 

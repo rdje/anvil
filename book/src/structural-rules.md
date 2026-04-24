@@ -267,12 +267,12 @@ IR fields and is an explicit future-phase item.
 
 **Boundary rule:** `clk` / `rst_n` are emitted at a module boundary iff
 that module carries sequential state locally or through instantiated
-descendants. Pure comb-only modules stay control-free. Sequential
-wrappers keep the ports visible all the way up the instantiated
-ancestor chain. Child output ports are different: a parent may either
-name them explicitly through `Node::InstanceOutput` and use them in
-parent logic, or leave them unconnected at the instance site when they
-are genuinely unused.
+descendants. Pure comb-only modules stay control-free. Stateful
+hierarchy parents keep the ports visible all the way up the
+instantiated ancestor chain. Child output ports are different: a parent
+may either name them explicitly through `Node::InstanceOutput` and use
+them in parent logic, or leave them unconnected at the instance site
+when they are genuinely unused.
 
 ---
 

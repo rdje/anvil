@@ -3,16 +3,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- A literal `SESSION_BOOTSTRAP.md` pass has now been rerun against
-  current HEAD: all live docs, the full mdBook, and every Rust source /
-  test / example were re-read. The current cleanup slice fixed
-  documentation/comment drift found during that pass: stale IR
-  `GateOp` / `Node::InstanceOutput` snippets, wrapper-only hierarchy
-  wording, anti-collapse gating text, factorization-ladder commentary,
-  Q-feedback endpoint language, and the sequential-worklist termination
-  rationale. The full gate (`cargo check --all-targets`, `cargo test`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`,
-  `mdbook build book`) is green.
+- Latest README / bootstrap execution rechecked the authority docs, the
+  mdBook map, the Rust/test/example inventory, and the current hygiene
+  gates. It found only small hierarchy-parent wording drift after the
+  local parent-state slice: a few summaries still said "wrappers" or
+  "combinational top-output cones" where the current surface is
+  broader. The docs now say hierarchy parents keep `clk` / `rst_n`
+  visible iff they carry local state or sequential descendants, and
+  parent-side output cones are combinational by default but optionally
+  stateful under `hierarchy_parent_flop_prob`.
 - The current live Phase 4 slice is no longer just a depth-1 wrapper. `hierarchy_depth = 1` plus `num_leaf_modules >= 1` still generates a library of leaf modules plus a real top module; `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions.
 - Current HEAD now also has an explicit hierarchy child-sourcing axis: `hierarchy_child_source_mode = library | on-demand`. Both the legacy wrapper lane and the bounded recursive lane can choose between reusable child-definition pools and fresh child-definition synthesis per planned instance slot.
 - Current HEAD now makes `on-demand` stronger than "fresh per slot":
@@ -168,7 +167,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Landed local parent state in hierarchy
+- **Last completed slice:** Clarified hierarchy parent wording after
+  executing the README/bootstrap path. See `CHANGES.md` entry
+  `2026-04-24-boot2`. No source behavior changed; the docs now avoid
+  wrapper-only and combinational-only phrasing for parent-side hierarchy
+  cones and control-port propagation.
+- **Prior slice:** Landed local parent state in hierarchy
   parent-side cones and refreshed the repo-owned Phase 4 gate. See
   `CHANGES.md` entry `2026-04-24-boot1`. The current hierarchy planner
   now has a real parent-state surface via
@@ -317,6 +321,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `87d4940` — Land hierarchy parent-local state.
 - `30b1846` — Land parent-composed hierarchy child inputs.
 - `8944c14` — Refresh bootstrap doc drift.
 - `28c5474` — Land sibling-routed hierarchy child inputs.

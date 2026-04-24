@@ -400,9 +400,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Control-port visibility follows the hierarchy doctrine exactly: pure
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
   and hierarchy parents keep them visible iff they carry local state or
-  sequential descendants. Parent outputs can be genuine combinational
-  functions of child instance outputs, and hierarchy manifests now report both the
-  composition facts and the realized tree shape numerically, including
+  sequential descendants. Parent outputs can be genuine parent-side
+  cones over child instance outputs, combinational by default and
+  optionally stateful when requested, and hierarchy manifests now
+  report both the composition facts and the realized tree shape numerically, including
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
