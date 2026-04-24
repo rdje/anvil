@@ -456,7 +456,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Control-port visibility follows the hierarchy doctrine exactly: pure
   comb-only modules omit `clk` / `rst_n`, sequential leaves emit them,
   and hierarchy parents keep them visible iff they carry local state or
-  sequential descendants. Parent outputs can be genuine parent-side
+  sequential descendants. Module names are allocated from one
+  generator-global sequence across leaves, recursive parents, and
+  repeated hierarchy designs in one run, so directory output can safely
+  write one `.sv` file per module definition without name collisions.
+  Parent outputs can be genuine parent-side
   cones that mix parent data inputs with child instance outputs while
   preserving child-output support, combinational by default and
   optionally stateful when requested. Hierarchy manifests now report

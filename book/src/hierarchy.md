@@ -207,10 +207,16 @@ pub struct Module {
     pub instances: Vec<Instance>,
 }
 
+pub enum InstanceRole {
+    PlannedChild,
+    ParentCone,
+}
+
 pub struct Instance {
     pub id: InstanceId,
     pub name: String,
     pub module: String,
+    pub role: InstanceRole,
     pub inputs: Vec<(PortId, NodeId)>,
 }
 
@@ -274,6 +280,12 @@ Directory output in hierarchy mode now writes:
 - one `.sv` file per module in the design, and
 - a `manifest.json` whose top-level payload uses `designs: [...]`
   rather than the old flat `modules: [...]` list.
+
+Module names come from one generator-global sequence. That matters for
+`--count N --out DIR`: every leaf, intermediate parent, top parent, and
+later design in the same run gets a fresh `mod_<seed>_<index>` name, so
+multi-file hierarchy output does not overwrite an earlier module
+definition.
 
 Each design entry now carries both:
 

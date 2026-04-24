@@ -1182,8 +1182,10 @@ As `anvil` grows, this catalog will too. Expected additions:
 - **Phase 3 (structured ops):** any later structured combinational
   motifs beyond the already-landed case/casez/for-fold/selectable-
   Slice/selectable-Concat surfaces.
-- **Phase 4 (hierarchy):** naming uniqueness across sub-modules,
-  port-width matching at instance boundaries, acyclic hierarchy.
+- **Phase 4 (hierarchy):** deeper helper-instance placement rules and
+  future hierarchy-aware identity/factorization beyond the already-live
+  design-level rules for unique module names, instance-boundary port
+  matching, and acyclic hierarchy.
 - **Phase 5 (parameterization):** parameter-dependent width
   propagation, parameter range enforcement.
 - **Phase 6 (advanced):** memory inferrable patterns, multi-clock

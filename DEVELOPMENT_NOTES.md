@@ -172,6 +172,14 @@ library is also useful because it exercises real unused-module cleanup
 in downstream tools. The wrapper slice still is not the final hierarchy
 algorithm, but this split is a real step toward a budget-driven one.
 
+Module names are also a hierarchy resource now, not an incidental string
+format at each construction site. Leaf modules, recursive parent
+modules, and later designs in the same generator run all reserve names
+from the same `Generator` sequence. That keeps `--count N --out DIR`
+safe for hierarchy output: one module definition still maps to one
+`.sv` file, and no later design can overwrite an earlier definition by
+reusing the same `mod_<seed>_<index>` name.
+
 ### Bounded recursive hierarchy keeps the old wrapper lane, then adds a real tree planner
 The next honest Phase 4 step was **not** to quietly overload the old
 depth-1 wrapper knobs until they accidentally meant recursion. That

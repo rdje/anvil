@@ -330,6 +330,11 @@ evidence.
     routing, multi-stage registered parent-composed routing, mixed
     parent-port / child-output parent outputs, and parent-cone
     helper-instance child-input routing
+  - module names are now allocated from one generator-global sequence
+    across leaf modules, recursive parent modules, and repeated
+    hierarchical designs in one output run, so multi-file hierarchy
+    output cannot collide or overwrite module definition files by
+    reusing a name
 - Open Phase 4 work:
   - broaden helper-instance placement beyond the current first
     parent-composed child-input cone slice, including parent-output
@@ -339,7 +344,6 @@ evidence.
     surfaces
   - richer registered child-to-child and parent-composed routing using
     the landed local parent-state surface
-  - name uniqueness across the full module set
   - hierarchical identity as future required work: under
     `identity_mode = node-id`, equivalent instantiated structures
     should eventually participate in the same sharing story instead of

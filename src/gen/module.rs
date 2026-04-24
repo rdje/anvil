@@ -45,7 +45,7 @@ pub(super) fn generate_leaf_module_with_interface_profile(
     );
 
     let mut m = Module {
-        name: format!("mod_{}_{:04}", g.cfg.seed, index),
+        name: g.module_name(index),
         max_ast_instances: g.cfg.max_ast_instances.max(1),
         mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),

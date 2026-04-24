@@ -1,6 +1,46 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot12 — Centralize hierarchy module-name allocation
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+  now owns module-index reservation through `reserve_module_index()`
+  and module-name formatting through `module_name()`.
+- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+  and [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now use that allocator for leaf modules and hierarchy parent modules
+  instead of hand-rolling parent-name reservation.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  now proves recursive/helper-heavy hierarchy generation keeps module
+  names unique both within each design and across multiple hierarchical
+  designs emitted by one generator run.
+- README, roadmap, memory, development notes, codebase analysis, and the
+  mdBook hierarchy/structural-rules chapters were updated to reflect
+  that module-name uniqueness is now an explicit Phase 4 construction
+  invariant.
+
+**Why**
+
+- Directory hierarchy output writes one `.sv` file per module
+  definition. Name reuse across generated designs would silently
+  overwrite files or make downstream tool inputs ambiguous. Module
+  naming is now treated as a generator-global resource rather than an
+  incidental formatting detail.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test --test pipeline hierarchy_module_names_are_unique_across_batch_generation`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot11 — Land parent-cone helper hierarchy instances
 
 **Landed as:** this commit

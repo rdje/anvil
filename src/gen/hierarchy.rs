@@ -66,8 +66,7 @@ fn generate_legacy_exact_design(g: &mut Generator) -> Design {
         }
     };
 
-    let top_index = g.next_module_index;
-    g.next_module_index += 1;
+    let top_index = g.reserve_module_index();
     let top = generate_parent_module(g, top_index, &modules, &[], &instance_plan, None);
     let top_name = top.name.clone();
     modules.push(top);
@@ -194,8 +193,7 @@ fn build_recursive_subtree(
         direct_children.push(child_root);
     }
 
-    let parent_index = g.next_module_index;
-    g.next_module_index += 1;
+    let parent_index = g.reserve_module_index();
     let parent = generate_parent_module(
         g,
         parent_index,
@@ -313,7 +311,7 @@ fn generate_parent_module(
     }
 
     let mut top = Module {
-        name: format!("mod_{}_{:04}", g.cfg.seed, index),
+        name: g.module_name(index),
         max_ast_instances: g.cfg.max_ast_instances.max(1),
         mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),

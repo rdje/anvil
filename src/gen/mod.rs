@@ -39,7 +39,7 @@ impl GeneratorCheckpoint {
 pub struct Generator {
     pub(crate) rng: ChaCha8Rng,
     pub(crate) cfg: Config,
-    pub(crate) next_module_index: u64,
+    next_module_index: u64,
     pub(crate) active_flop_knob: KnobId,
 }
 
@@ -55,8 +55,7 @@ impl Generator {
     }
 
     pub fn generate_module(&mut self) -> Module {
-        let idx = self.next_module_index;
-        self.next_module_index += 1;
+        let idx = self.reserve_module_index();
         module::generate_leaf_module(self, idx)
     }
 
@@ -64,9 +63,18 @@ impl Generator {
         &mut self,
         interface_profile: Option<&ModuleInterfaceProfile>,
     ) -> Module {
+        let idx = self.reserve_module_index();
+        module::generate_leaf_module_with_interface_profile(self, idx, interface_profile)
+    }
+
+    pub(crate) fn reserve_module_index(&mut self) -> u64 {
         let idx = self.next_module_index;
         self.next_module_index += 1;
-        module::generate_leaf_module_with_interface_profile(self, idx, interface_profile)
+        idx
+    }
+
+    pub(crate) fn module_name(&self, index: u64) -> String {
+        format!("mod_{}_{:04}", self.cfg.seed, index)
     }
 
     pub fn checkpoint(&self) -> GeneratorCheckpoint {

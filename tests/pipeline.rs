@@ -711,6 +711,56 @@ fn hierarchy_child_input_cones_can_instantiate_helper_children() {
 }
 
 #[test]
+fn hierarchy_module_names_are_unique_across_batch_generation() {
+    let cfg = Config {
+        seed: 123,
+        min_hierarchy_depth: 2,
+        max_hierarchy_depth: 3,
+        min_child_instances_per_module: 2,
+        max_child_instances_per_module: 3,
+        hierarchy_child_source_mode: HierarchyChildSourceMode::OnDemand,
+        hierarchy_child_input_cone_prob: 1.0,
+        hierarchy_parent_cone_instance_prob: 1.0,
+        terminal_reuse_prob: 1.0,
+        constant_prob: 0.0,
+        ..Config::default()
+    };
+    cfg.validate()
+        .expect("recursive hierarchy config should be valid");
+
+    let mut g = Generator::new(cfg);
+    let mut all_names = BTreeSet::new();
+    let mut total_modules = 0usize;
+    for design_idx in 0..3 {
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!("recursive hierarchy design {design_idx} should validate: {e}");
+        });
+
+        let mut design_names = BTreeSet::new();
+        for module in &design.modules {
+            assert!(
+                design_names.insert(module.name.clone()),
+                "duplicate module name within design {design_idx}: {}",
+                module.name,
+            );
+            assert!(
+                all_names.insert(module.name.clone()),
+                "module name reused across generated hierarchy designs: {}",
+                module.name,
+            );
+        }
+        assert!(
+            design_names.contains(&design.top),
+            "design {design_idx} top should name an emitted module"
+        );
+        total_modules += design.modules.len();
+    }
+
+    assert_eq!(all_names.len(), total_modules);
+}
+
+#[test]
 fn hierarchy_parents_can_emit_local_flops() {
     for strategy in [
         ConstructionStrategy::Sequential,
