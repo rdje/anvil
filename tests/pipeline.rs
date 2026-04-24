@@ -765,6 +765,106 @@ fn hierarchy_child_inputs_can_be_registered_from_sibling_instance_outputs() {
 }
 
 #[test]
+fn hierarchy_child_inputs_can_be_registered_from_parent_composed_logic() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let mut saw_registered_parent_composed_route = false;
+        for seed in 0..32u64 {
+            let cfg = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 2,
+                num_child_instances: 4,
+                flop_prob: 0.0,
+                hierarchy_sibling_route_prob: 0.0,
+                hierarchy_registered_sibling_route_prob: 0.0,
+                hierarchy_registered_child_input_cone_prob: 1.0,
+                hierarchy_child_input_cone_prob: 0.0,
+                hierarchy_parent_flop_prob: 0.0,
+                max_flops_per_module: 8,
+                max_depth: 4,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            cfg.validate()
+                .expect("registered parent-composed hierarchy config should be valid");
+
+            let mut g = Generator::new(cfg);
+            let design = g.generate_design();
+            anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                panic!(
+                    "registered parent-composed hierarchy strategy {:?} seed {}: design validation failed: {}",
+                    strategy, seed, e
+                );
+            });
+
+            let metrics = anvil::metrics::compute_design(&design);
+            if metrics.child_input_bindings_from_registered_parent_composed_logic > 0 {
+                assert!(
+                    metrics.top_child_input_bindings_from_registered_parent_composed_logic > 0,
+                    "strategy {:?} seed {} should expose registered parent-composed child inputs at the top: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.child_input_bindings_from_registered_instance_outputs > 0,
+                    "strategy {:?} seed {} should also prove that registered route reaches sibling outputs: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.child_input_bindings_from_parent_flops > 0,
+                    "strategy {:?} seed {} should count the parent-local flop leg: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.registered_parent_composed_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero registered parent-composed routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.top_registered_parent_composed_child_input_binding_fraction > 0.0,
+                    "strategy {:?} seed {} should report a non-zero top-level registered parent-composed routing fraction: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert!(
+                    metrics.hierarchy_parent_local_flops > 0,
+                    "strategy {:?} seed {} should report local parent state: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert_eq!(
+                    metrics.top_clock_inputs, 1,
+                    "strategy {:?} seed {} should emit top clk for registered parent-composed routing: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                assert_eq!(
+                    metrics.top_reset_inputs, 1,
+                    "strategy {:?} seed {} should emit top rst_n for registered parent-composed routing: {metrics:#?}",
+                    strategy,
+                    seed,
+                );
+                saw_registered_parent_composed_route = true;
+                break;
+            }
+        }
+        assert!(
+            saw_registered_parent_composed_route,
+            "expected at least one registered parent-composed hierarchy design across the 32-seed sweep for strategy {:?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn reproducibility() {
     let cfg = Config {
         seed: 12345,

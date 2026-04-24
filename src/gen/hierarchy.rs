@@ -328,7 +328,8 @@ fn generate_parent_module(
         .any(|&child_idx| library[child_idx].carries_sequential_state_in(Some(&modules_by_name)));
     let parent_state_possible = g.cfg.max_flops_per_module > 0
         && (g.cfg.hierarchy_parent_flop_prob > 0.0
-            || g.cfg.hierarchy_registered_sibling_route_prob > 0.0);
+            || g.cfg.hierarchy_registered_sibling_route_prob > 0.0
+            || g.cfg.hierarchy_registered_child_input_cone_prob > 0.0);
     let needs_control_ports = any_sequential_child || parent_state_possible;
     let mut next_port_id: PortId = 0;
 
@@ -476,6 +477,20 @@ fn bind_child_input_from_parent_sources(
     width: u32,
     allow_external_pool_reuse: bool,
 ) -> NodeId {
+    if ctx
+        .parent_source_pool
+        .iter()
+        .any(|entry| entry.deps.has_instance_output_virtuals())
+        && (ctx.top.flops.len() as u32) < g.cfg.max_flops_per_module
+        && roll_hierarchy_registered_child_input_cone(
+            ctx.top,
+            &mut g.rng,
+            g.cfg.hierarchy_registered_child_input_cone_prob,
+        )
+    {
+        return build_registered_child_input_cone_route(g, ctx.top, ctx.parent_source_pool, width);
+    }
+
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
         && (ctx.top.flops.len() as u32) < g.cfg.max_flops_per_module
         && roll_hierarchy_registered_sibling_route(
@@ -543,6 +558,17 @@ fn roll_hierarchy_registered_sibling_route(m: &mut Module, rng: &mut impl Rng, p
     fired
 }
 
+fn roll_hierarchy_registered_child_input_cone(
+    m: &mut Module,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchyRegisteredChildInputConeProb, fired);
+    fired
+}
+
 fn roll_hierarchy_child_input_cone(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
     let fired = rng.gen_bool(prob);
     m.knob_rolls
@@ -577,6 +603,130 @@ fn build_registered_sibling_route(
     let deps = DepSet::from_flop_virtual(flop_id);
     parent_source_pool.add(q_node_id, width, deps);
     q_node_id
+}
+
+fn build_registered_child_input_cone_route(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+) -> NodeId {
+    let mut instance_derived_pool = SignalPool::new();
+    for entry in parent_source_pool
+        .iter()
+        .filter(|entry| entry.deps.has_instance_output_virtuals())
+    {
+        instance_derived_pool.add(entry.node, entry.width, entry.deps.clone());
+    }
+
+    let saved_flop_prob = g.cfg.flop_prob;
+    let saved_flop_knob = g.active_flop_knob;
+    g.cfg.flop_prob = 0.0;
+    g.active_flop_knob = KnobId::HierarchyParentFlopProb;
+    let mut worklist: FlopWorklist = Vec::new();
+    let d_root = cone::build_cone_with_retry(
+        g,
+        top,
+        &mut instance_derived_pool,
+        &mut worklist,
+        width,
+        None,
+    );
+    cone::drain_flop_worklist(g, top, &mut instance_derived_pool, &mut worklist);
+    debug_assert!(
+        worklist.is_empty(),
+        "registered child-input cone worklist drained"
+    );
+    g.cfg.flop_prob = saved_flop_prob;
+    g.active_flop_knob = saved_flop_knob;
+
+    let d_logic = ensure_parent_logic_above_instance_source(
+        top,
+        &mut instance_derived_pool,
+        parent_source_pool,
+        d_root,
+        width,
+    );
+
+    register_parent_child_input_route(top, parent_source_pool, d_logic, width)
+}
+
+fn ensure_parent_logic_above_instance_source(
+    top: &mut Module,
+    local_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    root: NodeId,
+    width: u32,
+) -> NodeId {
+    let root_deps = cone::node_deps(top, root);
+    debug_assert!(
+        root_deps.has_instance_output_virtuals(),
+        "registered parent-composed child input must derive from sibling outputs"
+    );
+
+    if is_registered_parent_composed_logic_node(top, root) {
+        add_pool_entry_once(parent_source_pool, root, width, root_deps);
+        return root;
+    }
+
+    let all_ones = if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    };
+    let (ones, ones_is_new) = top.intern_constant(width, all_ones);
+    if ones_is_new {
+        local_pool.add(ones, width, DepSet::new());
+    }
+
+    let (logic, logic_is_new) =
+        top.intern_gate(GateOp::Xor, vec![root, ones], width, root_deps.clone());
+    if logic_is_new {
+        local_pool.add(logic, width, root_deps.clone());
+    }
+    add_pool_entry_once(parent_source_pool, logic, width, root_deps);
+    logic
+}
+
+fn is_registered_parent_composed_logic_node(top: &Module, node: NodeId) -> bool {
+    matches!(
+        top.nodes[node as usize],
+        Node::Gate { op, .. }
+            if !matches!(op, GateOp::Slice { .. } | GateOp::Concat)
+    )
+}
+
+fn register_parent_child_input_route(
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    d_node: NodeId,
+    width: u32,
+) -> NodeId {
+    let flop_id = top.flops.len() as FlopId;
+    let q_node_id = top.nodes.len() as NodeId;
+    top.nodes.push(Node::FlopQ {
+        flop: flop_id,
+        width,
+    });
+    top.flops.push(Flop {
+        id: flop_id,
+        width,
+        d: Some(d_node),
+        q: q_node_id,
+        reset_val: 0,
+        reset_kind: ResetKind::Async,
+        kind: FlopKind::ZeroDefault,
+        mux: FlopMux::None,
+    });
+    let deps = DepSet::from_flop_virtual(flop_id);
+    parent_source_pool.add(q_node_id, width, deps);
+    q_node_id
+}
+
+fn add_pool_entry_once(pool: &mut SignalPool, node: NodeId, width: u32, deps: DepSet) {
+    if !pool.iter().any(|entry| entry.node == node) {
+        pool.add(node, width, deps);
+    }
 }
 
 fn build_child_input_parent_cone(

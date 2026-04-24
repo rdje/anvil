@@ -135,6 +135,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force registered sibling-routed hierarchy child inputs
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --max-flops-per-module 8
 
+# Force registered parent-composed hierarchy child inputs
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --max-flops-per-module 8
+
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
 
@@ -234,17 +237,17 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r17`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19`. Its final
 `tool_matrix_report.json` records:
 
-- `27` scenarios
+- `30` scenarios
 - `4` designs per scenario
-- `108` total designs
+- `120` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 108/0`
-- `Yosys without-abc pass/fail = 108/0`
-- `Yosys with-abc pass/fail = 108/0`
+- `Verilator pass/fail = 120/0`
+- `Yosys without-abc pass/fail = 120/0`
+- `Yosys with-abc pass/fail = 120/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 closure artifact for the current hierarchy surface, not only the older
@@ -260,8 +263,10 @@ the explicit hierarchy child-sourcing axis
 profiled child-interface synthesis in the on-demand lane, plus real
 sibling-routed hierarchy child inputs and parent-composed child-input
 bindings proved numerically, plus registered sibling-routed hierarchy
-child inputs through parent-local state, plus explicit local parent
-flops in hierarchy modules.
+child inputs through parent-local state, plus registered
+parent-composed child-input bindings through parent logic and
+parent-local state, plus explicit local parent flops in hierarchy
+modules.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -270,7 +275,9 @@ smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json` still remain
+`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+still remain
 useful targeted proof points. The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -353,8 +360,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   top module, representative wrapper and recursive child-instance
   profiles, per-depth branching overrides, mixed shallow/deep recursive
   realization, explicit `library` vs `on-demand` child-sourcing
-  coverage, sibling-routed and registered sibling-routed child-input
-  bindings, and clean downstream tool results.
+  coverage, sibling-routed, registered sibling-routed, and registered
+  parent-composed child-input bindings, and clean downstream tool
+  results.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now
@@ -369,6 +377,12 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   through one local parent flop. This is a separate registered
   child-to-child routing axis; default `0.0` preserves the current
   combinational hierarchy unless explicitly requested.
+- `anvil --hierarchy-registered-child-input-cone-prob <p>` controls
+  whether later child data inputs bind through parent-local
+  combinational logic over sibling-output-derived parent sources and
+  then one local parent flop. Default `0.0`; this keeps the
+  registered parent-composed route distinct from direct registered
+  sibling routing.
 - `anvil --hierarchy-child-input-cone-prob <p>` controls whether child
   data inputs may bind through parent-local combinational cones over
   already-available parent sources: parent data inputs, earlier sibling
@@ -406,6 +420,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `--hierarchy-registered-sibling-route-prob <p>`, which routes an
   earlier sibling output through one parent-local flop before binding a
   later child input.
+  Both lanes also expose
+  `--hierarchy-registered-child-input-cone-prob <p>`, which routes a
+  sibling-output-derived parent source through parent-local logic and
+  then one parent-local flop before binding a later child input.
   Both lanes also expose `--hierarchy-child-input-cone-prob <p>`, which
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
@@ -423,12 +441,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
-  binding, registered sibling-routed child-input binding, parent-local
-  flop state, and per-depth-override profiles folded into `tool_matrix`,
+  binding, registered sibling-routed child-input binding, registered
+  parent-composed child-input binding, parent-local flop state, and
+  per-depth-override profiles folded into `tool_matrix`,
   while the
   focused smokes
   at
@@ -464,10 +483,19 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `top_local_flops = 8`, `top_clock_inputs = 1`,
   `top_reset_inputs = 1`, and
   `child_input_bindings_from_parent_flops = 1`.
+  Current HEAD also has a focused clean registered parent-composed
+  child-input proof at
+  `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+  where the design metrics show
+  `child_input_bindings_from_registered_parent_composed_logic = 3`,
+  `top_child_input_bindings_from_registered_parent_composed_logic = 3`,
+  `registered_parent_composed_child_input_binding_fraction = 0.75`,
+  `top_registered_parent_composed_child_input_binding_fraction = 0.75`,
+  and `hierarchy_parent_local_flops = 3`.
   The next honest
   work is deeper hierarchy capability beyond the banked gate: richer
-  hierarchy composition/routing surfaces, later registered
-  child-to-child patterns, and later hierarchy-aware identity.
+  hierarchy composition/routing surfaces, richer registered hierarchy
+  patterns, and later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See
   `ROADMAP.md` for phase gating.

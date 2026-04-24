@@ -154,7 +154,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 current repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
 also proves it, so the mixed-depth story is no longer "focused-only"
 evidence.
 - the emitter was still assuming every child output had a corresponding
@@ -280,7 +280,7 @@ human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The current
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`,
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`,
 and it explicitly proves both child-sourcing modes (`library` and
 `on-demand`) together with structural proof that the on-demand
 scenarios really emitted fresh child definitions per planned instance
@@ -324,7 +324,7 @@ trustworthy feature. The design reports now distinguish:
 The focused proof artifact is now
 `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
 repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
 now requires `saw_hierarchy_sibling_routing = true`.
 
 ### Parent-composed child-input bindings are the cone-builder analogue of sibling routing
@@ -352,8 +352,10 @@ This is the shape the user suggested: at the composition level, replace
 slice combinational. Local parent flops are now landed under
 `hierarchy_parent_flop_prob`; the first one-flop registered sibling
 route is now landed under `hierarchy_registered_sibling_route_prob`,
-while richer registered child-to-child routing remains a later,
-separate hierarchy surface.
+and the first registered parent-composed child-input route is now
+landed under `hierarchy_registered_child_input_cone_prob`, while
+richer registered hierarchy routing remains a later, separate hierarchy
+surface.
 
 The metrics contract grew again with
 `child_input_bindings_from_parent_composed_logic`,
@@ -361,9 +363,9 @@ The metrics contract grew again with
 `top_parent_composed_child_input_binding_fraction`. The repo-owned
 Phase 4 gate treats this as a required coverage fact via
 `saw_hierarchy_parent_composed_child_inputs`; the current banked gate
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
 proves it together with local parent state, `coverage_gaps = []`, and
-108/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
+120/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
 The focused targeted proof is
 `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
 
@@ -403,8 +405,8 @@ The focused proof is
 `child_input_bindings_from_parent_flops = 1`), clean in Verilator,
 Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
 repo-owned Phase 4 gate now also banks this as a required coverage fact
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
-with `coverage_gaps = []` and 108/0 pass-fail in Verilator plus both
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+with `coverage_gaps = []` and 120/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 ### Registered sibling routing is a distinct hierarchy route axis
@@ -432,6 +434,47 @@ instance input pointing at a stale duplicate FlopQ. The fix belongs in
 `ir::compact`: every partial NodeId remap now rewrites instance input
 bindings too. The focused unit test covers that root cause, not only
 the hierarchy symptom.
+
+### Registered parent-composed routing is not the same as registered sibling routing
+The registered sibling route proves a minimal stateful handoff:
+earlier child output -> parent flop -> later child input. The next
+route axis deliberately adds parent logic before that flop:
+earlier child output or earlier parent route gate -> parent-local
+combinational logic -> parent flop -> later child input.
+
+This is controlled by
+`hierarchy_registered_child_input_cone_prob`, not by overloading
+`hierarchy_registered_sibling_route_prob` or
+`hierarchy_parent_flop_prob`. The distinction matters because the
+metric has to prove a different structure: the binding must pass
+through a parent-local flop whose D input is itself a parent-local gate
+with instance-output support.
+
+The implementation first builds a D cone from sibling-output-derived
+parent sources only, with nested parent flops disabled for this route.
+If the cone root is already a gate, it is used directly. If the cone
+collapses to a terminal sibling source, the generator wraps it in a
+non-collapsing XOR-with-all-ones parent gate before allocating the
+flop. That keeps the route signoff-clean and construction-time
+deterministic while preserving the structural proof obligation.
+
+Metrics now expose the route directly through
+`child_input_bindings_from_registered_parent_composed_logic`,
+`top_child_input_bindings_from_registered_parent_composed_logic`,
+`registered_parent_composed_child_input_binding_fraction`, and
+`top_registered_parent_composed_child_input_binding_fraction`. The
+focused proof is
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+(`child_input_bindings_from_registered_parent_composed_logic = 3`,
+`top_child_input_bindings_from_registered_parent_composed_logic = 3`,
+`registered_parent_composed_child_input_binding_fraction = 0.75`,
+`top_registered_parent_composed_child_input_binding_fraction = 0.75`,
+`hierarchy_parent_local_flops = 3`), clean in Verilator, Yosys
+`synth -noabc`, and the repo-owned Yosys with-ABC path. The repo-owned
+Phase 4 gate now banks this as a required coverage fact at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+with `coverage_gaps = []` and 120/0 pass-fail in Verilator plus both
+repo-owned Yosys modes.
 
 ### Hierarchy quality has to be visible in the numbers
 The user requirement here is the right one: for hierarchy, ANVIL should

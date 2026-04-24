@@ -297,21 +297,27 @@ evidence.
     `--hierarchy-registered-sibling-route-prob <p>` adds the first
     explicit registered child-to-child route: a later child input may
     bind from an earlier sibling output through one local parent flop.
+    `--hierarchy-registered-child-input-cone-prob <p>` adds the
+    registered parent-composed route: a later child input may bind
+    through parent-local logic over sibling-output-derived parent
+    sources and then one local parent flop.
 - Current slice constraints:
   - direct sibling routing is still combinational; the first one-flop
-    registered sibling route is live, while richer registered
-    child-to-child routing patterns remain future work
+    registered sibling route and the first registered parent-composed
+    child-input route are live, while richer registered hierarchy
+    patterns remain future work
   - the fully banked repo-owned Phase 4 matrix now covers both the
     wrapper lane and the representative recursive lane, including the
     mixed-depth recursive axis, the explicit child-sourcing axis, local
-    parent state, and registered sibling routing
+    parent state, registered sibling routing, and registered
+    parent-composed child-input routing
 - Open Phase 4 work:
   - module instantiation as a first-class cone choice inside parent
     generation, not just in the wrapper top
   - deeper parent-side routing/composition beyond the current
     combinational sibling-binding and parent-input-cone surfaces
-  - richer registered child-to-child routing using the landed local
-    parent-state surface
+  - richer registered child-to-child and parent-composed routing using
+    the landed local parent-state surface
   - name uniqueness across the full module set
   - hierarchical identity as future required work: under
     `identity_mode = node-id`, equivalent instantiated structures
@@ -320,12 +326,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`108/0` in Verilator plus both repo-owned Yosys modes). That report now
+(`120/0` in Verilator plus both repo-owned Yosys modes). That report now
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -334,6 +340,8 @@ proves all of the current representative hierarchy axes directly:
 - child-instance profiles `2`, `4`, `2:3`, and `1:3`
 - registered sibling-routed hierarchy child inputs through parent-local
   state
+- registered parent-composed hierarchy child-input bindings through
+  parent logic plus parent-local state
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -398,6 +406,20 @@ path. The design metrics there prove the route numerically:
 `parent_composed_child_input_binding_fraction = 0.9285714285714286`,
 and `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
 
+**Focused registered parent-composed child-input proof (new targeted evidence):**
+current HEAD also supports registered parent-composed child-input
+bindings through `--hierarchy-registered-child-input-cone-prob`. The
+focused proof artifact is
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+with-ABC path. The design metrics there prove the route numerically:
+`child_input_bindings_from_registered_parent_composed_logic = 3`,
+`top_child_input_bindings_from_registered_parent_composed_logic = 3`,
+`registered_parent_composed_child_input_binding_fraction = 0.75`,
+`top_registered_parent_composed_child_input_binding_fraction = 0.75`,
+`child_input_bindings_from_registered_instance_outputs = 3`, and
+`hierarchy_parent_local_flops = 3`.
+
 **Focused local-parent-state proof (new targeted evidence):**
 current HEAD also supports local parent flops in hierarchy parent-side
 cones through `--hierarchy-parent-flop-prob`. The focused proof
@@ -416,8 +438,10 @@ smokes and the fresh full repo-owned gate above. The old `r7` report is
 now the historical wrapper-baseline artifact; `r9` is the pre-mixed
 recursive bank, `r10` is the pre-child-sourcing recursive bank,
 `r13` is the pre-parent-input-cone bank, `r15` is the pre-parent-state
-bank, and `r16` is the pre-registered-sibling-route bank. `r17` is the
-current fully banked Phase 4 hierarchy closure artifact.
+bank, `r16` is the pre-registered-sibling-route bank, `r17` is the
+pre-registered-parent-composed-route bank, `r18` is the first
+registered-parent-composed bank, and `r19` is the current fully banked
+Phase 4 hierarchy closure artifact.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue

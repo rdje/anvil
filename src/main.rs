@@ -292,6 +292,12 @@ struct Cli {
     #[arg(long)]
     hierarchy_registered_sibling_route_prob: Option<f64>,
 
+    /// Probability that a parent binds a later child data input through
+    /// parent-local combinational logic over sibling-output-derived
+    /// sources and then one local parent flop.
+    #[arg(long)]
+    hierarchy_registered_child_input_cone_prob: Option<f64>,
+
     /// Probability that a parent binds a child data input through a
     /// local combinational cone over already-available parent sources
     /// (parent data inputs, earlier sibling outputs, and earlier
@@ -614,6 +620,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         child_instances_per_module_by_depth,
         hierarchy_sibling_route_prob: cli.hierarchy_sibling_route_prob,
         hierarchy_registered_sibling_route_prob: cli.hierarchy_registered_sibling_route_prob,
+        hierarchy_registered_child_input_cone_prob: cli.hierarchy_registered_child_input_cone_prob,
         hierarchy_child_input_cone_prob: cli.hierarchy_child_input_cone_prob,
         hierarchy_parent_flop_prob: cli.hierarchy_parent_flop_prob,
     }
@@ -710,6 +717,8 @@ mod tests {
             "1=2:3",
             "--hierarchy-registered-sibling-route-prob",
             "0.8",
+            "--hierarchy-registered-child-input-cone-prob",
+            "0.85",
             "--hierarchy-child-input-cone-prob",
             "0.75",
             "--hierarchy-parent-flop-prob",
@@ -745,6 +754,10 @@ mod tests {
             ]))
         );
         assert_eq!(overrides.hierarchy_registered_sibling_route_prob, Some(0.8));
+        assert_eq!(
+            overrides.hierarchy_registered_child_input_cone_prob,
+            Some(0.85)
+        );
         assert_eq!(overrides.hierarchy_child_input_cone_prob, Some(0.75));
         assert_eq!(overrides.hierarchy_parent_flop_prob, Some(0.6));
     }

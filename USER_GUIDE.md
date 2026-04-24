@@ -314,7 +314,8 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_constants`,
   `child_input_bindings_from_parent_composed_logic`,
   `child_input_bindings_from_parent_flops`,
-  `child_input_bindings_from_registered_instance_outputs`)
+  `child_input_bindings_from_registered_instance_outputs`,
+  `child_input_bindings_from_registered_parent_composed_logic`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`)
@@ -327,6 +328,9 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level registered sibling-route fractions
   (`registered_instance_output_child_input_binding_fraction`,
   `top_registered_instance_output_child_input_binding_fraction`)
+- hierarchy- and top-level registered parent-composed route fractions
+  (`registered_parent_composed_child_input_binding_fraction`,
+  `top_registered_parent_composed_child_input_binding_fraction`)
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -355,6 +359,10 @@ The current Phase 4 slice now has two planning lanes:
   child data inputs bind from earlier sibling instance outputs through
   one local parent flop; default `0.0` keeps this registered
   child-to-child axis opt-in
+- `hierarchy_registered_child_input_cone_prob` controls whether later
+  child data inputs bind through parent-local combinational logic over
+  sibling-output-derived sources and then one local parent flop;
+  default `0.0` keeps this registered parent-composed route opt-in
 - `hierarchy_child_input_cone_prob` controls whether child data inputs
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
@@ -492,17 +500,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r17/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
 records:
 
-- `27` scenarios
+- `30` scenarios
 - `4` designs per scenario
-- `108` total designs
+- `120` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 108/0`
-- `Yosys without-abc pass/fail = 108/0`
-- `Yosys with-abc pass/fail = 108/0`
+- `Verilator pass/fail = 120/0`
+- `Yosys without-abc pass/fail = 120/0`
+- `Yosys with-abc pass/fail = 120/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
@@ -515,7 +523,8 @@ child-interface synthesis in the on-demand lane, real mixed
 shallow/deep leaf realization, real parent-side composition above
 instance outputs, real sibling-routed hierarchy child inputs, and real
 parent-composed child-input bindings, plus explicit parent-local flop
-state and registered sibling-routed child-input bindings.
+state, registered sibling-routed child-input bindings, and registered
+parent-composed child-input bindings.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -536,6 +545,13 @@ proof for local parent state
 focused proof for registered sibling-routed child-input bindings
 (`child_input_bindings_from_registered_instance_outputs = 4`,
 `registered_instance_output_child_input_binding_fraction = 0.8`,
+`hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
+`top_reset_inputs = 1`).
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+is the focused proof for registered parent-composed child-input
+bindings
+(`child_input_bindings_from_registered_parent_composed_logic = 3`,
+`registered_parent_composed_child_input_binding_fraction = 0.75`,
 `hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
 `top_reset_inputs = 1`).
 The aborted `r8` rerun is now only
