@@ -266,7 +266,11 @@ bindings proved numerically, plus registered sibling-routed hierarchy
 child inputs through parent-local state, plus registered
 parent-composed child-input bindings through parent logic and
 parent-local state, plus explicit local parent flops in hierarchy
-modules.
+modules. A current-code coverage-only matrix at
+`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+now also proves the registered parent-composed route can mix parent
+ports with child outputs, with `coverage_gaps = []` and
+`saw_hierarchy_registered_mixed_support_routing = true`.
 The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -379,10 +383,11 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   combinational hierarchy unless explicitly requested.
 - `anvil --hierarchy-registered-child-input-cone-prob <p>` controls
   whether later child data inputs bind through parent-local
-  combinational logic over sibling-output-derived parent sources and
-  then one local parent flop. Default `0.0`; this keeps the
-  registered parent-composed route distinct from direct registered
-  sibling routing.
+  combinational logic over already-available parent sources and then
+  one local parent flop. When parent data inputs and earlier sibling
+  outputs are both live, this route can mix both supports. Default
+  `0.0`; this keeps the registered parent-composed route distinct from
+  direct registered sibling routing.
 - `anvil --hierarchy-child-input-cone-prob <p>` controls whether child
   data inputs may bind through parent-local combinational cones over
   already-available parent sources: parent data inputs, earlier sibling
@@ -422,8 +427,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   later child input.
   Both lanes also expose
   `--hierarchy-registered-child-input-cone-prob <p>`, which routes a
-  sibling-output-derived parent source through parent-local logic and
-  then one parent-local flop before binding a later child input.
+  parent source through parent-local logic and then one parent-local
+  flop before binding a later child input. When parent data inputs and
+  earlier sibling outputs are both live, that registered route can mix
+  both supports.
   Both lanes also expose `--hierarchy-child-input-cone-prob <p>`, which
   lets child data inputs bind through parent-local combinational cones
   over parent data inputs, earlier sibling instance outputs, and earlier
@@ -493,6 +500,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `registered_parent_composed_child_input_binding_fraction = 0.75`,
   `top_registered_parent_composed_child_input_binding_fraction = 0.75`,
   and `hierarchy_parent_local_flops = 3`.
+  Current HEAD also has a focused clean registered mixed-support
+  child-input proof at
+  `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
+  where the design metrics show
+  `child_input_bindings_from_registered_mixed_support = 3`,
+  `top_child_input_bindings_from_registered_mixed_support = 3`, and
+  `registered_mixed_support_child_input_binding_fraction = 0.75`.
   Current HEAD also has a focused clean mixed parent-output proof at
   `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, where
   the design metrics show `top_parent_port_composed_outputs = 8`,

@@ -1,6 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot7 — Land registered mixed-support hierarchy routing
+
+**Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now builds registered parent-composed child-input D cones from the
+  full parent source pool, then repairs them so they keep sibling
+  child-output support and add parent-port support when live parent
+  data inputs are available.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now reports registered mixed-support child-input bindings:
+  `child_input_bindings_from_registered_mixed_support`,
+  `top_child_input_bindings_from_registered_mixed_support`,
+  `registered_mixed_support_child_input_binding_fraction`, and
+  `top_registered_mixed_support_child_input_binding_fraction`.
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now tracks `saw_hierarchy_registered_mixed_support_routing` and the
+  Phase 4 hierarchy coverage gate rejects matrices that never prove a
+  registered child-input route mixing parent ports with child outputs.
+- The existing registered parent-composed integration regression now
+  asserts the mixed-support metrics too.
+- CLI/config docs and live project docs were refreshed for the new
+  registered route shape.
+
+**Why**
+
+- The first registered parent-composed route was intentionally
+  sibling-output-derived only. The next small hierarchy step was to
+  let the registered route use the same richer parent source pool as
+  the combinational route: parent data ports, earlier sibling outputs,
+  and earlier parent-side route gates.
+- This makes the registered hierarchy surface less one-note while
+  keeping it under the existing
+  `hierarchy_registered_child_input_cone_prob` knob.
+
+**Validation**
+
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test --test pipeline hierarchy_child_inputs_can_be_registered_from_parent_composed_logic`
+- `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- Focused smoke:
+  `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+  records `child_input_bindings_from_registered_mixed_support = 3`,
+  `top_child_input_bindings_from_registered_mixed_support = 3`, and
+  `registered_mixed_support_child_input_binding_fraction = 0.75`.
+- The focused smoke is clean in Verilator, Yosys `synth -noabc`, and
+  the repo-owned Yosys with-ABC path.
+- Coverage-only Phase 4 matrix:
+  `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+  records `coverage_gaps = []` and
+  `saw_hierarchy_registered_mixed_support_routing = true`.
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot6 — Bank mixed parent-output hierarchy coverage
 
 **Landed as:** this commit
@@ -207,8 +266,9 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 - Hierarchy quality metrics can distinguish a register fed directly by
   a sibling output from a register whose D input is parent-local logic
   over sibling-output-derived sources.
-- Phase 4 remains `in progress`: richer registered hierarchy
-  composition patterns and hierarchy-aware identity are still open.
+- Phase 4 remains `in progress`: richer multi-stage registered
+  hierarchy composition patterns and hierarchy-aware identity are still
+  open.
 
 ## 2026-04-24-boot3 — Land registered hierarchy sibling routing
 

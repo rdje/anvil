@@ -323,6 +323,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_parent_flops: usize,
     pub top_child_input_bindings_from_registered_instance_outputs: usize,
     pub top_child_input_bindings_from_registered_parent_composed_logic: usize,
+    pub top_child_input_bindings_from_registered_mixed_support: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_parent_port_composed_outputs: usize,
@@ -335,6 +336,7 @@ pub struct DesignMetrics {
     pub top_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_instance_output_child_input_binding_fraction: f64,
     pub top_registered_parent_composed_child_input_binding_fraction: f64,
+    pub top_registered_mixed_support_child_input_binding_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
 
@@ -360,6 +362,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_parent_flops: usize,
     pub child_input_bindings_from_registered_instance_outputs: usize,
     pub child_input_bindings_from_registered_parent_composed_logic: usize,
+    pub child_input_bindings_from_registered_mixed_support: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -374,6 +377,7 @@ pub struct DesignMetrics {
     pub parent_flop_child_input_binding_fraction: f64,
     pub registered_instance_output_child_input_binding_fraction: f64,
     pub registered_parent_composed_child_input_binding_fraction: f64,
+    pub registered_mixed_support_child_input_binding_fraction: f64,
     pub top_parent_flop_child_input_binding_fraction: f64,
 
     // --- Sequential / combinational mix ------------------------
@@ -817,6 +821,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_registered_parent_composed_logic,
         out.total_child_data_input_bindings,
     );
+    out.registered_mixed_support_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_registered_mixed_support,
+        out.total_child_data_input_bindings,
+    );
     out.sequential_instance_fraction = ratio(out.num_sequential_instances, out.num_instances);
     out.avg_nodes_per_instance = ratio(out.total_instantiated_child_nodes, out.num_instances);
     out.avg_flops_per_instance = ratio(out.total_instantiated_child_flops, out.num_instances);
@@ -846,6 +854,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.top_registered_parent_composed_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_registered_parent_composed_logic,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_registered_mixed_support_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_registered_mixed_support,
         out.top_total_child_data_input_bindings,
     );
     out.top_parent_flop_child_input_binding_fraction = ratio(
@@ -1043,6 +1055,14 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                         .top_child_input_bindings_from_registered_parent_composed_logic += 1;
                 }
             }
+            if binding_uses_registered_mixed_support(module, *node_id) {
+                state.out.child_input_bindings_from_registered_mixed_support += 1;
+                if module.name == state.out.design {
+                    state
+                        .out
+                        .top_child_input_bindings_from_registered_mixed_support += 1;
+                }
+            }
             match (has_ports, has_instance_outputs, deps.is_empty()) {
                 (_, _, true) => {
                     state.out.child_input_bindings_from_constants += 1;
@@ -1200,6 +1220,23 @@ fn binding_uses_registered_parent_composed_logic(module: &Module, node_id: NodeI
             })
     });
     uses_registered_parent_composed_logic
+}
+
+fn binding_uses_registered_mixed_support(module: &Module, node_id: NodeId) -> bool {
+    let deps = node_deps(module, node_id);
+    let uses_registered_mixed_support = deps.flop_virtuals().any(|flop_id| {
+        module
+            .flops
+            .get(flop_id as usize)
+            .and_then(|flop| flop.d)
+            .is_some_and(|d| {
+                let d_deps = node_deps(module, d);
+                is_registered_parent_composed_logic_node(module, d)
+                    && d_deps.has_ports()
+                    && d_deps.has_instance_output_virtuals()
+            })
+    });
+    uses_registered_mixed_support
 }
 
 fn is_registered_parent_composed_logic_node(module: &Module, node_id: NodeId) -> bool {

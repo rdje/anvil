@@ -422,6 +422,12 @@ registered parent-composed child-input bindings through
 `saw_hierarchy_registered_sibling_routing = true` and
 `saw_hierarchy_registered_parent_composed_routing = true`. A
 current-code coverage-only probe at
+`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+now also records `coverage_gaps = []` and
+`saw_hierarchy_registered_mixed_support_routing = true`, proving the
+registered parent-composed route can mix parent ports with child
+outputs. A
+current-code coverage-only probe at
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
 now also records `coverage_gaps = []` and
 `saw_hierarchy_parent_port_composed_outputs = true`; that probe skipped

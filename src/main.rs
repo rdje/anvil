@@ -293,8 +293,9 @@ struct Cli {
     hierarchy_registered_sibling_route_prob: Option<f64>,
 
     /// Probability that a parent binds a later child data input through
-    /// parent-local combinational logic over sibling-output-derived
-    /// sources and then one local parent flop.
+    /// parent-local combinational logic over already-available parent
+    /// sources, then one local parent flop. The logic can mix parent
+    /// data inputs with earlier sibling outputs when both are live.
     #[arg(long)]
     hierarchy_registered_child_input_cone_prob: Option<f64>,
 

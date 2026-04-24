@@ -427,13 +427,14 @@ pub struct Config {
     /// current combinational direct route unless explicitly requested.
     #[serde(default = "default_hierarchy_registered_sibling_route_prob")]
     pub hierarchy_registered_sibling_route_prob: f64,
-    /// Probability that a parent binds a later child data input from
-    /// an earlier sibling-output-derived parent source through local
-    /// parent combinational logic and then one local parent flop. This
-    /// is the registered counterpart to `hierarchy_child_input_cone_prob`
-    /// and proves the structure:
-    /// earlier child output -> parent logic -> parent flop -> later
-    /// child input.
+    /// Probability that a parent binds a later child data input through
+    /// local parent combinational logic over already-available parent
+    /// sources and then one local parent flop. When parent data inputs
+    /// and sibling outputs are both live, the route can mix both
+    /// supports. This is the registered counterpart to
+    /// `hierarchy_child_input_cone_prob` and proves the structure:
+    /// parent source(s) -> parent logic -> parent flop -> later child
+    /// input.
     #[serde(default = "default_hierarchy_registered_child_input_cone_prob")]
     pub hierarchy_registered_child_input_cone_prob: f64,
     /// Probability that a parent binds a child data input through a

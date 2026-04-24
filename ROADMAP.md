@@ -305,13 +305,15 @@ evidence.
     bind from an earlier sibling output through one local parent flop.
     `--hierarchy-registered-child-input-cone-prob <p>` adds the
     registered parent-composed route: a later child input may bind
-    through parent-local logic over sibling-output-derived parent
-    sources and then one local parent flop.
+    through parent-local logic over already-available parent sources
+    and then one local parent flop. Current HEAD can mix parent data
+    ports with earlier sibling outputs in that registered route.
 - Current slice constraints:
   - direct sibling routing is still combinational; the first one-flop
     registered sibling route and the first registered parent-composed
-    child-input route are live, while richer registered hierarchy
-    patterns remain future work
+    child-input route are live, and the registered parent-composed
+    route now has mixed parent-port / child-output support. Richer
+    multi-stage registered hierarchy patterns remain future work
   - the fully banked repo-owned Phase 4 matrix now covers both the
     wrapper lane and the representative recursive lane, including the
     mixed-depth recursive axis, the explicit child-sourcing axis, local
@@ -446,6 +448,18 @@ with-ABC path. The design metrics there prove the route numerically:
 `child_input_bindings_from_registered_instance_outputs = 3`, and
 `hierarchy_parent_local_flops = 3`.
 
+**Focused registered mixed-support child-input proof (new targeted evidence):**
+current HEAD now lets that registered parent-composed route mix parent
+data ports with sibling outputs when both supports are live. The
+focused proof artifact is
+`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
+clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
+with-ABC path. The design metrics prove the mixed registered route:
+`child_input_bindings_from_registered_mixed_support = 3`,
+`top_child_input_bindings_from_registered_mixed_support = 3`,
+`registered_mixed_support_child_input_binding_fraction = 0.75`, and
+`top_registered_mixed_support_child_input_binding_fraction = 0.75`.
+
 **Focused local-parent-state proof (new targeted evidence):**
 current HEAD also supports local parent flops in hierarchy parent-side
 cones through `--hierarchy-parent-flop-prob`. The focused proof
@@ -469,11 +483,19 @@ pre-registered-parent-composed-route bank, `r18` is the first
 registered-parent-composed bank, and `r19` is the current fully banked
 Phase 4 hierarchy closure artifact.
 
+Current-code coverage-only probes after `r19` keep the gate policy
+aligned with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+requires mixed parent-output composition, and
+`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+requires registered mixed-support child-input routing. Both record
+`coverage_gaps = []` with Verilator/Yosys skipped; the full
+downstream-clean bank remains `r19`.
+
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
-with richer parent-side routing/composition, local parent state where
-it can be further diversified, richer registered child-to-child routing
-patterns, and eventual hierarchy-aware identity/factorization.
+with first-class module instantiation inside parent cone choice, richer
+multi-stage registered hierarchy patterns, and eventual hierarchy-aware
+identity/factorization.
 
 ## Phase 5 — Parameterization (not started)
 

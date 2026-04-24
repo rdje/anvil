@@ -101,11 +101,13 @@ pass-through shell:
   registered child-to-child route and stays separate from direct
   combinational sibling routing;
 - both lanes can also route a later child input through parent-local
-  combinational logic over sibling-output-derived parent sources and
+  combinational logic over the full available parent source pool and
   then one local parent flop via
   `hierarchy_registered_child_input_cone_prob`. This route is separate
   from direct registered sibling routing because its flop D input is
-  parent-composed logic, not a direct sibling output;
+  parent-composed logic, not a direct sibling output, and it can mix
+  parent data inputs with sibling child outputs when both supports are
+  live;
 - both lanes can also bind child data inputs through parent-local
   combinational cones via `hierarchy_child_input_cone_prob`. Those
   cones are built over already-available parent sources: parent data
@@ -253,7 +255,8 @@ emitted `.sv`, including:
   `child_input_bindings_from_parent_composed_logic`,
   `child_input_bindings_from_parent_flops`,
   `child_input_bindings_from_registered_instance_outputs`,
-  `child_input_bindings_from_registered_parent_composed_logic`),
+  `child_input_bindings_from_registered_parent_composed_logic`,
+  `child_input_bindings_from_registered_mixed_support`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`),
@@ -269,6 +272,9 @@ emitted `.sv`, including:
 - hierarchy- and top-level registered parent-composed route fractions
   (`registered_parent_composed_child_input_binding_fraction`,
   `top_registered_parent_composed_child_input_binding_fraction`),
+- hierarchy- and top-level registered mixed-support route fractions
+  (`registered_mixed_support_child_input_binding_fraction`,
+  `top_registered_mixed_support_child_input_binding_fraction`),
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -325,8 +331,10 @@ lane, real sibling-routed hierarchy child inputs, and real parent-side
 composition above instance outputs, plus mixed parent-port /
 child-output parent outputs, plus real parent-composed child-input
 bindings, plus registered sibling-routed child-input bindings, plus
-registered parent-composed child-input bindings, plus real local
-parent flops. The focused proof artifact for that composed-parent
+registered parent-composed child-input bindings, plus registered
+mixed-support child-input bindings that mix parent ports with child
+outputs, plus real local parent flops. The focused proof artifact for
+that composed-parent
 behavior remains:
 
 - `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
@@ -369,6 +377,20 @@ local proofs remain useful:
   - `top_child_input_bindings_from_parent_composed_logic = 13`
   - `parent_composed_child_input_binding_fraction = 0.9285714285714286`
   - `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`
+- `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+  is clean in the same three lanes and proves registered mixed-support
+  child-input binding numerically:
+  - `child_input_bindings_from_registered_mixed_support = 3`
+  - `top_child_input_bindings_from_registered_mixed_support = 3`
+  - `registered_mixed_support_child_input_binding_fraction = 0.75`
+  - `top_registered_mixed_support_child_input_binding_fraction = 0.75`
+  The current-code coverage-only Phase 4 matrix probe at
+  `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+  now also banks this as a required coverage fact with
+  `coverage_gaps = []` and
+  `saw_hierarchy_registered_mixed_support_routing = true`. That probe
+  skipped Verilator/Yosys; the full downstream-clean bank remains
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
   parent outputs numerically:

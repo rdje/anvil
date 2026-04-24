@@ -510,7 +510,7 @@ fn repair_parent_output_roots_after_finalize(g: &mut Generator, top: &mut Module
             else {
                 continue;
             };
-            add_parent_output_companion_gate(top, &mut scratch_pool, width, root, companion)
+            add_parent_companion_gate(top, &mut scratch_pool, width, root, companion)
         };
 
         let with_parent_port_support = if cone::node_deps(top, with_child_support).has_ports()
@@ -525,7 +525,7 @@ fn repair_parent_output_roots_after_finalize(g: &mut Generator, top: &mut Module
                 width,
                 with_child_support,
             ) {
-                Some(companion) => add_parent_output_companion_gate(
+                Some(companion) => add_parent_companion_gate(
                     top,
                     &mut scratch_pool,
                     width,
@@ -745,28 +745,15 @@ fn build_registered_child_input_cone_route(
     parent_source_pool: &mut SignalPool,
     width: u32,
 ) -> NodeId {
-    let mut instance_derived_pool = SignalPool::new();
-    for entry in parent_source_pool
-        .iter()
-        .filter(|entry| entry.deps.has_instance_output_virtuals())
-    {
-        instance_derived_pool.add(entry.node, entry.width, entry.deps.clone());
-    }
+    let mut route_pool = parent_source_pool.clone();
 
     let saved_flop_prob = g.cfg.flop_prob;
     let saved_flop_knob = g.active_flop_knob;
     g.cfg.flop_prob = 0.0;
     g.active_flop_knob = KnobId::HierarchyParentFlopProb;
     let mut worklist: FlopWorklist = Vec::new();
-    let d_root = cone::build_cone_with_retry(
-        g,
-        top,
-        &mut instance_derived_pool,
-        &mut worklist,
-        width,
-        None,
-    );
-    cone::drain_flop_worklist(g, top, &mut instance_derived_pool, &mut worklist);
+    let d_root = cone::build_cone_with_retry(g, top, &mut route_pool, &mut worklist, width, None);
+    cone::drain_flop_worklist(g, top, &mut route_pool, &mut worklist);
     debug_assert!(
         worklist.is_empty(),
         "registered child-input cone worklist drained"
@@ -774,15 +761,69 @@ fn build_registered_child_input_cone_route(
     g.cfg.flop_prob = saved_flop_prob;
     g.active_flop_knob = saved_flop_knob;
 
-    let d_logic = ensure_parent_logic_above_instance_source(
+    let d_logic = promote_registered_child_input_cone_root(
+        g,
         top,
-        &mut instance_derived_pool,
+        &mut route_pool,
         parent_source_pool,
         d_root,
         width,
     );
 
     register_parent_child_input_route(top, parent_source_pool, d_logic, width)
+}
+
+fn promote_registered_child_input_cone_root(
+    g: &mut Generator,
+    top: &mut Module,
+    local_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    root: NodeId,
+    width: u32,
+) -> NodeId {
+    let with_child_support = if cone::node_deps(top, root).has_instance_output_virtuals() {
+        root
+    } else {
+        let Some(companion) =
+            try_pick_instance_output_companion(g, top, parent_source_pool, width, root)
+        else {
+            return root;
+        };
+        add_registered_child_input_companion_gate(
+            top,
+            local_pool,
+            parent_source_pool,
+            width,
+            root,
+            companion,
+        )
+    };
+
+    let with_parent_port_support = if cone::node_deps(top, with_child_support).has_ports() {
+        with_child_support
+    } else {
+        let Some(companion) =
+            try_pick_parent_port_companion(g, top, parent_source_pool, width, with_child_support)
+        else {
+            return with_child_support;
+        };
+        add_registered_child_input_companion_gate(
+            top,
+            local_pool,
+            parent_source_pool,
+            width,
+            with_child_support,
+            companion,
+        )
+    };
+
+    ensure_parent_logic_above_instance_source(
+        top,
+        local_pool,
+        parent_source_pool,
+        with_parent_port_support,
+        width,
+    )
 }
 
 fn ensure_parent_logic_above_instance_source(
@@ -795,7 +836,7 @@ fn ensure_parent_logic_above_instance_source(
     let root_deps = cone::node_deps(top, root);
     debug_assert!(
         root_deps.has_instance_output_virtuals(),
-        "registered parent-composed child input must derive from sibling outputs"
+        "registered parent-composed child input must retain sibling-output support"
     );
 
     if is_registered_parent_composed_logic_node(top, root) {
@@ -820,6 +861,19 @@ fn ensure_parent_logic_above_instance_source(
     }
     add_pool_entry_once(parent_source_pool, logic, width, root_deps);
     logic
+}
+
+fn add_registered_child_input_companion_gate(
+    top: &mut Module,
+    local_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+    root: NodeId,
+    companion: NodeId,
+) -> NodeId {
+    let node = add_parent_companion_gate(top, local_pool, width, root, companion);
+    add_pool_entry_once(parent_source_pool, node, width, cone::node_deps(top, node));
+    node
 }
 
 fn is_registered_parent_composed_logic_node(top: &Module, node: NodeId) -> bool {
@@ -938,7 +992,7 @@ fn promote_parent_output_root(
             return root;
         };
 
-        add_parent_output_companion_gate(top, pool, width, root, companion)
+        add_parent_companion_gate(top, pool, width, root, companion)
     };
 
     if cone::node_deps(top, with_child_support).has_ports() {
@@ -951,10 +1005,10 @@ fn promote_parent_output_root(
         return with_child_support;
     };
 
-    add_parent_output_companion_gate(top, pool, width, with_child_support, parent_companion)
+    add_parent_companion_gate(top, pool, width, with_child_support, parent_companion)
 }
 
-fn add_parent_output_companion_gate(
+fn add_parent_companion_gate(
     top: &mut Module,
     pool: &mut SignalPool,
     width: u32,
@@ -971,6 +1025,34 @@ fn add_parent_output_companion_gate(
         pool.add(node_id, width, deps);
     }
     node_id
+}
+
+fn try_pick_instance_output_companion(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &SignalPool,
+    width: u32,
+    exclude: NodeId,
+) -> Option<NodeId> {
+    let mut temp_pool = SignalPool::new();
+    for entry in parent_source_pool
+        .iter()
+        .filter(|entry| entry.node != exclude && entry.deps.has_instance_output_virtuals())
+    {
+        temp_pool.add(entry.node, entry.width, entry.deps.clone());
+    }
+
+    if temp_pool.is_empty() {
+        return None;
+    }
+
+    Some(cone::pick_terminal_dep_bearing(
+        g,
+        top,
+        &mut temp_pool,
+        width,
+        Some(exclude),
+    ))
 }
 
 fn try_pick_parent_companion(
