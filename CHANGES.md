@@ -1,6 +1,37 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot8 — Strengthen hierarchy book guidance
+
+**Landed as:** this commit
+
+**What changed**
+
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+  now has a reader-facing hierarchy routing section that maps common
+  goals to the right hierarchy knobs, produced structure, and metrics
+  to inspect.
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+  now describes `hierarchy_registered_child_input_cone_prob` as a full
+  parent-source route that can mix parent data inputs with sibling
+  outputs when both supports are live.
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+  now lists the focused mixed parent-output and registered
+  mixed-support hierarchy proof artifacts with the rest of the targeted
+  Phase 4 evidence.
+
+**Why**
+
+- The book is the user-facing surface for ANVIL. The previous code
+  slice updated the book, but the hierarchy chapter still needed a
+  clearer "which knob should I use?" section for casual users and a
+  tighter metric map for advanced users and developers.
+
+**Validation**
+
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot7 — Land registered mixed-support hierarchy routing
 
 **Landed as:** this commit

@@ -142,6 +142,35 @@ through one parent-local flop, compose child input bindings through
 parent-local logic, and add local parent flops. It still does not solve
 hierarchy-aware identity.
 
+## Choosing a hierarchy routing surface
+
+For casual use, the important choice is whether the parent should only
+wire children together, build combinational parent logic, or introduce
+parent-local state. The defaults keep hierarchy mostly combinational.
+The registered and local-parent-flop routes are opt-in so a user can
+ask for state deliberately.
+
+For advanced users and developers, each surface has a corresponding
+metric contract. Those metrics are what the `tool_matrix` Phase 4 gate
+uses to prove that a matrix did more than merely set a knob.
+
+| Goal | Main knob | Shape produced | Metrics to inspect |
+| ---- | --------- | -------------- | ------------------ |
+| Bind later child inputs from earlier sibling outputs | `hierarchy_sibling_route_prob` | earlier child output -> later child input | `child_input_bindings_from_instance_outputs`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
+| Bind later child inputs through parent combinational logic | `hierarchy_child_input_cone_prob` | parent source(s) -> parent logic -> later child input | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
+| Bind later child inputs through one parent flop | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction` |
+| Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s) -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction` |
+| Allow parent cones to contain local flops | `hierarchy_parent_flop_prob` | parent source(s) -> parent cone with local flop(s) -> output or child input | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops` |
+
+The registered parent-composed route now uses the full available parent
+source pool. When both supports are live, the D side of the parent flop
+can depend on parent data ports and sibling child outputs at the same
+time. That is why the book distinguishes the broader
+`registered_parent_composed_*` counters from the stricter
+`registered_mixed_support_*` counters: the first proves registered
+parent logic exists; the second proves that registered parent logic
+actually mixed parent-port and child-output support.
+
 ## Current IR shape
 
 Hierarchy now lives directly in the circuit IR:

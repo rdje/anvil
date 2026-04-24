@@ -442,7 +442,9 @@ ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
 `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
 remain useful targeted evidence. The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,
 `r11` is the first explicit child-sourcing bank, and the aborted `r8`
