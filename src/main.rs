@@ -268,7 +268,7 @@ struct Cli {
 
     /// Maximum child-instance count for each non-leaf module in
     /// bounded recursive hierarchy mode. Must be paired with
-    /// `--max-child-instances-per-module`.
+    /// `--min-child-instances-per-module`.
     #[arg(long)]
     max_child_instances_per_module: Option<u32>,
 

@@ -56,6 +56,209 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
 ```
 
+## "I want a real hierarchy, not just one leaf module"
+
+Generate a depth-1 parent with a library of three leaf module
+definitions:
+
+```bash
+anvil --seed 42 --out ./hier-smoke \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 3
+```
+
+Hierarchy directory output writes one `.sv` file per module definition
+plus a `manifest.json`:
+
+```text
+hier-smoke/
+  mod_42_0000.sv   # leaf
+  mod_42_0001.sv   # leaf
+  mod_42_0002.sv   # leaf
+  mod_42_0003.sv   # top parent
+  manifest.json
+```
+
+The top is recorded in the manifest:
+
+```bash
+jq -r '.designs[0].top' ./hier-smoke/manifest.json
+```
+
+Run tools by reading every generated `.sv` file and selecting the
+manifest top:
+
+```bash
+top=$(jq -r '.designs[0].top' ./hier-smoke/manifest.json)
+verilator --lint-only --top-module "$top" ./hier-smoke/*.sv
+yosys -p "read_verilog -sv ./hier-smoke/*.sv; synth -top $top -noabc; stat; check"
+```
+
+## "I want to reuse a child definition many times"
+
+Make the parent instantiate more child slots than there are unique leaf
+definitions:
+
+```bash
+anvil --seed 42 --out ./hier-reuse \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 5
+```
+
+This creates two leaf module definitions and five instance slots. The
+same child definitions appear multiple times under different instance
+names. Useful metrics in `manifest.json` include
+`num_unique_instantiated_modules`, `num_multiuse_instantiated_modules`,
+and `avg_instances_per_unique_instantiated_module`.
+
+The opposite shape also matters:
+
+```bash
+anvil --seed 42 --out ./hier-under \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 5 \
+      --num-child-instances 2
+```
+
+That creates a larger library than the parent uses. It stresses unused
+module definitions and records the result through `num_unused_leaf_modules`
+and `unused_library_fraction`.
+
+## "I want recursive hierarchy"
+
+Use the bounded recursive lane rather than `--hierarchy-depth 1`:
+
+```bash
+anvil --seed 42 --out ./hier-recursive \
+      --min-hierarchy-depth 2 \
+      --max-hierarchy-depth 3 \
+      --min-child-instances-per-module 2 \
+      --max-child-instances-per-module 3
+```
+
+This can produce intermediate parent modules, not only leaves under one
+top. The realized tree shape is numeric in the manifest:
+`realized_min_leaf_depth`, `realized_max_leaf_depth`,
+`leaf_module_occurrences_by_depth`, and
+`avg_child_instances_by_parent_depth`.
+
+To force a wide top and narrower lower level:
+
+```bash
+anvil --seed 42 --out ./hier-profiled-depth \
+      --min-hierarchy-depth 2 \
+      --max-hierarchy-depth 2 \
+      --min-child-instances-per-module 1 \
+      --max-child-instances-per-module 3 \
+      --child-instances-per-depth 0=4:4 \
+      --child-instances-per-depth 1=2:2
+```
+
+Depth `0` is the top parent, depth `1` is its direct children, and so
+on.
+
+## "I want fresh children per instance slot"
+
+The default hierarchy child source mode is `library`: define a reusable
+pool and instantiate from it. To synthesize a fresh child definition for
+each planned slot, use `on-demand`:
+
+```bash
+anvil --seed 42 --out ./hier-on-demand \
+      --hierarchy-depth 1 \
+      --num-child-instances 4 \
+      --hierarchy-child-source-mode on-demand
+```
+
+On-demand children are generated against parent-planned exact
+data-interface profiles. Inspect `profiled_instance_fraction` and
+`profiled_instantiated_module_fraction` in the design metrics to
+confirm that the requested interfaces were actually realized.
+
+## "I want child inputs to come from other children or parent logic"
+
+Direct sibling routing:
+
+```bash
+anvil --seed 42 --out ./hier-sibling-route \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 1.0
+```
+
+Parent-composed child-input cones:
+
+```bash
+anvil --seed 42 --out ./hier-parent-cones \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-child-input-cone-prob 1.0
+```
+
+Parent-cone helper instances, where the parent instantiates an extra
+helper child as a source for those cones:
+
+```bash
+anvil --seed 42 --out ./hier-helper-cones \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 0.0 \
+      --hierarchy-child-input-cone-prob 1.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0
+```
+
+Useful metrics:
+
+- `child_input_bindings_from_instance_outputs`
+- `child_input_bindings_from_parent_composed_logic`
+- `child_input_bindings_from_parent_cone_instances`
+- `top_parent_cone_instances`
+- the matching `*_fraction` fields
+
+## "I want registered hierarchy routes"
+
+Registered sibling route:
+
+```bash
+anvil --seed 42 --out ./hier-registered-sibling \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 1.0 \
+      --hierarchy-child-input-cone-prob 0.0 \
+      --max-flops-per-module 8
+```
+
+Registered parent-composed route:
+
+```bash
+anvil --seed 42 --out ./hier-registered-parent-cone \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 1.0 \
+      --hierarchy-child-input-cone-prob 0.0 \
+      --max-flops-per-module 8
+```
+
+The route metrics distinguish the shapes:
+`child_input_bindings_from_registered_instance_outputs`,
+`child_input_bindings_from_registered_parent_composed_logic`,
+`child_input_bindings_from_registered_mixed_support`, and
+`child_input_bindings_from_registered_multistage_parent_composed_logic`.
+
 ## "I want fanout stress"
 
 Internal wires driving many consumers — stresses common-subexpression

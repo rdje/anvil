@@ -472,6 +472,7 @@ is accurate as of this commit.
 --seed, --count, --out, --config, --dump-config
 --trace <none|low|medium|high|debug>, --trace-file <path>
 --metrics
+--help, --version
 ```
 
 ### Structure
@@ -532,6 +533,8 @@ is accurate as of this commit.
 ### Blocks
 ```
 --priority-encoder-prob
+--case-mux-prob, --casez-mux-prob
+--for-fold-prob
 --comb-mux-prob, --comb-mux-encoding-prob
 ```
 
@@ -562,11 +565,34 @@ is accurate as of this commit.
 --hierarchy-registered-sibling-route-prob
 --hierarchy-registered-child-input-cone-prob
 --hierarchy-child-input-cone-prob
+--hierarchy-parent-cone-instance-prob
 --hierarchy-parent-flop-prob
 --min-hierarchy-depth, --max-hierarchy-depth
 --min-child-instances-per-module, --max-child-instances-per-module
 --child-instances-per-depth DEPTH=MIN:MAX
 ```
+
+### `tool_matrix` auxiliary binary
+```
+--out
+--base-seed
+--modules-per-scenario
+--list-scenarios
+--fail-on-coverage-gap
+--resume
+--phase1-gate
+--phase2-share-gate
+--phase3-structured-gate
+--phase4-hierarchy-gate
+--skip-verilator, --skip-yosys
+--verilator-bin, --yosys-bin
+--yosys-mode <without-abc|with-abc|both>
+--help, --version
+```
+
+`tool_matrix` is not the generator itself; it is the repo-owned corpus
+and downstream-tool harness. Its flags control scenario selection,
+resume/checkpoint behavior, and which external tools are invoked.
 
 ### Not yet exposed via CLI (reachable via `--config FILE`)
 - `use_async_reset` — unused (flops are always async-reset by discipline).

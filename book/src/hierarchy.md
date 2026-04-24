@@ -319,7 +319,9 @@ emitted `.sv`, including:
   `child_input_bindings_from_registered_instance_outputs`,
   `child_input_bindings_from_registered_parent_composed_logic`,
   `child_input_bindings_from_registered_mixed_support`,
-  `child_input_bindings_from_registered_multistage_parent_composed_logic`),
+  `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_parent_cone_instances`,
+  `top_child_input_bindings_from_parent_cone_instances`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
   `top_instance_output_child_input_binding_fraction`),
@@ -342,6 +344,11 @@ emitted `.sv`, including:
   fractions
   (`registered_multistage_parent_composed_child_input_binding_fraction`,
   `top_registered_multistage_parent_composed_child_input_binding_fraction`),
+- hierarchy- and top-level parent-cone helper-instance route fractions
+  (`parent_cone_instance_child_input_binding_fraction`,
+  `top_parent_cone_instance_child_input_binding_fraction`),
+- parent-cone helper-instance counts
+  (`hierarchy_parent_cone_instances`, `top_parent_cone_instances`),
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,

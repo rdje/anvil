@@ -1,6 +1,46 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot13 — Audit mdBook CLI and hierarchy recipes
+
+**Landed as:** this commit
+
+**What changed**
+
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+  now lists every current `anvil --help` flag and every current
+  `tool_matrix --help` flag in the CLI coverage section.
+- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
+  now has hierarchy recipes for depth-1 multi-file output,
+  child-definition reuse, under-instantiated libraries, bounded
+  recursive hierarchy, per-depth branching overrides, on-demand child
+  synthesis, sibling routes, parent-composed child-input cones,
+  parent-cone helper instances, and registered hierarchy routes.
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+  now lists the parent-cone helper-instance counters with the other
+  design metrics exposed through hierarchy manifests.
+- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  fixes the `--max-child-instances-per-module` help text so it points
+  users at the required minimum-pair flag.
+
+**Why**
+
+- The mdBook is the user-facing surface. The hierarchy implementation
+  had outpaced the reference and cookbook examples in a few places, so
+  casual users could discover the feature in README but miss it in the
+  book.
+
+**Validation**
+
+- Compared `anvil --help` and `tool_matrix --help` flags against
+  `book/src`; no help flags are missing from the mdBook.
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot12 — Centralize hierarchy module-name allocation
 
 **Landed as:** this commit

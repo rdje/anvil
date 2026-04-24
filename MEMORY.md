@@ -12,6 +12,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   visible iff they carry local state or sequential descendants, and
   parent-side output cones are combinational by default but optionally
   stateful under `hierarchy_parent_flop_prob`.
+- Latest mdBook audit compared `anvil --help` and `tool_matrix --help`
+  against `book/src`: no current help flags are missing from the book.
+  `book/src/recipes.md` now has concrete hierarchy recipes for
+  multi-file output, reuse/under-instantiation, recursive hierarchy,
+  on-demand children, parent-cone helper instances, and registered
+  hierarchy routes.
 - The current live Phase 4 slice is no longer just a depth-1 wrapper. `hierarchy_depth = 1` plus `num_leaf_modules >= 1` still generates a library of leaf modules plus a real top module; `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions.
 - Current HEAD now also has an explicit hierarchy child-sourcing axis: `hierarchy_child_source_mode = library | on-demand`. Both the legacy wrapper lane and the bounded recursive lane can choose between reusable child-definition pools and fresh child-definition synthesis per planned instance slot.
 - Current HEAD now makes `on-demand` stronger than "fresh per slot":
