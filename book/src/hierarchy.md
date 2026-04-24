@@ -363,11 +363,11 @@ emitted `.sv`, including:
 - per-parent-depth branching summaries
   (`avg/min/max_child_instances_by_parent_depth`).
 
-## Why the first slice is wrapper-only
+## Why the first slice started wrapper-only
 
 This was a deliberate engineering choice, not a half-finished accident.
 
-The wrapper slice buys several important things immediately:
+The original wrapper slice bought several important things immediately:
 
 - real multi-module emitted RTL,
 - real elaboration pressure in Verilator/Yosys,

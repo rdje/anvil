@@ -66,10 +66,12 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/gen/module.rs`       leaf-module generator
 - `src/gen/hierarchy.rs`    Phase 4 hierarchy planner: legacy exact
                             depth-1 wrapper lane plus bounded recursive
-                            lane, both with parent-side composition
-                            sibling-routed child-input binding, registered
-                            sibling routing through parent-local state, and
-                            optional parent-local state
+                            lane, both with explicit child sourcing,
+                            parent-side composition, direct child-input
+                            routing, registered child-input routing,
+                            parent-composed child-input routing,
+                            parent-cone helper instances, and optional
+                            parent-local state
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 

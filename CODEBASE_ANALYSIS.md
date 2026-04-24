@@ -25,12 +25,16 @@ That is the right base for a signoff-grade random synthesizable RTL
 generator. The work still required falls into four explicit gaps:
 
 1. **Feature breadth / legal surface area / artifact-family breadth**
-   The active generator is still leaf-module-centric. The previously
-   explicit Phase 3 breadth gaps (`case`, `casez`, variable shifts,
-   generic selectable `Slice` / `Concat`, bounded unrolled logic) are
-   now landed, and the dedicated Phase 3 structured-surface closure
-   gate is landed too. Hierarchy, parameterization,
-   aggregates, memories, and FSMs are not landed. Beyond that, the
+   The active generator is still grounded in the Phase 1/2/3
+   leaf-module kernel, but it is no longer leaf-module-only. The
+   previously explicit Phase 3 breadth gaps (`case`, `casez`, variable
+   shifts, generic selectable `Slice` / `Concat`, bounded unrolled
+   logic) are now landed, the dedicated Phase 3 structured-surface
+   closure gate is landed, and Phase 4 hierarchy now has real depth-1
+   and bounded recursive lanes with child sourcing, parent-side
+   composition, registered routing, helper instances, and measurable
+   design metrics. Parameterization, aggregates, memories, FSMs, and
+   broader hierarchy-aware identity are still open. Beyond that, the
    newer user direction broadens the target beyond one output family:
    ANVIL should eventually generate more kinds of
    valid-by-construction synthesizable artifacts such as oracle-backed
@@ -44,7 +48,7 @@ generator. The work still required falls into four explicit gaps:
    sharing pass, but "same expression anywhere in the cone forest means
    same `NodeId`" is not yet fully true for stronger sequential
    equivalence or future hierarchical objects.
-3. **Tool-clean confidence still needs broader automation beyond Phases 1/2**
+3. **Tool-clean confidence still needs broader automation beyond current phase gates**
    The repo now has strong internal validation and strong local smoke
    evidence. That includes a real `tool_matrix --phase1-gate` frontier
    pushed to 365 warning-clean modules in the older no-ABC lane, a
@@ -66,10 +70,14 @@ generator. The work still required falls into four explicit gaps:
    closes the representative Phase 2 sharing sweep locally: 216/0 in
    Verilator plus both repo-owned Yosys modes, `coverage_gaps = []`,
    and a monotone normalized `share_sweep` summary across
-   `share_prob ∈ {0.0, 0.3, 0.9}`. So the basic Phase 1 and Phase 2
-   closure evidence now exists; the remaining confidence gap is broader
-   automation for later phases, richer knob sweeps, and the larger
-   artifact-family space implied by the signoff-grade goal.
+   `share_prob ∈ {0.0, 0.3, 0.9}`. The Phase 3 structured-surface gate
+   is also closed at `/tmp/anvil-tool-matrix-phase3-structured-r4`,
+   and the current Phase 4 hierarchy gate is closed at
+   `/tmp/anvil-tool-matrix-phase4-hierarchy-r21` with 132/0 in
+   Verilator plus both repo-owned Yosys modes. So closure evidence now
+   exists for the current Phase 1-4 surfaces; the remaining confidence
+   gap is broader automation for future phases, richer knob sweeps, and
+   the larger artifact-family space implied by the signoff-grade goal.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
@@ -83,7 +91,8 @@ Taken literally against the user's `rtl_const_expr` / `rtl_frontend`
 style request, the repo is **not ready yet**. It currently lacks:
 
 - a source-level parameter / package / typedef / instantiation IR;
-- compact hierarchy generation beyond the planned future hierarchy lane;
+- frontend/elaboration fact modeling beyond the current structural
+  generated-module hierarchy;
 - manifest infrastructure for expected elaboration facts; and
 - an artifact-family selector above the current leaf-module generator.
 
@@ -321,8 +330,8 @@ src/
 │   │                 shrink surviving primary inputs to the highest
 │   │                 live bit, then prune dead data-input ports from
 │   │                 the emitted surface. This is still the Phase
-│   │                 1/2/3 leaf kernel; future hierarchy should wrap
-│   │                 it rather than collapse inter-module generation
+│   │                 1/2/3 leaf kernel; hierarchy composes above it
+│   │                 rather than collapsing inter-module generation
 │   │                 into it. `m.semantic_gates_merged`,
 │   │                 `m.flops_merged`, and `m.nodes_compacted`
 │   │                 record the removal counts.
@@ -597,7 +606,7 @@ In `ir::validate::validate_design`:
 - `src/ir/compact.rs` — 25 inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, cleanup exact-proof eligibility caps, the landed `ForFold` exact evaluator, late mixed-constant cleanup on the settled graph, no-op compaction, orphan removal, dead-flop removal, strict post-remap duplicate protection, instance-input remapping during compaction, topological-order preservation, and the large-low-support semantic-merge budget guard.
 - `src/bin/tool_matrix.rs` — 26 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 / Phase-2 / Phase-3 / Phase-4 gate run-plan math, representative `share_prob`-sweep coverage, Phase-3 structured-surface coverage, the refreshed Phase-4 hierarchy coverage facts (wrapper and recursive depths, child-instance profiles, per-depth override profiles, reuse, under-instantiation, mixed parent-output coverage, registered mixed-support routing coverage, multi-stage registered routing coverage, recursive fact derivation from `DesignMetrics`), design-level metrics/report embedding, design-level Yosys invocation shaping, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume for both module and design artifacts, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
 - `tests/pipeline.rs` — 47 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, both constant- and variable-shift surfaces, the landed procedural case/casez/for-fold surfaces, the landed selectable `Slice` / `Concat` surface, the hierarchy surface (legacy depth-1 wrapper exact/reuse/under-instantiation plus bounded recursive tree shape, per-depth branching profiles, exact profiled on-demand child interfaces, sibling-routed child inputs, parent-composed child-input bindings, parent-cone helper-instance child-input bindings, local parent flops, registered sibling-routed child-input bindings, registered parent-composed child-input bindings, registered mixed-support child-input bindings, multi-stage registered parent-composed child-input bindings, mixed parent-port / child-output parent outputs, and module-name uniqueness across batched hierarchy designs), the first parent-side composition surface over child outputs, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-24): **215 unit-target tests + 45 integration tests = 260 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-24): **215 unit-target tests + 47 integration tests = 262 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps; the smoke matrix is green, the full current-code Phase 1
@@ -706,7 +715,7 @@ In `ir::validate::validate_design`:
 
 ## Build hygiene
 - `cargo check --all-targets` — clean.
-- `cargo test` — clean (260 passing tests: 184 lib + 5 main + 26 tool_matrix + 45 integration).
+- `cargo test` — clean (262 passing tests: 184 lib + 5 main + 26 tool_matrix + 47 integration).
 - `cargo build` — clean.
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.

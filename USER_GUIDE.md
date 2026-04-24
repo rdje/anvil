@@ -500,17 +500,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r19/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
 records:
 
-- `30` scenarios
+- `33` scenarios
 - `4` designs per scenario
-- `120` total designs
+- `132` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 120/0`
-- `Yosys without-abc pass/fail = 120/0`
-- `Yosys with-abc pass/fail = 120/0`
+- `Verilator pass/fail = 132/0`
+- `Yosys without-abc pass/fail = 132/0`
+- `Yosys with-abc pass/fail = 132/0`
 
 That refreshed report is now the fully banked repo-owned Phase 4
 artifact for the current hierarchy surface, not only the older wrapper
@@ -524,7 +524,11 @@ shallow/deep leaf realization, real parent-side composition above
 instance outputs, real sibling-routed hierarchy child inputs, and real
 parent-composed child-input bindings, plus explicit parent-local flop
 state, registered sibling-routed child-input bindings, and registered
-parent-composed child-input bindings.
+parent-composed child-input bindings, registered mixed-support
+child-input bindings, multi-stage registered parent-composed
+child-input bindings, mixed parent-port / child-output parent outputs,
+parent-cone helper-instance child-input bindings, and generator-global
+module-name allocation.
 The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
@@ -554,6 +558,23 @@ bindings
 `registered_parent_composed_child_input_binding_fraction = 0.75`,
 `hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
 `top_reset_inputs = 1`).
+`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+is the focused proof for registered mixed-support child-input bindings
+(`child_input_bindings_from_registered_mixed_support = 3`,
+`registered_mixed_support_child_input_binding_fraction = 0.75`).
+`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+is the focused proof for multi-stage registered parent-composed
+child-input bindings
+(`child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
+`registered_multistage_parent_composed_child_input_binding_fraction = 0.5`).
+`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is the
+focused proof for mixed parent-port / child-output parent outputs
+(`top_parent_port_composed_outputs = 8`,
+`hierarchy_parent_port_composed_outputs = 8`).
+`/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json` is the focused
+proof for parent-cone helper-instance routing
+(`top_parent_cone_instances = 1`,
+`child_input_bindings_from_parent_cone_instances = 4`).
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -586,7 +607,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r10` now includes this axis too, so the focused smoke is no longer
+at `r21` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at

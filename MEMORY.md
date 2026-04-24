@@ -18,6 +18,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   multi-file output, reuse/under-instantiation, recursive hierarchy,
   on-demand children, parent-cone helper instances, and registered
   hierarchy routes.
+- Latest live-doc alignment pass removed stale current-state wording
+  that still treated hierarchy as pre-Phase-4 or only wrapper-shaped.
+  Active README / USER_GUIDE / CODEBASE_ANALYSIS / ROADMAP / mdBook
+  text now distinguishes the current Phase 4 hierarchy surface from the
+  still-open future work: parameterization, aggregates, memories, FSMs,
+  broader helper placement, broader hierarchy-aware identity, and
+  future artifact-family plumbing.
 - The current live Phase 4 slice is no longer just a depth-1 wrapper. `hierarchy_depth = 1` plus `num_leaf_modules >= 1` still generates a library of leaf modules plus a real top module; `num_child_instances = 0` preserves the legacy exact-once behavior, `num_child_instances < num_leaf_modules` under-instantiates the library, and `num_child_instances > num_leaf_modules` reuses child definitions.
 - Current HEAD now also has an explicit hierarchy child-sourcing axis: `hierarchy_child_source_mode = library | on-demand`. Both the legacy wrapper lane and the bounded recursive lane can choose between reusable child-definition pools and fresh child-definition synthesis per planned instance slot.
 - Current HEAD now makes `on-demand` stronger than "fresh per slot":
@@ -308,16 +315,14 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Refreshed the full repo-owned Phase 4
-  hierarchy gate after the parent-port, registered mixed-support, and
-  multi-stage registered routing slices. The current downstream-clean
-  bank is
+- **Last completed slice:** Aligned the active live docs and mdBook
+  with the current Phase 4 hierarchy surface. `USER_GUIDE.md` now
+  points at the current downstream-clean
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
-  with `coverage_gaps = []`, `132/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes, and saved coverage facts including
-  `saw_hierarchy_parent_port_composed_outputs = true`,
-  `saw_hierarchy_registered_mixed_support_routing = true`, and
-  `saw_hierarchy_registered_multistage_routing = true`.
+  bank (`132/0` in Verilator plus both repo-owned Yosys modes), the
+  high-level docs now describe hierarchy as a landed Phase 4 surface,
+  and the mdBook clarifies that the wrapper slice was the first
+  hierarchy slice rather than the current limit.
 - **Prior slice:** Landed multi-stage registered parent-composed
   hierarchy child-input routing. Later
   `hierarchy_registered_child_input_cone_prob` routes now add an earlier

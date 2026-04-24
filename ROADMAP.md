@@ -54,17 +54,18 @@ the phased plan below; this section makes them durable as a steering map
 instead of leaving them implicit.
 
 1. **Feature breadth / legal design-space width**
-   The current engine is still fundamentally a leaf-module generator.
-   Reaching "complex to very complex synthesizable RTL" requires Phases
-   3, 4, 5, 5b, and 6 to land as real generator surfaces: richer
-   structured combinational blocks, hierarchy, parameterization, packed
-   aggregates, memories, FSMs, and other legal interaction-heavy
-   motifs. Beyond that, ANVIL also needs broader artifact families:
-   oracle-backed micro-designs, frontend/elaboration accept corpora,
-   and other valid-by-construction synthesizable artifact families. Every new category, knob, and artifact
-   family must be exercised in generation paths, tests, metrics, and
-   downstream tool sweeps; dead knobs or paper-only categories are
-   regressions.
+   The current lane is grounded in the Phase 1/2/3 leaf-module kernel
+   and now has a live Phase 4 hierarchy planner above it. Reaching
+   "complex to very complex synthesizable RTL" still requires broader
+   hierarchy composition plus Phases 5, 5b, and 6 to land as real
+   generator surfaces: parameterization, packed aggregates, memories,
+   FSMs, and other legal interaction-heavy motifs. Beyond that, ANVIL
+   also needs broader artifact families: oracle-backed micro-designs,
+   frontend/elaboration accept corpora, and other valid-by-construction
+   synthesizable artifact families. Every new category, knob, and
+   artifact family must be exercised in generation paths, tests,
+   metrics, and downstream tool sweeps; dead knobs or paper-only
+   categories are regressions.
 
 2. **`NodeId` as identity / full-factorization mode**
    The strong-form target is: under `identity_mode = node-id`,
@@ -90,7 +91,7 @@ instead of leaving them implicit.
    Seed-level cleanliness is not enough. The project needs automated
    Verilator/Yosys evidence across seeds, construction strategies,
    identity modes, factorization levels, category mixes, flop/no-flop
-   cases, and future hierarchy/memory/FSM features. Counterexamples must
+   cases, and deeper hierarchy/memory/FSM features. Counterexamples must
    be retained with exact seed+config evidence and fed back into IR
    invariants or rewrites, not hidden behind warning suppressions. The
    intended steady-state remains: generated RTL is boringly clean in

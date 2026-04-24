@@ -1,6 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-04-24-boot14 — Align live docs with current hierarchy state
+
+**Landed as:** this commit
+
+**What changed**
+
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+  now points the Phase 4 closure evidence at the current `r21` bank
+  with 33 scenarios / 132 designs and 132/0 pass-fail in Verilator plus
+  both repo-owned Yosys modes.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+  and [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+  now describe hierarchy as a landed Phase 4 surface while
+  distinguishing it from still-open parameterization, aggregate,
+  memory, FSM, artifact-family, and hierarchy-aware identity work.
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+  now summarizes the hierarchy generator path with the current child
+  sourcing, parent-composition, registered-routing, helper-instance,
+  and parent-state surfaces.
+- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md),
+  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
+  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+  now avoid current-wrapper-only wording and describe hierarchy as a
+  live planner above the leaf kernel.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+  also records the current executed test count: 262 passing tests.
+
+**Why**
+
+- The book and live docs are ANVIL's user-facing surface. Advanced
+  users and developers should not have to infer from source code that
+  the current hierarchy implementation is broader than the older
+  wrapper-only slice.
+
+**Validation**
+
+- Searched active docs for stale hierarchy closure artifacts and
+  wrapper-only/pre-Phase-4 wording.
+- Compared `anvil --help` and `tool_matrix --help` flags against
+  `book/src`; no help flags are missing from the mdBook.
+- `cargo fmt --all --check`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `git diff --check`
+
 ## 2026-04-24-boot13 — Audit mdBook CLI and hierarchy recipes
 
 **Landed as:** this commit

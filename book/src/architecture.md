@@ -148,9 +148,11 @@ than accidental:
 
 1. **Feature breadth**
    The current engine is still centered on the leaf-module generator in
-   `src/gen/module.rs`. Richer structured ops, hierarchy,
-   parameterization, aggregates, memories, and FSMs are future work on
-   top of this base, not evidence against it.
+   `src/gen/module.rs`, with a live hierarchy planner above it in
+   `src/gen/hierarchy.rs`. Richer structured ops and the current
+   hierarchy slice are now real generator surfaces; parameterization,
+   aggregates, memories, FSMs, and broader hierarchy-aware identity are
+   future work on top of this base, not evidence against it.
 2. **`NodeId` as identity**
    Full factorization is only partially realized today. Combinational
    identity flows through `Module::intern_gate`, a bounded semantic

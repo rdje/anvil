@@ -410,11 +410,12 @@ reused at multiple widths / depths. Requires:
 - **Emitter changes**: render parameter declarations in the
   module header and substitute symbolic widths in `logic [W-1:0]`
   where appropriate.
-- **Prerequisite now satisfied in minimal form:** Phase 4 hierarchy is
+- **Prerequisite now satisfied in useful form:** Phase 4 hierarchy is
   live enough that parameters have a real place to attach
-  (instantiation), but the current wrapper-only hierarchy slice is not
-  yet the full parameter story. Parameter-aware child selection and
-  parameter-dependent parent generation remain future work.
+  (instantiation), across both the legacy depth-1 wrapper lane and the
+  bounded recursive hierarchy lane. It is still not the full parameter
+  story: parameter-aware child selection and parameter-dependent parent
+  generation remain future work.
 
 Value: stresses the parameter-resolution and elaboration code
 paths in every downstream tool. Generator output becomes
