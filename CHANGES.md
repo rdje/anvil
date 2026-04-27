@@ -1,8 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-27-phase4-hierarchy-gate-budget — Refresh Phase 4 hierarchy gate at full per-scenario depth
+## 2026-04-27-package-description-terminology — Align package metadata with ANVIL terminology
 
 **Landed as:** this commit
+
+**What changed**
+
+- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+  now describes ANVIL as a random by-construction generator of
+  synthesizable SystemVerilog RTL instead of using the stale
+  `constrained-random` package description.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  and [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+  now record that package metadata is part of the terminology surface,
+  not just README/book prose.
+
+**Why**
+
+- The earlier purpose-terminology cleanup correctly removed
+  constrained-random wording from the user-facing docs and Rustdoc, but
+  the package description in `Cargo.toml` still contradicted the accepted
+  project wording.
+- Keeping package metadata aligned matters because it is visible to
+  Cargo tooling, generated package metadata, and cold-start readers who
+  inspect the crate before opening the full docs.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+- Searched active repo text for remaining non-historical
+  `constrained-random` package-purpose wording.
+
+**Impact**
+
+- The crate metadata now matches the accepted ANVIL purpose wording:
+  random by-construction synthesizable SystemVerilog RTL generation.
+- No generator behavior changed.
+
+**Files touched**
+
+- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+## 2026-04-27-phase4-hierarchy-gate-budget — Refresh Phase 4 hierarchy gate at full per-scenario depth
+**Landed as:** `f9f0288`
 
 **What changed**
 

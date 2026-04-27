@@ -1231,6 +1231,12 @@ The user clarified the wording around ANVIL's purpose:
   describe ANVIL as primarily a malformed-input fuzzer or generic
   toolchain stress tester.
 
+Follow-up gotcha (2026-04-27): package metadata is part of that same
+terminology surface. `Cargo.toml` must not keep stale
+`constrained-random` wording after README, Rustdoc, and mdBook text have
+been corrected; Cargo metadata is visible to tooling and cold-start
+readers before they open the longer docs.
+
 ### Verbatim user doctrine: structure over intended functionality (2026-04-20)
 
 The following user guidance is intentionally logged **verbatim** because

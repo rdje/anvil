@@ -3,7 +3,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- Latest Phase 4 hierarchy gate refresh fixes the gate budget so the
+- Latest package-metadata cleanup fixes the remaining stale
+  `constrained-random` purpose wording in `Cargo.toml`. The crate
+  package description now says ANVIL is a random by-construction
+  generator of synthesizable SystemVerilog RTL, matching the accepted
+  README/Rustdoc/mdBook terminology.
+- Prior Phase 4 hierarchy gate refresh fixes the gate budget so the
   repo-owned hierarchy matrix preserves four designs per scenario. The
   corrected full downstream-clean bank is now
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`:
@@ -401,14 +406,21 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Refreshed the Phase 4 hierarchy gate at
-  full per-scenario depth. `src/bin/tool_matrix.rs` now uses a direct
+- **Last completed slice:** Aligned the crate package metadata with the
+  accepted ANVIL purpose terminology. `Cargo.toml` no longer describes
+  ANVIL as constrained-random; it now says ANVIL is a random
+  by-construction generator of synthesizable SystemVerilog RTL. The
+  terminology doctrine in `DEVELOPMENT_NOTES.md`, the workspace summary
+  in `CODEBASE_ANALYSIS.md`, and this handoff now treat package
+  metadata as part of the live terminology surface.
+- **Prior slice:** Refreshed the Phase 4 hierarchy gate at full
+  per-scenario depth. `src/bin/tool_matrix.rs` now uses a direct
   four-designs-per-scenario Phase 4 floor, the live run-plan test
   expects 42 scenarios / 168 designs, and
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
   is fully downstream-clean with `coverage_gaps = []` and 168/0
   Verilator/Yosys pass-fail in all repo-owned lanes.
-- **Prior slice:** Added explicit parent-cone helper budgeting.
+- **Earlier slice:** Added explicit parent-cone helper budgeting.
   `max_parent_cone_instances_per_module` defaults to `1`, `0` disables
   helper allocation, higher values allow multiple helper children in one
   hierarchy parent, `DesignMetrics` records
@@ -658,6 +670,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `f9f0288` — Refresh Phase 4 hierarchy gate budget.
 - `34a420e` — Docs: align ANVIL purpose and continuity notes.
 - `1f8364e` — Route registered child-input cones through helper instances.
 - `7909b30` — Budget parent-cone helper instances.

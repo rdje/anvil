@@ -7,6 +7,7 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 - **Targets:** one binary (`anvil`), one library (`anvil`), one example (`generate_one`), one integration test (`pipeline`).
 - **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** pinned to Rust 1.95 via `Cargo.toml` `rust-version = "1.95"`.
+- **Package description:** `Cargo.toml` describes ANVIL as a random by-construction generator of synthesizable SystemVerilog RTL; do not use SV/UVM-style constrained-random terminology for the crate purpose.
 
 ## Suitability assessment against the product goal
 
