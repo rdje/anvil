@@ -1,8 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-26-doc-continuity-and-purpose — Align docs with live source and ANVIL terminology
+## 2026-04-27-phase4-hierarchy-gate-budget — Refresh Phase 4 hierarchy gate at full per-scenario depth
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now treats the Phase 4 hierarchy gate budget as a per-scenario floor:
+  `PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO = 4`. Adding new hierarchy
+  scenarios can no longer silently reduce each scenario from four
+  designs to three by dividing a stale total-design floor across the
+  larger matrix.
+- The Phase 4 run-plan regression now builds the live Phase 4 hierarchy
+  scenario set and asserts `4` designs/scenario and `168` total designs
+  for the current `42`-scenario matrix.
+- The corrected full downstream-clean bank is
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`:
+  `42` scenarios, `4` designs/scenario, `168` total designs,
+  `artifact_kind = "design"`, `coverage_gaps = []`, and `168/0`
+  pass-fail in Verilator plus both repo-owned Yosys modes.
+- The live docs and mdBook now present `r23` as the latest fully banked
+  Phase 4 hierarchy closure artifact, keep `r21` as historical
+  pre-parent-output-helper evidence, and record the pre-fix `r22` run
+  as a clean but insufficient 126-design mismatch.
+
+**Why**
+
+- The current Phase 4 hierarchy matrix grew to `42` scenarios after the
+  parent-output helper, budgeted-helper, and registered helper-sourced
+  child-input axes were added. The old constant
+  `PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS = 120` made the refreshed gate run
+  only `3` designs/scenario (`126` total designs), even though the
+  project policy was to preserve four designs per representative
+  hierarchy scenario.
+- The corrected rule encodes that policy directly as a per-scenario
+  floor, so future scenario-count growth cannot accidentally weaken
+  each Phase 4 scenario's sampling depth.
+
+**Validation**
+
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --quiet --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r23 --phase4-hierarchy-gate --yosys-mode both`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The repo-owned Phase 4 hierarchy gate now proves the full current
+  helper-instance hierarchy surface without lowering evidence density as
+  the matrix grows.
+- Cold-start recovery docs point to the latest `r23` bank for current
+  downstream-clean evidence and to `r22` only for the root-cause audit.
+- No generator output semantics changed; this slice changes the matrix
+  gate's run-plan arithmetic plus the documentation/evidence state.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+
+## 2026-04-26-doc-continuity-and-purpose — Align docs with live source and ANVIL terminology
+
+**Landed as:** `34a420e`
 
 **What changed**
 

@@ -15,7 +15,7 @@ use std::process::Command;
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
-const PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS: usize = 120;
+const PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO: usize = 4;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -532,7 +532,7 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
     } else if cli.phase3_structured_gate {
         PHASE3_STRUCTURED_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else if cli.phase4_hierarchy_gate {
-        PHASE4_HIERARCHY_MIN_TOTAL_DESIGNS.div_ceil(scenario_count)
+        PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO
     } else {
         1
     };
@@ -3688,10 +3688,12 @@ mod tests {
     fn phase4_hierarchy_gate_raises_designs_per_scenario_for_matrix() {
         let mut cli = test_cli();
         cli.phase4_hierarchy_gate = true;
+        let scenarios =
+            build_scenarios(0, ScenarioSet::Phase4Hierarchy).expect("build phase4 scenarios");
 
-        let plan = derive_run_plan(&cli, 30);
+        let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 120);
+        assert_eq!(plan.total_modules, 168);
         assert!(plan.fail_on_coverage_gap);
     }
 

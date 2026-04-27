@@ -529,55 +529,42 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
 records:
 
-- `33` scenarios
+- `42` scenarios
 - `4` designs per scenario
-- `132` total designs
+- `168` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 132/0`
-- `Yosys without-abc pass/fail = 132/0`
-- `Yosys with-abc pass/fail = 132/0`
+- `Verilator pass/fail = 168/0`
+- `Yosys without-abc pass/fail = 168/0`
+- `Yosys with-abc pass/fail = 168/0`
 
 That refreshed report is the latest fully banked repo-owned Phase 4
-artifact, not only the older wrapper baseline. It covers the
-pre-parent-output-helper hierarchy surface: the broadened
-`--num-child-instances` planner,
-bounded recursive depth `2`, child-instance profiles `2`, `4`, `2:3`,
-and `1:3`, the mixed recursive depth-range profile `2:3`, the
-per-depth override profile `0=4:4,1=2:2`, the explicit hierarchy
-  child-sourcing modes `library` and `on-demand`, exact profiled
-  child-interface synthesis in the on-demand lane, real mixed
-  shallow/deep leaf realization, real parent-side composition above
-  instance outputs, real sibling-routed hierarchy child inputs, and real
-  parent-composed child-input bindings, plus explicit parent-local flop
-  state, registered sibling-routed child-input bindings, and registered
-  parent-composed child-input bindings, registered mixed-support
-  child-input bindings, multi-stage registered parent-composed
-  child-input bindings, mixed parent-port / child-output parent outputs,
-  parent-cone helper-instance child-input bindings, and generator-global
-  module-name allocation.
-Current HEAD also has focused parent-output helper-instance support
-after the `r21` bank: the Phase 4 matrix plan now has a dedicated
-parent-output helper axis, and
-`cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`
-proves `top_outputs_reaching_parent_cone_instances > 0` without
-depending on child-input helper bindings.
-Current HEAD also has focused budgeted helper support after the `r21`
-bank: the Phase 4 matrix plan now has a dedicated budget-3 helper axis,
-and `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
-proves `top_parent_cone_instances = 3` and
-`max_parent_cone_instances_per_internal_module = 3`.
-Current HEAD also has focused registered helper support after the `r21`
-bank: the Phase 4 matrix plan now has a dedicated registered
-parent-cone helper axis, and
-`cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
-proves registered parent-composed child-input D cones can depend on
-helper outputs through
-`child_input_bindings_from_registered_parent_cone_instances > 0`.
-The focused clean
+artifact, not only the older wrapper baseline. It covers the broadened
+`--num-child-instances` planner, bounded recursive depth `2`,
+child-instance profiles `2`, `4`, `2:3`, and `1:3`, the mixed
+recursive depth-range profile `2:3`, the per-depth override profile
+`0=4:4,1=2:2`, the explicit hierarchy child-sourcing modes `library`
+and `on-demand`, exact profiled child-interface synthesis in the
+on-demand lane, real mixed shallow/deep leaf realization, real
+parent-side composition above instance outputs, real sibling-routed
+hierarchy child inputs, parent-composed child-input bindings, explicit
+parent-local flop state, registered sibling-routed child-input
+bindings, registered parent-composed child-input bindings, registered
+mixed-support child-input bindings, multi-stage registered
+parent-composed child-input bindings, mixed parent-port / child-output
+parent outputs, parent-cone helper-instance child-input bindings,
+parent-output helper-instance composition, budgeted helper allocation,
+registered helper-sourced child-input D cones, and generator-global
+module-name allocation.
+
+The older `r21` full bank remains useful historical evidence for the
+pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
+root-cause evidence only: a stale total-design budget produced
+`42` scenarios at `3` designs/scenario (`126` total). The live Phase 4
+gate now enforces a direct `4` designs/scenario floor. The focused clean
 proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
 `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,

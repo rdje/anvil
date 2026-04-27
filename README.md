@@ -248,58 +248,68 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r21`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23`. Its final
 `tool_matrix_report.json` records:
 
-- `33` scenarios
+- `42` scenarios
 - `4` designs per scenario
-- `132` total designs
+- `168` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 132/0`
-- `Yosys without-abc pass/fail = 132/0`
-- `Yosys with-abc pass/fail = 132/0`
+- `Verilator pass/fail = 168/0`
+- `Yosys without-abc pass/fail = 168/0`
+- `Yosys with-abc pass/fail = 168/0`
+- `saw_hierarchy_parent_cone_instance_outputs = true`
+- `saw_multiple_parent_cone_instances_per_parent = true`
+- `saw_hierarchy_registered_parent_cone_instance_routing = true`
+- `saw_hierarchy_parent_cone_instance_routing = true`
 - `saw_hierarchy_parent_port_composed_outputs = true`
 - `saw_hierarchy_registered_mixed_support_routing = true`
 - `saw_hierarchy_registered_multistage_routing = true`
-- `saw_hierarchy_parent_cone_instance_routing = true`
+- `saw_hierarchy_parent_local_flops = true`
+- `saw_profiled_child_interface_synthesis = true`
+- `saw_on_demand_child_sourcing = true`
 
 That refreshed report is the latest fully banked repo-owned Phase 4
 closure artifact, not only the older wrapper baseline. It covers the
-pre-parent-output-helper hierarchy surface: the broadened
-`--num-child-instances`
-planner directly, and it also proves the current recursive hierarchy
-surface directly: depth `2`, mixed recursive depth range `2:3`,
-child-instance profiles `2`, `4`, `2:3`, and `1:3`, the per-depth
-override profile `0=4:4,1=2:2`, real recursive design emission, real
-per-depth branching metrics, real mixed shallow/deep recursive
-realization, real parent-side composition above instance outputs, and
-the explicit hierarchy child-sourcing axis
-`--hierarchy-child-source-mode <library|on-demand>`, including exact
-profiled child-interface synthesis in the on-demand lane, plus real
-sibling-routed hierarchy child inputs and parent-composed child-input
-bindings proved numerically, plus registered sibling-routed hierarchy
-child inputs through parent-local state, plus registered
-parent-composed child-input bindings through parent logic and
-parent-local state, plus registered mixed-support child-input binding,
-multi-stage registered parent-composed child-input binding, mixed
-parent-port / child-output parent outputs, and explicit local parent
-flops in hierarchy modules.
-The focused clean
+current representative hierarchy surface: the broadened
+`--num-child-instances` planner directly, bounded recursive depth `2`,
+mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
+`2:3`, and `1:3`, the per-depth override profile `0=4:4,1=2:2`, the
+explicit hierarchy child-sourcing axis
+`--hierarchy-child-source-mode <library|on-demand>`, exact profiled
+child-interface synthesis in the on-demand lane, real recursive design
+emission, real per-depth branching metrics, real mixed shallow/deep
+recursive realization, real parent-side composition above instance
+outputs, real sibling-routed hierarchy child inputs and
+parent-composed child-input bindings, registered sibling-routed
+hierarchy child inputs, registered parent-composed child-input
+bindings, registered mixed-support child-input binding, multi-stage
+registered parent-composed child-input binding, mixed parent-port /
+child-output parent outputs, explicit local parent flops in hierarchy
+modules, parent-cone helper-instance child-input binding,
+parent-output helper-instance composition, budgeted multi-helper
+allocation, and registered helper-sourced child-input D cones.
+
+The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
+kept only as root-cause evidence: the stale total-design budget let the
+42-scenario gate run `3` designs/scenario (`126` total). The live gate
+now uses a `4` designs/scenario floor directly, so future scenario-count
+growth cannot silently weaken the Phase 4 matrix. The focused clean
 smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-under-smoke-r2`,
 `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-range-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, and
+`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
 `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
-still remain
-useful targeted proof points. The aborted `r8` rerun is now only
-historical runtime evidence: it showed that the Phase 4 gate should use
-a hierarchy-focused sequential leaf profile instead of reusing the
-fattest Phase 1 motif-heavy sequential stress shape.
+still remain useful targeted proof points. The older `r21` report is
+historical pre-parent-output-helper evidence. The aborted `r8` rerun is
+now only historical runtime evidence: it showed that the Phase 4 gate
+should use a hierarchy-focused sequential leaf profile instead of
+reusing the fattest Phase 1 motif-heavy sequential stress shape.
 
 `tool_matrix` writes per-module or per-design checkpoint sidecars and
 supports `--resume`, so interrupted output trees can be continued in
@@ -491,7 +501,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -499,120 +509,16 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent-composed child-input binding, registered mixed-support
   child-input binding, multi-stage registered parent-composed
   child-input binding, mixed parent-port / child-output parent outputs,
-  parent-cone helper-instance child-input binding,
-  parent-local flop state, and
-  per-depth-override profiles folded into `tool_matrix`,
-  while the
-  focused smokes
-  at
-  `/tmp/anvil-hier-range-smoke-r1/manifest.json` and
-  `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json` remain useful
-  targeted proofs. The latter proves depth-specific branching control
-  numerically with
-  `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
-  `avg_child_instances_by_parent_depth = {"0": 4.0, "1": 2.0}`,
-  `hierarchy_parent_composed_outputs = 36`, and
-  `top_parent_composed_outputs = 18`. Current HEAD now also has focused
-  mixed-depth recursive proof at
-  `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, where the
-  design metrics show
-  `realized_min_leaf_depth = 2`,
-  `realized_max_leaf_depth = 3`, and
-  `leaf_module_occurrences_by_depth = {"2": 2, "3": 4}` with clean
-  Verilator plus both repo-owned Yosys modes. Current HEAD also has a
-  focused clean profiled on-demand proof at
-  `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`, where
-  the design metrics show `num_profiled_instance_slots = 3`,
-  `profiled_instance_fraction = 1.0`,
-  `profiled_instantiated_module_fraction = 1.0`, and
-  `dep_bearing_child_input_binding_fraction = 1.0`. Current HEAD also
-  has a focused clean parent-composed child-input proof at
-  `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`, where the
-  design metrics show
-  `child_input_bindings_from_parent_composed_logic = 13` and
-  `parent_composed_child_input_binding_fraction = 0.9285714285714286`.
-  Current HEAD also has a focused clean parent-cone helper-instance
-  proof at `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json`,
-  where the design metrics show `top_parent_cone_instances = 1`,
-  `hierarchy_parent_cone_instances = 1`,
-  `child_input_bindings_from_parent_cone_instances = 4`,
-  `top_child_input_bindings_from_parent_cone_instances = 4`,
-  `parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`,
-  and
-  `top_parent_cone_instance_child_input_binding_fraction = 0.4444444444444444`.
-  Current HEAD also has a focused clean parent-output helper-instance
-  proof through
-  `cargo test hierarchy_parent_outputs_can_depend_on_helper_instance_outputs`,
-  where the design metrics show helper instances are additional to the
-  planned child slots and top outputs reach those helper outputs through
-  `top_outputs_reaching_parent_cone_instances` /
-  `hierarchy_outputs_reaching_parent_cone_instances`.
-  Current HEAD also has a focused clean budgeted helper proof through
-  `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`,
-  where `--max-parent-cone-instances-per-module 3` produces
-  `top_parent_cone_instances = 3` and
-  `max_parent_cone_instances_per_internal_module = 3`.
-  Current HEAD also has a focused clean registered helper proof through
-  `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`,
-  where registered parent-composed child-input D cones depend on
-  helper-instance outputs. The metrics prove this through
-  `child_input_bindings_from_registered_parent_cone_instances`,
-  `top_child_input_bindings_from_registered_parent_cone_instances`,
-  `registered_parent_cone_instance_child_input_binding_fraction`, and
-  `top_registered_parent_cone_instance_child_input_binding_fraction`.
-  Current HEAD also has a focused clean parent-state proof at
-  `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`, where the
-  design metrics show `hierarchy_parent_local_flops = 8`,
-  `top_local_flops = 8`, `top_clock_inputs = 1`,
-  `top_reset_inputs = 1`, and
-  `child_input_bindings_from_parent_flops = 1`.
-  Current HEAD also has a focused clean registered parent-composed
-  child-input proof at
-  `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
-  where the design metrics show
-  `child_input_bindings_from_registered_parent_composed_logic = 3`,
-  `top_child_input_bindings_from_registered_parent_composed_logic = 3`,
-  `registered_parent_composed_child_input_binding_fraction = 0.75`,
-  `top_registered_parent_composed_child_input_binding_fraction = 0.75`,
-  and `hierarchy_parent_local_flops = 3`.
-  Current HEAD also has a focused clean registered mixed-support
-  child-input proof at
-  `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
-  where the design metrics show
-  `child_input_bindings_from_registered_mixed_support = 3`,
-  `top_child_input_bindings_from_registered_mixed_support = 3`, and
-  `registered_mixed_support_child_input_binding_fraction = 0.75`.
-  Current HEAD also has a focused clean multi-stage registered
-  parent-composed child-input proof at
-  `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
-  where the design metrics show
-  `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
-  `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
-  and
-  `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`.
-  Current HEAD also has a focused clean mixed parent-output proof at
-  `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, where
-  the design metrics show `top_parent_port_composed_outputs = 8`,
-  `hierarchy_parent_port_composed_outputs = 8`,
-  `top_outputs_reaching_instance_outputs = 8`, and
-  `top_outputs_without_instance_outputs = 0`.
-  Earlier current-code coverage-only Phase 4 matrix probes at
-  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
-  `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
-  and
-  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
-  and
-  `/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
-  remain useful focused policy breadcrumbs, but the full
-  downstream-clean `r21` bank above now carries those coverage facts with
-  Verilator and both repo-owned Yosys modes enabled.
-  Current HEAD has also added repo-owned Phase 4 matrix scenarios for
-  parent-output helper-instance composition, budgeted helper
-  allocation, and registered helper-sourced child-input D cones; the
-  next full Phase 4 bank should refresh the historical `r21` counts
-  from 33 scenarios / 132 designs to the now-planned 42 scenarios /
-  168 designs.
-  The next honest
+  parent-cone helper-instance child-input binding, parent-output
+  helper-instance composition, budgeted multi-helper allocation,
+  registered helper-sourced child-input D cones, parent-local flop
+  state, and per-depth-override profiles folded into `tool_matrix`,
+  with `42` scenarios, `168` total designs, `coverage_gaps = []`, and
+  `168/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  The older `r21` report remains useful historical evidence for the
+  pre-parent-output-helper surface, and the clean `r22` run records the
+  pre-fix 126-design budget mismatch. The live gate now preserves four
+  designs per Phase 4 scenario directly. The next honest
   work is deeper hierarchy capability beyond the banked gate:
   broader helper-instance placement beyond the current unregistered
   child-input, registered child-input, parent-output, and

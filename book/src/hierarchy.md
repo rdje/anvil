@@ -411,14 +411,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
-- `33` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
+- `42` scenarios
 - `4` designs/scenario
-- `132` total designs
+- `168` total designs
 - `coverage_gaps = []`
-- `Verilator 132/0`
-- `Yosys without-abc 132/0`
-- `Yosys with-abc 132/0`
+- `Verilator 168/0`
+- `Yosys without-abc 168/0`
+- `Yosys with-abc 168/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -430,28 +430,20 @@ child-instance profiles `2`, `4`, `2:3` and `1:3`, the per-depth
 override profile `0=4:4,1=2:2`, real per-depth branching metrics, real
 mixed shallow/deep recursive realization, real on-demand child
 sourcing, exact profiled child-interface synthesis in the on-demand
-lane, real sibling-routed hierarchy child inputs, and real parent-side
-composition above instance outputs, plus mixed parent-port /
-child-output parent outputs, plus real parent-composed child-input
-bindings, plus registered sibling-routed child-input bindings, plus
-registered parent-composed child-input bindings, plus registered
-mixed-support child-input bindings that mix parent ports with child
-outputs, plus multi-stage registered parent-composed child-input
-bindings that chain through earlier parent-local Qs, plus real local
-parent flops, plus parent-cone helper instances sourcing
-parent-composed child-input bindings. Current HEAD also adds a focused
-parent-output helper-instance slice after that `r21` bank: parent-output
-cones can instantiate a helper child as an internal parent-cone source,
-the Phase 4 scenario set now includes a dedicated
-`phase4_hier2_inst4_parent_output_cone_instance` axis. It also adds a
-budgeted helper slice through
-`max_parent_cone_instances_per_module`, with a dedicated
-`phase4_hier2_inst4_parent_cone_instance_budget3` axis. Current HEAD
-also adds registered helper-sourced child-input D cones, with a
-dedicated
-`phase4_hier2_inst4_registered_parent_cone_instance_state` axis. The
-next full bank should refresh the historical `r21` counts from 33
-scenarios / 132 designs to 42 scenarios / 168 designs. The focused
+lane, real sibling-routed hierarchy child inputs, real parent-side
+composition above instance outputs, mixed parent-port / child-output
+parent outputs, real parent-composed child-input bindings, registered
+sibling-routed child-input bindings, registered parent-composed
+child-input bindings, registered mixed-support child-input bindings
+that mix parent ports with child outputs, multi-stage registered
+parent-composed child-input bindings that chain through earlier
+parent-local Qs, real local parent flops, parent-cone helper instances
+sourcing parent-composed child-input bindings, parent-output helper
+instance composition, budgeted multi-helper allocation, and registered
+helper-sourced child-input D cones. The older `r21` bank remains
+historical pre-parent-output-helper evidence; the clean `r22` run is
+root-cause evidence for the stale 126-design budget mismatch that the
+per-scenario Phase 4 gate floor now prevents. The focused
 proof artifact for that composed-parent
 behavior remains:
 
@@ -533,7 +525,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r21` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
@@ -546,7 +538,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r21` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
@@ -560,7 +552,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r21` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
@@ -588,8 +580,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r21` closes them cleanly
-  with `coverage_gaps = []` and `132/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23` closes them cleanly
+  with `coverage_gaps = []` and `168/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -599,9 +591,10 @@ local proofs remain useful:
   bank, `r17` is the pre-registered-parent-composed-route bank, `r19`
   is the pre-full parent-port / registered-mixed / multi-stage bank,
   `r20` is the pre-parent-cone helper-instance bank, `r21` is the
-  latest full downstream-clean hierarchy bank, and
-  the aborted `r8` rerun is
-  historical evidence that the Phase 4 gate should use a
+  historical pre-parent-output-helper full bank, `r22` is the clean but
+  insufficient 126-design pre-fix budget-mismatch run, `r23` is the
+  latest full downstream-clean hierarchy bank, and the aborted `r8`
+  rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.
 

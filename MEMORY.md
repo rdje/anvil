@@ -3,7 +3,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- Latest documentation-continuity slice combines the README/session
+- Latest Phase 4 hierarchy gate refresh fixes the gate budget so the
+  repo-owned hierarchy matrix preserves four designs per scenario. The
+  corrected full downstream-clean bank is now
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`:
+  42 scenarios, 4 designs/scenario, 168 total designs,
+  `coverage_gaps = []`, and 168/0 pass-fail in Verilator plus both
+  repo-owned Yosys modes. The clean pre-fix `r22` run is root-cause
+  evidence only: the stale 120-design total floor produced 42 scenarios
+  at 3 designs/scenario, or 126 total designs.
+- Prior documentation-continuity slice combines the README/session
   bootstrap drift fix with the purpose-terminology clarification. The
   live docs now align `src/metrics.rs` probability-roll telemetry with
   `Module::knob_rolls`, refresh relevant test-count/source-state
@@ -285,18 +294,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `top_outputs_reaching_parent_cone_instances > 0`
   - `hierarchy_outputs_reaching_parent_cone_instances > 0`
   - `top_parent_cone_instance_output_fraction > 0.0`
-  The repo-owned Phase 4 scenario set now has a dedicated
-  `phase4_hier2_inst4_parent_output_cone_instance` axis for the next
-  full bank; the latest full downstream-clean bank remains `r21`.
+  This route is now banked in the full `r23` Phase 4 matrix through the
+  dedicated `phase4_hier2_inst4_parent_output_cone_instance` axis.
 - The focused proof for the new parent-cone helper budget slice is
   `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`.
   Its key design metrics are:
   - `top_parent_cone_instances = 3`
   - `max_parent_cone_instances_per_internal_module = 3`
   - `child_input_bindings_from_parent_cone_instances > 0`
-  The repo-owned Phase 4 scenario set now has a dedicated
-  `phase4_hier2_inst4_parent_cone_instance_budget3` axis for the next
-  full bank.
+  This route is now banked in the full `r23` Phase 4 matrix through the
+  dedicated `phase4_hier2_inst4_parent_cone_instance_budget3` axis.
 - The focused proof for the new registered parent-cone helper route
   slice is
   `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`.
@@ -305,13 +312,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `top_child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_registered_parent_cone_instance_child_input_binding_fraction > 0.0`
-  The repo-owned Phase 4 scenario set now has a dedicated
-  `phase4_hier2_inst4_registered_parent_cone_instance_state` axis for
-  the next full bank; together with the parent-output helper and budget
-  helper axes this raises the next planned full bank to 42 scenarios /
-  168 designs.
-- The refreshed repo-owned Phase 4 hierarchy closure report is now `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`: **33 scenarios**, **4 designs/scenario**, **132 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, and **132/0** pass-fail in Verilator plus both repo-owned Yosys modes.
-- That refreshed report covers the real pre-parent-output-helper hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
+  This route is now banked in the full `r23` Phase 4 matrix through the
+  dedicated `phase4_hier2_inst4_registered_parent_cone_instance_state`
+  axis.
+- The refreshed repo-owned Phase 4 hierarchy closure report is now `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`: **42 scenarios**, **4 designs/scenario**, **168 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, and **168/0** pass-fail in Verilator plus both repo-owned Yosys modes.
+- The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22/tool_matrix_report.json` is root-cause evidence only: the stale total-design budget ran 42 scenarios at 3 designs/scenario, or 126 total designs. The live gate now uses a direct four-designs-per-scenario Phase 4 floor.
+- That refreshed report covers the current representative hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
   - `hierarchy_depths = ["1", "2", "2:3"]`
   - `hierarchy_leaf_module_counts = ["0", "2", "4"]`
   - `hierarchy_child_instance_counts = ["1:3", "2", "2:3", "4"]`
@@ -330,6 +336,9 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `saw_hierarchy_registered_mixed_support_routing = true`
   - `saw_hierarchy_registered_multistage_routing = true`
   - `saw_hierarchy_parent_cone_instance_routing = true`
+  - `saw_hierarchy_parent_cone_instance_outputs = true`
+  - `saw_multiple_parent_cone_instances_per_parent = true`
+  - `saw_hierarchy_registered_parent_cone_instance_routing = true`
   - `saw_on_demand_child_sourcing = true`
   - `saw_profiled_child_interface_synthesis = true`
   - `saw_reused_child_definition = true`
@@ -351,8 +360,9 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   first proved the refreshed gate policy also requires
   `saw_hierarchy_parent_cone_instance_routing = true`, with
   `coverage_gaps = []`. Those probes were run with `--skip-verilator
-  --skip-yosys`; the full downstream-clean `r21` bank now carries all
-  four facts with real tool validation.
+  --skip-yosys`; the full downstream-clean `r23` bank now carries those
+  facts plus the newer helper-output, budgeted-helper, and registered
+  helper-route facts with real tool validation.
 - The older `/tmp/anvil-tool-matrix-phase4-hierarchy-r18` report now
   remains useful historical evidence for the first
   registered-parent-composed route bank,
@@ -373,10 +383,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   remains useful historical evidence for the first explicit
   child-sourcing bank, `/tmp/anvil-tool-matrix-phase4-hierarchy-r10`
   is the pre-on-demand mixed-depth bank, `/tmp/anvil-tool-matrix-phase4-hierarchy-r9`
-  is the first mixed-depth recursive bank, and
+  is the first mixed-depth recursive bank, `/tmp/anvil-tool-matrix-phase4-hierarchy-r21`
+  is the historical pre-parent-output-helper full bank,
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` is the clean but
+  insufficient 126-design pre-fix budget-mismatch run, and
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r6` remains historical
   debugging evidence only.
-- The durable runtime lesson from the broadened rerun is now explicit: the hierarchy gate should prove hierarchy structure with a hierarchy-focused sequential leaf profile, not silently borrow the fattest Phase 1 sequential leaf stress shape. The aborted `/tmp/anvil-tool-matrix-phase4-hierarchy-r8` rerun showed the cost of that coupling; the banked `r10` report closes the same hierarchy surface cleanly after decoupling it, and the gate budget was also explicitly raised from 48 to 60 total designs to preserve 4 designs/scenario after the scenario set grew from 15 to 18 entries.
+- The durable runtime lesson from the broadened rerun is now explicit: the hierarchy gate should prove hierarchy structure with a hierarchy-focused sequential leaf profile, not silently borrow the fattest Phase 1 sequential leaf stress shape. The aborted `/tmp/anvil-tool-matrix-phase4-hierarchy-r8` rerun showed the cost of that coupling; the banked `r10` report closes the same hierarchy surface cleanly after decoupling it, and the gate budget was also explicitly raised from 48 to 60 total designs to preserve 4 designs/scenario after the scenario set grew from 15 to 18 entries. The newer `r22` mismatch repeated the same lesson at 42 scenarios: a stale 120-design total floor silently reduced Phase 4 to 3 designs/scenario. `src/bin/tool_matrix.rs` now encodes the policy as a direct 4-designs/scenario Phase 4 floor.
 - The repo-owned `tool_matrix` smoke lane is still green (15/15 clean in Verilator and 15/15 clean in Yosys with warnings treated as failures), the Yosys axis is explicit and clean in both repo-owned sub-modes (`without-abc = 15/15 pass`, `with-abc = 15/15 pass` on the small `--yosys-mode both` probe), the 1000-module Phase 1 gate is closed for real on current code, the dedicated Phase 2 sharing gate is closed, and the dedicated Phase 3 structured-surface gate is closed at `/tmp/anvil-tool-matrix-phase3-structured-r4` with **210** completed checkpoints / **210** emitted `.sv` files, `coverage_gaps = []`, and `210/0` pass-fail in Verilator plus both repo-owned Yosys modes.
 - The strongest no-ABC real frontier still stands at **365** generated modules with **0** Verilator warning logs and **0** Yosys warning lines. The older current-code both-mode `r18` frontier still stands as historical evidence at **372** completed checkpoints / **373** emitted `.sv` files, and the later `/tmp/anvil-tool-matrix-phase1-real-r20` frontier still stands as historical evidence at **570** completed checkpoints / **571** emitted `.sv` files spanning full clean closure through `peephole` plus 34 `e-graph` modules.
 - The completed current-code both-mode Phase 1 tree is `/tmp/anvil-tool-matrix-phase1-real-r21`, fully closed at **1005** completed checkpoints / **1005** emitted `.sv` files with zero warning artifacts and `1005/0` pass/fail in Verilator plus both repo-owned Yosys modes.
@@ -388,13 +401,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Routed registered parent-composed
-  child-input D cones through parent-cone helper instances.
-  `DesignMetrics` records
-  `child_input_bindings_from_registered_parent_cone_instances` plus top
-  and fraction fields, `tool_matrix` has a dedicated registered-helper
-  Phase 4 scenario/coverage fact, and the mdBook/live docs describe the
-  combined knobs, metrics, and recipe.
+- **Last completed slice:** Refreshed the Phase 4 hierarchy gate at
+  full per-scenario depth. `src/bin/tool_matrix.rs` now uses a direct
+  four-designs-per-scenario Phase 4 floor, the live run-plan test
+  expects 42 scenarios / 168 designs, and
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
+  is fully downstream-clean with `coverage_gaps = []` and 168/0
+  Verilator/Yosys pass-fail in all repo-owned lanes.
 - **Prior slice:** Added explicit parent-cone helper budgeting.
   `max_parent_cone_instances_per_module` defaults to `1`, `0` disables
   helper allocation, higher values allow multiple helper children in one
@@ -407,8 +420,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   insertion path can now source parent outputs independently of
   `hierarchy_child_input_cone_prob`, `DesignMetrics` records
   helper-output support for top and hierarchy outputs, and
-  `tool_matrix` has a dedicated Phase 4 scenario/coverage fact for the
-  next full bank.
+  `tool_matrix` has a dedicated Phase 4 scenario/coverage fact now
+  banked in the full `r23` gate.
 - **Earlier slice:** Landed multi-stage registered parent-composed
   hierarchy child-input routing. Later
   `hierarchy_registered_child_input_cone_prob` routes now add an earlier
@@ -420,7 +433,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`.
   The earlier coverage-only proof remains
   `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
-  with `coverage_gaps = []`, now superseded by the full `r21` bank for
+  with `coverage_gaps = []`, now superseded by the full `r23` bank for
   downstream-clean evidence.
 - **Prior slice:** Landed registered mixed-support hierarchy
   child-input routing. `hierarchy_registered_child_input_cone_prob`
@@ -464,9 +477,11 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   Metrics now distinguish this from direct registered sibling routing,
   the focused proof artifact is
   `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
-  and the refreshed repo-owned Phase 4 hierarchy report is now
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`
-  with `coverage_gaps = []`, `132/0` pass-fail in Verilator plus both
+  and the refreshed repo-owned Phase 4 hierarchy report that first
+  banked the route was
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`.
+  The current full `r23` gate supersedes that historical report with
+  `coverage_gaps = []`, `168/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, and saved coverage facts including
   `saw_hierarchy_registered_parent_composed_routing = true`.
 - **Prior slice:** Landed registered sibling routing through
@@ -633,8 +648,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance unregistered child-input, registered child-input D-cone, and parent-output routes, budgeted parent-cone helper allocation, and generator-global module-name allocation are live; the next structural work is broader helper placement and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
-  1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost.** The banked `r21` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget was explicitly raised again as the scenario set grew. Future hierarchy scenarios should preserve that separation of concerns.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance unregistered child-input, registered child-input D-cone, and parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is broader helper placement and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
+  1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r23` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget now directly preserves four designs/scenario as the scenario set grows. Future hierarchy scenarios should preserve both separation-of-concerns and per-scenario evidence density.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
   4. **Memories (medium).** Inferrable single-port / simple-dual-port memory patterns (`reg [W-1:0] mem [0:DEPTH-1]` with an always_ff block driving read/write). Knob for depth range.
@@ -643,6 +658,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `34a420e` — Docs: align ANVIL purpose and continuity notes.
 - `1f8364e` — Route registered child-input cones through helper instances.
 - `7909b30` — Budget parent-cone helper instances.
 - `05a6dfa` — Route parent-output cones through helper instances.
@@ -790,7 +806,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) is met locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`, the Phase 2 sharing exit criterion is met locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`, and the Phase 3 structured-surface gate is met locally via `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`. The next real roadmap gap is therefore deeper Phase 4 hierarchy, not leaf-lane closure.
-- Phase 4 hierarchy is started and has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, generator-global module-name allocation, and local parent state. Current HEAD adds parent-cone helper-instance parent-output routing, budgeted parent-cone helper allocation, and registered helper-sourced child-input D cones after that bank and updates the next matrix plan to 42 scenarios / 168 designs. The roadmap gap is broader helper placement, broader registered hierarchy routing/composition, and future hierarchy-aware identity.
+- Phase 4 hierarchy is started and has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, parent-cone helper-instance parent-output routing, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, generator-global module-name allocation, and local parent state at 42 scenarios / 168 designs. The roadmap gap is broader helper placement, broader registered hierarchy routing/composition, and future hierarchy-aware identity.
 - Parameterization is still not started.
 
 ## Session handoff notes
