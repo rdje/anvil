@@ -5,11 +5,12 @@ what it delivers. These are `anvil`'s non-goals.
 
 ## No bundled oracle, no reference simulator
 
-`anvil` absolutely aims to stress downstream tools and expose bugs in
-them. What it does **not** do is ship a SystemVerilog interpreter, a
-reference simulator, or a golden-model evaluator of its own. Users who
-want differential testing between tools should run Verilator, Icarus,
-or a commercial simulator against the generated output themselves.
+`anvil` can be used to stress downstream HDL tools and expose bugs in
+them, but it does that by generating legal synthesizable inputs. What it
+does **not** do is ship a SystemVerilog interpreter, a reference
+simulator, or a golden-model evaluator of its own. Users who want
+differential testing between tools should run Verilator, Icarus, or a
+commercial simulator against the generated output themselves.
 
 Why: the scope is already large. An oracle doubles the implementation
 effort and introduces a second correctness question (is our
@@ -18,7 +19,7 @@ a bundled simulator.
 
 This is an implementation-boundary statement, not a lowering of the
 quality bar. `anvil` is still intended to generate high-quality legal
-RTL that is clean in downstream tools by default.
+RTL that downstream HDL consumers accept by default.
 
 Expected-facts manifests for specific artifact families are still in
 scope. A manifest that says "these parameter values / generate
@@ -77,11 +78,11 @@ decision.
 would write for a real purpose. The outputs are intentionally
 nonsensical in function, even though they are structurally valid.
 
-Why: constraining output toward "realistic" patterns defeats the
-whole point of random generation, which is to exercise the vast space
-of *unusual but legal* constructs that humans never write. The target
-is adversarial but valid workloads, not realistic business logic. If
-you want realistic RTL, hire an engineer.
+Why: biasing output toward "realistic" patterns defeats the whole point
+of random generation, which is to exercise the vast space of *unusual
+but legal* constructs that humans never write. The target is unusual but
+valid workloads, not realistic business logic. If you want realistic
+RTL, hire an engineer.
 
 ## No attempt at coverage guarantees
 
@@ -91,8 +92,8 @@ and represents what the maintainers have bothered to implement. There
 is no coverage model, no gap analysis, no "we guarantee every
 synthesizable construct appears eventually."
 
-Why: honest scope. Coverage metrics for constrained-random RTL are an
-unsolved research problem.
+Why: honest scope. Coverage metrics for random by-construction RTL are
+an unsolved research problem.
 
 ## No CDC, no multi-clock (until a later dedicated phase)
 

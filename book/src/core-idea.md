@@ -126,8 +126,8 @@ combinational cone terminates at Q, and the flop's D input becomes the
 root of a fresh combinational cone that will be generated later (driven
 by a worklist).
 
-Every choice is a local decision. Every local decision is constrained
-to preserve the invariants we care about:
+Every choice is a local decision. Every local decision is bounded by
+the invariants we care about:
 
 - **Width consistency** — the parent tells the child what width to
   produce; the child's generator is parameterized by that width and
@@ -174,10 +174,10 @@ from `(seed, knobs)`.
 
 - **No oracle.** `anvil` is a generator, not a bundled semantic oracle.
   Downstream users can run Verilator or Yosys against the output for
-  differential/sanity testing; `anvil` does not build a reference
-  simulator. This is a deliberate scope reduction, not a retreat from
-  the goal of generating high-quality RTL that those tools should ingest
-  cleanly.
+  validation, differential checks, or sanity testing; `anvil` does not
+  build a reference simulator. This is a deliberate scope reduction, not
+  a retreat from the goal of generating high-quality RTL that downstream
+  HDL consumers should ingest cleanly.
 - **No grammar.** An annotated EBNF is a valid way to describe this
   generator formally, and attribute grammars would yield an equivalent
   result. But the circuit-graph view is more direct, more visual, and
@@ -194,9 +194,9 @@ from `(seed, knobs)`.
 
 The RTL community is smaller than the C compiler community, and RTL
 semantics are harder (concurrency, synthesis-vs-simulation divergence,
-clocking, reset). Verification has embraced constrained-random
-testbench generation (UVM, SystemVerilog's randomization features) but
-has not applied the same philosophy to the RTL source itself. The
+clocking, reset). Verification has embraced randomized testbench
+generation (UVM, SystemVerilog's randomization features), but the RTL
+source itself still lacks a broad random by-construction generator. The
 tools that exist in this space (commercial IP generators, academic
 fuzzers) either produce narrow patterns or produce mostly-invalid text.
 

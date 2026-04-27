@@ -1,9 +1,99 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-
-## 2026-04-24-boot17 — Route registered child-input cones through helper instances
+## 2026-04-26-doc-continuity-and-purpose — Align docs with live source and ANVIL terminology
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now describes live probability-roll telemetry as sourced from
+  `Module::knob_rolls` and surfaced through `knob_roll_attempts` /
+  `knob_roll_fires`, rather than calling knob-attempt signals a future
+  extension.
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+  now records the hierarchy probability knobs that flow into
+  `m.knob_rolls`, corrects the current per-file unit-test counts for
+  `src/gen/module.rs` and `src/metrics.rs`, and updates the current
+  `cargo test` evidence date.
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+  now includes the live `ConstantProb`, `TerminalReuseProb`, and
+  `HierarchyParentConeInstanceProb` variants in its `KnobId` overview
+  and reflects the current `src/metrics.rs` test count.
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md),
+  [book/src/introduction.md](/Users/richarddje/Documents/github/anvil/book/src/introduction.md),
+  [book/src/faq.md](/Users/richarddje/Documents/github/anvil/book/src/faq.md),
+  and [src/lib.rs](/Users/richarddje/Documents/github/anvil/src/lib.rs)
+  now describe ANVIL as a random by-construction generator of
+  synthesizable SystemVerilog RTL rather than as constrained-random
+  generation.
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
+  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
+  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
+  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md), and
+  mdBook purpose/non-goal chapters now state the distinction between
+  ANVIL's target outputs and its validation tools: Verilator and Yosys
+  check generated HDL acceptance, while the generated artifacts target
+  the broader set of downstream HDL parsers, elaborators, RTL
+  compilers, linters, simulators, synthesis tools, and related
+  consumers.
+- The docs now say ANVIL-generated legal HDL corpora can be used to
+  stress downstream tools, without describing ANVIL itself as primarily
+  a malformed-input fuzzer or generic toolchain stress tester.
+
+**Why**
+
+- The README/session bootstrap deep dive found small factual drift
+  between the live source and the authority documentation. The edits
+  keep the source walk, test-count evidence, and knob telemetry
+  description aligned with current HEAD.
+- The previous wording blurred two separate ideas: ANVIL generates legal
+  synthesizable HDL artifacts, and those artifacts can be used to
+  exercise downstream tools. The user clarified that Verilator/Yosys are
+  validation tools in the repo, not the project target itself, and that
+  "constrained-random" is misleading without user-authored constraints.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- Recovery documentation now represents the completed source-bootstrap
+  and terminology work as one truthful commit, with the previous
+  hierarchy slice anchored to its real commit hash.
+- Cold-start readers get current wording for ANVIL's purpose,
+  downstream-tool target class, validation-tool role, knob telemetry,
+  and test-count/source-state notes before the next Phase 4 lane
+  continues.
+- No generator behavior changed; this is a documentation, Rustdoc, and
+  source-comment alignment slice.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/core-idea.md](/Users/richarddje/Documents/github/anvil/book/src/core-idea.md)
+- [book/src/faq.md](/Users/richarddje/Documents/github/anvil/book/src/faq.md)
+- [book/src/introduction.md](/Users/richarddje/Documents/github/anvil/book/src/introduction.md)
+- [book/src/non-goals.md](/Users/richarddje/Documents/github/anvil/book/src/non-goals.md)
+- [src/lib.rs](/Users/richarddje/Documents/github/anvil/src/lib.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+
+## 2026-04-24-boot17 — Route registered child-input cones through helper instances
+**Landed as:** `1f8364e`
 
 **What changed**
 

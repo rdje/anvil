@@ -421,8 +421,8 @@ The current Phase 4 slice now has two planning lanes:
 
 ## Tool matrix sweeps
 
-For a broader repo-owned downstream sweep, use the dedicated matrix
-harness:
+For a broader repo-owned downstream-validation sweep, use the dedicated
+matrix harness:
 
 ```bash
 cargo run --bin tool_matrix -- --out ./tool-matrix
@@ -440,10 +440,11 @@ What it does:
   identity mode, factorization level, and two stress profiles
   (share-heavy comb-only, motif-heavy sequential);
 - generates a per-scenario corpus under `./tool-matrix/<scenario>/`;
-- runs Verilator and Yosys on every generated artifact;
+- runs Verilator and Yosys as validation tools on every generated
+  artifact;
 - writes `./tool-matrix/tool_matrix_report.json` with per-artifact tool
   results, aggregated metrics, and coverage facts; and
-- exits non-zero if either downstream tool fails on any generated
+- exits non-zero if either validation tool fails on any generated
   artifact.
 
 Useful options:
@@ -479,7 +480,7 @@ Useful options:
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
-  downstream consumer.
+  validation tool.
 
 Current local smoke status after the full current-code Phase 1 closure:
 the built-in matrix is 15/15 clean in Verilator and 15/15 clean in

@@ -21,8 +21,13 @@ The current architecture is well matched to ANVIL's direction:
 - explicit knob/control plumbing in `config.rs`; and
 - a deliberately dumb SV emitter in `emit/sv.rs`.
 
-That is the right base for a signoff-grade random synthesizable RTL
-generator. The work still required falls into four explicit gaps:
+That is the right base for a random by-construction, signoff-grade
+synthesizable RTL generator. In this terminology, Verilator and Yosys
+are validation tools used by this repository to check generated HDL
+acceptance; the generated artifacts themselves target the broader class
+of downstream HDL consumers such as parsers, elaborators, RTL compilers,
+linters, simulators, and synthesis tools. The work still required falls
+into four explicit gaps:
 
 1. **Feature breadth / legal surface area / artifact-family breadth**
    The active generator is still grounded in the Phase 1/2/3
@@ -48,7 +53,7 @@ generator. The work still required falls into four explicit gaps:
    sharing pass, but "same expression anywhere in the cone forest means
    same `NodeId`" is not yet fully true for stronger sequential
    equivalence or future hierarchical objects.
-3. **Tool-clean confidence still needs broader automation beyond current phase gates**
+3. **Downstream-acceptance confidence still needs broader automation beyond current phase gates**
    The repo now has strong internal validation and strong local smoke
    evidence. That includes a real `tool_matrix --phase1-gate` frontier
    pushed to 365 warning-clean modules in the older no-ABC lane, a
@@ -76,8 +81,9 @@ generator. The work still required falls into four explicit gaps:
    `/tmp/anvil-tool-matrix-phase4-hierarchy-r21` with 132/0 in
    Verilator plus both repo-owned Yosys modes. So closure evidence now
    exists for the current Phase 1-4 surfaces; the remaining confidence
-   gap is broader automation for future phases, richer knob sweeps, and
-   the larger artifact-family space implied by the signoff-grade goal.
+   gap is broader validation automation for future phases, richer knob
+   sweeps, and the larger artifact-family space implied by the
+   signoff-grade goal.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
@@ -551,7 +557,7 @@ In code (constructors / generator):
 - Associative operators (`And`, `Or`, `Xor`, `Add`, `Mul`) are N-arity with N drawn from `[cfg.min_gate_arity, cfg.max_gate_arity]` each emission. `Sub` stays strictly 2-arity (not associative). Non-operators retain their natural operand counts. See `book/src/structural-rules.md` Rule 14 and the "Operators vs blocks" preamble.
 - The full catalog of enforced invariants lives in `book/src/structural-rules.md`. This file's invariants lists above are a summary with pointers to the catalog.
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
-- `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`.
+- `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. Hierarchy binding helpers separately record the hierarchy probability knobs into the same `m.knob_rolls` sink: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 - `Config::validate()` still enforces the legacy exact wrapper lane
   (`hierarchy_depth ∈ {0,1}`, `num_leaf_modules >= 1` when exact
@@ -602,13 +608,13 @@ In `ir::validate::validate_design`:
 - `src/gen/cone.rs` — 40 inline unit tests covering flop assemblers, `ceil_log2`, `pick_mux_arm_count`, width-adapter cases, comb-mux generation, DAG-sharing sanity, anti-collapse, dep-bearing terminal picking, coefficient-width clamping, dynamic overshift proofs, exact small-set budgeting, support caps, priority-encoder width-domain guards, selectable Slice/Concat shape guards, CLI alias behavior, and category / leaf-knob exercise coverage.
 - `src/gen/mod.rs` — 1 inline unit test proving that a saved generator checkpoint reproduces the exact next module after restore.
 - `src/gen/hierarchy.rs` — 6 inline unit tests covering control-port propagation, exact-profiled parent module shaping, recursive depth ranges, per-depth branching overrides, and current recursive hierarchy invariants.
-- `src/gen/module.rs` — 2 inline unit tests covering primary-input width shrinking and the "do not shrink full-width non-slice uses" guard.
+- `src/gen/module.rs` — 4 inline unit tests covering primary-input width shrinking, the "do not shrink full-width non-slice uses" guard, instance-input binding width preservation, and the orphan-gate consumer audit for instance inputs.
 - `src/emit/sv.rs` — 17 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, constant-slice folding to legal literals, Mux ternary form, both procedural case surfaces, the procedural bounded `for` surface, explicit unconnected child-output emission (`.port()`), and the exact hierarchy control-port doctrine for comb-only wrappers, direct sequential wrappers, and grandparent wrappers.
-- `src/metrics.rs` — 14 inline unit tests for empty-module, per-kind gate, flop-shape metrics, constant-vs-variable shift-rhs classification, and hierarchy design metrics for reuse, under-instantiation, parent-side composition, parent-cone helper-instance output support, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, bounded recursive tree shape, per-depth branching profiles, and profiled on-demand interface realization.
+- `src/metrics.rs` — 15 inline unit tests for empty-module, per-kind gate, flop-shape metrics, constant-vs-variable shift-rhs classification, and hierarchy design metrics for reuse, under-instantiation, parent-side composition, parent-cone helper-instance output support, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, bounded recursive tree shape, per-depth branching profiles, and profiled on-demand interface realization.
 - `src/ir/compact.rs` — 25 inline unit tests for bounded semantic gate merge, endpoint-aware state merge, relaxed-mode bypass, reset-signature separation, self-feedback non-merge, cleanup exact-proof eligibility caps, the landed `ForFold` exact evaluator, late mixed-constant cleanup on the settled graph, no-op compaction, orphan removal, dead-flop removal, strict post-remap duplicate protection, instance-input remapping during compaction, topological-order preservation, and the large-low-support semantic-merge budget guard.
 - `src/bin/tool_matrix.rs` — 26 inline unit tests covering scenario-name uniqueness, full factorization-rung coverage, full construction-strategy coverage, coverage-gap detection, the Phase-1 / Phase-2 / Phase-3 / Phase-4 gate run-plan math, representative `share_prob`-sweep coverage, Phase-3 structured-surface coverage, the refreshed Phase-4 hierarchy coverage facts (wrapper and recursive depths, child-instance profiles, per-depth override profiles, reuse, under-instantiation, mixed parent-output coverage, parent-cone helper-output coverage, registered helper-sourced child-input coverage, registered mixed-support routing coverage, multi-stage registered routing coverage, recursive fact derivation from `DesignMetrics`), design-level metrics/report embedding, design-level Yosys invocation shaping, legacy `.sv` bootstrap resume, same-binary generator-checkpoint resume for both module and design artifacts, `sv`-hash mismatch rejection, and legacy-checkpoint upgrade.
 - `tests/pipeline.rs` — 50 integration tests covering cross-seed validity, reproducibility across strategies, motif sweeps, both constant- and variable-shift surfaces, the landed procedural case/casez/for-fold surfaces, the landed selectable `Slice` / `Concat` surface, the hierarchy surface (legacy depth-1 wrapper exact/reuse/under-instantiation plus bounded recursive tree shape, per-depth branching profiles, exact profiled on-demand child interfaces, sibling-routed child inputs, parent-composed child-input bindings, parent-cone helper-instance child-input bindings, parent-cone helper-instance parent-output composition, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, local parent flops, registered sibling-routed child-input bindings, registered parent-composed child-input bindings, registered mixed-support child-input bindings, multi-stage registered parent-composed child-input bindings, mixed parent-port / child-output parent outputs, and module-name uniqueness across batched hierarchy designs), the first parent-side composition surface over child outputs, all live gate categories, zero-orphan / zero-duplicate-operand doctrine guards, input-surface finalisation, associative / constant-fold / peephole / compaction counters, and knob-roll telemetry.
-- Current executed counts (`cargo test`, 2026-04-24): **218 unit-target tests + 50 integration tests = 268 passing tests**. Doc-tests: 0.
+- Current executed counts (`cargo test`, 2026-04-26): **218 unit-target tests + 50 integration tests = 268 passing tests**. Doc-tests: 0.
 - No external Verilator / Yosys smoke tests are wired into `cargo test`
   yet. A repo-owned `tool_matrix` harness now exists for broader
   sweeps; the smoke matrix is green, the full current-code Phase 1

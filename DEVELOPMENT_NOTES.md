@@ -39,17 +39,19 @@ These are documented in detail in the mdBook. They are restated here only as anc
   rules.** No bundled oracle. Expected-facts manifests for specific
   artifact families are acceptable; a shadow simulator used as a global
   filter is not. See `book/src/non-triviality.md`.
-- **Signoff-grade adversarial RTL is the product goal.** `anvil` is not
-  trying to be merely "valid enough". The target is a signoff-level
-  quality random synthesizable RTL generator whose outputs are clean in
-  mainstream downstream tools by default and still adversarial enough to
-  expose real bugs in them. Feature growth and clean-run robustness are
-  both first-class; neither is optional garnish for the other.
+- **Random by-construction synthesizable RTL is the product goal.**
+  `anvil` is not trying to be merely "valid enough". The target is a
+  signoff-level quality random synthesizable RTL generator whose outputs
+  are accepted by mainstream downstream HDL consumers by default and
+  remain rich enough to expose real bugs in parsers, elaborators, RTL
+  compilers, linters, simulators, synthesizers, and similar tools.
+  Feature growth and downstream-acceptance robustness are both
+  first-class; neither is optional garnish for the other.
 - **No oracle, no reference simulator.** `anvil` is still a generator,
-  not a bundled shadow simulator. The way it stresses downstream tools
-  is by emitting high-quality legal RTL and explicit expected-facts
-  contracts where appropriate, not by embedding a second implementation
-  of RTL semantics. See `book/src/non-goals.md`.
+  not a bundled shadow simulator. It can stress downstream tools by
+  emitting high-quality legal RTL and explicit expected-facts contracts
+  where appropriate, not by embedding a second implementation of RTL
+  semantics. See `book/src/non-goals.md`.
 
 If you need to revise any of these, that is a deliberate task with its own commit and a `DEVELOPMENT_NOTES.md` entry.
 
@@ -1171,29 +1173,53 @@ This is the pattern to keep following for the NodeId-identity roadmap:
 when equivalent local forms are discovered in emitted SV, first ask
 whether they should have already become the same node in the IR.
 
-### Signoff-quality and bug-finding are not competing goals (2026-04-20)
+### Signoff-quality and downstream-tool exercise are not competing goals (2026-04-20, refined 2026-04-26)
 
-The user clarified the product direction explicitly:
+The user clarified the product direction explicitly, and later refined
+the terminology around it:
 
-- `anvil` should become a signoff-level quality random synthesizable
-  RTL generator;
-- generated modules should be clean in tools like Verilator and Yosys
-  by default; and
-- `anvil` should still be strong enough to break downstream parsers,
-  elaborators, synthesizers, and similar consumers.
+- `anvil` should become a signoff-level quality random
+  by-construction synthesizable RTL generator;
+- generated HDL artifacts should be accepted by downstream HDL
+  consumers by default; and
+- `anvil` corpora should still be rich enough to exercise parsers,
+  elaborators, RTL compilers, linters, simulators, synthesizers, and
+  similar consumers.
 
-Those statements are compatible. The project is **not** trying to find
+Those statements are compatible. The project is **not** trying to expose
 tool bugs by emitting junk, malformed syntax, or semantically dubious
-RTL. The intended bug-finding power comes from breadth, interaction
+RTL. The downstream-tool exercise value comes from breadth, interaction
 richness, factorization pressure, stateful motifs, hierarchy, memories,
-and other legal-but-hard combinations that real tools should accept.
+and other legal-but-hard combinations that downstream HDL consumers
+should accept. Verilator and Yosys are repository validation tools for
+that acceptance promise, not the only product targets.
 
 When choosing between slices, prefer work that strengthens one of these
 two axes without regressing the other:
 
 1. broader / harder legal design space; or
 2. stronger confidence that generated output is clean and robust in
-   downstream tools.
+   downstream HDL consumers.
+
+### Purpose terminology clarification (2026-04-26)
+
+The user clarified the wording around ANVIL's purpose:
+
+- avoid calling ANVIL "constrained-random" unless that term is
+  explicitly redefined away from SystemVerilog/UVM-style user-authored
+  constraints or solver-driven randomization;
+- the preferred short description is **random by-construction
+  synthesizable SystemVerilog RTL generator**;
+- ANVIL targets generated HDL artifacts that downstream consumers can
+  accept: parsers, elaborators, RTL compilers, linters, simulators,
+  synthesizers, and related tools;
+- Verilator and Yosys are repository validation tools for syntax,
+  elaboration/lint, and synthesis acceptability, not the only product
+  targets; and
+- ANVIL-generated corpora can still be used to stress downstream tools,
+  but that is a use of the legal generated artifacts, not a license to
+  describe ANVIL as primarily a malformed-input fuzzer or generic
+  toolchain stress tester.
 
 ### Verbatim user doctrine: structure over intended functionality (2026-04-20)
 

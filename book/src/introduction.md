@@ -15,10 +15,12 @@ one or many SystemVerilog modules that are guaranteed to:
    constant.
 
 What it emits is random, not meaningful. A gate computing `(a + b) & c`
-with no coherent design intent. That is the point: `anvil` is for
-**stress-testing tools** (parsers, elaborators, simulators,
-synthesizers, formal equivalence checkers) and for **generating
-synthetic corpora** — not for synthesizing real designs.
+with no coherent design intent. That is the point: `anvil` generates
+**synthetic corpora of legal synthesizable HDL** for downstream
+consumers such as parsers, elaborators, RTL compilers, linters,
+simulators, formal frontends, and synthesis tools. Those corpora can be
+used to stress such consumers, but the generated artifacts are legal RTL
+inputs, not malformed fuzz cases and not real designs.
 
 Whole-module intended functionality is usually absent. The target is
 legal structure, not behavior with a specification behind it.
@@ -35,8 +37,8 @@ The quality bar is intentionally high. `anvil` is not trying to become
 "a fuzzer that sometimes emits legal RTL"; it is trying to become a
 **signoff-grade random synthesizable RTL generator**. The interesting
 part is not malformed input. The interesting part is **legal,
-reproducible, unusual RTL** that downstream tools ought to handle
-cleanly, but occasionally do not.
+reproducible, unusual RTL** that downstream HDL consumers ought to
+accept cleanly, but occasionally do not.
 
 ## Who is this for?
 
@@ -47,7 +49,7 @@ cleanly, but occasionally do not.
 - **Researchers** studying RTL optimization, synthesis, or
   verification scaling — `anvil`-generated corpora are
   reproducible-by-seed and size-controllable-by-knob.
-- **Anyone curious about constrained-random RTL generation** as a
+- **Anyone curious about random by-construction RTL generation** as a
   technique. `anvil` is the reference implementation for
   "generation by construction" applied to synthesizable Verilog.
 
@@ -109,8 +111,8 @@ Hand-written test suites are tiny and cluster in the corner of the
 legal space that the author happened to think of.
 
 `anvil` takes a third path: **build a typed circuit graph by
-recursive construction**, where every step is locally constrained to
-preserve the invariants that make the output legal. Then pretty-print
+recursive construction**, where every step is locally bounded by the
+invariants that make the output legal. Then pretty-print
 SystemVerilog from the graph as a final step. No filter loop. No
 generate-then-repair. Validity is structural — the graph *cannot* be
 illegal because there was never a moment in its construction when it

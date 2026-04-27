@@ -2,7 +2,7 @@
 Single entry point for the project.
 
 ## Project objective
-`anvil` is a constrained-random generator of **synthesizable
+`anvil` is a random by-construction generator of **synthesizable
 SystemVerilog RTL**. Today its implemented lane produces syntactically
 valid, semantically correct, synthesizable, and structurally
 non-trivial modules by building a typed circuit graph via fanin-cone
@@ -10,11 +10,12 @@ recursion and emitting SV from it.
 
 The intended destination is stronger than "valid enough": `anvil`
 should become a **signoff-level-quality random RTL generator** whose
-outputs are boringly clean in mainstream downstream tools while still
-being rich enough to break them. The product goal is **legal,
-reproducible, adversarial RTL** that can expose real parser,
-elaboration, synthesis, and lint bugs precisely because it stays inside
-the accepted synthesizable envelope.
+outputs are boringly clean for mainstream downstream HDL consumers. The
+product goal is **legal, reproducible, unusual RTL** that parsers,
+elaborators, RTL compilers, linters, simulators, and synthesis tools
+should accept. Those artifacts can be used to stress such tools and
+expose real bugs precisely because they stay inside the accepted
+synthesizable envelope.
 
 Whole-module intended functionality is not the target. By construction,
 the recursive fanin-cone process mainly aims at legal structure and
@@ -170,7 +171,12 @@ verilator --lint-only generated/mod_42_0000.sv
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
 ```
 
-Both should succeed on every generated file. A failure is a generator bug; file with the seed and the effective knobs from `manifest.json`.
+Both should succeed on every generated file. In this repository,
+Verilator and Yosys are validation tools: they check syntax,
+elaboration/lint, and synthesis acceptability of the emitted HDL. They
+are not the only intended consumers of ANVIL output, and a failure is a
+generator bug; file it with the seed and the effective knobs from
+`manifest.json`.
 
 For a broader repo-owned sweep across construction strategies,
 identity modes, factorization levels, and stress profiles:

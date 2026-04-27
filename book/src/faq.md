@@ -227,9 +227,11 @@ IR or the emitter. See
 No, and that's the point. The circuits are *structurally* valid
 and *functionally* non-trivial (every output depends on at least
 one input), but the specific function is random — `a + (b ^ c) * 3`
-or similar, with no design intent. `anvil` is for **stress-testing
-tools** (parsers, elaborators, simulators, synthesizers, formal
-equivalence checkers), not for generating real designs.
+or similar, with no design intent. `anvil` generates legal
+synthesizable HDL corpora for downstream consumers such as parsers,
+elaborators, simulators, RTL compilers, synthesizers, and formal
+frontends; those corpora can be used to stress such tools, but they are
+not real designs.
 
 If you need RTL that *does* something meaningful, you hire an
 engineer.
@@ -254,15 +256,17 @@ The important distinction is:
   priority encoder as a priority encoder, and future memories / FSM
   templates in their own local sense).
 
-## Is `anvil` trying to be a signoff-grade bug finder for downstream tools?
+## Can `anvil` be used to stress downstream HDL tools?
 
-Yes. That is the intended direction.
+Yes. That is one intended use of the generated corpora.
 
 More precisely: `anvil` is trying to become a **signoff-level quality
-random synthesizable RTL generator** whose outputs are clean in tools
-like Verilator and Yosys by default, while still being rich enough to
-expose real bugs in parsers, elaborators, synthesizers, and similar
-consumers.
+random synthesizable RTL generator** whose outputs are accepted by
+downstream HDL consumers by default, while still being rich enough to
+expose real bugs in parsers, elaborators, RTL compilers, linters,
+simulators, synthesizers, and similar consumers. Verilator and Yosys are
+the repository's current validation tools for that promise; they are not
+the only intended consumers.
 
 Those two goals are not in tension. The point is **not** to find bugs
 by emitting malformed junk. The point is to find bugs with legal,

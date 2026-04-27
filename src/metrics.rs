@@ -3,11 +3,11 @@
 //! Metrics are structural facts about *what landed* in a module —
 //! not about the generator's internal decisions. They are cheap to
 //! compute (one pass over `m.nodes`, one pass over `m.flops`,
-//! plus a reverse-fanout pass) and do not require any
-//! instrumentation on the generator. Live counters for
-//! knob-attempt signals (probability rolls fired / missed,
-//! anti-collapse retries, tier picks) are a separate future
-//! extension — see `ROADMAP.md`.
+//! plus a reverse-fanout pass). Probability-roll telemetry is
+//! sourced from `Module::knob_rolls` and surfaced as
+//! `knob_roll_attempts` / `knob_roll_fires`, so live generated
+//! artifacts can report both structural facts and per-knob roll
+//! attempts/fires.
 //!
 //! The goal is observability per the user's directive: every knob
 //! must be measurable from the generated output so we can tell

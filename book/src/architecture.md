@@ -274,12 +274,14 @@ pub fn compact_node_ids(m: &mut Module) -> u32;
 pub enum KnobId { FlopProb, CombMuxProb, PriorityEncoderProb,
                   CaseMuxProb, CasezMuxProb, ForFoldProb,
                   CoefficientProb, ConstShiftAmountProb,
-                  ConstComparandProb, CombMuxEncodingProb,
+                  ConstComparandProb, ConstantProb,
+                  TerminalReuseProb, CombMuxEncodingProb,
                   FlopMuxEncodingProb, ShareProb,
                   FlopQFeedbackProb, HierarchySiblingRouteProb,
                   HierarchyRegisteredSiblingRouteProb,
                   HierarchyRegisteredChildInputConeProb,
                   HierarchyChildInputConeProb,
+                  HierarchyParentConeInstanceProb,
                   HierarchyParentFlopProb }
 pub struct KnobRollCounters {
     pub attempts: HashMap<KnobId, u64>,
@@ -360,7 +362,7 @@ Three layers:
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 14 tests (empty module, per-kind gate
+- `src/metrics.rs` — 15 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
   and hierarchy design metrics for reuse, under-instantiation,
   parent-side composition, sibling-routed child inputs,
@@ -390,7 +392,7 @@ uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-24): 218 unit-target tests + 50 integration tests = 268 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-26): 218 unit-target tests + 50 integration tests = 268 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a

@@ -3,6 +3,24 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
+- Latest documentation-continuity slice combines the README/session
+  bootstrap drift fix with the purpose-terminology clarification. The
+  live docs now align `src/metrics.rs` probability-roll telemetry with
+  `Module::knob_rolls`, refresh relevant test-count/source-state
+  references, and consistently describe ANVIL as a random
+  by-construction synthesizable SystemVerilog RTL generator whose
+  legal HDL artifacts target downstream HDL consumers while
+  Verilator/Yosys remain repository validation tools.
+- Latest purpose-terminology clarification: describe ANVIL as a
+  **random by-construction synthesizable SystemVerilog RTL generator**,
+  not as SV/UVM-style constrained-random generation. Verilator and Yosys
+  are repository validation tools for syntax/elaboration/lint/synthesis
+  acceptance; the generated artifacts target the broader class of
+  downstream HDL consumers that accept synthesizable HDL. ANVIL corpora
+  can still be used to stress parsers, elaborators, RTL compilers,
+  linters, simulators, synthesizers, and related tools, but that is a use
+  of legal generated RTL rather than the product being a malformed-input
+  fuzzer or generic toolchain stress tester.
 - Latest README / bootstrap execution rechecked the authority docs, the
   mdBook map, the Rust/test/example inventory, and the current hygiene
   gates. It found only small hierarchy-parent wording drift after the
@@ -596,8 +614,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Prior slice:** UVM-style tracing (`--trace` / `--trace-file`). See `CHANGES.md` entry `2026-04-16-0035`. New deps: `tracing` + `tracing-subscriber`. CLI: `--trace <off|low|medium|high|debug>` default off, `--trace-file <path>`. Level mapping: low=INFO, medium=DEBUG, high/debug=TRACE. `#[instrument]` + explicit trace calls across `gen/module.rs`, `gen/cone.rs`, `emit/sv.rs` at the named control points (module start/done, strategy dispatch, motif forks, anti-collapse retry/exhausted, terminal tier picks 1-4, leaf-vs-recurse, emitter summary). Emojis at milestones only. Deterministic output — no timestamps/thread-ids/ANSI. Stdout stays byte-clean for SV. Release build compiles out below info. 47 tests pass; reproducibility holds byte-identical across trace levels. Block-level naming (`priority_encoder_0` flatten/hierarchical modes) still deferred.
 - **Prior slice:** Typed per-kind naming in emitted SV (Rule 12 revised). See `CHANGES.md` entry `2026-04-16-0034`.
 - **Doctrinal anchor:** user reinforced that generation must be rule-based (construction-time rules only, no post-hoc filters). Tree-shake / validator-as-gate are off the table. See `feedback_rules_first_generation.md` in session memory. This slice is the template: rule in catalog, invariant in picker.
-- **Doctrinal anchor:** user clarified the tool-quality bar: generated output should be clean in Verilator and Yosys by default. Representative sweeps are evidence toward that target, not a weaker substitute for it.
-- **Doctrinal anchor:** user further clarified the product direction: `anvil` should become a signoff-level quality random synthesizable RTL generator and a really good downstream bug finder. The way to do that is not malformed junk; it is legal, reproducible, adversarial RTL that remains clean in mainstream tools.
+- **Doctrinal anchor:** user clarified the tool-quality bar: generated
+  output should be accepted by downstream HDL consumers by default.
+  Verilator and Yosys sweeps are repository validation evidence toward
+  that target, not the product target itself.
+- **Doctrinal anchor:** user further clarified the product direction:
+  `anvil` should become a signoff-level quality random
+  by-construction synthesizable RTL generator. Generated legal RTL can
+  be used to expose downstream tool bugs, but the way to do that is not
+  malformed junk; it is legal, reproducible, structurally rich RTL that
+  downstream HDL consumers should accept.
 - **Doctrinal anchor:** user then clarified the structure-vs-function boundary and asked for it to be logged verbatim. The durable anchors are now `book/src/core-idea.md` and `DEVELOPMENT_NOTES.md`: whole-module intended functionality is generally absent and not a construction target; structure is the target; some local motifs may still be functionally correct blocks.
 - **Doctrinal anchor:** user then asked whether the current codebase is suited to the goal and requested that the answer be logged durably. The answer now captured across `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `book/src/architecture.md`, and `book/src/factorization.md` is: yes as a foundation, with four explicit steering gaps still open (feature breadth, stronger NodeId identity, industrialized clean-run evidence, structure-first implementation doctrine).
 - **Doctrinal anchor:** user then clarified the meaning of cone identity more sharply: two fanin cones may not have the same `NodeId` if they do not have the same variable endpoints, and the real target is equality by proven same functionality with respect to those same endpoints. Shape alone is not the doctrine.
@@ -617,6 +643,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `1f8364e` — Route registered child-input cones through helper instances.
 - `7909b30` — Budget parent-cone helper instances.
 - `05a6dfa` — Route parent-output cones through helper instances.
 - `619f775` — Land registered hierarchy sibling routing.

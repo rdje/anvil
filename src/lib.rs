@@ -1,4 +1,4 @@
-//! anvil — constrained-random generator of synthesizable SystemVerilog RTL.
+//! anvil — random by-construction generator of synthesizable SystemVerilog RTL.
 //!
 //! See the `book/` directory for design rationale. The crate is organized
 //! around a typed circuit IR (`ir`), a generator that builds it by

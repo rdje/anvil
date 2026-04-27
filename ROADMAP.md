@@ -3,14 +3,16 @@
 `anvil` grows in phases. Each phase delivers a working generator with a
 larger expressive subset. No phase should land without end-to-end tests
 and at least one `.sv` artifact run through Yosys or Verilator as a
-synthesizability smoke check. Those sweeps are evidence, not the end
-goal: the intended steady-state is that generated modules are boringly
-clean in Verilator and Yosys by default.
+synthesizability smoke check. Those sweeps are validation evidence, not
+the product target: Verilator and Yosys check that generated HDL is
+syntax/elaboration/synthesis acceptable, while the intended downstream
+consumers are the broader class of tools that accept synthesizable HDL.
 
 That quality bar coexists with breadth. `anvil` is meant to grow into a
-signoff-grade random synthesizable RTL generator that finds bugs in
-downstream tools by feeding them legal, unusual, feature-rich designs,
-not by relying on malformed input or low-quality noise.
+signoff-grade random synthesizable RTL generator whose legal, unusual,
+feature-rich designs can help expose bugs in parsers, elaborators, RTL
+compilers, linters, simulators, synthesizers, and similar downstream
+consumers, not by relying on malformed input or low-quality noise.
 
 Whole-module intended functionality is not a roadmap goal. The roadmap
 optimizes for structurally rich, legitimate, synthesizable RTL that
@@ -87,15 +89,15 @@ instead of leaving them implicit.
    climbs toward the doctrine; it must not be treated as redefining what
    `node-id` means.
 
-3. **Signoff-quality tool-clean industrialization**
+3. **Signoff-quality downstream-acceptance industrialization**
    Seed-level cleanliness is not enough. The project needs automated
-   Verilator/Yosys evidence across seeds, construction strategies,
-   identity modes, factorization levels, category mixes, flop/no-flop
-   cases, and deeper hierarchy/memory/FSM features. Counterexamples must
-   be retained with exact seed+config evidence and fed back into IR
-   invariants or rewrites, not hidden behind warning suppressions. The
-   intended steady-state remains: generated RTL is boringly clean in
-   mainstream tools by default.
+   Verilator/Yosys validation evidence across seeds, construction
+   strategies, identity modes, factorization levels, category mixes,
+   flop/no-flop cases, and deeper hierarchy/memory/FSM features.
+   Counterexamples must be retained with exact seed+config evidence and
+   fed back into IR invariants or rewrites, not hidden behind warning
+   suppressions. The intended steady-state remains: generated RTL is
+   boringly acceptable to mainstream downstream HDL consumers by default.
 
    The adversarial space must be modeled as an explicit axis matrix, not
    as one vague notion of "randomness". Construction strategy, identity
@@ -641,8 +643,8 @@ Three sub-paths, each with its own cost and payoff (full analysis in
 - Multi-clock with CDC-safe handshakes — optional, expensive. Until
   this lands, every module remains fully synchronous to a single clock.
 - These motifs are not just feature-count work; they are a major part of
-  the legal interaction richness needed for ANVIL to become a strong
-  downstream bug finder without sacrificing clean-tool quality.
+  the legal interaction richness needed for ANVIL to help find
+  downstream tool bugs without sacrificing downstream-acceptance quality.
 
 ## Phase 7 — Oracle-backed micro-design artifacts (not started)
 
@@ -716,7 +718,7 @@ selection instead of one blurred notion of "random SV files."
   `$display` in debug comments).
 - Language coverage beyond the synthesizable SV subset.
 - Bundled oracle / reference simulator — `anvil` does not embed a
-  shadow RTL semantics engine. The goal is still to stress downstream
-  tools aggressively, but by generating high-quality legal RTL and
-  explicit expected-facts contracts rather than by turning `anvil` into
-  a second simulator.
+  shadow RTL semantics engine. Generated artifacts can still stress
+  downstream tools, but by being high-quality legal RTL with explicit
+  expected-facts contracts rather than by turning `anvil` into a second
+  simulator.
