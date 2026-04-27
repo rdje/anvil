@@ -904,6 +904,73 @@ fn hierarchy_parent_outputs_can_depend_on_helper_instance_outputs() {
 }
 
 #[test]
+fn hierarchy_parent_outputs_can_spend_helper_budget() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("budgeted parent-output helper hierarchy config should be valid");
+        let planned_child_instances = cfg.num_child_instances as usize;
+        let helper_budget = cfg.max_parent_cone_instances_per_module as usize;
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "budgeted parent-output helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(
+            metrics.top_parent_cone_instances, helper_budget,
+            "expected parent-output helper placement to spend the configured helper budget for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.max_parent_cone_instances_per_internal_module, helper_budget,
+            "expected per-parent helper metric to record the output-helper budget for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances, 0,
+            "this focused config should prove budgeted helpers through parent outputs, not child-input bindings, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.top_outputs_reaching_parent_cone_instances >= helper_budget,
+            "expected parent outputs to depend on budgeted helper outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_instances >= planned_child_instances + helper_budget,
+            "helper instances should be additional to planned child slots for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_module_names_are_unique_across_batch_generation() {
     let cfg = Config {
         seed: 123,

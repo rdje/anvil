@@ -144,6 +144,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force registered parent-composed child inputs whose D cones use helper instances
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --max-flops-per-module 8 --terminal-reuse-prob 1.0 --constant-prob 0.0
 
+# Force parent-output helper composition to spend a 3-helper budget
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --terminal-reuse-prob 1.0 --constant-prob 0.0
+
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
 

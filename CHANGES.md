@@ -1,8 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-27-package-description-terminology — Align package metadata with ANVIL terminology
+## 2026-04-27-phase4-parent-output-helper-budget — Spend parent-output helper budget directly
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now pre-allocates a vector of parent-cone helper instance outputs for
+  parent-output composition instead of choosing one optional helper
+  source for the whole parent-output set. Parent-output promotion picks
+  a helper source per output, cycling through the collected sources
+  when there are more outputs than helpers.
+- Parent-output helper collection now uses the existing
+  `max_parent_cone_instances_per_module` budget and can spend multiple
+  helper instances in the parent-output-only path.
+- Helper instances allocated for parent-output composition bind their
+  own child inputs from non-helper parent sources, so the focused proof
+  does not accidentally satisfy itself through helper-to-helper
+  child-input routing.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds `hierarchy_parent_outputs_can_spend_helper_budget`, which forces
+  `hierarchy_child_input_cone_prob = 0.0`,
+  `hierarchy_registered_child_input_cone_prob = 0.0`,
+  `hierarchy_parent_cone_instance_prob = 1.0`, and
+  `max_parent_cone_instances_per_module = 3` across all construction
+  strategies.
+
+**Why**
+
+- The previous parent-output helper route proved that a parent output
+  could depend on a helper instance output, but it chose one helper
+  source before building all parent outputs.
+- The separate helper-budget proof spent multiple helpers through
+  child-input routing, not through the parent-output-only route. That
+  left a gap: raising the helper budget did not directly prove that
+  parent-output composition itself could allocate and use more than one
+  helper instance.
+
+**Validation**
+
+- `cargo test --test pipeline hierarchy_`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- A parent-output-only helper config can now spend the per-parent helper
+  budget without relying on child-input helper bindings. The focused
+  regression proves `top_parent_cone_instances = 3`,
+  `max_parent_cone_instances_per_internal_module = 3`,
+  `child_input_bindings_from_parent_cone_instances = 0`, and
+  parent outputs reaching helper outputs.
+- Existing helper routes remain covered by the hierarchy regression
+  sweep: unregistered child-input helpers, budgeted child-input
+  helpers, registered helper-sourced child-input D cones, and the
+  original parent-output helper route.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+## 2026-04-27-package-description-terminology — Align package metadata with ANVIL terminology
+
+**Landed as:** `785a143`
 
 **What changed**
 

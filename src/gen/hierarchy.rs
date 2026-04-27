@@ -399,6 +399,7 @@ fn generate_parent_module(
             shared_clock,
             shared_reset,
             allow_external_pool_reuse: external_profile.is_some(),
+            allow_parent_cone_instance_input_sources: true,
             parent_cone_instances_inserted: &mut parent_cone_instances_inserted,
         };
         for child_input in child.emitted_data_input_ports_in(Some(&modules_by_name)) {
@@ -424,6 +425,7 @@ fn generate_parent_module(
             shared_clock: _,
             shared_reset: _,
             allow_external_pool_reuse: _,
+            allow_parent_cone_instance_input_sources: _,
             parent_cone_instances_inserted: _,
         } = binding_ctx;
 
@@ -460,52 +462,37 @@ fn generate_parent_module(
         }
     }
 
-    let parent_output_helper_source = planned_outputs.first().and_then(|(_, width)| {
-        pick_parent_cone_instance_source(&top, &parent_source_pool, *width).or_else(|| {
-            let mut helper_ctx = ChildInputBindingContext {
-                top: &mut top,
-                instance_pool: &mut instance_pool,
-                external_input_pool: &mut external_input_pool,
-                parent_source_pool: &mut parent_source_pool,
-                next_port_id: &mut next_port_id,
-                library,
-                modules_by_name: &modules_by_name,
-                helper_child_indices: instance_plan,
-                shared_clock,
-                shared_reset,
-                allow_external_pool_reuse: external_profile.is_some(),
-                parent_cone_instances_inserted: &mut parent_cone_instances_inserted,
-            };
-            let source = maybe_add_parent_cone_instance_source(g, &mut helper_ctx, *width);
-            let ChildInputBindingContext {
-                top: _,
-                instance_pool: _,
-                external_input_pool: _,
-                parent_source_pool: _,
-                next_port_id: _,
-                library: _,
-                modules_by_name: _,
-                helper_child_indices: _,
-                shared_clock: _,
-                shared_reset: _,
-                allow_external_pool_reuse: _,
-                parent_cone_instances_inserted: _,
-            } = helper_ctx;
-            source
-        })
-    });
+    let parent_output_helper_sources = collect_parent_output_helper_sources(
+        g,
+        &mut top,
+        &mut instance_pool,
+        &mut external_input_pool,
+        &mut parent_source_pool,
+        &mut next_port_id,
+        library,
+        &modules_by_name,
+        instance_plan,
+        shared_clock,
+        shared_reset,
+        external_profile.is_some(),
+        &mut parent_cone_instances_inserted,
+        &planned_outputs,
+    );
 
     let mut pool = parent_source_pool.clone();
     let mut worklist: FlopWorklist = Vec::new();
     let roots = build_parent_output_roots(g, &mut top, &mut pool, &mut worklist);
     debug_assert!(worklist.is_empty(), "parent output flop worklist drained");
-
-    for ((port_id, width), root) in planned_outputs.into_iter().zip(roots) {
+    for (output_idx, ((port_id, width), root)) in planned_outputs.into_iter().zip(roots).enumerate()
+    {
         let mut promotion_ctx = ParentOutputPromotionContext {
             pool: &mut pool,
             instance_pool: &instance_pool,
             parent_source_pool: &parent_source_pool,
-            required_parent_cone_instance_source: parent_output_helper_source,
+            required_parent_cone_instance_source: pick_parent_output_helper_source(
+                &parent_output_helper_sources,
+                output_idx,
+            ),
         };
         let promoted = promote_parent_output_root(g, &mut top, &mut promotion_ctx, width, root);
         top.drives.push((port_id, promoted));
@@ -639,6 +626,73 @@ fn pick_parent_cone_instance_source(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn collect_parent_output_helper_sources(
+    g: &mut Generator,
+    top: &mut Module,
+    instance_pool: &mut SignalPool,
+    external_input_pool: &mut SignalPool,
+    parent_source_pool: &mut SignalPool,
+    next_port_id: &mut PortId,
+    library: &[Module],
+    modules_by_name: &BTreeMap<&str, &Module>,
+    instance_plan: &[usize],
+    shared_clock: Option<(PortId, NodeId)>,
+    shared_reset: Option<(PortId, NodeId)>,
+    allow_external_pool_reuse: bool,
+    parent_cone_instances_inserted: &mut u32,
+    planned_outputs: &[(PortId, u32)],
+) -> Vec<NodeId> {
+    let mut sources = Vec::new();
+    if planned_outputs.is_empty() || g.cfg.hierarchy_parent_cone_instance_prob <= 0.0 {
+        return sources;
+    }
+
+    for (_, width) in planned_outputs {
+        if *parent_cone_instances_inserted < g.cfg.max_parent_cone_instances_per_module {
+            let source = {
+                let mut helper_ctx = ChildInputBindingContext {
+                    top,
+                    instance_pool,
+                    external_input_pool,
+                    parent_source_pool,
+                    next_port_id,
+                    library,
+                    modules_by_name,
+                    helper_child_indices: instance_plan,
+                    shared_clock,
+                    shared_reset,
+                    allow_external_pool_reuse,
+                    allow_parent_cone_instance_input_sources: false,
+                    parent_cone_instances_inserted,
+                };
+                maybe_add_parent_cone_instance_source(g, &mut helper_ctx, *width)
+            };
+            if let Some(source) = source {
+                sources.push(source);
+                continue;
+            }
+        }
+
+        if sources.is_empty() {
+            if let Some(source) = pick_parent_cone_instance_source(top, parent_source_pool, *width)
+            {
+                sources.push(source);
+            }
+        }
+    }
+
+    sources
+}
+
+fn pick_parent_output_helper_source(sources: &[NodeId], output_idx: usize) -> Option<NodeId> {
+    if sources.is_empty() {
+        None
+    } else {
+        Some(sources[output_idx % sources.len()])
+    }
+}
+
 fn node_is_parent_cone_instance_output(top: &Module, node_id: NodeId) -> bool {
     let Node::InstanceOutput { instance, .. } = top.nodes[node_id as usize] else {
         return false;
@@ -681,6 +735,7 @@ struct ChildInputBindingContext<'a> {
     shared_clock: Option<(PortId, NodeId)>,
     shared_reset: Option<(PortId, NodeId)>,
     allow_external_pool_reuse: bool,
+    allow_parent_cone_instance_input_sources: bool,
     parent_cone_instances_inserted: &'a mut u32,
 }
 
@@ -914,12 +969,32 @@ fn bind_parent_cone_instance_input(
     child_input_name: &str,
     width: u32,
 ) -> NodeId {
-    if ctx
-        .parent_source_pool
-        .iter()
-        .any(|entry| !entry.deps.is_empty())
-    {
-        return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.parent_source_pool, width, None);
+    if ctx.allow_parent_cone_instance_input_sources {
+        if ctx
+            .parent_source_pool
+            .iter()
+            .any(|entry| !entry.deps.is_empty())
+        {
+            return cone::pick_terminal_dep_bearing(
+                g,
+                ctx.top,
+                ctx.parent_source_pool,
+                width,
+                None,
+            );
+        }
+    } else {
+        let mut non_helper_pool = SignalPool::new();
+        for entry in ctx
+            .parent_source_pool
+            .iter()
+            .filter(|entry| !node_is_parent_cone_instance_output(ctx.top, entry.node))
+        {
+            non_helper_pool.add(entry.node, entry.width, entry.deps.clone());
+        }
+        if non_helper_pool.iter().any(|entry| !entry.deps.is_empty()) {
+            return cone::pick_terminal_dep_bearing(g, ctx.top, &mut non_helper_pool, width, None);
+        }
     }
 
     if ctx.allow_external_pool_reuse

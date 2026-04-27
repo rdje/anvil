@@ -3,7 +3,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- Latest package-metadata cleanup fixes the remaining stale
+- Latest Phase 4 hierarchy slice broadens parent-output helper
+  placement so parent-output composition can allocate multiple
+  parent-cone helper instances up to the configured per-parent budget.
+  The focused regression forces child-input helper routes off and proves
+  `top_parent_cone_instances = 3`,
+  `max_parent_cone_instances_per_internal_module = 3`,
+  `child_input_bindings_from_parent_cone_instances = 0`, and parent
+  outputs reaching helper outputs.
+- Prior package-metadata cleanup fixes the remaining stale
   `constrained-random` purpose wording in `Cargo.toml`. The crate
   package description now says ANVIL is a random by-construction
   generator of synthesizable SystemVerilog RTL, matching the accepted
@@ -83,17 +91,22 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   child slots, and its outputs can feed later child inputs through
   parent logic.
 - Current HEAD now also broadens that helper-instance slice to
-  parent-output composition. A parent-output cone can instantiate the
-  helper child as an internal parent-cone source even when
-  `hierarchy_child_input_cone_prob = 0.0`; metrics expose this through
+  parent-output composition. Parent-output cones can allocate helper
+  children as internal parent-cone sources even when
+  `hierarchy_child_input_cone_prob = 0.0`; the parent-output-only path
+  can now spend multiple helpers up to
+  `max_parent_cone_instances_per_module`. Metrics expose this through
   `top_outputs_reaching_parent_cone_instances`,
-  `hierarchy_outputs_reaching_parent_cone_instances`, and matching
-  output fractions.
+  `hierarchy_outputs_reaching_parent_cone_instances`, matching output
+  fractions, `top_parent_cone_instances`, and
+  `max_parent_cone_instances_per_internal_module`.
 - Current HEAD now also has explicit parent-cone helper budgeting.
   `max_parent_cone_instances_per_module` defaults to `1` for backward
   compatibility, can be set to `0` to suppress helper allocation, and
   can be raised to let one hierarchy parent instantiate multiple
-  helper children. Metrics expose the realized local budget through
+  helper children. The budget is now proven through both child-input
+  helper routing and parent-output-only helper composition. Metrics
+  expose the realized local budget through
   `max_parent_cone_instances_per_internal_module`.
 - Current HEAD now also lets registered parent-composed child-input D
   cones use parent-cone helper instance outputs when
@@ -309,6 +322,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `child_input_bindings_from_parent_cone_instances > 0`
   This route is now banked in the full `r23` Phase 4 matrix through the
   dedicated `phase4_hier2_inst4_parent_cone_instance_budget3` axis.
+- The focused proof for budgeted parent-output helper composition is
+  `cargo test hierarchy_parent_outputs_can_spend_helper_budget`. Its
+  key design metrics are:
+  - `top_parent_cone_instances = 3`
+  - `max_parent_cone_instances_per_internal_module = 3`
+  - `child_input_bindings_from_parent_cone_instances = 0`
+  - `top_outputs_reaching_parent_cone_instances >= 3`
+  This focused regression proves the output-helper-only path can spend
+  the helper budget without relying on child-input helper bindings.
 - The focused proof for the new registered parent-cone helper route
   slice is
   `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`.
@@ -660,7 +682,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance unregistered child-input, registered child-input D-cone, and parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is broader helper placement and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance unregistered child-input, registered child-input D-cone, and budgeted parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is helper placement beyond the current helper-route slices and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
   1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r23` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget now directly preserves four designs/scenario as the scenario set grows. Future hierarchy scenarios should preserve both separation-of-concerns and per-scenario evidence density.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
@@ -670,6 +692,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `785a143` — Align package metadata terminology.
 - `f9f0288` — Refresh Phase 4 hierarchy gate budget.
 - `34a420e` — Docs: align ANVIL purpose and continuity notes.
 - `1f8364e` — Route registered child-input cones through helper instances.
@@ -819,7 +842,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) is met locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`, the Phase 2 sharing exit criterion is met locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`, and the Phase 3 structured-surface gate is met locally via `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`. The next real roadmap gap is therefore deeper Phase 4 hierarchy, not leaf-lane closure.
-- Phase 4 hierarchy is started and has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, parent-cone helper-instance parent-output routing, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, generator-global module-name allocation, and local parent state at 42 scenarios / 168 designs. The roadmap gap is broader helper placement, broader registered hierarchy routing/composition, and future hierarchy-aware identity.
+- Phase 4 hierarchy is started and has a fully banked repo-owned closure artifact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json` that covers wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, registered parent-composed child-input binding, registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, parent-cone helper-instance parent-output routing, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, generator-global module-name allocation, and local parent state at 42 scenarios / 168 designs. Current focused tests now also prove budgeted parent-output-only helper composition. The roadmap gap is helper placement beyond the current child-input, registered child-input, and budgeted parent-output helper routes, broader registered hierarchy routing/composition, and future hierarchy-aware identity.
 - Parameterization is still not started.
 
 ## Session handoff notes

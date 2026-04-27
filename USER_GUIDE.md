@@ -386,12 +386,13 @@ The current Phase 4 slice now has two planning lanes:
   and earlier parent-side route gates
 - `hierarchy_parent_cone_instance_prob` controls whether those
   child-input cones, registered child-input D cones, or parent-output
-  cones may instantiate one helper child as an internal parent-cone
-  source; default `0.0` keeps this helper-instantiation axis opt-in
+  cones may instantiate helper children as internal parent-cone
+  sources; default `0.0` keeps this helper-instantiation axis opt-in
 - `max_parent_cone_instances_per_module` controls how many helper
   children one hierarchy parent may instantiate; default `1` preserves
-  the first helper slice, and `0` disables helper allocation even when
-  the probability fires
+  the first helper slice, `0` disables helper allocation even when the
+  probability fires, and raised budgets now apply directly to
+  parent-output-only helper composition too
 - `hierarchy_parent_flop_prob` controls whether parent-side hierarchy
   cones may emit local parent flops; default `0.0` keeps the hierarchy
   parent layer combinational unless this state axis is explicitly
@@ -616,9 +617,15 @@ is the focused proof for parent-output helper-instance composition
 `hierarchy_outputs_reaching_parent_cone_instances > 0`,
 `top_parent_cone_instance_output_fraction > 0.0`).
 `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
-is the focused proof for budgeted helper allocation
-(`top_parent_cone_instances = 3`,
+is the focused proof for budgeted helper allocation through child-input
+routing (`top_parent_cone_instances = 3`,
 `max_parent_cone_instances_per_internal_module = 3`).
+`cargo test hierarchy_parent_outputs_can_spend_helper_budget` is the
+focused proof for budgeted parent-output-only helper composition
+(`top_parent_cone_instances = 3`,
+`max_parent_cone_instances_per_internal_module = 3`,
+`child_input_bindings_from_parent_cone_instances = 0`, and parent
+outputs reaching helper outputs).
 `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
 is the focused proof for registered helper-sourced child-input D cones
 (`child_input_bindings_from_registered_parent_cone_instances > 0`,

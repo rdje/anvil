@@ -59,6 +59,30 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Parent-output helper budgeting must be output-proven, not helper-to-helper-proven
+The parent-output helper route originally proved only one fact: a parent
+output could depend on a parent-cone helper instance output. The
+separate helper-budget route proved a different fact through
+child-input bindings: a parent could allocate multiple helper children
+when `max_parent_cone_instances_per_module` was raised. Those two facts
+did not prove that parent-output composition itself could spend the
+budget.
+
+The current implementation therefore collects parent-output helper
+sources before parent-output root construction and lets promotion select
+a required helper source per output. That makes the budget visible at
+the output-composition seam instead of relying on later child-input
+routes.
+
+One gotcha is important: helper instances created specifically for
+parent-output composition should not bind their own child inputs from
+earlier helper outputs. If that helper-to-helper chaining is allowed,
+`child_input_bindings_from_parent_cone_instances` becomes non-zero and
+the test no longer proves an output-only path. The parent-output helper
+collector therefore uses non-helper parent sources for helper child
+inputs while still publishing the helper outputs to the real parent
+source pool for output composition.
+
 ### Phase 4 starts as wrapper hierarchy on purpose
 The first hierarchy slice is deliberately **not** "instances can appear
 anywhere in any parent cone". That broader story is the destination,

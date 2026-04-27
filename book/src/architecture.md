@@ -386,13 +386,14 @@ helper-instance child-input bindings, parent-cone helper-instance
 parent-output composition, local parent flops, registered sibling-routed
 child-input bindings, registered parent-composed child-input bindings,
 registered helper-sourced child-input D cones,
-budgeted parent-cone helper allocation,
+budgeted parent-cone helper allocation, budgeted parent-output helper
+composition,
 mixed parent-port / child-output parent outputs, and module-name
 uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-26): 218 unit-target tests + 50 integration tests = 268 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-27): 218 unit-target tests + 51 integration tests = 269 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a

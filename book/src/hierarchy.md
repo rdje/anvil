@@ -114,13 +114,14 @@ pass-through shell:
   cones are built over already-available parent sources: parent data
   inputs, earlier sibling instance outputs, and earlier parent-side
   route gates;
-- both lanes can also instantiate one helper child as an internal source
+- both lanes can also instantiate helper children as internal sources
   for parent-local child-input cones and parent-output cones via
-  `hierarchy_parent_cone_instance_prob`. The helper instance is
-  separate from the planned child slots, its output can be routed
-  through parent combinational logic into later child inputs or parent
-  outputs, and `max_parent_cone_instances_per_module` controls how
-  many such helpers one parent may allocate;
+  `hierarchy_parent_cone_instance_prob`. Helper instances are separate
+  from planned child slots, their outputs can be routed through parent
+  combinational logic into later child inputs or parent outputs, and
+  `max_parent_cone_instances_per_module` controls how many such helpers
+  one parent may allocate. Parent-output composition can spend multiple
+  helpers from that budget directly;
 - both parent output cones and parent-composed child-input cones may
   now emit local parent flops when `hierarchy_parent_flop_prob` is
   non-zero. The default is `0.0`, so the hierarchy layer stays
@@ -148,8 +149,9 @@ child-output support, mix shallow and deep branches in one recursive
 tree, route later child inputs from earlier sibling outputs directly or
 through one parent-local flop, compose child input bindings through
 parent-local logic, instantiate helper children as parent-cone sources,
-force those helper children into parent-output composition, raise the
-per-parent helper budget, and add local parent flops. It still does not
+force those helper children into parent-output composition, spend the
+per-parent helper budget through parent-output-only composition, and
+add local parent flops. It still does not
 solve hierarchy-aware identity.
 
 ## Choosing a hierarchy routing surface
@@ -196,11 +198,18 @@ slots. It is opt-in, defaults to `0.0`, and the helper budget defaults
 to one helper child per parent. Raise
 `max_parent_cone_instances_per_module` to let the same parent allocate
 multiple helper children; set it to `0` to suppress helper allocation
-even when the probability fires. In recursive designs this is a
-per-parent budget, so `hierarchy_parent_cone_instances` can exceed the
+even when the probability fires. The budget is local to each parent, so
+recursive designs can have `hierarchy_parent_cone_instances` above the
 configured value across multiple internal modules. Use
 `max_parent_cone_instances_per_internal_module` to verify the local
 budget actually appeared.
+
+Parent-output helper collection is intentionally output-proven. It
+collects helper sources before building parent-output roots and then
+selects a required helper source per output. For helper instances
+created by this route, the helper child inputs are bound from
+non-helper parent sources so `child_input_bindings_from_parent_cone_instances`
+can remain zero in the focused output-only proof.
 
 When helper placement combines with
 `hierarchy_registered_child_input_cone_prob`, the helper output is
@@ -503,10 +512,17 @@ local proofs remain useful:
   - `hierarchy_outputs_reaching_parent_cone_instances > 0`
   - `top_parent_cone_instance_output_fraction > 0.0`
 - `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
-  proves budgeted helper allocation numerically:
+  proves budgeted helper allocation through child-input routing
+  numerically:
   - `top_parent_cone_instances = 3`
   - `max_parent_cone_instances_per_internal_module = 3`
   - `child_input_bindings_from_parent_cone_instances > 0`
+- `cargo test hierarchy_parent_outputs_can_spend_helper_budget` proves
+  budgeted parent-output-only helper composition numerically:
+  - `top_parent_cone_instances = 3`
+  - `max_parent_cone_instances_per_internal_module = 3`
+  - `child_input_bindings_from_parent_cone_instances = 0`
+  - `top_outputs_reaching_parent_cone_instances >= 3`
 - `cargo test hierarchy_registered_child_input_cones_can_use_helper_instances`
   proves registered helper-sourced child-input D cones numerically:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`

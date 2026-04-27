@@ -323,7 +323,8 @@ evidence.
     logic.
     `--max-parent-cone-instances-per-module <N>` controls the
     per-parent helper budget; default `1` preserves the first helper
-    slice, and focused tests now prove budget `3` is reachable.
+    slice, and focused tests now prove budget `3` is reachable through
+    both child-input helper routing and parent-output-only composition.
 - Current slice constraints:
   - direct sibling routing is still combinational; the first one-flop
     registered sibling route and the first registered parent-composed
@@ -348,8 +349,8 @@ evidence.
     reusing a name
 - Open Phase 4 work:
   - broaden helper-instance placement beyond the current
-    parent-composed child-input, registered child-input, parent-output,
-    and per-parent-budget slices
+    parent-composed child-input, registered child-input, and budgeted
+    parent-output helper slices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
     surfaces
@@ -441,6 +442,16 @@ Phase 4 scenario set includes a dedicated
 with the parent-output helper axis and the registered helper axis below,
 this is now banked in the full downstream-clean `r23` report at
 42 scenarios / 168 designs.
+
+**Focused budgeted parent-output helper proof (new targeted evidence):**
+current HEAD also proves that parent-output composition can spend that
+same helper budget without relying on child-input helper bindings. The
+focused regression is
+`cargo test hierarchy_parent_outputs_can_spend_helper_budget`; the
+design metrics prove budget `3` through `top_parent_cone_instances`
+and `max_parent_cone_instances_per_internal_module`, require
+`child_input_bindings_from_parent_cone_instances = 0`, and require
+parent outputs to reach helper outputs.
 
 **Focused registered helper-instance proof (new targeted evidence):**
 current HEAD now lets registered parent-composed child-input D cones
