@@ -59,6 +59,26 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Registered helper metrics must include direct registered sibling routes
+The registered helper-instance metric originally grew out of the
+registered parent-composed child-input route, where the child binding is
+proved by a parent-composed D cone followed by one local parent flop.
+That shape is still important, but it is not the only registered route
+that can legitimately use a parent-cone helper instance.
+
+Direct registered sibling routing can now request a helper instance
+source when `hierarchy_parent_cone_instance_prob` fires. In that case
+the route remains a registered child-input binding, but the flop D side
+may be the helper `InstanceOutput` itself or a width-adapter gate over
+that output, not a registered parent-composed D-cone root.
+
+Therefore the metric contract is dependency-based: inspect the final
+registered flop D dependencies and ask whether they include a
+parent-cone helper instance output. Requiring the D node to also look
+like registered parent-composed logic would undercount the direct
+registered sibling helper route and would make the test prove the wrong
+shape.
+
 ### Parent-output helper budgeting must be output-proven, not helper-to-helper-proven
 The parent-output helper route originally proved only one fact: a parent
 output could depend on a parent-cone helper instance output. The
@@ -118,10 +138,12 @@ That buys several real things immediately:
 Just as importantly, it keeps the open work honest. The first-landed
 top layer was **combinational only**; since then, bounded recursive
 sub-hierarchy growth, local parent flops, child-input routing, mixed
-parent-port / child-output parent outputs, and the first parent-cone
-helper-instance route have landed as separate slices. Broader
-helper-instance placement beyond child-input cones, broader registered
-hierarchy-local routing, and hierarchical identity remain future work.
+parent-port / child-output parent outputs, parent-cone helper instances
+for child-input cones, direct registered sibling D sources, registered
+child-input D cones, parent-output cones, and explicit helper budgeting
+have landed as separate slices. Broader helper-instance placement
+beyond those seams, broader registered hierarchy-local routing, and
+hierarchical identity remain future work.
 
 Two narrow implementation choices are load-bearing in this slice:
 
@@ -261,9 +283,11 @@ forcing the manifest reader to reverse-engineer the realized tree by
 hand.
 
 What it does **not** do yet is make every parent-side cone free to
-instantiate arbitrary helper modules. The first narrow helper-instance
-slice is now live for parent-composed child-input cones, but broader
-placement and budgeting remain future hierarchy work.
+instantiate arbitrary helper modules. The narrow helper-instance seams
+are now live for parent-composed child-input cones, direct registered
+sibling D sources, registered child-input D cones, and parent-output
+cones, with explicit per-parent budgeting. Broader helper placement
+beyond those seams remains future hierarchy work.
 
 One more gate-level rule turned out to matter here: when a repo-owned
 matrix grows new representative scenarios, its per-scenario evidence

@@ -373,7 +373,9 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_registered_sibling_route_prob` controls whether later
   child data inputs bind from earlier sibling instance outputs through
   one local parent flop; default `0.0` keeps this registered
-  child-to-child axis opt-in
+  child-to-child axis opt-in. When `hierarchy_parent_cone_instance_prob`
+  also fires, the direct registered route can use a helper instance
+  output as the parent-flop D source
 - `hierarchy_registered_child_input_cone_prob` controls whether later
   child data inputs bind through parent-local combinational logic over
   sibling-output-derived sources and then one local parent flop;
@@ -385,9 +387,10 @@ The current Phase 4 slice now has two planning lanes:
   parent sources: parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates
 - `hierarchy_parent_cone_instance_prob` controls whether those
-  child-input cones, registered child-input D cones, or parent-output
-  cones may instantiate helper children as internal parent-cone
-  sources; default `0.0` keeps this helper-instantiation axis opt-in
+  child-input cones, direct registered sibling routes, registered
+  child-input D cones, or parent-output cones may instantiate helper
+  children as internal parent-cone sources; default `0.0` keeps this
+  helper-instantiation axis opt-in
 - `max_parent_cone_instances_per_module` controls how many helper
   children one hierarchy parent may instantiate; default `1` preserves
   the first helper slice, `0` disables helper allocation even when the
@@ -472,8 +475,9 @@ Useful options:
   `library` and `on-demand`, real sibling-routed and registered
   sibling-routed child-input bindings, real registered
   parent-composed child-input bindings, helper-sourced child-input
-  bindings, helper-sourced parent outputs, registered helper-sourced
-  child-input D cones, budgeted helper allocation, and real parent-side
+  bindings, helper-sourced parent outputs, registered parent-composed
+  helper-sourced child-input D cones, budgeted helper allocation, and
+  real parent-side
   composition above instance outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
@@ -558,8 +562,10 @@ mixed-support child-input bindings, multi-stage registered
 parent-composed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
-registered helper-sourced child-input D cones, and generator-global
-module-name allocation.
+registered parent-composed helper-sourced child-input D cones, and
+generator-global module-name allocation. The newer direct registered
+sibling helper route has focused current-code evidence below and
+postdates this full downstream-clean `r23` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -630,6 +636,13 @@ outputs reaching helper outputs).
 is the focused proof for registered helper-sourced child-input D cones
 (`child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`).
+`cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
+is the focused proof for direct registered sibling helper routing
+(`child_input_bindings_from_registered_parent_composed_logic = 0`,
+`child_input_bindings_from_registered_parent_cone_instances > 0`,
+`registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
+and `num_instances > planned_child_instances`). This focused proof
+postdates the full downstream-clean `r23` Phase 4 bank.
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -662,7 +675,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r21` now includes this axis too, so the focused smoke is no longer
+at `r23` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at

@@ -144,14 +144,16 @@ placeholder structure:
 - The generator supports both the legacy exact depth-1 wrapper lane and
   the bounded recursive hierarchy lane, with library/on-demand child
   sourcing, sibling-routed child-input bindings, parent-composed
-  child-input cones, parent-cone helper instances for child-input and
-  registered child-input D cones as well as parent-output cones,
+  child-input cones, parent-cone helper instances for child-input
+  cones, direct registered sibling-route D sources, registered
+  child-input D cones, and parent-output cones,
   explicit per-parent helper budgeting, and optional local parent flops.
 
 The remaining open hierarchy work is richer parent-local behavior
-beyond the landed state/helper surfaces: broader helper placement,
-broader registered hierarchy routing, and hierarchy-aware
-identity/factorization.
+beyond the landed state/helper surfaces: helper placement beyond the
+current child-input / direct registered sibling / registered D-cone /
+parent-output seams, broader registered hierarchy routing, and
+hierarchy-aware identity/factorization.
 
 ## Node construction: `intern_gate` / `intern_constant`
 

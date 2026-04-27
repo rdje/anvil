@@ -1391,8 +1391,7 @@ fn binding_uses_registered_parent_cone_instance_output(module: &Module, node_id:
             .and_then(|flop| flop.d)
             .is_some_and(|d| {
                 let d_deps = node_deps(module, d);
-                is_registered_parent_composed_logic_node(module, d)
-                    && deps_include_parent_cone_instance_output(module, &d_deps)
+                deps_include_parent_cone_instance_output(module, &d_deps)
             })
     });
     uses_registered_parent_cone_instance
@@ -1808,6 +1807,51 @@ mod tests {
         assert!(
             met.child_input_bindings_from_registered_parent_cone_instances > 0,
             "registered D cones should depend on parent-cone helper outputs"
+        );
+        assert!(
+            met.child_input_bindings_from_parent_cone_instances
+                >= met.child_input_bindings_from_registered_parent_cone_instances
+        );
+        assert!(met.registered_parent_cone_instance_child_input_binding_fraction > 0.0);
+        assert!(met.top_registered_parent_cone_instance_child_input_binding_fraction > 0.0);
+    }
+
+    #[test]
+    fn design_metrics_capture_direct_registered_sibling_parent_cone_instance_routes() {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 1.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("direct registered sibling helper hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert!(
+            met.child_input_bindings_from_registered_instance_outputs > 0,
+            "expected registered sibling child-input bindings"
+        );
+        assert_eq!(
+            met.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "direct registered sibling helper routes should not be counted as registered parent-composed D cones"
+        );
+        assert!(
+            met.child_input_bindings_from_registered_parent_cone_instances > 0,
+            "registered sibling D flops should depend on parent-cone helper outputs"
         );
         assert!(
             met.child_input_bindings_from_parent_cone_instances

@@ -306,6 +306,9 @@ evidence.
     `--hierarchy-registered-sibling-route-prob <p>` adds the first
     explicit registered child-to-child route: a later child input may
     bind from an earlier sibling output through one local parent flop.
+    When `--hierarchy-parent-cone-instance-prob` also fires, that direct
+    registered route can allocate a helper child and use the helper
+    output as the parent-flop D source.
     `--hierarchy-registered-child-input-cone-prob <p>` adds the
     registered parent-composed route: a later child input may bind
     through parent-local logic over already-available parent sources
@@ -317,10 +320,10 @@ evidence.
     D cone can include a parent-cone helper instance output.
     `--hierarchy-parent-cone-instance-prob <p>` adds the first
     first-class module-instantiation route inside parent cone choice:
-    parent-composed child-input cones, registered child-input D cones,
-    and parent-output cones can instantiate one helper child as an
-    internal parent-cone source, then route its output through parent
-    logic.
+    parent-composed child-input cones, direct registered sibling routes,
+    registered child-input D cones, and parent-output cones can
+    instantiate one helper child as an internal parent-cone source, then
+    route its output through parent logic or a parent-local flop.
     `--max-parent-cone-instances-per-module <N>` controls the
     per-parent helper budget; default `1` preserves the first helper
     slice, and focused tests now prove budget `3` is reachable through
@@ -341,7 +344,9 @@ evidence.
     parent-port / child-output parent outputs, parent-cone
     helper-instance child-input routing, parent-cone helper-instance
     parent-output composition, budgeted multi-helper allocation, and
-    registered helper-sourced child-input D cones.
+    registered parent-composed helper-sourced child-input D cones. The
+    direct registered sibling helper route has focused current-code
+    evidence and postdates that full `r23` bank.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -349,8 +354,8 @@ evidence.
     reusing a name
 - Open Phase 4 work:
   - broaden helper-instance placement beyond the current
-    parent-composed child-input, registered child-input, and budgeted
-    parent-output helper slices
+    parent-composed child-input, direct registered sibling, registered
+    child-input, and budgeted parent-output helper slices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
     surfaces
@@ -470,6 +475,21 @@ the design metrics prove the route numerically through
 The repo-owned Phase 4 scenario set includes a dedicated
 `phase4_hier2_inst4_registered_parent_cone_instance_state` axis too,
 now banked in `r23`.
+
+**Focused direct registered sibling helper proof (new targeted evidence):**
+current HEAD also lets the direct registered sibling route allocate and
+use a parent-cone helper instance as the parent-flop D source when both
+`hierarchy_registered_sibling_route_prob` and
+`hierarchy_parent_cone_instance_prob` are active. The focused regression
+is `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`;
+the design metrics prove this is not the older registered
+parent-composed D-cone path by requiring
+`child_input_bindings_from_registered_parent_composed_logic = 0` while
+`child_input_bindings_from_registered_parent_cone_instances > 0`,
+`registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
+and helper instances are present beyond the planned child slots. This is
+focused current-code evidence; the latest full downstream-clean `r23`
+Phase 4 bank predates this direct registered sibling helper route.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -615,8 +635,8 @@ banks the full current 42-scenario helper surface.
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
 with broader helper-instance placement beyond the current unregistered
-child-input, registered child-input, parent-output, and
-per-parent-budget slices, richer registered
+child-input, direct registered sibling, registered child-input,
+parent-output, and per-parent-budget slices, richer registered
 hierarchy patterns beyond the first multi-stage parent-flop chain, and
 eventual hierarchy-aware identity/factorization.
 

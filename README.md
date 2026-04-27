@@ -138,6 +138,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force registered sibling-routed hierarchy child inputs
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --max-flops-per-module 8
 
+# Force registered sibling-routed hierarchy child inputs whose D side uses a helper instance
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 1.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --hierarchy-parent-flop-prob 0.0 --max-flops-per-module 8 --terminal-reuse-prob 1.0 --constant-prob 0.0
+
 # Force registered parent-composed hierarchy child inputs
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 1.0 --hierarchy-child-input-cone-prob 0.0 --max-flops-per-module 8
 
@@ -292,7 +295,10 @@ registered parent-composed child-input binding, mixed parent-port /
 child-output parent outputs, explicit local parent flops in hierarchy
 modules, parent-cone helper-instance child-input binding,
 parent-output helper-instance composition, budgeted multi-helper
-allocation, and registered helper-sourced child-input D cones.
+allocation, and registered parent-composed helper-sourced child-input D cones.
+A focused current-code regression now covers the newer direct registered
+sibling helper route; the latest full downstream-clean `r23` bank
+predates that route.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -407,7 +413,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   whether later child data inputs bind from earlier sibling outputs
   through one local parent flop. This is a separate registered
   child-to-child routing axis; default `0.0` preserves the current
-  combinational hierarchy unless explicitly requested.
+  combinational hierarchy unless explicitly requested. When
+  `--hierarchy-parent-cone-instance-prob` also fires, this direct
+  registered route can allocate a helper child and use its output as
+  the parent-flop D source.
 - `anvil --hierarchy-registered-child-input-cone-prob <p>` controls
   whether later child data inputs bind through parent-local
   combinational logic over already-available parent sources and then
@@ -454,7 +463,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both lanes also expose
   `--hierarchy-registered-sibling-route-prob <p>`, which routes an
   earlier sibling output through one parent-local flop before binding a
-  later child input.
+  later child input. When helper placement is enabled, that same direct
+  registered route can use a helper instance output on the flop D side.
   Both lanes also expose
   `--hierarchy-registered-child-input-cone-prob <p>`, which routes a
   parent source through parent-local logic and then one parent-local
@@ -472,8 +482,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `--hierarchy-parent-cone-instance-prob <p>`, which lets those
   parent-local combinational cones instantiate a helper child as an
   internal parent-cone source. Helper outputs can now feed unregistered
-  child-input bindings, registered child-input D cones, or
-  parent-output composition, and
+  child-input bindings, direct registered sibling route D inputs,
+  registered child-input D cones, or parent-output composition, and
   `--max-parent-cone-instances-per-module <N>` now controls the
   per-parent helper budget. This is the first landed slice where
   module instantiation participates directly in parent-side cone choice:
@@ -514,18 +524,22 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child-input binding, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
-  registered helper-sourced child-input D cones, parent-local flop
-  state, and per-depth-override profiles folded into `tool_matrix`,
-  with `42` scenarios, `168` total designs, `coverage_gaps = []`, and
-  `168/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  registered parent-composed helper-sourced child-input D cones,
+  parent-local flop state, and per-depth-override profiles folded into
+  `tool_matrix`, with `42` scenarios, `168` total designs,
+  `coverage_gaps = []`, and `168/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes. A focused current-code regression covers the
+  newer direct registered sibling helper route; the latest full
+  downstream-clean `r23` bank predates that route.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  broader helper-instance placement beyond the current unregistered
-  child-input, registered child-input, parent-output, and
-  per-parent-budget slices, broader registered hierarchy patterns, and
+  additional helper-instance placement beyond the current unregistered
+  child-input, direct registered sibling, registered child-input,
+  parent-output, and per-parent-budget slices, broader registered
+  hierarchy patterns, and
   later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still
   roadmap work. See

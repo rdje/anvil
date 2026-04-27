@@ -1,8 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-27-phase4-parent-output-helper-budget — Spend parent-output helper budget directly
+## 2026-04-27-phase4-registered-sibling-helper-route — Route registered sibling flops from helper instances
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets the `hierarchy_registered_sibling_route_prob` branch request
+  a parent-cone helper instance source when
+  `hierarchy_parent_cone_instance_prob` fires. The registered sibling
+  route can use that helper output as the parent-flop D source, adapting
+  width through the existing parent-cone adapter path when needed.
+- The old registered sibling behavior is preserved when no helper source
+  is requested: the route still falls back to a dep-bearing sibling /
+  parent-source terminal and then inserts one local parent flop.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  now counts registered parent-cone helper bindings by checking whether
+  the registered flop D dependencies include a parent-cone helper
+  instance output. The metric no longer requires the D node itself to be
+  registered parent-composed logic, which keeps direct registered sibling
+  helper routes measurable.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds `hierarchy_registered_sibling_routes_can_use_helper_instances`,
+  which forces registered sibling routing and helper placement on while
+  forcing the registered parent-composed D-cone route off.
+
+**Why**
+
+- The previous helper-instance slices covered unregistered
+  parent-composed child-input cones, registered parent-composed D cones,
+  and parent-output cones. Direct registered sibling routing still chose
+  only from the existing parent source pool and could not allocate a
+  helper instance for its parent-flop D source.
+- The metric needed to distinguish the new direct route from the older
+  registered parent-composed helper route. A helper-backed registered
+  sibling route may have a helper output or adapter gate on the D side,
+  not a parent-composed D-cone root.
+
+**Validation**
+
+- `cargo test --test pipeline hierarchy_registered`
+- `cargo test design_metrics_capture`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- When both `hierarchy_registered_sibling_route_prob` and
+  `hierarchy_parent_cone_instance_prob` are active, a later child input
+  can now be bound through a parent-local flop whose D side is sourced
+  directly from a helper instance output.
+- Focused tests prove this is not the older registered parent-composed
+  D-cone path by requiring
+  `child_input_bindings_from_registered_parent_composed_logic = 0` while
+  `child_input_bindings_from_registered_parent_cone_instances > 0`,
+  `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
+  and helper instances are present beyond the planned child slots.
+- Existing registered parent-composed helper routing and registered
+  sibling routing remain covered by the focused hierarchy regression
+  filters.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-27-phase4-parent-output-helper-budget — Spend parent-output helper budget directly
+**Landed as:** `c348884`
 
 **What changed**
 

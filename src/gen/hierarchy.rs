@@ -776,12 +776,14 @@ fn bind_child_input_from_parent_sources(
             g.cfg.hierarchy_registered_sibling_route_prob,
         )
     {
+        let parent_cone_instance_source = maybe_add_parent_cone_instance_source(g, ctx, width);
         return build_registered_sibling_route(
             g,
             ctx.top,
             ctx.instance_pool,
             ctx.parent_source_pool,
             width,
+            parent_cone_instance_source,
         );
     }
 
@@ -1028,8 +1030,18 @@ fn build_registered_sibling_route(
     instance_pool: &mut SignalPool,
     parent_source_pool: &mut SignalPool,
     width: u32,
+    required_parent_cone_instance_source: Option<NodeId>,
 ) -> NodeId {
-    let d_node = cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None);
+    let d_node = if let Some(required_source) = required_parent_cone_instance_source {
+        adapt_parent_cone_instance_source_for_registered_route(
+            top,
+            parent_source_pool,
+            required_source,
+            width,
+        )
+    } else {
+        cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None)
+    };
     let flop_id = top.flops.len() as FlopId;
     let q_node_id = top.nodes.len() as NodeId;
     top.nodes.push(Node::FlopQ {
@@ -1049,6 +1061,30 @@ fn build_registered_sibling_route(
     let deps = DepSet::from_flop_virtual(flop_id);
     parent_source_pool.add(q_node_id, width, deps);
     q_node_id
+}
+
+fn adapt_parent_cone_instance_source_for_registered_route(
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    required_source: NodeId,
+    width: u32,
+) -> NodeId {
+    let source_width = match &top.nodes[required_source as usize] {
+        Node::InstanceOutput { width, .. } => *width,
+        Node::Gate { width, .. } => *width,
+        Node::PrimaryInput { width, .. } => *width,
+        Node::FlopQ { width, .. } => *width,
+        Node::Constant { width, .. } => *width,
+    };
+    let source_deps = cone::node_deps(top, required_source);
+    cone::make_width_adapter(
+        top,
+        parent_source_pool,
+        required_source,
+        source_width,
+        source_deps,
+        width,
+    )
 }
 
 fn build_registered_child_input_cone_route(
