@@ -104,9 +104,10 @@ in `tool_matrix`, and current HEAD now extends hierarchy with both
 parent-side composition, bounded recursive tree planning, mixed-depth
 leaf shaping inside a requested depth interval, and depth-specific
 branching overrides, plus real child-input routing surfaces,
-helper-instance sources for unregistered child-input cones, registered
-child-input D cones, and parent-output cones, and an
-explicit local-parent-state axis.
+helper-instance sources for parent-composed child-input cones, direct
+sibling routes, direct registered sibling routes, registered child-input
+D cones, and parent-output cones, and an explicit local-parent-state
+axis.
 
 ## Dependency direction
 
@@ -362,13 +363,14 @@ Three layers:
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 16 tests (empty module, per-kind gate
+- `src/metrics.rs` — 17 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
   and hierarchy design metrics for reuse, under-instantiation,
   parent-side composition, sibling-routed child inputs,
-  parent-cone helper output support, budgeted parent-cone helpers,
-  registered helper-sourced child-input D cones, direct registered
-  sibling helper routes, recursive tree shape, per-depth branching
+  direct sibling helper routes, parent-cone helper output support,
+  budgeted parent-cone helpers, registered helper-sourced child-input D
+  cones, direct registered sibling helper routes, recursive tree shape,
+  per-depth branching
   profiles, mixed-depth recursion, and profiled on-demand interface
   realization).
 - Other unit tests cover compaction, config validation, module
@@ -386,8 +388,8 @@ child inputs, parent-composed child-input bindings, parent-cone
 helper-instance child-input bindings, parent-cone helper-instance
 parent-output composition, local parent flops, registered sibling-routed
 child-input bindings, registered parent-composed child-input bindings,
-registered helper-sourced child-input D cones, direct registered
-sibling helper routes,
+registered helper-sourced child-input D cones, direct sibling helper
+routes, direct registered sibling helper routes,
 budgeted parent-cone helper allocation, budgeted parent-output helper
 composition,
 mixed parent-port / child-output parent outputs, and module-name
@@ -395,7 +397,7 @@ uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-27): 219 unit-target tests + 52 integration tests = 271 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-27): 220 unit-target tests + 53 integration tests = 273 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -439,9 +441,10 @@ child-input bindings, multi-stage registered parent-composed
 child-input bindings, mixed parent-port / child-output parent outputs,
 parent-output helper-instance composition, budgeted multi-helper
 allocation, and registered parent-composed helper-sourced child-input D
-cones. A focused current-code regression now covers the newer direct
-registered sibling helper route; the latest full downstream-clean `r23`
-bank predates that route. The `r23` report records
+cones. Focused current-code regressions now cover the newer direct
+sibling helper route and direct registered sibling helper route; the
+latest full downstream-clean `r23` bank predates both routes. The `r23`
+report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
 `saw_hierarchy_registered_sibling_routing = true`,
@@ -477,6 +480,7 @@ and
 `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
 and
 `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json`, and
+`cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 remain useful targeted evidence. The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,

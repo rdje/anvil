@@ -334,6 +334,9 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level parent-composed child-input fractions
   (`parent_composed_child_input_binding_fraction`,
   `top_parent_composed_child_input_binding_fraction`)
+- hierarchy- and top-level parent-cone helper child-input fractions
+  (`parent_cone_instance_child_input_binding_fraction`,
+  `top_parent_cone_instance_child_input_binding_fraction`)
 - hierarchy- and top-level parent-flop child-input fractions
   (`parent_flop_child_input_binding_fraction`,
   `top_parent_flop_child_input_binding_fraction`)
@@ -368,8 +371,10 @@ The current Phase 4 slice now has two planning lanes:
   parent-planned exact data-interface profiles, one profiled child
   definition per planned instance slot
 - `hierarchy_sibling_route_prob` controls whether later child data
-  inputs may bind from earlier sibling instance outputs; the current
-  parent-side routing slice keeps that surface purely combinational
+  inputs may bind from earlier sibling instance outputs; when
+  `hierarchy_parent_cone_instance_prob` also fires, this direct
+  unregistered route can allocate a helper child and bind from its
+  output. The route stays combinational
 - `hierarchy_registered_sibling_route_prob` controls whether later
   child data inputs bind from earlier sibling instance outputs through
   one local parent flop; default `0.0` keeps this registered
@@ -386,10 +391,11 @@ The current Phase 4 slice now has two planning lanes:
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates
-- `hierarchy_parent_cone_instance_prob` controls whether those
-  child-input cones, direct registered sibling routes, registered
-  child-input D cones, or parent-output cones may instantiate helper
-  children as internal parent-cone sources; default `0.0` keeps this
+- `hierarchy_parent_cone_instance_prob` controls whether
+  parent-composed child-input cones, direct sibling routes, direct
+  registered sibling routes, registered child-input D cones, or
+  parent-output cones may instantiate helper children as internal
+  parent-cone sources; default `0.0` keeps this
   helper-instantiation axis opt-in
 - `max_parent_cone_instances_per_module` controls how many helper
   children one hierarchy parent may instantiate; default `1` preserves
@@ -563,9 +569,10 @@ parent-composed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
 registered parent-composed helper-sourced child-input D cones, and
-generator-global module-name allocation. The newer direct registered
-sibling helper route has focused current-code evidence below and
-postdates this full downstream-clean `r23` bank.
+generator-global module-name allocation. The newer direct sibling
+helper route and direct registered sibling helper route have focused
+current-code evidence below and postdate this full downstream-clean
+`r23` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -636,6 +643,15 @@ outputs reaching helper outputs).
 is the focused proof for registered helper-sourced child-input D cones
 (`child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`).
+`cargo test hierarchy_sibling_routes_can_use_helper_instances` is the
+focused proof for direct sibling helper routing
+(`child_input_bindings_from_registered_instance_outputs = 0`,
+`child_input_bindings_from_registered_parent_cone_instances = 0`,
+`child_input_bindings_from_parent_cone_instances > 0`,
+`parent_cone_instance_child_input_binding_fraction > 0.0`,
+`top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
+`num_instances > planned_child_instances`). This focused proof postdates
+full downstream-clean `r23` Phase 4 bank.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
 (`child_input_bindings_from_registered_parent_composed_logic = 0`,

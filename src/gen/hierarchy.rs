@@ -810,6 +810,16 @@ fn bind_child_input_from_parent_sources(
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
         && roll_hierarchy_sibling_route(ctx.top, &mut g.rng, g.cfg.hierarchy_sibling_route_prob)
     {
+        if let Some(parent_cone_instance_source) =
+            maybe_add_parent_cone_instance_source(g, ctx, width)
+        {
+            return adapt_parent_cone_instance_source_to_width(
+                ctx.top,
+                ctx.parent_source_pool,
+                parent_cone_instance_source,
+                width,
+            );
+        }
         return cone::pick_terminal_dep_bearing(g, ctx.top, ctx.instance_pool, width, None);
     }
 
@@ -1033,12 +1043,7 @@ fn build_registered_sibling_route(
     required_parent_cone_instance_source: Option<NodeId>,
 ) -> NodeId {
     let d_node = if let Some(required_source) = required_parent_cone_instance_source {
-        adapt_parent_cone_instance_source_for_registered_route(
-            top,
-            parent_source_pool,
-            required_source,
-            width,
-        )
+        adapt_parent_cone_instance_source_to_width(top, parent_source_pool, required_source, width)
     } else {
         cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None)
     };
@@ -1063,7 +1068,7 @@ fn build_registered_sibling_route(
     q_node_id
 }
 
-fn adapt_parent_cone_instance_source_for_registered_route(
+fn adapt_parent_cone_instance_source_to_width(
     top: &mut Module,
     parent_source_pool: &mut SignalPool,
     required_source: NodeId,

@@ -341,8 +341,11 @@ instead of creating fresh logic.
   part of that profile.
 - `hierarchy_sibling_route_prob` — probability that later child data
   inputs bind from earlier sibling instance outputs instead of always
-  binding from parent-boundary inputs. Range `[0.0, 1.0]`. Default
-  `0.35`. Direct sibling routing is combinational.
+  binding from parent-boundary inputs. When
+  `hierarchy_parent_cone_instance_prob` also fires, the direct
+  unregistered route can allocate a helper child and bind from its
+  output instead. Range `[0.0, 1.0]`. Default `0.35`. Direct sibling
+  routing is combinational.
 - `hierarchy_registered_sibling_route_prob` — probability that later
   child data inputs bind through one local parent flop. The default D
   source is an earlier sibling instance output; when
@@ -369,9 +372,10 @@ instead of creating fresh logic.
   instance outputs, and earlier parent-side route gates. Range
   `[0.0, 1.0]`. Default `0.35`.
 - `hierarchy_parent_cone_instance_prob` — probability that a
-  parent-composed child-input cone, direct registered sibling route,
-  registered child-input D cone, or parent-output cone instantiates one
-  helper child as an internal parent-cone source. The helper is separate
+  parent-composed child-input cone, direct sibling route, direct
+  registered sibling route, registered child-input D cone, or
+  parent-output cone instantiates one helper child as an internal
+  parent-cone source. The helper is separate
   from planned child slots, and its outputs can feed later child inputs
   or parent outputs through parent logic or one parent-local flop. Range
   `[0.0, 1.0]`. Default `0.0`, so helper instantiation is opt-in.

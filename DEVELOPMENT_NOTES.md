@@ -59,6 +59,23 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Direct sibling helper routes must stay unregistered in the metrics
+Direct sibling routing can now request a parent-cone helper instance
+source when `hierarchy_parent_cone_instance_prob` fires. That route
+still binds the later child input directly from a dep-bearing parent
+source; it does not allocate a parent-local flop and it must not be
+counted as registered routing just because the source is a helper
+instance output.
+
+The metric contract is therefore split deliberately:
+`child_input_bindings_from_parent_cone_instances` and the matching
+plain helper fractions prove that a helper output reached a child input,
+while `child_input_bindings_from_registered_parent_cone_instances`
+stays zero unless the final binding goes through a registered route.
+The focused direct sibling helper regression forces the registered
+sibling and registered parent-composed axes off to preserve that
+separation.
+
 ### Registered helper metrics must include direct registered sibling routes
 The registered helper-instance metric originally grew out of the
 registered parent-composed child-input route, where the child binding is
@@ -139,9 +156,10 @@ Just as importantly, it keeps the open work honest. The first-landed
 top layer was **combinational only**; since then, bounded recursive
 sub-hierarchy growth, local parent flops, child-input routing, mixed
 parent-port / child-output parent outputs, parent-cone helper instances
-for child-input cones, direct registered sibling D sources, registered
-child-input D cones, parent-output cones, and explicit helper budgeting
-have landed as separate slices. Broader helper-instance placement
+for parent-composed child-input cones, direct sibling child-input
+routes, direct registered sibling D sources, registered child-input D
+cones, parent-output cones, and explicit helper budgeting have landed
+as separate slices. Broader helper-instance placement
 beyond those seams, broader registered hierarchy-local routing, and
 hierarchical identity remain future work.
 
@@ -284,9 +302,10 @@ hand.
 
 What it does **not** do yet is make every parent-side cone free to
 instantiate arbitrary helper modules. The narrow helper-instance seams
-are now live for parent-composed child-input cones, direct registered
-sibling D sources, registered child-input D cones, and parent-output
-cones, with explicit per-parent budgeting. Broader helper placement
+are now live for parent-composed child-input cones, direct sibling
+routes, direct registered sibling D sources, registered child-input D
+cones, and parent-output cones, with explicit per-parent budgeting.
+Broader helper placement
 beyond those seams remains future hierarchy work.
 
 One more gate-level rule turned out to matter here: when a repo-owned
@@ -468,6 +487,18 @@ path. The repo-owned Phase 4 gate now banks this as a required coverage
 fact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
 with `coverage_gaps = []` and 168/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
+
+Current HEAD has broadened that helper source beyond the original
+parent-composed child-input seam. Helper outputs can now feed direct
+unregistered sibling routes, direct registered sibling-route D inputs,
+registered parent-composed child-input D cones, and parent-output
+composition. The direct sibling helper proof is
+`cargo test hierarchy_sibling_routes_can_use_helper_instances`; it
+requires registered helper counters to stay zero while
+`child_input_bindings_from_parent_cone_instances > 0`,
+`parent_cone_instance_child_input_binding_fraction > 0.0`,
+`top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
+helper instances are present beyond the planned child slots.
 
 ### Local parent flops are a separate hierarchy state axis
 The next Phase 4 step deliberately does not overload leaf `flop_prob`.

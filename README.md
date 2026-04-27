@@ -128,6 +128,9 @@ cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-chi
 # combinational parent-composition slice
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 1.0
 
+# Force sibling-routed hierarchy child inputs from helper instances
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 1.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --hierarchy-parent-flop-prob 0.0 --terminal-reuse-prob 1.0 --constant-prob 0.0
+
 # Force parent-composed hierarchy child-input bindings in the current
 # combinational parent-composition slice
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-child-input-cone-prob 1.0
@@ -296,9 +299,9 @@ child-output parent outputs, explicit local parent flops in hierarchy
 modules, parent-cone helper-instance child-input binding,
 parent-output helper-instance composition, budgeted multi-helper
 allocation, and registered parent-composed helper-sourced child-input D cones.
-A focused current-code regression now covers the newer direct registered
-sibling helper route; the latest full downstream-clean `r23` bank
-predates that route.
+Focused current-code regressions now cover the newer direct sibling
+helper route and direct registered sibling helper route; the latest full
+downstream-clean `r23` bank predates both routes.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -312,8 +315,10 @@ smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
 `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`,
 `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`,
+`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+`cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
+`cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 still remain useful targeted proof points. The older `r21` report is
 historical pre-parent-output-helper evidence. The aborted `r8` rerun is
 now only historical runtime evidence: it showed that the Phase 4 gate
@@ -407,8 +412,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   profiles.
 - `anvil --hierarchy-sibling-route-prob <p>` controls whether later
   sibling child inputs may bind from earlier sibling instance outputs
-  instead of always binding from parent-boundary inputs. The current
-  direct sibling-routing slice is combinational.
+  instead of always binding from parent-boundary inputs. When
+  `--hierarchy-parent-cone-instance-prob` also fires, this direct
+  unregistered route can allocate a helper child and bind from its
+  output. The route stays combinational.
 - `anvil --hierarchy-registered-sibling-route-prob <p>` controls
   whether later child data inputs bind from earlier sibling outputs
   through one local parent flop. This is a separate registered
@@ -458,8 +465,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both lanes now also expose a sibling-routing dial via
   `--hierarchy-sibling-route-prob <p>`, so later child inputs may bind
   from earlier sibling instance outputs through the same dep-bearing
-  width-adaptation machinery used elsewhere in the generator. That
-  routing remains intentionally combinational in the current slice.
+  width-adaptation machinery used elsewhere in the generator. When
+  helper placement is enabled, that direct unregistered route can use a
+  helper instance output instead of only a planned sibling output. The
+  route remains intentionally combinational.
   Both lanes also expose
   `--hierarchy-registered-sibling-route-prob <p>`, which routes an
   earlier sibling output through one parent-local flop before binding a
@@ -481,9 +490,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   Both lanes also expose
   `--hierarchy-parent-cone-instance-prob <p>`, which lets those
   parent-local combinational cones instantiate a helper child as an
-  internal parent-cone source. Helper outputs can now feed unregistered
-  child-input bindings, direct registered sibling route D inputs,
-  registered child-input D cones, or parent-output composition, and
+  internal parent-cone source. Helper outputs can now feed
+  parent-composed child-input bindings, direct sibling child-input
+  bindings, direct registered sibling route D inputs, registered
+  child-input D cones, or parent-output composition, and
   `--max-parent-cone-instances-per-module <N>` now controls the
   per-parent helper budget. This is the first landed slice where
   module instantiation participates directly in parent-side cone choice:
@@ -529,16 +539,18 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `tool_matrix`, with `42` scenarios, `168` total designs,
   `coverage_gaps = []`, and `168/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. A focused current-code regression covers the
-  newer direct registered sibling helper route; the latest full
-  downstream-clean `r23` bank predates that route.
+  newer direct sibling helper route and direct registered sibling
+  helper route; the latest full downstream-clean `r23` bank predates
+  both routes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest
   work is deeper hierarchy capability beyond the banked gate:
-  additional helper-instance placement beyond the current unregistered
-  child-input, direct registered sibling, registered child-input,
-  parent-output, and per-parent-budget slices, broader registered
+  additional helper-instance placement beyond the current
+  parent-composed child-input, direct sibling, direct registered
+  sibling, registered child-input, parent-output, and per-parent-budget
+  slices, broader registered
   hierarchy patterns, and
   later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still

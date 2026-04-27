@@ -773,6 +773,89 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn hierarchy_sibling_routes_can_use_helper_instances() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 1.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            hierarchy_parent_flop_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("sibling helper hierarchy config should be valid");
+        let planned_child_instances = cfg.num_child_instances as usize;
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "sibling helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.top_parent_cone_instances > 0,
+            "expected top-level helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_instance_outputs > 0,
+            "expected direct sibling child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_instance_outputs, 0,
+            "this focused config should prove unregistered sibling helper use, not registered sibling routing, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "this focused config should not count registered helper D paths for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_cone_instances > 0,
+            "expected direct sibling bindings to depend on helper outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.parent_cone_instance_child_input_binding_fraction > 0.0,
+            "expected non-zero direct helper binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.top_parent_cone_instance_child_input_binding_fraction > 0.0,
+            "expected non-zero top direct helper binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_instances > planned_child_instances,
+            "helper instance should be additional to planned child slots for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_registered_child_input_cones_can_use_helper_instances() {
     for strategy in [
         ConstructionStrategy::Sequential,

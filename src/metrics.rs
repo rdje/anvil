@@ -1776,6 +1776,51 @@ mod tests {
     }
 
     #[test]
+    fn design_metrics_capture_direct_sibling_parent_cone_instance_routes() {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 1.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            hierarchy_parent_flop_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("direct sibling helper hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert!(
+            met.child_input_bindings_from_instance_outputs > 0,
+            "expected direct sibling child-input bindings"
+        );
+        assert_eq!(
+            met.child_input_bindings_from_registered_instance_outputs, 0,
+            "direct sibling helper routes should not use registered sibling flops"
+        );
+        assert_eq!(
+            met.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "direct sibling helper routes should not use registered helper D paths"
+        );
+        assert!(
+            met.child_input_bindings_from_parent_cone_instances > 0,
+            "direct sibling bindings should depend on parent-cone helper outputs"
+        );
+        assert!(met.parent_cone_instance_child_input_binding_fraction > 0.0);
+        assert!(met.top_parent_cone_instance_child_input_binding_fraction > 0.0);
+    }
+
+    #[test]
     fn design_metrics_capture_registered_parent_cone_instance_routes() {
         let cfg = Config {
             seed: 42,

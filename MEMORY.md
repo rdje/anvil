@@ -3,7 +3,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- Latest Phase 4 hierarchy slice broadens direct registered sibling
+- Latest Phase 4 hierarchy slice broadens direct sibling routing so
+  `hierarchy_sibling_route_prob` can allocate a parent-cone helper
+  instance when `hierarchy_parent_cone_instance_prob` fires and bind a
+  later child input directly from that helper output. The focused
+  regression proves helper instances are present beyond planned child
+  slots, direct sibling bindings exist,
+  `child_input_bindings_from_parent_cone_instances > 0`, and the
+  registered helper counters stay zero.
+- Prior Phase 4 hierarchy slice broadened direct registered sibling
   routing so `hierarchy_registered_sibling_route_prob` can allocate a
   parent-cone helper instance when `hierarchy_parent_cone_instance_prob`
   fires and use that helper output as the parent-flop D source. The
@@ -84,8 +92,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - Current HEAD now also has an explicit sibling-routing surface in the
   hierarchy planner. Both wrapper and recursive parents may bind later
   child data inputs from earlier sibling instance outputs via
-  `hierarchy_sibling_route_prob`, and the resulting provenance is now
-  measurable directly from design metrics.
+  `hierarchy_sibling_route_prob`, and when
+  `hierarchy_parent_cone_instance_prob` fires that direct route can
+  allocate a helper child and bind from the helper output instead. The
+  resulting provenance is measurable directly from design metrics.
 - Current HEAD now also has an explicit parent-composed child-input
   surface. Both wrapper and recursive parents may bind child data inputs
   through parent-local combinational cones over already-available
@@ -93,11 +103,11 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   candidates are parent data inputs, earlier sibling instance outputs,
   and earlier parent-side route gates.
 - Current HEAD now also has the first parent-cone helper-instance slice.
-  When `hierarchy_parent_cone_instance_prob` fires, a parent-composed
-  child-input cone can instantiate one helper child as an internal
-  parent-cone source; that helper is tagged separately from planned
-  child slots, and its outputs can feed later child inputs through
-  parent logic.
+  When `hierarchy_parent_cone_instance_prob` fires, parent-composed
+  child-input cones and direct sibling routes can instantiate a helper
+  child as an internal parent-cone source; that helper is tagged
+  separately from planned child slots, and its outputs can feed later
+  child inputs either directly or through parent logic.
 - Current HEAD now also broadens that helper-instance slice to
   parent-output composition. Parent-output cones can allocate helper
   children as internal parent-cone sources even when
@@ -165,15 +175,16 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   parent-port support. Metrics expose this as
   `top_parent_port_composed_outputs`,
   `hierarchy_parent_port_composed_outputs`, and matching fractions.
-- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds parent-side output cones over them, and bounded recursive hierarchy can now mix shallow and deep branches inside one legal tree. The parent layer still stays intentionally narrow in the remaining open ways: the first one-flop registered sibling route, the first registered parent-composed child-input route, registered mixed-support routing, the first multi-stage registered parent-composed chain, and parent-cone helper-instance routes for unregistered child-input cones, direct registered sibling routes, registered child-input D cones, and parent-output cones with an explicit per-parent budget are live; additional helper placement, broader multi-stage registered hierarchy patterns, and hierarchy-aware identity remain open.
+- Current HEAD is no longer wrapper-only. The top module now treats child `InstanceOutput` nodes as real dep-bearing leaf variables and builds parent-side output cones over them, and bounded recursive hierarchy can now mix shallow and deep branches inside one legal tree. The parent layer still stays intentionally narrow in the remaining open ways: the first one-flop registered sibling route, the first registered parent-composed child-input route, registered mixed-support routing, the first multi-stage registered parent-composed chain, and parent-cone helper-instance routes for parent-composed child-input cones, direct sibling routes, direct registered sibling routes, registered child-input D cones, and parent-output cones with an explicit per-parent budget are live; additional helper placement, broader multi-stage registered hierarchy patterns, and hierarchy-aware identity remain open.
 - The remaining intentional narrowness in the parent layer is now
   clearer: local parent flops, the first one-flop registered sibling
   route, the first registered parent-composed child-input route, the
   mixed-support registered subcase, and the first multi-stage
   registered parent-composed chain, plus the first parent-cone
-  helper-instance routes for unregistered child-input cones, direct
-  registered sibling routes, registered child-input D cones, and
-  parent-output cones plus explicit helper budgeting, are live, but
+  helper-instance routes for parent-composed child-input cones, direct
+  sibling routes, direct registered sibling routes, registered
+  child-input D cones, and parent-output cones plus explicit helper
+  budgeting, are live, but
   additional helper placement, broader multi-stage registered hierarchy
   patterns, and hierarchy-aware identity are not.
 - Current HEAD now also has a bounded recursive hierarchy lane driven by `min_hierarchy_depth..=max_hierarchy_depth` plus `min_child_instances_per_module..=max_child_instances_per_module`, with optional repeated `--child-instances-per-depth` overrides keyed by parent depth (`0` = top, `1` = its direct children, ...). The recursive planner now keeps subtree-local depth intervals live, so leaves stay inside the requested global range and the tree can realize both shallow and deep branches when the interval is open and the structure allows it.
@@ -243,6 +254,19 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `top_child_input_bindings_from_instance_outputs = 6`
   - `instance_output_child_input_binding_fraction = 0.75`
   - `top_instance_output_child_input_binding_fraction = 0.75`
+- The focused proof for direct sibling helper routing is
+  `cargo test hierarchy_sibling_routes_can_use_helper_instances`. Its
+  key design metrics are:
+  - `top_parent_cone_instances > 0`
+  - `child_input_bindings_from_instance_outputs > 0`
+  - `child_input_bindings_from_registered_instance_outputs = 0`
+  - `child_input_bindings_from_registered_parent_cone_instances = 0`
+  - `child_input_bindings_from_parent_cone_instances > 0`
+  - `parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `num_instances > planned_child_instances`
+  This is focused current-code evidence; the latest full downstream-clean
+  `r23` Phase 4 bank predates this direct sibling helper route.
 - The focused proof artifact for the new parent-composed child-input
   slice is `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`,
   also clean in Verilator plus both repo-owned Yosys modes. Its key
@@ -367,9 +391,9 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This is current focused evidence; the latest full downstream-clean
-  `r23` Phase 4 bank predates this direct registered sibling helper
-  route.
+  This is focused current-code evidence; the latest full downstream-clean
+  `r23` Phase 4 bank predates both this direct registered sibling helper
+  route and the direct sibling helper route.
 - The refreshed repo-owned Phase 4 hierarchy closure report is now `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`: **42 scenarios**, **4 designs/scenario**, **168 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, and **168/0** pass-fail in Verilator plus both repo-owned Yosys modes.
 - The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22/tool_matrix_report.json` is root-cause evidence only: the stale total-design budget ran 42 scenarios at 3 designs/scenario, or 126 total designs. The live gate now uses a direct four-designs-per-scenario Phase 4 floor.
 - That refreshed report covers the current representative hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
@@ -456,8 +480,13 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Broadened direct registered sibling routing
-  so a helper instance can source the parent-flop D side when
+- **Last completed slice:** Broadened direct sibling routing so a
+  helper instance can source a later child input directly when
+  `hierarchy_sibling_route_prob` and
+  `hierarchy_parent_cone_instance_prob` are both active. Focused proof:
+  `cargo test hierarchy_sibling_routes_can_use_helper_instances`.
+- **Prior slice:** Broadened direct registered sibling routing so a
+  helper instance can source the parent-flop D side when
   `hierarchy_registered_sibling_route_prob` and
   `hierarchy_parent_cone_instance_prob` are both active. Metrics now
   count registered helper use by inspecting the registered flop-D
@@ -722,7 +751,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance unregistered child-input, direct registered sibling, registered child-input D-cone, and budgeted parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is additional helper placement beyond the current helper-route slices and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance parent-composed child-input, direct sibling, direct registered sibling, registered child-input D-cone, and budgeted parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is additional helper placement beyond the current helper-route slices and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
   1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r23` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget now directly preserves four designs/scenario as the scenario set grows. Future hierarchy scenarios should preserve both separation-of-concerns and per-scenario evidence density.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
@@ -732,6 +761,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `0e3e833` — Route registered sibling flops via helper instances.
 - `c348884` — Spend parent-output helper budget.
 - `785a143` — Align package metadata terminology.
 - `f9f0288` — Refresh Phase 4 hierarchy gate budget.

@@ -1,8 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-27-phase4-registered-sibling-helper-route — Route registered sibling flops from helper instances
+## 2026-04-27-phase4-direct-sibling-helper-route — Route direct sibling inputs from helper instances
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  now lets the `hierarchy_sibling_route_prob` branch request a
+  parent-cone helper instance source when
+  `hierarchy_parent_cone_instance_prob` fires. The direct child-input
+  route can bind from that helper output, adapting width through the
+  existing parent-cone adapter path when needed.
+- The old direct sibling behavior is preserved when no helper source is
+  requested: the route still falls back to a dep-bearing earlier sibling
+  instance output from the existing sibling pool.
+- The parent-cone helper width adapter was renamed to describe its
+  generic role because both unregistered and registered routes now use
+  it.
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  adds focused design-metrics coverage for direct sibling helper
+  bindings. The existing parent-cone helper child-input metrics already
+  count this route by dependency, while the registered helper counters
+  stay zero for the unregistered path.
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  adds `hierarchy_sibling_routes_can_use_helper_instances`, which
+  forces direct sibling routing and helper placement on while forcing
+  registered sibling routing, registered parent-composed routing, and
+  unregistered parent-composed cones off.
+
+**Why**
+
+- The previous helper-instance slices covered parent-composed
+  child-input cones, direct registered sibling-route D sources,
+  registered parent-composed D cones, and parent-output cones. The plain
+  direct sibling branch still chose only from existing planned sibling
+  outputs and could not allocate a helper instance as a direct
+  child-input source.
+- Keeping this as an unregistered route matters: it exercises helper
+  instance outputs as direct acyclic child-input sources without
+  conflating the result with the registered sibling or registered
+  parent-composed D-cone paths.
+
+**Validation**
+
+- `cargo test --test pipeline hierarchy_sibling_routes_can_use_helper_instances`
+- `cargo test design_metrics_capture_direct_sibling_parent_cone_instance_routes`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- When both `hierarchy_sibling_route_prob` and
+  `hierarchy_parent_cone_instance_prob` are active, a later child input
+  can now be bound directly from a helper instance output instead of
+  only from a planned earlier sibling output.
+- Focused tests prove the route with registered helper counters at zero:
+  `child_input_bindings_from_registered_instance_outputs = 0`,
+  `child_input_bindings_from_registered_parent_cone_instances = 0`,
+  `child_input_bindings_from_parent_cone_instances > 0`, and helper
+  binding fractions nonzero at both hierarchy and top level, with
+  helper instances present beyond the planned child slots.
+- Existing registered sibling helper routing and parent-composed helper
+  routing remain covered by their focused regressions.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-27-phase4-registered-sibling-helper-route — Route registered sibling flops from helper instances
+
+**Landed as:** `0e3e833`
 
 **What changed**
 

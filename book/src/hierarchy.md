@@ -117,11 +117,12 @@ pass-through shell:
   inputs, earlier sibling instance outputs, and earlier parent-side
   route gates;
 - both lanes can also instantiate helper children as internal sources
-  for parent-local child-input cones, direct registered sibling-route D
-  inputs, registered child-input D cones, and parent-output cones via
-  `hierarchy_parent_cone_instance_prob`. Helper instances are separate
-  from planned child slots, their outputs can be routed through parent
-  combinational logic or one parent-local flop into later child inputs
+  for parent-composed child-input cones, direct sibling routes, direct
+  registered sibling-route D inputs, registered child-input D cones,
+  and parent-output cones via `hierarchy_parent_cone_instance_prob`.
+  Helper instances are separate from planned child slots, their outputs
+  can be routed directly, through parent combinational logic, or through
+  one parent-local flop into later child inputs
   or parent outputs, and `max_parent_cone_instances_per_module`
   controls how many such helpers one parent may allocate. Parent-output
   composition can spend multiple helpers from that budget directly;
@@ -152,8 +153,9 @@ child-output support, mix shallow and deep branches in one recursive
 tree, route later child inputs from earlier sibling outputs directly or
 through one parent-local flop, compose child input bindings through
 parent-local logic, instantiate helper children as parent-cone sources,
-use those helpers as direct registered sibling-route D sources, force
-those helper children into parent-output composition, spend the
+use those helpers as direct sibling child-input sources or direct
+registered sibling-route D sources, force those helper children into
+parent-output composition, spend the
 per-parent helper budget through parent-output-only composition, and
 add local parent flops. It still does not
 solve hierarchy-aware identity.
@@ -173,6 +175,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Goal | Main knob | Shape produced | Metrics to inspect |
 | ---- | --------- | -------------- | ------------------ |
 | Bind later child inputs from earlier sibling outputs | `hierarchy_sibling_route_prob` | earlier child output -> later child input | `child_input_bindings_from_instance_outputs`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
+| Let direct sibling routes use a helper child source | `hierarchy_sibling_route_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> later child input | `child_input_bindings_from_instance_outputs`, `child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction` |
 | Bind later child inputs through parent combinational logic | `hierarchy_child_input_cone_prob` | parent source(s) -> parent logic -> later child input | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
 | Let parent-composed child-input cones instantiate a helper child source | `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> later child input | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction` |
 | Let parent-output cones instantiate a helper child source | `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent output | `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
@@ -215,6 +218,11 @@ selects a required helper source per output. For helper instances
 created by this route, the helper child inputs are bound from
 non-helper parent sources so `child_input_bindings_from_parent_cone_instances`
 can remain zero in the focused output-only proof.
+
+When helper placement combines with `hierarchy_sibling_route_prob`, the
+helper output can be used directly as the later child input source. This
+keeps the route unregistered; the registered helper counters remain zero
+unless a parent-local flop is actually inserted.
 
 When helper placement combines with
 `hierarchy_registered_sibling_route_prob`, the helper output can be used
@@ -460,11 +468,11 @@ parent-local Qs, real local parent flops, parent-cone helper instances
 sourcing parent-composed child-input bindings, parent-output helper
 instance composition, budgeted multi-helper allocation, and registered
 parent-composed helper-sourced child-input D cones. The newer direct
-registered sibling helper route has focused current-code evidence below
-and postdates this `r23` bank. The older `r21` bank remains historical
-pre-parent-output-helper evidence; the clean `r22` run is root-cause
-evidence for the stale 126-design budget mismatch that the per-scenario
-Phase 4 gate floor now prevents. The focused
+sibling helper route and direct registered sibling helper route have
+focused current-code evidence below and postdate this `r23` bank. The
+older `r21` bank remains historical pre-parent-output-helper evidence;
+the clean `r22` run is root-cause evidence for the stale 126-design
+budget mismatch that the per-scenario Phase 4 gate floor now prevents. The focused
 proof artifact for that composed-parent
 behavior remains:
 
@@ -541,6 +549,18 @@ local proofs remain useful:
   - `top_child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_registered_parent_cone_instance_child_input_binding_fraction > 0.0`
+- `cargo test hierarchy_sibling_routes_can_use_helper_instances` proves
+  direct sibling helper routing numerically:
+  - `top_parent_cone_instances > 0`
+  - `child_input_bindings_from_instance_outputs > 0`
+  - `child_input_bindings_from_registered_instance_outputs = 0`
+  - `child_input_bindings_from_registered_parent_cone_instances = 0`
+  - `child_input_bindings_from_parent_cone_instances > 0`
+  - `parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `num_instances > planned_child_instances`
+  This focused proof postdates the full downstream-clean `r23` Phase 4
+  bank.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
   - `top_parent_cone_instances > 0`
@@ -687,9 +707,9 @@ branching in the recursive lane:
 Phase 4 is now `in progress`, not `not started`. The next honest work
 items are:
 
-1. broaden helper-instance placement beyond the current unregistered
-   child-input, direct registered sibling, registered child-input, and
-   parent-output slices;
+1. broaden helper-instance placement beyond the current
+   parent-composed child-input, direct sibling, direct registered
+   sibling, registered child-input, and parent-output slices;
 2. deepen registered child-to-child routing using the local
    parent-state surface;
 3. deepen the parent-side routing/composition surface beyond the
