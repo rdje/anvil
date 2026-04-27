@@ -1,8 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-27-phase4-direct-sibling-helper-route — Route direct sibling inputs from helper instances
+## 2026-04-27-phase4-matrix-direct-helper-routes — Bank direct sibling helper routes in Phase 4 matrix
 
 **Landed as:** this commit
+
+**What changed**
+
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  now expands the repo-owned Phase 4 hierarchy scenario set from `42`
+  to `48` scenarios by adding two focused helper-instance routes for
+  each construction strategy:
+  `phase4_hier2_inst4_direct_sibling_parent_cone_instance` and
+  `phase4_hier2_inst4_direct_registered_sibling_parent_cone_instance_state`.
+- The Phase 4 gate still preserves the four-design per-scenario floor,
+  so the current code plan is now `48` scenarios × `4` designs/scenario
+  = `192` total designs.
+- `CoverageSummary` now records separate facts for direct unregistered
+  sibling helper routing and direct registered sibling helper routing,
+  instead of relying only on the older generic parent-cone helper and
+  registered-helper coverage booleans.
+- The Phase 4 coverage-gap policy now has distinct gap messages for the
+  two direct helper routes, preventing a future matrix run from passing
+  by proving only parent-composed helper paths.
+- Live docs now distinguish the current 48-scenario matrix policy and
+  coverage-only `r24` proof from the latest full downstream-clean `r23`
+  bank, which predates both direct helper routes.
+
+**Why**
+
+- The direct registered sibling helper route (`0e3e833`) and the direct
+  unregistered sibling helper route (`d6ccd22`) landed after the last
+  full downstream-clean Phase 4 hierarchy bank. The matrix policy still
+  represented the older 42-scenario plan and did not require those new
+  routes explicitly.
+- The existing generic helper facts could be satisfied by
+  parent-composed helper paths. The direct routes need their own focused
+  scenarios and their own coverage facts so regressions cannot hide
+  behind broader helper-instance coverage.
+
+**Validation**
+
+- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix phase4_hierarchy`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --test pipeline hierarchy_sibling_routes_can_use_helper_instances`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --test pipeline hierarchy_registered_sibling_routes_can_use_helper_instances`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml design_metrics_capture_direct`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-direct-helper-r24 --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+- `cargo check --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --all-targets`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo clippy --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy matrix policy now requires both direct
+  sibling helper routes in addition to the previously banked
+  parent-composed, registered parent-composed, parent-output, and
+  budgeted helper-instance routes.
+- The coverage-only `r24` report at
+  `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`
+  closes the current 48-scenario policy with `coverage_gaps = []` and
+  `192` generated designs while Verilator and Yosys are intentionally
+  skipped.
+- The latest full downstream-clean Phase 4 hierarchy evidence remains
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`:
+  `42` scenarios, `168` designs, `coverage_gaps = []`, and `168/0`
+  pass-fail in Verilator plus both repo-owned Yosys modes. It should not
+  be described as proving the two direct helper routes until a new full
+  downstream matrix is run.
+- Generator behavior is unchanged; this is a matrix policy, coverage,
+  and documentation slice.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+
+## 2026-04-27-phase4-direct-sibling-helper-route — Route direct sibling inputs from helper instances
+
+**Landed as:** `d6ccd22`
 
 **What changed**
 

@@ -559,8 +559,9 @@ local proofs remain useful:
   - `parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This focused proof postdates the full downstream-clean `r23` Phase 4
-  bank.
+  This focused proof is now also required by the current coverage-only
+  `r24` Phase 4 matrix policy and still postdates the full
+  downstream-clean `r23` Phase 4 bank.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
   - `top_parent_cone_instances > 0`
@@ -569,8 +570,9 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This focused proof postdates the full downstream-clean `r23` Phase 4
-  bank.
+  This focused proof is now also required by the current coverage-only
+  `r24` Phase 4 matrix policy and still postdates the full
+  downstream-clean `r23` Phase 4 bank.
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
   child-input binding numerically:
@@ -640,7 +642,10 @@ local proofs remain useful:
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
   at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23` closes them cleanly
   with `coverage_gaps = []` and `168/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes. The older `r7` report is now the historical
+  repo-owned Yosys modes. The current direct-helper policy update is
+  covered separately by `/tmp/anvil-tool-matrix-phase4-direct-helper-r24`
+  (`48` scenarios, `192` designs, `coverage_gaps = []`, tools skipped).
+  The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
   explicit child-sourcing bank, `r12` is the first exact profiled

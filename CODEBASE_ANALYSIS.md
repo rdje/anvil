@@ -648,7 +648,7 @@ In `ir::validate::validate_design`:
   `library` and `on-demand`, child-instance profiles `2`, `4`, `2:3`,
   and `1:3`, the per-depth override profile `0=4:4,1=2:2`, real mixed
   shallow/deep recursive realization, real on-demand child sourcing,
-  exact profiled child-interface synthesis, real parent-side composition above instance outputs, real sibling-routed hierarchy child inputs, real registered sibling-routed child inputs, real registered parent-composed child-input bindings, registered mixed-support child-input bindings, multi-stage registered parent-composed child-input bindings, real parent-composed child-input bindings, parent-cone helper-instance child-input bindings, parent-output helper-instance composition, budgeted multi-helper allocation, registered parent-composed helper-sourced child-input D cones, real mixed parent-port / child-output parent outputs, and real local parent flops. Focused current-code regressions now cover the newer direct sibling helper route and direct registered sibling helper route; the latest full downstream-clean `r23` bank predates both routes. The stale-total-budget `r22` run is clean but insufficient root-cause evidence at 126 designs; `r23` is the current full bank. The `r23` full downstream-clean report records
+  exact profiled child-interface synthesis, real parent-side composition above instance outputs, real sibling-routed hierarchy child inputs, real registered sibling-routed child inputs, real registered parent-composed child-input bindings, registered mixed-support child-input bindings, multi-stage registered parent-composed child-input bindings, real parent-composed child-input bindings, parent-cone helper-instance child-input bindings, parent-output helper-instance composition, budgeted multi-helper allocation, registered parent-composed helper-sourced child-input D cones, real mixed parent-port / child-output parent outputs, and real local parent flops. The current `tool_matrix` policy now also covers the newer direct sibling helper route and direct registered sibling helper route through the coverage-only `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json` run (`48` scenarios, `192` designs, `coverage_gaps = []`, tools skipped); the latest full downstream-clean `r23` bank predates both routes. The stale-total-budget `r22` run is clean but insufficient root-cause evidence at 126 designs; `r23` is the current full bank. The `r23` full downstream-clean report records
   `saw_hierarchy_parent_port_composed_outputs = true`,
   `saw_hierarchy_registered_mixed_support_routing = true`,
   `saw_hierarchy_registered_multistage_routing = true`,
@@ -731,8 +731,11 @@ In `ir::validate::validate_design`:
   `saw_hierarchy_registered_multistage_routing`, and
   `saw_hierarchy_parent_cone_instance_routing`,
   `saw_hierarchy_parent_cone_instance_outputs`,
-  `saw_multiple_parent_cone_instances_per_parent`, and
-  `saw_hierarchy_registered_parent_cone_instance_routing`. The next honest work
+  `saw_multiple_parent_cone_instances_per_parent`,
+  `saw_hierarchy_registered_parent_cone_instance_routing`,
+  `saw_hierarchy_direct_sibling_parent_cone_instance_routing`, and
+  `saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing`
+  in the current coverage-only `r24` policy. The next honest work
   is broader helper-instance placement beyond the current
   parent-composed child-input, direct sibling, direct registered sibling,
   registered child-input, and budgeted parent-output helper slices,

@@ -59,6 +59,22 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Phase 4 matrix policy can move ahead of the latest full downstream bank
+Direct sibling helper routes landed after the last full downstream-clean
+Phase 4 hierarchy bank. It is correct for the repo-owned `tool_matrix`
+policy to move forward immediately by adding scenarios and required
+coverage facts for those routes, but docs must keep the evidence tiers
+separate.
+
+The current state is deliberately split: `r23` remains the latest full
+Verilator/Yosys bank (`42` scenarios, `168` designs, both repo-owned
+Yosys modes clean), while `/tmp/anvil-tool-matrix-phase4-direct-helper-r24`
+is a coverage-only proof of the current policy (`48` scenarios, `192`
+designs, `coverage_gaps = []`, Verilator/Yosys skipped). Do not describe
+the direct sibling helper or direct registered sibling helper routes as
+fully downstream-banked until a new both-mode Phase 4 hierarchy run is
+completed.
+
 ### Direct sibling helper routes must stay unregistered in the metrics
 Direct sibling routing can now request a parent-cone helper instance
 source when `hierarchy_parent_cone_instance_prob` fires. That route

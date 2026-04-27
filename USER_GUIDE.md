@@ -482,8 +482,9 @@ Useful options:
   sibling-routed child-input bindings, real registered
   parent-composed child-input bindings, helper-sourced child-input
   bindings, helper-sourced parent outputs, registered parent-composed
-  helper-sourced child-input D cones, budgeted helper allocation, and
-  real parent-side
+  helper-sourced child-input D cones, direct sibling helper routes,
+  direct registered sibling helper routes, budgeted helper allocation,
+  and real parent-side
   composition above instance outputs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
@@ -552,6 +553,14 @@ records:
 - `Yosys without-abc pass/fail = 168/0`
 - `Yosys with-abc pass/fail = 168/0`
 
+Current code has since refreshed the Phase 4 matrix policy beyond
+`r23`: `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`
+records `48` scenarios, `4` designs/scenario, `192` total designs, and
+`coverage_gaps = []` for the direct sibling helper and direct
+registered sibling helper policy additions, with Verilator/Yosys
+intentionally skipped. The latest full downstream-clean Phase 4 bank is
+still `r23`.
+
 That refreshed report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner, bounded recursive depth `2`,
@@ -571,8 +580,9 @@ parent-output helper-instance composition, budgeted helper allocation,
 registered parent-composed helper-sourced child-input D cones, and
 generator-global module-name allocation. The newer direct sibling
 helper route and direct registered sibling helper route have focused
-current-code evidence below and postdate this full downstream-clean
-`r23` bank.
+current-code evidence below and are now required by the current
+48-scenario coverage-only `r24` matrix policy; they still postdate the
+full downstream-clean `r23` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -650,15 +660,19 @@ focused proof for direct sibling helper routing
 `child_input_bindings_from_parent_cone_instances > 0`,
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
-`num_instances > planned_child_instances`). This focused proof postdates
-full downstream-clean `r23` Phase 4 bank.
+`num_instances > planned_child_instances`).
+This focused proof is now also required by the current coverage-only
+`r24` Phase 4 matrix policy and still postdates the full
+downstream-clean `r23` bank.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
 (`child_input_bindings_from_registered_parent_composed_logic = 0`,
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
-and `num_instances > planned_child_instances`). This focused proof
-postdates the full downstream-clean `r23` Phase 4 bank.
+and `num_instances > planned_child_instances`).
+This focused proof is now also required by the current coverage-only
+`r24` Phase 4 matrix policy and still postdates the full
+downstream-clean `r23` Phase 4 bank.
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the

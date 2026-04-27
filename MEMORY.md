@@ -3,6 +3,15 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
+- Latest Phase 4 hierarchy matrix-policy slice folds the two direct
+  helper routes into `tool_matrix`: direct sibling helper routing and
+  direct registered sibling helper routing are now explicit Phase 4
+  scenarios and coverage facts. The live plan is `48` scenarios at `4`
+  designs/scenario (`192` total designs). The coverage-only proof at
+  `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`
+  has `coverage_gaps = []` with Verilator/Yosys intentionally skipped;
+  the latest full downstream-clean bank remains `r23` (`42` scenarios /
+  `168` designs) and predates those two direct helper routes.
 - Latest Phase 4 hierarchy slice broadens direct sibling routing so
   `hierarchy_sibling_route_prob` can allocate a parent-cone helper
   instance when `hierarchy_parent_cone_instance_prob` fires and bind a
@@ -751,7 +760,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance parent-composed child-input, direct sibling, direct registered sibling, registered child-input D-cone, and budgeted parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the refreshed 42-scenario / 168-design Phase 4 gate are live; the next structural work is additional helper placement beyond the current helper-route slices and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first one-flop registered sibling route, first registered parent-composed child-input route, registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, parent-cone helper-instance parent-composed child-input, direct sibling, direct registered sibling, registered child-input D-cone, and budgeted parent-output routes, budgeted parent-cone helper allocation, generator-global module-name allocation, and the current 48-scenario / 192-design Phase 4 matrix policy is live in coverage-only form (`r24`), while the latest full downstream-clean bank remains the pre-direct-helper 42-scenario / 168-design `r23`; the next structural work is additional helper placement beyond the current helper-route slices and broader registered hierarchy routing/composition, with hierarchy-aware identity still later.
   1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r23` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, and because the gate budget now directly preserves four designs/scenario as the scenario set grows. Future hierarchy scenarios should preserve both separation-of-concerns and per-scenario evidence density.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
@@ -761,6 +770,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `d6ccd22` — Route direct sibling inputs via helper instances.
 - `0e3e833` — Route registered sibling flops via helper instances.
 - `c348884` — Spend parent-output helper budget.
 - `785a143` — Align package metadata terminology.
