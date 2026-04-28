@@ -72,20 +72,24 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
-### Phase 4 r25 supersedes the r23/r24 evidence split
+### Phase 4 r26 supersedes the r25 direct-helper bank
 Direct sibling helper routes originally landed after the `r23`
 full downstream-clean Phase 4 hierarchy bank, so `r24` was deliberately
-coverage-only evidence for the expanded 48-scenario policy. That split
-is now historical.
+coverage-only evidence for the expanded 48-scenario policy. `r25`
+banked that direct-helper policy through the downstream tools. `r26`
+adds the multi-stage registered sibling route and is now the current
+51-scenario evidence anchor.
 
 The current evidence anchor is
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`:
-`48` scenarios, `4` designs/scenario, `192` total designs,
-`coverage_gaps = []`, and `192/0` pass-fail in Verilator plus both
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`:
+`51` scenarios, `4` designs/scenario, `204` total designs,
+`coverage_gaps = []`, and `204/0` pass-fail in Verilator plus both
 repo-owned Yosys modes. It fully banks the direct sibling helper and
-direct registered sibling helper routes. Keep `r23` only as the
-pre-direct-helper full-bank breadcrumb and `r24` only as the
-coverage-only proof that first aligned the policy.
+direct registered sibling helper routes, plus the registered sibling
+route that chains through earlier parent-local Qs. Keep `r23` only as
+the pre-direct-helper full-bank breadcrumb, `r24` only as the
+coverage-only direct-helper proof, and `r25` only as the previous
+direct-helper full bank.
 
 ### Direct sibling helper routes must stay unregistered in the metrics
 Direct sibling routing can now request a parent-cone helper instance
@@ -249,7 +253,7 @@ than by reading emitted SV.
 The focused artifact at `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
 was the first clean proof of that new mixed-depth recursive axis. The
 current repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
 also proves it, so the mixed-depth story is no longer "focused-only"
 evidence.
 - the emitter was still assuming every child output had a corresponding
@@ -351,9 +355,11 @@ child-input axes raised the scenario set to 42, the old
 live gate now uses a per-scenario floor
 `PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO = 4`. After the direct
 sibling helper and direct registered sibling helper axes raised the
-scenario set to `48`, the live regression expects `192` total designs.
-The downstream-clean `r25` bank proves the current 48-scenario /
-192-design gate.
+scenario set to `48`, the live regression expected `192` total designs.
+After the multi-stage registered sibling route raised the scenario set
+to `51`, the live regression expects `204` total designs. The
+downstream-clean `r26` bank proves that current 51-scenario /
+204-design gate.
 
 One more planner rule is load-bearing here: in recursive range mode,
 child libraries are generated **on demand per parent**, and every
@@ -398,7 +404,7 @@ human to open the emitted `.sv`, which is exactly the trust failure we
 want to avoid.
 
 The repo-owned Phase 4 gate has now caught up here too. The current
-artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`,
+artifact is `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`,
 and it explicitly proves both child-sourcing modes (`library` and
 `on-demand`) together with structural proof that the on-demand
 scenarios really emitted fresh child definitions per planned instance
@@ -442,7 +448,7 @@ trustworthy feature. The design reports now distinguish:
 The focused proof artifact is now
 `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, and the
 repo-owned Phase 4 gate at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
 now requires `saw_hierarchy_sibling_routing = true`.
 
 ### Parent-composed child-input bindings are the cone-builder analogue of sibling routing
@@ -482,9 +488,9 @@ The metrics contract grew again with
 `top_parent_composed_child_input_binding_fraction`. The repo-owned
 Phase 4 gate treats this as a required coverage fact via
 `saw_hierarchy_parent_composed_child_inputs`; the current banked gate
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
 proves it together with local parent state, `coverage_gaps = []`, and
-192/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
+204/0 clean pass-fail in Verilator plus both repo-owned Yosys modes.
 The focused targeted proof is
 `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`.
 
@@ -513,8 +519,8 @@ The focused proof is
 `top_child_input_bindings_from_parent_cone_instances = 4`), clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The repo-owned Phase 4 gate now banks this as a required coverage
-fact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
-with `coverage_gaps = []` and 192/0 pass-fail in Verilator plus both
+fact at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+with `coverage_gaps = []` and 204/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 Current HEAD has broadened that helper source beyond the original
@@ -565,26 +571,35 @@ The focused proof is
 `child_input_bindings_from_parent_flops = 1`), clean in Verilator,
 Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
 repo-owned Phase 4 gate now also banks this as a required coverage fact
-at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
-with `coverage_gaps = []` and 192/0 pass-fail in Verilator plus both
+at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+with `coverage_gaps = []` and 204/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 ### Registered sibling routing is a distinct hierarchy route axis
 Direct sibling routing and registered sibling routing are deliberately
 separate knobs. `hierarchy_sibling_route_prob` keeps the acyclic
 combinational route live: earlier child output directly feeds a later
-child input. `hierarchy_registered_sibling_route_prob` adds exactly one
-parent-local flop between those two endpoints. That route is still
+child input. `hierarchy_registered_sibling_route_prob` adds a
+parent-local flop between those endpoints. A later registered sibling
+route can now also choose an earlier parent-local Q as its D source,
+creating a multi-stage registered sibling chain without parent-composed
+logic. That route is still
 acyclic at the module-instance level, but it introduces real state in
 the parent, so it must be measured as both child-input provenance and
 parent-local state.
 
-The first implementation intentionally uses one flop and no extra mux
+The initial implementation intentionally used one flop and no extra mux
 or cone around it. That is not "good enough"; it is the smallest
 signoff-clean primitive for this axis. Richer registered
-child-to-child patterns can build from the same invariant later:
+child-to-child patterns build from the same invariant:
 earlier child output -> parent state -> later child input, with metrics
-proving the route instead of requiring SV inspection.
+proving the route instead of requiring SV inspection. The multi-stage
+direct sibling subcase is now reported separately through
+`child_input_bindings_from_registered_multistage_instance_outputs`,
+`top_child_input_bindings_from_registered_multistage_instance_outputs`,
+`registered_multistage_instance_output_child_input_binding_fraction`,
+and
+`top_registered_multistage_instance_output_child_input_binding_fraction`.
 
 This slice exposed a real finalization gotcha: post-construction remap
 passes already rewrote output drives and flop fields, but instance
@@ -646,8 +661,8 @@ The original focused proof is
 `hierarchy_parent_local_flops = 3`), clean in Verilator, Yosys
 `synth -noabc`, and the repo-owned Yosys with-ABC path. The repo-owned
 Phase 4 gate now banks this as a required coverage fact at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
-with `coverage_gaps = []` and 192/0 pass-fail in Verilator plus both
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+with `coverage_gaps = []` and 204/0 pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 The focused mixed-support proof is
@@ -659,7 +674,7 @@ in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The current-code coverage-only Phase 4 matrix probe at
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
 first banked `saw_hierarchy_registered_mixed_support_routing = true`
-with `coverage_gaps = []`; the full downstream-clean `r25` bank now
+with `coverage_gaps = []`; the full downstream-clean `r26` bank now
 carries the same fact with Verilator and both repo-owned Yosys modes.
 
 The focused multi-stage registered proof is
@@ -671,8 +686,17 @@ clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
 with-ABC path. The current-code coverage-only Phase 4 matrix probe at
 `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
 first banked `saw_hierarchy_registered_multistage_routing = true` with
-`coverage_gaps = []`; the full downstream-clean `r25` bank now carries
+`coverage_gaps = []`; the full downstream-clean `r26` bank now carries
 the same fact with Verilator and both repo-owned Yosys modes.
+
+The focused multi-stage registered sibling proof is
+`cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`.
+It proves the direct registered sibling route can chain through earlier
+parent-local Qs while keeping registered parent-composed counters at
+zero. The `r26` Phase 4 matrix banks that as
+`saw_hierarchy_registered_multistage_sibling_routing = true` through
+the dedicated
+`phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 
 ### Parent outputs can mix parent ports with child outputs
 The first parent-output composition slice built output cones from child
@@ -704,7 +728,7 @@ The repo-owned Phase 4 coverage gate now tracks this as
 coverage-only matrix probe at
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
 first recorded `coverage_gaps = []` with that fact true. It skipped
-Verilator/Yosys; the full downstream-clean Phase 4 `r25` bank now
+Verilator/Yosys; the full downstream-clean Phase 4 `r26` bank now
 carries the same fact with real tool validation.
 
 ### Hierarchy quality has to be visible in the numbers

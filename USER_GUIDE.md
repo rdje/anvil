@@ -331,6 +331,7 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_registered_parent_composed_logic`,
   `child_input_bindings_from_registered_mixed_support`,
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_registered_multistage_instance_outputs`,
   `child_input_bindings_from_registered_parent_cone_instances`,
   `child_input_bindings_from_parent_cone_instances`)
 - hierarchy- and top-level sibling-routing fractions
@@ -348,6 +349,10 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level registered sibling-route fractions
   (`registered_instance_output_child_input_binding_fraction`,
   `top_registered_instance_output_child_input_binding_fraction`)
+- hierarchy- and top-level multi-stage registered sibling-route
+  fractions
+  (`registered_multistage_instance_output_child_input_binding_fraction`,
+  `top_registered_multistage_instance_output_child_input_binding_fraction`)
 - hierarchy- and top-level registered parent-composed route fractions
   (`registered_parent_composed_child_input_binding_fraction`,
   `top_registered_parent_composed_child_input_binding_fraction`)
@@ -381,9 +386,12 @@ The current Phase 4 slice now has two planning lanes:
   unregistered route can allocate a helper child and bind from its
   output. The route stays combinational
 - `hierarchy_registered_sibling_route_prob` controls whether later
-  child data inputs bind from earlier sibling instance outputs through
-  one local parent flop; default `0.0` keeps this registered
-  child-to-child axis opt-in. When `hierarchy_parent_cone_instance_prob`
+  child data inputs bind through local parent flops; default `0.0`
+  keeps this registered child-to-child axis opt-in. The first route
+  uses an earlier sibling output as the D source; later routes may also
+  use earlier parent-local Qs as D sources, creating multi-stage
+  registered child-to-child chains without parent-composed logic. When
+  `hierarchy_parent_cone_instance_prob`
   also fires, the direct registered route can use a helper instance
   output as the parent-flop D source
 - `hierarchy_registered_child_input_cone_prob` controls whether later
@@ -546,17 +554,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
 records:
 
-- `48` scenarios
+- `51` scenarios
 - `4` designs per scenario
-- `192` total designs
+- `204` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 192/0`
-- `Yosys without-abc pass/fail = 192/0`
-- `Yosys with-abc pass/fail = 192/0`
+- `Verilator pass/fail = 204/0`
+- `Yosys without-abc pass/fail = 204/0`
+- `Yosys with-abc pass/fail = 204/0`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -571,7 +579,8 @@ hierarchy child inputs, parent-composed child-input bindings, explicit
 parent-local flop state, registered sibling-routed child-input
 bindings, registered parent-composed child-input bindings, registered
 mixed-support child-input bindings, multi-stage registered
-parent-composed child-input bindings, mixed parent-port / child-output
+parent-composed child-input bindings, multi-stage registered
+sibling-routed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
 registered parent-composed helper-sourced child-input D cones, and
@@ -656,7 +665,7 @@ focused proof for direct sibling helper routing
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
 `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r25`
+This focused proof is also banked in the full downstream-clean `r26`
 Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
@@ -664,8 +673,19 @@ is the focused proof for direct registered sibling helper routing
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
 and `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r25`
+This focused proof is also banked in the full downstream-clean `r26`
 Phase 4 matrix.
+`cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
+is the focused proof for multi-stage direct registered sibling routing
+without parent-composed logic
+(`child_input_bindings_from_registered_instance_outputs > 0`,
+`child_input_bindings_from_registered_multistage_instance_outputs > 0`,
+`top_child_input_bindings_from_registered_multistage_instance_outputs > 0`,
+`child_input_bindings_from_registered_parent_composed_logic = 0`, and
+`registered_multistage_instance_output_child_input_binding_fraction > 0.0`).
+This focused proof is banked in the full downstream-clean `r26`
+Phase 4 matrix through the dedicated
+`phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -698,7 +718,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r25` now includes this axis too, so the focused smoke is no longer
+at `r26` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at

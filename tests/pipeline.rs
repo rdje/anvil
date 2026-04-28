@@ -1344,6 +1344,83 @@ fn hierarchy_registered_sibling_routes_can_use_helper_instances() {
 }
 
 #[test]
+fn hierarchy_registered_sibling_routes_can_chain_through_parent_flops() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 1.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("multi-stage registered sibling hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "multi-stage registered sibling hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.child_input_bindings_from_registered_instance_outputs > 0,
+            "expected first-stage registered sibling child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_multistage_instance_outputs > 0,
+            "expected registered sibling routes to chain through earlier parent-local Qs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.top_child_input_bindings_from_registered_multistage_instance_outputs > 0,
+            "expected top-level multi-stage registered sibling bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "this focused config should prove direct registered sibling chaining, not registered parent-composed D cones, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_multistage_parent_composed_logic, 0,
+            "this focused config should prove direct registered sibling chaining, not multi-stage parent-composed D cones, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.registered_multistage_instance_output_child_input_binding_fraction > 0.0,
+            "expected non-zero multi-stage registered sibling binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.top_registered_multistage_instance_output_child_input_binding_fraction > 0.0,
+            "expected non-zero top-level multi-stage registered sibling binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_child_inputs_can_be_registered_from_parent_composed_logic() {
     for strategy in [
         ConstructionStrategy::Sequential,

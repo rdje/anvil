@@ -428,11 +428,14 @@ pub struct Config {
     /// When the roll misses, the current parent falls back to its
     /// external input boundary.
     pub hierarchy_sibling_route_prob: f64,
-    /// Probability that a parent binds a later child data input from
-    /// an earlier sibling output through one local parent flop. This
-    /// is the registered sibling-routing counterpart to
-    /// `hierarchy_sibling_route_prob`; default 0.0 preserves the
-    /// current combinational direct route unless explicitly requested.
+    /// Probability that a parent binds a later child data input through
+    /// a local parent flop. The first route sources the flop D side
+    /// from an earlier sibling output; later routes may also reuse an
+    /// earlier parent-local Q as the D source, which creates a
+    /// multi-stage registered sibling chain. This is the registered
+    /// sibling-routing counterpart to `hierarchy_sibling_route_prob`;
+    /// default 0.0 preserves the current combinational direct route
+    /// unless explicitly requested.
     #[serde(default = "default_hierarchy_registered_sibling_route_prob")]
     pub hierarchy_registered_sibling_route_prob: f64,
     /// Probability that a parent binds a later child data input through

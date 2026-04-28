@@ -95,10 +95,12 @@ pass-through shell:
   `hierarchy_sibling_route_prob`, so later child inputs may bind from
   earlier sibling outputs through the same dep-bearing width-adaptation
   machinery used elsewhere in the generator;
-- both lanes can also route a later child input through one local
-  parent flop via `hierarchy_registered_sibling_route_prob`. The
-  default D source is an earlier sibling output, and the route stays
-  separate from direct combinational sibling routing. When
+- both lanes can also route a later child input through local parent
+  flops via `hierarchy_registered_sibling_route_prob`. The default D
+  source is an earlier sibling output; later routes may also use an
+  earlier parent-local Q as the next flop's D source, creating a
+  multi-stage registered child-to-child chain. The route stays separate
+  from direct combinational sibling routing. When
   `hierarchy_parent_cone_instance_prob` also fires, the same direct
   registered route can use a helper instance output as the parent-flop
   D source;
@@ -181,6 +183,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Let parent-output cones instantiate a helper child source | `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent output | `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
 | Allow more helper children per parent | `max_parent_cone_instances_per_module` | multiple helper child outputs -> parent logic | `max_parent_cone_instances_per_internal_module`, `top_parent_cone_instances`, `hierarchy_parent_cone_instances` |
 | Bind later child inputs through one parent flop | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction` |
+| Chain direct registered sibling routes through earlier parent state | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_instance_outputs`, `top_child_input_bindings_from_registered_multistage_instance_outputs`, `registered_multistage_instance_output_child_input_binding_fraction`, `top_registered_multistage_instance_output_child_input_binding_fraction` |
 | Let direct registered sibling routes use a helper child source | `hierarchy_registered_sibling_route_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `child_input_bindings_from_registered_parent_cone_instances`, `registered_parent_cone_instance_child_input_binding_fraction`, `top_registered_parent_cone_instance_child_input_binding_fraction` |
 | Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s), optionally including earlier parent Q -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction` |
 | Let registered parent-composed child-input D cones instantiate a helper child source | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_cone_instances`, `top_child_input_bindings_from_registered_parent_cone_instances`, `registered_parent_cone_instance_child_input_binding_fraction`, `top_registered_parent_cone_instance_child_input_binding_fraction` |
@@ -200,6 +203,13 @@ that case the next registered D cone contains a prior parent Q and then
 allocates a new parent flop for the child input. The
 `registered_multistage_parent_composed_*` counters are the proof that
 this first multi-stage registered parent-composed pattern appeared.
+
+Direct registered sibling routing can chain too. In that narrower
+shape, a later registered sibling route chooses an earlier parent-local
+Q as the next flop's D source without inserting parent-composed logic.
+The `registered_multistage_instance_output_*` counters prove that
+registered child-to-child chain separately from the broader
+parent-composed route above.
 
 The parent-cone helper-instance route is separate from planned child
 slots. It is opt-in, defaults to `0.0`, and the helper budget defaults
@@ -366,6 +376,7 @@ emitted `.sv`, including:
   `child_input_bindings_from_registered_parent_composed_logic`,
   `child_input_bindings_from_registered_mixed_support`,
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_registered_multistage_instance_outputs`,
   `child_input_bindings_from_parent_cone_instances`,
   `child_input_bindings_from_registered_parent_cone_instances`,
   `top_child_input_bindings_from_parent_cone_instances`),
@@ -381,6 +392,10 @@ emitted `.sv`, including:
 - hierarchy- and top-level registered sibling-route fractions
   (`registered_instance_output_child_input_binding_fraction`,
   `top_registered_instance_output_child_input_binding_fraction`),
+- hierarchy- and top-level multi-stage registered sibling-route
+  fractions
+  (`registered_multistage_instance_output_child_input_binding_fraction`,
+  `top_registered_multistage_instance_output_child_input_binding_fraction`),
 - hierarchy- and top-level registered parent-composed route fractions
   (`registered_parent_composed_child_input_binding_fraction`,
   `top_registered_parent_composed_child_input_binding_fraction`),
@@ -438,14 +453,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
-- `48` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+- `51` scenarios
 - `4` designs/scenario
-- `192` total designs
+- `204` total designs
 - `coverage_gaps = []`
-- `Verilator 192/0`
-- `Yosys without-abc 192/0`
-- `Yosys with-abc 192/0`
+- `Verilator 204/0`
+- `Yosys without-abc 204/0`
+- `Yosys with-abc 204/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -464,7 +479,9 @@ sibling-routed child-input bindings, registered parent-composed
 child-input bindings, registered mixed-support child-input bindings
 that mix parent ports with child outputs, multi-stage registered
 parent-composed child-input bindings that chain through earlier
-parent-local Qs, real local parent flops, parent-cone helper instances
+parent-local Qs, multi-stage registered sibling-routed child-input
+bindings that chain through earlier parent-local Qs without
+parent-composed logic, real local parent flops, parent-cone helper instances
 sourcing parent-composed child-input bindings, parent-output helper
 instance composition, budgeted multi-helper allocation, and registered
 parent-composed helper-sourced child-input D cones, direct sibling
@@ -560,7 +577,7 @@ local proofs remain useful:
   - `parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r25`
+  This route is now also banked in the full downstream-clean `r26`
   Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
@@ -570,8 +587,18 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r25`
+  This route is now also banked in the full downstream-clean `r26`
   Phase 4 matrix.
+- `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
+  proves multi-stage direct registered sibling routing numerically:
+  - `child_input_bindings_from_registered_instance_outputs > 0`
+  - `child_input_bindings_from_registered_multistage_instance_outputs > 0`
+  - `top_child_input_bindings_from_registered_multistage_instance_outputs > 0`
+  - `child_input_bindings_from_registered_parent_composed_logic = 0`
+  - `registered_multistage_instance_output_child_input_binding_fraction > 0.0`
+  This route is banked in the full downstream-clean `r26` Phase 4
+  matrix through the dedicated
+  `phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
   child-input binding numerically:
@@ -584,7 +611,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
@@ -597,7 +624,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
@@ -611,7 +638,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
@@ -639,8 +666,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25` closes them cleanly
-  with `coverage_gaps = []` and `192/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26` closes them cleanly
+  with `coverage_gaps = []` and `204/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper and direct
   registered sibling helper routes.
   The older `r7` report is now the historical
@@ -655,8 +682,8 @@ local proofs remain useful:
   historical pre-parent-output-helper full bank, `r22` is the clean but
   insufficient 126-design pre-fix budget-mismatch run, `r23` is the
   pre-direct-helper full bank, `r24` is the coverage-only direct-helper
-  policy proof, `r25` is the latest full downstream-clean hierarchy
-  bank, and the aborted `r8`
+  policy proof, `r25` is the previous direct-helper full bank, `r26`
+  is the latest full downstream-clean hierarchy bank, and the aborted `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.

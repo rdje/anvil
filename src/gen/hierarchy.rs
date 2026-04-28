@@ -1044,6 +1044,10 @@ fn build_registered_sibling_route(
 ) -> NodeId {
     let d_node = if let Some(required_source) = required_parent_cone_instance_source {
         adapt_parent_cone_instance_source_to_width(top, parent_source_pool, required_source, width)
+    } else if let Some(parent_flop_source) =
+        pick_parent_flop_source(g, top, parent_source_pool, width)
+    {
+        parent_flop_source
     } else {
         cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None)
     };
@@ -1066,6 +1070,32 @@ fn build_registered_sibling_route(
     let deps = DepSet::from_flop_virtual(flop_id);
     parent_source_pool.add(q_node_id, width, deps);
     q_node_id
+}
+
+fn pick_parent_flop_source(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+) -> Option<NodeId> {
+    let matching: Vec<_> = parent_source_pool
+        .of_width(width)
+        .filter(|entry| entry.deps.has_flop_virtuals())
+        .map(|entry| entry.node)
+        .collect();
+    if !matching.is_empty() {
+        return Some(matching[g.rng.gen_range(0..matching.len())]);
+    }
+
+    let source = parent_source_pool
+        .iter()
+        .filter(|entry| entry.deps.has_flop_virtuals())
+        .max_by_key(|entry| entry.width)
+        .map(|entry| (entry.node, entry.width, entry.deps.clone()));
+
+    source.map(|(node, source_width, deps)| {
+        cone::make_width_adapter(top, parent_source_pool, node, source_width, deps, width)
+    })
 }
 
 fn adapt_parent_cone_instance_source_to_width(
