@@ -59,6 +59,19 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Cargo default-run is part of the README contract
+The repository has two binaries: the generator (`anvil`) and the
+auxiliary `tool_matrix` harness. Cargo cannot infer which one plain
+`cargo run -- ...` should execute unless `Cargo.toml` keeps
+`default-run = "anvil"` in the `[package]` section.
+
+This is a user-facing contract, not cosmetic metadata: README and the
+mdBook intentionally teach `cargo run -- ...` for generator examples,
+while `tool_matrix` is always selected explicitly with
+`cargo run --bin tool_matrix -- ...`. Future auxiliary binaries must
+preserve that default-run setting or update every source-tree command
+surface in the live docs at the same time.
+
 ### Phase 4 matrix policy can move ahead of the latest full downstream bank
 Direct sibling helper routes landed after the last full downstream-clean
 Phase 4 hierarchy bank. It is correct for the repo-owned `tool_matrix`

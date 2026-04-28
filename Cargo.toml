@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.95"
 description = "Random by-construction generator of synthesizable SystemVerilog RTL"
 license = "MIT OR Apache-2.0"
+default-run = "anvil"
 
 [dependencies]
 rand = "0.8"

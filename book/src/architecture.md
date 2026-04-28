@@ -4,7 +4,10 @@
 
 ```
 src/
-├── main.rs          # CLI entry point (clap-derived); covers every
+├── main.rs          # CLI entry point (clap-derived); Cargo's
+│                    # default run target is `anvil`, so plain
+│                    # cargo run -- ... invokes this generator even
+│                    # with src/bin/tool_matrix.rs present. Covers every
 │                    # motif knob as a dedicated flag; wires the
 │                    # tracing-subscriber from --trace <level> and
 │                    # --trace-file.

@@ -1144,10 +1144,11 @@ separate 2-arity Sub nodes, not from a single N-arity Sub node.
   2:1 mux (3 operands: `[sel, a, b]`), the smallest mux primitive.
   Arity is not the right word for a mux; a mux has **ports** (1
   select + M data). The general M-to-1 mux is a block with
-  structural parameters (M data ports + select encoding). It is
-  not yet a first-class combinational motif in the IR; M-to-1 muxes
-  today exist only as compound gate trees inside flop D-inputs (see
-  Rules 2–3).
+  structural parameters (M data ports + select encoding). In the
+  current generator, general M-to-1 muxes are live as combinational
+  blocks (Rule 15) and as flop-D mux motifs (Rules 2–3); both are
+  assembled from smaller primitive gate nodes rather than represented
+  by one variadic `GateOp::Mux`.
 - `Eq / Neq / Lt / Gt / Le / Ge` — 2 operands. Comparisons are not
   associative (`a == b == c` means `(a == b) == c`, which compares a
   1-bit result against `c` — not a meaningful generalization).

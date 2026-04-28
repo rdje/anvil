@@ -10,6 +10,11 @@ cargo build --release
 
 The binary lands at `target/release/anvil`.
 
+When running from the source tree, Cargo's default run target is
+`anvil`, so `cargo run -- ...` invokes the generator. The repo-owned
+matrix harness is selected explicitly with
+`cargo run --bin tool_matrix -- ...`.
+
 ## Basic usage
 
 Generate a single module to stdout:

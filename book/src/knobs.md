@@ -584,6 +584,7 @@ is accurate as of this commit.
 --hierarchy-registered-child-input-cone-prob
 --hierarchy-child-input-cone-prob
 --hierarchy-parent-cone-instance-prob
+--max-parent-cone-instances-per-module
 --hierarchy-parent-flop-prob
 --min-hierarchy-depth, --max-hierarchy-depth
 --min-child-instances-per-module, --max-child-instances-per-module

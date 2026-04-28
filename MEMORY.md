@@ -3,6 +3,18 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
+- Current README execution found and fixed a source-tree command
+  contract break: with both `anvil` and `tool_matrix` binaries present,
+  plain `cargo run -- ...` was ambiguous until `Cargo.toml` restored
+  `default-run = "anvil"`. README, USER_GUIDE, mdBook getting-started,
+  architecture, and developer notes now describe the split:
+  `cargo run -- ...` for the generator, `cargo run --bin tool_matrix -- ...`
+  for the harness.
+- Current mdBook audit also fixed a stale structural-rules sentence
+  about M-to-1 muxes. General M-to-1 muxes are live both as
+  combinational blocks (Rule 15) and as flop-D mux motifs; the Rule 14
+  operator-arity note no longer implies they exist only inside flop
+  D-inputs.
 - Latest Phase 4 hierarchy matrix-policy slice folds the two direct
   helper routes into `tool_matrix`: direct sibling helper routing and
   direct registered sibling helper routing are now explicit Phase 4

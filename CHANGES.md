@@ -1,5 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-04-28-readme-bootstrap-default-run — Restore the README cargo-run entrypoint
+
+**Landed as:** this commit
+
+**What changed**
+
+- `Cargo.toml` now sets `default-run = "anvil"`, so the README and
+  mdBook examples using plain `cargo run -- ...` invoke the generator
+  even though the repository also has the auxiliary `tool_matrix`
+  binary.
+- README, USER_GUIDE, mdBook Getting Started, mdBook Architecture, and
+  DEVELOPMENT_NOTES now document the command split explicitly:
+  `cargo run -- ...` for `anvil`, and
+  `cargo run --bin tool_matrix -- ...` for the matrix harness.
+- `CODEBASE_ANALYSIS.md` now describes the actual target set as two
+  binaries, one library, one example, and one integration test.
+- `book/src/knobs.md` now includes
+  `--max-parent-cone-instances-per-module` in the CLI hierarchy
+  snapshot, matching `anvil --help`.
+- `book/src/structural-rules.md` no longer says M-to-1 muxes only
+  exist inside flop D-inputs. It now reflects the current generator:
+  general M-to-1 muxes are live as combinational blocks (Rule 15) and
+  as flop-D mux motifs.
+- MEMORY captures both bootstrapping findings for future sessions.
+
+**Why**
+
+- Meticulously executing README surfaced a real command failure:
+  `cargo run -- --help` was ambiguous because Cargo saw both `anvil`
+  and `tool_matrix`. The docs already taught the correct UX; the crate
+  metadata needed to preserve it.
+- The same README/bootstrap pass found mdBook drift in the structural
+  rules and hierarchy CLI snapshot. The book is user-facing, so these
+  details need to be current instead of left as archaeology.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+- `cargo run -- --help`
+- Help-to-book CLI audit: all `74` `anvil` long flags and all `17`
+  `tool_matrix` long flags are present in `book/src/knobs.md`.
+- README generator command sweep, writing generated artifacts under
+  `/tmp/anvil-readme-cmd-*-20260428-r1`, covering the documented leaf,
+  batch, depth-1 hierarchy, child-definition reuse, bounded recursive
+  hierarchy, per-depth branching, sibling routing, helper routing,
+  parent-composed child inputs, parent-local flops, registered sibling,
+  registered helper, registered parent-composed, parent-output-helper,
+  hierarchy batch, `--dump-config`, and `--config` replay examples.
+- `cargo run --example generate_one`
+- `cargo run --bin tool_matrix -- --list-scenarios`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --list-scenarios`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-readme-tool-matrix-smoke-20260428-r1 --modules-per-scenario 1 --yosys-mode both`
+  - `15` scenarios, `15` modules total
+  - Verilator `15/0`
+  - Yosys without-abc `15/0`
+  - Yosys with-abc `15/0`
+- Optional README downstream smoke on
+  `/tmp/anvil-readme-default-run-20260428-r1/mod_42_0000.sv`:
+  - `verilator --lint-only ...`
+  - `yosys -p "read_verilog -sv ...; synth -noabc; stat"` with
+    `Found and reported 0 problems`.
+
+**Impact**
+
+- Cold-start source-tree commands from README and the mdBook work as
+  written again.
+- No generator semantics changed; this is executable metadata plus live
+  documentation alignment.
+
+**Files touched**
+
+- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/getting-started.md](/Users/richarddje/Documents/github/anvil/book/src/getting-started.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+
 ## 2026-04-27-phase4-matrix-direct-helper-routes — Bank direct sibling helper routes in Phase 4 matrix
 
 **Landed as:** this commit

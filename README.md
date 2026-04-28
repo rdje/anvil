@@ -99,6 +99,11 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `book/src/why-not-grammar.md`      IR vs annotated EBNF
 
 ## Build and validation commands
+Cargo's default run target is `anvil`, so plain `cargo run -- ...`
+invokes the generator even though the repository also has the auxiliary
+`tool_matrix` binary. Select the harness explicitly with
+`cargo run --bin tool_matrix -- ...`.
+
 ```bash
 # Build
 cargo build

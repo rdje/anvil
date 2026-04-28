@@ -15,7 +15,10 @@ cargo build --release
 ```
 
 The binary lands at `target/release/anvil`. Add it to your `PATH` or
-invoke it through `cargo run --`.
+invoke it through `cargo run --`. Cargo's default run target is
+`anvil`, so the examples below keep working even though the repository
+also contains the auxiliary `tool_matrix` binary; run that harness with
+`cargo run --bin tool_matrix -- ...`.
 
 ## Your first module
 
