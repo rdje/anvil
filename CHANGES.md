@@ -1,8 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-04-28-readme-bootstrap-default-run — Restore the README cargo-run entrypoint
+## 2026-04-29-phase4-hierarchy-r25-full-bank — Bank the current Phase 4 hierarchy matrix
 
 **Landed as:** this commit
+
+**What changed**
+
+- Ran the full repo-owned Phase 4 hierarchy gate with downstream tools:
+  `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r25 --phase4-hierarchy-gate --yosys-mode both`.
+- The current 48-scenario hierarchy policy is now banked at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`:
+  `4` designs/scenario, `192` total designs,
+  `artifact_kind = "design"`, `coverage_gaps = []`, Verilator
+  `192/0`, Yosys without-ABC `192/0`, and Yosys with-ABC `192/0`.
+- That `r25` report includes the two helper routes that previously only
+  had coverage-only policy evidence:
+  `saw_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  and
+  `saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`.
+- README, USER_GUIDE, ROADMAP, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES,
+  MEMORY, and the mdBook hierarchy/architecture chapters now point to
+  `r25` as the current Phase 4 closure artifact. The old `r23` full
+  bank and `r24` coverage-only direct-helper proof are documented as
+  historical breadcrumbs instead of current limitations.
+
+**Why**
+
+- The prior full downstream-clean Phase 4 bank (`r23`) had 42 scenarios
+  / 168 designs and predated the direct sibling helper and direct
+  registered sibling helper routes.
+- The expanded 48-scenario policy was covered by the skip-tools `r24`
+  report, but users and developers need one current full-bank artifact
+  for the live hierarchy surface.
+
+**Validation**
+
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r25 --phase4-hierarchy-gate --yosys-mode both`
+  - `48` scenarios
+  - `4` designs/scenario
+  - `192` total designs
+  - `coverage_gaps = []`
+  - Verilator `192/0`
+  - Yosys without-ABC `192/0`
+  - Yosys with-ABC `192/0`
+- `cargo check --all-targets`
+- `cargo test`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- Current Phase 4 hierarchy evidence is no longer split across `r23`
+  and `r24`; the live closure anchor is `r25`.
+- No generator semantics changed in this slice. This commit banks
+  evidence and aligns live documentation, especially the user-facing
+  mdBook.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+
+## 2026-04-28-readme-bootstrap-default-run — Restore the README cargo-run entrypoint
+
+**Landed as:** `d4cb9c1`
 
 **What changed**
 
@@ -90,7 +160,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-04-27-phase4-matrix-direct-helper-routes — Bank direct sibling helper routes in Phase 4 matrix
 
-**Landed as:** this commit
+**Landed as:** `c2b4118`
 
 **What changed**
 

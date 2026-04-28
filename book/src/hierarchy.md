@@ -438,14 +438,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
-- `42` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+- `48` scenarios
 - `4` designs/scenario
-- `168` total designs
+- `192` total designs
 - `coverage_gaps = []`
-- `Verilator 168/0`
-- `Yosys without-abc 168/0`
-- `Yosys with-abc 168/0`
+- `Verilator 192/0`
+- `Yosys without-abc 192/0`
+- `Yosys with-abc 192/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -467,12 +467,13 @@ parent-composed child-input bindings that chain through earlier
 parent-local Qs, real local parent flops, parent-cone helper instances
 sourcing parent-composed child-input bindings, parent-output helper
 instance composition, budgeted multi-helper allocation, and registered
-parent-composed helper-sourced child-input D cones. The newer direct
-sibling helper route and direct registered sibling helper route have
-focused current-code evidence below and postdate this `r23` bank. The
+parent-composed helper-sourced child-input D cones, direct sibling
+helper routing, and direct registered sibling helper routing. The
 older `r21` bank remains historical pre-parent-output-helper evidence;
 the clean `r22` run is root-cause evidence for the stale 126-design
-budget mismatch that the per-scenario Phase 4 gate floor now prevents. The focused
+budget mismatch that the per-scenario Phase 4 gate floor now prevents.
+The `r23` full bank and the `r24` coverage-only direct-helper proof are
+now historical breadcrumbs. The focused
 proof artifact for that composed-parent
 behavior remains:
 
@@ -559,9 +560,8 @@ local proofs remain useful:
   - `parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This focused proof is now also required by the current coverage-only
-  `r24` Phase 4 matrix policy and still postdates the full
-  downstream-clean `r23` Phase 4 bank.
+  This route is now also banked in the full downstream-clean `r25`
+  Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
   - `top_parent_cone_instances > 0`
@@ -570,9 +570,8 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This focused proof is now also required by the current coverage-only
-  `r24` Phase 4 matrix policy and still postdates the full
-  downstream-clean `r23` Phase 4 bank.
+  This route is now also banked in the full downstream-clean `r25`
+  Phase 4 matrix.
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
   child-input binding numerically:
@@ -585,7 +584,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
@@ -598,7 +597,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
@@ -612,7 +611,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r23` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r25` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
@@ -640,11 +639,10 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23` closes them cleanly
-  with `coverage_gaps = []` and `168/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes. The current direct-helper policy update is
-  covered separately by `/tmp/anvil-tool-matrix-phase4-direct-helper-r24`
-  (`48` scenarios, `192` designs, `coverage_gaps = []`, tools skipped).
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25` closes them cleanly
+  with `coverage_gaps = []` and `192/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes, including the direct sibling helper and direct
+  registered sibling helper routes.
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -656,7 +654,9 @@ local proofs remain useful:
   `r20` is the pre-parent-cone helper-instance bank, `r21` is the
   historical pre-parent-output-helper full bank, `r22` is the clean but
   insufficient 126-design pre-fix budget-mismatch run, `r23` is the
-  latest full downstream-clean hierarchy bank, and the aborted `r8`
+  pre-direct-helper full bank, `r24` is the coverage-only direct-helper
+  policy proof, `r25` is the latest full downstream-clean hierarchy
+  bank, and the aborted `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.

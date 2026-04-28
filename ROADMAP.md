@@ -336,23 +336,21 @@ evidence.
     route now has mixed parent-port / child-output support plus a first
     multi-stage parent-composed chaining subcase. Broader multi-stage
     registered hierarchy patterns remain future work
-  - the live repo-owned Phase 4 matrix policy now covers both the
-    wrapper lane and the representative recursive lane, including the
-    mixed-depth recursive axis, the explicit child-sourcing axis, local
-    parent state, registered sibling routing, registered
-    parent-composed child-input routing, registered mixed-support
-    routing, multi-stage registered parent-composed routing, mixed
-    parent-port / child-output parent outputs, parent-cone
-    helper-instance child-input routing, parent-cone helper-instance
-    parent-output composition, budgeted multi-helper allocation,
-    registered parent-composed helper-sourced child-input D cones,
-    direct sibling helper routing, and direct registered sibling helper
-    routing. The current coverage-only proof is
-    `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`:
-    `48` scenarios, `4` designs/scenario, `192` total designs, and
-    `coverage_gaps = []` with Verilator/Yosys intentionally skipped.
-    The latest full downstream-clean bank remains `r23` and predates
-    the two direct helper routes.
+  - the live repo-owned Phase 4 matrix policy is now fully banked at
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`.
+    It covers both the wrapper lane and the representative recursive
+    lane, including the mixed-depth recursive axis, the explicit
+    child-sourcing axis, local parent state, registered sibling routing,
+    registered parent-composed child-input routing, registered
+    mixed-support routing, multi-stage registered parent-composed
+    routing, mixed parent-port / child-output parent outputs,
+    parent-cone helper-instance child-input routing, parent-cone
+    helper-instance parent-output composition, budgeted multi-helper
+    allocation, registered parent-composed helper-sourced child-input D
+    cones, direct sibling helper routing, and direct registered sibling
+    helper routing. The `r25` report records `48` scenarios, `4`
+    designs/scenario, `192` total designs, `coverage_gaps = []`, and
+    `192/0` pass-fail in Verilator plus both repo-owned Yosys modes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -375,12 +373,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`168/0` in Verilator plus both repo-owned Yosys modes). That report
+(`192/0` in Verilator plus both repo-owned Yosys modes). That report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -400,6 +398,9 @@ proves all of the current representative hierarchy axes directly:
 - parent-cone helper instances that source parent outputs
 - parent-cone helper instances that source registered parent-composed
   child-input D cones
+- parent-cone helper instances that source direct sibling routes
+- parent-cone helper instances that source direct registered sibling
+  route D inputs
 - budgeted multi-helper allocation in one hierarchy parent
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
@@ -414,11 +415,6 @@ proves all of the current representative hierarchy axes directly:
   child definitions per planned instance slot
 - real exact profiled child-interface synthesis in the on-demand lane
 
-The two direct helper routes that landed after `r23` are now part of
-current `tool_matrix` policy and are covered by the skip-tools `r24`
-proof (`48` scenarios, `192` designs, `coverage_gaps = []`). They are
-not yet part of a full downstream-clean Phase 4 hierarchy bank.
-
 Earlier current-code coverage-only Phase 4 matrix probes at
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
@@ -429,7 +425,7 @@ and
 remain useful targeted policy breadcrumbs for the mixed parent-output,
 registered mixed-support, multi-stage registered, and parent-cone
 helper-instance slices. They were
-run with Verilator/Yosys skipped; the full downstream-clean `r23` bank
+run with Verilator/Yosys skipped; the full downstream-clean `r25` bank
 above now carries those same coverage facts with real tool validation.
 
 **Focused parent-output helper-instance proof (new targeted evidence):**
@@ -444,7 +440,7 @@ the design metrics prove the route numerically via
 `top_parent_cone_instance_output_fraction`. The repo-owned Phase 4
 scenario set includes a dedicated
 `phase4_hier2_inst4_parent_output_cone_instance` axis, now banked in
-`r23`.
+`r25`.
 
 **Focused budgeted helper-instance proof (new targeted evidence):**
 current HEAD lets one hierarchy parent instantiate more than one
@@ -457,8 +453,8 @@ and `max_parent_cone_instances_per_internal_module`. The repo-owned
 Phase 4 scenario set includes a dedicated
 `phase4_hier2_inst4_parent_cone_instance_budget3` axis too. Together
 with the parent-output helper axis and the registered helper axis below,
-this is now banked in the full downstream-clean `r23` report at
-42 scenarios / 168 designs.
+this is now banked in the full downstream-clean `r25` report at
+48 scenarios / 192 designs.
 
 **Focused budgeted parent-output helper proof (new targeted evidence):**
 current HEAD also proves that parent-output composition can spend that
@@ -486,7 +482,7 @@ the design metrics prove the route numerically through
 `top_registered_parent_cone_instance_child_input_binding_fraction`.
 The repo-owned Phase 4 scenario set includes a dedicated
 `phase4_hier2_inst4_registered_parent_cone_instance_state` axis too,
-now banked in `r23`.
+now banked in `r25`.
 
 **Focused direct sibling helper proof (new targeted evidence):**
 current HEAD now lets the direct unregistered sibling route allocate and
@@ -500,9 +496,9 @@ design metrics prove this is not a registered route by requiring
 `child_input_bindings_from_parent_cone_instances > 0`,
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
-helper instances are present beyond the planned child slots. This is
-focused current-code evidence; the latest full downstream-clean `r23`
-Phase 4 bank predates this direct sibling helper route.
+helper instances are present beyond the planned child slots. This route
+is now banked in the full downstream-clean `r25` Phase 4 matrix through
+the dedicated direct sibling helper scenario.
 
 **Focused direct registered sibling helper proof (new targeted evidence):**
 current HEAD also lets the direct registered sibling route allocate and
@@ -515,9 +511,9 @@ parent-composed D-cone path by requiring
 `child_input_bindings_from_registered_parent_composed_logic = 0` while
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
-and helper instances are present beyond the planned child slots. This is
-focused current-code evidence; the latest full downstream-clean `r23`
-Phase 4 bank predates this direct registered sibling helper route.
+and helper instances are present beyond the planned child slots. This
+route is now banked in the full downstream-clean `r25` Phase 4 matrix
+through the dedicated direct registered sibling helper scenario.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
@@ -645,8 +641,9 @@ registered-parent-composed bank, `r19` is the pre-full parent-port /
 registered-mixed / multi-stage bank, `r20` is the pre-parent-cone
 helper-instance bank, `r21` is the historical pre-parent-output-helper
 full bank, `r22` is the clean but insufficient 126-design pre-fix
-budget-mismatch run, and `r23` is the latest full downstream-clean
-Phase 4 hierarchy closure artifact.
+budget-mismatch run, `r23` is the pre-direct-helper full bank, `r24`
+is the historical coverage-only direct-helper policy proof, and `r25`
+is the latest full downstream-clean Phase 4 hierarchy closure artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -657,10 +654,11 @@ requires registered mixed-support child-input routing, and
 requires multi-stage registered parent-composed routing. All record
 `coverage_gaps = []` with Verilator/Yosys skipped; `r20` folded those
 three coverage facts into a full downstream-clean bank, `r21` added the
-parent-cone helper-instance child-input coverage fact, and `r23` now
-banks the pre-direct-helper 42-scenario helper surface. The current
-48-scenario direct-helper policy is covered by the skip-tools `r24`
-proof and still needs a future full downstream bank.
+parent-cone helper-instance child-input coverage fact, `r23` banked the
+pre-direct-helper 42-scenario helper surface, `r24` first proved the
+48-scenario direct-helper policy with tools skipped, and `r25` now
+banks that current 48-scenario policy through Verilator and both
+repo-owned Yosys modes.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue

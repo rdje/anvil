@@ -262,17 +262,19 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r25`. Its final
 `tool_matrix_report.json` records:
 
-- `42` scenarios
+- `48` scenarios
 - `4` designs per scenario
-- `168` total designs
+- `192` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 168/0`
-- `Yosys without-abc pass/fail = 168/0`
-- `Yosys with-abc pass/fail = 168/0`
+- `Verilator pass/fail = 192/0`
+- `Yosys without-abc pass/fail = 192/0`
+- `Yosys with-abc pass/fail = 192/0`
+- `saw_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+- `saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
 - `saw_hierarchy_parent_cone_instance_outputs = true`
 - `saw_multiple_parent_cone_instances_per_parent = true`
 - `saw_hierarchy_registered_parent_cone_instance_routing = true`
@@ -284,18 +286,8 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r23`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-Current code has since refreshed the Phase 4 matrix policy to include
-the two direct helper routes that landed after `r23`. The coverage-only
-report at `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`
-records `48` scenarios, `4` designs/scenario, `192` total designs, and
-`coverage_gaps = []` with Verilator and Yosys intentionally skipped.
-Use `r23` for the latest full downstream-clean evidence and `r24` for
-the current 48-scenario policy shape.
-
-The `r23` report remains the latest fully banked repo-owned Phase 4
-closure artifact, not only the older wrapper baseline. It covers the
-representative hierarchy surface that existed before the direct helper
-route additions: the broadened
+The `r25` report is the latest fully banked repo-owned Phase 4 closure
+artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
 `2:3`, and `1:3`, the per-depth override profile `0=4:4,1=2:2`, the
@@ -312,11 +304,9 @@ registered parent-composed child-input binding, mixed parent-port /
 child-output parent outputs, explicit local parent flops in hierarchy
 modules, parent-cone helper-instance child-input binding,
 parent-output helper-instance composition, budgeted multi-helper
-allocation, and registered parent-composed helper-sourced child-input D cones.
-Focused current-code regressions and the coverage-only `r24` matrix now
-cover the newer direct sibling helper route and direct registered
-sibling helper route; the latest full downstream-clean `r23` bank
-predates both routes.
+allocation, registered parent-composed helper-sourced child-input D
+cones, direct sibling helper routing, and direct registered sibling
+helper routing.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -539,7 +529,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -550,14 +540,12 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
   registered parent-composed helper-sourced child-input D cones,
+  direct sibling helper routing, direct registered sibling helper
+  routing,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `42` scenarios, `168` total designs,
-  `coverage_gaps = []`, and `168/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes. The live `tool_matrix` policy has since grown
-  to `48` scenarios / `192` designs by adding the direct sibling helper
-  route and direct registered sibling helper route; the coverage-only
-  `r24` report closes that policy with Verilator/Yosys skipped, while
-  the latest full downstream-clean `r23` bank predates both routes.
+  `tool_matrix`, with `48` scenarios, `192` total designs,
+  `coverage_gaps = []`, and `192/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four

@@ -546,27 +546,19 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
 records:
 
-- `42` scenarios
+- `48` scenarios
 - `4` designs per scenario
-- `168` total designs
+- `192` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 168/0`
-- `Yosys without-abc pass/fail = 168/0`
-- `Yosys with-abc pass/fail = 168/0`
+- `Verilator pass/fail = 192/0`
+- `Yosys without-abc pass/fail = 192/0`
+- `Yosys with-abc pass/fail = 192/0`
 
-Current code has since refreshed the Phase 4 matrix policy beyond
-`r23`: `/tmp/anvil-tool-matrix-phase4-direct-helper-r24/tool_matrix_report.json`
-records `48` scenarios, `4` designs/scenario, `192` total designs, and
-`coverage_gaps = []` for the direct sibling helper and direct
-registered sibling helper policy additions, with Verilator/Yosys
-intentionally skipped. The latest full downstream-clean Phase 4 bank is
-still `r23`.
-
-That refreshed report is the latest fully banked repo-owned Phase 4
+That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner, bounded recursive depth `2`,
 child-instance profiles `2`, `4`, `2:3`, and `1:3`, the mixed
@@ -583,11 +575,9 @@ parent-composed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
 registered parent-composed helper-sourced child-input D cones, and
-generator-global module-name allocation. The newer direct sibling
-helper route and direct registered sibling helper route have focused
-current-code evidence below and are now required by the current
-48-scenario coverage-only `r24` matrix policy; they still postdate the
-full downstream-clean `r23` bank.
+generator-global module-name allocation. It also now banks the direct
+sibling helper route and direct registered sibling helper route through
+Verilator and both repo-owned Yosys modes.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -666,18 +656,16 @@ focused proof for direct sibling helper routing
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
 `num_instances > planned_child_instances`).
-This focused proof is now also required by the current coverage-only
-`r24` Phase 4 matrix policy and still postdates the full
-downstream-clean `r23` bank.
+This focused proof is also banked in the full downstream-clean `r25`
+Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
 (`child_input_bindings_from_registered_parent_composed_logic = 0`,
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
 and `num_instances > planned_child_instances`).
-This focused proof is now also required by the current coverage-only
-`r24` Phase 4 matrix policy and still postdates the full
-downstream-clean `r23` Phase 4 bank.
+This focused proof is also banked in the full downstream-clean `r25`
+Phase 4 matrix.
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -710,7 +698,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r23` now includes this axis too, so the focused smoke is no longer
+at `r25` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at

@@ -424,9 +424,9 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r23/tool_matrix_report.json`
-(168 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-168/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r25/tool_matrix_report.json`
+(192 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+192/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
@@ -443,11 +443,9 @@ registered parent-composed child-input bindings through
 child-input bindings, multi-stage registered parent-composed
 child-input bindings, mixed parent-port / child-output parent outputs,
 parent-output helper-instance composition, budgeted multi-helper
-allocation, and registered parent-composed helper-sourced child-input D
-cones. Focused current-code regressions now cover the newer direct
-sibling helper route and direct registered sibling helper route; the
-latest full downstream-clean `r23` bank predates both routes. The `r23`
-report records
+allocation, registered parent-composed helper-sourced child-input D
+cones, direct sibling helper routing, and direct registered sibling
+helper routing. The `r25` report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
 `saw_hierarchy_registered_sibling_routing = true`,
@@ -457,15 +455,18 @@ report records
 `saw_hierarchy_parent_port_composed_outputs = true`,
 `saw_hierarchy_parent_cone_instance_routing = true`,
 `saw_hierarchy_parent_cone_instance_outputs = true`,
-`saw_multiple_parent_cone_instances_per_parent = true`, and
-`saw_hierarchy_registered_parent_cone_instance_routing = true`.
+`saw_multiple_parent_cone_instances_per_parent = true`,
+`saw_hierarchy_registered_parent_cone_instance_routing = true`,
+`saw_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
+and
+`saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`.
 Earlier coverage-only probes at
 `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
 `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
 `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
 and
 `/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
-remain useful focused policy breadcrumbs, but the full `r23` bank above
+remain useful focused policy breadcrumbs, but the full `r25` bank above
 now carries those facts through Verilator and both repo-owned Yosys
 modes. The old hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
