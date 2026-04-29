@@ -72,7 +72,32 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
-### Phase 4 r27 supersedes the r26 multi-stage sibling bank
+### Phase 4 r28 supersedes the r27 stateful parent-output helper bank
+Direct registered sibling helper routing now has two distinct
+child-input-proven forms: a helper output can feed the immediate
+parent-local D path, and a helper output can first seed a parent-local Q
+that a later registered sibling route reuses as the next flop's D
+source. The second form is not registered parent-composed logic: the
+focused proof should keep both
+`child_input_bindings_from_registered_parent_composed_logic = 0` and
+`child_input_bindings_from_registered_multistage_parent_composed_logic = 0`
+while asserting
+`child_input_bindings_from_registered_multistage_parent_cone_instances > 0`.
+
+The current evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r28/tool_matrix_report.json`:
+`57` scenarios, `4` designs/scenario, `228` total designs,
+`coverage_gaps = []`, and `228/0` pass-fail in Verilator plus both
+repo-owned Yosys modes. It fully banks the direct sibling helper,
+direct registered sibling helper, multi-stage registered sibling,
+stateful parent-output helper, and multi-stage direct registered
+sibling helper routes. Keep `r23` as the pre-direct-helper full-bank
+breadcrumb, `r24` as the coverage-only direct-helper proof, `r25` as
+the direct-helper full bank, `r26` as the previous multi-stage sibling
+full bank, and `r27` as the previous stateful parent-output helper
+bank.
+
+### Phase 4 r27 superseded the r26 multi-stage sibling bank
 Parent-output helper routing now has two distinct output-proven forms:
 direct helper-to-parent-output composition, and helper-to-parent-output
 composition through parent-local state. The second form is not the same
@@ -81,7 +106,7 @@ helper output, and the proof should keep
 `child_input_bindings_from_parent_cone_instances = 0` while asserting
 that parent outputs reach helper instances through flop Qs.
 
-The current evidence anchor is
+That evidence anchor was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r27/tool_matrix_report.json`:
 `54` scenarios, `4` designs/scenario, `216` total designs,
 `coverage_gaps = []`, and `216/0` pass-fail in Verilator plus both

@@ -326,6 +326,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_mixed_support: usize,
     pub top_child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
     pub top_child_input_bindings_from_registered_multistage_instance_outputs: usize,
+    pub top_child_input_bindings_from_registered_multistage_parent_cone_instances: usize,
     pub top_child_input_bindings_from_parent_cone_instances: usize,
     pub top_child_input_bindings_from_registered_parent_cone_instances: usize,
     pub top_parent_cone_instances: usize,
@@ -346,6 +347,7 @@ pub struct DesignMetrics {
     pub top_registered_mixed_support_child_input_binding_fraction: f64,
     pub top_registered_multistage_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_multistage_instance_output_child_input_binding_fraction: f64,
+    pub top_registered_multistage_parent_cone_instance_child_input_binding_fraction: f64,
     pub top_registered_parent_cone_instance_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_output_fraction: f64,
     pub top_parent_cone_instance_flop_output_fraction: f64,
@@ -383,6 +385,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_registered_mixed_support: usize,
     pub child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
     pub child_input_bindings_from_registered_multistage_instance_outputs: usize,
+    pub child_input_bindings_from_registered_multistage_parent_cone_instances: usize,
     pub child_input_bindings_from_parent_cone_instances: usize,
     pub child_input_bindings_from_registered_parent_cone_instances: usize,
     /// Total child output-port slots across instantiated children.
@@ -402,6 +405,7 @@ pub struct DesignMetrics {
     pub registered_mixed_support_child_input_binding_fraction: f64,
     pub registered_multistage_parent_composed_child_input_binding_fraction: f64,
     pub registered_multistage_instance_output_child_input_binding_fraction: f64,
+    pub registered_multistage_parent_cone_instance_child_input_binding_fraction: f64,
     pub registered_parent_cone_instance_child_input_binding_fraction: f64,
     pub parent_cone_instance_child_input_binding_fraction: f64,
     pub top_parent_flop_child_input_binding_fraction: f64,
@@ -872,6 +876,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_registered_multistage_instance_outputs,
         out.total_child_data_input_bindings,
     );
+    out.registered_multistage_parent_cone_instance_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_registered_multistage_parent_cone_instances,
+        out.total_child_data_input_bindings,
+    );
     out.registered_parent_cone_instance_child_input_binding_fraction = ratio(
         out.child_input_bindings_from_registered_parent_cone_instances,
         out.total_child_data_input_bindings,
@@ -929,6 +937,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.top_registered_multistage_instance_output_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_registered_multistage_instance_outputs,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_registered_multistage_parent_cone_instance_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_registered_multistage_parent_cone_instances,
         out.top_total_child_data_input_bindings,
     );
     out.top_registered_parent_cone_instance_child_input_binding_fraction = ratio(
@@ -1182,6 +1194,14 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                     state
                         .out
                         .top_child_input_bindings_from_registered_multistage_instance_outputs += 1;
+                }
+            }
+            if binding_uses_registered_multistage_parent_cone_instance_output(module, *node_id) {
+                state
+                    .out
+                    .child_input_bindings_from_registered_multistage_parent_cone_instances += 1;
+                if module.name == state.out.design {
+                    state.out.top_child_input_bindings_from_registered_multistage_parent_cone_instances += 1;
                 }
             }
             if binding_uses_parent_cone_instance_output(module, *node_id) {
@@ -1518,6 +1538,37 @@ fn binding_uses_registered_multistage_instance_output(module: &Module, node_id: 
             })
     });
     uses_registered_multistage_instance_output
+}
+
+fn binding_uses_registered_multistage_parent_cone_instance_output(
+    module: &Module,
+    node_id: NodeId,
+) -> bool {
+    let deps = node_deps(module, node_id);
+    let mut support_memo = HashMap::new();
+    let mut flop_memo = HashMap::new();
+    let mut visiting_flops = BTreeSet::new();
+
+    let reaches_multistage_parent_cone_instance = deps.flop_virtuals().any(|flop_id| {
+        module
+            .flops
+            .get(flop_id as usize)
+            .and_then(|flop| flop.d)
+            .is_some_and(|d| {
+                let d_deps = node_deps(module, d);
+                !is_registered_parent_composed_logic_node(module, d)
+                    && d_deps.flop_virtuals().any(|prev_flop_id| {
+                        flop_d_reaches_parent_cone_instance_output(
+                            module,
+                            prev_flop_id,
+                            &mut support_memo,
+                            &mut flop_memo,
+                            &mut visiting_flops,
+                        )
+                    })
+            })
+    });
+    reaches_multistage_parent_cone_instance
 }
 
 fn binding_uses_parent_cone_instance_output(module: &Module, node_id: NodeId) -> bool {
@@ -2057,6 +2108,55 @@ mod tests {
         );
         assert!(met.registered_parent_cone_instance_child_input_binding_fraction > 0.0);
         assert!(met.top_registered_parent_cone_instance_child_input_binding_fraction > 0.0);
+    }
+
+    #[test]
+    fn design_metrics_capture_multistage_registered_parent_cone_instance_routes() {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 1.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 1,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("multi-stage registered helper hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        let met = compute_design(&design);
+
+        assert!(
+            met.child_input_bindings_from_registered_parent_cone_instances > 0,
+            "expected first-stage registered helper D paths"
+        );
+        assert!(
+            met.child_input_bindings_from_registered_multistage_instance_outputs > 0,
+            "expected registered sibling routes to chain through parent-local Qs"
+        );
+        assert!(
+            met.child_input_bindings_from_registered_multistage_parent_cone_instances > 0,
+            "expected a later registered sibling route to chain from a helper-sourced parent Q"
+        );
+        assert_eq!(
+            met.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "direct registered sibling helper routes should not be counted as registered parent-composed D cones"
+        );
+        assert!(met.registered_multistage_parent_cone_instance_child_input_binding_fraction > 0.0);
+        assert!(
+            met.top_registered_multistage_parent_cone_instance_child_input_binding_fraction > 0.0
+        );
     }
 
     #[test]

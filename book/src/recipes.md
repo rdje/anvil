@@ -378,7 +378,12 @@ For the direct registered sibling chain, also inspect
 `registered_multistage_instance_output_child_input_binding_fraction`.
 When the helper route is active, also inspect
 `child_input_bindings_from_registered_parent_cone_instances` and
-`registered_parent_cone_instance_child_input_binding_fraction`.
+`registered_parent_cone_instance_child_input_binding_fraction`. When a
+helper-sourced registered sibling route chains through a later parent
+flop, inspect
+`child_input_bindings_from_registered_multistage_parent_cone_instances`
+and
+`registered_multistage_parent_cone_instance_child_input_binding_fraction`.
 
 ## "I want fanout stress"
 
