@@ -170,6 +170,9 @@ cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-chi
 # Force parent-output helper composition to spend a 3-helper budget
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --terminal-reuse-prob 1.0 --constant-prob 0.0
 
+# Force the same 3-helper parent-output budget below the top parent
+cargo run -- --seed 42 --min-hierarchy-depth 2 --max-hierarchy-depth 2 --min-child-instances-per-module 2 --max-child-instances-per-module 2 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --hierarchy-parent-flop-prob 0.0 --terminal-reuse-prob 1.0 --constant-prob 0.0 --max-depth 4
+
 # Force parent-output helper composition through parent-local state
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --hierarchy-parent-flop-prob 1.0 --max-flops-per-module 64 --terminal-reuse-prob 1.0 --constant-prob 0.0 --min-width 1 --max-width 8 --max-depth 1
 
@@ -277,7 +280,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r40`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r41`. Its final
 `tool_matrix_report.json` records:
 
 - `87` scenarios
@@ -288,6 +291,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r40`. Its final
 - `Verilator pass/fail = 348/0`
 - `Yosys without-abc pass/fail = 348/0`
 - `Yosys with-abc pass/fail = 348/0`
+- `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
 - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
@@ -314,7 +318,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r40`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r40` report is the latest fully banked downstream-clean repo-owned
+The `r41` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -346,7 +350,8 @@ logic,
 mixed parent-port / child-output parent outputs, explicit local parent
 flops in hierarchy modules, parent-cone helper-instance child-input binding,
 parent-output helper-instance composition, budgeted multi-helper
-allocation, registered parent-composed helper-sourced child-input D
+allocation including recursive non-top multi-helper budgets, registered
+parent-composed helper-sourced child-input D
 cones, direct sibling helper routing, and direct registered sibling
 helper routing, multi-stage direct registered sibling helper routing,
 parent-output helper routes that pass through parent-local flops, plus
@@ -369,7 +374,7 @@ routes through helper-sourced parent-local Qs. The earlier coverage-only proofs 
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r40` bank.
+are superseded by the full downstream-clean `r41` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -597,7 +602,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r40/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r41/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -608,6 +613,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   binding, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
+  recursive non-top multi-helper budget evidence,
   recursive non-top parent-output helper routing,
   recursive non-top stateful parent-output helper routing,
   parent-output helper routing through parent-local flops,
@@ -636,8 +642,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   multi-stage direct registered helper bank, `r38` is the previous
   recursive multi-stage registered parent-composed helper bank, `r39`
   is the previous recursive non-top parent-output helper bank, `r40`
-  is the latest recursive non-top stateful parent-output helper bank,
-  and the clean `r22` run records the
+  is the previous recursive non-top stateful parent-output helper bank,
+  `r41` is the latest recursive non-top multi-helper budget bank, and
+  the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
   hierarchy capability:

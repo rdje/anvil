@@ -263,6 +263,7 @@ struct CoverageSummary {
     saw_hierarchy_parent_cone_instance_flop_outputs: bool,
     saw_recursive_hierarchy_parent_cone_instance_flop_outputs: bool,
     saw_multiple_parent_cone_instances_per_parent: bool,
+    saw_recursive_multiple_parent_cone_instances_per_parent: bool,
     saw_hierarchy_parent_local_flops: bool,
     saw_recursive_hierarchy: bool,
     saw_per_depth_branching_metrics: bool,
@@ -3295,6 +3296,30 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     == 0;
         coverage.saw_multiple_parent_cone_instances_per_parent |=
             design.metrics.max_parent_cone_instances_per_internal_module > 1;
+        coverage.saw_recursive_multiple_parent_cone_instances_per_parent |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob > 0.0
+                && scenario.config.max_parent_cone_instances_per_module > 1
+                && design.metrics.max_parent_cone_instances_per_internal_module
+                    >= scenario.config.max_parent_cone_instances_per_module as usize
+                && design.metrics.hierarchy_parent_cone_instances
+                    > design.metrics.top_parent_cone_instances
+                && design
+                    .metrics
+                    .hierarchy_outputs_reaching_parent_cone_instances
+                    > design.metrics.top_outputs_reaching_parent_cone_instances
+                && design
+                    .metrics
+                    .child_input_bindings_from_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_cone_instances
+                    == 0;
         coverage.saw_hierarchy_parent_local_flops |=
             design.metrics.hierarchy_parent_local_flops > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
@@ -3408,6 +3433,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_parent_cone_instance_flop_outputs;
     dst.saw_multiple_parent_cone_instances_per_parent |=
         src.saw_multiple_parent_cone_instances_per_parent;
+    dst.saw_recursive_multiple_parent_cone_instances_per_parent |=
+        src.saw_recursive_multiple_parent_cone_instances_per_parent;
     dst.saw_hierarchy_parent_local_flops |= src.saw_hierarchy_parent_local_flops;
     dst.saw_recursive_hierarchy |= src.saw_recursive_hierarchy;
     dst.saw_per_depth_branching_metrics |= src.saw_per_depth_branching_metrics;
@@ -3979,6 +4006,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved multiple parent-cone helper instances in one hierarchy parent"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_multiple_parent_cone_instances_per_parent
+    {
+        gaps.push(
+            "matrix never proved recursive non-top parents can spend multiple parent-cone helper instances"
                 .to_string(),
         );
     }
@@ -4786,6 +4821,11 @@ mod tests {
         assert!(gaps
             .iter()
             .any(|gap| gap.contains("multiple parent-cone helper instances")));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top parents can spend multiple parent-cone helper instances",
+            )
+        }));
         assert!(gaps.iter().any(|gap| gap.contains("local parent flops")));
         assert!(gaps.iter().any(|gap| gap.contains("instance-output node")));
         assert!(gaps
