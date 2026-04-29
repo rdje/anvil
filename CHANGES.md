@@ -1,9 +1,115 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-29-phase4-registered-sibling-multistage — Chain registered sibling routes through parent state
+## 2026-04-29-phase4-parent-output-helper-state — Route parent-output helpers through parent state
 
 **Landed as:** this commit
+
+**What changed**
+
+- Parent-output helper composition can now optionally route the required
+  parent-cone helper source through a parent-local flop before it feeds
+  the parent output, controlled by the existing
+  `hierarchy_parent_flop_prob` knob and bounded by
+  `max_flops_per_module`.
+- `DesignMetrics` now reports the new stateful output route through:
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `top_parent_cone_instance_flop_output_fraction`, and
+  `hierarchy_parent_cone_instance_flop_output_fraction`.
+- The metric implementation is dependency/memo based: it skips the
+  expensive helper-through-flop walk entirely for modules with no
+  parent-cone helper instances, then uses flop virtual dependencies and
+  the existing instance-output-support memo for modules where the route
+  is possible.
+- Added the focused regression
+  `hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
+  to prove the route across construction strategies while keeping
+  child-input helper bindings at zero for the output-only proof.
+- Expanded the Phase 4 hierarchy matrix from 51 to 54 scenarios by
+  adding the dedicated
+  `phase4_hier2_inst4_parent_output_cone_instance_state` scenario for
+  each construction strategy. The matrix coverage contract now requires
+  `saw_hierarchy_parent_cone_instance_flop_outputs = true`.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r27/tool_matrix_report.json`:
+  `54` scenarios, `4` designs/scenario, `216` total designs,
+  `artifact_kind = "design"`, `coverage_gaps = []`, Verilator
+  `216/0`, Yosys without-ABC `216/0`, and Yosys with-ABC `216/0`.
+- README, USER_GUIDE, ROADMAP, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES,
+  MEMORY, and the mdBook hierarchy / architecture / knobs / recipes
+  chapters now document the new route, metrics, examples, and `r27`
+  evidence anchor.
+
+**Why**
+
+- The previous parent-output helper route proved direct combinational
+  helper-to-output support, and the previous parent-state routes proved
+  stateful child-input composition. The next useful hierarchy slice was
+  the cross-product: parent outputs sourced from helper children through
+  local parent state, without relying on child-input helper bindings.
+- Users and developers need the Phase 4 gate to prove this route from a
+  saved report fact, not only from a focused regression.
+
+**Validation**
+
+- `cargo test hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
+- `cargo test phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-parent-output-helper-state-r3 --phase4-hierarchy-gate --skip-verilator --skip-yosys`
+  - `54` scenarios
+  - `216` generated designs
+  - `coverage_gaps = []`
+  - `saw_hierarchy_parent_cone_instance_flop_outputs = true`
+  - max
+    `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 16`
+  - max
+    `top_outputs_reaching_parent_cone_instances_through_parent_flops = 16`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r27 --phase4-hierarchy-gate --yosys-mode both`
+  - `54` scenarios
+  - `4` designs/scenario
+  - `216` total designs
+  - `coverage_gaps = []`
+  - Verilator `216/0`
+  - Yosys without-ABC `216/0`
+  - Yosys with-ABC `216/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 220 unit-target tests + 55 integration tests = 275 passing tests
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- `r27` is now the current Phase 4 hierarchy closure artifact. `r26`
+  remains the previous full downstream-clean multi-stage registered
+  sibling bank.
+- The route is opt-in through the existing
+  `hierarchy_parent_cone_instance_prob` and `hierarchy_parent_flop_prob`
+  knobs. Existing defaults are unchanged.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-registered-sibling-multistage — Chain registered sibling routes through parent state
+
+**Landed as:** `1f57cea`
 
 **What changed**
 

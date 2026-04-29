@@ -14,7 +14,7 @@
 //! whether it is doing its job, whether it is redundant with
 //! another knob, or whether a new knob is needed.
 
-use crate::ir::{Design, GateOp, InstanceId, InstanceRole, Module, Node, NodeId, PortId};
+use crate::ir::{Design, FlopId, GateOp, InstanceId, InstanceRole, Module, Node, NodeId, PortId};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -330,6 +330,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_parent_cone_instances: usize,
     pub top_parent_cone_instances: usize,
     pub top_outputs_reaching_parent_cone_instances: usize,
+    pub top_outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_parent_port_composed_outputs: usize,
@@ -347,6 +348,7 @@ pub struct DesignMetrics {
     pub top_registered_multistage_instance_output_child_input_binding_fraction: f64,
     pub top_registered_parent_cone_instance_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_output_fraction: f64,
+    pub top_parent_cone_instance_flop_output_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
 
@@ -358,12 +360,14 @@ pub struct DesignMetrics {
     pub hierarchy_parent_cone_instances: usize,
     pub max_parent_cone_instances_per_internal_module: usize,
     pub hierarchy_outputs_reaching_parent_cone_instances: usize,
+    pub hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
     pub avg_instance_output_support_per_hierarchy_output: f64,
     pub max_instance_output_support_per_hierarchy_output: usize,
     pub hierarchy_parent_port_composed_output_fraction: f64,
     pub hierarchy_parent_cone_instance_output_fraction: f64,
+    pub hierarchy_parent_cone_instance_flop_output_fraction: f64,
 
     // --- Child interface load ----------------------------------
     pub total_child_data_input_bindings: usize,
@@ -738,6 +742,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_parent_port_composed_outputs = top_facts.parent_port_composed_outputs;
     out.top_outputs_reaching_parent_cone_instances =
         top_facts.outputs_reaching_parent_cone_instances;
+    out.top_outputs_reaching_parent_cone_instances_through_parent_flops =
+        top_facts.outputs_reaching_parent_cone_instances_through_parent_flops;
     out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
     out.top_outputs_without_instance_outputs = top_facts.outputs_without_instance_outputs;
     out.top_local_flops = top.flops.len();
@@ -752,6 +758,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.top_parent_port_composed_outputs, out.top_outputs);
     out.top_parent_cone_instance_output_fraction = ratio(
         out.top_outputs_reaching_parent_cone_instances,
+        out.top_outputs,
+    );
+    out.top_parent_cone_instance_flop_output_fraction = ratio(
+        out.top_outputs_reaching_parent_cone_instances_through_parent_flops,
         out.top_outputs,
     );
 
@@ -886,6 +896,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.hierarchy_parent_cone_instance_output_fraction = ratio(
         out.hierarchy_outputs_reaching_parent_cone_instances,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.hierarchy_parent_cone_instance_flop_output_fraction = ratio(
+        out.hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
     );
     out.top_instance_output_child_input_binding_fraction = ratio(
@@ -1038,6 +1052,10 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     state.out.hierarchy_parent_port_composed_outputs += facts.parent_port_composed_outputs;
     state.out.hierarchy_outputs_reaching_parent_cone_instances +=
         facts.outputs_reaching_parent_cone_instances;
+    state
+        .out
+        .hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops +=
+        facts.outputs_reaching_parent_cone_instances_through_parent_flops;
     *state.hierarchy_output_support_total += facts.total_support;
     state.out.max_instance_output_support_per_hierarchy_output = state
         .out
@@ -1248,6 +1266,7 @@ struct ModuleCompositionFacts {
     parent_composed_outputs: usize,
     parent_port_composed_outputs: usize,
     outputs_reaching_parent_cone_instances: usize,
+    outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     outputs_reaching_instance_outputs: usize,
     outputs_without_instance_outputs: usize,
     total_support: usize,
@@ -1257,6 +1276,10 @@ struct ModuleCompositionFacts {
 fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
     let mut memo = HashMap::new();
     let mut out = ModuleCompositionFacts::default();
+    let has_parent_cone_instances = module
+        .instances
+        .iter()
+        .any(|inst| inst.role == InstanceRole::ParentCone);
     for (_, root) in &module.drives {
         let support = collect_instance_output_support(module, *root, &mut memo);
         let support_len = support.len();
@@ -1284,8 +1307,92 @@ fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
         } else if support_len > 0 {
             out.parent_composed_outputs += 1;
         }
+        if has_parent_cone_instances
+            && output_reaches_parent_cone_instance_through_parent_flop(module, *root, &mut memo)
+        {
+            out.outputs_reaching_parent_cone_instances_through_parent_flops += 1;
+        }
     }
     out
+}
+
+fn output_reaches_parent_cone_instance_through_parent_flop(
+    module: &Module,
+    root: NodeId,
+    support_memo: &mut HashMap<NodeId, BTreeSet<(InstanceId, PortId)>>,
+) -> bool {
+    let deps = node_deps(module, root);
+    let mut flop_memo = HashMap::new();
+    let mut visiting_flops = BTreeSet::new();
+    let reaches = deps.flop_virtuals().any(|flop_id| {
+        flop_d_reaches_parent_cone_instance_output(
+            module,
+            flop_id,
+            support_memo,
+            &mut flop_memo,
+            &mut visiting_flops,
+        )
+    });
+    reaches
+}
+
+fn flop_d_reaches_parent_cone_instance_output(
+    module: &Module,
+    flop_id: FlopId,
+    support_memo: &mut HashMap<NodeId, BTreeSet<(InstanceId, PortId)>>,
+    flop_memo: &mut HashMap<FlopId, bool>,
+    visiting_flops: &mut BTreeSet<FlopId>,
+) -> bool {
+    if let Some(reaches) = flop_memo.get(&flop_id) {
+        return *reaches;
+    }
+    if !visiting_flops.insert(flop_id) {
+        return false;
+    }
+
+    let reaches = module
+        .flops
+        .get(flop_id as usize)
+        .and_then(|flop| flop.d)
+        .is_some_and(|d| {
+            node_or_registered_source_reaches_parent_cone_instance_output(
+                module,
+                d,
+                support_memo,
+                flop_memo,
+                visiting_flops,
+            )
+        });
+
+    visiting_flops.remove(&flop_id);
+    flop_memo.insert(flop_id, reaches);
+    reaches
+}
+
+fn node_or_registered_source_reaches_parent_cone_instance_output(
+    module: &Module,
+    node_id: NodeId,
+    support_memo: &mut HashMap<NodeId, BTreeSet<(InstanceId, PortId)>>,
+    flop_memo: &mut HashMap<FlopId, bool>,
+    visiting_flops: &mut BTreeSet<FlopId>,
+) -> bool {
+    collect_instance_output_support(module, node_id, support_memo)
+        .iter()
+        .any(|(instance, _)| {
+            module
+                .instances
+                .get(*instance as usize)
+                .is_some_and(|inst| inst.role == InstanceRole::ParentCone)
+        })
+        || node_deps(module, node_id).flop_virtuals().any(|flop_id| {
+            flop_d_reaches_parent_cone_instance_output(
+                module,
+                flop_id,
+                support_memo,
+                flop_memo,
+                visiting_flops,
+            )
+        })
 }
 
 fn collect_instance_output_support(

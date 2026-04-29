@@ -879,6 +879,12 @@ fn roll_hierarchy_parent_cone_instance(m: &mut Module, rng: &mut impl Rng, prob:
     fired
 }
 
+fn roll_hierarchy_parent_flop(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls.record(KnobId::HierarchyParentFlopProb, fired);
+    fired
+}
+
 fn maybe_add_parent_cone_instance_source(
     g: &mut Generator,
     ctx: &mut ChildInputBindingContext<'_>,
@@ -1508,13 +1514,19 @@ fn promote_parent_output_root(
 
     let with_helper_support =
         if let Some(required_source) = ctx.required_parent_cone_instance_source {
-            ensure_parent_cone_instance_support(
-                top,
-                ctx.pool,
-                with_child_support,
-                required_source,
-                width,
-            )
+            if let Some(helper_q) =
+                maybe_register_parent_cone_instance_source(g, top, ctx.pool, required_source, width)
+            {
+                add_parent_companion_gate(top, ctx.pool, width, with_child_support, helper_q)
+            } else {
+                ensure_parent_cone_instance_support(
+                    top,
+                    ctx.pool,
+                    with_child_support,
+                    required_source,
+                    width,
+                )
+            }
         } else {
             with_child_support
         };
@@ -1530,6 +1542,23 @@ fn promote_parent_output_root(
     };
 
     add_parent_companion_gate(top, ctx.pool, width, with_helper_support, parent_companion)
+}
+
+fn maybe_register_parent_cone_instance_source(
+    g: &mut Generator,
+    top: &mut Module,
+    pool: &mut SignalPool,
+    required_source: NodeId,
+    width: u32,
+) -> Option<NodeId> {
+    if (top.flops.len() as u32) >= g.cfg.max_flops_per_module
+        || !roll_hierarchy_parent_flop(top, &mut g.rng, g.cfg.hierarchy_parent_flop_prob)
+    {
+        return None;
+    }
+
+    let d_node = adapt_parent_cone_instance_source_to_width(top, pool, required_source, width);
+    Some(register_parent_child_input_route(top, pool, d_node, width))
 }
 
 fn add_parent_companion_gate(

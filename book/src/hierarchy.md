@@ -127,7 +127,9 @@ pass-through shell:
   one parent-local flop into later child inputs
   or parent outputs, and `max_parent_cone_instances_per_module`
   controls how many such helpers one parent may allocate. Parent-output
-  composition can spend multiple helpers from that budget directly;
+  composition can spend multiple helpers from that budget directly, and
+  can route the required helper source through parent-local state when
+  `hierarchy_parent_flop_prob` is enabled;
 - both parent output cones and parent-composed child-input cones may
   now emit local parent flops when `hierarchy_parent_flop_prob` is
   non-zero. The default is `0.0`, so the hierarchy layer stays
@@ -181,6 +183,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Bind later child inputs through parent combinational logic | `hierarchy_child_input_cone_prob` | parent source(s) -> parent logic -> later child input | `child_input_bindings_from_parent_composed_logic`, `parent_composed_child_input_binding_fraction`, `top_parent_composed_child_input_binding_fraction` |
 | Let parent-composed child-input cones instantiate a helper child source | `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> later child input | `top_parent_cone_instances`, `hierarchy_parent_cone_instances`, `child_input_bindings_from_parent_cone_instances`, `parent_cone_instance_child_input_binding_fraction`, `top_parent_cone_instance_child_input_binding_fraction` |
 | Let parent-output cones instantiate a helper child source | `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent output | `top_outputs_reaching_parent_cone_instances`, `hierarchy_outputs_reaching_parent_cone_instances`, `top_parent_cone_instance_output_fraction`, `hierarchy_parent_cone_instance_output_fraction` |
+| Route parent-output helper sources through parent-local state | `hierarchy_parent_cone_instance_prob` + `hierarchy_parent_flop_prob` | helper child output -> parent flop -> parent logic -> parent output | `top_outputs_reaching_parent_cone_instances_through_parent_flops`, `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`, `top_parent_cone_instance_flop_output_fraction`, `hierarchy_parent_cone_instance_flop_output_fraction` |
 | Allow more helper children per parent | `max_parent_cone_instances_per_module` | multiple helper child outputs -> parent logic | `max_parent_cone_instances_per_internal_module`, `top_parent_cone_instances`, `hierarchy_parent_cone_instances` |
 | Bind later child inputs through one parent flop | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later child input | `child_input_bindings_from_registered_instance_outputs`, `registered_instance_output_child_input_binding_fraction`, `top_registered_instance_output_child_input_binding_fraction` |
 | Chain direct registered sibling routes through earlier parent state | `hierarchy_registered_sibling_route_prob` | earlier child output -> parent flop -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_instance_outputs`, `top_child_input_bindings_from_registered_multistage_instance_outputs`, `registered_multistage_instance_output_child_input_binding_fraction`, `top_registered_multistage_instance_output_child_input_binding_fraction` |
@@ -228,6 +231,13 @@ selects a required helper source per output. For helper instances
 created by this route, the helper child inputs are bound from
 non-helper parent sources so `child_input_bindings_from_parent_cone_instances`
 can remain zero in the focused output-only proof.
+When `hierarchy_parent_flop_prob` is enabled, that required helper
+source may be registered into parent-local state before the parent
+output cone consumes it. The dedicated metrics
+`top_outputs_reaching_parent_cone_instances_through_parent_flops` and
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`
+prove that the output route passed through parent-local state rather
+than only through combinational parent logic.
 
 When helper placement combines with `hierarchy_sibling_route_prob`, the
 helper output can be used directly as the later child input source. This
@@ -416,7 +426,11 @@ emitted `.sv`, including:
   (`hierarchy_outputs_reaching_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
   `hierarchy_parent_cone_instance_output_fraction`,
-  `top_parent_cone_instance_output_fraction`),
+  `top_parent_cone_instance_output_fraction`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `hierarchy_parent_cone_instance_flop_output_fraction`,
+  `top_parent_cone_instance_flop_output_fraction`),
 - parent-cone helper-instance counts
   (`hierarchy_parent_cone_instances`, `top_parent_cone_instances`,
   `max_parent_cone_instances_per_internal_module`),
@@ -453,14 +467,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
-- `51` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r27/tool_matrix_report.json`
+- `54` scenarios
 - `4` designs/scenario
-- `204` total designs
+- `216` total designs
 - `coverage_gaps = []`
-- `Verilator 204/0`
-- `Yosys without-abc 204/0`
-- `Yosys with-abc 204/0`
+- `Verilator 216/0`
+- `Yosys without-abc 216/0`
+- `Yosys with-abc 216/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -483,7 +497,8 @@ parent-local Qs, multi-stage registered sibling-routed child-input
 bindings that chain through earlier parent-local Qs without
 parent-composed logic, real local parent flops, parent-cone helper instances
 sourcing parent-composed child-input bindings, parent-output helper
-instance composition, budgeted multi-helper allocation, and registered
+instance composition, stateful parent-output helper routing through
+parent-local flops, budgeted multi-helper allocation, and registered
 parent-composed helper-sourced child-input D cones, direct sibling
 helper routing, and direct registered sibling helper routing. The
 older `r21` bank remains historical pre-parent-output-helper evidence;
@@ -549,6 +564,13 @@ local proofs remain useful:
   - `top_outputs_reaching_parent_cone_instances > 0`
   - `hierarchy_outputs_reaching_parent_cone_instances > 0`
   - `top_parent_cone_instance_output_fraction > 0.0`
+- `cargo test hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
+  proves the stateful parent-output helper route numerically:
+  - `top_outputs_reaching_parent_cone_instances_through_parent_flops > 0`
+  - `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops > 0`
+  - `top_parent_cone_instance_flop_output_fraction > 0.0`
+  - `hierarchy_parent_cone_instance_flop_output_fraction > 0.0`
+  - `child_input_bindings_from_parent_cone_instances = 0`
 - `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
   proves budgeted helper allocation through child-input routing
   numerically:
@@ -577,7 +599,7 @@ local proofs remain useful:
   - `parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r26`
+  This route is now also banked in the full downstream-clean `r27`
   Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
@@ -587,7 +609,7 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r26`
+  This route is now also banked in the full downstream-clean `r27`
   Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
   proves multi-stage direct registered sibling routing numerically:
@@ -596,7 +618,7 @@ local proofs remain useful:
   - `top_child_input_bindings_from_registered_multistage_instance_outputs > 0`
   - `child_input_bindings_from_registered_parent_composed_logic = 0`
   - `registered_multistage_instance_output_child_input_binding_fraction > 0.0`
-  This route is banked in the full downstream-clean `r26` Phase 4
+  This route is banked in the full downstream-clean `r27` Phase 4
   matrix through the dedicated
   `phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
@@ -611,7 +633,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r27` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
@@ -624,7 +646,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r27` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
@@ -638,7 +660,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r26` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r27` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
@@ -666,10 +688,11 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26` closes them cleanly
-  with `coverage_gaps = []` and `204/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes, including the direct sibling helper and direct
-  registered sibling helper routes.
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r27` closes them cleanly
+  with `coverage_gaps = []` and `216/0` pass-fail in Verilator plus both
+  repo-owned Yosys modes, including the direct sibling helper, direct
+  registered sibling helper, multi-stage registered sibling, and
+  stateful parent-output helper routes.
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -683,7 +706,8 @@ local proofs remain useful:
   insufficient 126-design pre-fix budget-mismatch run, `r23` is the
   pre-direct-helper full bank, `r24` is the coverage-only direct-helper
   policy proof, `r25` is the previous direct-helper full bank, `r26`
-  is the latest full downstream-clean hierarchy bank, and the aborted `r8`
+  is the previous multi-stage registered sibling bank, `r27` is the
+  latest full downstream-clean hierarchy bank, and the aborted `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.

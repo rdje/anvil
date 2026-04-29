@@ -161,6 +161,9 @@ cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-inst
 # Force parent-output helper composition to spend a 3-helper budget
 cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --max-parent-cone-instances-per-module 3 --terminal-reuse-prob 1.0 --constant-prob 0.0
 
+# Force parent-output helper composition through parent-local state
+cargo run -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 4 --hierarchy-sibling-route-prob 0.0 --hierarchy-registered-sibling-route-prob 0.0 --hierarchy-registered-child-input-cone-prob 0.0 --hierarchy-child-input-cone-prob 0.0 --hierarchy-parent-cone-instance-prob 1.0 --hierarchy-parent-flop-prob 1.0 --max-flops-per-module 64 --terminal-reuse-prob 1.0 --constant-prob 0.0 --min-width 1 --max-width 8 --max-depth 1
+
 # Generate hierarchical designs into a directory
 cargo run -- --seed 42 --count 10 --out ./generated-hier --hierarchy-depth 1 --num-leaf-modules 3
 
@@ -265,20 +268,21 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r27`. Its final
 `tool_matrix_report.json` records:
 
-- `51` scenarios
+- `54` scenarios
 - `4` designs per scenario
-- `204` total designs
+- `216` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 204/0`
-- `Yosys without-abc pass/fail = 204/0`
-- `Yosys with-abc pass/fail = 204/0`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
 - `saw_hierarchy_direct_sibling_parent_cone_instance_routing = true`
 - `saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
 - `saw_hierarchy_parent_cone_instance_outputs = true`
+- `saw_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_multiple_parent_cone_instances_per_parent = true`
 - `saw_hierarchy_registered_parent_cone_instance_routing = true`
 - `saw_hierarchy_parent_cone_instance_routing = true`
@@ -290,7 +294,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r26`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r26` report is the latest fully banked repo-owned Phase 4 closure
+The `r27` report is the latest fully banked repo-owned Phase 4 closure
 artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -311,7 +315,8 @@ flops in hierarchy modules, parent-cone helper-instance child-input binding,
 parent-output helper-instance composition, budgeted multi-helper
 allocation, registered parent-composed helper-sourced child-input D
 cones, direct sibling helper routing, and direct registered sibling
-helper routing.
+helper routing, plus parent-output helper routes that pass through
+parent-local flops.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -514,7 +519,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `child_input_bindings_from_parent_cone_instances`,
   `child_input_bindings_from_registered_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
-  `hierarchy_outputs_reaching_parent_cone_instances`, and the matching
+  `hierarchy_outputs_reaching_parent_cone_instances`,
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  and the matching
   child-input / parent-output fractions.
   Both lanes now also expose `--hierarchy-parent-flop-prob <p>`, which
   lets those parent-side cones emit local parent flops under a separate
@@ -534,7 +542,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   repo-owned Phase 4 hierarchy matrix is now banked at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r27/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -545,12 +553,13 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   binding, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
+  parent-output helper routing through parent-local flops,
   registered parent-composed helper-sourced child-input D cones,
   direct sibling helper routing, direct registered sibling helper
   routing,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `51` scenarios, `204` total designs,
-  `coverage_gaps = []`, and `204/0` pass-fail in Verilator plus both
+  `tool_matrix`, with `54` scenarios, `216` total designs,
+  `coverage_gaps = []`, and `216/0` pass-fail in Verilator plus both
   repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, and the clean `r22` run records the
@@ -559,8 +568,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   work is deeper hierarchy capability beyond the banked gate:
   additional helper-instance placement beyond the current
   parent-composed child-input, direct sibling, direct registered
-  sibling, registered child-input, parent-output, and per-parent-budget
-  slices, broader registered
+  sibling, registered child-input, parent-output, stateful
+  parent-output, and per-parent-budget slices, broader registered
   hierarchy patterns, and
   later hierarchy-aware identity.
   Parameterization and broader artifact-family selection are still

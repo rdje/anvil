@@ -315,8 +315,12 @@ opening the emitted `.sv`, including:
 - parent-cone helper-instance support for parent outputs
   (`top_outputs_reaching_parent_cone_instances`,
   `hierarchy_outputs_reaching_parent_cone_instances`,
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`,
   `top_parent_cone_instance_output_fraction`,
-  `hierarchy_parent_cone_instance_output_fraction`)
+  `hierarchy_parent_cone_instance_output_fraction`,
+  `top_parent_cone_instance_flop_output_fraction`,
+  `hierarchy_parent_cone_instance_flop_output_fraction`)
 - parent-cone helper-instance counts and budget realization
   (`top_parent_cone_instances`, `hierarchy_parent_cone_instances`,
   `max_parent_cone_instances_per_internal_module`)
@@ -418,7 +422,9 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_parent_flop_prob` controls whether parent-side hierarchy
   cones may emit local parent flops; default `0.0` keeps the hierarchy
   parent layer combinational unless this state axis is explicitly
-  enabled
+  enabled. When helper placement is active, parent-output helper
+  sources may route through those parent-local flops before reaching a
+  parent output
 - the legacy exact wrapper knobs and bounded recursive range knobs are
   intentionally mutually exclusive planning lanes
 - pure comb-only modules do **not** expose `clk` / `rst_n`
@@ -554,17 +560,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r26/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r27/tool_matrix_report.json`
 records:
 
-- `51` scenarios
+- `54` scenarios
 - `4` designs per scenario
-- `204` total designs
+- `216` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 204/0`
-- `Yosys without-abc pass/fail = 204/0`
-- `Yosys with-abc pass/fail = 204/0`
+- `Verilator pass/fail = 216/0`
+- `Yosys without-abc pass/fail = 216/0`
+- `Yosys with-abc pass/fail = 216/0`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -583,6 +589,7 @@ parent-composed child-input bindings, multi-stage registered
 sibling-routed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
+stateful parent-output helper routing through parent-local flops,
 registered parent-composed helper-sourced child-input D cones, and
 generator-global module-name allocation. It also now banks the direct
 sibling helper route and direct registered sibling helper route through
@@ -665,7 +672,7 @@ focused proof for direct sibling helper routing
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
 `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r26`
+This focused proof is also banked in the full downstream-clean `r27`
 Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
@@ -673,7 +680,7 @@ is the focused proof for direct registered sibling helper routing
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
 and `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r26`
+This focused proof is also banked in the full downstream-clean `r27`
 Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
 is the focused proof for multi-stage direct registered sibling routing
@@ -683,9 +690,20 @@ without parent-composed logic
 `top_child_input_bindings_from_registered_multistage_instance_outputs > 0`,
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `registered_multistage_instance_output_child_input_binding_fraction > 0.0`).
-This focused proof is banked in the full downstream-clean `r26`
+This focused proof is banked in the full downstream-clean `r27`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
+`cargo test hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
+is the focused proof for parent-output helper routing through
+parent-local state
+(`top_outputs_reaching_parent_cone_instances_through_parent_flops > 0`,
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops > 0`,
+`top_parent_cone_instance_flop_output_fraction > 0.0`,
+`hierarchy_parent_cone_instance_flop_output_fraction > 0.0`, and
+`child_input_bindings_from_parent_cone_instances = 0`).
+This focused proof is banked in the full downstream-clean `r27`
+Phase 4 matrix through the dedicated
+`phase4_hier2_inst4_parent_output_cone_instance_state` scenario.
 The aborted `r8` rerun is now only
 historical runtime evidence: it showed that the Phase 4 gate should use
 a hierarchy-focused sequential leaf profile instead of reusing the
@@ -718,7 +736,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r26` now includes this axis too, so the focused smoke is no longer
+at `r27` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at
