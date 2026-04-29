@@ -788,10 +788,12 @@ anvil --seed 42 --trace low 2>log && head log
 ```
 
 ```
-INFO generate_leaf_module{index=0 seed=42}: 🚀 build module n_in=5 n_out=4 strategy=GraphFirst
-WARN build_graph_first: 🔁 anti-collapse hit, retrying operand pick op=Xor attempt=0
-INFO ✍️ emit SV gates=120 flops=10 inputs=5 outputs=4
-INFO ✅ module done nodes=154 flops=10 drives=4
+INFO anvil: 🚀 anvil start seed=42 count=1
+INFO generate_leaf_module{index=0 seed=42}: anvil::gen::module: 🚀 build module n_in=3 n_out=4 strategy=Interleaved
+WARN generate_leaf_module{index=0 seed=42}: anvil::gen::cone: 🔁 cone root empty-dep, retrying attempt=0
+INFO generate_leaf_module{index=0 seed=42}: anvil::gen::module: ✅ module finalized module=mod_42_0000 nodes=1104 flops=32 semantic_gates_merged=4 flops_merged=0 drives=4 orphans=0 compacted=360 repaired_constant_drives=0 repaired_profiled_inputs=0 enforced_profiled_interface=0
+INFO to_sv{module=mod_42_0000}: anvil::emit::sv: ✍️ emit SV gates=971 flops=32 instances=0 inputs=5 outputs=4
+INFO anvil: ✅ anvil done
 ```
 
 Raise to `medium` or `high` for phase-by-phase and per-decision

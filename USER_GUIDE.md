@@ -583,18 +583,25 @@ records:
 - `Yosys without-abc pass/fail = 210/0`
 - `Yosys with-abc pass/fail = 210/0`
 
-The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`
+The latest full downstream-clean Phase 4 hierarchy report at
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`
 records:
 
-- `63` scenarios
+- `84` scenarios
 - `4` designs per scenario
-- `252` total designs
+- `336` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 252/0`
-- `Yosys without-abc pass/fail = 252/0`
-- `Yosys with-abc pass/fail = 252/0`
+- `Verilator pass/fail = 336/0`
+- `Yosys without-abc pass/fail = 336/0`
+- `Yosys with-abc pass/fail = 336/0`
+- `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
+- `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -612,16 +619,33 @@ mixed-support child-input bindings, multi-stage registered
 parent-composed child-input bindings, multi-stage registered
 sibling-routed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
+parent-output helper-instance composition, recursive non-top
 parent-output helper-instance composition, budgeted helper allocation,
 stateful parent-output helper routing through parent-local flops,
 stateful parent-composed helper child-input routing through
 parent-local flops,
 registered parent-composed helper-sourced child-input D cones,
 multi-stage direct registered sibling helper routing, multi-stage
-registered parent-composed helper routing, and
+registered parent-composed helper routing, recursive non-top
+multi-stage direct registered sibling helper routing, recursive non-top
+multi-stage registered parent-composed helper routing, and
 generator-global module-name allocation. It also now banks the direct
-sibling helper route and direct registered sibling helper route through
-Verilator and both repo-owned Yosys modes.
+sibling helper route, direct registered sibling helper route, and the
+recursive exact-depth-2 axes that prove a non-top parent can route
+direct sibling child inputs from helper instance outputs and can route
+direct registered sibling child-input D paths from helper instance
+outputs, can route registered parent-composed child-input D paths from
+helper instance outputs, can route parent-composed child inputs from
+helper instance outputs through parent-local flops, can source parent
+outputs from helper instance outputs below the top parent, and can chain direct
+registered sibling helper routes through helper-sourced parent-local Qs
+below the top parent, and can chain registered parent-composed helper
+routes through helper-sourced parent-local Qs below the top parent. The earlier
+coverage-only proofs at
+`/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
+and
+`/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
+are superseded by the full downstream-clean `r39` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -678,6 +702,18 @@ is the focused proof for parent-output helper-instance composition
 (`top_outputs_reaching_parent_cone_instances > 0`,
 `hierarchy_outputs_reaching_parent_cone_instances > 0`,
 `top_parent_cone_instance_output_fraction > 0.0`).
+`cargo test recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`
+is the focused proof for the same parent-output helper route below the
+top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_outputs_reaching_parent_cone_instances >
+top_outputs_reaching_parent_cone_instances`,
+`child_input_bindings_from_parent_cone_instances = 0`, and
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_parent_output_cone_instance` scenario.
 `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
 is the focused proof for budgeted helper allocation through child-input
 routing (`top_parent_cone_instances = 3`,
@@ -702,6 +738,80 @@ focused proof for direct sibling helper routing
 `num_instances > planned_child_instances`).
 This focused proof is also banked in the full downstream-clean `r30`
 Phase 4 matrix.
+`cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`
+is the focused proof for the same direct sibling helper route below the
+top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`child_input_bindings_from_instance_outputs >
+top_child_input_bindings_from_instance_outputs`,
+`child_input_bindings_from_parent_cone_instances >
+top_child_input_bindings_from_parent_cone_instances`, and both registered
+helper counters stay zero).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_direct_sibling_parent_cone_instance` scenario.
+`cargo test recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`
+is the focused proof for the same direct registered sibling helper route
+below the top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_instance_outputs >
+top_child_input_bindings_from_registered_instance_outputs`,
+`child_input_bindings_from_registered_parent_cone_instances >
+top_child_input_bindings_from_registered_parent_cone_instances`, and
+`child_input_bindings_from_registered_parent_composed_logic = 0`).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_direct_registered_sibling_parent_cone_instance_state`
+scenario.
+`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`
+is the focused proof for multi-stage direct registered sibling helper
+routing below the top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_multistage_instance_outputs >
+top_child_input_bindings_from_registered_multistage_instance_outputs`,
+`child_input_bindings_from_registered_multistage_parent_cone_instances >
+top_child_input_bindings_from_registered_multistage_parent_cone_instances`,
+`child_input_bindings_from_registered_parent_composed_logic = 0`, and
+`child_input_bindings_from_registered_multistage_parent_composed_logic = 0`).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state`
+scenario.
+`cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`
+is the focused proof for multi-stage registered parent-composed helper
+routing below the top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_multistage_parent_composed_logic >
+top_child_input_bindings_from_registered_multistage_parent_composed_logic`,
+`child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances >
+top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
+and `child_input_bindings_from_registered_multistage_parent_cone_instances = 0`).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_registered_parent_cone_instance_multistage_state`
+scenario.
+`cargo test recursive_hierarchy_registered_child_input_cones_can_use_helper_instances_below_top`
+is the focused proof for registered parent-composed helper D-cone
+routing below the top parent in an exact-depth-2 recursive hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_parent_composed_logic >
+top_child_input_bindings_from_registered_parent_composed_logic`,
+`child_input_bindings_from_registered_parent_cone_instances >
+top_child_input_bindings_from_registered_parent_cone_instances`,
+`registered_parent_composed_child_input_binding_fraction > 0.0`, and
+`registered_parent_cone_instance_child_input_binding_fraction > 0.0`).
+This focused proof is banked in the full downstream-clean `r39` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_registered_parent_cone_instance_state` scenario.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
 (`child_input_bindings_from_registered_parent_composed_logic = 0`,
@@ -756,6 +866,18 @@ routing
 This focused proof is banked in the full downstream-clean `r30`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_parent_cone_instance_state` scenario.
+`cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`
+is the focused proof for the same stateful parent-composed helper
+child-input route below the top parent in an exact-depth-2 recursive
+hierarchy
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`, and
+`child_input_bindings_from_parent_cone_instances_through_parent_flops >
+top_child_input_bindings_from_parent_cone_instances_through_parent_flops`).
+This focused proof is banked in the full downstream-clean `r35` Phase 4
+matrix through the dedicated
+`phase4_recur_d2_parent_cone_instance_state` scenario.
 `cargo test hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
 is the focused proof for parent-output helper routing through
 parent-local state

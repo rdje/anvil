@@ -348,8 +348,8 @@ evidence.
     that helper Q into unregistered parent-composed child-input logic.
     Broader
     registered hierarchy patterns remain future work
-  - the live repo-owned Phase 4 matrix policy is now fully banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`.
+  - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing,
@@ -365,10 +365,24 @@ evidence.
     and multi-stage registered sibling routing through earlier
     parent-local Qs, plus parent-output helper routing through
     parent-local flops, plus parent-composed helper child-input routing
-    through parent-local flops. The `r30` report records `63`
-    scenarios, `4` designs/scenario, `252` total designs,
-    `coverage_gaps = []`, and `252/0` pass-fail in Verilator plus both
-    repo-owned Yosys modes.
+    through parent-local flops, plus recursive non-top
+    helper-through-parent-flop child-input routing, plus recursive
+    non-top direct sibling helper routing, plus recursive non-top direct
+    registered sibling helper routing, plus recursive non-top registered
+    parent-composed helper routing, plus recursive non-top multi-stage
+    direct registered sibling helper routing, plus recursive non-top
+    multi-stage registered parent-composed helper routing, plus recursive
+    non-top parent-output helper routing. The `r39`
+    report records `84` scenarios, `4` designs/scenario, `336` total designs,
+    `coverage_gaps = []`,
+    `saw_recursive_hierarchy_parent_cone_instance_outputs = true`,
+    `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
+    `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`,
+    `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+    `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+    `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`,
+    `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`,
+    and `336/0` pass-fail in Verilator plus both repo-owned Yosys modes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -378,7 +392,8 @@ evidence.
   - broaden helper-instance placement beyond the current
     parent-composed child-input, direct sibling, direct registered
     sibling, registered child-input, budgeted parent-output helper,
-    stateful parent-output helper, multi-stage direct registered
+    stateful parent-output helper, recursive non-top parent-output
+    helper, multi-stage direct registered
     helper, and multi-stage registered parent-composed helper slices
   - deeper parent-side routing/composition beyond the current mixed
     parent-output, combinational sibling-binding, and parent-input-cone
@@ -390,14 +405,14 @@ evidence.
     should eventually participate in the same sharing story instead of
     creating a second identity system beside gates/flops
 
-**Repo-owned Phase 4 hierarchy closure (met locally):** the refreshed
+**Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`252/0` in Verilator plus both repo-owned Yosys modes). That report
+(`336/0` in Verilator plus both repo-owned Yosys modes). The `r39` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -410,6 +425,18 @@ proves all of the current representative hierarchy axes directly:
   chain through earlier parent-local Qs without parent-composed logic
 - multi-stage direct registered sibling helper routes where a helper
   output seeds one parent Q and a later route reuses that Q
+- recursive non-top multi-stage direct registered sibling helper routes
+  where a helper output seeds one non-top parent Q and a later non-top
+  route reuses that Q
+- recursive non-top multi-stage registered parent-composed helper routes
+  where a helper output seeds one non-top parent Q and later non-top
+  parent-composed D logic reuses that Q
+- recursive non-top direct registered sibling helper routes where a
+  helper output feeds a direct registered sibling D path below the top
+  parent
+- recursive non-top registered parent-composed helper routes where a
+  helper output feeds registered parent-composed D logic below the top
+  parent
 - registered parent-composed hierarchy child-input bindings through
   parent logic plus parent-local state
 - registered mixed-support child-input bindings that mix parent data
@@ -426,6 +453,11 @@ proves all of the current representative hierarchy axes directly:
   parent-local flops
 - parent-cone helper instances that source parent-composed child-input
   logic through parent-local flops
+- recursive non-top parent-cone helper instances that source
+  parent-composed child-input logic through parent-local flops below the
+  top parent
+- recursive non-top parent-cone helper instances that source direct
+  sibling-routed child-input bindings below the top parent
 - parent-cone helper instances that source registered parent-composed
   child-input D cones
 - parent-cone helper instances that source direct sibling routes
@@ -474,6 +506,21 @@ the design metrics prove the route numerically via
 scenario set includes a dedicated
 `phase4_hier2_inst4_parent_output_cone_instance` axis, now banked in
 `r30`.
+
+**Focused recursive non-top parent-output helper proof (new targeted evidence):**
+current HEAD now proves parent-output helper routing below the top
+parent in an exact-depth-2 recursive hierarchy. The focused proof is
+`cargo test recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_outputs_reaching_parent_cone_instances >
+top_outputs_reaching_parent_cone_instances`,
+`child_input_bindings_from_parent_cone_instances = 0`, and
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`.
+The live Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_parent_output_cone_instance` axis; the full
+downstream-clean `r39` report proves it with `coverage_gaps = []` and
+`336/0` pass-fail in Verilator plus both repo-owned Yosys modes.
 
 **Focused stateful parent-output helper proof (new targeted evidence):**
 current HEAD also lets the parent-output helper source pass through a
@@ -570,6 +617,111 @@ in the focused proof. The repo-owned Phase 4 scenario set includes a
 dedicated `phase4_hier2_inst4_parent_cone_instance_state` axis too,
 now banked in `r30`.
 
+**Focused recursive non-top stateful parent-composed helper proof (new targeted evidence):**
+current HEAD now proves the same helper-through-parent-flop child-input
+shape below the top parent in an exact-depth-2 recursive hierarchy. The
+focused proof is
+`cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`, and
+`child_input_bindings_from_parent_cone_instances_through_parent_flops >
+top_child_input_bindings_from_parent_cone_instances_through_parent_flops`.
+The live Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_parent_cone_instance_state` axis; the full
+downstream-clean `r39` report proves it with `coverage_gaps = []` and
+`336/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+
+**Focused recursive non-top direct sibling helper proof (new targeted evidence):**
+current HEAD now proves direct sibling helper routing below the top
+parent in an exact-depth-2 recursive hierarchy. The focused proof is
+`cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`child_input_bindings_from_instance_outputs >
+top_child_input_bindings_from_instance_outputs`,
+`child_input_bindings_from_parent_cone_instances >
+top_child_input_bindings_from_parent_cone_instances`, and both registered
+helper counters to stay at zero. The live Phase 4 matrix policy includes
+the dedicated `phase4_recur_d2_direct_sibling_parent_cone_instance`
+axis; the full downstream-clean `r39` report proves it with
+`coverage_gaps = []` and `336/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
+
+**Focused recursive non-top direct registered sibling helper proof (new targeted evidence):**
+current HEAD now proves direct registered sibling helper routing below
+the top parent in an exact-depth-2 recursive hierarchy. The focused
+proof is
+`cargo test recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_instance_outputs >
+top_child_input_bindings_from_registered_instance_outputs`,
+`child_input_bindings_from_registered_parent_cone_instances >
+top_child_input_bindings_from_registered_parent_cone_instances`, and
+`child_input_bindings_from_registered_parent_composed_logic = 0`. The
+live Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_direct_registered_sibling_parent_cone_instance_state`
+axis; the full downstream-clean `r39` report proves it with
+`coverage_gaps = []` and `336/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
+
+**Focused recursive non-top multi-stage direct registered sibling helper proof (new targeted evidence):**
+current HEAD now proves that direct registered sibling helper routing
+can chain through helper-sourced parent-local Qs below the top parent in
+an exact-depth-2 recursive hierarchy. The focused proof is
+`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_multistage_instance_outputs >
+top_child_input_bindings_from_registered_multistage_instance_outputs`,
+`child_input_bindings_from_registered_multistage_parent_cone_instances >
+top_child_input_bindings_from_registered_multistage_parent_cone_instances`,
+and both parent-composed registered counters to stay at zero. The live
+Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state`
+axis; the full downstream-clean `r39` report proves it with
+`coverage_gaps = []` and `336/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
+
+**Focused recursive non-top multi-stage registered parent-composed helper proof (new targeted evidence):**
+current HEAD now proves that registered parent-composed helper routing
+can chain through helper-sourced parent-local Qs below the top parent in
+an exact-depth-2 recursive hierarchy. The focused proof is
+`cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_multistage_parent_composed_logic >
+top_child_input_bindings_from_registered_multistage_parent_composed_logic`,
+`child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances >
+top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
+and the direct multi-stage helper counter to stay at zero. The live
+Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_registered_parent_cone_instance_multistage_state`
+axis; the full downstream-clean `r39` report proves it with
+`coverage_gaps = []` and `336/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
+
+**Focused recursive non-top registered parent-composed helper proof (new targeted evidence):**
+current HEAD now proves registered parent-composed helper D-cone routing
+below the top parent in an exact-depth-2 recursive hierarchy. The focused
+proof is
+`cargo test recursive_hierarchy_registered_child_input_cones_can_use_helper_instances_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`child_input_bindings_from_registered_parent_composed_logic >
+top_child_input_bindings_from_registered_parent_composed_logic`, and
+`child_input_bindings_from_registered_parent_cone_instances >
+top_child_input_bindings_from_registered_parent_cone_instances`. The
+live Phase 4 matrix policy includes the dedicated
+`phase4_recur_d2_registered_parent_cone_instance_state` axis; the full
+downstream-clean `r39` report proves it with `coverage_gaps = []` and
+`336/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+
 **Focused direct sibling helper proof (new targeted evidence):**
 current HEAD now lets the direct unregistered sibling route allocate and
 use a parent-cone helper instance as the child-input source when both
@@ -583,7 +735,7 @@ design metrics prove this is not a registered route by requiring
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
 helper instances are present beyond the planned child slots. This route
-is now banked in the full downstream-clean `r30` Phase 4 matrix through
+is now banked in the full downstream-clean `r34` Phase 4 matrix through
 the dedicated direct sibling helper scenario.
 
 **Focused direct registered sibling helper proof (new targeted evidence):**
@@ -770,8 +922,21 @@ the previous direct-helper full bank, `r26` is the previous multi-stage
 registered sibling bank, `r27` is the previous stateful
 parent-output-helper bank, `r28` is the previous multi-stage direct
 registered sibling helper bank, `r29` is the previous multi-stage
-registered parent-composed helper bank, and `r30` is the latest full
-downstream-clean Phase 4 hierarchy closure artifact.
+registered parent-composed helper bank, `r30` is the previous stateful
+parent-composed helper full bank, `r31` is the previous recursive
+helper-state full bank, `r32` is the failed direct-helper/Yosys-warning
+attempt, `r33` is the pre-compact-normalization direct-helper bank, and
+`r34` is the previous full downstream-clean 69-scenario recursive
+direct-helper Phase 4 hierarchy closure artifact, `r35` is the previous
+full downstream-clean 72-scenario recursive direct registered-helper
+artifact, `r36` is the previous full downstream-clean 75-scenario
+recursive registered parent-composed helper artifact, `r37` is the
+previous full downstream-clean 78-scenario recursive non-top multi-stage
+direct registered helper artifact, `r38` is the previous full
+downstream-clean 81-scenario recursive non-top multi-stage registered
+parent-composed helper artifact, and `r39` is the latest full
+downstream-clean 84-scenario recursive non-top parent-output helper
+artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -791,14 +956,31 @@ policy, `r27` adds and banks the 54-scenario stateful
 parent-output-helper policy, `r28` adds and banks the 57-scenario
 multi-stage direct registered sibling helper policy, `r29` adds and
 banks the 60-scenario multi-stage registered parent-composed helper
-policy, and `r30` adds and banks the 63-scenario stateful
-parent-composed helper child-input policy.
+policy, `r30` adds and banks the 63-scenario stateful
+parent-composed helper child-input policy, `r31` adds and banks the
+66-scenario recursive non-top helper-through-state policy, `r33` first
+banks the 69-scenario recursive non-top direct sibling helper policy
+after fixing the `r32` CaseMux/Casez shift-cleanup warning, `r34`
+refreshes that bank after the post-remap idempotent duplicate cleanup,
+`r35` adds and banks the 72-scenario recursive non-top direct registered
+sibling helper policy, `r36` adds and banks the 75-scenario recursive
+non-top registered parent-composed helper policy, `r37` adds and banks
+the 78-scenario recursive non-top multi-stage direct registered sibling
+helper policy, `r38` adds and banks the 81-scenario recursive non-top
+multi-stage registered parent-composed helper policy, and `r39` adds and
+banks the 84-scenario recursive non-top parent-output helper policy.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
 with broader helper-instance placement beyond the current
 parent-composed child-input, direct sibling, direct registered sibling,
-registered child-input, parent-output, stateful parent-output, and
+registered child-input, parent-output, stateful parent-output,
+stateful parent-composed child-input, recursive non-top stateful
+parent-composed child-input, recursive non-top direct sibling,
+recursive non-top direct registered sibling, recursive non-top
+multi-stage direct registered sibling, recursive non-top multi-stage
+registered parent-composed helper, recursive non-top registered
+parent-composed helper, recursive non-top parent-output helper, and
 per-parent-budget slices,
 richer registered
 hierarchy patterns beyond the first multi-stage parent-flop chain, and

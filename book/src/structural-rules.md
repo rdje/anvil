@@ -320,9 +320,13 @@ picked for multiple operands).
   must differ.
 - **Mux:** `mux(s, a, a) = a` — data_true and data_false must
   differ.
-
-Add and Mul are deliberately **not** on this list: `x + x = 2x`
-and `x * x = x²` are algebraically meaningful, not collapses.
+- **Add, Mul duplicate operands:** `x + x = 2x` and `x * x = x²`
+  are algebraically meaningful, so they are not hard collapses like
+  `And` / `Or` / `Xor`. Default generation still rejects duplicate
+  `NodeId`s for `Add` / `Mul` once the `operand-unique` rung is active
+  and `operand_duplication_rate < 1.0`. Set
+  `operand_duplication_rate = 1.0` to opt in to unrestricted duplicate
+  arithmetic operands.
 
 When a forbidden shape is detected, the generator falls back to
 `pick_terminal` rather than emitting the degenerate gate.

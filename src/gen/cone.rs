@@ -1105,6 +1105,11 @@ fn exact_bound(bounds: (u128, u128)) -> Option<u128> {
     (bounds.0 == bounds.1).then_some(bounds.0)
 }
 
+fn casez_pattern_matches(sel: u128, pattern_value: u128, wildcard_mask: u128, width: u32) -> bool {
+    let mask = width_mask(width);
+    ((sel ^ pattern_value) & !wildcard_mask & mask) == 0
+}
+
 fn shift_interval_by_exact_addend(
     bounds: (u128, u128),
     addend: u128,
@@ -1307,6 +1312,26 @@ fn exact_gate_value(
             let sel = exact_operand(memo, operands[0])?;
             let branch = if sel == 0 { operands[2] } else { operands[1] };
             exact_operand(memo, branch)
+        }
+        GateOp::CaseMux if operands.len() >= 3 => {
+            let sel = exact_operand(memo, operands[0])?;
+            let arm_idx = usize::try_from(sel).ok();
+            match arm_idx.and_then(|idx| operands.get(idx + 1)) {
+                Some(&branch) => exact_operand(memo, branch),
+                None => Some(0),
+            }
+        }
+        GateOp::CasezMux if operands.len() >= 7 && (operands.len() - 1).is_multiple_of(3) => {
+            let sel = exact_operand(memo, operands[0])?;
+            let sel_width = m.nodes[operands[0] as usize].width();
+            for arm in operands[1..].chunks_exact(3) {
+                let pattern_value = exact_operand(memo, arm[0])?;
+                let wildcard_mask = exact_operand(memo, arm[1])?;
+                if casez_pattern_matches(sel, pattern_value, wildcard_mask, sel_width) {
+                    return exact_operand(memo, arm[2]);
+                }
+            }
+            Some(0)
         }
         GateOp::Slice { lo, .. } if operands.len() == 1 => {
             let src = exact_operand(memo, operands[0])?;
@@ -2196,6 +2221,81 @@ fn node_unsigned_bounds(
                             let on_true = node_unsigned_bounds(m, operands[1], memo);
                             let on_false = node_unsigned_bounds(m, operands[2], memo);
                             (on_true.0.min(on_false.0), on_true.1.max(on_false.1))
+                        }
+                    }
+                    GateOp::CaseMux if operands.len() >= 3 => {
+                        let sel_bounds = node_unsigned_bounds(m, operands[0], memo);
+                        let data_arms = operands.len() - 1;
+                        if let Some(sel) = exact_bound(sel_bounds) {
+                            let arm_idx = usize::try_from(sel).ok();
+                            match arm_idx.and_then(|idx| operands.get(idx + 1).copied()) {
+                                Some(data) => node_unsigned_bounds(m, data, memo),
+                                None => (0, 0),
+                            }
+                        } else {
+                            let mut saw_value = false;
+                            let mut min = u128::MAX;
+                            let mut max = 0u128;
+                            if sel_bounds.1 >= data_arms as u128 {
+                                saw_value = true;
+                                min = 0;
+                                max = 0;
+                            }
+                            for (idx, &data) in operands[1..].iter().enumerate() {
+                                let idx = idx as u128;
+                                if idx < sel_bounds.0 || idx > sel_bounds.1 {
+                                    continue;
+                                }
+                                let bounds = node_unsigned_bounds(m, data, memo);
+                                saw_value = true;
+                                min = min.min(bounds.0);
+                                max = max.max(bounds.1);
+                            }
+                            if saw_value {
+                                (min, max)
+                            } else {
+                                (0, 0)
+                            }
+                        }
+                    }
+                    GateOp::CasezMux
+                        if operands.len() >= 7 && (operands.len() - 1).is_multiple_of(3) =>
+                    {
+                        let sel_bounds = node_unsigned_bounds(m, operands[0], memo);
+                        let sel_width = m.nodes[operands[0] as usize].width();
+                        if let Some(sel) = exact_bound(sel_bounds) {
+                            let mut chosen = None;
+                            for arm in operands[1..].chunks_exact(3) {
+                                let pattern_value =
+                                    exact_bound(node_unsigned_bounds(m, arm[0], memo));
+                                let wildcard_mask =
+                                    exact_bound(node_unsigned_bounds(m, arm[1], memo));
+                                if let (Some(pattern_value), Some(wildcard_mask)) =
+                                    (pattern_value, wildcard_mask)
+                                {
+                                    if casez_pattern_matches(
+                                        sel,
+                                        pattern_value,
+                                        wildcard_mask,
+                                        sel_width,
+                                    ) {
+                                        chosen = Some(arm[2]);
+                                        break;
+                                    }
+                                }
+                            }
+                            chosen
+                                .map(|data| node_unsigned_bounds(m, data, memo))
+                                .unwrap_or((0, 0))
+                        } else {
+                            let mut min = 0u128;
+                            let mut max = 0u128;
+                            for arm in operands[1..].chunks_exact(3) {
+                                let bounds = node_unsigned_bounds(m, arm[2], memo);
+                                min = min.min(bounds.0);
+                                max = max.max(bounds.1);
+                            }
+                            (min, max)
                         }
                     }
                     GateOp::Slice { .. } if operands.len() == 1 => default,
@@ -5362,6 +5462,76 @@ mod tests {
             prove_node_exact_value(&m, shr),
             Some(0),
             "bounds alone should prove the overshift even when no small-set path is available"
+        );
+    }
+
+    #[test]
+    fn case_mux_bounds_follow_exact_selector_for_dynamic_overshift() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 2, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+
+        let selector = make_constant(&mut m, &mut pool, 1, 1);
+        let unused_arm = make_constant(&mut m, &mut pool, 8, 0x73);
+        let base = make_constant(&mut m, &mut pool, 8, 0x5d);
+        let add_deps = DepSet::union(&[&node_deps(&m, base), &node_deps(&m, x)]);
+        let (dynamic_arm, dynamic_arm_is_new) =
+            m.intern_gate(GateOp::Add, vec![base, x], 8, add_deps.clone());
+        if dynamic_arm_is_new {
+            pool.add(dynamic_arm, 8, add_deps);
+        }
+
+        let rhs = make_case_mux(&mut m, &mut pool, selector, &[unused_arm, dynamic_arm], 8);
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_unsigned_bounds(&m, rhs, &mut memo),
+            (0x5d, 0x60),
+            "an exact case selector should expose the selected arm's bounds"
+        );
+
+        let lhs = make_constant(&mut m, &mut pool, 5, 0x1c);
+        let shr_deps = DepSet::union(&[&node_deps(&m, lhs), &node_deps(&m, rhs)]);
+        let (shr, shr_is_new) = m.intern_gate(GateOp::Shr, vec![lhs, rhs], 5, shr_deps.clone());
+        if shr_is_new {
+            pool.add(shr, 5, shr_deps);
+        }
+
+        assert_eq!(
+            prove_node_exact_value(&m, shr),
+            Some(0),
+            "case-selected shift amounts that are always >= source width should fold before Yosys warns"
+        );
+    }
+
+    #[test]
+    fn casez_mux_bounds_follow_exact_matching_pattern() {
+        let (mut m, mut pool) = fixture_with_inputs(1, 3, 0);
+        m.factorization_level = FactorizationLevel::None;
+        let x = 0;
+
+        let selector = make_constant(&mut m, &mut pool, 2, 3);
+        let low_arm = make_constant(&mut m, &mut pool, 8, 0x11);
+        let base = make_constant(&mut m, &mut pool, 8, 0xa0);
+        let high_arm_deps = DepSet::union(&[&node_deps(&m, base), &node_deps(&m, x)]);
+        let (high_arm, high_arm_is_new) =
+            m.intern_gate(GateOp::Add, vec![base, x], 8, high_arm_deps.clone());
+        if high_arm_is_new {
+            pool.add(high_arm, 8, high_arm_deps);
+        }
+
+        let rhs = make_casez_mux(
+            &mut m,
+            &mut pool,
+            selector,
+            &[(0b00, 0b01), (0b10, 0b01)],
+            &[low_arm, high_arm],
+            8,
+        );
+        let mut memo = HashMap::new();
+        assert_eq!(
+            node_unsigned_bounds(&m, rhs, &mut memo),
+            (0xa0, 0xa7),
+            "an exact casez selector should use the first matching wildcard arm's bounds"
         );
     }
 }

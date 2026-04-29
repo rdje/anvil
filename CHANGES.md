@@ -1,9 +1,635 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-29-phase4-parent-composed-helper-state — Route helper child inputs through parent state
+## 2026-04-29-phase4-recursive-parent-output-helper-policy — Bank recursive parent-output helper routes
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can source non-top parent outputs from parent-cone helper
+  instance outputs without using child-input helper bindings.
+- Expanded the Phase 4 hierarchy matrix policy from `81` to `84`
+  scenarios by adding `phase4_recur_d2_parent_output_cone_instance` for
+  each construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_parent_cone_instance_outputs`, which requires
+  parent-output helper support below the top parent rather than only in
+  the depth-1 wrapper lane.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`
+  with the new 84-scenario policy.
+- Refreshed live docs to present `r39` as the latest full
+  downstream-clean bank, while keeping `r38` as the previous recursive
+  multi-stage registered parent-composed helper full bank.
+
+**Why**
+
+- Parent-output helper routing was banked in the depth-1 wrapper lane,
+  while recursive non-top helper routing had been focused on child-input
+  paths. This slice makes recursive non-top output composition a matrix
+  requirement and keeps it distinct from child-input helper routing and
+  helper-through-flop output routing.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r39 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `84` scenarios
+  - `4` designs/scenario
+  - `336` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `336/0`
+  - Yosys without-ABC `336/0`
+  - Yosys with-ABC `336/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 65 integration tests = 291 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  parent-output helper routing in addition to the recursive non-top
+  child-input helper routes. The latest full downstream-clean bank is
+  now `r39`; `r38` remains the previous full recursive multi-stage
+  registered parent-composed helper bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-29-phase4-recursive-multistage-parent-composed-helper-policy — Bank recursive multi-stage parent-composed helper chains
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can chain non-top registered parent-composed helper routes
+  through helper-sourced parent-local Qs.
+- Expanded the Phase 4 hierarchy matrix policy from `78` to `81`
+  scenarios by adding
+  `phase4_recur_d2_registered_parent_cone_instance_multistage_state`
+  for each construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing`,
+  which requires multi-stage helper-sourced registered parent-composed
+  routing below the top parent rather than only in the depth-1 wrapper
+  lane.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r38/tool_matrix_report.json`
+  with the new 81-scenario policy.
+- Refreshed live docs to present `r38` as the latest full
+  downstream-clean bank, while keeping `r37` as the previous recursive
+  multi-stage direct registered helper full bank.
+
+**Why**
+
+- The previous recursive multi-stage helper proof covered direct
+  registered sibling routes below the top parent. The registered
+  parent-composed version needed its own recursive non-top proof so the
+  matrix can distinguish helper-sourced parent-Q chains that feed later
+  parent-composed D logic from direct sibling helper chains.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r38 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `81` scenarios
+  - `4` designs/scenario
+  - `324` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `324/0`
+  - Yosys without-ABC `324/0`
+  - Yosys with-ABC `324/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 64 integration tests = 290 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  multi-stage registered parent-composed helper routing in addition to
+  the recursive non-top direct sibling, direct registered sibling,
+  multi-stage direct registered sibling, registered parent-composed, and
+  helper-through-state routes. The latest full downstream-clean bank is
+  now `r38`; `r37` remains the previous full recursive multi-stage
+  direct registered helper bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-29-phase4-recursive-multistage-registered-helper-policy — Bank recursive multi-stage direct registered helper chains
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can chain non-top direct registered sibling helper routes
+  through helper-sourced parent-local Qs.
+- Expanded the Phase 4 hierarchy matrix policy from `75` to `78`
+  scenarios by adding
+  `phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state`
+  for each construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing`,
+  which requires multi-stage helper-sourced registered sibling routing
+  below the top parent rather than only in the depth-1 wrapper lane.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r37/tool_matrix_report.json`
+  with the new 78-scenario policy.
+- Refreshed live docs to present `r37` as the latest full
+  downstream-clean bank, while keeping `r36` as the previous recursive
+  registered parent-composed helper full bank.
+
+**Why**
+
+- The previous recursive registered helper proofs covered immediate
+  direct registered D paths and registered parent-composed D cones below
+  the top parent. The multi-stage route still needed its own recursive
+  proof so the matrix could distinguish helper-sourced parent-Q chains
+  from both immediate registered helper routes and parent-composed
+  registered logic.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r37 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `78` scenarios
+  - `4` designs/scenario
+  - `312` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `312/0`
+  - Yosys without-ABC `312/0`
+  - Yosys with-ABC `312/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 63 integration tests = 289 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  multi-stage direct registered sibling helper routing in addition to
+  the recursive non-top direct sibling, direct registered sibling,
+  registered parent-composed, and helper-through-state routes. The
+  latest full downstream-clean bank is now `r37`; `r36` remains the
+  previous full recursive registered parent-composed helper bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-29-phase4-recursive-registered-parent-helper-policy — Bank recursive registered parent-composed helper D cones
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_child_input_cones_can_use_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can route non-top registered parent-composed child-input D
+  cones through parent-cone helper instances.
+- Expanded the Phase 4 hierarchy matrix policy from `72` to `75`
+  scenarios by adding
+  `phase4_recur_d2_registered_parent_cone_instance_state` for each
+  construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing`,
+  which requires registered parent-composed helper routing below the top
+  parent rather than only in the depth-1 wrapper lane.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r36/tool_matrix_report.json`
+  with the new 75-scenario policy.
+- Refreshed live docs to present `r36` as the latest full
+  downstream-clean bank, while keeping `r35` as the previous recursive
+  direct registered-helper full bank.
+
+**Why**
+
+- The previous recursive registered helper proof covered direct
+  registered sibling D paths below the top parent. The registered
+  parent-composed D-cone helper route still needed its own recursive
+  non-top proof so the matrix could distinguish parent-composed
+  registered helper placement from direct registered child-to-child
+  routing.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_registered_child_input_cones_can_use_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-recursive-registered-parent-helper-r36 --phase4-hierarchy-gate --yosys-mode both --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `75` scenarios
+  - `4` designs/scenario
+  - `300` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r36 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `75` scenarios
+  - `4` designs/scenario
+  - `300` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `300/0`
+  - Yosys without-ABC `300/0`
+  - Yosys with-ABC `300/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 62 integration tests = 288 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  registered parent-composed helper D-cone routing in addition to the
+  recursive non-top direct sibling, direct registered sibling, and
+  helper-through-state routes. The latest full downstream-clean bank is
+  now `r36`; `r35` remains the previous full recursive direct
+  registered-helper bank.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-recursive-direct-registered-helper-policy — Bank recursive registered direct-helper routing below the top parent
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can route non-top direct registered sibling child-input D
+  paths through parent-cone helper instances.
+- Expanded the Phase 4 hierarchy matrix policy from `69` to `72`
+  scenarios by adding
+  `phase4_recur_d2_direct_registered_sibling_parent_cone_instance_state`
+  for each construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing`,
+  which requires registered sibling helper routing below the top parent
+  while keeping registered parent-composed D-cone counters out of the
+  proof.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r35/tool_matrix_report.json`
+  with the new 72-scenario policy.
+- Refreshed live docs to present `r35` as the latest full
+  downstream-clean bank, while keeping `r34` as the previous recursive
+  direct-helper full bank.
+
+**Why**
+
+- The previous recursive helper proof covered direct sibling routes below
+  top, but the direct registered sibling helper route was still proven
+  only in the depth-1 wrapper lane. The next honest Phase 4 step was to
+  prove that the helper-sourced registered D path also occurs below the
+  top parent in recursive exact-depth-2 hierarchies.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-recursive-direct-registered-helper-r35 --phase4-hierarchy-gate --yosys-mode both --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `72` scenarios
+  - `4` designs/scenario
+  - `288` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r35 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `72` scenarios
+  - `4` designs/scenario
+  - `288` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `288/0`
+  - Yosys without-ABC `288/0`
+  - Yosys with-ABC `288/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 61 integration tests = 287 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top direct
+  registered sibling helper routing in addition to recursive non-top
+  direct sibling helper routing and recursive non-top helper-through-state
+  routing. The latest full downstream-clean bank is now `r35`; `r34`
+  remains the previous full recursive direct-helper bank.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-recursive-direct-helper-policy — Bank recursive direct-helper routing below the top parent
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can route non-top direct sibling child inputs through
+  parent-cone helper instances.
+- Expanded the Phase 4 hierarchy matrix policy from `66` to `69`
+  scenarios by adding
+  `phase4_recur_d2_direct_sibling_parent_cone_instance` for each
+  construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing`,
+  which requires hierarchy-wide direct sibling helper routing below the
+  top parent while keeping the registered helper-route counters at zero.
+- The first full `r32` attempt exposed a Yosys warning-only failure on
+  an exact-selector `CaseMux` feeding a provably constant overshift.
+  `src/gen/cone.rs` now lets `exact_gate_value` and
+  `node_unsigned_bounds` follow exact `CaseMux` / `CasezMux` selector
+  arms, with conservative unions for non-exact selectors.
+- The full hygiene rerun also exposed a post-remap `And` duplicate in
+  the default strict operand-uniqueness lane. `flatten_posthoc_associative_gates`
+  now normalizes idempotent `And` / `Or` duplicates and `Xor` pair
+  cancellations even when no same-op child splice is involved.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r34/tool_matrix_report.json`
+  with the new 69-scenario policy.
+- Refreshed live docs to present `r34` as the latest full
+  downstream-clean bank, while keeping `r31` as the previous recursive
+  helper-state full bank, `r32` as useful root-cause evidence, and
+  `r33` as the pre-compact-normalization direct-helper bank.
+
+**Why**
+
+- The previous direct sibling helper proof was depth-1. The next honest
+  Phase 4 step was to prove that the same helper route can occur inside
+  a recursive hierarchy below the top parent, without accidentally
+  counting registered helper routes.
+- The warning from the first full run was real cleanup feedback: exact
+  case selectors need to be visible to the generator-side bounds logic
+  so warning-prone dynamic shifts can be folded before downstream tools
+  complain.
+- Remap-driven cleanup has to preserve the same duplicate-operand
+  doctrine as intern-time construction; otherwise later semantic folds
+  can reintroduce illegal-looking associative operands after the
+  generator already did the right thing up front.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo test case`
+- `cargo test flatten_posthoc_associative_gates_dedups_idempotent_duplicates`
+- `cargo test --test pipeline zero_duplicate_operands_at_default_knobs`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32 --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `69` scenarios
+  - `4` designs/scenario
+  - `276` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r34 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `69` scenarios
+  - `4` designs/scenario
+  - `276` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `276/0`
+  - Yosys without-ABC `276/0`
+  - Yosys with-ABC `276/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 60 integration tests = 286 passing tests
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  direct sibling helper routing and recursive non-top helper-through-state
+  routing. The latest full downstream-clean bank is now `r34`; `r31`
+  remains the previous full recursive helper-state bank.
+- Case/casez exact-selector bounds now participate in shift cleanup, so
+  exact procedural case shapes are less likely to leak deterministic
+  overshift warnings into downstream tools.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+- [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-recursive-helper-state-policy — Prove and bank helper-state routing below the top parent
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`,
+  a focused integration regression proving an exact-depth-2 recursive
+  hierarchy can route non-top parent-composed child inputs from
+  parent-cone helper instances through parent-local flops.
+- Expanded the Phase 4 hierarchy matrix policy from `63` to `66`
+  scenarios by adding `phase4_recur_d2_parent_cone_instance_state` for
+  each construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing`,
+  which requires the helper instance, parent-local flop, and
+  helper-through-flop child-input binding counts to exceed their
+  top-only counterparts.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r31/tool_matrix_report.json`
+  with the new 66-scenario policy.
+- Refreshed live docs to present `r31` as the latest full
+  downstream-clean bank and `r30` as the previous full bank for the
+  63-scenario policy.
+
+**Why**
+
+- The previous stateful parent-composed helper proof was depth-1. The
+  next honest Phase 4 step was to prove that the same route can happen
+  inside a recursive hierarchy below the top parent, not merely in the
+  top wrapper lane.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31 --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `66` scenarios
+  - `4` designs/scenario
+  - `264` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r31 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `66` scenarios
+  - `4` designs/scenario
+  - `264` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+  - Verilator `264/0`
+  - Yosys without-ABC `264/0`
+  - Yosys with-ABC `264/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 223 unit-target tests + 59 integration tests = 282 passing tests
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  helper-through-parent-flop child-input routing. The latest full
+  downstream-clean bank is now `r31`; `r30` remains the previous full
+  bank for the 63-scenario policy.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-parent-composed-helper-state — Route helper child inputs through parent state
+
+**Landed as:** `b0b9fc8`
 
 **What changed**
 

@@ -1206,10 +1206,7 @@ pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32 {
             }
         }
 
-        if !any_spliced {
-            continue;
-        }
-
+        let pre_normalize = flat.clone();
         match op {
             GateOp::And | GateOp::Or => {
                 use std::collections::HashSet;
@@ -1239,6 +1236,10 @@ pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32 {
                 }
             }
             _ => unreachable!(),
+        }
+
+        if !any_spliced && flat == pre_normalize {
+            continue;
         }
 
         match flat.len() {
@@ -2168,6 +2169,33 @@ mod tests {
                 } if operands == &vec![a, inner]
             ),
             "duplicate-bearing Add nesting must remain intact under the strict duplicate policy"
+        );
+    }
+
+    #[test]
+    fn flatten_posthoc_associative_gates_dedups_idempotent_duplicates() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: FactorizationLevel::Associative,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 1);
+        let b = push_primary(&mut m, 1, 1);
+        let and = push_raw_gate(&mut m, GateOp::And, vec![a, b, a], 1);
+
+        let flattened = flatten_posthoc_associative_gates(&mut m);
+        assert_eq!(flattened, 1);
+        assert!(
+            matches!(
+                &m.nodes[and as usize],
+                Node::Gate {
+                    op: GateOp::And,
+                    operands,
+                    width: 1,
+                    ..
+                } if operands == &vec![a, b]
+            ),
+            "post-remap associative pass should still dedup idempotent duplicates even without a same-op child splice"
         );
     }
 
