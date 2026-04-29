@@ -72,6 +72,37 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
+### Phase 4 r40 banks recursive non-top stateful parent-output helper routing downstream-clean
+The live Phase 4 hierarchy policy now includes the stateful
+parent-output version of the recursive exact-depth-2 helper axis: below
+the top parent, a non-top parent can instantiate helper children as
+internal parent-cone sources, register those helper outputs into
+parent-local flops, and drive parent outputs from the helper-sourced
+state. The focused regression is
+`cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`.
+It requires the recursive tree shape, more helper instances below top
+than at top, more parent-local flops below top than at top, more
+helper-through-flop parent-output support across the hierarchy than at
+top, no child-input helper bindings, and no registered child-input
+helper D cones so the route stays distinct from both child-input helper
+routing and direct recursive parent-output helper routing.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r40/tool_matrix_report.json`:
+`87` scenarios, `4` designs/scenario, `348` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`,
+`saw_recursive_hierarchy_parent_cone_instance_outputs = true`,
+`saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
+with `348/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top parent-output helper full bank is `r39`.
+
 ### Phase 4 r39 banks recursive non-top parent-output helper routing downstream-clean
 The live Phase 4 hierarchy policy now includes the parent-output version
 of the recursive exact-depth-2 helper axis: below the top parent, a
@@ -86,7 +117,7 @@ helper-through-parent-flop output counts so the route stays distinct
 from child-input helper routing and stateful parent-output helper
 routing.
 
-The current full downstream-clean evidence anchor is
+The full downstream-clean evidence anchor for that slice was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`:
 `84` scenarios, `4` designs/scenario, `336` total designs,
 `coverage_gaps = []`,

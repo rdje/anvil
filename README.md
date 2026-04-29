@@ -277,17 +277,18 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r39`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r40`. Its final
 `tool_matrix_report.json` records:
 
-- `84` scenarios
+- `87` scenarios
 - `4` designs per scenario
-- `336` total designs
+- `348` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 336/0`
-- `Yosys without-abc pass/fail = 336/0`
-- `Yosys with-abc pass/fail = 336/0`
+- `Verilator pass/fail = 348/0`
+- `Yosys without-abc pass/fail = 348/0`
+- `Yosys with-abc pass/fail = 348/0`
+- `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
 - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
@@ -313,7 +314,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r39`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r39` report is the latest fully banked downstream-clean repo-owned
+The `r40` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -350,6 +351,8 @@ cones, direct sibling helper routing, and direct registered sibling
 helper routing, multi-stage direct registered sibling helper routing,
 parent-output helper routes that pass through parent-local flops, plus
 recursive exact-depth-2 parent-output helper routes below the top parent,
+recursive exact-depth-2 parent-output helper routes through parent-local
+flops below the top parent,
 stateful parent-composed helper child-input routes, and the recursive
 exact-depth-2 axis proving that a non-top hierarchy parent can source
 parent-composed child inputs from parent-cone helper instances through
@@ -366,7 +369,7 @@ routes through helper-sourced parent-local Qs. The earlier coverage-only proofs 
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r39` bank.
+are superseded by the full downstream-clean `r40` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -594,7 +597,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r39/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r40/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -606,6 +609,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
   recursive non-top parent-output helper routing,
+  recursive non-top stateful parent-output helper routing,
   parent-output helper routing through parent-local flops,
   parent-composed helper child-input routing through parent-local
   flops,
@@ -622,27 +626,30 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   recursive non-top direct registered sibling helper route,
   recursive non-top registered parent-composed helper route,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `84` scenarios, `336` total designs,
-  `coverage_gaps = []`, and `336/0` pass-fail in Verilator plus both
+  `tool_matrix`, with `87` scenarios, `348` total designs,
+  `coverage_gaps = []`, and `348/0` pass-fail in Verilator plus both
   repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, `r31` remains the previous
   66-scenario full bank, `r36` is the previous recursive registered
   parent-composed helper bank, `r37` is the previous recursive
   multi-stage direct registered helper bank, `r38` is the previous
-  recursive multi-stage registered parent-composed helper bank, and the clean `r22` run records the
+  recursive multi-stage registered parent-composed helper bank, `r39`
+  is the previous recursive non-top parent-output helper bank, `r40`
+  is the latest recursive non-top stateful parent-output helper bank,
+  and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
   hierarchy capability:
   additional helper-instance placement beyond the current
   parent-composed child-input, direct sibling, direct registered
   sibling, registered child-input, parent-output, stateful
-	  parent-output, stateful parent-composed child-input,
-	  recursive non-top stateful parent-composed child-input,
-	  recursive non-top direct sibling helper,
-	  recursive non-top direct registered sibling helper,
-	  recursive non-top multi-stage direct registered helper,
-	  recursive non-top multi-stage registered parent-composed helper,
+  parent-output, stateful parent-composed child-input,
+  recursive non-top stateful parent-composed child-input,
+  recursive non-top direct sibling helper,
+  recursive non-top direct registered sibling helper,
+  recursive non-top multi-stage direct registered helper,
+  recursive non-top multi-stage registered parent-composed helper,
 	  recursive non-top registered parent-composed helper,
 	  per-parent-budget, and multi-stage direct registered helper slices,
   broader registered
