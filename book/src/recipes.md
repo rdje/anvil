@@ -368,6 +368,25 @@ anvil --seed 42 --out ./hier-registered-sibling-chain \
       --constant-prob 0.0
 ```
 
+Multi-stage registered parent-composed helper route:
+
+```bash
+anvil --seed 42 --out ./hier-registered-helper-parent-chain \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 1.0 \
+      --hierarchy-child-input-cone-prob 0.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --max-parent-cone-instances-per-module 1 \
+      --hierarchy-parent-flop-prob 0.0 \
+      --max-flops-per-module 8 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0
+```
+
 The route metrics distinguish the shapes:
 `child_input_bindings_from_registered_instance_outputs`,
 `child_input_bindings_from_registered_multistage_instance_outputs`,
@@ -384,6 +403,11 @@ flop, inspect
 `child_input_bindings_from_registered_multistage_parent_cone_instances`
 and
 `registered_multistage_parent_cone_instance_child_input_binding_fraction`.
+For a helper-sourced registered parent-composed route that chains
+through earlier parent state, inspect
+`child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`
+and
+`registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`.
 
 ## "I want fanout stress"
 

@@ -72,7 +72,33 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
-### Phase 4 r28 supersedes the r27 stateful parent-output helper bank
+### Phase 4 r29 supersedes the r28 direct registered helper-chain bank
+Registered parent-composed helper routing now has its own multi-stage
+proof, distinct from the direct registered sibling helper proof. In the
+new shape, a parent-cone helper output seeds an earlier parent-local Q,
+and later registered parent-composed D logic reuses that Q before
+driving a later child input. The focused proof should keep
+`child_input_bindings_from_registered_multistage_parent_cone_instances = 0`
+while asserting
+`child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances > 0`,
+so the direct sibling helper chain and parent-composed helper chain
+stay observably separate.
+
+The current evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r29/tool_matrix_report.json`:
+`60` scenarios, `4` designs/scenario, `240` total designs,
+`coverage_gaps = []`, and `240/0` pass-fail in Verilator plus both
+repo-owned Yosys modes. It fully banks the direct sibling helper,
+direct registered sibling helper, multi-stage registered sibling,
+stateful parent-output helper, multi-stage direct registered sibling
+helper, and multi-stage registered parent-composed helper routes. Keep
+`r23` as the pre-direct-helper full-bank breadcrumb, `r24` as the
+coverage-only direct-helper proof, `r25` as the direct-helper full bank,
+`r26` as the previous multi-stage sibling full bank, `r27` as the
+previous stateful parent-output helper bank, and `r28` as the previous
+multi-stage direct registered sibling helper bank.
+
+### Phase 4 r28 superseded the r27 stateful parent-output helper bank
 Direct registered sibling helper routing now has two distinct
 child-input-proven forms: a helper output can feed the immediate
 parent-local D path, and a helper output can first seed a parent-local Q
@@ -84,7 +110,7 @@ focused proof should keep both
 while asserting
 `child_input_bindings_from_registered_multistage_parent_cone_instances > 0`.
 
-The current evidence anchor is
+The evidence anchor was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r28/tool_matrix_report.json`:
 `57` scenarios, `4` designs/scenario, `228` total designs,
 `coverage_gaps = []`, and `228/0` pass-fail in Verilator plus both
@@ -397,8 +423,9 @@ What it does **not** do yet is make every parent-side cone free to
 instantiate arbitrary helper modules. The narrow helper-instance seams
 are now live for parent-composed child-input cones, direct sibling
 routes, direct registered sibling D sources, registered child-input D
-cones, and parent-output cones, with explicit per-parent budgeting.
-Broader helper placement
+cones, parent-output cones, multi-stage direct registered sibling
+helper chains, and multi-stage registered parent-composed helper
+chains, with explicit per-parent budgeting. Broader helper placement
 beyond those seams remains future hierarchy work.
 
 One more gate-level rule turned out to matter here: when a repo-owned
@@ -420,9 +447,11 @@ scenario set to `48`, the live regression expected `192` total designs.
 After the multi-stage registered sibling route raised the scenario set
 to `51`, the live regression expects `204` total designs. The
 stateful parent-output helper route raised the scenario set to `54`,
-and the live regression now expects `216` total designs. The
-downstream-clean `r27` bank proves that current 54-scenario /
-216-design gate.
+and the live regression expected `216` total designs. The multi-stage
+direct registered sibling helper route raised it to `57` scenarios /
+`228` total designs in `r28`, and the multi-stage registered
+parent-composed helper route raises it to `60` scenarios / `240` total
+designs in `r29`.
 
 One more planner rule is load-bearing here: in recursive range mode,
 child libraries are generated **on demand per parent**, and every

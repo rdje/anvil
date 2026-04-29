@@ -1,9 +1,113 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-29-phase4-registered-helper-multistage — Chain registered helper routes through parent state
+## 2026-04-29-phase4-parent-composed-helper-multistage — Prove parent-composed helper chains through parent state
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added structural metrics for multi-stage registered
+  parent-composed helper routing:
+  `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
+  `top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
+  `registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`,
+  and
+  `top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`.
+- The new metric distinguishes the parent-composed helper chain from
+  the existing direct registered sibling helper chain: it requires the
+  final registered D side to be parent-composed logic whose flop
+  dependency reaches a parent-cone helper output.
+- Added focused regressions:
+  `design_metrics_capture_multistage_registered_parent_composed_parent_cone_instance_routes`
+  and
+  `hierarchy_registered_parent_composed_routes_can_chain_helper_instances_through_parent_flops`.
+- Expanded the Phase 4 hierarchy matrix from 57 to 60 scenarios by
+  adding
+  `phase4_hier2_inst4_registered_parent_cone_instance_multistage_state`
+  for each construction strategy. The matrix coverage contract now
+  requires
+  `saw_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r29/tool_matrix_report.json`:
+  `60` scenarios, `4` designs/scenario, `240` total designs,
+  `artifact_kind = "design"`, `coverage_gaps = []`, Verilator
+  `240/0`, Yosys without-ABC `240/0`, and Yosys with-ABC `240/0`.
+- README, USER_GUIDE, ROADMAP, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES,
+  MEMORY, and the mdBook hierarchy / architecture / knobs / recipes
+  chapters now document the new route, metrics, examples, and `r29`
+  evidence anchor.
+
+**Why**
+
+- `r28` proved the direct registered sibling helper cross-product: a
+  helper output can seed one parent Q and a later direct registered
+  sibling route can reuse that Q. The parent-composed route needed its
+  own proof because the final D side is parent logic, not the direct
+  sibling path.
+- Users reading `manifest.json` or `tool_matrix_report.json` can now
+  tell whether helper-through-state support came from direct sibling
+  routing or registered parent-composed routing.
+
+**Validation**
+
+- `cargo test design_metrics_capture_multistage_registered_parent_composed_parent_cone_instance_routes`
+- `cargo test hierarchy_registered_parent_composed_routes_can_chain_helper_instances_through_parent_flops`
+- `cargo test phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo test phase4_hierarchy_gate_raises_designs_per_scenario_for_matrix`
+- `cargo test phase4_hierarchy_coverage_requires_design_facts`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r29-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys`
+  - `60` scenarios
+  - `240` generated designs
+  - `coverage_gaps = []`
+  - `saw_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r29 --phase4-hierarchy-gate --yosys-mode both`
+  - `60` scenarios
+  - `4` designs/scenario
+  - `240` total designs
+  - `coverage_gaps = []`
+  - Verilator `240/0`
+  - Yosys without-ABC `240/0`
+  - Yosys with-ABC `240/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 222 unit-target tests + 57 integration tests = 279 passing tests
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- `r29` is now the current Phase 4 hierarchy closure artifact. `r28`
+  remains the previous full downstream-clean direct registered sibling
+  helper-chain bank.
+- Existing defaults are unchanged. The route uses existing knobs:
+  `hierarchy_registered_child_input_cone_prob`,
+  `hierarchy_parent_cone_instance_prob`,
+  `max_parent_cone_instances_per_module`, and
+  `max_flops_per_module`.
+
+**Files touched**
+
+- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
+- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
+- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+
+## 2026-04-29-phase4-registered-helper-multistage — Chain registered helper routes through parent state
+
+**Landed as:** `85866c3`
 
 **What changed**
 

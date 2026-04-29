@@ -1602,6 +1602,110 @@ fn hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent
 }
 
 #[test]
+fn hierarchy_registered_parent_composed_routes_can_chain_helper_instances_through_parent_flops() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 1.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 1,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "multi-stage registered parent-composed helper hierarchy config should be valid",
+        );
+        let planned_child_instances = cfg.num_child_instances as usize;
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "multi-stage registered parent-composed helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.top_parent_cone_instances > 0,
+            "expected top-level helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic > 0,
+            "expected first-stage registered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_multistage_parent_composed_logic > 0,
+            "expected registered parent-composed routes to chain through parent-local Qs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances > 0,
+            "expected registered parent-composed D paths to depend on helper outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_multistage_parent_cone_instances,
+            0,
+            "this focused config should prove parent-composed helper chaining, not direct registered sibling helper chaining, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics
+                .child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances
+                > 0,
+            "expected a later registered parent-composed route to chain from a helper-sourced parent Q for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics
+                .top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances
+                > 0,
+            "expected top-level multi-stage parent-composed helper bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics
+                .registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction
+                > 0.0,
+            "expected non-zero multi-stage parent-composed helper binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics
+                .top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction
+                > 0.0,
+            "expected non-zero top-level multi-stage parent-composed helper binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_instances > planned_child_instances,
+            "helper instances should be additional to planned child slots for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_child_inputs_can_be_registered_from_parent_composed_logic() {
     for strategy in [
         ConstructionStrategy::Sequential,

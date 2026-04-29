@@ -191,6 +191,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Chain direct registered sibling helper routes through earlier parent state | `hierarchy_registered_sibling_route_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent flop -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_parent_cone_instances`, `top_child_input_bindings_from_registered_multistage_parent_cone_instances`, `registered_multistage_parent_cone_instance_child_input_binding_fraction`, `top_registered_multistage_parent_cone_instance_child_input_binding_fraction` |
 | Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s), optionally including earlier parent Q -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction` |
 | Let registered parent-composed child-input D cones instantiate a helper child source | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_cone_instances`, `top_child_input_bindings_from_registered_parent_cone_instances`, `registered_parent_cone_instance_child_input_binding_fraction`, `top_registered_parent_cone_instance_child_input_binding_fraction` |
+| Chain registered parent-composed helper routes through earlier parent state | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent flop -> later parent logic -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`, `top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`, `registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`, `top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction` |
 | Allow parent cones to contain local flops | `hierarchy_parent_flop_prob` | parent source(s) -> parent cone with local flop(s) -> output or child input | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops` |
 
 The registered parent-composed route now uses the full available parent
@@ -481,14 +482,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r28/tool_matrix_report.json`
-- `57` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r29/tool_matrix_report.json`
+- `60` scenarios
 - `4` designs/scenario
-- `228` total designs
+- `240` total designs
 - `coverage_gaps = []`
-- `Verilator 228/0`
-- `Yosys without-abc 228/0`
-- `Yosys with-abc 228/0`
+- `Verilator 240/0`
+- `Yosys without-abc 240/0`
+- `Yosys with-abc 240/0`
 
 That gate proves the current representative hierarchy surface directly
 from saved report facts: multifile hierarchy designs, correct
@@ -515,8 +516,9 @@ instance composition, stateful parent-output helper routing through
 parent-local flops, budgeted multi-helper allocation, registered
 parent-composed helper-sourced child-input D cones, direct sibling
 helper routing, direct registered sibling helper routing, and
-multi-stage direct registered sibling helper routing. The
-older `r21` bank remains historical pre-parent-output-helper evidence;
+multi-stage direct registered sibling helper routing, plus multi-stage
+registered parent-composed helper routing. The older `r21` bank remains
+historical pre-parent-output-helper evidence;
 the clean `r22` run is root-cause evidence for the stale 126-design
 budget mismatch that the per-scenario Phase 4 gate floor now prevents.
 The `r23` full bank and the `r24` coverage-only direct-helper proof are
@@ -614,7 +616,7 @@ local proofs remain useful:
   - `parent_cone_instance_child_input_binding_fraction > 0.0`
   - `top_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r28`
+  This route is now also banked in the full downstream-clean `r29`
   Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
   proves direct registered sibling helper routing numerically:
@@ -624,7 +626,7 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances > 0`
   - `registered_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `num_instances > planned_child_instances`
-  This route is now also banked in the full downstream-clean `r28`
+  This route is now also banked in the full downstream-clean `r29`
   Phase 4 matrix.
 - `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
   proves multi-stage direct registered sibling routing numerically:
@@ -633,7 +635,7 @@ local proofs remain useful:
   - `top_child_input_bindings_from_registered_multistage_instance_outputs > 0`
   - `child_input_bindings_from_registered_parent_composed_logic = 0`
   - `registered_multistage_instance_output_child_input_binding_fraction > 0.0`
-  This route is banked in the full downstream-clean `r28` Phase 4
+  This route is banked in the full downstream-clean `r29` Phase 4
   matrix through the dedicated
   `phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 - `cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`
@@ -644,9 +646,21 @@ local proofs remain useful:
   - `registered_multistage_parent_cone_instance_child_input_binding_fraction > 0.0`
   - `child_input_bindings_from_registered_parent_composed_logic = 0`
   - `child_input_bindings_from_registered_multistage_parent_composed_logic = 0`
-  This route is banked in the full downstream-clean `r28` Phase 4
+  This route is banked in the full downstream-clean `r29` Phase 4
   matrix through the dedicated
   `phase4_hier2_inst4_registered_sibling_parent_cone_instance_multistage_state`
+  scenario.
+- `cargo test hierarchy_registered_parent_composed_routes_can_chain_helper_instances_through_parent_flops`
+  proves multi-stage registered parent-composed helper routing
+  numerically:
+  - `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances > 0`
+  - `top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances > 0`
+  - `registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction > 0.0`
+  - `child_input_bindings_from_registered_parent_composed_logic > 0`
+  - `child_input_bindings_from_registered_multistage_parent_cone_instances = 0`
+  This route is banked in the full downstream-clean `r29` Phase 4
+  matrix through the dedicated
+  `phase4_hier2_inst4_registered_parent_cone_instance_multistage_state`
   scenario.
 - `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
@@ -660,7 +674,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r28` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r29` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
@@ -673,7 +687,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r28` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r29` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
@@ -687,7 +701,7 @@ local proofs remain useful:
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
-  skipped Verilator/Yosys; the full downstream-clean `r28` bank now
+  skipped Verilator/Yosys; the full downstream-clean `r29` bank now
   carries the same fact with real tool validation.
 - `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
@@ -715,12 +729,12 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r28` closes them cleanly
-  with `coverage_gaps = []` and `228/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r29` closes them cleanly
+  with `coverage_gaps = []` and `240/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, multi-stage registered sibling,
-  multi-stage direct registered sibling helper, and stateful
-  parent-output helper routes.
+  multi-stage direct registered sibling helper, multi-stage registered
+  parent-composed helper, and stateful parent-output helper routes.
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -735,8 +749,9 @@ local proofs remain useful:
   pre-direct-helper full bank, `r24` is the coverage-only direct-helper
   policy proof, `r25` is the previous direct-helper full bank, `r26`
   is the previous multi-stage registered sibling bank, `r27` is the
-  previous stateful parent-output helper bank, `r28` is the latest full
-  downstream-clean hierarchy bank, and the aborted `r8`
+  previous stateful parent-output helper bank, `r28` is the previous
+  multi-stage direct registered sibling helper bank, `r29` is the
+  latest full downstream-clean hierarchy bank, and the aborted `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
   borrowing the fattest Phase 1 leaf-stress shape.
