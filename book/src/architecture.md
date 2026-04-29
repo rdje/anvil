@@ -366,13 +366,14 @@ Three layers:
   Mux ternary, procedural structured surfaces, and hierarchy
   control-port propagation across comb-only, direct-wrapper, and
   grandparent-wrapper cases).
-- `src/metrics.rs` — 17 tests (empty module, per-kind gate
+- `src/metrics.rs` — 18 tests (empty module, per-kind gate
   counting, per-shape flop counting, variable-vs-constant shift-rhs,
   and hierarchy design metrics for reuse, under-instantiation,
   parent-side composition, sibling-routed child inputs,
   direct sibling helper routes, parent-cone helper output support,
   budgeted parent-cone helpers, registered helper-sourced child-input D
-  cones, direct registered sibling helper routes, recursive tree shape,
+  cones, direct registered sibling helper routes, stateful
+  parent-composed helper child-input routes, recursive tree shape,
   per-depth branching
   profiles, mixed-depth recursion, and profiled on-demand interface
   realization).
@@ -390,7 +391,8 @@ recursive tree planner, per-depth branching profiles, sibling-routed
 child inputs, parent-composed child-input bindings, parent-cone
 helper-instance child-input bindings, parent-cone helper-instance
 parent-output composition, stateful parent-output helper routing
-through parent-local flops, local parent flops, registered sibling-routed
+through parent-local flops, stateful parent-composed helper child-input
+routing through parent-local flops, local parent flops, registered sibling-routed
 child-input bindings, registered parent-composed child-input bindings,
 registered helper-sourced child-input D cones, direct sibling helper
 routes, direct registered sibling helper routes,
@@ -401,7 +403,7 @@ uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-29): 222 unit-target tests + 57 integration tests = 279 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-29): 223 unit-target tests + 58 integration tests = 281 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -425,9 +427,9 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r29/tool_matrix_report.json`
-(240 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-240/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`
+(252 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+252/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
@@ -446,11 +448,12 @@ child-input bindings, multi-stage registered sibling-routed child-input
 bindings, mixed parent-port / child-output parent outputs,
 parent-output helper-instance composition, budgeted multi-helper
 allocation, stateful parent-output helper routing through parent-local
-flops, registered parent-composed helper-sourced child-input D
+flops, stateful parent-composed helper child-input routing through
+parent-local flops, registered parent-composed helper-sourced child-input D
 cones, direct sibling helper routing, and direct registered sibling
 helper routing, and multi-stage direct registered sibling helper
 routing, and multi-stage registered parent-composed helper routing. The
-`r29` report records
+`r30` report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
 `saw_hierarchy_registered_sibling_routing = true`,
@@ -460,6 +463,7 @@ routing, and multi-stage registered parent-composed helper routing. The
 `saw_hierarchy_registered_multistage_sibling_routing = true`,
 `saw_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
 `saw_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+`saw_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`,
 `saw_hierarchy_parent_port_composed_outputs = true`,
 `saw_hierarchy_parent_cone_instance_routing = true`,
 `saw_hierarchy_parent_cone_instance_outputs = true`,
@@ -477,7 +481,7 @@ and
 `/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
-remain useful focused policy breadcrumbs, but the full `r29` bank above
+remain useful focused policy breadcrumbs, but the full `r30` bank above
 now carries those facts through Verilator and both repo-owned Yosys
 modes. The old hierarchy smoke at `/tmp/anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
@@ -497,7 +501,9 @@ and
 `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json`, and
 `cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`, and
-`cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`
+`cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`,
+and
+`cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
 remain useful targeted evidence. The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,
 `r11` is the first explicit child-sourcing bank, `r21` is historical

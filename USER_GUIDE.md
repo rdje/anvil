@@ -337,7 +337,9 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
   `child_input_bindings_from_registered_multistage_instance_outputs`,
   `child_input_bindings_from_registered_multistage_parent_cone_instances`,
+  `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
   `child_input_bindings_from_registered_parent_cone_instances`,
+  `child_input_bindings_from_parent_cone_instances_through_parent_flops`,
   `child_input_bindings_from_parent_cone_instances`)
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
@@ -348,6 +350,10 @@ opening the emitted `.sv`, including:
 - hierarchy- and top-level parent-cone helper child-input fractions
   (`parent_cone_instance_child_input_binding_fraction`,
   `top_parent_cone_instance_child_input_binding_fraction`)
+- hierarchy- and top-level parent-composed helper-through-state
+  child-input fractions
+  (`parent_cone_instance_flop_child_input_binding_fraction`,
+  `top_parent_cone_instance_flop_child_input_binding_fraction`)
 - hierarchy- and top-level parent-flop child-input fractions
   (`parent_flop_child_input_binding_fraction`,
   `top_parent_flop_child_input_binding_fraction`)
@@ -362,6 +368,10 @@ opening the emitted `.sv`, including:
   fractions
   (`registered_multistage_parent_cone_instance_child_input_binding_fraction`,
   `top_registered_multistage_parent_cone_instance_child_input_binding_fraction`)
+- hierarchy- and top-level multi-stage registered parent-composed
+  helper-sourced route fractions
+  (`registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`,
+  `top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`)
 - hierarchy- and top-level registered parent-composed route fractions
   (`registered_parent_composed_child_input_binding_fraction`,
   `top_registered_parent_composed_child_input_binding_fraction`)
@@ -412,12 +422,19 @@ The current Phase 4 slice now has two planning lanes:
 - `hierarchy_child_input_cone_prob` controls whether child data inputs
   bind through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
-  and earlier parent-side route gates
+  and earlier parent-side route gates. When
+  `hierarchy_parent_cone_instance_prob` and `hierarchy_parent_flop_prob`
+  both fire, the helper output can first be registered into
+  parent-local state and then consumed by the parent-composed
+  child-input logic
 - `hierarchy_parent_cone_instance_prob` controls whether
   parent-composed child-input cones, direct sibling routes, direct
   registered sibling routes, registered child-input D cones, or
   parent-output cones may instantiate helper children as internal
-  parent-cone sources; default `0.0` keeps this
+  parent-cone sources. Helper outputs may feed child inputs directly,
+  feed registered D cones, feed parent outputs, or feed
+  parent-composed child-input logic through parent-local helper Qs;
+  default `0.0` keeps this
   helper-instantiation axis opt-in
 - `max_parent_cone_instances_per_module` controls how many helper
   children one hierarchy parent may instantiate; default `1` preserves
@@ -429,7 +446,9 @@ The current Phase 4 slice now has two planning lanes:
   parent layer combinational unless this state axis is explicitly
   enabled. When helper placement is active, parent-output helper
   sources may route through those parent-local flops before reaching a
-  parent output
+  parent output, and parent-composed child-input helper sources may
+  route through those parent-local flops before reaching a later child
+  input
 - the legacy exact wrapper knobs and bounded recursive range knobs are
   intentionally mutually exclusive planning lanes
 - pure comb-only modules do **not** expose `clk` / `rst_n`
@@ -565,17 +584,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r29/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`
 records:
 
-- `60` scenarios
+- `63` scenarios
 - `4` designs per scenario
-- `240` total designs
+- `252` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 240/0`
-- `Yosys without-abc pass/fail = 240/0`
-- `Yosys with-abc pass/fail = 240/0`
+- `Verilator pass/fail = 252/0`
+- `Yosys without-abc pass/fail = 252/0`
+- `Yosys with-abc pass/fail = 252/0`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -595,6 +614,8 @@ sibling-routed child-input bindings, mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, budgeted helper allocation,
 stateful parent-output helper routing through parent-local flops,
+stateful parent-composed helper child-input routing through
+parent-local flops,
 registered parent-composed helper-sourced child-input D cones,
 multi-stage direct registered sibling helper routing, multi-stage
 registered parent-composed helper routing, and
@@ -679,7 +700,7 @@ focused proof for direct sibling helper routing
 `parent_cone_instance_child_input_binding_fraction > 0.0`,
 `top_parent_cone_instance_child_input_binding_fraction > 0.0`, and
 `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r29`
+This focused proof is also banked in the full downstream-clean `r30`
 Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 is the focused proof for direct registered sibling helper routing
@@ -687,7 +708,7 @@ is the focused proof for direct registered sibling helper routing
 `child_input_bindings_from_registered_parent_cone_instances > 0`,
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`,
 and `num_instances > planned_child_instances`).
-This focused proof is also banked in the full downstream-clean `r29`
+This focused proof is also banked in the full downstream-clean `r30`
 Phase 4 matrix.
 `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
 is the focused proof for multi-stage direct registered sibling routing
@@ -697,7 +718,7 @@ without parent-composed logic
 `top_child_input_bindings_from_registered_multistage_instance_outputs > 0`,
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `registered_multistage_instance_output_child_input_binding_fraction > 0.0`).
-This focused proof is banked in the full downstream-clean `r29`
+This focused proof is banked in the full downstream-clean `r30`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_registered_sibling_multistage_state` scenario.
 `cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`
@@ -708,7 +729,7 @@ routing without parent-composed logic
 `registered_multistage_parent_cone_instance_child_input_binding_fraction > 0.0`,
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `child_input_bindings_from_registered_multistage_parent_composed_logic = 0`).
-This focused proof is banked in the full downstream-clean `r29`
+This focused proof is banked in the full downstream-clean `r30`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_registered_sibling_parent_cone_instance_multistage_state`
 scenario.
@@ -720,10 +741,21 @@ routing
 `registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction > 0.0`,
 `child_input_bindings_from_registered_parent_composed_logic > 0`, and
 `child_input_bindings_from_registered_multistage_parent_cone_instances = 0`).
-This focused proof is banked in the full downstream-clean `r29`
+This focused proof is banked in the full downstream-clean `r30`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_registered_parent_cone_instance_multistage_state`
 scenario.
+`cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
+is the focused proof for stateful parent-composed helper child-input
+routing
+(`child_input_bindings_from_parent_cone_instances_through_parent_flops > 0`,
+`top_child_input_bindings_from_parent_cone_instances_through_parent_flops > 0`,
+`parent_cone_instance_flop_child_input_binding_fraction > 0.0`,
+`top_parent_cone_instance_flop_child_input_binding_fraction > 0.0`, and
+`child_input_bindings_from_registered_parent_cone_instances = 0`).
+This focused proof is banked in the full downstream-clean `r30`
+Phase 4 matrix through the dedicated
+`phase4_hier2_inst4_parent_cone_instance_state` scenario.
 `cargo test hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops`
 is the focused proof for parent-output helper routing through
 parent-local state
@@ -732,7 +764,7 @@ parent-local state
 `top_parent_cone_instance_flop_output_fraction > 0.0`,
 `hierarchy_parent_cone_instance_flop_output_fraction > 0.0`, and
 `child_input_bindings_from_parent_cone_instances = 0`).
-This focused proof is banked in the full downstream-clean `r29`
+This focused proof is banked in the full downstream-clean `r30`
 Phase 4 matrix through the dedicated
 `phase4_hier2_inst4_parent_output_cone_instance_state` scenario.
 The aborted `r8` rerun is now only
@@ -767,7 +799,7 @@ Current HEAD also has a focused clean mixed-depth recursive proof at
 That artifact is also clean in Verilator plus both repo-owned Yosys
 modes and is the current trust surface for mixed shallow/deep recursive
 shape without `.sv` inspection. The refreshed repo-owned Phase 4 gate
-at `r29` now includes this axis too, so the focused smoke is no longer
+at `r30` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at

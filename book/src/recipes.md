@@ -303,6 +303,40 @@ Useful metrics:
 - `child_input_bindings_from_parent_cone_instances` should stay `0`
   when you want an output-only proof
 
+To make parent-composed child-input helper routing stateful, keep the
+registered child-input routes disabled and enable parent-local helper
+state:
+
+```bash
+anvil --seed 42 --out ./hier-helper-child-input-state \
+      --hierarchy-depth 1 \
+      --num-leaf-modules 2 \
+      --num-child-instances 4 \
+      --hierarchy-sibling-route-prob 0.0 \
+      --hierarchy-registered-sibling-route-prob 0.0 \
+      --hierarchy-registered-child-input-cone-prob 0.0 \
+      --hierarchy-child-input-cone-prob 1.0 \
+      --hierarchy-parent-cone-instance-prob 1.0 \
+      --max-parent-cone-instances-per-module 1 \
+      --hierarchy-parent-flop-prob 1.0 \
+      --max-flops-per-module 64 \
+      --terminal-reuse-prob 1.0 \
+      --constant-prob 0.0 \
+      --min-width 1 \
+      --max-width 8 \
+      --max-depth 1
+```
+
+Useful metrics:
+
+- `child_input_bindings_from_parent_cone_instances_through_parent_flops`
+- `top_child_input_bindings_from_parent_cone_instances_through_parent_flops`
+- `parent_cone_instance_flop_child_input_binding_fraction`
+- `top_parent_cone_instance_flop_child_input_binding_fraction`
+- `child_input_bindings_from_registered_parent_cone_instances` should
+  stay `0` when you want the unregistered parent-composed route, not a
+  registered child-input D-cone proof
+
 ## "I want registered hierarchy routes"
 
 Registered sibling route:

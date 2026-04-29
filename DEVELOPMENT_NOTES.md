@@ -72,6 +72,33 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
+### Phase 4 r30 supersedes the r29 registered parent-composed helper bank
+Stateful parent-composed helper child-input routing now has its own
+proof, distinct from registered child-input helper D cones. In the new
+shape, a parent-cone helper output seeds a parent-local Q, and
+unregistered parent-composed child-input logic consumes that helper Q
+before binding the later child input. The focused proof should assert
+`child_input_bindings_from_parent_cone_instances_through_parent_flops > 0`
+and
+`parent_cone_instance_flop_child_input_binding_fraction > 0.0` while
+keeping `child_input_bindings_from_registered_parent_cone_instances = 0`.
+
+The current evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r30/tool_matrix_report.json`:
+`63` scenarios, `4` designs/scenario, `252` total designs,
+`coverage_gaps = []`, and `252/0` pass-fail in Verilator plus both
+repo-owned Yosys modes. It fully banks the direct sibling helper,
+direct registered sibling helper, multi-stage registered sibling,
+stateful parent-output helper, multi-stage direct registered sibling
+helper, multi-stage registered parent-composed helper, and stateful
+parent-composed helper child-input routes. Keep `r23` as the
+pre-direct-helper full-bank breadcrumb, `r24` as the coverage-only
+direct-helper proof, `r25` as the direct-helper full bank, `r26` as the
+previous multi-stage sibling full bank, `r27` as the previous stateful
+parent-output helper bank, `r28` as the previous multi-stage direct
+registered sibling helper bank, and `r29` as the previous
+multi-stage registered parent-composed helper bank.
+
 ### Phase 4 r29 supersedes the r28 direct registered helper-chain bank
 Registered parent-composed helper routing now has its own multi-stage
 proof, distinct from the direct registered sibling helper proof. In the

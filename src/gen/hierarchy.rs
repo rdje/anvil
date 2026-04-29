@@ -1412,7 +1412,23 @@ fn build_child_input_parent_cone(
     g.cfg.flop_prob = saved_flop_prob;
     g.active_flop_knob = saved_flop_knob;
     if let Some(required_source) = required_parent_cone_instance_source {
-        ensure_parent_cone_instance_support(top, parent_source_pool, root, required_source, width)
+        if let Some(helper_q) = maybe_register_parent_cone_instance_source(
+            g,
+            top,
+            parent_source_pool,
+            required_source,
+            width,
+        ) {
+            add_parent_companion_gate(top, parent_source_pool, width, root, helper_q)
+        } else {
+            ensure_parent_cone_instance_support(
+                top,
+                parent_source_pool,
+                root,
+                required_source,
+                width,
+            )
+        }
     } else {
         root
     }

@@ -147,13 +147,16 @@ placeholder structure:
   child-input cones, parent-cone helper instances for parent-composed
   child-input cones, direct sibling routes, direct registered
   sibling-route D sources, registered child-input D cones, and
-  parent-output cones,
+  parent-output cones, including helper sources routed through
+  parent-local state for parent outputs and unregistered
+  parent-composed child-input logic,
   explicit per-parent helper budgeting, and optional local parent flops.
 
 The remaining open hierarchy work is richer parent-local behavior
 beyond the landed state/helper surfaces: helper placement beyond the
-current parent-composed child-input / direct sibling / direct registered
-sibling / registered D-cone / parent-output seams, broader registered
+current parent-composed child-input / stateful parent-composed
+child-input / direct sibling / direct registered sibling / registered
+D-cone / parent-output / stateful parent-output seams, broader registered
 hierarchy routing, and
 hierarchy-aware identity/factorization.
 
