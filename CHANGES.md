@@ -1,9 +1,94 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-29-phase4-recursive-helper-budget-policy — Bank recursive helper budget below the top parent
+## 2026-04-30-phase4-recursive-stateful-helper-budget-policy — Bank recursive stateful helper budget below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  parent-output helper composition can spend the configured
+  `max_parent_cone_instances_per_module = 3` budget below the top
+  parent while routing those helper outputs through parent-local flops.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops`,
+  which requires a recursive design, a multi-helper budget, non-top
+  helper instances beyond the top parent, parent-output support from
+  helper-sourced parent-local flops, and zero direct, stateful, or
+  registered child-input helper bindings in the focused budget route.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r42/tool_matrix_report.json`
+  with the same 87-scenario policy and the stricter recursive stateful
+  budget fact.
+- Refreshed live docs to present `r42` as the latest full
+  downstream-clean bank, while keeping `r41` as the previous recursive
+  non-top multi-helper budget full bank.
+
+**Why**
+
+- The matrix already proved recursive non-top parent-output helper
+  routing, recursive non-top stateful parent-output helper routing, and
+  recursive non-top multi-helper budget spending as separate facts.
+  This slice closes their cross product: a non-top recursive parent can
+  spend multiple helper instances and route the resulting helper support
+  through parent-local state before driving parent outputs.
+
+**Validation**
+
+- `cargo check --all-targets` before edits
+- `cargo test` before edits
+- `cargo test --test pipeline recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r42 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `87` scenarios
+  - `4` designs/scenario
+  - `348` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
+  - `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`
+  - Verilator `348/0`
+  - Yosys without-ABC `348/0`
+  - Yosys with-ABC `348/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 68 integration tests = 294 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  stateful multi-helper budget evidence in addition to recursive
+  non-top parent-output, stateful parent-output, and direct
+  multi-helper budget routing. The latest full downstream-clean bank is
+  now `r42`; `r41` remains the previous full recursive non-top
+  multi-helper budget bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-29-phase4-recursive-helper-budget-policy — Bank recursive helper budget below the top parent
+
+**Landed as:** `52e2004`
 
 **What changed**
 

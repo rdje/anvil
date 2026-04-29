@@ -405,7 +405,7 @@ uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-29): 226 unit-target tests + 67 integration tests = 293 passing tests.**
+**Total (current HEAD, `cargo test` on 2026-04-30): 226 unit-target tests + 68 integration tests = 294 passing tests.**
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
@@ -429,7 +429,7 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r41/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r42/tool_matrix_report.json`
 (348 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 348/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
@@ -460,11 +460,12 @@ helper routing, recursive non-top multi-stage registered parent-composed
 helper routing, recursive non-top parent-output helper routing,
 recursive non-top stateful parent-output helper routing,
 recursive non-top multi-helper budget evidence,
+recursive non-top stateful multi-helper budget evidence,
 registered parent-composed helper-sourced child-input D cones, direct sibling
 helper routing, direct registered sibling helper routing, recursive
 non-top direct registered sibling helper routing, multi-stage direct
 registered sibling helper routing, and multi-stage registered
-parent-composed helper routing. The `r41` report records
+parent-composed helper routing. The `r42` report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
 `saw_hierarchy_registered_sibling_routing = true`,
@@ -484,6 +485,7 @@ parent-composed helper routing. The `r41` report records
 `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`,
 `saw_hierarchy_parent_cone_instance_flop_outputs = true`,
 `saw_recursive_multiple_parent_cone_instances_per_parent = true`,
+`saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`,
 `saw_multiple_parent_cone_instances_per_parent = true`,
 `saw_hierarchy_registered_parent_cone_instance_routing = true`,
 `saw_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
@@ -501,8 +503,9 @@ registered parent-composed helper routing, and recursive non-top stateful
 parent-composed helper child-input routing, plus recursive non-top
 parent-output helper routing and recursive non-top stateful
 parent-output helper routing, through the full downstream tool bank. It
-also proves recursive non-top multi-helper budget evidence through the
-same full downstream tool bank. The
+also proves recursive non-top multi-helper budget evidence and recursive
+non-top stateful multi-helper budget evidence through the same full
+downstream tool bank. The
 earlier coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
@@ -543,6 +546,7 @@ and
 `cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`,
 `cargo test recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`,
 `cargo test recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top`,
+`cargo test recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`,
 `cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`,
 and
 `cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
@@ -557,7 +561,8 @@ non-top multi-stage direct registered helper bank, `r38` is the previous
 recursive non-top multi-stage registered parent-composed helper bank,
 `r39` is the previous recursive non-top parent-output helper bank, `r40`
 is the previous recursive non-top stateful parent-output helper bank,
-`r41` is the latest recursive non-top multi-helper budget bank, and
+`r41` is the previous recursive non-top multi-helper budget bank, `r42`
+is the latest recursive non-top stateful multi-helper budget bank, and
 the aborted `r8` rerun remains
 useful as evidence that the Phase 4 gate should use a hierarchy-focused
 sequential leaf profile rather than silently borrowing the fattest

@@ -349,7 +349,7 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r41/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r42/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing,
@@ -374,10 +374,12 @@ evidence.
     multi-stage registered parent-composed helper routing, plus recursive
     non-top parent-output helper routing, plus recursive non-top
     stateful parent-output helper routing, plus recursive non-top
-    multi-helper budget evidence. The `r41`
+    multi-helper budget evidence, plus recursive non-top stateful
+    multi-helper budget evidence. The `r42`
     report records `87` scenarios, `4` designs/scenario, `348` total designs,
     `coverage_gaps = []`,
     `saw_recursive_multiple_parent_cone_instances_per_parent = true`,
+    `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`,
     `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`,
     `saw_recursive_hierarchy_parent_cone_instance_outputs = true`,
     `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
@@ -412,12 +414,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r41/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r42/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`348/0` in Verilator plus both repo-owned Yosys modes). The `r41` report
+(`348/0` in Verilator plus both repo-owned Yosys modes). The `r42` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -470,6 +472,7 @@ proves all of the current representative hierarchy axes directly:
   route D inputs
 - budgeted multi-helper allocation in one hierarchy parent
 - recursive non-top multi-helper budget evidence
+- recursive non-top stateful multi-helper budget evidence
 - per-depth override profile `0=4:4,1=2:2`
 - real recursive design emission
 - real mixed shallow/deep recursive realization
@@ -525,7 +528,7 @@ top_outputs_reaching_parent_cone_instances`,
 `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`.
 The live Phase 4 matrix policy includes the dedicated
 `phase4_recur_d2_parent_output_cone_instance` axis; the full
-downstream-clean `r41` report proves it with `coverage_gaps = []` and
+downstream-clean `r42` report proves it with `coverage_gaps = []` and
 `348/0` pass-fail in Verilator plus both repo-owned Yosys modes.
 
 **Focused recursive non-top parent-output helper budget proof (new targeted evidence):**
@@ -541,7 +544,7 @@ it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
 top_outputs_reaching_parent_cone_instances`,
 `child_input_bindings_from_parent_cone_instances = 0`, and
 `child_input_bindings_from_registered_parent_cone_instances = 0`. The
-full downstream-clean `r41` report proves this policy fact with
+full downstream-clean `r42` report proves this policy fact with
 `saw_recursive_multiple_parent_cone_instances_per_parent = true`,
 `coverage_gaps = []`, and `348/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
@@ -575,8 +578,28 @@ top_outputs_reaching_parent_cone_instances_through_parent_flops`,
 `child_input_bindings_from_registered_parent_cone_instances = 0`. The
 live Phase 4 matrix policy includes the dedicated
 `phase4_recur_d2_parent_output_cone_instance_state` axis; the full
-downstream-clean `r41` report proves it with `coverage_gaps = []` and
+downstream-clean `r42` report proves it with `coverage_gaps = []` and
 `348/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+
+**Focused recursive non-top stateful parent-output helper budget proof (new targeted evidence):**
+current HEAD now proves that the stateful recursive non-top
+parent-output helper route can also spend a multi-helper local budget
+below the top parent. The focused proof is
+`cargo test recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`max_parent_cone_instances_per_internal_module = 3`,
+`top_parent_cone_instances = 3`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_parent_local_flops > top_local_flops`,
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops >
+top_outputs_reaching_parent_cone_instances_through_parent_flops`,
+`child_input_bindings_from_parent_cone_instances = 0`,
+`child_input_bindings_from_parent_cone_instances_through_parent_flops = 0`,
+and `child_input_bindings_from_registered_parent_cone_instances = 0`.
+The full downstream-clean `r42` report proves this policy fact with
+`saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`,
+`coverage_gaps = []`, and `348/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
 
 **Focused budgeted helper-instance proof (new targeted evidence):**
 current HEAD lets one hierarchy parent instantiate more than one
@@ -685,7 +708,7 @@ top_child_input_bindings_from_instance_outputs`,
 top_child_input_bindings_from_parent_cone_instances`, and both registered
 helper counters to stay at zero. The live Phase 4 matrix policy includes
 the dedicated `phase4_recur_d2_direct_sibling_parent_cone_instance`
-axis; the full downstream-clean `r41` report proves it with
+axis; the full downstream-clean `r42` report proves it with
 `coverage_gaps = []` and `348/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
@@ -704,7 +727,7 @@ top_child_input_bindings_from_registered_parent_cone_instances`, and
 `child_input_bindings_from_registered_parent_composed_logic = 0`. The
 live Phase 4 matrix policy includes the dedicated
 `phase4_recur_d2_direct_registered_sibling_parent_cone_instance_state`
-axis; the full downstream-clean `r41` report proves it with
+axis; the full downstream-clean `r42` report proves it with
 `coverage_gaps = []` and `348/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
@@ -723,7 +746,7 @@ top_child_input_bindings_from_registered_multistage_parent_cone_instances`,
 and both parent-composed registered counters to stay at zero. The live
 Phase 4 matrix policy includes the dedicated
 `phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state`
-axis; the full downstream-clean `r41` report proves it with
+axis; the full downstream-clean `r42` report proves it with
 `coverage_gaps = []` and `348/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
@@ -742,7 +765,7 @@ top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_
 and the direct multi-stage helper counter to stay at zero. The live
 Phase 4 matrix policy includes the dedicated
 `phase4_recur_d2_registered_parent_cone_instance_multistage_state`
-axis; the full downstream-clean `r41` report proves it with
+axis; the full downstream-clean `r42` report proves it with
 `coverage_gaps = []` and `348/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
@@ -979,8 +1002,9 @@ parent-composed helper artifact, `r39` is the previous full
 downstream-clean 84-scenario recursive non-top parent-output helper
 artifact, `r40` is the previous full downstream-clean 87-scenario
 recursive non-top stateful parent-output helper artifact, and `r41` is
-the latest full downstream-clean 87-scenario recursive non-top
-multi-helper budget artifact.
+the previous full downstream-clean 87-scenario recursive non-top
+multi-helper budget artifact. `r42` is the latest full downstream-clean
+87-scenario recursive non-top stateful multi-helper budget artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -1015,7 +1039,9 @@ multi-stage registered parent-composed helper policy, `r39` adds and
 banks the 84-scenario recursive non-top parent-output helper policy, and
 `r40` adds and banks the 87-scenario recursive non-top stateful
 parent-output helper policy. `r41` adds and banks the recursive non-top
-multi-helper budget policy on the same 87-scenario matrix.
+multi-helper budget policy on the same 87-scenario matrix. `r42` adds
+and banks the recursive non-top stateful multi-helper budget policy on
+that same 87-scenario matrix.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
