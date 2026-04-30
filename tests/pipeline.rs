@@ -773,6 +773,100 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            hierarchy_parent_flop_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("recursive budgeted parent-composed helper hierarchy config should be valid");
+
+        let helper_budget = cfg.max_parent_cone_instances_per_module as usize;
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive budgeted parent-composed helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.max_parent_cone_instances_per_internal_module, helper_budget,
+            "expected at least one recursive parent to spend the configured child-input helper budget for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.top_parent_cone_instances, helper_budget,
+            "expected top parent to keep the configured helper budget baseline for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_cone_instances >= helper_budget * 2,
+            "expected child-input helper budget placement below the top parent for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_cone_instances > metrics.top_parent_cone_instances,
+            "expected recursive helper instances beyond the top parent for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_composed_logic
+                > metrics.top_child_input_bindings_from_parent_composed_logic,
+            "expected non-top parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_cone_instances
+                > metrics.top_child_input_bindings_from_parent_cone_instances,
+            "expected non-top child-input bindings sourced from budgeted helper outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances_through_parent_flops, 0,
+            "this focused config should prove combinational child-input helper budget use, not helper-through-flop routes, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "this focused config should not create registered child-input helper D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_sibling_routes_can_use_helper_instances() {
     for strategy in [
         ConstructionStrategy::Sequential,

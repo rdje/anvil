@@ -1,9 +1,104 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-stateful-helper-budget-policy — Bank recursive stateful helper budget below the top parent
+## 2026-04-30-phase4-recursive-child-input-helper-budget-policy — Bank recursive child-input helper budget below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  parent-composed child-input helper routing can spend the configured
+  `max_parent_cone_instances_per_module = 3` budget below the top
+  parent without routing through parent-local helper flops or
+  registered child-input helper D cones.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs`,
+  which requires a recursive design, a multi-helper budget, non-top
+  helper instances beyond the top parent, non-top parent-composed
+  child-input bindings sourced from helper outputs, and zero
+  helper-through-flop or registered helper child-input bindings in the
+  focused combinational route.
+- Added the `phase4_recur_d2_parent_cone_instance_budget3` scenario to
+  the Phase 4 hierarchy matrix for each construction strategy, raising
+  the representative policy from `87` scenarios / `348` designs to
+  `90` scenarios / `360` designs at the same four-design gate floor.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r43/tool_matrix_report.json`
+  with empty coverage gaps and the new recursive child-input helper
+  budget fact.
+- Refreshed live docs to present `r43` as the latest full
+  downstream-clean bank, while keeping `r42` as the previous recursive
+  non-top stateful multi-helper budget full bank.
+
+**Why**
+
+- The matrix already proved recursive non-top multi-helper budgets for
+  parent-output composition (`r41`) and stateful parent-output
+  composition (`r42`). This slice closes the child-input side of the
+  same local-budget story: a non-top recursive parent can spend
+  multiple helper instances while driving parent-composed child-input
+  bindings directly.
+
+**Validation**
+
+- `cargo test recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo test --bin tool_matrix phase4_hierarchy_coverage_requires_design_facts`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r43-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `90` scenarios
+  - `4` designs/scenario
+  - `360` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r43 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `90` scenarios
+  - `4` designs/scenario
+  - `360` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
+  - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
+  - Verilator `360/0`
+  - Yosys without-ABC `360/0`
+  - Yosys with-ABC `360/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 69 integration tests = 295 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  child-input multi-helper budget evidence in addition to recursive
+  non-top parent-output and stateful parent-output budget evidence. The
+  latest full downstream-clean bank is now `r43`; `r42` remains the
+  previous full recursive non-top stateful multi-helper budget bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-stateful-helper-budget-policy — Bank recursive stateful helper budget below the top parent
+
+**Landed as:** `702ad66`
 
 **What changed**
 
