@@ -1,9 +1,109 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-registered-multistage-mixed-support-policy — Bank recursive registered multistage mixed-support routing below the top parent
+## 2026-04-30-phase4-recursive-registered-helper-mixed-support-policy — Bank recursive registered helper mixed-support routing below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added `DesignMetrics` counters and fractions for registered
+  parent-cone-helper child-input bindings that also carry parent-port
+  support in the same registered parent-composed D cone:
+  `child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
+  `top_child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
+  `registered_parent_cone_instance_mixed_support_child_input_binding_fraction`,
+  and
+  `top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction`.
+- Added
+  `recursive_hierarchy_registered_helper_routes_mix_parent_ports_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  registered parent-composed helper routes below the top parent mix
+  parent-port support into the helper-sourced D cone.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing`.
+  The fact requires a recursive design, registered parent-composed
+  routing, parent-cone helper instances below the top parent, no
+  registered sibling route, no unregistered child-input cone route, and
+  non-top registered helper mixed-support bindings beyond the top
+  parent.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`
+  with the same `99` scenarios / `396` designs as `r47`, empty
+  coverage gaps, and the new recursive registered helper mixed-support
+  fact.
+- Refreshed live docs to present `r48` as the latest full
+  downstream-clean bank, while keeping `r47` as the previous recursive
+  non-top registered multistage mixed-support no-helper full bank.
+
+**Why**
+
+- The previous matrix proved recursive registered parent-composed
+  helper routes below the top parent and separately proved registered
+  mixed-support routes. It did not have a first-class counter proving
+  that the same registered helper-sourced D cone also mixes parent-port
+  support. This slice tightens that helper-backed registered route
+  policy without adding another scenario to the matrix.
+
+**Validation**
+
+- `cargo fmt --all`
+- `cargo test recursive_hierarchy_registered_helper_routes_mix_parent_ports_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r48-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r48 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`
+  - Verilator `396/0`
+  - Yosys without-ABC `396/0`
+  - Yosys with-ABC `396/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 74 integration tests = 300 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now distinguishes ordinary
+  registered helper-sourced child-input D cones from helper-sourced D
+  cones that also mix parent-port support in the same registered
+  parent-composed route below the top parent. The latest full
+  downstream-clean bank is now `r48`; `r47` remains the previous full
+  recursive non-top registered multistage mixed-support no-helper bank.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-registered-multistage-mixed-support-policy — Bank recursive registered multistage mixed-support routing below the top parent
+
+**Landed as:** `a225c21`
 
 **What changed**
 

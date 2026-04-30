@@ -333,6 +333,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_parent_cone_instances: usize,
     pub top_child_input_bindings_from_parent_cone_instances_through_parent_flops: usize,
     pub top_child_input_bindings_from_registered_parent_cone_instances: usize,
+    pub top_child_input_bindings_from_registered_parent_cone_instance_mixed_support: usize,
     pub top_parent_cone_instances: usize,
     pub top_outputs_reaching_parent_cone_instances: usize,
     pub top_outputs_reaching_parent_cone_instances_through_parent_flops: usize,
@@ -356,6 +357,7 @@ pub struct DesignMetrics {
     pub top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction:
         f64,
     pub top_registered_parent_cone_instance_child_input_binding_fraction: f64,
+    pub top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_flop_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_output_fraction: f64,
     pub top_parent_cone_instance_flop_output_fraction: f64,
@@ -400,6 +402,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_parent_cone_instances: usize,
     pub child_input_bindings_from_parent_cone_instances_through_parent_flops: usize,
     pub child_input_bindings_from_registered_parent_cone_instances: usize,
+    pub child_input_bindings_from_registered_parent_cone_instance_mixed_support: usize,
     /// Total child output-port slots across instantiated children.
     /// This counts the raw observable supply available from child
     /// modules, not necessarily the number of outputs that are still
@@ -422,6 +425,7 @@ pub struct DesignMetrics {
     pub registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction:
         f64,
     pub registered_parent_cone_instance_child_input_binding_fraction: f64,
+    pub registered_parent_cone_instance_mixed_support_child_input_binding_fraction: f64,
     pub parent_cone_instance_child_input_binding_fraction: f64,
     pub parent_cone_instance_flop_child_input_binding_fraction: f64,
     pub top_parent_flop_child_input_binding_fraction: f64,
@@ -909,6 +913,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_registered_parent_cone_instances,
         out.total_child_data_input_bindings,
     );
+    out.registered_parent_cone_instance_mixed_support_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_registered_parent_cone_instance_mixed_support,
+        out.total_child_data_input_bindings,
+    );
     out.parent_cone_instance_child_input_binding_fraction = ratio(
         out.child_input_bindings_from_parent_cone_instances,
         out.total_child_data_input_bindings,
@@ -983,6 +991,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         );
     out.top_registered_parent_cone_instance_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_registered_parent_cone_instances,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_registered_parent_cone_instance_mixed_support,
         out.top_total_child_data_input_bindings,
     );
     out.top_parent_cone_instance_flop_child_input_binding_fraction = ratio(
@@ -1291,6 +1303,16 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                     state
                         .out
                         .top_child_input_bindings_from_registered_parent_cone_instances += 1;
+                }
+            }
+            if binding_uses_registered_parent_cone_instance_mixed_support(module, *node_id) {
+                state
+                    .out
+                    .child_input_bindings_from_registered_parent_cone_instance_mixed_support += 1;
+                if module.name == state.out.design {
+                    state
+                        .out
+                        .top_child_input_bindings_from_registered_parent_cone_instance_mixed_support += 1;
                 }
             }
             match (has_ports, has_instance_outputs, deps.is_empty()) {
@@ -1780,6 +1802,29 @@ fn binding_uses_registered_parent_cone_instance_output(module: &Module, node_id:
             })
     });
     uses_registered_parent_cone_instance
+}
+
+fn binding_uses_registered_parent_cone_instance_mixed_support(
+    module: &Module,
+    node_id: NodeId,
+) -> bool {
+    if !binding_is_registered_child_input_route(module, node_id) {
+        return false;
+    }
+    let deps = node_deps(module, node_id);
+    let uses_registered_parent_cone_instance_mixed_support = deps.flop_virtuals().any(|flop_id| {
+        module
+            .flops
+            .get(flop_id as usize)
+            .and_then(|flop| flop.d)
+            .is_some_and(|d| {
+                let d_deps = node_deps(module, d);
+                is_registered_parent_composed_logic_node(module, d)
+                    && d_deps.has_ports()
+                    && deps_include_parent_cone_instance_output(module, &d_deps)
+            })
+    });
+    uses_registered_parent_cone_instance_mixed_support
 }
 
 fn deps_include_parent_cone_instance_output(module: &Module, deps: &crate::ir::DepSet) -> bool {

@@ -195,6 +195,7 @@ uses to prove that a matrix did more than merely set a knob.
 | Chain direct registered sibling helper routes through earlier parent state | `hierarchy_registered_sibling_route_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent flop -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_parent_cone_instances`, `top_child_input_bindings_from_registered_multistage_parent_cone_instances`, `registered_multistage_parent_cone_instance_child_input_binding_fraction`, `top_registered_multistage_parent_cone_instance_child_input_binding_fraction` |
 | Bind later child inputs through registered parent-composed logic | `hierarchy_registered_child_input_cone_prob` | parent source(s), optionally including earlier parent Q -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_composed_logic`, `registered_parent_composed_child_input_binding_fraction`, `child_input_bindings_from_registered_mixed_support`, `registered_mixed_support_child_input_binding_fraction`, `child_input_bindings_from_registered_multistage_parent_composed_logic`, `registered_multistage_parent_composed_child_input_binding_fraction` |
 | Let registered parent-composed child-input D cones instantiate a helper child source | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_cone_instances`, `top_child_input_bindings_from_registered_parent_cone_instances`, `registered_parent_cone_instance_child_input_binding_fraction`, `top_registered_parent_cone_instance_child_input_binding_fraction` |
+| Let registered parent-composed helper D cones also mix parent data-port support | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output + parent port -> parent logic -> parent flop -> later child input | `child_input_bindings_from_registered_parent_cone_instance_mixed_support`, `top_child_input_bindings_from_registered_parent_cone_instance_mixed_support`, `registered_parent_cone_instance_mixed_support_child_input_binding_fraction`, `top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction` |
 | Chain registered parent-composed helper routes through earlier parent state | `hierarchy_registered_child_input_cone_prob` + `hierarchy_parent_cone_instance_prob` | helper child output -> parent flop -> later parent logic -> later parent flop -> later child input | `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`, `top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`, `registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction`, `top_registered_multistage_parent_composed_parent_cone_instance_child_input_binding_fraction` |
 | Allow parent cones to contain local flops | `hierarchy_parent_flop_prob` | parent source(s) -> parent cone with local flop(s) -> output or child input | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops` |
 
@@ -284,6 +285,13 @@ child-input bindings; the stricter
 proves the helper source appeared specifically on the registered D side,
 whether the route came through direct registered sibling routing or
 registered parent-composed logic.
+When the registered parent-composed helper D cone also carries parent
+data-port support, use
+`child_input_bindings_from_registered_parent_cone_instance_mixed_support`
+and
+`registered_parent_cone_instance_mixed_support_child_input_binding_fraction`
+to prove the helper source and parent-port support appeared in the same
+registered D cone.
 
 ## Current IR shape
 
@@ -419,6 +427,9 @@ emitted `.sv`, including:
   `child_input_bindings_from_parent_cone_instances`,
   `child_input_bindings_from_parent_cone_instances_through_parent_flops`,
   `child_input_bindings_from_registered_parent_cone_instances`,
+  `top_child_input_bindings_from_registered_parent_cone_instances`,
+  `child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
+  `top_child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
   `top_child_input_bindings_from_parent_cone_instances`),
 - hierarchy- and top-level sibling-routing fractions
   (`instance_output_child_input_binding_fraction`,
@@ -468,6 +479,10 @@ emitted `.sv`, including:
 - hierarchy- and top-level registered parent-cone helper route fractions
   (`registered_parent_cone_instance_child_input_binding_fraction`,
   `top_registered_parent_cone_instance_child_input_binding_fraction`),
+- hierarchy- and top-level registered parent-cone helper mixed-support
+  route fractions
+  (`registered_parent_cone_instance_mixed_support_child_input_binding_fraction`,
+  `top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction`),
 - hierarchy- and top-level parent-cone helper-instance output support
   (`hierarchy_outputs_reaching_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances`,
@@ -513,7 +528,7 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`
 - `99` scenarios
 - `4` designs/scenario
 - `396` total designs
@@ -535,6 +550,7 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
 - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
 
 That gate proves the current representative hierarchy surface directly
@@ -582,10 +598,12 @@ multi-stage direct registered sibling helper routing, plus multi-stage
 registered parent-composed helper routing, recursive non-top
 multi-stage direct registered sibling helper routing, recursive non-top
 multi-stage registered parent-composed helper routing, and recursive non-top
+registered parent-composed helper mixed-support routing, and recursive non-top
 stateful parent-composed helper child-input routing through
 parent-local flops, plus recursive non-top multi-stage registered
 parent-composed no-helper routing, plus recursive non-top multi-stage
-registered sibling no-helper routing. The earlier coverage-only proofs at
+registered sibling no-helper routing, plus recursive non-top
+multi-stage registered mixed-support no-helper routing. The earlier coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
@@ -955,6 +973,20 @@ local proofs remain useful:
   The route is banked in the full downstream-clean `r47` Phase 4 matrix
   through
   `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`.
+- `cargo test recursive_hierarchy_registered_helper_routes_mix_parent_ports_below_top`
+  proves recursive non-top registered parent-composed helper D-cone
+  routing can also mix parent data-port support in the same
+  helper-sourced D cone:
+  - `realized_min_leaf_depth = realized_max_leaf_depth = 2`
+  - `hierarchy_parent_cone_instances > top_parent_cone_instances`
+  - `hierarchy_parent_local_flops > top_local_flops`
+  - `child_input_bindings_from_registered_parent_composed_logic > top_child_input_bindings_from_registered_parent_composed_logic`
+  - `child_input_bindings_from_registered_parent_cone_instances > top_child_input_bindings_from_registered_parent_cone_instances`
+  - `child_input_bindings_from_registered_parent_cone_instance_mixed_support > top_child_input_bindings_from_registered_parent_cone_instance_mixed_support`
+  - `registered_parent_cone_instance_mixed_support_child_input_binding_fraction > 0.0`
+  The route is banked in the full downstream-clean `r48` Phase 4 matrix
+  through
+  `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
   parent-composed child-input binding numerically:
@@ -1008,7 +1040,7 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r47` closes them cleanly
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r48` closes them cleanly
   with `coverage_gaps = []` and `396/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, multi-stage registered sibling,
@@ -1024,7 +1056,8 @@ local proofs remain useful:
   parent-output helper routes, and recursive non-top stateful
   parent-output helper routes, and recursive non-top stateful
   multi-helper budget routes, and recursive non-top registered
-  mixed-support child-input routes, and recursive non-top multi-stage
+  mixed-support child-input routes, and recursive non-top registered
+  parent-composed helper mixed-support routes, and recursive non-top multi-stage
   registered parent-composed child-input routes without helper
   instances, and recursive non-top multi-stage registered
   sibling-routed child-input routes without helper instances, and
@@ -1069,9 +1102,11 @@ local proofs remain useful:
   bank, `r45` is the previous full downstream-clean recursive non-top
   multi-stage registered parent-composed no-helper hierarchy bank, `r46`
   is the previous full downstream-clean recursive non-top multi-stage
-  registered sibling no-helper hierarchy bank, `r47` is the latest full
+  registered sibling no-helper hierarchy bank, `r47` is the previous full
   downstream-clean recursive non-top multi-stage registered
-  mixed-support no-helper hierarchy bank, and
+  mixed-support no-helper hierarchy bank, `r48` is the latest full
+  downstream-clean recursive non-top registered parent-composed helper
+  mixed-support hierarchy bank, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

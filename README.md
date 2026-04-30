@@ -283,7 +283,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r47`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r48`. Its final
 `tool_matrix_report.json` records:
 
 - `99` scenarios
@@ -314,6 +314,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r47`. Its final
 - `saw_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_multiple_parent_cone_instances_per_parent = true`
 - `saw_hierarchy_registered_parent_cone_instance_routing = true`
+- `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
 - `saw_hierarchy_parent_cone_instance_routing = true`
 - `saw_hierarchy_parent_port_composed_outputs = true`
 - `saw_hierarchy_registered_mixed_support_routing = true`
@@ -327,7 +328,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r47`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r47` report is the latest fully banked downstream-clean repo-owned
+The `r48` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -384,13 +385,16 @@ proving that a non-top hierarchy parent can source direct registered
 sibling-routed child inputs from parent-cone helper instances, plus the
 recursive exact-depth-2 axis proving that a non-top hierarchy parent can
 source registered parent-composed child-input D cones from parent-cone
-helper instances, plus the recursive exact-depth-2 axis proving that a
-non-top hierarchy parent can chain direct registered sibling helper
-routes through helper-sourced parent-local Qs. The earlier coverage-only proofs at
+helper instances, plus the recursive exact-depth-2 axis proving that
+those helper-sourced registered parent-composed D cones can also mix
+parent data-port support below the top parent, plus the recursive
+exact-depth-2 axis proving that a non-top hierarchy parent can chain
+direct registered sibling helper routes through helper-sourced
+parent-local Qs. The earlier coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r47` bank.
+are superseded by the full downstream-clean `r48` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -594,6 +598,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `child_input_bindings_from_parent_cone_instances`,
   `child_input_bindings_from_parent_cone_instances_through_parent_flops`,
   `child_input_bindings_from_registered_parent_cone_instances`,
+  `top_child_input_bindings_from_registered_parent_cone_instances`,
+  `child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
+  `top_child_input_bindings_from_registered_parent_cone_instance_mixed_support`,
   `top_outputs_reaching_parent_cone_instances`,
   `hierarchy_outputs_reaching_parent_cone_instances`,
   `top_outputs_reaching_parent_cone_instances_through_parent_flops`,
@@ -618,7 +625,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -650,6 +657,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   recursive non-top multi-stage registered parent-composed helper
   routing,
   multi-stage registered parent-composed helper routing,
+  recursive non-top registered parent-composed helper D-cone routing
+  with mixed parent-port support,
   recursive non-top stateful parent-composed child-input route,
   recursive non-top direct sibling helper route,
   recursive non-top direct registered sibling helper route,
@@ -673,9 +682,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   non-top registered mixed-support routing bank, `r45` is the previous
   recursive non-top multi-stage registered parent-composed no-helper
   routing bank, `r46` is the previous recursive non-top multi-stage
-  registered sibling no-helper routing bank, `r47` is the latest
+  registered sibling no-helper routing bank, `r47` is the previous
   recursive non-top multi-stage registered mixed-support no-helper
-  routing bank, and the clean `r22` run records the
+  routing bank, `r48` is the latest recursive non-top registered
+  parent-composed helper mixed-support routing bank, and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
   hierarchy capability:

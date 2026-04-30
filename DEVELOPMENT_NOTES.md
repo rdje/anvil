@@ -59,6 +59,44 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Phase 4 r48 banks recursive registered helper mixed-support routing downstream-clean
+The live Phase 4 hierarchy policy now requires the recursive
+registered parent-composed helper route to carry parent-port support in
+the same D cone below the top parent. In an exact-depth-2 recursive
+hierarchy, a parent-cone helper instance can feed registered
+parent-composed child-input logic, that logic can also consume parent
+data ports, and the resulting parent-local Q can bind a later child
+input. The focused regression is
+`cargo test recursive_hierarchy_registered_helper_routes_mix_parent_ports_below_top`.
+
+This needed a dedicated helper-mixed metric instead of inferring the
+fact from the older registered helper and registered mixed-support
+counters. Those counters can both be true in a design without proving
+that parent-port support and the parent-cone helper output occur in the
+same registered D cone. The new
+`registered_parent_cone_instance_mixed_support_*` counters make that
+overlap explicit.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`:
+`99` scenarios, `4` designs/scenario, `396` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`,
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_routing = true`,
+`saw_recursive_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_multistage_routing = true`,
+`saw_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+with `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top registered multistage mixed-support
+no-helper full bank is `r47`.
+
 ### Phase 4 r47 banks recursive registered multistage mixed-support routing downstream-clean
 The live Phase 4 hierarchy policy now requires the recursive no-helper
 overlap between registered mixed support and multi-stage registered
@@ -77,7 +115,7 @@ be true in the same design while describing different bindings; the new
 registered route contains both kinds of support in the same D cone and
 then participates in later Q reuse.
 
-The `r46` full downstream-clean evidence anchor is
+The `r47` full downstream-clean evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`:
 `99` scenarios, `4` designs/scenario, `396` total designs,
 `coverage_gaps = []`,

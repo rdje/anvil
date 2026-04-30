@@ -260,6 +260,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing: bool,
     saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing: bool,
     saw_hierarchy_registered_parent_cone_instance_routing: bool,
+    saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing: bool,
     saw_hierarchy_parent_composed_child_inputs: bool,
     saw_hierarchy_parent_cone_instance_routing: bool,
     saw_hierarchy_parent_cone_instance_outputs: bool,
@@ -3481,6 +3482,20 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             .metrics
             .child_input_bindings_from_registered_parent_cone_instances
             > 0;
+        coverage.saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob > 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob > 0.0
+                && design.metrics.hierarchy_parent_cone_instances
+                    > design.metrics.top_parent_cone_instances
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_cone_instance_mixed_support
+                    > design
+                        .metrics
+                        .top_child_input_bindings_from_registered_parent_cone_instance_mixed_support;
         coverage.saw_hierarchy_parent_composed_child_inputs |= design
             .metrics
             .child_input_bindings_from_parent_composed_logic
@@ -3746,6 +3761,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing;
     dst.saw_hierarchy_registered_parent_cone_instance_routing |=
         src.saw_hierarchy_registered_parent_cone_instance_routing;
+    dst.saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing |=
+        src.saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing;
     dst.saw_hierarchy_parent_composed_child_inputs |=
         src.saw_hierarchy_parent_composed_child_inputs;
     dst.saw_hierarchy_parent_cone_instance_routing |=
@@ -4316,6 +4333,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved recursive non-top registered parent-composed child inputs sourced from parent-cone helper instances"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing
+    {
+        gaps.push(
+            "matrix never proved recursive non-top registered parent-cone helper child input bindings mixed with parent ports"
                 .to_string(),
         );
     }
@@ -5197,6 +5222,11 @@ mod tests {
         assert!(gaps.iter().any(|gap| {
             gap.contains(
                 "recursive non-top registered parent-composed child inputs sourced from parent-cone helper",
+            )
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top registered parent-cone helper child input bindings mixed with parent ports",
             )
         }));
         assert!(gaps
