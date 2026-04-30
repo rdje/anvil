@@ -509,19 +509,20 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`
-- `96` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`
+- `99` scenarios
 - `4` designs/scenario
-- `384` total designs
+- `396` total designs
 - `coverage_gaps = []`
-- `Verilator 384/0`
-- `Yosys without-abc 384/0`
-- `Yosys with-abc 384/0`
+- `Verilator 396/0`
+- `Yosys without-abc 396/0`
+- `Yosys with-abc 396/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
 - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
 - `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
 - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
@@ -554,7 +555,10 @@ parent-composed child-input bindings that chain through earlier
 parent-local Qs below the top parent without helper instances,
 multi-stage registered sibling-routed child-input
 bindings that chain through earlier parent-local Qs without
-parent-composed logic, real local parent flops, parent-cone helper instances
+parent-composed logic, recursive non-top multi-stage registered
+sibling-routed child-input bindings that chain through earlier
+parent-local Qs below the top parent without helper instances,
+real local parent flops, parent-cone helper instances
 sourcing parent-composed child-input bindings, parent-output helper
 instance composition, recursive non-top parent-output helper routing,
 recursive non-top parent-output multi-helper budget evidence,
@@ -572,7 +576,8 @@ multi-stage direct registered sibling helper routing, recursive non-top
 multi-stage registered parent-composed helper routing, and recursive non-top
 stateful parent-composed helper child-input routing through
 parent-local flops, plus recursive non-top multi-stage registered
-parent-composed no-helper routing. The earlier coverage-only proofs at
+parent-composed no-helper routing, plus recursive non-top multi-stage
+registered sibling no-helper routing. The earlier coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
@@ -909,6 +914,22 @@ local proofs remain useful:
   The route is banked in the full downstream-clean `r45` Phase 4 matrix
   through
   `saw_recursive_hierarchy_registered_multistage_routing = true`.
+- `cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`
+  proves direct registered sibling-routed child-input routes can chain
+  through earlier parent-local Qs below the top parent without helper
+  instances or parent-composed D logic:
+  - `realized_min_leaf_depth = realized_max_leaf_depth = 2`
+  - `hierarchy_parent_local_flops > top_local_flops`
+  - `child_input_bindings_from_registered_instance_outputs > top_child_input_bindings_from_registered_instance_outputs`
+  - `child_input_bindings_from_registered_multistage_instance_outputs > top_child_input_bindings_from_registered_multistage_instance_outputs`
+  - `registered_multistage_instance_output_child_input_binding_fraction > 0.0`
+  - `child_input_bindings_from_registered_parent_composed_logic = 0`
+  - `child_input_bindings_from_registered_multistage_parent_composed_logic = 0`
+  - `child_input_bindings_from_registered_parent_cone_instances = 0`
+  - `child_input_bindings_from_registered_multistage_parent_cone_instances = 0`
+  The route is banked in the full downstream-clean `r46` Phase 4 matrix
+  through
+  `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`.
 - `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
   parent-composed child-input binding numerically:
@@ -962,8 +983,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r45` closes them cleanly
-  with `coverage_gaps = []` and `384/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r46` closes them cleanly
+  with `coverage_gaps = []` and `396/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, multi-stage registered sibling,
   multi-stage direct registered sibling helper, multi-stage registered
@@ -980,7 +1001,8 @@ local proofs remain useful:
   multi-helper budget routes, and recursive non-top registered
   mixed-support child-input routes, and recursive non-top multi-stage
   registered parent-composed child-input routes without helper
-  instances.
+  instances, and recursive non-top multi-stage registered
+  sibling-routed child-input routes without helper instances.
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -1017,8 +1039,10 @@ local proofs remain useful:
   previous full downstream-clean recursive non-top child-input
   multi-helper budget hierarchy bank, `r44` is the previous full
   downstream-clean recursive non-top registered mixed-support hierarchy
-  bank, `r45` is the latest full downstream-clean recursive non-top
-  multi-stage registered parent-composed no-helper hierarchy bank, and
+  bank, `r45` is the previous full downstream-clean recursive non-top
+  multi-stage registered parent-composed no-helper hierarchy bank, `r46`
+  is the latest full downstream-clean recursive non-top multi-stage
+  registered sibling no-helper hierarchy bank, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

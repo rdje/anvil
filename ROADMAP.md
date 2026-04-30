@@ -349,7 +349,7 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing,
@@ -379,9 +379,11 @@ evidence.
     stateful multi-helper budget evidence, plus recursive non-top
     registered mixed-support child-input routing, plus recursive non-top
     multi-stage registered parent-composed child-input routing without
-    helper instances. The `r45`
-    report records `96` scenarios, `4` designs/scenario, `384` total designs,
+    helper instances, plus recursive non-top multi-stage registered
+    sibling-routed child-input routing without helper instances. The `r46`
+    report records `99` scenarios, `4` designs/scenario, `396` total designs,
     `coverage_gaps = []`,
+    `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`,
     `saw_recursive_hierarchy_registered_multistage_routing = true`,
     `saw_recursive_hierarchy_registered_mixed_support_routing = true`,
     `saw_recursive_multiple_parent_cone_instances_per_parent = true`,
@@ -395,7 +397,7 @@ evidence.
     `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`,
-    and `384/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+    and `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -423,12 +425,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
-`96` scenarios, `384` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
+`99` scenarios, `396` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`384/0` in Verilator plus both repo-owned Yosys modes). The `r45` report
+(`396/0` in Verilator plus both repo-owned Yosys modes). The `r46` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -464,6 +466,9 @@ proves all of the current representative hierarchy axes directly:
 - recursive non-top multi-stage registered parent-composed child-input
   bindings that chain through earlier parent-local Qs below the top
   parent without helper instances
+- recursive non-top multi-stage registered sibling-routed child-input
+  bindings that chain through earlier parent-local Qs below the top
+  parent without helper instances or parent-composed D logic
 - multi-stage registered parent-composed helper routes where a helper
   output seeds one parent Q and later parent-composed D logic reuses
   that Q
@@ -619,6 +624,26 @@ and zero registered helper-chain counters. The full downstream-clean
 `r45` report proves this policy fact with
 `saw_recursive_hierarchy_registered_multistage_routing = true`,
 `coverage_gaps = []`, and `384/0` pass-fail in Verilator plus both
+repo-owned Yosys modes.
+
+**Focused recursive non-top registered sibling multistage no-helper proof (new targeted evidence):**
+current HEAD now proves that direct registered sibling-routed
+child-input routes can chain through earlier parent-local Qs below the
+top parent without helper instances or parent-composed D logic. The
+focused proof is
+`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`;
+it requires `realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+non-top parent-local flops,
+`child_input_bindings_from_registered_instance_outputs >
+top_child_input_bindings_from_registered_instance_outputs`,
+`child_input_bindings_from_registered_multistage_instance_outputs >
+top_child_input_bindings_from_registered_multistage_instance_outputs`,
+`registered_multistage_instance_output_child_input_binding_fraction > 0.0`,
+and zero registered parent-composed and registered helper-chain
+counters. The full downstream-clean `r46` report proves this policy
+fact with
+`saw_recursive_hierarchy_registered_multistage_sibling_routing = true`,
+`coverage_gaps = []`, and `396/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 **Focused stateful parent-output helper proof (new targeted evidence):**
@@ -1080,9 +1105,11 @@ downstream-clean 87-scenario recursive non-top stateful multi-helper
 budget artifact. `r43` is the previous full downstream-clean
 90-scenario recursive non-top child-input multi-helper budget artifact.
 `r44` is the previous full downstream-clean 93-scenario recursive
-non-top registered mixed-support routing artifact. `r45` is the latest
-full downstream-clean 96-scenario recursive non-top multi-stage
-registered parent-composed no-helper routing artifact.
+non-top registered mixed-support routing artifact. `r45` is the
+previous full downstream-clean 96-scenario recursive non-top
+multi-stage registered parent-composed no-helper routing artifact.
+`r46` is the latest full downstream-clean 99-scenario recursive
+non-top multi-stage registered sibling no-helper routing artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -1125,7 +1152,9 @@ non-top child-input multi-helper budget policy on the expanded
 registered mixed-support routing policy on the expanded 93-scenario
 matrix. `r45` adds and banks the recursive non-top multi-stage
 registered parent-composed no-helper routing policy on the expanded
-96-scenario matrix.
+96-scenario matrix. `r46` adds and banks the recursive non-top
+multi-stage registered sibling no-helper routing policy on the expanded
+99-scenario matrix.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
@@ -1139,8 +1168,10 @@ multi-stage direct registered sibling, recursive non-top multi-stage
 registered parent-composed helper, recursive non-top registered
 parent-composed helper, recursive non-top parent-output helper,
 recursive non-top stateful parent-output helper, recursive non-top
-parent-output budget, recursive non-top child-input budget, and
-recursive non-top stateful parent-output budget slices,
+parent-output budget, recursive non-top child-input budget,
+recursive non-top stateful parent-output budget, recursive non-top
+multi-stage registered parent-composed no-helper, and recursive
+non-top multi-stage registered sibling no-helper slices,
 richer registered
 hierarchy patterns beyond the first multi-stage parent-flop chain, and
 eventual hierarchy-aware identity/factorization.

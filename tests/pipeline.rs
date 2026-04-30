@@ -2483,6 +2483,105 @@ fn hierarchy_registered_sibling_routes_can_chain_through_parent_flops() {
 }
 
 #[test]
+fn recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 1.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "recursive multi-stage registered sibling no-helper hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive multi-stage registered sibling no-helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should prove no-helper registered sibling routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_local_flops > metrics.top_local_flops,
+            "expected non-top registered sibling routes to create non-top parent-local flops for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_instance_outputs
+                > metrics.top_child_input_bindings_from_registered_instance_outputs,
+            "expected non-top registered sibling child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_multistage_instance_outputs
+                > metrics.top_child_input_bindings_from_registered_multistage_instance_outputs,
+            "expected non-top multi-stage registered sibling child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.registered_multistage_instance_output_child_input_binding_fraction > 0.0,
+            "expected non-zero multi-stage registered sibling binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "this focused config should not depend on registered parent-composed D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_multistage_parent_composed_logic, 0,
+            "this focused config should not depend on multi-stage registered parent-composed D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "this focused config should not depend on registered helper-sourced D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_multistage_parent_cone_instances, 0,
+            "this focused config should not depend on direct registered sibling helper chains for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops() {
     for strategy in [
         ConstructionStrategy::Sequential,

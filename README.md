@@ -283,17 +283,17 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r45`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r46`. Its final
 `tool_matrix_report.json` records:
 
-- `96` scenarios
+- `99` scenarios
 - `4` designs per scenario
-- `384` total designs
+- `396` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 384/0`
-- `Yosys without-abc pass/fail = 384/0`
-- `Yosys with-abc pass/fail = 384/0`
+- `Verilator pass/fail = 396/0`
+- `Yosys without-abc pass/fail = 396/0`
+- `Yosys with-abc pass/fail = 396/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -321,11 +321,12 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r45`. Its final
 - `saw_hierarchy_registered_multistage_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_routing = true`
 - `saw_hierarchy_registered_multistage_sibling_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
 - `saw_hierarchy_parent_local_flops = true`
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r45` report is the latest fully banked downstream-clean repo-owned
+The `r46` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -344,6 +345,8 @@ registered parent-composed child-input binding, recursive non-top
 multi-stage registered parent-composed child-input binding without
 helper instances, multi-stage registered sibling-routed child-input
 binding through earlier parent-local Qs,
+recursive non-top multi-stage registered sibling-routed child-input
+binding through earlier parent-local Qs without helper instances,
 multi-stage direct registered sibling helper binding where a
 helper-sourced parent Q feeds a later parent flop,
 recursive non-top multi-stage direct registered sibling helper binding
@@ -386,7 +389,7 @@ routes through helper-sourced parent-local Qs. The earlier coverage-only proofs 
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r45` bank.
+are superseded by the full downstream-clean `r46` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -614,7 +617,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -624,7 +627,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   child-input binding, multi-stage registered parent-composed
   child-input binding, recursive non-top multi-stage registered
   parent-composed child-input binding without helpers, multi-stage registered sibling-routed child-input
-  binding, mixed parent-port / child-output parent outputs,
+  binding, recursive non-top multi-stage registered sibling-routed
+  child-input binding without helpers, mixed parent-port / child-output parent outputs,
   parent-cone helper-instance child-input binding, parent-output
   helper-instance composition, budgeted multi-helper allocation,
   recursive non-top multi-helper budget evidence,
@@ -648,8 +652,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   recursive non-top direct registered sibling helper route,
   recursive non-top registered parent-composed helper route,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `96` scenarios, `384` total designs,
-  `coverage_gaps = []`, and `384/0` pass-fail in Verilator plus both
+  `tool_matrix`, with `99` scenarios, `396` total designs,
+  `coverage_gaps = []`, and `396/0` pass-fail in Verilator plus both
   repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, `r31` remains the previous
@@ -663,9 +667,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   budget bank, `r42` is the previous recursive non-top stateful
   multi-helper budget bank, `r43` is the previous recursive non-top
   child-input multi-helper budget bank, `r44` is the previous recursive
-  non-top registered mixed-support routing bank, `r45` is the latest
+  non-top registered mixed-support routing bank, `r45` is the previous
   recursive non-top multi-stage registered parent-composed no-helper
-  routing bank, and the clean `r22` run records the
+  routing bank, `r46` is the latest recursive non-top multi-stage
+  registered sibling no-helper routing bank, and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
   hierarchy capability:

@@ -72,6 +72,37 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
+### Phase 4 r46 banks recursive registered sibling multistage routing downstream-clean
+The live Phase 4 hierarchy policy now requires the recursive no-helper
+multi-stage registered sibling-routed child-input cross product. Below
+the top parent, an exact-depth-2 recursive hierarchy can bind one child
+input from an earlier child output through parent-local state, then
+reuse that earlier parent-local Q as the D source for a later direct
+registered sibling route, without relying on parent-composed D logic or
+parent-cone helper instances. The focused regression is
+`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`.
+It uses four child instances per recursive parent so the sibling-output
+route has enough earlier sources to force both the first registered
+binding and the later Q-reuse binding across every construction
+strategy.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`:
+`99` scenarios, `4` designs/scenario, `396` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_routing = true`,
+`saw_recursive_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_multistage_routing = true`,
+`saw_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+with `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top registered parent-composed multistage
+no-helper full bank is `r45`.
+
 ### Phase 4 r45 banks recursive registered multistage routing downstream-clean
 The live Phase 4 hierarchy policy now requires the recursive no-helper
 multi-stage registered parent-composed cross product. Below the top

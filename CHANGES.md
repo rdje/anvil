@@ -1,9 +1,106 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-registered-multistage-policy — Bank recursive registered multistage routing below the top parent
+## 2026-04-30-phase4-recursive-registered-sibling-multistage-policy — Bank recursive registered sibling multistage routing below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  direct registered sibling-routed child-input routing can chain through
+  earlier parent-local Qs below the top parent without using
+  parent-cone helper instances or parent-composed D logic.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_hierarchy_registered_multistage_sibling_routing`. The
+  fact requires a recursive design, registered sibling routing, non-top
+  first-stage registered sibling bindings beyond the top parent,
+  non-top multi-stage registered sibling bindings, zero registered
+  parent-composed D-cone bindings, and zero registered helper-sourced
+  D-cone bindings.
+- Added the `phase4_recur_d2_registered_sibling_multistage_state`
+  scenario to the Phase 4 hierarchy matrix for each construction
+  strategy, raising the representative policy from `96` scenarios /
+  `384` designs to `99` scenarios / `396` designs at the same
+  four-design gate floor.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`
+  with empty coverage gaps and the new recursive registered sibling
+  multistage no-helper fact.
+- Refreshed live docs to present `r46` as the latest full
+  downstream-clean bank, while keeping `r45` as the previous recursive
+  non-top registered parent-composed multistage no-helper full bank.
+
+**Why**
+
+- The previous matrix proved multi-stage registered sibling routing at
+  the wrapper/top-parent level, and proved recursive helper-backed
+  multi-stage registered sibling routes below the top parent. This slice
+  closes the no-helper recursive sibling-routing cross product: a
+  non-top recursive hierarchy parent can drive one child input from a
+  child output through parent-local state, then reuse that earlier
+  parent-local Q to drive a later child input directly through another
+  parent-local flop.
+
+**Validation**
+
+- `cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r46-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r46 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_routing = true`
+  - Verilator `396/0`
+  - Yosys without-ABC `396/0`
+  - Yosys with-ABC `396/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 72 integration tests = 298 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  multi-stage registered sibling-routed child-input routing without
+  helper instances in addition to the existing top-level sibling
+  multistage fact and the helper-backed recursive sibling multistage
+  routes. The latest full downstream-clean bank is now `r46`; `r45`
+  remains the previous full recursive non-top registered
+  parent-composed multistage no-helper bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-registered-multistage-policy — Bank recursive registered multistage routing below the top parent
+
+**Landed as:** `d9a5f72`
 
 **What changed**
 
