@@ -72,6 +72,36 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
+### Phase 4 r44 banks recursive registered mixed-support routing downstream-clean
+The live Phase 4 hierarchy policy now requires the recursive no-helper
+registered mixed-support cross product. Below the top parent, an
+exact-depth-2 recursive hierarchy can build registered parent-composed
+child-input D logic from both parent data ports and child outputs, then
+drive later child inputs through parent-local state without relying on
+parent-cone helper instances. The focused regression is
+`cargo test recursive_hierarchy_registered_mixed_support_routes_below_top`.
+It requires the recursive tree shape, non-top parent-local flops,
+non-top registered parent-composed child-input bindings, non-top
+registered child-output support, non-top registered mixed-support
+bindings, and zero registered helper-sourced D-cone bindings.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r44/tool_matrix_report.json`:
+`93` scenarios, `4` designs/scenario, `372` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_mixed_support_routing = true`,
+`saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`,
+`saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`,
+`saw_recursive_multiple_parent_cone_instances_per_parent = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+with `372/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top child-input multi-helper budget full bank
+is `r43`.
+
 ### Phase 4 r43 banks recursive non-top child-input helper budgets downstream-clean
 The live Phase 4 hierarchy policy now closes the child-input local-budget
 cross product for recursive parent-cone helpers. Below the top parent,

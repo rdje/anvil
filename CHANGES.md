@@ -1,9 +1,104 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-child-input-helper-budget-policy — Bank recursive child-input helper budget below the top parent
+## 2026-04-30-phase4-recursive-registered-mixed-support-policy — Bank recursive registered mixed-support routing below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added
+  `recursive_hierarchy_registered_mixed_support_routes_below_top`, a
+  focused integration regression proving exact-depth-2 recursive
+  registered parent-composed child-input routing can mix parent data
+  ports with child outputs below the top parent, without using
+  parent-cone helper instances.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_hierarchy_registered_mixed_support_routing`. The fact
+  requires a recursive design, registered parent-composed routing,
+  non-top registered parent-composed child-input bindings beyond the
+  top parent, non-top registered child-output support, non-top
+  registered mixed-support bindings, and zero registered
+  parent-cone-helper child-input bindings in the focused lane.
+- Added the
+  `phase4_recur_d2_registered_mixed_child_input_state` scenario to the
+  Phase 4 hierarchy matrix for each construction strategy, raising the
+  representative policy from `90` scenarios / `360` designs to `93`
+  scenarios / `372` designs at the same four-design gate floor.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r44/tool_matrix_report.json`
+  with empty coverage gaps and the new recursive registered
+  mixed-support fact.
+- Refreshed live docs to present `r44` as the latest full
+  downstream-clean bank, while keeping `r43` as the previous recursive
+  non-top child-input multi-helper budget full bank.
+
+**Why**
+
+- The previous matrix proved registered mixed-support routing at the
+  top parent and proved several helper-backed registered recursive
+  routes below the top parent. This slice closes the no-helper
+  registered mixed-support recursive cross product: a non-top recursive
+  hierarchy parent can build registered D logic from both its own data
+  ports and child outputs, then drive later child inputs through
+  parent-local state.
+
+**Validation**
+
+- `cargo test recursive_hierarchy_registered_mixed_support_routes_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r44-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `93` scenarios
+  - `4` designs/scenario
+  - `372` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r44 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `93` scenarios
+  - `4` designs/scenario
+  - `372` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
+  - `saw_hierarchy_registered_mixed_support_routing = true`
+  - Verilator `372/0`
+  - Yosys without-ABC `372/0`
+  - Yosys with-ABC `372/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 70 integration tests = 296 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now requires recursive non-top
+  registered mixed-support child-input routing in addition to the
+  existing top-level registered mixed-support fact and the
+  helper-backed recursive registered routes. The latest full
+  downstream-clean bank is now `r44`; `r43` remains the previous full
+  recursive non-top child-input multi-helper budget bank.
+
+**Files touched**
+
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-child-input-helper-budget-policy — Bank recursive child-input helper budget below the top parent
+
+**Landed as:** `d79f69c`
 
 **What changed**
 
