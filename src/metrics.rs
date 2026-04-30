@@ -336,6 +336,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_parent_cone_instance_mixed_support: usize,
     pub top_parent_cone_instances: usize,
     pub top_outputs_reaching_parent_cone_instances: usize,
+    pub top_outputs_reaching_parent_cone_instance_mixed_support: usize,
     pub top_outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
@@ -360,6 +361,7 @@ pub struct DesignMetrics {
     pub top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_flop_child_input_binding_fraction: f64,
     pub top_parent_cone_instance_output_fraction: f64,
+    pub top_parent_cone_instance_mixed_support_output_fraction: f64,
     pub top_parent_cone_instance_flop_output_fraction: f64,
     pub avg_instance_output_support_per_top_output: f64,
     pub max_instance_output_support_per_top_output: usize,
@@ -372,6 +374,7 @@ pub struct DesignMetrics {
     pub hierarchy_parent_cone_instances: usize,
     pub max_parent_cone_instances_per_internal_module: usize,
     pub hierarchy_outputs_reaching_parent_cone_instances: usize,
+    pub hierarchy_outputs_reaching_parent_cone_instance_mixed_support: usize,
     pub hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     pub hierarchy_parent_local_flops: usize,
     pub internal_module_occurrences_with_local_flops: usize,
@@ -379,6 +382,7 @@ pub struct DesignMetrics {
     pub max_instance_output_support_per_hierarchy_output: usize,
     pub hierarchy_parent_port_composed_output_fraction: f64,
     pub hierarchy_parent_cone_instance_output_fraction: f64,
+    pub hierarchy_parent_cone_instance_mixed_support_output_fraction: f64,
     pub hierarchy_parent_cone_instance_flop_output_fraction: f64,
 
     // --- Child interface load ----------------------------------
@@ -766,6 +770,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_parent_port_composed_outputs = top_facts.parent_port_composed_outputs;
     out.top_outputs_reaching_parent_cone_instances =
         top_facts.outputs_reaching_parent_cone_instances;
+    out.top_outputs_reaching_parent_cone_instance_mixed_support =
+        top_facts.outputs_reaching_parent_cone_instance_mixed_support;
     out.top_outputs_reaching_parent_cone_instances_through_parent_flops =
         top_facts.outputs_reaching_parent_cone_instances_through_parent_flops;
     out.top_outputs_reaching_instance_outputs = top_facts.outputs_reaching_instance_outputs;
@@ -782,6 +788,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.top_parent_port_composed_outputs, out.top_outputs);
     out.top_parent_cone_instance_output_fraction = ratio(
         out.top_outputs_reaching_parent_cone_instances,
+        out.top_outputs,
+    );
+    out.top_parent_cone_instance_mixed_support_output_fraction = ratio(
+        out.top_outputs_reaching_parent_cone_instance_mixed_support,
         out.top_outputs,
     );
     out.top_parent_cone_instance_flop_output_fraction = ratio(
@@ -941,6 +951,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.hierarchy_parent_cone_instance_output_fraction = ratio(
         out.hierarchy_outputs_reaching_parent_cone_instances,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.hierarchy_parent_cone_instance_mixed_support_output_fraction = ratio(
+        out.hierarchy_outputs_reaching_parent_cone_instance_mixed_support,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
     );
     out.hierarchy_parent_cone_instance_flop_output_fraction = ratio(
@@ -1118,6 +1132,10 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     state.out.hierarchy_parent_port_composed_outputs += facts.parent_port_composed_outputs;
     state.out.hierarchy_outputs_reaching_parent_cone_instances +=
         facts.outputs_reaching_parent_cone_instances;
+    state
+        .out
+        .hierarchy_outputs_reaching_parent_cone_instance_mixed_support +=
+        facts.outputs_reaching_parent_cone_instance_mixed_support;
     state
         .out
         .hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops +=
@@ -1379,6 +1397,7 @@ struct ModuleCompositionFacts {
     parent_composed_outputs: usize,
     parent_port_composed_outputs: usize,
     outputs_reaching_parent_cone_instances: usize,
+    outputs_reaching_parent_cone_instance_mixed_support: usize,
     outputs_reaching_parent_cone_instances_through_parent_flops: usize,
     outputs_reaching_instance_outputs: usize,
     outputs_without_instance_outputs: usize,
@@ -1408,6 +1427,9 @@ fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
                     .is_some_and(|inst| inst.role == InstanceRole::ParentCone)
             }) {
                 out.outputs_reaching_parent_cone_instances += 1;
+                if deps.has_ports() {
+                    out.outputs_reaching_parent_cone_instance_mixed_support += 1;
+                }
             }
             if deps.has_ports() {
                 out.parent_port_composed_outputs += 1;
@@ -2168,8 +2190,18 @@ mod tests {
             met.hierarchy_outputs_reaching_parent_cone_instances > 0,
             "hierarchy-wide output metrics should record helper output support"
         );
+        assert!(
+            met.top_outputs_reaching_parent_cone_instance_mixed_support > 0,
+            "top outputs should mix parent ports with helper outputs"
+        );
+        assert!(
+            met.hierarchy_outputs_reaching_parent_cone_instance_mixed_support > 0,
+            "hierarchy-wide output metrics should record mixed helper output support"
+        );
         assert!(met.top_parent_cone_instance_output_fraction > 0.0);
         assert!(met.hierarchy_parent_cone_instance_output_fraction > 0.0);
+        assert!(met.top_parent_cone_instance_mixed_support_output_fraction > 0.0);
+        assert!(met.hierarchy_parent_cone_instance_mixed_support_output_fraction > 0.0);
     }
 
     #[test]

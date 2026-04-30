@@ -1882,6 +1882,95 @@ fn recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top()
 }
 
 #[test]
+fn recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 3,
+            hierarchy_parent_flop_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "recursive parent-output helper mixed-support hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive parent-output helper mixed-support hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_cone_instances > metrics.top_parent_cone_instances,
+            "expected helper instances below the top parent for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances, 0,
+            "this focused config should prove helper use through parent outputs, not child-input bindings, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "this focused config should not create registered child-input helper D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_outputs_reaching_parent_cone_instances
+                > metrics.top_outputs_reaching_parent_cone_instances,
+            "expected non-top parent outputs to depend on helper instance outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_outputs_reaching_parent_cone_instance_mixed_support
+                > metrics.top_outputs_reaching_parent_cone_instance_mixed_support,
+            "expected non-top parent outputs to mix helper outputs with parent ports for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops,
+            0,
+            "this focused config should prove direct recursive parent-output helpers, not helper-through-flop outputs, for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_cone_instance_mixed_support_output_fraction > 0.0,
+            "expected non-zero hierarchy helper mixed-support output fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top() {
     for strategy in [
         ConstructionStrategy::Sequential,

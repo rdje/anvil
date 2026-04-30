@@ -59,6 +59,31 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Phase 4 r49 banks recursive parent-output helper mixed-support downstream-clean
+The live Phase 4 hierarchy policy now requires recursive non-top parent
+outputs to prove the same output cone can carry both parent-port support
+and parent-cone helper output support. The focused regression is
+`cargo test recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top`.
+
+This needed a dedicated output mixed-support metric instead of inferring
+the fact from `hierarchy_parent_port_composed_outputs` and
+`hierarchy_outputs_reaching_parent_cone_instances`. Those counters can
+both be true in a design while describing different parent outputs. The
+new `*_outputs_reaching_parent_cone_instance_mixed_support` counters
+make the overlap explicit.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`:
+`99` scenarios, `4` designs/scenario, `396` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`,
+`saw_recursive_hierarchy_parent_cone_instance_outputs = true`,
+`saw_hierarchy_parent_port_composed_outputs = true`, and
+`saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
+with `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top registered parent-composed helper
+mixed-support full bank is `r48`.
+
 ### Phase 4 r48 banks recursive registered helper mixed-support routing downstream-clean
 The live Phase 4 hierarchy policy now requires the recursive
 registered parent-composed helper route to carry parent-port support in

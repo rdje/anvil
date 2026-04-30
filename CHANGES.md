@@ -1,9 +1,108 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-registered-helper-mixed-support-policy — Bank recursive registered helper mixed-support routing below the top parent
+## 2026-04-30-phase4-recursive-parent-output-helper-mixed-support-policy — Bank recursive parent-output helper mixed-support routing below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added `DesignMetrics` counters and fractions for parent outputs that
+  reach parent-cone helper instance outputs and also carry parent-port
+  support in the same output cone:
+  `top_outputs_reaching_parent_cone_instance_mixed_support`,
+  `hierarchy_outputs_reaching_parent_cone_instance_mixed_support`,
+  `top_parent_cone_instance_mixed_support_output_fraction`, and
+  `hierarchy_parent_cone_instance_mixed_support_output_fraction`.
+- Added
+  `recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  parent-output helper cones below the top parent mix parent-port
+  support with helper outputs.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs`.
+  The fact requires a recursive design, parent-output helper instances
+  below the top parent, no child-input helper route, no registered
+  child-input helper route, no helper-through-parent-flop output route,
+  and non-top helper mixed-support parent outputs beyond the top parent.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`
+  with the same `99` scenarios / `396` designs as `r48`, empty
+  coverage gaps, and the new recursive parent-output helper
+  mixed-support fact.
+- Refreshed live docs to present `r49` as the latest full
+  downstream-clean bank, while keeping `r48` as the previous recursive
+  non-top registered parent-composed helper mixed-support full bank.
+
+**Why**
+
+- The previous matrix proved recursive parent-output helper routing and
+  separately proved mixed parent-port / child-output parent outputs. It
+  did not have a first-class counter proving that the same non-top
+  parent-output cone carries parent-port support and a parent-cone
+  helper output. This slice tightens the parent-output composition
+  policy without adding another scenario to the matrix.
+
+**Validation**
+
+- `cargo fmt --all`
+- `cargo test recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r49-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r49 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`
+  - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
+  - `saw_hierarchy_parent_port_composed_outputs = true`
+  - Verilator `396/0`
+  - Yosys without-ABC `396/0`
+  - Yosys with-ABC `396/0`
+- `cargo test design_metrics_capture_parent_cone_instance_output_support`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 75 integration tests = 301 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now distinguishes ordinary
+  parent-output helper support from helper-supported parent outputs that
+  also mix parent-port support below the top parent. The latest full
+  downstream-clean bank is now `r49`; `r48` remains the previous full
+  recursive non-top registered parent-composed helper mixed-support
+  bank.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-registered-helper-mixed-support-policy — Bank recursive registered helper mixed-support routing below the top parent
+
+**Landed as:** `140c962`
 
 **What changed**
 

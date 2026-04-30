@@ -265,6 +265,7 @@ struct CoverageSummary {
     saw_hierarchy_parent_cone_instance_routing: bool,
     saw_hierarchy_parent_cone_instance_outputs: bool,
     saw_recursive_hierarchy_parent_cone_instance_outputs: bool,
+    saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs: bool,
     saw_hierarchy_parent_cone_instance_flop_outputs: bool,
     saw_recursive_hierarchy_parent_cone_instance_flop_outputs: bool,
     saw_multiple_parent_cone_instances_per_parent: bool,
@@ -3534,6 +3535,34 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .metrics
                     .hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops
                     == 0;
+        coverage.saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob > 0.0
+                && scenario.config.hierarchy_parent_flop_prob == 0.0
+                && design.metrics.hierarchy_parent_cone_instances
+                    > design.metrics.top_parent_cone_instances
+                && design
+                    .metrics
+                    .hierarchy_outputs_reaching_parent_cone_instance_mixed_support
+                    > design
+                        .metrics
+                        .top_outputs_reaching_parent_cone_instance_mixed_support
+                && design
+                    .metrics
+                    .child_input_bindings_from_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops
+                    == 0;
         coverage.saw_hierarchy_parent_cone_instance_flop_outputs |= design
             .metrics
             .hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops
@@ -3771,6 +3800,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_hierarchy_parent_cone_instance_outputs;
     dst.saw_recursive_hierarchy_parent_cone_instance_outputs |=
         src.saw_recursive_hierarchy_parent_cone_instance_outputs;
+    dst.saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs |=
+        src.saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs;
     dst.saw_hierarchy_parent_cone_instance_flop_outputs |=
         src.saw_hierarchy_parent_cone_instance_flop_outputs;
     dst.saw_recursive_hierarchy_parent_cone_instance_flop_outputs |=
@@ -4370,6 +4401,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved recursive non-top parent outputs sourced from parent-cone helper instances"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs
+    {
+        gaps.push(
+            "matrix never proved recursive non-top parent outputs mixed parent ports with parent-cone helper instances"
                 .to_string(),
         );
     }
@@ -5241,6 +5280,11 @@ mod tests {
         assert!(gaps.iter().any(|gap| {
             gap.contains(
                 "recursive non-top parent outputs sourced from parent-cone helper instances",
+            )
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top parent outputs mixed parent ports with parent-cone helper instances",
             )
         }));
         assert!(gaps.iter().any(|gap| {

@@ -390,6 +390,12 @@ opening the emitted `.sv`, including:
   fractions
   (`registered_parent_cone_instance_mixed_support_child_input_binding_fraction`,
   `top_registered_parent_cone_instance_mixed_support_child_input_binding_fraction`)
+- hierarchy- and top-level parent-output helper mixed-support counts
+  and fractions
+  (`hierarchy_outputs_reaching_parent_cone_instance_mixed_support`,
+  `top_outputs_reaching_parent_cone_instance_mixed_support`,
+  `hierarchy_parent_cone_instance_mixed_support_output_fraction`,
+  `top_parent_cone_instance_mixed_support_output_fraction`)
 - local parent-state counts
   (`hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`,
@@ -598,7 +604,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`
 records:
 
 - `99` scenarios
@@ -614,6 +620,7 @@ records:
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
 - `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`
 - `saw_recursive_hierarchy_parent_cone_instance_outputs = true`
+- `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`
 - `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`
@@ -650,7 +657,8 @@ bindings without helper instances,
 mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, recursive non-top
-parent-output helper-instance composition, budgeted helper allocation,
+parent-output helper-instance composition, recursive non-top
+parent-output helper mixed-support composition, budgeted helper allocation,
 recursive non-top parent-output multi-helper budget evidence,
 recursive non-top child-input multi-helper budget evidence,
 recursive non-top stateful multi-helper budget evidence,
@@ -674,7 +682,8 @@ direct registered sibling child-input D paths from helper instance
 outputs, can route registered parent-composed child-input D paths from
 helper instance outputs, can route parent-composed child inputs from
 helper instance outputs through parent-local flops, can source parent
-outputs from helper instance outputs below the top parent, can route
+outputs from helper instance outputs below the top parent, can mix those
+non-top parent-output helper sources with parent data-port support, can route
 parent-output helper sources through parent-local flops below the top
 parent, and can chain direct
 registered sibling helper routes through helper-sourced parent-local Qs
@@ -694,7 +703,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r48` bank.
+are superseded by the full downstream-clean `r49` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -775,6 +784,21 @@ top_outputs_reaching_parent_cone_instances`,
 This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_parent_output_cone_instance` scenario.
+`cargo test recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top`
+is the focused proof for recursive non-top parent-output helper cones
+that also mix parent data-port support
+(`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
+`hierarchy_parent_cone_instances > top_parent_cone_instances`,
+`hierarchy_outputs_reaching_parent_cone_instances >
+top_outputs_reaching_parent_cone_instances`,
+`hierarchy_outputs_reaching_parent_cone_instance_mixed_support >
+top_outputs_reaching_parent_cone_instance_mixed_support`,
+`child_input_bindings_from_parent_cone_instances = 0`,
+`child_input_bindings_from_registered_parent_cone_instances = 0`, and
+`hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`).
+This focused proof is banked in the full downstream-clean `r49` Phase 4
+matrix through
+`saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`.
 `cargo test recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top`
 is the focused proof for recursive non-top parent-output helper budget
 spending (`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
