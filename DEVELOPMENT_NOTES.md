@@ -59,6 +59,42 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ## Calibration notes
 
+### Phase 4 r47 banks recursive registered multistage mixed-support routing downstream-clean
+The live Phase 4 hierarchy policy now requires the recursive no-helper
+overlap between registered mixed support and multi-stage registered
+parent-composed routing. Below the top parent, an exact-depth-2
+recursive hierarchy can build a registered D cone that simultaneously
+uses parent data ports, child instance outputs, and an earlier
+parent-local Q, then bind a later child input through the resulting
+parent-local state without relying on parent-cone helper instances. The
+focused regression is
+`cargo test recursive_hierarchy_registered_multistage_mixed_support_routes_below_top`.
+
+This needed a dedicated metric instead of inferring the fact from the
+existing mixed-support and multistage counters. Those older counters can
+be true in the same design while describing different bindings; the new
+`registered_multistage_mixed_support_*` counters only fire when one
+registered route contains both kinds of support in the same D cone and
+then participates in later Q reuse.
+
+The `r46` full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`:
+`99` scenarios, `4` designs/scenario, `396` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_routing = true`,
+`saw_recursive_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_multistage_routing = true`,
+`saw_hierarchy_registered_multistage_sibling_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+with `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top registered sibling multistage no-helper
+full bank is `r46`.
+
 ### Cargo default-run is part of the README contract
 The repository has two binaries: the generator (`anvil`) and the
 auxiliary `tool_matrix` harness. Cargo cannot infer which one plain

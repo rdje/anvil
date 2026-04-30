@@ -335,6 +335,7 @@ opening the emitted `.sv`, including:
   `child_input_bindings_from_registered_parent_composed_logic`,
   `child_input_bindings_from_registered_mixed_support`,
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
+  `child_input_bindings_from_registered_multistage_mixed_support`,
   `child_input_bindings_from_registered_multistage_instance_outputs`,
   `child_input_bindings_from_registered_multistage_parent_cone_instances`,
   `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
@@ -364,6 +365,10 @@ opening the emitted `.sv`, including:
   fractions
   (`registered_multistage_instance_output_child_input_binding_fraction`,
   `top_registered_multistage_instance_output_child_input_binding_fraction`)
+- hierarchy- and top-level multi-stage registered mixed-support route
+  fractions
+  (`registered_multistage_mixed_support_child_input_binding_fraction`,
+  `top_registered_multistage_mixed_support_child_input_binding_fraction`)
 - hierarchy- and top-level multi-stage registered helper-sourced route
   fractions
   (`registered_multistage_parent_cone_instance_child_input_binding_fraction`,
@@ -586,7 +591,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`
 records:
 
 - `99` scenarios
@@ -609,6 +614,7 @@ records:
 - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
 - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
 
@@ -630,6 +636,8 @@ parent-composed child-input bindings, recursive non-top multi-stage
 registered parent-composed child-input bindings without helper
 instances, multi-stage registered sibling-routed child-input bindings,
 recursive non-top multi-stage registered sibling-routed child-input
+bindings without helper instances,
+recursive non-top multi-stage registered mixed-support child-input
 bindings without helper instances,
 mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
@@ -666,6 +674,9 @@ can chain registered parent-composed child-input routes through earlier
 parent-local Qs below the top parent without helper instances, and
 can chain direct registered sibling-routed child-input routes through
 earlier parent-local Qs below the top parent without helper instances, and
+can combine mixed parent-port / child-output registered D support with
+earlier parent-local Q reuse below the top parent without helper
+instances, and
 can spend a recursive non-top child-input multi-helper budget, and can
 spend a recursive non-top stateful multi-helper parent-output budget
 through helper-sourced parent-local Qs. The earlier
@@ -673,7 +684,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r46` bank.
+are superseded by the full downstream-clean `r47` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -892,6 +903,15 @@ and registered parent-composed plus registered helper-chain counters
 stay zero). This focused proof is banked in the full downstream-clean
 `r46` Phase 4 matrix through
 `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`.
+`cargo test recursive_hierarchy_registered_multistage_mixed_support_routes_below_top`
+is the focused proof for multi-stage registered mixed-support routing
+below the top parent without helper instances
+(`child_input_bindings_from_registered_multistage_mixed_support >
+top_child_input_bindings_from_registered_multistage_mixed_support`,
+`registered_multistage_mixed_support_child_input_binding_fraction > 0.0`,
+and registered helper-chain counters remain zero). This focused proof is
+banked in the full downstream-clean `r47` Phase 4 matrix through
+`saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`.
 `cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`
 is the focused proof for multi-stage registered parent-composed helper
 routing below the top parent in an exact-depth-2 recursive hierarchy

@@ -248,6 +248,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_registered_mixed_support_routing: bool,
     saw_hierarchy_registered_multistage_routing: bool,
     saw_recursive_hierarchy_registered_multistage_routing: bool,
+    saw_recursive_hierarchy_registered_multistage_mixed_support_routing: bool,
     saw_hierarchy_registered_multistage_sibling_routing: bool,
     saw_recursive_hierarchy_registered_multistage_sibling_routing: bool,
     saw_hierarchy_registered_multistage_parent_cone_instance_routing: bool,
@@ -3311,6 +3312,30 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .metrics
                     .child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances
                     == 0;
+        coverage.saw_recursive_hierarchy_registered_multistage_mixed_support_routing |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob > 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob == 0.0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_mixed_support
+                    > design
+                        .metrics
+                        .top_child_input_bindings_from_registered_multistage_mixed_support
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances
+                    == 0;
         coverage.saw_hierarchy_registered_multistage_sibling_routing |=
             scenario.config.hierarchy_registered_sibling_route_prob > 0.0
                 && scenario.config.hierarchy_registered_child_input_cone_prob == 0.0
@@ -3699,6 +3724,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_hierarchy_registered_multistage_routing;
     dst.saw_recursive_hierarchy_registered_multistage_routing |=
         src.saw_recursive_hierarchy_registered_multistage_routing;
+    dst.saw_recursive_hierarchy_registered_multistage_mixed_support_routing |=
+        src.saw_recursive_hierarchy_registered_multistage_mixed_support_routing;
     dst.saw_hierarchy_registered_multistage_sibling_routing |=
         src.saw_hierarchy_registered_multistage_sibling_routing;
     dst.saw_recursive_hierarchy_registered_multistage_sibling_routing |=
@@ -4199,6 +4226,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved recursive non-top multi-stage registered parent-composed hierarchy child input bindings without helper instances"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_registered_multistage_mixed_support_routing
+    {
+        gaps.push(
+            "matrix never proved recursive non-top multi-stage registered mixed-support hierarchy child input bindings without helper instances"
                 .to_string(),
         );
     }
@@ -5111,6 +5146,11 @@ mod tests {
         assert!(gaps.iter().any(|gap| {
             gap.contains(
                 "recursive non-top multi-stage registered parent-composed hierarchy child input bindings without helper instances",
+            )
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top multi-stage registered mixed-support hierarchy child input bindings without helper instances",
             )
         }));
         assert!(gaps.iter().any(|gap| {

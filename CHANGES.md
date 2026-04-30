@@ -1,9 +1,117 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-04-30-phase4-recursive-registered-sibling-multistage-policy — Bank recursive registered sibling multistage routing below the top parent
+## 2026-04-30-phase4-recursive-registered-multistage-mixed-support-policy — Bank recursive registered multistage mixed-support routing below the top parent
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added the `DesignMetrics` counters and fractions for registered
+  multi-stage mixed-support child-input bindings:
+  `child_input_bindings_from_registered_multistage_mixed_support`,
+  `top_child_input_bindings_from_registered_multistage_mixed_support`,
+  `registered_multistage_mixed_support_child_input_binding_fraction`,
+  and
+  `top_registered_multistage_mixed_support_child_input_binding_fraction`.
+  These counters fire when a registered child-input binding is driven by
+  parent-local Q, and that earlier Q's registered D cone is
+  parent-composed logic that simultaneously depends on parent data
+  ports, child instance outputs, and an even earlier parent-local Q.
+- Added
+  `recursive_hierarchy_registered_multistage_mixed_support_routes_below_top`,
+  a focused integration regression proving exact-depth-2 recursive
+  registered parent-composed child-input routing can combine mixed
+  support and multi-stage Q reuse below the top parent without helper
+  instances.
+- Added the Phase 4 hierarchy coverage fact
+  `saw_recursive_hierarchy_registered_multistage_mixed_support_routing`.
+  The fact requires a recursive design, registered parent-composed
+  routing, no registered sibling route, no unregistered child-input cone
+  route, no parent-cone helper instances, non-top registered
+  multi-stage mixed-support bindings beyond the top parent, and zero
+  registered helper-chain counters.
+- Banked the refreshed full downstream-clean Phase 4 hierarchy matrix at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r47/tool_matrix_report.json`
+  with the same `99` scenarios / `396` designs as `r46`, empty
+  coverage gaps, and the new recursive registered multi-stage
+  mixed-support no-helper fact.
+- Refreshed live docs to present `r47` as the latest full
+  downstream-clean bank, while keeping `r46` as the previous recursive
+  non-top registered sibling multistage no-helper full bank.
+
+**Why**
+
+- The previous bank separately proved recursive registered mixed-support
+  routing below the top parent, recursive multi-stage registered
+  parent-composed routing without helpers, and recursive multi-stage
+  registered sibling routing without helpers. It did not have a
+  first-class counter or policy fact for the stricter overlap: a single
+  registered parent-composed D cone below the top parent that mixes
+  parent ports, child outputs, and an earlier parent-local Q before a
+  later child-input binding reuses that Q. This slice records that
+  overlap explicitly without adding another matrix scenario.
+
+**Validation**
+
+- `cargo fmt --all`
+- `cargo test recursive_hierarchy_registered_multistage_mixed_support_routes_below_top`
+- `cargo test --bin tool_matrix phase4_hierarchy`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r47-coverage --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-hierarchy-r47 --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_routing = true`
+  - `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
+  - Verilator `396/0`
+  - Yosys without-ABC `396/0`
+  - Yosys with-ABC `396/0`
+- `cargo check --all-targets`
+- `cargo test`
+  - 226 unit-target tests + 73 integration tests = 299 passing tests
+- `cargo build`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- The live Phase 4 hierarchy policy now distinguishes ordinary
+  registered mixed-support, ordinary multi-stage registered
+  parent-composed routing, and the stricter recursive non-top overlap
+  where the same no-helper route has mixed support and earlier-Q reuse.
+  The latest full downstream-clean bank is now `r47`; `r46` remains the
+  previous full recursive non-top registered sibling multistage
+  no-helper bank.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `src/bin/tool_matrix.rs`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+
+## 2026-04-30-phase4-recursive-registered-sibling-multistage-policy — Bank recursive registered sibling multistage routing below the top parent
+
+**Landed as:** `dbe328a`
 
 **What changed**
 
