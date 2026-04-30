@@ -1439,6 +1439,102 @@ fn recursive_hierarchy_registered_mixed_support_routes_below_top() {
 }
 
 #[test]
+fn recursive_hierarchy_registered_parent_composed_routes_can_chain_without_helpers_below_top() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 1.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "recursive registered parent-composed multistage hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive registered parent-composed multistage hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should prove no-helper registered parent-composed routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_local_flops > metrics.top_local_flops,
+            "expected non-top registered parent-composed routes to create non-top parent-local flops for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic
+                > metrics.top_child_input_bindings_from_registered_parent_composed_logic,
+            "expected non-top registered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_multistage_parent_composed_logic
+                > metrics.top_child_input_bindings_from_registered_multistage_parent_composed_logic,
+            "expected non-top multi-stage registered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.registered_multistage_parent_composed_child_input_binding_fraction > 0.0,
+            "expected non-zero multi-stage registered parent-composed binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_cone_instances, 0,
+            "this focused config should not depend on registered helper-sourced D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_multistage_parent_cone_instances, 0,
+            "this focused config should not depend on direct registered sibling helper chains for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics
+                .child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances,
+            0,
+            "this focused config should not depend on parent-composed helper chains for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_parent_outputs_can_depend_on_helper_instance_outputs() {
     for strategy in [
         ConstructionStrategy::Sequential,

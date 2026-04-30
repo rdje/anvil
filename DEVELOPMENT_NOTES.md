@@ -72,6 +72,33 @@ while `tool_matrix` is always selected explicitly with
 preserve that default-run setting or update every source-tree command
 surface in the live docs at the same time.
 
+### Phase 4 r45 banks recursive registered multistage routing downstream-clean
+The live Phase 4 hierarchy policy now requires the recursive no-helper
+multi-stage registered parent-composed cross product. Below the top
+parent, an exact-depth-2 recursive hierarchy can first bind a child input
+through parent-local state, then reuse that earlier parent-local Q in a
+later registered parent-composed child-input D cone, without relying on
+parent-cone helper instances. The focused regression is
+`cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_without_helpers_below_top`.
+It uses four child instances per recursive parent because the two-child
+registered mixed-support calibration is too sparse to force this
+multi-stage subcase across every construction strategy.
+
+The current full downstream-clean evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`:
+`96` scenarios, `4` designs/scenario, `384` total designs,
+`coverage_gaps = []`,
+`saw_recursive_hierarchy_registered_multistage_routing = true`,
+`saw_recursive_hierarchy_registered_mixed_support_routing = true`,
+`saw_hierarchy_registered_multistage_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
+`saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
+and
+`saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
+with `384/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+The previous recursive non-top registered mixed-support full bank is
+`r44`.
+
 ### Phase 4 r44 banks recursive registered mixed-support routing downstream-clean
 The live Phase 4 hierarchy policy now requires the recursive no-helper
 registered mixed-support cross product. Below the top parent, an
@@ -85,7 +112,7 @@ non-top registered parent-composed child-input bindings, non-top
 registered child-output support, non-top registered mixed-support
 bindings, and zero registered helper-sourced D-cone bindings.
 
-The current full downstream-clean evidence anchor is
+The previous full downstream-clean evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r44/tool_matrix_report.json`:
 `93` scenarios, `4` designs/scenario, `372` total designs,
 `coverage_gaps = []`,

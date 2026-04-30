@@ -247,6 +247,7 @@ struct CoverageSummary {
     saw_hierarchy_registered_mixed_support_routing: bool,
     saw_recursive_hierarchy_registered_mixed_support_routing: bool,
     saw_hierarchy_registered_multistage_routing: bool,
+    saw_recursive_hierarchy_registered_multistage_routing: bool,
     saw_hierarchy_registered_multistage_sibling_routing: bool,
     saw_hierarchy_registered_multistage_parent_cone_instance_routing: bool,
     saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing: bool,
@@ -940,6 +941,14 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 ),
             ),
             (
+                "phase4_recur_d2_registered_multistage_child_input_state",
+                "bounded recursive hierarchy at exact depth 2 where non-top registered parent-composed child-input D cones chain through earlier parent-local Qs without helper instances",
+                phase4_recursive_registered_multistage_child_input_state_focus_config(
+                    strategy,
+                    next_seed + 31,
+                ),
+            ),
+            (
                 "phase4_recur_d2_registered_parent_cone_instance_state",
                 "bounded recursive hierarchy at exact depth 2 where non-top registered parent-composed child-input D cones instantiate helper children as internal parent-cone sources",
                 phase4_recursive_registered_parent_cone_instance_focus_config(
@@ -1049,7 +1058,7 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 config,
             )?);
         }
-        next_seed += 31;
+        next_seed += 32;
     }
 
     Ok(scenarios)
@@ -1646,6 +1655,31 @@ fn phase4_recursive_registered_mixed_child_input_state_focus_config(
         2,
         2,
         2,
+    );
+    cfg.flop_prob = 0.0;
+    cfg.hierarchy_sibling_route_prob = 0.0;
+    cfg.hierarchy_registered_sibling_route_prob = 0.0;
+    cfg.hierarchy_registered_child_input_cone_prob = 1.0;
+    cfg.hierarchy_child_input_cone_prob = 0.0;
+    cfg.hierarchy_parent_cone_instance_prob = 0.0;
+    cfg.hierarchy_parent_flop_prob = 0.0;
+    cfg.max_flops_per_module = 8;
+    cfg.terminal_reuse_prob = 1.0;
+    cfg.constant_prob = 0.0;
+    cfg.max_depth = 4;
+    cfg
+}
+
+fn phase4_recursive_registered_multistage_child_input_state_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    let mut cfg = with_recursive_hierarchy(
+        share_heavy_comb_only_config(strategy, seed, 0.9),
+        2,
+        2,
+        4,
+        4,
     );
     cfg.flop_prob = 0.0;
     cfg.hierarchy_sibling_route_prob = 0.0;
@@ -3213,6 +3247,36 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .metrics
                     .child_input_bindings_from_registered_multistage_parent_composed_logic
                     > 0;
+        coverage.saw_recursive_hierarchy_registered_multistage_routing |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob > 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob == 0.0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_composed_logic
+                    > design
+                        .metrics
+                        .top_child_input_bindings_from_registered_parent_composed_logic
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_composed_logic
+                    > design
+                        .metrics
+                        .top_child_input_bindings_from_registered_multistage_parent_composed_logic
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_cone_instances
+                    == 0
+                && design
+                    .metrics
+                    .child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances
+                    == 0;
         coverage.saw_hierarchy_registered_multistage_sibling_routing |=
             scenario.config.hierarchy_registered_sibling_route_prob > 0.0
                 && scenario.config.hierarchy_registered_child_input_cone_prob == 0.0
@@ -3565,6 +3629,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_registered_mixed_support_routing;
     dst.saw_hierarchy_registered_multistage_routing |=
         src.saw_hierarchy_registered_multistage_routing;
+    dst.saw_recursive_hierarchy_registered_multistage_routing |=
+        src.saw_recursive_hierarchy_registered_multistage_routing;
     dst.saw_hierarchy_registered_multistage_sibling_routing |=
         src.saw_hierarchy_registered_multistage_sibling_routing;
     dst.saw_hierarchy_registered_multistage_parent_cone_instance_routing |=
@@ -4055,6 +4121,14 @@ fn compute_coverage_gaps(
     {
         gaps.push(
             "matrix never proved multi-stage registered parent-composed hierarchy child input bindings"
+                .to_string(),
+        );
+    }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_registered_multistage_routing
+    {
+        gaps.push(
+            "matrix never proved recursive non-top multi-stage registered parent-composed hierarchy child input bindings without helper instances"
                 .to_string(),
         );
     }
@@ -4731,7 +4805,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 372);
+        assert_eq!(plan.total_modules, 384);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -4784,8 +4858,8 @@ mod tests {
                     || scenario.config.hierarchy_parent_cone_instance_prob == 1.0
             );
         }
-        assert_eq!(scenarios.len(), 93);
-        assert_eq!(names.len(), 93);
+        assert_eq!(scenarios.len(), 96);
+        assert_eq!(names.len(), 96);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -4820,6 +4894,7 @@ mod tests {
             "phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state",
             "phase4_hier2_inst4_registered_child_input_cone_state",
             "phase4_recur_d2_registered_mixed_child_input_state",
+            "phase4_recur_d2_registered_multistage_child_input_state",
             "phase4_recur_d2_registered_parent_cone_instance_state",
             "phase4_hier2_inst4_parent_cone_instance",
             "phase4_hier2_inst4_parent_output_cone_instance",
@@ -4953,6 +5028,11 @@ mod tests {
         }));
         assert!(gaps.iter().any(|gap| {
             gap.contains("multi-stage registered parent-composed hierarchy child input bindings")
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top multi-stage registered parent-composed hierarchy child input bindings without helper instances",
+            )
         }));
         assert!(gaps.iter().any(|gap| {
             gap.contains("multi-stage registered sibling-routed hierarchy child input bindings")

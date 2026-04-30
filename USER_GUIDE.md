@@ -584,17 +584,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r44/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`
 records:
 
-- `93` scenarios
+- `96` scenarios
 - `4` designs per scenario
-- `372` total designs
+- `384` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 372/0`
-- `Yosys without-abc pass/fail = 372/0`
-- `Yosys with-abc pass/fail = 372/0`
+- `Verilator pass/fail = 384/0`
+- `Yosys without-abc pass/fail = 384/0`
+- `Yosys with-abc pass/fail = 384/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -606,6 +606,7 @@ records:
 - `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`
 - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
+- `saw_recursive_hierarchy_registered_multistage_routing = true`
 - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`
 
 That report is the latest fully banked repo-owned Phase 4
@@ -622,8 +623,10 @@ parent-local flop state, registered sibling-routed child-input
 bindings, registered parent-composed child-input bindings, registered
 mixed-support child-input bindings, recursive non-top registered
 mixed-support child-input bindings, multi-stage registered
-parent-composed child-input bindings, multi-stage registered
-sibling-routed child-input bindings, mixed parent-port / child-output
+parent-composed child-input bindings, recursive non-top multi-stage
+registered parent-composed child-input bindings without helper
+instances, multi-stage registered sibling-routed child-input bindings,
+mixed parent-port / child-output
 parent outputs, parent-cone helper-instance child-input bindings,
 parent-output helper-instance composition, recursive non-top
 parent-output helper-instance composition, budgeted helper allocation,
@@ -654,6 +657,8 @@ parent, and can chain direct
 registered sibling helper routes through helper-sourced parent-local Qs
 below the top parent, and can chain registered parent-composed helper
 routes through helper-sourced parent-local Qs below the top parent, and
+can chain registered parent-composed child-input routes through earlier
+parent-local Qs below the top parent without helper instances, and
 can spend a recursive non-top child-input multi-helper budget, and can
 spend a recursive non-top stateful multi-helper parent-output budget
 through helper-sourced parent-local Qs. The earlier
@@ -661,7 +666,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r44` bank.
+are superseded by the full downstream-clean `r45` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -706,6 +711,12 @@ child-input bindings without helper instances
 (`child_input_bindings_from_registered_mixed_support >
 top_child_input_bindings_from_registered_mixed_support` and
 `child_input_bindings_from_registered_parent_cone_instances = 0`).
+`cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_without_helpers_below_top`
+is the focused proof for recursive non-top multi-stage registered
+parent-composed child-input bindings without helper instances
+(`child_input_bindings_from_registered_multistage_parent_composed_logic >
+top_child_input_bindings_from_registered_multistage_parent_composed_logic`
+and all registered helper-chain counters remain zero).
 `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
 is the focused proof for multi-stage registered parent-composed
 child-input bindings
@@ -733,7 +744,7 @@ top parent in an exact-depth-2 recursive hierarchy
 top_outputs_reaching_parent_cone_instances`,
 `child_input_bindings_from_parent_cone_instances = 0`, and
 `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_parent_output_cone_instance` scenario.
 `cargo test recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top`
@@ -745,7 +756,7 @@ spending (`realized_min_leaf_depth = realized_max_leaf_depth = 2`,
 top_outputs_reaching_parent_cone_instances`,
 `child_input_bindings_from_parent_cone_instances = 0`, and
 `child_input_bindings_from_registered_parent_cone_instances = 0`).
-This focused proof is banked by the full downstream-clean `r44` Phase 4
+This focused proof is banked by the full downstream-clean `r45` Phase 4
 matrix through `saw_recursive_multiple_parent_cone_instances_per_parent`.
 `cargo test recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top`
 is the focused proof for recursive non-top child-input helper budget
@@ -759,7 +770,7 @@ top_child_input_bindings_from_parent_composed_logic`,
 top_child_input_bindings_from_parent_cone_instances`,
 `child_input_bindings_from_parent_cone_instances_through_parent_flops = 0`,
 and `child_input_bindings_from_registered_parent_cone_instances = 0`).
-This focused proof is banked by the full downstream-clean `r44` Phase 4
+This focused proof is banked by the full downstream-clean `r45` Phase 4
 matrix through
 `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs`.
 `cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`
@@ -772,7 +783,7 @@ the top parent in an exact-depth-2 recursive hierarchy
 top_outputs_reaching_parent_cone_instances_through_parent_flops`,
 `child_input_bindings_from_parent_cone_instances = 0`, and
 `child_input_bindings_from_registered_parent_cone_instances = 0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_parent_output_cone_instance_state` scenario.
 `cargo test recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`
@@ -788,7 +799,7 @@ top_outputs_reaching_parent_cone_instances_through_parent_flops`,
 `child_input_bindings_from_parent_cone_instances = 0`,
 `child_input_bindings_from_parent_cone_instances_through_parent_flops = 0`,
 and `child_input_bindings_from_registered_parent_cone_instances = 0`).
-This focused proof is banked by the full downstream-clean `r44` Phase 4
+This focused proof is banked by the full downstream-clean `r45` Phase 4
 matrix through
 `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops`.
 `cargo test hierarchy_parent_cone_helper_budget_allows_multiple_helpers`
@@ -825,7 +836,7 @@ top_child_input_bindings_from_instance_outputs`,
 `child_input_bindings_from_parent_cone_instances >
 top_child_input_bindings_from_parent_cone_instances`, and both registered
 helper counters stay zero).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_direct_sibling_parent_cone_instance` scenario.
 `cargo test recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`
@@ -839,7 +850,7 @@ top_child_input_bindings_from_registered_instance_outputs`,
 `child_input_bindings_from_registered_parent_cone_instances >
 top_child_input_bindings_from_registered_parent_cone_instances`, and
 `child_input_bindings_from_registered_parent_composed_logic = 0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_direct_registered_sibling_parent_cone_instance_state`
 scenario.
@@ -855,7 +866,7 @@ top_child_input_bindings_from_registered_multistage_instance_outputs`,
 top_child_input_bindings_from_registered_multistage_parent_cone_instances`,
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `child_input_bindings_from_registered_multistage_parent_composed_logic = 0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_registered_sibling_parent_cone_instance_multistage_state`
 scenario.
@@ -870,7 +881,7 @@ top_child_input_bindings_from_registered_multistage_parent_composed_logic`,
 `child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances >
 top_child_input_bindings_from_registered_multistage_parent_composed_parent_cone_instances`,
 and `child_input_bindings_from_registered_multistage_parent_cone_instances = 0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_registered_parent_cone_instance_multistage_state`
 scenario.
@@ -886,7 +897,7 @@ top_child_input_bindings_from_registered_parent_composed_logic`,
 top_child_input_bindings_from_registered_parent_cone_instances`,
 `registered_parent_composed_child_input_binding_fraction > 0.0`, and
 `registered_parent_cone_instance_child_input_binding_fraction > 0.0`).
-This focused proof is banked in the full downstream-clean `r44` Phase 4
+This focused proof is banked in the full downstream-clean `r45` Phase 4
 matrix through the dedicated
 `phase4_recur_d2_registered_parent_cone_instance_state` scenario.
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
