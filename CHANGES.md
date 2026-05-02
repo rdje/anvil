@@ -1,8 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-02-phase4-registered-sibling-mixed-support — Add direct registered sibling mixed-support routing
+## 2026-05-02-phase4-recursive-registered-sibling-mixed-support — Prove recursive registered sibling mixed-support routing
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added a focused recursive integration proof for non-top direct
+  registered sibling mixed-support child-input routing in exact-depth-2
+  hierarchy designs.
+- Extended the Phase 4 hierarchy matrix with
+  `phase4_recur_d2_registered_sibling_mixed_support_state` for each
+  construction strategy.
+- Added the coverage fact
+  `saw_recursive_hierarchy_registered_sibling_mixed_support_routing` and
+  made the Phase 4 hierarchy gate fail if it is absent.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from
+  `102` scenarios / `408` designs to `105` scenarios / `420` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both
+  repo-owned Yosys modes at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r52/tool_matrix_report.json`.
+
+**Why**
+
+- The direct registered sibling mixed-support policy was already proven
+  at the top hierarchy parent in `r51`. This slice proves the same
+  direct registered sibling route below the top parent in recursive
+  hierarchy, using hierarchy-wide counters exceeding their top-only
+  counterparts while registered parent-composed and helper-source
+  counters remain zero.
+
+**Validation**
+
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r52`
+  - `105` scenarios
+  - `4` designs/scenario
+  - `420` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 420/0`
+  - `Yosys without-abc pass/fail = 420/0`
+  - `Yosys with-abc pass/fail = 420/0`
+  - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_registered_sibling_mixed_support_routing = true`
+- Commit-workflow hygiene:
+  - `cargo check --all-targets`
+  - `cargo test`
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now proves direct registered sibling
+  mixed-support routing both at the top parent and below the top parent
+  in recursive hierarchy. `r51` becomes the previous direct registered
+  sibling mixed-support bank; `r52` is the current full downstream-clean
+  Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-05-02-phase4-registered-sibling-mixed-support — Add direct registered sibling mixed-support routing
+
+**Landed as:** 9e45d09
 
 **What changed**
 
@@ -63,8 +136,8 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
   child-input bindings that mix sibling/helper instance-output support
   with parent data-port support without counting as registered
   parent-composed logic. `r50` becomes the previous accumulated
-  mixed-support hierarchy bank; `r51` is the current full
-  downstream-clean Phase 4 hierarchy bank.
+  mixed-support hierarchy bank; `r51` is the direct registered sibling
+  mixed-support Phase 4 hierarchy bank.
 
 **Files touched**
 

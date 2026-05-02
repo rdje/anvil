@@ -283,17 +283,17 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r51`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r52`. Its final
 `tool_matrix_report.json` records:
 
-- `102` scenarios
+- `105` scenarios
 - `4` designs per scenario
-- `408` total designs
+- `420` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 408/0`
-- `Yosys without-abc pass/fail = 408/0`
-- `Yosys with-abc pass/fail = 408/0`
+- `Verilator pass/fail = 420/0`
+- `Yosys without-abc pass/fail = 420/0`
+- `Yosys with-abc pass/fail = 420/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -326,6 +326,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r51`. Its final
 - `saw_hierarchy_parent_port_composed_outputs = true`
 - `saw_hierarchy_registered_mixed_support_routing = true`
 - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
+- `saw_recursive_hierarchy_registered_sibling_mixed_support_routing = true`
 - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
 - `saw_hierarchy_registered_multistage_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_routing = true`
@@ -336,7 +337,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r51`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r51` report is the latest fully banked downstream-clean repo-owned
+The `r52` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -349,7 +350,8 @@ recursive realization, real parent-side composition above instance
 outputs, real sibling-routed hierarchy child inputs and
 parent-composed child-input bindings, registered sibling-routed
 hierarchy child inputs, direct registered sibling mixed-support
-child-input binding, registered parent-composed child-input
+child-input binding, recursive non-top direct registered sibling
+mixed-support child-input binding, registered parent-composed child-input
 bindings, registered mixed-support child-input binding, recursive
 non-top registered mixed-support child-input binding, multi-stage
 registered parent-composed child-input binding, recursive non-top
@@ -381,8 +383,9 @@ budgets, recursive non-top child-input multi-helper budgets, and
 recursive non-top stateful multi-helper budgets, registered
 parent-composed helper-sourced child-input D
 cones, direct sibling helper routing, direct registered sibling
-helper routing, and direct registered sibling mixed-support routing,
-multi-stage direct registered sibling helper routing,
+helper routing, direct registered sibling mixed-support routing,
+recursive non-top direct registered sibling mixed-support routing,
+and multi-stage direct registered sibling helper routing,
 parent-output helper routes that pass through parent-local flops, plus
 recursive exact-depth-2 parent-output helper routes below the top parent,
 recursive exact-depth-2 parent-output helper routes through parent-local
@@ -410,7 +413,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r51` bank.
+are superseded by the full downstream-clean `r52` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -658,7 +661,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r52/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -688,6 +691,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   registered parent-composed helper-sourced child-input D cones,
   direct sibling helper routing, direct registered sibling helper
   routing, direct registered sibling mixed-support routing,
+  recursive non-top direct registered sibling mixed-support routing,
   multi-stage direct registered sibling helper routing,
   recursive non-top multi-stage direct registered sibling helper
   routing,
@@ -704,8 +708,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   recursive non-top direct registered sibling helper route,
   recursive non-top registered parent-composed helper route,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `102` scenarios, `408` total designs,
-  `coverage_gaps = []`, and `408/0` pass-fail in Verilator plus both
+  `tool_matrix`, with `105` scenarios, `420` total designs,
+  `coverage_gaps = []`, and `420/0` pass-fail in Verilator plus both
   repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, `r31` remains the previous
@@ -728,7 +732,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   parent-composed helper mixed-support routing bank, `r49` is the
   previous recursive non-top parent-output helper mixed-support routing
   bank, `r50` is the previous accumulated mixed-support hierarchy bank,
-  `r51` is the latest direct registered sibling mixed-support hierarchy bank,
+  `r51` is the previous direct registered sibling mixed-support hierarchy bank,
+  `r52` is the latest recursive direct registered sibling mixed-support hierarchy bank,
   and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
