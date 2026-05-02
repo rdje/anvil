@@ -854,6 +854,17 @@ fn roll_hierarchy_registered_sibling_route(m: &mut Module, rng: &mut impl Rng, p
     fired
 }
 
+fn roll_hierarchy_registered_sibling_mixed_support(
+    m: &mut Module,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> bool {
+    let fired = rng.gen_bool(prob);
+    m.knob_rolls
+        .record(KnobId::HierarchyRegisteredSiblingMixedSupportProb, fired);
+    fired
+}
+
 fn roll_hierarchy_registered_child_input_cone(
     m: &mut Module,
     rng: &mut impl Rng,
@@ -1057,6 +1068,8 @@ fn build_registered_sibling_route(
     } else {
         cone::pick_terminal_dep_bearing(g, top, instance_pool, width, None)
     };
+    let d_node =
+        maybe_mix_registered_sibling_parent_port_support(g, top, parent_source_pool, d_node, width);
     let flop_id = top.flops.len() as FlopId;
     let q_node_id = top.nodes.len() as NodeId;
     top.nodes.push(Node::FlopQ {
@@ -1076,6 +1089,78 @@ fn build_registered_sibling_route(
     let deps = DepSet::from_flop_virtual(flop_id);
     parent_source_pool.add(q_node_id, width, deps);
     q_node_id
+}
+fn maybe_mix_registered_sibling_parent_port_support(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    d_node: NodeId,
+    width: u32,
+) -> NodeId {
+    let d_deps = cone::node_deps(top, d_node);
+    if !d_deps.has_instance_output_virtuals() || d_deps.has_ports() {
+        return d_node;
+    }
+    if !parent_source_pool
+        .iter()
+        .any(|entry| entry.node != d_node && entry.deps.has_ports())
+    {
+        return d_node;
+    }
+    if !roll_hierarchy_registered_sibling_mixed_support(
+        top,
+        &mut g.rng,
+        g.cfg.hierarchy_registered_sibling_mixed_support_prob,
+    ) {
+        return d_node;
+    }
+
+    let Some(parent_companion) =
+        try_pick_parent_port_companion(g, top, parent_source_pool, width, d_node)
+    else {
+        return d_node;
+    };
+
+    let mixed = add_parent_companion_gate(top, parent_source_pool, width, d_node, parent_companion);
+    wrap_registered_sibling_mixed_support(top, parent_source_pool, mixed, width)
+}
+
+fn wrap_registered_sibling_mixed_support(
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    mixed: NodeId,
+    width: u32,
+) -> NodeId {
+    let (zero, zero_is_new) = top.intern_constant(width, 0);
+    if zero_is_new {
+        parent_source_pool.add(zero, width, DepSet::new());
+    }
+
+    let mixed_deps = cone::node_deps(top, mixed);
+    let (packed, packed_is_new) = top.intern_gate(
+        GateOp::Concat,
+        vec![zero, mixed],
+        width * 2,
+        mixed_deps.clone(),
+    );
+    if packed_is_new {
+        parent_source_pool.add(packed, width * 2, mixed_deps.clone());
+    }
+
+    let (slice, slice_is_new) = top.intern_gate(
+        GateOp::Slice {
+            hi: width - 1,
+            lo: 0,
+        },
+        vec![packed],
+        width,
+        mixed_deps.clone(),
+    );
+    if slice_is_new {
+        parent_source_pool.add(slice, width, mixed_deps);
+    }
+
+    slice
 }
 
 fn pick_parent_flop_source(
@@ -1411,7 +1496,7 @@ fn build_child_input_parent_cone(
     );
     g.cfg.flop_prob = saved_flop_prob;
     g.active_flop_knob = saved_flop_knob;
-    if let Some(required_source) = required_parent_cone_instance_source {
+    let with_helper_support = if let Some(required_source) = required_parent_cone_instance_source {
         if let Some(helper_q) = maybe_register_parent_cone_instance_source(
             g,
             top,
@@ -1431,6 +1516,25 @@ fn build_child_input_parent_cone(
         }
     } else {
         root
+    };
+
+    if required_parent_cone_instance_source.is_some()
+        && !cone::node_deps(top, with_helper_support).has_ports()
+    {
+        let Some(parent_companion) =
+            try_pick_parent_port_companion(g, top, parent_source_pool, width, with_helper_support)
+        else {
+            return with_helper_support;
+        };
+        add_parent_companion_gate(
+            top,
+            parent_source_pool,
+            width,
+            with_helper_support,
+            parent_companion,
+        )
+    } else {
+        with_helper_support
     }
 }
 

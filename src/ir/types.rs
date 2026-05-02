@@ -258,6 +258,10 @@ pub enum KnobId {
     /// that a parent binds a later child data input from an earlier
     /// sibling output through one local parent flop.
     HierarchyRegisteredSiblingRouteProb,
+    /// `Config::hierarchy_registered_sibling_mixed_support_prob` —
+    /// chance that a direct registered sibling route also mixes parent
+    /// data-port support into the flop D side.
+    HierarchyRegisteredSiblingMixedSupportProb,
     /// `Config::hierarchy_registered_child_input_cone_prob` — chance
     /// that a parent binds a later child data input through local
     /// parent logic over already-available parent sources and then one
@@ -303,6 +307,9 @@ impl KnobId {
             KnobId::HierarchySiblingRouteProb => "hierarchy_sibling_route_prob",
             KnobId::HierarchyRegisteredSiblingRouteProb => {
                 "hierarchy_registered_sibling_route_prob"
+            }
+            KnobId::HierarchyRegisteredSiblingMixedSupportProb => {
+                "hierarchy_registered_sibling_mixed_support_prob"
             }
             KnobId::HierarchyRegisteredChildInputConeProb => {
                 "hierarchy_registered_child_input_cone_prob"

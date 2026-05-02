@@ -1,5 +1,364 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-02-phase4-registered-sibling-mixed-support — Add direct registered sibling mixed-support routing
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the default-off `hierarchy_registered_sibling_mixed_support_prob`
+  knob across config, CLI override parsing, knob telemetry, and the
+  tool-matrix required-attempt surface.
+- Extended direct registered sibling child-input routing so the flop D
+  side can optionally mix an available parent data-port companion with
+  the sibling/helper source before the parent-local flop.
+- Kept the new route classified as direct registered sibling routing by
+  wrapping the mixed D expression before registration, so it does not
+  become registered parent-composed child-input evidence.
+- Added metrics and fractions for direct registered sibling
+  mixed-support child-input bindings:
+  `child_input_bindings_from_registered_sibling_mixed_support`,
+  `top_child_input_bindings_from_registered_sibling_mixed_support`,
+  `registered_sibling_mixed_support_child_input_binding_fraction`, and
+  `top_registered_sibling_mixed_support_child_input_binding_fraction`.
+- Added focused unit and pipeline coverage, plus a Phase 4 hierarchy
+  matrix scenario and coverage gate for the new policy fact.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned
+  Yosys modes at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`.
+
+**Why**
+
+- Registered mixed-support hierarchy coverage existed for
+  parent-composed D cones, but direct registered sibling routes were
+  still purely sibling/helper sourced. This slice proves the stricter
+  direct child-to-child route can carry parent-port support in the D
+  path while staying out of the registered parent-composed bucket.
+
+**Validation**
+
+- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml registered_sibling_mixed_support`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml hierarchy_registered_sibling_routes_can_mix_parent_port_support`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r51`
+  - `102` scenarios
+  - `4` designs/scenario
+  - `408` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 408/0`
+  - `Yosys without-abc pass/fail = 408/0`
+  - `Yosys with-abc pass/fail = 408/0`
+  - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
+- `cargo check --all-targets --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+  - `197` lib tests, `5` main tests, `26` tool-matrix tests, and `76` integration tests passed.
+- `mdbook build /Users/richarddje/Documents/github/anvil/book`
+- `git --no-pager diff --check`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now proves direct registered sibling
+  child-input bindings that mix sibling/helper instance-output support
+  with parent data-port support without counting as registered
+  parent-composed logic. `r50` becomes the previous accumulated
+  mixed-support hierarchy bank; `r51` is the current full
+  downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/main.rs`
+- `src/ir/types.rs`
+- `src/gen/hierarchy.rs`
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+- `git_message_brief.txt`
+
+## 2026-05-01-phase4-hierarchy-r50-downstream-clean — Bank accumulated mixed-support hierarchy coverage downstream-clean
+
+**Landed as:** this commit
+
+**What changed**
+
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned
+  Yosys modes at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r50/tool_matrix_report.json`.
+- Promoted the current mixed-support coverage-only hierarchy slices into
+  a full downstream-clean bank:
+  - stateful helper-backed parent outputs that also carry parent-port
+    support;
+  - unregistered parent-composed helper child-input bindings that also
+    carry parent-port support; and
+  - unregistered stateful helper-through-parent-flop child-input
+    bindings that also carry parent-port support.
+- Refreshed continuity docs so `r50` is the latest full
+  downstream-clean Phase 4 hierarchy evidence anchor, while the prior
+  coverage-only probes remain focused policy breadcrumbs.
+
+**Why**
+
+- The previous mixed-support slices had focused tests and coverage-only
+  Phase 4 report evidence, but the latest full downstream-clean bank was
+  still `r49`. Before stacking more hierarchy routing work, the current
+  policy surface needed to be proven through Verilator, Yosys
+  without-ABC, and Yosys with-ABC.
+
+**Validation**
+
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r50`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 396/0`
+  - `Yosys without-abc pass/fail = 396/0`
+  - `Yosys with-abc pass/fail = 396/0`
+  - `saw_hierarchy_parent_cone_instance_flop_mixed_support_outputs = true`
+  - `saw_recursive_hierarchy_parent_cone_instance_flop_mixed_support_outputs = true`
+  - `saw_hierarchy_parent_cone_instance_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`
+  - `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
+
+**Impact**
+
+- The accumulated Phase 4 mixed-support hierarchy metrics are now banked
+  in a full downstream-clean report instead of only coverage-only dry
+  runs. `r49` becomes the previous recursive non-top parent-output
+  helper mixed-support full bank; `r50` is the current full
+  downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-05-01-phase4-stateful-helper-child-input-mixed-support — Gate stateful helper child-input mixed-support metrics
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added `DesignMetrics` counters and fractions for unregistered
+  parent-composed child-input bindings that consume parent-cone helper
+  outputs through parent-local flops while also carrying parent-port
+  support in the same final binding:
+  `child_input_bindings_from_parent_cone_instance_flop_mixed_support`,
+  `top_child_input_bindings_from_parent_cone_instance_flop_mixed_support`,
+  `parent_cone_instance_flop_mixed_support_child_input_binding_fraction`,
+  and
+  `top_parent_cone_instance_flop_mixed_support_child_input_binding_fraction`.
+- Extended the focused stateful parent-composed helper child-input
+  metrics regression so it proves the new mixed-support counters and
+  fractions are positive while registered helper and registered sibling
+  route counters remain zero.
+- Added Phase 4 hierarchy coverage facts for nonrecursive and recursive
+  stateful parent-composed helper child-input mixed support:
+  `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing`
+  and
+  `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing`.
+
+**Why**
+
+- The matrix already proved stateful parent-composed helper child-input
+  routes through parent-local helper Qs and separately proved
+  unregistered helper child-input mixed parent-port support. It did not
+  prove the stricter overlap where the same unregistered final
+  child-input binding both consumes a helper-sourced parent-local Q and
+  includes parent-port support. This slice makes that overlap explicit
+  in metrics and the Phase 4 coverage gate without adding a new
+  scenario.
+
+**Validation**
+
+- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_parent_composed_parent_cone_instance_flop_routes -- --nocapture`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
+
+**Impact**
+
+- Phase 4 gate-quality metrics now distinguish ordinary stateful
+  parent-composed helper child-input routes from the stricter
+  helper-through-parent-flop routes that also mix parent-port support in
+  the same unregistered child-input binding. The full downstream-clean
+  `r50` bank now carries this fact through Verilator and both repo-owned
+  Yosys modes; the earlier coverage-only dry run remains a focused
+  breadcrumb.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `USER_GUIDE.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `git_message_brief.txt`
+
+## 2026-05-01-phase4-unregistered-helper-child-input-mixed-support — Gate unregistered helper child-input mixed-support metrics
+
+**Landed as:** this commit
+
+**What changed**
+
+- Updated `src/gen/hierarchy.rs` so parent-composed child-input cones
+  that are forced to include a parent-cone helper output also try to add
+  parent data-port support into the same unregistered child-input
+  binding when the original cone lacks ports.
+- Added `DesignMetrics` counters and fractions for unregistered
+  parent-composed helper child-input bindings that mix helper output
+  support with parent-port support:
+  `child_input_bindings_from_parent_cone_instance_mixed_support`,
+  `top_child_input_bindings_from_parent_cone_instance_mixed_support`,
+  `parent_cone_instance_mixed_support_child_input_binding_fraction`, and
+  `top_parent_cone_instance_mixed_support_child_input_binding_fraction`.
+- Extended the existing budgeted helper metrics regression so it proves
+  the new mixed-support counters are positive without relying on the
+  registered helper route or helper-through-parent-flop route.
+- Added Phase 4 hierarchy coverage facts for nonrecursive and recursive
+  unregistered parent-composed helper child-input mixed support:
+  `saw_hierarchy_parent_cone_instance_mixed_support_routing` and
+  `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing`.
+
+**Why**
+
+- The matrix already proved unregistered parent-composed helper
+  child-input routes and separately proved parent-port mixed support in
+  other hierarchy routes. It did not prove that the same unregistered
+  helper-backed child-input binding carried both helper-output support
+  and parent-port support. This slice makes that overlap explicit in
+  generation, metrics, and the Phase 4 coverage gate without adding a
+  new scenario.
+
+**Validation**
+
+- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_multiple_parent_cone_instance_budget -- --nocapture`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - `coverage_gaps = []`
+  - `saw_hierarchy_parent_cone_instance_mixed_support_routing = true`
+  - `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`
+
+**Impact**
+
+- Phase 4 gate-quality metrics now distinguish ordinary unregistered
+  parent-composed helper child-input bindings from helper-backed
+  child-input bindings that also mix parent-port support. The full
+  downstream-clean `r50` bank now carries this fact through Verilator
+  and both repo-owned Yosys modes; the earlier coverage-only dry run
+  remains a focused breadcrumb.
+
+**Files touched**
+
+- `src/gen/hierarchy.rs`
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `USER_GUIDE.md`
+- `book/src/hierarchy.md`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `git_message_brief.txt`
+
+## 2026-05-01-phase4-stateful-parent-output-helper-mixed-support-metrics — Gate stateful parent-output helper mixed-support metrics
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added `DesignMetrics` counters and fractions for parent outputs that
+  reach parent-cone helper instance outputs through parent-local flops
+  while also carrying parent-port support in the same output cone:
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops_with_mixed_support`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops_with_mixed_support`,
+  `top_parent_cone_instance_flop_mixed_support_output_fraction`, and
+  `hierarchy_parent_cone_instance_flop_mixed_support_output_fraction`.
+- Added a focused metrics regression proving the deterministic
+  stateful parent-output helper route records mixed parent-port support
+  through the new counters.
+- Added Phase 4 hierarchy coverage facts for stateful helper-backed
+  parent outputs with mixed parent-port support:
+  `saw_hierarchy_parent_cone_instance_flop_mixed_support_outputs` and
+  `saw_recursive_hierarchy_parent_cone_instance_flop_mixed_support_outputs`.
+- Tightened the Phase 4 hierarchy coverage gate to require decision-site
+  attempts for the plain `hierarchy_sibling_route_prob` knob, alongside
+  the existing registered and parent-composed hierarchy knobs.
+
+**Why**
+
+- The previous `r49` policy proved recursive parent-output helper
+  mixed support and separately proved helper-through-parent-flop output
+  routes. It did not distinguish the overlap where the same parent
+  output cone reaches a helper through parent-local state and also
+  includes parent-port support. This slice makes that overlap explicit
+  in design metrics and in the Phase 4 coverage gate.
+
+**Validation**
+
+- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_stateful_parent_cone_instance_mixed_output_support -- --nocapture`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --out /tmp/anvil-tool-matrix-phase4-mixed-helper-check`
+  - `99` scenarios
+  - `4` designs/scenario
+  - `396` total designs
+  - no coverage gaps reported
+- `cargo check --all-targets --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+  - 227 unit-target tests + 75 integration tests = 302 passing tests
+
+**Impact**
+
+- Phase 4 gate-quality metrics now distinguish ordinary stateful
+  parent-output helper routes from stateful helper-backed parent-output
+  cones that also mix parent-port support. The full downstream-clean
+  `r50` bank now carries this fact through Verilator and both repo-owned
+  Yosys modes; the earlier coverage-only dry run remains a focused
+  breadcrumb.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `git_message_brief.txt`
 
 ## 2026-04-30-phase4-recursive-parent-output-helper-mixed-support-policy — Bank recursive parent-output helper mixed-support routing below the top parent
 

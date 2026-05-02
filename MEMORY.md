@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`
-  covers the live `99`-scenario policy at `4` designs/scenario
-  (`396` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `396/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`
+  covers the live `102`-scenario policy at `4` designs/scenario
+  (`408` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `408/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -54,7 +54,14 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   parent-composed helper child-input routing that also mixes parent-port
   support into the helper-sourced D cone below the top parent, plus
   recursive exact-depth-2 non-top parent-output helper routing that also
-  mixes parent-port support in the same helper-backed output cone.
+  mixes parent-port support in the same helper-backed output cone, plus
+  stateful helper-backed parent outputs that also mix parent-port
+  support, unregistered parent-composed helper child-input bindings that
+  mix helper and parent-port support, and stateful helper-through-flop
+  unregistered child-input bindings that also mix parent-port support,
+  plus direct registered sibling child-input D paths that mix sibling or
+  helper instance-output support with parent data-port support without
+  becoming registered parent-composed logic.
   Focused regressions:
   `cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`,
   `cargo test recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`,
@@ -72,6 +79,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_registered_multistage_mixed_support_routes_below_top`,
   `cargo test recursive_hierarchy_registered_helper_routes_mix_parent_ports_below_top`,
   `cargo test recursive_hierarchy_parent_outputs_mix_helper_instances_with_parent_ports_below_top`,
+  `cargo test hierarchy_registered_sibling_routes_can_mix_parent_port_support`,
+  `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
   The earlier coverage-only proofs at
@@ -101,8 +110,93 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   non-top registered sibling multistage no-helper bank, and `r47`
   recursive non-top registered multistage mixed-support no-helper bank,
   and `r48` recursive non-top registered parent-composed helper
-  mixed-support bank are now historical breadcrumbs.
-- Latest Phase 4 hierarchy slice lets parent-output helper routing below
+  mixed-support bank, `r49` recursive non-top parent-output helper
+  mixed-support bank, and `r50` accumulated mixed-support hierarchy
+  bank are now historical breadcrumbs.
+- Current uncommitted Phase 4 hierarchy batch includes direct
+  registered sibling mixed-support routing. The new default-off
+  `hierarchy_registered_sibling_mixed_support_prob` knob lets a direct
+  registered sibling route mix one parent data-port companion into a
+  sibling/helper-backed D path before the parent-local flop. The route
+  remains classified as registered sibling routing and is explicitly not
+  counted as registered parent-composed logic. New metrics include
+  `top_child_input_bindings_from_registered_sibling_mixed_support`,
+  `child_input_bindings_from_registered_sibling_mixed_support`,
+  `top_registered_sibling_mixed_support_child_input_binding_fraction`,
+  and
+  `registered_sibling_mixed_support_child_input_binding_fraction`.
+  Validation so far includes the focused metrics regression, the
+  focused pipeline regression, `cargo test --bin tool_matrix`, and the
+  full downstream-clean Phase 4 r51 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`
+  with `102` scenarios / `408` designs, `coverage_gaps = []`,
+  `saw_hierarchy_registered_sibling_mixed_support_routing = true`, and
+  `408/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- The same uncommitted Phase 4 hierarchy batch includes stateful
+  parent-composed helper child-input mixed-support metrics and
+  coverage. It distinguishes unregistered parent-composed child-input
+  bindings that consume helper-sourced parent-local Qs from the
+  stricter case where the same final binding also carries parent-port
+  support. New metrics include
+  `top_child_input_bindings_from_parent_cone_instance_flop_mixed_support`,
+  `child_input_bindings_from_parent_cone_instance_flop_mixed_support`,
+  `top_parent_cone_instance_flop_mixed_support_child_input_binding_fraction`,
+  and
+  `parent_cone_instance_flop_mixed_support_child_input_binding_fraction`.
+  Validation so far includes the focused metrics regression,
+  `cargo test --bin tool_matrix`, and a coverage-only Phase 4 dry run at
+  `/tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check/tool_matrix_report.json`
+  with `99` scenarios / `396` designs, `coverage_gaps = []`,
+  `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`,
+  and
+  `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`.
+  The full downstream-clean `r50` bank now carries these facts through
+  Verilator and both repo-owned Yosys modes; the coverage-only dry run
+  remains a focused breadcrumb.
+- The same uncommitted Phase 4 hierarchy batch also includes
+  unregistered parent-composed helper child-input mixed-support metrics
+  and coverage.
+  It distinguishes child-input bindings that reach parent-cone helper
+  outputs from the stricter case where the same unregistered
+  parent-composed binding also carries parent-port support. The
+  generator now repairs required helper-backed child-input cones by
+  adding a parent-port companion when the helper route would otherwise
+  lack ports. New metrics include
+  `top_child_input_bindings_from_parent_cone_instance_mixed_support`,
+  `child_input_bindings_from_parent_cone_instance_mixed_support`,
+  `top_parent_cone_instance_mixed_support_child_input_binding_fraction`,
+  and
+  `parent_cone_instance_mixed_support_child_input_binding_fraction`.
+  Validation so far includes the focused metrics regression,
+  `cargo test --bin tool_matrix`, and a coverage-only Phase 4 dry run at
+  `/tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check/tool_matrix_report.json`
+  with `99` scenarios / `396` designs, `coverage_gaps = []`,
+  `saw_hierarchy_parent_cone_instance_mixed_support_routing = true`, and
+  `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`.
+  The full downstream-clean `r50` bank now carries these facts through
+  Verilator and both repo-owned Yosys modes; the coverage-only dry run
+  remains a focused breadcrumb.
+- The same uncommitted Phase 4 hierarchy batch also includes stateful
+  parent-output helper mixed-support metrics and coverage. It distinguishes parent
+  outputs that reach parent-cone helper instances through parent-local
+  flops from the stricter case where the same output cone also carries
+  parent-port support. New metrics include
+  `top_outputs_reaching_parent_cone_instances_through_parent_flops_with_mixed_support`,
+  `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops_with_mixed_support`,
+  `top_parent_cone_instance_flop_mixed_support_output_fraction`, and
+  `hierarchy_parent_cone_instance_flop_mixed_support_output_fraction`.
+  The tool-matrix gate now requires nonrecursive and recursive coverage
+  facts for that overlap and also requires decision-site attempts for
+  the plain `hierarchy_sibling_route_prob` knob. Validation included
+  the focused metrics regression, `cargo test --bin tool_matrix`, a
+  coverage-only Phase 4 dry run at
+  `/tmp/anvil-tool-matrix-phase4-mixed-helper-check/tool_matrix_report.json`
+  with `99` scenarios / `396` designs and no coverage gaps,
+  `cargo check --all-targets`, and full `cargo test` with 302 passing tests.
+  The full downstream-clean `r50` bank now carries these facts through
+  Verilator and both repo-owned Yosys modes; the coverage-only dry run
+  remains a focused breadcrumb.
+- Prior Phase 4 hierarchy slice lets parent-output helper routing below
   the top parent mix parent-port support into the same helper-backed
   output cone in exact-depth-2 recursive hierarchy. With
   `hierarchy_parent_cone_instance_prob = 1.0`, helper budget `3`, two
@@ -755,7 +849,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   matrix through the dedicated
   `phase4_hier2_inst4_registered_sibling_parent_cone_instance_multistage_state`
   scenario.
-- The refreshed repo-owned Phase 4 hierarchy closure report `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json` is the latest full downstream-clean bank: **99 scenarios**, **4 designs/scenario**, **396 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, **396/0** pass-fail in Verilator plus both repo-owned Yosys modes, `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`, `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`, `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`, `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`, `saw_recursive_hierarchy_registered_multistage_routing = true`, `saw_recursive_hierarchy_registered_mixed_support_routing = true`, `saw_hierarchy_registered_mixed_support_routing = true`, `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`, `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`, `saw_recursive_multiple_parent_cone_instances_per_parent = true`, `saw_multiple_parent_cone_instances_per_parent = true`, `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`, `saw_recursive_hierarchy_parent_cone_instance_outputs = true`, `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`, and `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`. The failed `r32` full attempt is root-cause evidence for the CaseMux/Casez exact-selector shift-cleanup warning; `r33` is the pre-compact-normalization direct-helper bank, `r34` is the previous recursive direct-helper full bank, `r35` is the previous recursive direct registered-helper full bank, `r36` is the previous recursive registered parent-composed helper full bank, `r37` is the previous recursive multi-stage direct registered-helper full bank, `r38` is the previous recursive multi-stage registered parent-composed helper full bank, `r39` is the previous recursive non-top parent-output helper full bank, `r40` is the previous recursive non-top stateful parent-output helper full bank, `r41` is the previous recursive non-top parent-output multi-helper budget full bank, `r42` is the previous recursive non-top stateful multi-helper budget full bank, `r43` is the previous recursive non-top child-input multi-helper budget full bank, `r44` is the previous recursive non-top registered mixed-support full bank, `r45` is the previous recursive non-top registered parent-composed multistage no-helper full bank, `r46` is the previous recursive non-top registered sibling multistage no-helper full bank, `r47` is the previous recursive non-top registered multistage mixed-support no-helper full bank, and `r48` is the previous recursive non-top registered parent-composed helper mixed-support full bank.
+- The refreshed repo-owned Phase 4 hierarchy closure report `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json` is the latest full downstream-clean bank: **102 scenarios**, **4 designs/scenario**, **408 total designs**, `artifact_kind = "design"`, `coverage_gaps = []`, **408/0** pass-fail in Verilator plus both repo-owned Yosys modes, `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`, `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`, `saw_recursive_hierarchy_registered_multistage_mixed_support_routing = true`, `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`, `saw_recursive_hierarchy_registered_multistage_routing = true`, `saw_recursive_hierarchy_registered_mixed_support_routing = true`, `saw_hierarchy_registered_mixed_support_routing = true`, `saw_hierarchy_registered_sibling_mixed_support_routing = true`, `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`, `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`, `saw_recursive_multiple_parent_cone_instances_per_parent = true`, `saw_multiple_parent_cone_instances_per_parent = true`, `saw_recursive_hierarchy_parent_cone_instance_flop_outputs = true`, `saw_recursive_hierarchy_parent_cone_instance_outputs = true`, `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`, `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`, and `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`. The failed `r32` full attempt is root-cause evidence for the CaseMux/Casez exact-selector shift-cleanup warning; `r33` is the pre-compact-normalization direct-helper bank, `r34` is the previous recursive direct-helper full bank, `r35` is the previous recursive direct registered-helper full bank, `r36` is the previous recursive registered parent-composed helper full bank, `r37` is the previous recursive multi-stage direct registered-helper full bank, `r38` is the previous recursive multi-stage registered parent-composed helper full bank, `r39` is the previous recursive non-top parent-output helper full bank, `r40` is the previous recursive non-top stateful parent-output helper full bank, `r41` is the previous recursive non-top parent-output multi-helper budget full bank, `r42` is the previous recursive non-top stateful multi-helper budget full bank, `r43` is the previous recursive non-top child-input multi-helper budget full bank, `r44` is the previous recursive non-top registered mixed-support full bank, `r45` is the previous recursive non-top registered parent-composed multistage no-helper full bank, `r46` is the previous recursive non-top registered sibling multistage no-helper full bank, `r47` is the previous recursive non-top registered multistage mixed-support no-helper full bank, `r48` is the previous recursive non-top registered parent-composed helper mixed-support full bank, `r49` is the previous recursive non-top parent-output helper mixed-support full bank, and `r50` is the previous accumulated mixed-support hierarchy full bank.
 - The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22/tool_matrix_report.json` is root-cause evidence only: the stale total-design budget ran 42 scenarios at 3 designs/scenario, or 126 total designs. The live gate now uses a direct four-designs-per-scenario Phase 4 floor.
 - That refreshed report covers the current representative hierarchy surface rather than only the older wrapper baseline. Its saved coverage facts include:
   - `hierarchy_depths = ["1", "2", "2:3"]`
@@ -774,6 +868,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   - `saw_hierarchy_parent_local_flops = true`
   - `saw_hierarchy_parent_port_composed_outputs = true`
   - `saw_hierarchy_registered_mixed_support_routing = true`
+  - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
   - `saw_hierarchy_registered_multistage_routing = true`
   - `saw_hierarchy_registered_multistage_sibling_routing = true`
   - `saw_recursive_hierarchy_registered_multistage_sibling_routing = true`
@@ -863,11 +958,11 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - `src/ir/compact.rs` now applies the same "small support is not enough by itself" lesson to post-construction semantic merging too: large settled cones with tiny leaf support no longer trigger an unbounded semantic truth-table proof in `merge_equivalent_gates`; once the reachable cone exceeds the merge budget, compaction falls back cleanly to the structural proof path. Cleanup remains stricter still (width <= 8, support <= 10 bits, <= 3 canonical leaf endpoints), while its cheap warning-oriented revisit paths for unsigned compares and bounds-provable shifts stay live.
 - The docs and book still say the NodeId doctrine plainly and consistently: `identity_mode = node-id` means full factorization by definition, `relaxed` is the only intentional semantic off-switch, and `factorization_level` is the current-build enforcement/proof-depth dial inside `node-id`, not an alternate definition of it.
 - The roadmap still carries new not-started artifact-family phases beyond the current RTL lanes: parameterization, aggregates, advanced motifs, oracle-backed micro-designs, frontend/elaboration accept corpora, and a future multi-artifact umbrella.
-- **Last completed slice:** Banked recursive non-top parent-output helper mixed-support routing through full
+- **Last completed slice:** Added direct registered sibling mixed-support routing and banked it through full
   downstream tools at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`
-  (`396` designs, `coverage_gaps = []`, `396/0` in Verilator plus both
-  repo-owned Yosys modes). This supersedes the old `r23`/`r24` evidence
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`
+  (`408` designs, `coverage_gaps = []`, `408/0` in Verilator plus both
+  repo-owned Yosys modes). This covers direct registered sibling D paths that mix sibling/helper instance-output support with parent-port support without becoming registered parent-composed logic, and carries forward the old `r23`/`r24` evidence
   split, the `r25` direct-helper full bank, the `r26` multi-stage
   registered sibling bank, the `r27` stateful parent-output helper bank,
   the `r28` multi-stage direct registered sibling helper bank, the
@@ -997,8 +1092,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   and the refreshed repo-owned Phase 4 hierarchy report that first
   banked the route was
   `/tmp/anvil-tool-matrix-phase4-hierarchy-r21/tool_matrix_report.json`.
-  The current full `r47` gate supersedes that historical report with
-  `coverage_gaps = []`, `396/0` pass-fail in Verilator plus both
+  The current full `r51` gate supersedes that historical report with
+  `coverage_gaps = []`, `408/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, and saved coverage facts including
   `saw_hierarchy_registered_parent_composed_routing = true`.
 - **Prior slice:** Landed registered sibling routing through
@@ -1165,8 +1260,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Doctrinal note (deferred):** the motif-trait refactor is explicitly deferred per user direction. After landing several more block motifs, revisit to factor the copy-paste pattern into a `Motif` trait + registry.
 - **Conceptual advance this session:** the operators-vs-blocks distinction is now load-bearing doctrine. Operators (associative primitives) generalize by arity; blocks (mux, flop, future memory/FSM) generalize by structural parameters (port counts, encoding choices, feedback topology). Subsequent slices use this framework.
 - **Next up (ordered by the four-gap steering map):**
-  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first registered sibling route plus its multi-stage parent-Q chain, first registered parent-composed child-input route, registered mixed-support child-input routing, recursive non-top registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, recursive non-top multi-stage registered parent-composed routing without helpers, recursive non-top multi-stage registered sibling routing without helpers, recursive non-top multi-stage registered mixed-support routing without helpers, recursive non-top registered helper mixed-support routing, recursive non-top parent-output helper mixed-support routing, parent-cone helper-instance parent-composed child-input, stateful parent-composed helper child-input routing, recursive non-top stateful parent-composed helper child-input routing, recursive non-top direct sibling helper routing, recursive non-top direct registered sibling helper routing, recursive non-top registered parent-composed helper routing, recursive non-top multi-stage direct registered sibling helper routing, recursive non-top multi-stage registered parent-composed helper routing, recursive non-top parent-output helper routing, recursive non-top stateful parent-output helper routing, recursive non-top parent-output multi-helper budgets, recursive non-top child-input multi-helper budgets, recursive non-top stateful multi-helper budgets, direct sibling, direct registered sibling, multi-stage direct registered sibling helper, multi-stage registered parent-composed helper, registered child-input D-cone, budgeted parent-output routes, stateful parent-output helper routes, budgeted parent-cone helper allocation, generator-global module-name allocation, the 66-scenario / 264-design full `r31` bank, the 69-scenario / 276-design full `r34` bank, the 72-scenario / 288-design full `r35` bank, the 75-scenario / 300-design full `r36` bank, the 78-scenario / 312-design full `r37` bank, the 81-scenario / 324-design full `r38` bank, the 84-scenario / 336-design full `r39` bank, the 90-scenario / 360-design full `r43` bank, the 93-scenario / 372-design full `r44` bank, the 96-scenario / 384-design full `r45` bank, the 99-scenario / 396-design full `r46` bank, the 99-scenario / 396-design full `r47` bank, the 99-scenario / 396-design full `r48` bank, and the 99-scenario / 396-design full `r49` bank are live; the next structural work is broader registered hierarchy routing/composition and hierarchy-aware identity.
-  1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r49` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, because helper-through-state metrics are dependency/memo based instead of recursive-cone expensive, because CaseMux/Casez exact-selector bounds clean warning-prone shifts, because post-remap idempotent duplicate cleanup preserves the strict operand doctrine, because mixed helper-support is measured directly instead of inferred from separate counters, and because the gate budget directly preserves four designs/scenario as the scenario set grows.
+  0. **Deepen Phase 4 hierarchy beyond the current banked gate.** Mixed parent-port / child-output parent composition, the first registered sibling route plus its multi-stage parent-Q chain, first registered parent-composed child-input route, registered mixed-support child-input routing, recursive non-top registered mixed-support child-input routing, the first multi-stage registered parent-composed chain, recursive non-top multi-stage registered parent-composed routing without helpers, recursive non-top multi-stage registered sibling routing without helpers, recursive non-top multi-stage registered mixed-support routing without helpers, recursive non-top registered helper mixed-support routing, recursive non-top parent-output helper mixed-support routing, parent-cone helper-instance parent-composed child-input, stateful parent-composed helper child-input routing, recursive non-top stateful parent-composed helper child-input routing, recursive non-top direct sibling helper routing, recursive non-top direct registered sibling helper routing, recursive non-top registered parent-composed helper routing, recursive non-top multi-stage direct registered sibling helper routing, recursive non-top multi-stage registered parent-composed helper routing, recursive non-top parent-output helper routing, recursive non-top stateful parent-output helper routing, recursive non-top parent-output multi-helper budgets, recursive non-top child-input multi-helper budgets, recursive non-top stateful multi-helper budgets, direct sibling, direct registered sibling, multi-stage direct registered sibling helper, multi-stage registered parent-composed helper, registered child-input D-cone, budgeted parent-output routes, stateful parent-output helper routes, budgeted parent-cone helper allocation, generator-global module-name allocation, the 66-scenario / 264-design full `r31` bank, the 69-scenario / 276-design full `r34` bank, the 72-scenario / 288-design full `r35` bank, the 75-scenario / 300-design full `r36` bank, the 78-scenario / 312-design full `r37` bank, the 81-scenario / 324-design full `r38` bank, the 84-scenario / 336-design full `r39` bank, the 90-scenario / 360-design full `r43` bank, the 93-scenario / 372-design full `r44` bank, the 96-scenario / 384-design full `r45` bank, the 99-scenario / 396-design full `r46` bank, the 99-scenario / 396-design full `r47` bank, the 99-scenario / 396-design full `r48` bank, the 99-scenario / 396-design full `r49` bank, the 99-scenario / 396-design full `r50` bank, and the 102-scenario / 408-design full `r51` bank are live; the next structural work is broader registered hierarchy routing/composition and hierarchy-aware identity.
+  1. **Keep the hierarchy gate representative without letting it drift back into leaf-stress cost or stale total-budget arithmetic.** The banked `r51` result closes cleanly because the Phase 4 sequential profiles are hierarchy-focused rather than borrowing the heaviest Phase 1 leaf stress, because helper-through-state metrics are dependency/memo based instead of recursive-cone expensive, because CaseMux/Casez exact-selector bounds clean warning-prone shifts, because post-remap idempotent duplicate cleanup preserves the strict operand doctrine, because mixed helper-support is measured directly instead of inferred from separate counters, because direct registered sibling mixed-support is measured separately from registered parent-composed routing, and because the gate budget directly preserves four designs/scenario as the scenario set grows.
   2. **Broaden semantic identity beyond the current bounded fragment.** `merge_equivalent_gates` now covers small-support combinational cones at `e-graph`, and `merge_equivalent_flops` now covers both the endpoint-aware normalized-proof subset and a bounded small-support semantic proof. The next factorization question is stronger equivalence across larger supports, richer D-cone graphs, and future state/hierarchy motifs, but only when it can preserve the same canonical leaf endpoints and supply a real proof of equal functionality.
   3. **Turn the new artifact-family mandate into executable architecture.** The next docs-to-code bridge is deciding how ANVIL selects artifact families above the current leaf-module lane, how expected-facts manifests are represented, and what minimum source-level parameter / hierarchy / package IR is needed for the first oracle-backed micro-design and frontend/elaboration accept corpora.
   4. **Memories (medium).** Inferrable single-port / simple-dual-port memory patterns (`reg [W-1:0] mem [0:DEPTH-1]` with an always_ff block driving read/write). Knob for depth range.
@@ -1343,7 +1438,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Known gaps vs `ROADMAP.md`
 - Phase 1 exit criterion (1000 modules through Verilator + Yosys) is met locally via `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`, the Phase 2 sharing exit criterion is met locally via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`, and the Phase 3 structured-surface gate is met locally via `/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`. The next real roadmap gap is therefore deeper Phase 4 hierarchy, not leaf-lane closure.
-- Phase 4 hierarchy is started and the latest full downstream-clean bank is `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`, covering wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, multi-stage registered sibling-routed child-input binding, recursive non-top multi-stage registered sibling-routed child-input binding without helpers, multi-stage direct registered sibling helper binding, multi-stage registered parent-composed helper binding, stateful parent-composed helper child-input binding, recursive non-top stateful parent-composed helper child-input binding, recursive non-top direct sibling helper binding, recursive non-top direct registered sibling helper binding, recursive non-top multi-stage direct registered sibling helper binding, recursive non-top multi-stage registered parent-composed helper binding, recursive non-top registered parent-composed helper binding, recursive non-top registered parent-composed helper mixed-support binding, recursive non-top parent-output helper binding, recursive non-top parent-output helper mixed-support binding, recursive non-top stateful parent-output helper binding, recursive non-top parent-output multi-helper budget evidence, recursive non-top child-input multi-helper budget evidence, recursive non-top stateful multi-helper budget evidence, registered parent-composed child-input binding, registered mixed-support child-input binding, recursive non-top registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, recursive non-top multi-stage registered parent-composed child-input binding without helpers, recursive non-top multi-stage registered mixed-support child-input binding without helpers, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, direct sibling helper binding, direct registered sibling helper binding, parent-cone helper-instance parent-output routing, stateful parent-output helper routing, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, generator-global module-name allocation, and local parent state at 99 scenarios / 396 designs. The roadmap gap is broader registered hierarchy routing/composition beyond the current helper-route slices and future hierarchy-aware identity.
+- Phase 4 hierarchy is started and the latest full downstream-clean bank is `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`, covering wrapper, recursive, mixed-depth recursive, explicit library-vs-on-demand child-sourcing profiles, exact profiled child-interface synthesis, sibling-routed child-input binding, registered sibling-routed child-input binding, direct registered sibling mixed-support child-input binding, multi-stage registered sibling-routed child-input binding, recursive non-top multi-stage registered sibling-routed child-input binding without helpers, multi-stage direct registered sibling helper binding, multi-stage registered parent-composed helper binding, stateful parent-composed helper child-input binding, recursive non-top stateful parent-composed helper child-input binding, recursive non-top direct sibling helper binding, recursive non-top direct registered sibling helper binding, recursive non-top multi-stage direct registered sibling helper binding, recursive non-top multi-stage registered parent-composed helper binding, recursive non-top registered parent-composed helper binding, recursive non-top registered parent-composed helper mixed-support binding, recursive non-top parent-output helper binding, recursive non-top parent-output helper mixed-support binding, recursive non-top stateful parent-output helper binding, recursive non-top parent-output multi-helper budget evidence, recursive non-top child-input multi-helper budget evidence, recursive non-top stateful multi-helper budget evidence, registered parent-composed child-input binding, registered mixed-support child-input binding, recursive non-top registered mixed-support child-input binding, multi-stage registered parent-composed child-input binding, recursive non-top multi-stage registered parent-composed child-input binding without helpers, recursive non-top multi-stage registered mixed-support child-input binding without helpers, mixed parent-port / child-output parent outputs, parent-composed child-input binding, parent-cone helper-instance child-input binding, direct sibling helper binding, direct registered sibling helper binding, parent-cone helper-instance parent-output routing, stateful parent-output helper routing, budgeted parent-cone helper allocation, registered helper-sourced child-input D cones, generator-global module-name allocation, and local parent state at 102 scenarios / 408 designs. The roadmap gap is broader registered hierarchy routing/composition beyond the current helper-route slices and future hierarchy-aware identity.
 - Parameterization is still not started.
 
 ## Session handoff notes

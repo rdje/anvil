@@ -1029,6 +1029,76 @@ fn recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top() {
 }
 
 #[test]
+fn hierarchy_registered_sibling_routes_can_mix_parent_port_support() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 1.0,
+            hierarchy_registered_sibling_mixed_support_prob: 1.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("registered sibling mixed-support hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "registered sibling mixed-support hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.child_input_bindings_from_registered_instance_outputs > 0,
+            "expected direct registered sibling child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_sibling_mixed_support > 0,
+            "expected direct registered sibling D paths to mix parent ports with child outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic,
+            0,
+            "direct registered sibling mixed-support routes should not be counted as registered parent-composed D cones for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_mixed_support,
+            0,
+            "direct registered sibling mixed-support routes should stay separate from registered parent-composed mixed support for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.registered_sibling_mixed_support_child_input_binding_fraction > 0.0,
+            "expected non-zero registered sibling mixed-support binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top() {
     for strategy in [
         ConstructionStrategy::Sequential,

@@ -292,6 +292,12 @@ struct Cli {
     #[arg(long)]
     hierarchy_registered_sibling_route_prob: Option<f64>,
 
+    /// Probability that a direct registered sibling route mixes parent
+    /// data-port support into the flop D side before driving the later
+    /// child input.
+    #[arg(long)]
+    hierarchy_registered_sibling_mixed_support_prob: Option<f64>,
+
     /// Probability that a parent binds a later child data input through
     /// parent-local combinational logic over already-available parent
     /// sources, then one local parent flop. The logic can mix parent
@@ -634,6 +640,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         child_instances_per_module_by_depth,
         hierarchy_sibling_route_prob: cli.hierarchy_sibling_route_prob,
         hierarchy_registered_sibling_route_prob: cli.hierarchy_registered_sibling_route_prob,
+        hierarchy_registered_sibling_mixed_support_prob: cli
+            .hierarchy_registered_sibling_mixed_support_prob,
         hierarchy_registered_child_input_cone_prob: cli.hierarchy_registered_child_input_cone_prob,
         hierarchy_child_input_cone_prob: cli.hierarchy_child_input_cone_prob,
         hierarchy_parent_cone_instance_prob: cli.hierarchy_parent_cone_instance_prob,
@@ -733,6 +741,8 @@ mod tests {
             "1=2:3",
             "--hierarchy-registered-sibling-route-prob",
             "0.8",
+            "--hierarchy-registered-sibling-mixed-support-prob",
+            "0.7",
             "--hierarchy-registered-child-input-cone-prob",
             "0.85",
             "--hierarchy-child-input-cone-prob",
@@ -774,6 +784,10 @@ mod tests {
             ]))
         );
         assert_eq!(overrides.hierarchy_registered_sibling_route_prob, Some(0.8));
+        assert_eq!(
+            overrides.hierarchy_registered_sibling_mixed_support_prob,
+            Some(0.7)
+        );
         assert_eq!(
             overrides.hierarchy_registered_child_input_cone_prob,
             Some(0.85)

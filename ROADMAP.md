@@ -308,7 +308,11 @@ evidence.
     bind from an earlier sibling output through one local parent flop.
     When `--hierarchy-parent-cone-instance-prob` also fires, that direct
     registered route can allocate a helper child and use the helper
-    output as the parent-flop D source.
+    output as the parent-flop D source. The default-off
+    `--hierarchy-registered-sibling-mixed-support-prob <p>` sub-route
+    can mix a parent data-port companion into the direct registered
+    sibling D path while keeping the route out of the registered
+    parent-composed bucket.
     `--hierarchy-registered-child-input-cone-prob <p>` adds the
     registered parent-composed route: a later child input may bind
     through parent-local logic over already-available parent sources
@@ -339,7 +343,9 @@ evidence.
     route now has mixed parent-port / child-output support plus a first
     multi-stage parent-composed chaining subcase, and the direct
     registered sibling route can now chain through earlier parent-local
-    Qs as a separate multi-stage child-to-child surface. The helper
+    Qs as a separate multi-stage child-to-child surface, and can now
+    optionally mix parent-port support into the direct registered D path
+    before the parent-local flop. The helper
     version can also seed one parent Q from a parent-cone helper and
     feed a later parent flop, and registered parent-composed helper
     routes can now reuse a helper-sourced parent Q in later
@@ -349,11 +355,11 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
-    child-sourcing axis, local parent state, registered sibling routing,
-    registered parent-composed child-input routing, registered
+    child-sourcing axis, local parent state, registered sibling routing, direct registered sibling mixed-support
+    routing, registered parent-composed child-input routing, registered
     mixed-support routing, multi-stage registered parent-composed
     routing, mixed parent-port / child-output parent outputs,
     parent-cone helper-instance child-input routing, parent-cone
@@ -386,8 +392,8 @@ evidence.
     parent-composed helper D-cone routing with mixed parent-port
     support, plus recursive non-top parent-output helper routing that
     mixes parent data-port support in the same helper-backed output
-    cone. The `r49`
-    report records `99` scenarios, `4` designs/scenario, `396` total designs,
+    cone, plus direct registered sibling mixed-support routing. The `r51`
+    report records `102` scenarios, `4` designs/scenario, `408` total designs,
     `coverage_gaps = []`,
     `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`,
     `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`,
@@ -402,11 +408,18 @@ evidence.
     `saw_recursive_hierarchy_parent_cone_instance_outputs = true`,
     `saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing = true`,
+    `saw_hierarchy_registered_sibling_mixed_support_routing = true`,
     `saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing = true`,
     `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing = true`,
-    and `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+    `saw_hierarchy_parent_cone_instance_flop_mixed_support_outputs = true`,
+    `saw_recursive_hierarchy_parent_cone_instance_flop_mixed_support_outputs = true`,
+    `saw_hierarchy_parent_cone_instance_mixed_support_routing = true`,
+    `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`,
+    `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`,
+    `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`,
+    and `408/0` pass-fail in Verilator plus both repo-owned Yosys modes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -434,12 +447,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
-`99` scenarios, `396` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
+`102` scenarios, `408` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`396/0` in Verilator plus both repo-owned Yosys modes). The `r49` report
+(`408/0` in Verilator plus both repo-owned Yosys modes). The `r51` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -448,6 +461,9 @@ proves all of the current representative hierarchy axes directly:
 - child-instance profiles `2`, `4`, `2:3`, and `1:3`
 - registered sibling-routed hierarchy child inputs through parent-local
   state
+- direct registered sibling mixed-support hierarchy child inputs that
+  mix parent-port support into the direct registered D path without
+  registered parent-composed classification
 - multi-stage registered sibling-routed hierarchy child inputs that
   chain through earlier parent-local Qs without parent-composed logic
 - multi-stage direct registered sibling helper routes where a helper
@@ -493,6 +509,11 @@ proves all of the current representative hierarchy axes directly:
 - recursive non-top parent-cone helper instances that source parent
   outputs while also mixing parent data-port support below the top
   parent
+- stateful parent-output helper routes that also mix parent-port support
+- unregistered parent-composed helper child-input routes that also mix
+  parent-port support
+- stateful helper-through-flop child-input routes that also mix
+  parent-port support
 - parent-cone helper instances that source parent outputs through
   parent-local flops
 - parent-cone helper instances that source parent-composed child-input
@@ -585,8 +606,8 @@ top_outputs_reaching_parent_cone_instance_mixed_support`,
 `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`.
 The live Phase 4 matrix policy now requires
 `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs`;
-the full downstream-clean `r49` report proves it with
-`coverage_gaps = []` and `396/0` pass-fail in Verilator plus both
+the full downstream-clean `r49` report first proved it, `r50` banked the accumulated mixed-support surface, and `r51` carries it forward with
+`coverage_gaps = []` and `408/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 **Focused recursive non-top parent-output helper budget proof (new targeted evidence):**
@@ -1197,8 +1218,11 @@ non-top multi-stage registered sibling no-helper routing artifact.
 non-top multi-stage registered mixed-support no-helper routing artifact.
 `r48` is the previous full downstream-clean 99-scenario recursive
 non-top registered parent-composed helper mixed-support routing artifact.
-`r49` is the latest full downstream-clean 99-scenario recursive non-top
-parent-output helper mixed-support routing artifact.
+`r49` is the previous full downstream-clean 99-scenario recursive
+non-top parent-output helper mixed-support routing artifact. `r50` is
+the previous full downstream-clean 99-scenario accumulated mixed-support
+hierarchy artifact. `r51` is the latest full downstream-clean
+102-scenario direct registered sibling mixed-support hierarchy artifact.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -1249,7 +1273,12 @@ same 99-scenario matrix. `r48` adds and banks the recursive non-top
 registered parent-composed helper mixed-support routing policy on that
 same 99-scenario matrix. `r49` adds and banks the recursive non-top
 parent-output helper mixed-support routing policy on that same
-99-scenario matrix.
+99-scenario matrix. `r50` banks the accumulated stateful parent-output
+helper mixed-support, unregistered helper child-input mixed-support, and
+stateful helper-through-flop child-input mixed-support policy facts
+through Verilator and both repo-owned Yosys modes on the same
+99-scenario matrix. `r51` adds and banks direct registered sibling
+mixed-support routing on the expanded 102-scenario matrix.
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue

@@ -58,6 +58,150 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
+### Phase 4 r51 adds direct registered sibling mixed support downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r51/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 102 scenarios / 408 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `408/0`, Yosys without-ABC
+`408/0`, and Yosys with-ABC `408/0`.
+
+This bank adds the default-off
+`hierarchy_registered_sibling_mixed_support_prob` route. When a direct
+registered sibling D source has instance-output support but lacks parent
+ports, the route may mix in one compatible parent data-port companion
+before the parent-local flop. The mixed D expression is wrapped before
+registration so the binding still proves direct registered sibling
+routing and does not satisfy the registered parent-composed classifier.
+
+The new metric is intentionally narrow:
+`binding_uses_registered_sibling_mixed_support` requires a final
+child-input binding sourced by a `FlopQ`, port support in that flop's D
+cone, virtual instance-output support in the same D cone, and no
+registered parent-composed D-cone classification. The focused pipeline
+regression disables parent-composed routes and proves positive direct
+registered sibling mixed-support while keeping registered
+parent-composed and registered mixed-support parent-composed counters at
+zero.
+
+Current-code validation includes the focused metrics regression, the
+focused pipeline regression, `cargo test --bin tool_matrix`, and the
+full r51 Phase 4 hierarchy gate through Verilator plus both repo-owned
+Yosys modes.
+
+### Phase 4 r50 banks accumulated mixed-support hierarchy coverage downstream-clean
+The previous accumulated mixed-support Phase 4 hierarchy evidence anchor is
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r50/tool_matrix_report.json`. It
+kept the live policy at 99 scenarios / 396 designs with four designs per
+scenario and recorded `coverage_gaps = []`, `artifact_kind = "design"`,
+Verilator `396/0`, Yosys without-ABC `396/0`, and Yosys with-ABC
+`396/0`.
+
+This bank promotes the three current mixed-support coverage-only slices
+into the full downstream-clean surface: stateful helper-backed parent
+outputs with parent-port support, unregistered parent-composed helper
+child-input mixed support, and stateful helper-through-parent-flop
+unregistered child-input mixed support. The prior coverage-only report
+trees remain useful focused breadcrumbs, and `r50` remains the previous
+full downstream-clean evidence for those policy facts before `r51` carried
+them forward.
+
+### Phase 4 stateful parent-composed helper child-input mixed support
+The hierarchy gate now distinguishes the stateful parent-composed helper
+child-input route from the stricter overlap where the same unregistered
+final child-input binding both consumes a helper-sourced parent-local Q
+and also carries parent data-port support. This is separate from the
+plain helper-through-parent-flop child-input counter and from the plain
+unregistered helper mixed-support counter.
+
+The metric intentionally requires both halves on the same binding:
+`binding_uses_parent_cone_instance_flop_mixed_support` first reuses the
+helper-through-parent-flop classifier, then requires parent-port support
+on the final child-input binding's dependency set. Because the
+helper-through-parent-flop classifier rejects final `FlopQ` registered
+bindings, the new metric stays focused on unregistered parent-composed
+child-input logic that reads helper-sourced parent state.
+
+The Phase 4 coverage facts are narrow. The nonrecursive fact requires
+child-input cone routing, parent-cone helper instances, parent-local
+flops, no direct sibling or registered helper routes in the focused
+lane, positive
+`child_input_bindings_from_parent_cone_instance_flop_mixed_support`, and
+zero registered helper counters. The recursive fact additionally
+requires the hierarchy-wide stateful helper and mixed-support counters
+to exceed their top-only counterparts.
+
+Current-code validation includes the focused metrics regression,
+`cargo test --bin tool_matrix`, and a coverage-only 99-scenario /
+396-design Phase 4 dry run at
+`/tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check`
+with `coverage_gaps = []`,
+`saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`,
+and
+`saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`.
+The previous full downstream-clean `r50` bank carried these facts through
+Verilator and both repo-owned Yosys modes; `r51` carries them forward, and
+the coverage-only dry run remains a focused breadcrumb.
+### Phase 4 unregistered parent-composed helper child-input mixed support
+The hierarchy gate now distinguishes parent-composed child-input
+bindings that merely reach parent-cone helper outputs from the stricter
+overlap where the same unregistered binding also carries parent data-port
+support. The generator now repairs required helper-backed child-input
+cones by adding a parent-port companion when the helper route would
+otherwise lack ports.
+
+The metric is intentionally separate from the registered helper
+mixed-support route: `binding_uses_parent_cone_instance_mixed_support`
+rejects final `FlopQ` child-input bindings and requires the final
+binding to be parent-composed logic. The focused regression reuses the
+budgeted helper case because `max_parent_cone_instances_per_module = 3`
+already forces helper-backed child-input bindings without needing a new
+scenario.
+
+The Phase 4 coverage facts are also narrow. The nonrecursive fact
+requires unregistered child-input cones, helper instances, no
+parent-flop route, positive
+`child_input_bindings_from_parent_cone_instance_mixed_support`, and zero
+registered helper child-input bindings. The recursive fact additionally
+requires the non-top hierarchy counters to exceed the top counters while
+helper-through-flop and registered-helper counters remain zero.
+
+Current-code validation includes the focused metrics regression,
+`cargo test --bin tool_matrix`, and a coverage-only 99-scenario /
+396-design Phase 4 dry run at
+`/tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check`
+with `coverage_gaps = []`,
+`saw_hierarchy_parent_cone_instance_mixed_support_routing = true`, and
+`saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing =
+true`. The full downstream-clean `r50` bank now carries these facts
+through Verilator and both repo-owned Yosys modes; the coverage-only dry
+run remains a focused breadcrumb.
+
+### Phase 4 stateful parent-output helper mixed-support metrics
+The hierarchy gate now distinguishes parent outputs that reach
+parent-cone helper instance outputs through parent-local flops from the
+stricter overlap where that same output cone also carries parent-port
+support. The implementation adds hierarchy/top counters and fractions in
+`DesignMetrics`, plus nonrecursive and recursive coverage facts in
+`src/bin/tool_matrix.rs`.
+
+The recursive fact stays intentionally narrow: it requires the
+hierarchy-wide mixed-through-flop counter to exceed the top-only counter
+while child-input helper and registered-helper binding counters stay
+zero, so the proof remains a parent-output route instead of drifting
+into child-input helper evidence. The Phase 4 required-knob list also
+now includes the plain `hierarchy_sibling_route_prob` attempt, closing
+the last missing decision-site requirement for the direct sibling route
+axis.
+
+Validation included the focused metrics regression,
+`cargo test --bin tool_matrix`, a coverage-only 99-scenario / 396-design
+Phase 4 dry run at
+`/tmp/anvil-tool-matrix-phase4-mixed-helper-check`,
+`cargo check --all-targets`, and the full `cargo test` suite with 302 passing
+tests. The full downstream-clean `r50` bank now carries these facts
+through Verilator and both repo-owned Yosys modes; the coverage-only dry
+run remains a focused breadcrumb.
 
 ### Phase 4 r49 banks recursive parent-output helper mixed-support downstream-clean
 The live Phase 4 hierarchy policy now requires recursive non-top parent
@@ -72,7 +216,7 @@ both be true in a design while describing different parent outputs. The
 new `*_outputs_reaching_parent_cone_instance_mixed_support` counters
 make the overlap explicit.
 
-The current full downstream-clean evidence anchor is
+The full downstream-clean evidence anchor for that slice was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r49/tool_matrix_report.json`:
 `99` scenarios, `4` designs/scenario, `396` total designs,
 `coverage_gaps = []`,
@@ -82,7 +226,9 @@ The current full downstream-clean evidence anchor is
 `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`
 with `396/0` pass-fail in Verilator plus both repo-owned Yosys modes.
 The previous recursive non-top registered parent-composed helper
-mixed-support full bank is `r48`.
+mixed-support full bank is `r48`; `r50` is the previous accumulated
+mixed-support hierarchy bank, and `r51` is the current full downstream-clean
+Phase 4 hierarchy bank.
 
 ### Phase 4 r48 banks recursive registered helper mixed-support routing downstream-clean
 The live Phase 4 hierarchy policy now requires the recursive
@@ -102,7 +248,7 @@ same registered D cone. The new
 `registered_parent_cone_instance_mixed_support_*` counters make that
 overlap explicit.
 
-The current full downstream-clean evidence anchor is
+The full downstream-clean evidence anchor for that slice was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r48/tool_matrix_report.json`:
 `99` scenarios, `4` designs/scenario, `396` total designs,
 `coverage_gaps = []`,
@@ -185,7 +331,7 @@ route has enough earlier sources to force both the first registered
 binding and the later Q-reuse binding across every construction
 strategy.
 
-The current full downstream-clean evidence anchor is
+The full downstream-clean evidence anchor for that slice was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r46/tool_matrix_report.json`:
 `99` scenarios, `4` designs/scenario, `396` total designs,
 `coverage_gaps = []`,
@@ -214,7 +360,7 @@ It uses four child instances per recursive parent because the two-child
 registered mixed-support calibration is too sparse to force this
 multi-stage subcase across every construction strategy.
 
-The current full downstream-clean evidence anchor is
+The full downstream-clean evidence anchor for that slice was
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r45/tool_matrix_report.json`:
 `96` scenarios, `4` designs/scenario, `384` total designs,
 `coverage_gaps = []`,

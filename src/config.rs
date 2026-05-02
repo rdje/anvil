@@ -81,6 +81,9 @@ fn default_hierarchy_parent_flop_prob() -> f64 {
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
+fn default_hierarchy_registered_sibling_mixed_support_prob() -> f64 {
+    0.0
+}
 
 fn default_hierarchy_registered_child_input_cone_prob() -> f64 {
     0.0
@@ -438,6 +441,14 @@ pub struct Config {
     /// unless explicitly requested.
     #[serde(default = "default_hierarchy_registered_sibling_route_prob")]
     pub hierarchy_registered_sibling_route_prob: f64,
+    /// Probability that a direct registered sibling route also mixes a
+    /// parent data-port companion into the flop D side before driving
+    /// the later child input. This keeps the direct registered
+    /// child-to-child route live while exercising parent-port support
+    /// in the same D cone. Default 0.0 preserves the original direct
+    /// registered sibling structure unless explicitly requested.
+    #[serde(default = "default_hierarchy_registered_sibling_mixed_support_prob")]
+    pub hierarchy_registered_sibling_mixed_support_prob: f64,
     /// Probability that a parent binds a later child data input through
     /// local parent combinational logic over already-available parent
     /// sources and then one local parent flop. When parent data inputs
@@ -617,6 +628,8 @@ impl Default for Config {
             hierarchy_sibling_route_prob: 0.35,
             hierarchy_registered_sibling_route_prob:
                 default_hierarchy_registered_sibling_route_prob(),
+            hierarchy_registered_sibling_mixed_support_prob:
+                default_hierarchy_registered_sibling_mixed_support_prob(),
             hierarchy_registered_child_input_cone_prob:
                 default_hierarchy_registered_child_input_cone_prob(),
             hierarchy_child_input_cone_prob: default_hierarchy_child_input_cone_prob(),
@@ -936,6 +949,10 @@ impl Config {
                 self.hierarchy_registered_sibling_route_prob,
             ),
             (
+                "hierarchy_registered_sibling_mixed_support_prob",
+                self.hierarchy_registered_sibling_mixed_support_prob,
+            ),
+            (
                 "hierarchy_registered_child_input_cone_prob",
                 self.hierarchy_registered_child_input_cone_prob,
             ),
@@ -1133,6 +1150,9 @@ impl Config {
         if let Some(v) = o.hierarchy_registered_sibling_route_prob {
             self.hierarchy_registered_sibling_route_prob = v;
         }
+        if let Some(v) = o.hierarchy_registered_sibling_mixed_support_prob {
+            self.hierarchy_registered_sibling_mixed_support_prob = v;
+        }
         if let Some(v) = o.hierarchy_registered_child_input_cone_prob {
             self.hierarchy_registered_child_input_cone_prob = v;
         }
@@ -1210,6 +1230,7 @@ pub struct Overrides {
     pub child_instances_per_module_by_depth: Option<BTreeMap<u32, CountRange>>,
     pub hierarchy_sibling_route_prob: Option<f64>,
     pub hierarchy_registered_sibling_route_prob: Option<f64>,
+    pub hierarchy_registered_sibling_mixed_support_prob: Option<f64>,
     pub hierarchy_registered_child_input_cone_prob: Option<f64>,
     pub hierarchy_child_input_cone_prob: Option<f64>,
     pub hierarchy_parent_cone_instance_prob: Option<f64>,
