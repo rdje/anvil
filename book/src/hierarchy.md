@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`
-- `117` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`
+- `120` scenarios
 - `4` designs/scenario
-- `468` total designs
+- `480` total designs
 - `coverage_gaps = []`
-- `Verilator 468/0`
-- `Yosys without-abc 468/0`
-- `Yosys with-abc 468/0`
+- `Verilator 480/0`
+- `Yosys without-abc 480/0`
+- `Yosys with-abc 480/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -625,8 +625,18 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_parent_local_flops = true`
 
-The `r56` bank extends the accumulated mixed-support evidence with
+The `r57` bank promotes recursive non-top parent-local flops to a
+first-class gated coverage fact, with a dedicated focus scenario
+`phase4_recur_d2_parent_state` per construction strategy that isolates
+the parent-flop surface (no helpers, no sibling routing, no
+parent-composed child-input cones). It carries forward the r56 stateful
+parent-composed mixed-support child-input proof, the r55 stateful
+parent-port-composed output proof, and the r53 / r54 no-helper
+parent-composed and parent-output mixed-support proofs underneath.
+
+The earlier `r56` bank extended the accumulated mixed-support evidence with
 recursive non-top unregistered parent-composed child-input cones that
 mix parent data ports, child outputs, and parent-local Qs without helper
 instances, while carrying forward the r55 stateful parent-port-composed
@@ -1180,8 +1190,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r56` closes them cleanly
-  with `coverage_gaps = []` and `468/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57` closes them cleanly
+  with `coverage_gaps = []` and `480/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1263,8 +1273,10 @@ local proofs remain useful:
   recursive parent-composed mixed-support child-input hierarchy full bank,
   `r54` is the previous recursive parent-port-composed parent-output hierarchy
   full bank, `r55` is the previous recursive stateful parent-port-composed
-  parent-output hierarchy full bank, `r56` is the current recursive stateful
-  unregistered parent-composed mixed-support child-input hierarchy full bank, and
+  parent-output hierarchy full bank, `r56` is the previous recursive stateful
+  unregistered parent-composed mixed-support child-input hierarchy full bank,
+  `r57` is the current hierarchy full bank that gates recursive non-top
+  parent-local flops as a first-class coverage fact, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

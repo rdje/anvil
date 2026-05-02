@@ -58,8 +58,42 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r56 proves recursive stateful no-helper parent-composed mixed-support child inputs downstream-clean
+### Phase 4 r57 gates recursive non-top parent-local flops as first-class coverage downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 120 scenarios / 480 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `480/0`, Yosys without-ABC
+`480/0`, and Yosys with-ABC `480/0`.
+
+This bank promotes recursive non-top parent-local flops to first-class
+gated coverage. r55 and r56 already evidenced non-top parent-local flops
+as a side-channel of their richer mixed-support assertions, but the gate
+did not enforce the parent-flop surface below the top parent on its own.
+A regression that broke parent-flop emission specifically for non-top
+parents could therefore have slipped past the existing matrix. r57
+closes that gap by adding `saw_recursive_hierarchy_parent_local_flops`
+(coverage gap when missing) plus a dedicated focused proof
+`recursive_hierarchy_parents_can_emit_local_flops_below_top` that
+isolates the parent-flop surface by disabling helpers, sibling routing,
+registered routing, and parent-composed child-input cones. The new
+matrix scenario `phase4_recur_d2_parent_state` uses `4,4` child-instance
+bounds (distinct from r55's `2,2`) so the parent-state surface has its
+own labeled focus point in the matrix rather than relying on
+side-channel evidence from richer scenarios.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability. No new metric is needed because
+`hierarchy_parent_local_flops`, `top_local_flops`,
+`internal_module_occurrences_with_local_flops`, and
+`realized_max_leaf_depth` are already populated.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r57 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r56 proved recursive stateful no-helper parent-composed mixed-support child inputs downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 117 scenarios / 468 designs, with `coverage_gaps = []`,

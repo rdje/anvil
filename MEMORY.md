@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`
-  covers the live `117`-scenario policy at `4` designs/scenario
-  (`468` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `468/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`
+  covers the live `120`-scenario policy at `4` designs/scenario
+  (`480` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `480/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -91,6 +91,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_parent_outputs_mix_parent_ports_below_top_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_below_top_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_below_top_without_helpers`,
+  `cargo test recursive_hierarchy_parents_can_emit_local_flops_below_top`,
   `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
@@ -124,7 +125,25 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r56 batch proves recursive non-top stateful
+- Current Phase 4 hierarchy r57 batch promotes recursive non-top
+  parent-local flops to first-class gated coverage. The new
+  `saw_recursive_hierarchy_parent_local_flops` fact requires
+  `realized_max_leaf_depth > 1`, `hierarchy_parent_local_flops >
+  top_local_flops`, and `internal_module_occurrences_with_local_flops > 0`.
+  A focused exact-depth-2 proof
+  `recursive_hierarchy_parents_can_emit_local_flops_below_top` isolates
+  the parent-flop surface by disabling helpers, sibling routing,
+  registered routing, and parent-composed child-input cones. The new
+  matrix scenario `phase4_recur_d2_parent_state` per construction
+  strategy uses `4,4` child-instance bounds (distinct from r55's `2,2`)
+  so the parent-state surface has its own labeled focus point in the
+  matrix. Validation includes the focused pipeline regression, `cargo
+  test --bin tool_matrix`, and the full downstream-clean r57 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`
+  with `120` scenarios / `480` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_parent_local_flops = true`, and `480/0`
+  pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r56 batch proves recursive non-top stateful
   unregistered parent-composed mixed-support child-input routing without
   helper instances. A new `child_input_bindings_from_stateful_parent_composed_mixed_support`
   metric counts unregistered parent-composed (Gate-node) child-input

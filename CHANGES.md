@@ -1,5 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-parent-local-flops — Gate recursive non-top parent-local flops as a first-class coverage fact
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the `saw_recursive_hierarchy_parent_local_flops` coverage fact in `src/bin/tool_matrix.rs`. It fires when a design has `realized_max_leaf_depth > 1` AND `hierarchy_parent_local_flops > top_local_flops` AND `internal_module_occurrences_with_local_flops > 0`.
+- Added the focused recursive integration proof `recursive_hierarchy_parents_can_emit_local_flops_below_top` across all four `ConstructionStrategy` variants. It isolates the parent-flop surface by disabling helpers, sibling routing, registered routing, and parent-composed child-input cones, then asserts hierarchy-wide parent-local flops exceed top-only and that at least one internal parent module occurrence carries local flops.
+- Added the new Phase 4 matrix scenario `phase4_recur_d2_parent_state` per `ConstructionStrategy`. It uses `min_child_instances_per_module = max_child_instances_per_module = 4` (distinct from r55's 2,2) so the parent-state surface gets a dedicated focus point in the matrix rather than being only implicit in the r55 stateful parent-port-composed scenario.
+- Added a coverage gap message that fires when the new saw fact is missing from a Phase 4 hierarchy run.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `117` scenarios / `468` designs to `120` scenarios / `480` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`.
+
+**Why**
+
+- `saw_hierarchy_parent_local_flops` (top-only) had no recursive-non-top twin, so the gate did not enforce the parent-flop surface below the top parent. r55 and r56 implicitly evidenced non-top parent-local flops via stronger mixed-support assertions, but a regression that broke the parent-flop mechanism specifically for non-top parents could have slipped past the gate. r57 promotes the fact to first-class gated evidence with a dedicated focused proof and a focused recursive matrix scenario that exercises the parent-flop surface in isolation.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parents_can_emit_local_flops_below_top`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r57 --yosys-mode both`
+  - `120` scenarios
+  - `4` designs/scenario
+  - `480` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 480/0`
+  - `Yosys without-abc pass/fail = 480/0`
+  - `Yosys with-abc pass/fail = 480/0`
+  - `saw_recursive_hierarchy_parent_local_flops = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent-local flops as a stand-alone fact rather than only as a side-channel of richer mixed-support proofs. `r56` becomes the previous recursive stateful parent-composed mixed-support child-input bank; `r57` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-03-phase4-recursive-stateful-parent-composed-mixed-support-child-inputs — Prove recursive stateful parent-composed mixed-support child inputs without helpers
 
 **Landed as:** 8590e43
