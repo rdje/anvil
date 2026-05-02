@@ -1,5 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-stateful-parent-composed-mixed-support-child-inputs — Prove recursive stateful parent-composed mixed-support child inputs without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the `child_input_bindings_from_stateful_parent_composed_mixed_support` counter (top-level twin and fractions included) — fires when an unregistered parent-composed (Gate-node) child-input binding's dep set contains parent ports, child instance outputs, and parent-local flops simultaneously.
+- Added the focused recursive integration proof `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_below_top_without_helpers` across all four construction strategies. It asserts the new stateful-mixed-support counter exceeds top-only while helper-instance and registered-route counters remain zero.
+- Extended the Phase 4 hierarchy matrix with `phase4_recur_d2_stateful_parent_composed_mixed_support_child_input` per construction strategy, sharing the no-helper parent-composed shape from r53 with `hierarchy_parent_flop_prob = 1.0` and `max_flops_per_module = 64`.
+- Added the coverage fact `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs`, with a new Phase 4 coverage gap if the recursive non-top stateful no-helper parent-composed mixed-support child-input fact is absent.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `114` scenarios / `456` designs to `117` scenarios / `468` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`.
+
+**Why**
+
+- r53 proved recursive non-top unregistered parent-composed mixed-support child inputs in a stateless setup. r55 added parent-local flop state on top of r54's parent-output cone proof. This slice closes the symmetric child-input + state cell of that matrix: prove the unregistered parent-composed child-input cone can simultaneously mix parent ports, child outputs, and parent-local Qs below the top parent without spending helper instances.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_below_top_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r56 --yosys-mode both`
+  - `117` scenarios
+  - `4` designs/scenario
+  - `468` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 468/0`
+  - `Yosys without-abc pass/fail = 468/0`
+  - `Yosys with-abc pass/fail = 468/0`
+  - `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
+  - `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent-composed unregistered child inputs that mix parent data ports, child outputs, and parent-local Qs without helper instances. `r55` becomes the previous recursive stateful parent-port-composed parent-output bank; `r56` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-02-phase4-recursive-stateful-parent-port-composed-outputs — Prove recursive stateful parent-port-composed outputs
 
 **Landed as:** 1606b08

@@ -58,8 +58,36 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r55 proves recursive stateful no-helper parent-port-composed outputs downstream-clean
+### Phase 4 r56 proves recursive stateful no-helper parent-composed mixed-support child inputs downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 117 scenarios / 468 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `468/0`, Yosys without-ABC
+`468/0`, and Yosys with-ABC `468/0`.
+
+This bank adds the child-input sibling of the r55 parent-output proof. r53
+proved recursive non-top unregistered parent-composed mixed-support child
+inputs in a stateless setup; r56 keeps the same no-helper, no-registered
+shape but turns on parent-local flops and requires the new
+`child_input_bindings_from_stateful_parent_composed_mixed_support` counter
+to exceed top-only below the top parent. That proves a non-top parent's
+unregistered parent-composed child-input cone can simultaneously source
+parent ports, child outputs, and parent-local Qs without using helper
+instances or registered routing.
+
+The new metric is computed at the existing parent-composed child-input
+binding site by intersecting the binding's dep set across `has_ports`,
+`has_instance_outputs`, and `has_flop_virtuals`. No new IR construct
+appears in the generator path: the slice exposes a stricter cell of the
+existing parent-composed mixed-support surface.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r56 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r55 proved recursive stateful no-helper parent-port-composed outputs downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 114 scenarios / 456 designs, with `coverage_gaps = []`,

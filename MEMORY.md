@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`
-  covers the live `114`-scenario policy at `4` designs/scenario
-  (`456` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `456/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`
+  covers the live `117`-scenario policy at `4` designs/scenario
+  (`468` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `468/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -65,7 +65,9 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   non-top direct registered sibling mixed-support child-input D paths
   below the top parent, plus recursive exact-depth-2 non-top
   unregistered parent-composed mixed-support child-input routing without
-  helper instances.
+  helper instances, plus recursive exact-depth-2 non-top stateful
+  unregistered parent-composed mixed-support child-input routing through
+  parent-local Qs without helper instances.
   Focused regressions:
   `cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`,
   `cargo test recursive_hierarchy_registered_sibling_routes_can_use_helper_instances_below_top`,
@@ -88,6 +90,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_below_top_without_helpers`,
   `cargo test recursive_hierarchy_parent_outputs_mix_parent_ports_below_top_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_below_top_without_helpers`,
+  `cargo test recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_below_top_without_helpers`,
   `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
@@ -121,7 +124,28 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r55 batch proves recursive non-top stateful
+- Current Phase 4 hierarchy r56 batch proves recursive non-top stateful
+  unregistered parent-composed mixed-support child-input routing without
+  helper instances. A new `child_input_bindings_from_stateful_parent_composed_mixed_support`
+  metric counts unregistered parent-composed (Gate-node) child-input
+  bindings whose dep set spans parent ports, child instance outputs, and
+  parent-local flops simultaneously. The focused exact-depth-2 proof
+  asserts hierarchy-wide unregistered parent-composed mixed-support
+  counters exceed their top-only counterparts and that parent-local flops
+  are present below the top parent, while helper-instance, registered
+  sibling, and registered parent-composed counters remain zero. The
+  Phase 4 matrix adds
+  `phase4_recur_d2_stateful_parent_composed_mixed_support_child_input` per
+  construction strategy and now requires
+  `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs`.
+  Validation includes the focused pipeline regression, `cargo test --bin
+  tool_matrix`, and the full downstream-clean r56 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json` with
+  `117` scenarios / `468` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`,
+  `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`,
+  and `468/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r55 batch proves recursive non-top stateful
   parent outputs that mix parent data ports, child outputs, and
   parent-local Qs without helper instances. The focused exact-depth-2
   proof asserts hierarchy-wide parent-composed and parent-port-composed

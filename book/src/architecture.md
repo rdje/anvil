@@ -429,9 +429,9 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`
-(456 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-456/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r56/tool_matrix_report.json`
+(468 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+468/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
@@ -488,7 +488,7 @@ direct registered sibling mixed-support routes, and recursive non-top
 unregistered parent-composed mixed-support child-input routes without
 helper instances, and recursive non-top parent-port-composed parent-output
 routes without helper instances or parent-local state, and recursive non-top stateful parent-port-composed parent-output routes without helper instances.
-The `r55` report records
+The `r56` report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
 `saw_hierarchy_registered_sibling_routing = true`,
@@ -498,6 +498,7 @@ The `r55` report records
 `saw_recursive_hierarchy_mixed_support_child_inputs = true`,
 `saw_recursive_hierarchy_parent_port_composed_outputs = true`,
 `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`,
+`saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`,
 `saw_hierarchy_registered_parent_composed_routing = true`,
 `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`,
 `saw_hierarchy_registered_mixed_support_routing = true`,
@@ -570,7 +571,7 @@ and
 `/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
-remain useful focused policy breadcrumbs, while the current full `r55`
+remain useful focused policy breadcrumbs, while the current full `r56`
 bank carries those facts through Verilator and both repo-owned Yosys
 modes. The old hierarchy smoke at
 `/tmp/anvil-hierarchy-smoke-r1`
@@ -616,7 +617,7 @@ recursive non-top multi-stage registered parent-composed helper bank,
 `r39` is the previous recursive non-top parent-output helper bank, `r40`
 is the previous recursive non-top stateful parent-output helper bank,
 `r41` is the previous recursive non-top parent-output multi-helper budget bank, `r42`
-is the previous recursive non-top stateful multi-helper budget bank, `r43` is the previous recursive non-top child-input multi-helper budget bank, `r44` is the previous recursive non-top registered mixed-support routing bank, `r45` is the previous recursive non-top multi-stage registered parent-composed no-helper bank, `r46` is the previous recursive non-top multi-stage registered sibling no-helper bank, `r47` is the previous recursive non-top multi-stage registered mixed-support no-helper bank, `r48` is the previous recursive non-top registered parent-composed helper mixed-support bank, `r49` is the previous recursive non-top parent-output helper mixed-support bank, `r50` is the previous accumulated mixed-support hierarchy full bank, `r51` is the previous direct registered sibling mixed-support hierarchy full bank, `r52` is the previous recursive direct registered sibling mixed-support hierarchy full bank, `r53` is the previous recursive parent-composed mixed-support child-input hierarchy full bank, `r54` is the previous recursive parent-port-composed parent-output hierarchy full bank, `r55` is the current recursive stateful parent-port-composed parent-output hierarchy full bank, and
+is the previous recursive non-top stateful multi-helper budget bank, `r43` is the previous recursive non-top child-input multi-helper budget bank, `r44` is the previous recursive non-top registered mixed-support routing bank, `r45` is the previous recursive non-top multi-stage registered parent-composed no-helper bank, `r46` is the previous recursive non-top multi-stage registered sibling no-helper bank, `r47` is the previous recursive non-top multi-stage registered mixed-support no-helper bank, `r48` is the previous recursive non-top registered parent-composed helper mixed-support bank, `r49` is the previous recursive non-top parent-output helper mixed-support bank, `r50` is the previous accumulated mixed-support hierarchy full bank, `r51` is the previous direct registered sibling mixed-support hierarchy full bank, `r52` is the previous recursive direct registered sibling mixed-support hierarchy full bank, `r53` is the previous recursive parent-composed mixed-support child-input hierarchy full bank, `r54` is the previous recursive parent-port-composed parent-output hierarchy full bank, `r55` is the previous recursive stateful parent-port-composed parent-output hierarchy full bank, `r56` is the current recursive stateful unregistered parent-composed mixed-support child-input hierarchy full bank, and
 the aborted `r8` rerun remains
 useful as evidence that the Phase 4 gate should use a hierarchy-focused
 sequential leaf profile rather than silently borrowing the fattest
