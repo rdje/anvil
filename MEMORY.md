@@ -1383,6 +1383,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `5cdca4a` — Phase 4: gate r57 recursive non-top parent-local flops.
 - `8590e43` — Phase 4: add r56 recursive stateful parent-composed mixed-support child inputs.
 - `1606b08` — Phase 4: add r55 recursive stateful parent-port-composed outputs.
 - `b12d732` — Phase 4: add r54 recursive parent-output coverage.

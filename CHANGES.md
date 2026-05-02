@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-03-phase4-recursive-parent-local-flops — Gate recursive non-top parent-local flops as a first-class coverage fact
 
-**Landed as:** this commit
+**Landed as:** 5cdca4a
 
 **What changed**
 
