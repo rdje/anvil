@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`
-- `120` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r58/tool_matrix_report.json`
+- `123` scenarios
 - `4` designs/scenario
-- `480` total designs
+- `492` total designs
 - `coverage_gaps = []`
-- `Verilator 480/0`
-- `Yosys without-abc 480/0`
-- `Yosys with-abc 480/0`
+- `Verilator 492/0`
+- `Yosys without-abc 492/0`
+- `Yosys with-abc 492/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -626,15 +626,24 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_parent_local_flops = true`
+- `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
 
-The `r57` bank promotes recursive non-top parent-local flops to a
-first-class gated coverage fact, with a dedicated focus scenario
+The `r58` bank pushes the recursive parent-state surface from exact
+depth 2 to exact depth 3. The new focus scenario
+`phase4_recur_d3_parent_state` per construction strategy uses `2,2`
+child-instance bounds (distinct from r57's depth-2 / `4,4` shape) and
+forces hierarchy depth 3 across two intermediate parent layers below the
+top. It carries forward the r57 first-class parent-local-flop gating,
+the r56 stateful parent-composed mixed-support child-input proof, the
+r55 stateful parent-port-composed output proof, and the r53 / r54
+no-helper parent-composed and parent-output mixed-support proofs
+underneath.
+
+The earlier `r57` bank promoted recursive non-top parent-local flops to
+a first-class gated coverage fact, with a dedicated focus scenario
 `phase4_recur_d2_parent_state` per construction strategy that isolates
 the parent-flop surface (no helpers, no sibling routing, no
-parent-composed child-input cones). It carries forward the r56 stateful
-parent-composed mixed-support child-input proof, the r55 stateful
-parent-port-composed output proof, and the r53 / r54 no-helper
-parent-composed and parent-output mixed-support proofs underneath.
+parent-composed child-input cones).
 
 The earlier `r56` bank extended the accumulated mixed-support evidence with
 recursive non-top unregistered parent-composed child-input cones that
@@ -1190,8 +1199,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57` closes them cleanly
-  with `coverage_gaps = []` and `480/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r58` closes them cleanly
+  with `coverage_gaps = []` and `492/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1275,8 +1284,10 @@ local proofs remain useful:
   full bank, `r55` is the previous recursive stateful parent-port-composed
   parent-output hierarchy full bank, `r56` is the previous recursive stateful
   unregistered parent-composed mixed-support child-input hierarchy full bank,
-  `r57` is the current hierarchy full bank that gates recursive non-top
-  parent-local flops as a first-class coverage fact, and
+  `r57` is the previous hierarchy full bank that gated recursive non-top
+  parent-local flops as a first-class coverage fact, `r58` is the current
+  hierarchy full bank that pushes recursive parent-local flops to exact
+  hierarchy depth 3, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

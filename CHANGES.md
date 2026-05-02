@@ -1,5 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-depth-3-parent-local-flops — Push recursive non-top parent-local flops to exact hierarchy depth 3
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parents_can_emit_local_flops_at_depth_3` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 3` and isolates the parent-flop surface (no helpers, no sibling routing, no registered routing, no parent-composed child-input cones), then asserts `realized_min/max_leaf_depth = 3`, hierarchy-wide parent-local flops exceed top-only, and at least one internal parent module occurrence carries local flops.
+- Added the new Phase 4 matrix scenario `phase4_recur_d3_parent_state` per `ConstructionStrategy` via the new `phase4_recursive_d3_parent_state_focus_config` helper. The scenario forces depth 3 with `2,2` child-instance bounds — distinct from r57's depth-2 / `4,4` shape.
+- Added the `saw_recursive_hierarchy_depth_3_parent_local_flops` coverage fact and matching gap message. The fact requires `realized_max_leaf_depth >= 3`, `hierarchy_parent_local_flops > top_local_flops`, and `internal_module_occurrences_with_local_flops > 0`.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `120` scenarios / `480` designs to `123` scenarios / `492` designs. Extended the `range_depths` assertion to include `(3, 3)`.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r58/tool_matrix_report.json`.
+
+**Why**
+
+- All r51-r57 focused proofs use exact hierarchy depth 2 (one layer of internal parents below the top). The mixed-range `2:3` scenario produces some depth-3 designs as a side-effect, but no focused proof asserts that the parent-state surface fires AT depth 3 specifically. r58 closes that asymmetry: a depth-3 regression that broke the parent-flop mechanism specifically at greater nesting depth would now show up as a coverage gap. The slice does not change the generator — it tightens the gate around an already-supported capability.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parents_can_emit_local_flops_at_depth_3`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r58 --yosys-mode both`
+  - `123` scenarios
+  - `4` designs/scenario
+  - `492` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 492/0`
+  - `Yosys without-abc pass/fail = 492/0`
+  - `Yosys with-abc pass/fail = 492/0`
+  - `saw_recursive_hierarchy_parent_local_flops = true`
+  - `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves the parent-flop surface at exact hierarchy depth 3 below the top parent, in addition to the depth-2 evidence. `r57` becomes the previous bank that gated recursive non-top parent-local flops; `r58` is the current full downstream-clean Phase 4 hierarchy bank with depth-3 parent-state evidence.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-03-phase4-recursive-parent-local-flops — Gate recursive non-top parent-local flops as a first-class coverage fact
 
 **Landed as:** 5cdca4a

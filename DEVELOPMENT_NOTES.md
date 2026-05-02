@@ -58,8 +58,40 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r57 gates recursive non-top parent-local flops as first-class coverage downstream-clean
+### Phase 4 r58 pushes recursive parent-local flops to exact hierarchy depth 3 downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r58/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 123 scenarios / 492 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `492/0`, Yosys without-ABC
+`492/0`, and Yosys with-ABC `492/0`.
+
+This bank pushes the parent-state surface from exact depth 2 to exact
+depth 3. All r51-r57 focused proofs use depth 2 (one layer of internal
+parents below the top). The mixed-range `2:3` scenario already produces
+depth-3 designs sometimes, but no focused proof asserts the parent-state
+surface fires AT depth 3 specifically. r58 closes that asymmetry by
+adding `saw_recursive_hierarchy_depth_3_parent_local_flops` (coverage
+gap when missing) plus the focused proof
+`recursive_hierarchy_parents_can_emit_local_flops_at_depth_3` and the
+matrix scenario `phase4_recur_d3_parent_state` per construction strategy
+(2,2 child-instance bounds, distinct from r57's depth-2 / 4,4 shape).
+The smoke run at depth 3 confirmed 7 internal module occurrences and
+448 parent-local flops with `top_local_flops = 64`, so the recursive
+generator handles depth-3 nesting cleanly.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability. No new metric is needed because
+`realized_max_leaf_depth`, `hierarchy_parent_local_flops`,
+`top_local_flops`, and `internal_module_occurrences_with_local_flops`
+are already populated.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r58 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r57 gated recursive non-top parent-local flops as first-class coverage downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 120 scenarios / 480 designs, with `coverage_gaps = []`,

@@ -283,17 +283,17 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57`. Its final
+exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r58`. Its final
 `tool_matrix_report.json` records:
 
-- `120` scenarios
+- `123` scenarios
 - `4` designs per scenario
-- `480` total designs
+- `492` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 480/0`
-- `Yosys without-abc pass/fail = 480/0`
-- `Yosys with-abc pass/fail = 480/0`
+- `Verilator pass/fail = 492/0`
+- `Yosys without-abc pass/fail = 492/0`
+- `Yosys with-abc pass/fail = 492/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -333,6 +333,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57`. Its final
 - `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_parent_local_flops = true`
+- `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
 - `saw_recursive_hierarchy_registered_mixed_support_routing = true`
 - `saw_hierarchy_registered_multistage_routing = true`
 - `saw_recursive_hierarchy_registered_multistage_routing = true`
@@ -343,7 +344,7 @@ exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r57`. Its final
 - `saw_profiled_child_interface_synthesis = true`
 - `saw_on_demand_child_sourcing = true`
 
-The `r57` report is the latest fully banked downstream-clean repo-owned
+The `r58` report is the latest fully banked downstream-clean repo-owned
 Phase 4 closure artifact, not only the older wrapper baseline. It covers the broadened
 `--num-child-instances` planner directly, bounded recursive depth `2`,
 mixed recursive depth range `2:3`, child-instance profiles `2`, `4`,
@@ -419,7 +420,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r57` bank.
+are superseded by the full downstream-clean `r58` bank.
 
 The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
@@ -667,7 +668,7 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r57/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r58/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -714,8 +715,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   recursive non-top direct registered sibling helper route,
   recursive non-top registered parent-composed helper route,
   parent-local flop state, and per-depth-override profiles folded into
-  `tool_matrix`, with `120` scenarios, `480` total designs,
-  `coverage_gaps = []`, and `480/0` pass-fail in Verilator plus both
+  `tool_matrix`, with `123` scenarios, `492` total designs,
+  `coverage_gaps = []`, and `492/0` pass-fail in Verilator plus both
   repo-owned Yosys modes.
   The older `r21` report remains useful historical evidence for the
   pre-parent-output-helper surface, `r31` remains the previous
@@ -744,7 +745,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `r54` is the previous recursive parent-port-composed parent-output hierarchy bank,
   `r55` is the previous recursive stateful parent-port-composed parent-output hierarchy bank,
   `r56` is the previous recursive stateful parent-composed mixed-support child-input hierarchy bank,
-  `r57` is the current bank that gates recursive non-top parent-local flops as first-class coverage,
+  `r57` is the previous bank that gated recursive non-top parent-local flops as first-class coverage,
+  `r58` is the current bank that pushes recursive parent-local flops to exact hierarchy depth 3,
   and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
   designs per Phase 4 scenario directly. The next honest work is deeper
