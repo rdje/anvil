@@ -345,11 +345,13 @@ pub struct DesignMetrics {
     pub top_direct_instance_output_drives: usize,
     pub top_parent_composed_outputs: usize,
     pub top_parent_port_composed_outputs: usize,
+    pub top_parent_port_composed_outputs_through_parent_flops: usize,
     pub top_outputs_reaching_instance_outputs: usize,
     pub top_outputs_without_instance_outputs: usize,
     pub top_instance_output_dependency_fraction: f64,
     pub top_parent_composed_output_fraction: f64,
     pub top_parent_port_composed_output_fraction: f64,
+    pub top_parent_port_composed_parent_flop_output_fraction: f64,
     pub top_instance_output_child_input_binding_fraction: f64,
     pub top_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_instance_output_child_input_binding_fraction: f64,
@@ -378,6 +380,7 @@ pub struct DesignMetrics {
     pub hierarchy_direct_instance_output_drives: usize,
     pub hierarchy_parent_composed_outputs: usize,
     pub hierarchy_parent_port_composed_outputs: usize,
+    pub hierarchy_parent_port_composed_outputs_through_parent_flops: usize,
     pub module_occurrences_with_parent_composed_outputs: usize,
     pub hierarchy_parent_cone_instances: usize,
     pub max_parent_cone_instances_per_internal_module: usize,
@@ -391,6 +394,7 @@ pub struct DesignMetrics {
     pub avg_instance_output_support_per_hierarchy_output: f64,
     pub max_instance_output_support_per_hierarchy_output: usize,
     pub hierarchy_parent_port_composed_output_fraction: f64,
+    pub hierarchy_parent_port_composed_parent_flop_output_fraction: f64,
     pub hierarchy_parent_cone_instance_output_fraction: f64,
     pub hierarchy_parent_cone_instance_mixed_support_output_fraction: f64,
     pub hierarchy_parent_cone_instance_flop_output_fraction: f64,
@@ -785,6 +789,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     out.top_direct_instance_output_drives = top_facts.direct_drives;
     out.top_parent_composed_outputs = top_facts.parent_composed_outputs;
     out.top_parent_port_composed_outputs = top_facts.parent_port_composed_outputs;
+    out.top_parent_port_composed_outputs_through_parent_flops =
+        top_facts.parent_port_composed_outputs_through_parent_flops;
     out.top_outputs_reaching_parent_cone_instances =
         top_facts.outputs_reaching_parent_cone_instances;
     out.top_outputs_reaching_parent_cone_instance_mixed_support =
@@ -805,6 +811,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         ratio(out.top_parent_composed_outputs, out.top_outputs);
     out.top_parent_port_composed_output_fraction =
         ratio(out.top_parent_port_composed_outputs, out.top_outputs);
+    out.top_parent_port_composed_parent_flop_output_fraction = ratio(
+        out.top_parent_port_composed_outputs_through_parent_flops,
+        out.top_outputs,
+    );
     out.top_parent_cone_instance_output_fraction = ratio(
         out.top_outputs_reaching_parent_cone_instances,
         out.top_outputs,
@@ -982,6 +992,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.hierarchy_parent_port_composed_output_fraction = ratio(
         out.hierarchy_parent_port_composed_outputs,
+        out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
+    );
+    out.hierarchy_parent_port_composed_parent_flop_output_fraction = ratio(
+        out.hierarchy_parent_port_composed_outputs_through_parent_flops,
         out.hierarchy_direct_instance_output_drives + out.hierarchy_parent_composed_outputs,
     );
     out.hierarchy_parent_cone_instance_output_fraction = ratio(
@@ -1181,6 +1195,10 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
     state.out.hierarchy_direct_instance_output_drives += facts.direct_drives;
     state.out.hierarchy_parent_composed_outputs += facts.parent_composed_outputs;
     state.out.hierarchy_parent_port_composed_outputs += facts.parent_port_composed_outputs;
+    state
+        .out
+        .hierarchy_parent_port_composed_outputs_through_parent_flops +=
+        facts.parent_port_composed_outputs_through_parent_flops;
     state.out.hierarchy_outputs_reaching_parent_cone_instances +=
         facts.outputs_reaching_parent_cone_instances;
     state
@@ -1482,6 +1500,7 @@ struct ModuleCompositionFacts {
     direct_drives: usize,
     parent_composed_outputs: usize,
     parent_port_composed_outputs: usize,
+    parent_port_composed_outputs_through_parent_flops: usize,
     outputs_reaching_parent_cone_instances: usize,
     outputs_reaching_parent_cone_instance_mixed_support: usize,
     outputs_reaching_parent_cone_instances_through_parent_flops: usize,
@@ -1520,6 +1539,9 @@ fn module_composition_facts(module: &Module) -> ModuleCompositionFacts {
             }
             if deps.has_ports() {
                 out.parent_port_composed_outputs += 1;
+                if deps.has_flop_virtuals() {
+                    out.parent_port_composed_outputs_through_parent_flops += 1;
+                }
             }
         } else {
             out.outputs_without_instance_outputs += 1;

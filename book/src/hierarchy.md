@@ -439,7 +439,11 @@ emitted `.sv`, including:
   (`top_parent_port_composed_outputs`,
   `hierarchy_parent_port_composed_outputs`,
   `top_parent_port_composed_output_fraction`,
-  `hierarchy_parent_port_composed_output_fraction`),
+  `hierarchy_parent_port_composed_output_fraction`,
+  `top_parent_port_composed_outputs_through_parent_flops`,
+  `hierarchy_parent_port_composed_outputs_through_parent_flops`,
+  `top_parent_port_composed_parent_flop_output_fraction`,
+  `hierarchy_parent_port_composed_parent_flop_output_fraction`),
 - whether top outputs actually depend on child outputs at all,
 - average / maximum child-output support per top output,
 - child-input provenance
@@ -583,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r54/tool_matrix_report.json`
-- `111` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`
+- `114` scenarios
 - `4` designs/scenario
-- `444` total designs
+- `456` total designs
 - `coverage_gaps = []`
-- `Verilator 444/0`
-- `Yosys without-abc 444/0`
-- `Yosys with-abc 444/0`
+- `Verilator 456/0`
+- `Yosys without-abc 456/0`
+- `Yosys with-abc 456/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -619,11 +623,13 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_hierarchy_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_parent_port_composed_outputs = true`
+- `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
 
-The `r54` bank extends the accumulated mixed-support evidence with
-recursive non-top parent outputs that mix parent data ports with child
-outputs without helper instances or parent-local flops, while carrying
-forward the r53 unregistered parent-composed mixed-support child-input proof.
+The `r55` bank extends the accumulated mixed-support evidence with
+recursive non-top stateful parent outputs that mix parent data ports,
+child outputs, and parent-local Qs without helper instances, while
+carrying forward the r54 no-state parent-port-composed output proof and
+the r53 unregistered parent-composed mixed-support child-input proof.
 The earlier `r50` bank promoted
 the recent coverage-only mixed-support probes into full downstream-clean
 evidence: stateful helper-backed parent outputs that also carry
@@ -1171,8 +1177,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r54` closes them cleanly
-  with `coverage_gaps = []` and `444/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r55` closes them cleanly
+  with `coverage_gaps = []` and `456/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1252,8 +1258,9 @@ local proofs remain useful:
   mixed-support hierarchy full bank, `r52` is the previous recursive direct
   registered sibling mixed-support hierarchy full bank, `r53` is the previous
   recursive parent-composed mixed-support child-input hierarchy full bank,
-  `r54` is the current recursive parent-port-composed parent-output hierarchy
-  full bank, and
+  `r54` is the previous recursive parent-port-composed parent-output hierarchy
+  full bank, `r55` is the current recursive stateful parent-port-composed
+  parent-output hierarchy full bank, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

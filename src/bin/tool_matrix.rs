@@ -289,6 +289,7 @@ struct CoverageSummary {
     saw_hierarchy_parent_composition: bool,
     saw_hierarchy_parent_port_composed_outputs: bool,
     saw_recursive_hierarchy_parent_port_composed_outputs: bool,
+    saw_recursive_hierarchy_stateful_parent_port_composed_outputs: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -924,6 +925,14 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 ),
             ),
             (
+                "phase4_recur_d2_stateful_parent_port_composed_output",
+                "bounded recursive hierarchy at exact depth 2 where non-top parent-output cones mix parent data ports, child outputs, and parent-local Qs without helper instances",
+                phase4_recursive_stateful_parent_port_composed_output_focus_config(
+                    strategy,
+                    next_seed + 37,
+                ),
+            ),
+            (
                 "phase4_recur_d2_registered_sibling_multistage_state",
                 "bounded recursive hierarchy at exact depth 2 where non-top direct registered sibling-routed child inputs chain through earlier parent-local state without helper instances",
                 phase4_recursive_registered_sibling_multistage_state_focus_config(
@@ -1113,7 +1122,7 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 config,
             )?);
         }
-        next_seed += 37;
+        next_seed += 38;
     }
 
     Ok(scenarios)
@@ -1599,6 +1608,18 @@ fn phase4_recursive_parent_port_composed_output_focus_config(
     cfg.terminal_reuse_prob = 1.0;
     cfg.constant_prob = 0.0;
     cfg.max_depth = 4;
+    cfg
+}
+fn phase4_recursive_stateful_parent_port_composed_output_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    let mut cfg = phase4_recursive_parent_port_composed_output_focus_config(strategy, seed);
+    cfg.hierarchy_parent_flop_prob = 1.0;
+    cfg.max_flops_per_module = 64;
+    cfg.min_width = 1;
+    cfg.max_width = 8;
+    cfg.max_depth = 1;
     cfg
 }
 
@@ -4080,6 +4101,34 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .metrics
                     .hierarchy_outputs_reaching_parent_cone_instances
                     == 0;
+        coverage.saw_recursive_hierarchy_stateful_parent_port_composed_outputs |=
+            design.metrics.realized_max_leaf_depth > 1
+                && scenario.config.hierarchy_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_sibling_route_prob == 0.0
+                && scenario.config.hierarchy_registered_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_child_input_cone_prob == 0.0
+                && scenario.config.hierarchy_parent_cone_instance_prob == 0.0
+                && scenario.config.hierarchy_parent_flop_prob > 0.0
+                && design.metrics.hierarchy_parent_composed_outputs
+                    > design.metrics.top_parent_composed_outputs
+                && design.metrics.hierarchy_parent_port_composed_outputs
+                    > design.metrics.top_parent_port_composed_outputs
+                && design
+                    .metrics
+                    .hierarchy_parent_port_composed_outputs_through_parent_flops
+                    > design
+                        .metrics
+                        .top_parent_port_composed_outputs_through_parent_flops
+                && design
+                    .metrics
+                    .hierarchy_parent_port_composed_parent_flop_output_fraction
+                    > 0.0
+                && design.metrics.hierarchy_parent_cone_instances == 0
+                && design.metrics.hierarchy_parent_local_flops > design.metrics.top_local_flops
+                && design
+                    .metrics
+                    .hierarchy_outputs_reaching_parent_cone_instances
+                    == 0;
         for module in &design.modules {
             accumulate_module_coverage(&mut coverage, &module.metrics);
         }
@@ -4228,6 +4277,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_hierarchy_parent_port_composed_outputs;
     dst.saw_recursive_hierarchy_parent_port_composed_outputs |=
         src.saw_recursive_hierarchy_parent_port_composed_outputs;
+    dst.saw_recursive_hierarchy_stateful_parent_port_composed_outputs |=
+        src.saw_recursive_hierarchy_stateful_parent_port_composed_outputs;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -4981,6 +5032,14 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_stateful_parent_port_composed_outputs
+    {
+        gaps.push(
+            "matrix never proved recursive non-top hierarchy outputs mixing parent ports, child outputs, and parent-local Qs without helper instances"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -5480,7 +5539,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 444);
+        assert_eq!(plan.total_modules, 456);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -5534,10 +5593,13 @@ mod tests {
                     || scenario
                         .name
                         .ends_with("phase4_recur_d2_parent_port_composed_output")
+                    || scenario
+                        .name
+                        .ends_with("phase4_recur_d2_stateful_parent_port_composed_output")
             );
         }
-        assert_eq!(scenarios.len(), 111);
-        assert_eq!(names.len(), 111);
+        assert_eq!(scenarios.len(), 114);
+        assert_eq!(names.len(), 114);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -5568,6 +5630,7 @@ mod tests {
             "phase4_recur_d2_registered_sibling_mixed_support_state",
             "phase4_recur_d2_parent_composed_mixed_support_child_input",
             "phase4_recur_d2_parent_port_composed_output",
+            "phase4_recur_d2_stateful_parent_port_composed_output",
             "phase4_recur_d2_registered_sibling_multistage_state",
             "phase4_hier2_inst4_direct_sibling_parent_cone_instance",
             "phase4_recur_d2_direct_sibling_parent_cone_instance",
@@ -5894,6 +5957,11 @@ mod tests {
         assert!(gaps.iter().any(|gap| {
             gap.contains(
                 "recursive non-top hierarchy outputs mixing parent ports with child outputs without helper instances or parent-local state",
+            )
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive non-top hierarchy outputs mixing parent ports, child outputs, and parent-local Qs without helper instances",
             )
         }));
         assert!(gaps

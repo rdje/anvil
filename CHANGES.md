@@ -1,8 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-02-phase4-recursive-parent-port-composed-outputs — Prove recursive parent-port-composed outputs
+## 2026-05-02-phase4-recursive-stateful-parent-port-composed-outputs — Prove recursive stateful parent-port-composed outputs
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added hierarchy metrics for parent-port-composed parent outputs that also include parent-local Q support.
+- Added the focused recursive integration proof `recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_below_top_without_helpers`.
+- Extended the Phase 4 hierarchy matrix with `phase4_recur_d2_stateful_parent_port_composed_output` for each construction strategy.
+- Added the coverage fact `saw_recursive_hierarchy_stateful_parent_port_composed_outputs`, with a new Phase 4 coverage gap if the recursive non-top stateful no-helper parent-output fact is absent.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `111` scenarios / `444` designs to `114` scenarios / `456` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`.
+
+**Why**
+
+- The previous recursive parent-port-composed parent-output proof intentionally excluded parent-local state. This slice proves the adjacent recursive non-top no-helper case where parent outputs mix parent data ports, child outputs, and parent-local Qs in the same parent-output cone.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_below_top_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r55 --yosys-mode both`
+  - `114` scenarios
+  - `4` designs/scenario
+  - `456` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 456/0`
+  - `Yosys without-abc pass/fail = 456/0`
+  - `Yosys with-abc pass/fail = 456/0`
+  - `saw_hierarchy_parent_port_composed_outputs = true`
+  - `saw_recursive_hierarchy_parent_port_composed_outputs = true`
+  - `saw_recursive_hierarchy_stateful_parent_port_composed_outputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent outputs that mix parent data ports, child outputs, and parent-local Qs without helper instances. `r54` becomes the previous recursive no-helper/no-state parent-port-composed parent-output bank; `r55` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-05-02-phase4-recursive-parent-port-composed-outputs — Prove recursive parent-port-composed outputs
+
+**Landed as:** b12d732
 
 **What changed**
 

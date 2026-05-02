@@ -58,8 +58,29 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r54 proves recursive no-helper parent-port-composed outputs downstream-clean
+### Phase 4 r55 proves recursive stateful no-helper parent-port-composed outputs downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r55/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 114 scenarios / 456 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `456/0`, Yosys without-ABC
+`456/0`, and Yosys with-ABC `456/0`.
+
+This bank adds the stateful sibling of the r54 parent-output proof. The
+focused exact-depth-2 lane disables helper instances, direct sibling
+routing, registered sibling routing, and child-input parent-cone routes,
+then enables parent-local flops and requires hierarchy-wide
+parent-port-composed parent-output counters through parent-local Qs to
+exceed their top-only counterparts. That proves recursive non-top parent
+outputs can mix parent data ports, child outputs, and parent-local Qs
+without using helper instances.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r55 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r54 proved recursive no-helper parent-port-composed outputs downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r54/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 111 scenarios / 444 designs, with `coverage_gaps = []`,
