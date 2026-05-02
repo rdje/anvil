@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-02-phase4-recursive-stateful-parent-port-composed-outputs — Prove recursive stateful parent-port-composed outputs
 
-**Landed as:** this commit
+**Landed as:** 1606b08
 
 **What changed**
 
