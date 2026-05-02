@@ -623,17 +623,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r52/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r53/tool_matrix_report.json`
 records:
 
-- `105` scenarios
+- `108` scenarios
 - `4` designs per scenario
-- `420` total designs
+- `432` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 420/0`
-- `Yosys without-abc pass/fail = 420/0`
-- `Yosys with-abc pass/fail = 420/0`
+- `Verilator pass/fail = 432/0`
+- `Yosys without-abc pass/fail = 432/0`
+- `Yosys with-abc pass/fail = 432/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -659,6 +659,8 @@ records:
 - `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
 - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
 - `saw_recursive_hierarchy_registered_sibling_mixed_support_routing = true`
+- `saw_hierarchy_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_mixed_support_child_inputs = true`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -737,12 +739,12 @@ through helper-sourced parent-local Qs. It also carries the accumulated
 mixed-support facts for stateful helper-backed parent outputs,
 unregistered helper child-input routing, stateful helper-through-flop
 child-input routing, direct registered sibling mixed-support routing,
-and recursive non-top direct registered sibling mixed-support routing. The earlier
+and recursive non-top direct registered sibling mixed-support routing, and recursive non-top unregistered parent-composed mixed-support child-input routing without helper instances. The earlier
 coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r52` bank.
+are superseded by the full downstream-clean `r53` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -879,7 +881,7 @@ first records this as
 `saw_hierarchy_parent_cone_instance_mixed_support_routing = true` and
 `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`
 with `coverage_gaps = []`; it skipped Verilator/Yosys and therefore
-is superseded by the full downstream-clean `r52` bank for downstream-clean evidence.
+is superseded by the full downstream-clean `r53` bank for downstream-clean evidence.
 `cargo test metrics::tests::design_metrics_capture_parent_composed_parent_cone_instance_flop_routes`
 now also proves stateful parent-composed helper child-input mixed
 support in the unregistered helper-through-flop route
@@ -1081,7 +1083,7 @@ is the focused proof for direct registered sibling mixed-support routing
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `child_input_bindings_from_registered_mixed_support = 0`).
 This focused proof is banked in the full downstream-clean `r51` Phase 4
-matrix and is carried forward by the `r52` bank through
+matrix and is carried forward by the `r53` bank through
 `saw_hierarchy_registered_sibling_mixed_support_routing = true`.
 `cargo test recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
 is the focused proof for direct registered sibling mixed-support routing
@@ -1093,6 +1095,16 @@ below the top parent in exact-depth-2 recursive hierarchy
 `child_input_bindings_from_registered_mixed_support = 0`). This focused
 proof is banked in the full downstream-clean `r52` Phase 4 matrix through
 `saw_recursive_hierarchy_registered_sibling_mixed_support_routing = true`.
+`cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_below_top_without_helpers`
+is the focused proof for recursive non-top unregistered parent-composed
+mixed-support child-input routing without helper instances
+(`child_input_bindings_from_parent_composed_logic > top_child_input_bindings_from_parent_composed_logic`,
+`child_input_bindings_from_mixed_support > top_child_input_bindings_from_mixed_support`,
+`hierarchy_parent_cone_instances = 0`,
+`child_input_bindings_from_registered_instance_outputs = 0`, and
+`child_input_bindings_from_registered_parent_composed_logic = 0`). This
+focused proof is banked in the full downstream-clean `r53` Phase 4 matrix
+through `saw_recursive_hierarchy_mixed_support_child_inputs = true`.
 `cargo test hierarchy_registered_sibling_routes_can_chain_through_parent_flops`
 is the focused proof for multi-stage direct registered sibling routing
 without parent-composed logic

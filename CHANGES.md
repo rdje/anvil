@@ -1,8 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-02-phase4-recursive-registered-sibling-mixed-support — Prove recursive registered sibling mixed-support routing
+## 2026-05-02-phase4-recursive-parent-composed-mixed-support — Prove recursive parent-composed mixed-support routing
 
 **Landed as:** this commit
+
+**What changed**
+
+- Extended no-helper parent-composed child-input cones so, when both supports are available, the generated parent logic deliberately mixes parent data ports with sibling child outputs.
+- Kept helper-required parent-composed routes on their existing helper-preservation path, while no-helper routes now prove mixed support without adding parent-cone helper instances or registered child-input state.
+- Added the focused recursive integration proof `recursive_hierarchy_parent_composed_routes_mix_parent_ports_below_top_without_helpers`.
+- Extended the Phase 4 hierarchy matrix with `phase4_recur_d2_parent_composed_mixed_support_child_input` for each construction strategy.
+- Added the coverage facts `saw_hierarchy_mixed_support_child_inputs` and `saw_recursive_hierarchy_mixed_support_child_inputs`, with a new Phase 4 gap if the recursive non-top fact is absent.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `105` scenarios / `420` designs to `108` scenarios / `432` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r53/tool_matrix_report.json`.
+
+**Why**
+
+- Existing mixed-support child-input coverage either used registered parent-composed D cones, direct registered sibling routing, or helper-backed parent-cone paths. This slice proves the ordinary unregistered parent-composed child-input path below the top parent can mix parent-port and sibling-output support without relying on helper instances or parent-local flops.
+
+**Validation**
+
+- `cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_below_top_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r53 --yosys-mode both`
+  - `108` scenarios
+  - `4` designs/scenario
+  - `432` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 432/0`
+  - `Yosys without-abc pass/fail = 432/0`
+  - `Yosys with-abc pass/fail = 432/0`
+  - `saw_hierarchy_mixed_support_child_inputs = true`
+  - `saw_recursive_hierarchy_mixed_support_child_inputs = true`
+- Commit-workflow hygiene:
+  - `cargo check --all-targets`
+  - `cargo test` (`197` lib tests, `5` main tests, `26` tool-matrix tests, `78` integration tests, and `0` doctests passed)
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+  - `git --no-pager diff --check`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now proves no-helper unregistered parent-composed mixed-support child-input routing both at the hierarchy level and below the top parent. `r52` becomes the previous recursive direct registered sibling mixed-support bank; `r53` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/gen/hierarchy.rs`
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-05-02-phase4-recursive-registered-sibling-mixed-support — Prove recursive registered sibling mixed-support routing
+
+**Landed as:** fc373c1
 
 **What changed**
 

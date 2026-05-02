@@ -651,6 +651,104 @@ fn hierarchy_child_inputs_can_be_bound_through_parent_composed_logic() {
 }
 
 #[test]
+fn recursive_hierarchy_parent_composed_routes_mix_parent_ports_below_top_without_helpers() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("recursive parent-composed mixed-support hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive parent-composed mixed-support hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 2);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should not instantiate helper children for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances, 0,
+            "this focused config should not use helper-sourced child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_instance_outputs, 0,
+            "this focused config should not use direct registered sibling routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "this focused config should not use registered parent-composed routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_composed_logic
+                > metrics.top_child_input_bindings_from_parent_composed_logic,
+            "expected non-top unregistered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_mixed_support
+                > metrics.top_child_input_bindings_from_mixed_support,
+            "expected non-top unregistered parent-composed child-input cones to mix parent ports with child outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.parent_composed_child_input_binding_fraction > 0.0,
+            "expected non-zero parent-composed child-input binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.instance_output_child_input_binding_fraction > 0.0,
+            "expected non-zero child-output support fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.parent_port_child_input_binding_fraction > 0.0,
+            "expected non-zero parent-port child-input support fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_child_input_cones_can_instantiate_helper_children() {
     for strategy in [
         ConstructionStrategy::Sequential,

@@ -1518,24 +1518,71 @@ fn build_child_input_parent_cone(
         root
     };
 
-    if required_parent_cone_instance_source.is_some()
-        && !cone::node_deps(top, with_helper_support).has_ports()
-    {
-        let Some(parent_companion) =
-            try_pick_parent_port_companion(g, top, parent_source_pool, width, with_helper_support)
-        else {
-            return with_helper_support;
-        };
-        add_parent_companion_gate(
+    if required_parent_cone_instance_source.is_some() {
+        if cone::node_deps(top, with_helper_support).has_ports() {
+            with_helper_support
+        } else {
+            let Some(parent_companion) = try_pick_parent_port_companion(
+                g,
+                top,
+                parent_source_pool,
+                width,
+                with_helper_support,
+            ) else {
+                return with_helper_support;
+            };
+            add_parent_companion_gate(
+                top,
+                parent_source_pool,
+                width,
+                with_helper_support,
+                parent_companion,
+            )
+        }
+    } else {
+        promote_child_input_parent_cone_mixed_support(
+            g,
             top,
             parent_source_pool,
             width,
             with_helper_support,
-            parent_companion,
         )
-    } else {
-        with_helper_support
     }
+}
+fn promote_child_input_parent_cone_mixed_support(
+    g: &mut Generator,
+    top: &mut Module,
+    parent_source_pool: &mut SignalPool,
+    width: u32,
+    root: NodeId,
+) -> NodeId {
+    let with_child_support = if cone::node_deps(top, root).has_instance_output_virtuals() {
+        root
+    } else {
+        let Some(companion) =
+            try_pick_instance_output_companion(g, top, parent_source_pool, width, root)
+        else {
+            return root;
+        };
+        add_parent_companion_gate(top, parent_source_pool, width, root, companion)
+    };
+
+    if cone::node_deps(top, with_child_support).has_ports() {
+        return with_child_support;
+    }
+
+    let Some(parent_companion) =
+        try_pick_parent_port_companion(g, top, parent_source_pool, width, with_child_support)
+    else {
+        return with_child_support;
+    };
+    add_parent_companion_gate(
+        top,
+        parent_source_pool,
+        width,
+        with_child_support,
+        parent_companion,
+    )
 }
 
 fn ensure_parent_cone_instance_support(
