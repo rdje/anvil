@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-03-phase4-recursive-stateful-parent-composed-mixed-support-child-inputs — Prove recursive stateful parent-composed mixed-support child inputs without helpers
 
-**Landed as:** this commit
+**Landed as:** 8590e43
 
 **What changed**
 
