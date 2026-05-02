@@ -1,8 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-02-phase4-recursive-parent-composed-mixed-support — Prove recursive parent-composed mixed-support routing
+## 2026-05-02-phase4-recursive-parent-port-composed-outputs — Prove recursive parent-port-composed outputs
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parent_outputs_mix_parent_ports_below_top_without_helpers`.
+- Extended the Phase 4 hierarchy matrix with `phase4_recur_d2_parent_port_composed_output` for each construction strategy.
+- Added the coverage fact `saw_recursive_hierarchy_parent_port_composed_outputs`, with a new Phase 4 coverage gap if the recursive non-top parent-output fact is absent.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `108` scenarios / `432` designs to `111` scenarios / `444` designs.
+- Ran the full Phase 4 hierarchy gate with Verilator plus both repo-owned Yosys modes at `/tmp/anvil-tool-matrix-phase4-hierarchy-r54/tool_matrix_report.json`.
+
+**Why**
+
+- The existing parent-port-composed parent-output policy proved hierarchy-wide mixed parent-port / child-output output cones, but the gate did not explicitly distinguish the recursive non-top no-helper/no-state case from top-level evidence. This slice makes that exact recursive path a first-class Phase 4 coverage fact.
+
+**Validation**
+
+- `cargo test recursive_hierarchy_parent_outputs_mix_parent_ports_below_top_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r54 --yosys-mode both`
+  - `111` scenarios
+  - `4` designs/scenario
+  - `444` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 444/0`
+  - `Yosys without-abc pass/fail = 444/0`
+  - `Yosys with-abc pass/fail = 444/0`
+  - `saw_hierarchy_parent_port_composed_outputs = true`
+  - `saw_recursive_hierarchy_parent_port_composed_outputs = true`
+- Commit-workflow hygiene:
+  - `cargo check --all-targets`
+  - `cargo test` (`197` lib tests, `5` main tests, `26` tool-matrix tests, `79` integration tests, and `0` doctests passed)
+  - `cargo clippy --all-targets -- -D warnings`
+  - `cargo fmt --all --check`
+  - `mdbook build book`
+  - `git --no-pager diff --check`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent outputs that mix parent data ports with child outputs without helper instances or parent-local state. `r53` becomes the previous recursive parent-composed mixed-support child-input bank; `r54` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
+## 2026-05-02-phase4-recursive-parent-composed-mixed-support — Prove recursive parent-composed mixed-support routing
+**Landed as:** a11d0ec
 
 **What changed**
 

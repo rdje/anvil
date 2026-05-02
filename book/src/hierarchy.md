@@ -583,14 +583,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r53/tool_matrix_report.json`
-- `108` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r54/tool_matrix_report.json`
+- `111` scenarios
 - `4` designs/scenario
-- `432` total designs
+- `444` total designs
 - `coverage_gaps = []`
-- `Verilator 432/0`
-- `Yosys without-abc 432/0`
-- `Yosys with-abc 432/0`
+- `Verilator 444/0`
+- `Yosys without-abc 444/0`
+- `Yosys with-abc 444/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -618,11 +618,13 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_registered_sibling_mixed_support_routing = true`
 - `saw_hierarchy_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_parent_port_composed_outputs = true`
 
-The `r53` bank extends the accumulated mixed-support evidence with
-recursive non-top unregistered parent-composed child-input bindings that
-mix sibling instance-output support with parent-port support without helper
-instances or parent-local flops. The earlier `r50` bank promoted
+The `r54` bank extends the accumulated mixed-support evidence with
+recursive non-top parent outputs that mix parent data ports with child
+outputs without helper instances or parent-local flops, while carrying
+forward the r53 unregistered parent-composed mixed-support child-input proof.
+The earlier `r50` bank promoted
 the recent coverage-only mixed-support probes into full downstream-clean
 evidence: stateful helper-backed parent outputs that also carry
 parent-port support, unregistered parent-composed helper child-input
@@ -1169,8 +1171,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r53` closes them cleanly
-  with `coverage_gaps = []` and `432/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r54` closes them cleanly
+  with `coverage_gaps = []` and `444/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1197,8 +1199,9 @@ local proofs remain useful:
   routes without helper instances, plus stateful helper-backed
   parent-output mixed-support routes, unregistered parent-composed helper
   child-input mixed-support routes, stateful helper-through-flop
-  child-input mixed-support routes, and direct registered sibling
-  mixed-support routes.
+  child-input mixed-support routes, direct registered sibling
+  mixed-support routes, and recursive non-top parent-port-composed
+  parent-output routes.
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first
@@ -1247,8 +1250,10 @@ local proofs remain useful:
   hierarchy bank, `r50` is the previous accumulated mixed-support
   hierarchy full bank, `r51` is the previous direct registered sibling
   mixed-support hierarchy full bank, `r52` is the previous recursive direct
-  registered sibling mixed-support hierarchy full bank, `r53` is the current
-  recursive parent-composed mixed-support child-input hierarchy full bank, and
+  registered sibling mixed-support hierarchy full bank, `r53` is the previous
+  recursive parent-composed mixed-support child-input hierarchy full bank,
+  `r54` is the current recursive parent-port-composed parent-output hierarchy
+  full bank, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
