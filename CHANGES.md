@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-03-phase4-recursive-depth-4-parent-local-flops — Push recursive non-top parent-local flops to exact hierarchy depth 4
 
-**Landed as:** this commit
+**Landed as:** bb4d738
 
 **What changed**
 
