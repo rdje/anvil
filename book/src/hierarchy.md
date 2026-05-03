@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r64/tool_matrix_report.json`
-- `141` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r65/tool_matrix_report.json`
+- `144` scenarios
 - `4` designs/scenario
-- `564` total designs
+- `576` total designs
 - `coverage_gaps = []`
-- `Verilator 564/0`
-- `Yosys without-abc 564/0`
-- `Yosys with-abc 564/0`
+- `Verilator 576/0`
+- `Yosys without-abc 576/0`
+- `Yosys with-abc 576/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -633,8 +633,16 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_depth_4_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_depth_4_parent_port_composed_outputs = true`
 
-The `r64` bank extends the depth-4 axis to the unregistered
+The `r65` bank extends the depth-4 axis to the parent-port-composed
+parent-output surface (r60's depth-3 territory) at depth 4. The new
+focus scenario `phase4_recur_d4_parent_port_composed_output` per
+construction strategy uses `2,2` child-instance bounds, isolating
+parent-output cones across three intermediate parent layers below the
+top.
+
+The earlier `r64` bank extended the depth-4 axis to the unregistered
 parent-composed mixed-support child-input surface (r59's depth-3
 territory) at depth 4. The new focus scenario
 `phase4_recur_d4_parent_composed_mixed_support_child_input` per
@@ -1272,8 +1280,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r64` closes them cleanly
-  with `coverage_gaps = []` and `564/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r65` closes them cleanly
+  with `coverage_gaps = []` and `576/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1372,9 +1380,12 @@ local proofs remain useful:
   mixed-support child inputs at exact hierarchy depth 3 without helpers,
   `r63` is the previous hierarchy full bank that opened the depth-4 axis
   with recursive non-top parent-local flops at exact hierarchy depth 4,
-  `r64` is the current hierarchy full bank that extends the depth-4 axis
-  with recursive non-top mixed-support child inputs at exact hierarchy
-  depth 4 without helpers, and the aborted
+  `r64` is the previous hierarchy full bank that extended the depth-4
+  axis with recursive non-top mixed-support child inputs at exact
+  hierarchy depth 4 without helpers, `r65` is the current hierarchy full
+  bank that extends the depth-4 axis with recursive non-top
+  parent-port-composed parent outputs at exact hierarchy depth 4
+  without helpers or state, and the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently

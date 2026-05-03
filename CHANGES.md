@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-depth-4-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 4 without helpers or state
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_4_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 4` and `2,2` child-instance bounds, isolating parent-output cones across three intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d4_parent_port_composed_output` per `ConstructionStrategy` via the new `phase4_recursive_d4_parent_port_composed_output_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_4_parent_port_composed_outputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `141` scenarios / `564` designs to `144` scenarios / `576` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r65/tool_matrix_report.json`.
+
+**Why**
+
+- The depth-4 axis now covers parent-flops (r63) and unregistered parent-composed mixed-support child inputs (r64). r65 extends it to the parent-port-composed parent-output surface (r60's depth-3 territory), mirroring how r60 followed r59 at depth 3. Smoke at depth 4 confirmed 15 internal modules with 176 hierarchy-wide vs 44 top-only parent-port-composed outputs.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_4_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r65 --yosys-mode both`
+  - `144` scenarios
+  - `4` designs/scenario
+  - `576` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 576/0`
+  - `Yosys without-abc pass/fail = 576/0`
+  - `Yosys with-abc pass/fail = 576/0`
+  - `saw_recursive_hierarchy_depth_4_parent_port_composed_outputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent-port-composed parent outputs at exact hierarchy depth 4. `r64` becomes the previous bank (depth-4 mixed-support child inputs); `r65` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-03-phase4-recursive-depth-4-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 4 without helpers
 
 **Landed as:** cded654
