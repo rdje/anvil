@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r61/tool_matrix_report.json`
-- `132` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`
+- `135` scenarios
 - `4` designs/scenario
-- `528` total designs
+- `540` total designs
 - `coverage_gaps = []`
-- `Verilator 528/0`
-- `Yosys without-abc 528/0`
-- `Yosys with-abc 528/0`
+- `Verilator 540/0`
+- `Yosys without-abc 540/0`
+- `Yosys with-abc 540/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -630,8 +630,24 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_depth_3_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_depth_3_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_depth_3_stateful_parent_port_composed_outputs = true`
+- `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs = true`
 
-The `r61` bank pushes the recursive non-top stateful
+The `r62` bank closes the depth-3 push by pushing the recursive non-top
+stateful parent-composed mixed-support child-input surface (r56's
+depth-2 territory) to exact hierarchy depth 3 without helpers. The new
+focus scenario `phase4_recur_d3_stateful_parent_composed_mixed_support_child_input`
+per construction strategy uses `4,4` child-instance bounds and
+`hierarchy_parent_flop_prob = 1.0`, forcing unregistered parent-composed
+child-input cones that mix parent ports + child outputs + parent-local
+Qs across two intermediate parent layers below the top without helpers,
+sibling routing, or registered routing. It carries forward the r61
+depth-3 stateful parent-port-composed gating, the r60 depth-3 no-state
+parent-port-composed gating, the r59 depth-3 mixed-support child-input
+gating, the r58 depth-3 parent-flop gating, and the underlying
+depth-2 mixed-support proofs. The depth-3 push is now complete across
+all four mixed-support cells.
+
+The earlier `r61` bank pushed the recursive non-top stateful
 parent-port-composed parent-output surface (r55's depth-2 territory) to
 exact hierarchy depth 3 without helpers. The new focus scenario
 `phase4_recur_d3_stateful_parent_port_composed_output` per construction
@@ -1239,8 +1255,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r61` closes them cleanly
-  with `coverage_gaps = []` and `528/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r62` closes them cleanly
+  with `coverage_gaps = []` and `540/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1332,10 +1348,12 @@ local proofs remain useful:
   inputs to exact hierarchy depth 3 without helpers, `r60` is the previous
   hierarchy full bank that pushed recursive non-top parent-port-composed
   parent outputs to exact hierarchy depth 3 without helpers or state,
-  `r61` is the current hierarchy full bank that pushes recursive non-top
+  `r61` is the previous hierarchy full bank that pushed recursive non-top
   stateful parent-port-composed parent outputs to exact hierarchy depth 3
-  without helpers, and
-  the aborted
+  without helpers, `r62` is the current hierarchy full bank that closes
+  the depth-3 push with recursive non-top stateful parent-composed
+  mixed-support child inputs at exact hierarchy depth 3 without helpers,
+  and the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently

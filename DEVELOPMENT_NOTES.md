@@ -58,8 +58,40 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r61 pushes recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 3 without helpers downstream-clean
+### Phase 4 r62 closes the depth-3 push by gating recursive non-top stateful parent-composed mixed-support child inputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 135 scenarios / 540 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `540/0`, Yosys without-ABC
+`540/0`, and Yosys with-ABC `540/0`.
+
+This bank closes the final symmetric cell of the depth-3 push. The
+sweep has now covered parent-flops (r58), no-state mixed-support child
+inputs (r59), no-state parent-port-composed outputs (r60), stateful
+parent-port-composed outputs (r61), and now stateful unregistered
+parent-composed mixed-support child inputs (r62). r62 adds
+`saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs`
+(coverage gap when missing) plus the focused proof
+`recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`
+and the matrix scenario `phase4_recur_d3_stateful_parent_composed_mixed_support_child_input`
+per construction strategy. The smoke run at depth 3 confirmed 21
+internal module occurrences with 129 hierarchy-wide
+stateful-parent-composed-mixed-support bindings versus 3 top-only and
+1344 vs 64 parent-local flops, so the recursive generator handles
+depth-3 stateful child-input mixed-support cleanly.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability. No new metric is needed because the
+`child_input_bindings_from_stateful_parent_composed_mixed_support`
+counter added in r56 already populates correctly at depth 3.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r62 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r61 pushed recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 3 without helpers downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r61/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 132 scenarios / 528 designs, with `coverage_gaps = []`,

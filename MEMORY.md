@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r61/tool_matrix_report.json`
-  covers the live `132`-scenario policy at `4` designs/scenario
-  (`528` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `528/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`
+  covers the live `135`-scenario policy at `4` designs/scenario
+  (`540` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `540/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -96,6 +96,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`,
   `cargo test recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_3_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_3_without_helpers`,
+  `cargo test recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`,
   `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
@@ -129,7 +130,35 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r61 batch pushes the recursive stateful
+- Current Phase 4 hierarchy r62 batch closes the depth-3 push by
+  pushing the recursive stateful unregistered parent-composed
+  mixed-support child-input surface (r56's depth-2 territory) to exact
+  hierarchy depth 3 without helpers. The new
+  `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs`
+  fact requires `realized_max_leaf_depth >= 3`, hierarchy-wide
+  stateful-parent-composed-mixed-support and unregistered
+  parent-composed child-input counters exceeding top-only,
+  parent-local flops below the top, and
+  `hierarchy_parent_cone_instances == 0`. A focused exact-depth-3 proof
+  `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`
+  isolates the surface across two intermediate parent layers (no
+  helpers, no sibling routing, no registered routing, parent-composed
+  child-input cones on, parent-local flops on). The new matrix scenario
+  `phase4_recur_d3_stateful_parent_composed_mixed_support_child_input`
+  per construction strategy uses `4,4` child-instance bounds. The slice
+  does not change the generator — it tightens the gate around an
+  already-supported capability. Validation includes the focused
+  pipeline regression, `cargo test --bin tool_matrix`, and the full
+  downstream-clean r62 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`
+  with `135` scenarios / `540` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs = true`,
+  and `540/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  The depth-3 push is now complete across all four mixed-support cells:
+  parent-flops (r58), no-state child-input mixed-support (r59),
+  no-state parent-output mixed-support (r60), stateful parent-output
+  mixed-support (r61), and stateful child-input mixed-support (r62).
+- Previous Phase 4 hierarchy r61 batch pushed the recursive stateful
   parent-port-composed parent-output surface (r55's depth-2 territory)
   to exact hierarchy depth 3 without helpers. The new
   `saw_recursive_hierarchy_depth_3_stateful_parent_port_composed_outputs`

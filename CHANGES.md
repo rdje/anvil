@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-depth-3-stateful-parent-composed-mixed-support-child-inputs — Push recursive non-top stateful parent-composed mixed-support child inputs to exact hierarchy depth 3 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 3`, `4,4` child-instance bounds, `hierarchy_child_input_cone_prob = 1.0`, and `hierarchy_parent_flop_prob = 1.0`, isolating unregistered parent-composed child-input cones that mix parent data ports + child outputs + parent-local Qs across two intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d3_stateful_parent_composed_mixed_support_child_input` per `ConstructionStrategy` via the new `phase4_recursive_d3_stateful_parent_composed_mixed_support_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs` coverage fact and matching gap message. The fact requires `realized_max_leaf_depth >= 3`, hierarchy-wide stateful-parent-composed-mixed-support and unregistered parent-composed counters exceeding top-only, parent-local flops below the top, and `hierarchy_parent_cone_instances == 0`.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `132` scenarios / `528` designs to `135` scenarios / `540` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`.
+
+**Why**
+
+- The depth-3 push has covered parent-flops (r58), no-state mixed-support child inputs (r59), no-state parent-port-composed outputs (r60), and stateful parent-port-composed outputs (r61). r62 closes the final symmetric cell of the depth-3 sweep: the stateful child-input mixed-support surface (r56's depth-2 territory) at exact hierarchy depth 3. The slice does not change the generator — it tightens the gate around an already-supported capability.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r62 --yosys-mode both`
+  - `135` scenarios
+  - `4` designs/scenario
+  - `540` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 540/0`
+  - `Yosys without-abc pass/fail = 540/0`
+  - `Yosys with-abc pass/fail = 540/0`
+  - `saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 3, completing the depth-3 push across all four mixed-support cells. `r61` becomes the previous bank that pushed stateful parent-port-composed outputs to depth 3; `r62` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-03-phase4-recursive-depth-3-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 3 without helpers
 
 **Landed as:** dd0940c
