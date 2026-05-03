@@ -58,8 +58,37 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r62 closes the depth-3 push by gating recursive non-top stateful parent-composed mixed-support child inputs without helpers downstream-clean
+### Phase 4 r63 opens the depth-4 axis with recursive non-top parent-local flops downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r63/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 138 scenarios / 552 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `552/0`, Yosys without-ABC
+`552/0`, and Yosys with-ABC `552/0`.
+
+This bank opens the depth-4 axis. The depth-3 push was structurally
+complete in r62 (all four mixed-support cells covered at depth 3:
+parent-flops, no-state child-input, no-state parent-output, stateful
+parent-output, stateful child-input). r63 starts the depth-4 axis with
+the simplest surface — parent flops at depth 4 — by adding
+`saw_recursive_hierarchy_depth_4_parent_local_flops` (coverage gap when
+missing) plus the focused proof
+`recursive_hierarchy_parents_can_emit_local_flops_at_depth_4` and the
+matrix scenario `phase4_recur_d4_parent_state` per construction strategy
+(`2,2` child-instance bounds, three intermediate parent layers below
+the top). The smoke run at depth 4 confirmed 15 internal module
+occurrences with 960 hierarchy-wide parent-local flops versus 64
+top-only, so the recursive generator handles depth-4 nesting cleanly.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability. No new metric is needed.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r63 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r62 closed the depth-3 push by gating recursive non-top stateful parent-composed mixed-support child inputs without helpers downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r62/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 135 scenarios / 540 designs, with `coverage_gaps = []`,

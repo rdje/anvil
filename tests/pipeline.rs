@@ -3650,6 +3650,104 @@ fn recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth
 }
 
 #[test]
+fn recursive_hierarchy_parents_can_emit_local_flops_at_depth_4() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 4,
+            max_hierarchy_depth: 4,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 1.0,
+            max_flops_per_module: 64,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            min_width: 1,
+            max_width: 8,
+            max_depth: 1,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("depth-4 recursive parent-local-flop hierarchy config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "depth-4 recursive parent-local-flop hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 4);
+        assert_eq!(metrics.realized_max_leaf_depth, 4);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected multiple non-top internal parent occurrences across three intermediate hierarchy layers for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should not instantiate parent-cone helpers for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances, 0,
+            "this focused config should not source child inputs from helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_instance_outputs, 0,
+            "this focused config should not use direct registered sibling routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_composed_logic, 0,
+            "this focused config should not use parent-composed child-input routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "this focused config should not use registered parent-composed routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_local_flops > metrics.top_local_flops,
+            "expected non-top internal parents at depth 4 to own local flops below the top parent for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.internal_module_occurrences_with_local_flops > 0,
+            "expected at least one depth-4 internal parent module occurrence with local flops for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.top_clock_inputs, 1,
+            "expected top clock for parent-local flops at depth 4 for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.top_reset_inputs, 1,
+            "expected top reset for parent-local flops at depth 4 for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn hierarchy_child_inputs_can_be_registered_from_sibling_instance_outputs() {
     for strategy in [
         ConstructionStrategy::Sequential,
