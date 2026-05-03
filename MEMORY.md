@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r63/tool_matrix_report.json`
-  covers the live `138`-scenario policy at `4` designs/scenario
-  (`552` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `552/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r64/tool_matrix_report.json`
+  covers the live `141`-scenario policy at `4` designs/scenario
+  (`564` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `564/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -98,6 +98,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_3_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_3_without_helpers`,
   `cargo test recursive_hierarchy_parents_can_emit_local_flops_at_depth_4`,
+  `cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`,
   `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
@@ -131,7 +132,30 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r63 batch opens the depth-4 axis by
+- Current Phase 4 hierarchy r64 batch extends the depth-4 axis by
+  pushing the recursive unregistered parent-composed mixed-support
+  child-input surface (r59's depth-3 territory) to exact hierarchy
+  depth 4. The new
+  `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs` fact
+  requires `realized_max_leaf_depth >= 4`, hierarchy-wide
+  unregistered parent-composed and mixed-support child-input bindings
+  exceeding top-only, and `hierarchy_parent_cone_instances == 0`. A
+  focused exact-depth-4 proof
+  `recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`
+  isolates the surface across three intermediate parent layers (no
+  helpers, no sibling routing, no registered routing, no parent-local
+  flops). The new matrix scenario
+  `phase4_recur_d4_parent_composed_mixed_support_child_input` per
+  construction strategy uses `4,4` child-instance bounds. The slice
+  does not change the generator — it tightens the gate around an
+  already-supported capability. Validation includes the focused
+  pipeline regression, `cargo test --bin tool_matrix`, and the full
+  downstream-clean r64 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r64/tool_matrix_report.json`
+  with `141` scenarios / `564` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs = true`,
+  and `564/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r63 batch opened the depth-4 axis by
   pushing the recursive parent-flop surface (r58's depth-3 territory,
   r57's depth-2 territory) to exact hierarchy depth 4. The new
   `saw_recursive_hierarchy_depth_4_parent_local_flops` fact requires

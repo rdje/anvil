@@ -58,8 +58,35 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r63 opens the depth-4 axis with recursive non-top parent-local flops downstream-clean
+### Phase 4 r64 extends the depth-4 axis with recursive non-top mixed-support child inputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r64/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 141 scenarios / 564 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `564/0`, Yosys without-ABC
+`564/0`, and Yosys with-ABC `564/0`.
+
+This bank extends the depth-4 axis (opened by r63) to the unregistered
+parent-composed mixed-support child-input surface, mirroring how r59
+followed r58 at depth 3. The new
+`saw_recursive_hierarchy_depth_4_mixed_support_child_inputs` fact
+(coverage gap when missing) plus the focused proof
+`recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`
+and the matrix scenario `phase4_recur_d4_parent_composed_mixed_support_child_input`
+per construction strategy isolate the surface across three intermediate
+parent layers below the top. Smoke confirmed 85 internal module
+occurrences with 315 hierarchy-wide vs 3 top-only mixed-support
+bindings and 355 vs 3 parent-composed bindings at depth 4.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r64 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r63 opened the depth-4 axis with recursive non-top parent-local flops downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r63/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 138 scenarios / 552 designs, with `coverage_gaps = []`,

@@ -298,6 +298,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_depth_3_stateful_parent_port_composed_outputs: bool,
     saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs: bool,
     saw_recursive_hierarchy_depth_4_parent_local_flops: bool,
+    saw_recursive_hierarchy_depth_4_mixed_support_child_inputs: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -994,6 +995,14 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 "phase4_recur_d4_parent_state",
                 "bounded recursive hierarchy at exact depth 4 where non-top parents at three intermediate layers own local flops without helper instances, sibling routing, registered routing, or parent-composed child-input cones",
                 phase4_recursive_d4_parent_state_focus_config(strategy, next_seed + 45),
+            ),
+            (
+                "phase4_recur_d4_parent_composed_mixed_support_child_input",
+                "bounded recursive hierarchy at exact depth 4 where non-top unregistered parent-composed child-input cones at three intermediate layers mix parent data ports with sibling instance outputs without helper instances or parent-local state",
+                phase4_recursive_d4_parent_composed_mixed_support_focus_config(
+                    strategy,
+                    next_seed + 46,
+                ),
             ),
             (
                 "phase4_recur_d2_registered_sibling_multistage_state",
@@ -1751,6 +1760,31 @@ fn phase4_recursive_d3_stateful_parent_composed_mixed_support_focus_config(
     let mut cfg = phase4_recursive_d3_parent_composed_mixed_support_focus_config(strategy, seed);
     cfg.hierarchy_parent_flop_prob = 1.0;
     cfg.max_flops_per_module = 64;
+    cfg
+}
+
+fn phase4_recursive_d4_parent_composed_mixed_support_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    let mut cfg = with_recursive_hierarchy(
+        share_heavy_comb_only_config(strategy, seed, 0.9),
+        4,
+        4,
+        4,
+        4,
+    );
+    cfg.flop_prob = 0.0;
+    cfg.hierarchy_sibling_route_prob = 0.0;
+    cfg.hierarchy_registered_sibling_route_prob = 0.0;
+    cfg.hierarchy_registered_child_input_cone_prob = 0.0;
+    cfg.hierarchy_child_input_cone_prob = 1.0;
+    cfg.hierarchy_parent_cone_instance_prob = 0.0;
+    cfg.hierarchy_parent_flop_prob = 0.0;
+    cfg.max_flops_per_module = 0;
+    cfg.terminal_reuse_prob = 1.0;
+    cfg.constant_prob = 0.0;
+    cfg.max_depth = 4;
     cfg
 }
 
@@ -4352,6 +4386,17 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             design.metrics.realized_max_leaf_depth >= 4
                 && design.metrics.hierarchy_parent_local_flops > design.metrics.top_local_flops
                 && design.metrics.internal_module_occurrences_with_local_flops > 0;
+        coverage.saw_recursive_hierarchy_depth_4_mixed_support_child_inputs |=
+            design.metrics.realized_max_leaf_depth >= 4
+                && design.metrics.child_input_bindings_from_mixed_support
+                    > design.metrics.top_child_input_bindings_from_mixed_support
+                && design
+                    .metrics
+                    .child_input_bindings_from_parent_composed_logic
+                    > design
+                        .metrics
+                        .top_child_input_bindings_from_parent_composed_logic
+                && design.metrics.hierarchy_parent_cone_instances == 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -4615,6 +4660,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs;
     dst.saw_recursive_hierarchy_depth_4_parent_local_flops |=
         src.saw_recursive_hierarchy_depth_4_parent_local_flops;
+    dst.saw_recursive_hierarchy_depth_4_mixed_support_child_inputs |=
+        src.saw_recursive_hierarchy_depth_4_mixed_support_child_inputs;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -5441,6 +5488,14 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_depth_4_mixed_support_child_inputs
+    {
+        gaps.push(
+            "matrix never proved recursive depth-4 hierarchy unregistered parent-composed child-input bindings mixing parent ports with child outputs below the top parent without helper instances"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -5940,7 +5995,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 552);
+        assert_eq!(plan.total_modules, 564);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -6008,8 +6063,8 @@ mod tests {
                         .ends_with("phase4_recur_d3_stateful_parent_port_composed_output")
             );
         }
-        assert_eq!(scenarios.len(), 138);
-        assert_eq!(names.len(), 138);
+        assert_eq!(scenarios.len(), 141);
+        assert_eq!(names.len(), 141);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -6052,6 +6107,7 @@ mod tests {
             "phase4_recur_d3_stateful_parent_port_composed_output",
             "phase4_recur_d3_stateful_parent_composed_mixed_support_child_input",
             "phase4_recur_d4_parent_state",
+            "phase4_recur_d4_parent_composed_mixed_support_child_input",
             "phase4_recur_d2_registered_sibling_multistage_state",
             "phase4_hier2_inst4_direct_sibling_parent_cone_instance",
             "phase4_recur_d2_direct_sibling_parent_cone_instance",
@@ -6418,6 +6474,11 @@ mod tests {
         }));
         assert!(gaps.iter().any(|gap| {
             gap.contains("recursive depth-4 hierarchy parent-local flops below the top parent")
+        }));
+        assert!(gaps.iter().any(|gap| {
+            gap.contains(
+                "recursive depth-4 hierarchy unregistered parent-composed child-input bindings mixing parent ports with child outputs below the top parent without helper instances",
+            )
         }));
         assert!(gaps
             .iter()

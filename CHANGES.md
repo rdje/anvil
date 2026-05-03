@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-03-phase4-recursive-depth-4-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 4 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 4` and `4,4` child-instance bounds, isolating the unregistered parent-composed mixed-support surface across three intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d4_parent_composed_mixed_support_child_input` per `ConstructionStrategy` via the new `phase4_recursive_d4_parent_composed_mixed_support_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `138` scenarios / `552` designs to `141` scenarios / `564` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r64/tool_matrix_report.json`.
+
+**Why**
+
+- The depth-4 axis was opened in r63 with parent flops. r64 extends the depth-4 coverage to the unregistered parent-composed mixed-support child-input surface — mirroring how r59 followed r58 at depth 3. The slice does not change the generator; it tightens the gate around an already-supported capability. Smoke at depth 4 confirmed 85 internal module occurrences with 315 hierarchy-wide vs 3 top-only mixed-support bindings and 355 vs 3 parent-composed bindings.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r64 --yosys-mode both`
+  - `141` scenarios
+  - `4` designs/scenario
+  - `564` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 564/0`
+  - `Yosys without-abc pass/fail = 564/0`
+  - `Yosys with-abc pass/fail = 564/0`
+  - `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top unregistered parent-composed mixed-support child inputs at exact hierarchy depth 4. `r63` becomes the previous bank that opened the depth-4 axis; `r64` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-03-phase4-recursive-depth-4-parent-local-flops — Push recursive non-top parent-local flops to exact hierarchy depth 4
 
 **Landed as:** bb4d738
