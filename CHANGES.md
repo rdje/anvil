@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-03-phase4-recursive-depth-4-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 4 without helpers
 
-**Landed as:** this commit
+**Landed as:** cded654
 
 **What changed**
 
