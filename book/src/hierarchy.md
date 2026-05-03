@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r58/tool_matrix_report.json`
-- `123` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r59/tool_matrix_report.json`
+- `126` scenarios
 - `4` designs/scenario
-- `492` total designs
+- `504` total designs
 - `coverage_gaps = []`
-- `Verilator 492/0`
-- `Yosys without-abc 492/0`
-- `Yosys with-abc 492/0`
+- `Verilator 504/0`
+- `Yosys without-abc 504/0`
+- `Yosys with-abc 504/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -627,9 +627,22 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
+- `saw_recursive_hierarchy_depth_3_mixed_support_child_inputs = true`
 
-The `r58` bank pushes the recursive parent-state surface from exact
-depth 2 to exact depth 3. The new focus scenario
+The `r59` bank pushes the recursive non-top unregistered parent-composed
+mixed-support child-input surface from exact depth 2 (r53) to exact
+depth 3 without helpers. The new focus scenario
+`phase4_recur_d3_parent_composed_mixed_support_child_input` per
+construction strategy uses `4,4` child-instance bounds (distinct from
+r58's depth-3 / `2,2` parent-state shape) and forces hierarchy depth 3
+across two intermediate parent layers below the top with mixed-support
+child-input cones enabled. It carries forward the r58 depth-3
+parent-flop gating, the r57 first-class parent-local-flop gating, the
+r56 stateful parent-composed mixed-support child-input proof, and the
+r53/r54/r55 underlying mixed-support proofs.
+
+The earlier `r58` bank pushed the recursive parent-state surface from
+exact depth 2 to exact depth 3. The new focus scenario
 `phase4_recur_d3_parent_state` per construction strategy uses `2,2`
 child-instance bounds (distinct from r57's depth-2 / `4,4` shape) and
 forces hierarchy depth 3 across two intermediate parent layers below the
@@ -1199,8 +1212,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r58` closes them cleanly
-  with `coverage_gaps = []` and `492/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r59` closes them cleanly
+  with `coverage_gaps = []` and `504/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1285,9 +1298,11 @@ local proofs remain useful:
   parent-output hierarchy full bank, `r56` is the previous recursive stateful
   unregistered parent-composed mixed-support child-input hierarchy full bank,
   `r57` is the previous hierarchy full bank that gated recursive non-top
-  parent-local flops as a first-class coverage fact, `r58` is the current
-  hierarchy full bank that pushes recursive parent-local flops to exact
-  hierarchy depth 3, and
+  parent-local flops as a first-class coverage fact, `r58` is the previous
+  hierarchy full bank that pushed recursive parent-local flops to exact
+  hierarchy depth 3, `r59` is the current hierarchy full bank that pushes
+  recursive non-top unregistered parent-composed mixed-support child
+  inputs to exact hierarchy depth 3 without helpers, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
