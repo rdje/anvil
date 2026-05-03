@@ -58,8 +58,39 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r60 pushes recursive non-top parent-port-composed parent outputs to exact hierarchy depth 3 without helpers or state downstream-clean
+### Phase 4 r61 pushes recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 3 without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r61/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 132 scenarios / 528 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `528/0`, Yosys without-ABC
+`528/0`, and Yosys with-ABC `528/0`.
+
+This bank closes the last symmetric gap in the depth-3 push. r58/r59/r60
+covered parent-flops, mixed-support child inputs, and no-state
+parent-port-composed outputs at depth 3. r61 adds the stateful version
+of the parent-output surface (r55's depth-2 territory) at depth 3 by
+adding `saw_recursive_hierarchy_depth_3_stateful_parent_port_composed_outputs`
+(coverage gap when missing) plus the focused proof
+`recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_3_without_helpers`
+and the matrix scenario `phase4_recur_d3_stateful_parent_port_composed_output`
+per construction strategy. The smoke run at depth 3 confirmed 7 internal
+module occurrences with 36 hierarchy-wide parent-port-composed outputs
+through parent-local Qs versus 12 top-only and 448 vs 64 parent-local
+flops, so the recursive generator handles depth-3 stateful parent-output
+composition cleanly.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability. No new metric is needed because the
+through-parent-flop output counters added in r55 already populate
+correctly at depth 3.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r61 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r60 pushed recursive non-top parent-port-composed parent outputs to exact hierarchy depth 3 without helpers or state downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r60/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 129 scenarios / 516 designs, with `coverage_gaps = []`,
