@@ -1501,6 +1501,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `709bff6` — Phase 4: close depth-3 push with r62 stateful child-input mixed-support.
 - `dd0940c` — Phase 4: push r61 stateful parent-port-composed outputs to depth 3.
 - `fa08ccd` — Phase 4: push r60 parent-port-composed outputs to depth 3.
 - `dc4fbf3` — Phase 4: push r59 mixed-support child inputs to depth 3.

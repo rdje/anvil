@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-03-phase4-recursive-depth-3-stateful-parent-composed-mixed-support-child-inputs — Push recursive non-top stateful parent-composed mixed-support child inputs to exact hierarchy depth 3 without helpers
 
-**Landed as:** this commit
+**Landed as:** 709bff6
 
 **What changed**
 
