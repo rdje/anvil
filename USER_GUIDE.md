@@ -623,17 +623,17 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r59/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r60/tool_matrix_report.json`
 records:
 
-- `126` scenarios
+- `129` scenarios
 - `4` designs per scenario
-- `504` total designs
+- `516` total designs
 - `artifact_kind = "design"`
 - `coverage_gaps = []`
-- `Verilator pass/fail = 504/0`
-- `Yosys without-abc pass/fail = 504/0`
-- `Yosys with-abc pass/fail = 504/0`
+- `Verilator pass/fail = 516/0`
+- `Yosys without-abc pass/fail = 516/0`
+- `Yosys with-abc pass/fail = 516/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -667,6 +667,7 @@ records:
 - `saw_recursive_hierarchy_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_3_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_depth_3_parent_port_composed_outputs = true`
 
 That report is the latest fully banked repo-owned Phase 4
 artifact, not only the older wrapper baseline. It covers the broadened
@@ -750,7 +751,7 @@ coverage-only proofs at
 `/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
-are superseded by the full downstream-clean `r59` bank.
+are superseded by the full downstream-clean `r60` bank.
 
 The older `r21` full bank remains useful historical evidence for the
 pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
@@ -887,7 +888,7 @@ first records this as
 `saw_hierarchy_parent_cone_instance_mixed_support_routing = true` and
 `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`
 with `coverage_gaps = []`; it skipped Verilator/Yosys and therefore
-is superseded by the full downstream-clean `r59` bank for downstream-clean evidence.
+is superseded by the full downstream-clean `r60` bank for downstream-clean evidence.
 `cargo test metrics::tests::design_metrics_capture_parent_composed_parent_cone_instance_flop_routes`
 now also proves stateful parent-composed helper child-input mixed
 support in the unregistered helper-through-flop route
@@ -1089,7 +1090,7 @@ is the focused proof for direct registered sibling mixed-support routing
 `child_input_bindings_from_registered_parent_composed_logic = 0`, and
 `child_input_bindings_from_registered_mixed_support = 0`).
 This focused proof is banked in the full downstream-clean `r51` Phase 4
-matrix and is carried forward by the `r59` bank through
+matrix and is carried forward by the `r60` bank through
 `saw_hierarchy_registered_sibling_mixed_support_routing = true`.
 `cargo test recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
 is the focused proof for direct registered sibling mixed-support routing

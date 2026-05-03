@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r59/tool_matrix_report.json`
-- `126` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r60/tool_matrix_report.json`
+- `129` scenarios
 - `4` designs/scenario
-- `504` total designs
+- `516` total designs
 - `coverage_gaps = []`
-- `Verilator 504/0`
-- `Yosys without-abc 504/0`
-- `Yosys with-abc 504/0`
+- `Verilator 516/0`
+- `Yosys without-abc 516/0`
+- `Yosys with-abc 516/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -628,10 +628,23 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_3_parent_local_flops = true`
 - `saw_recursive_hierarchy_depth_3_mixed_support_child_inputs = true`
+- `saw_recursive_hierarchy_depth_3_parent_port_composed_outputs = true`
 
-The `r59` bank pushes the recursive non-top unregistered parent-composed
-mixed-support child-input surface from exact depth 2 (r53) to exact
-depth 3 without helpers. The new focus scenario
+The `r60` bank pushes the recursive non-top parent-port-composed
+parent-output surface (r54's depth-2 territory) to exact hierarchy
+depth 3 without helpers or state. The new focus scenario
+`phase4_recur_d3_parent_port_composed_output` per construction strategy
+uses `2,2` child-instance bounds and forces parent-output cones across
+two intermediate parent layers below the top with helpers, sibling
+routing, registered routing, parent-composed child-input cones, and
+parent-local flops all disabled. It carries forward the r59 depth-3
+mixed-support child-input gating, the r58 depth-3 parent-flop gating,
+the r57 first-class parent-local-flop gating, and the underlying
+depth-2 mixed-support proofs.
+
+The earlier `r59` bank pushed the recursive non-top unregistered
+parent-composed mixed-support child-input surface from exact depth 2
+(r53) to exact depth 3 without helpers. The new focus scenario
 `phase4_recur_d3_parent_composed_mixed_support_child_input` per
 construction strategy uses `4,4` child-instance bounds (distinct from
 r58's depth-3 / `2,2` parent-state shape) and forces hierarchy depth 3
@@ -1212,8 +1225,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r59` closes them cleanly
-  with `coverage_gaps = []` and `504/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r60` closes them cleanly
+  with `coverage_gaps = []` and `516/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1300,9 +1313,11 @@ local proofs remain useful:
   `r57` is the previous hierarchy full bank that gated recursive non-top
   parent-local flops as a first-class coverage fact, `r58` is the previous
   hierarchy full bank that pushed recursive parent-local flops to exact
-  hierarchy depth 3, `r59` is the current hierarchy full bank that pushes
+  hierarchy depth 3, `r59` is the previous hierarchy full bank that pushed
   recursive non-top unregistered parent-composed mixed-support child
-  inputs to exact hierarchy depth 3 without helpers, and
+  inputs to exact hierarchy depth 3 without helpers, `r60` is the current
+  hierarchy full bank that pushes recursive non-top parent-port-composed
+  parent outputs to exact hierarchy depth 3 without helpers or state, and
   the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
