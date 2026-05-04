@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-04-phase4-recursive-depth-4-stateful-parent-composed-mixed-support-child-inputs — Close depth-4 sweep with stateful parent-composed mixed-support child inputs
 
-**Landed as:** this commit
+**Landed as:** 28144ac
 
 **What changed**
 
