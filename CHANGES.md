@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-04-phase4-recursive-depth-5-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 5 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_5_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 5` and `4,4` child-instance bounds, isolating the unregistered parent-composed mixed-support surface across four intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d5_parent_composed_mixed_support_child_input` per `ConstructionStrategy` via the new `phase4_recursive_d5_parent_composed_mixed_support_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_5_mixed_support_child_inputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `153` scenarios / `612` designs to `156` scenarios / `624` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r69/tool_matrix_report.json`.
+
+**Why**
+
+- The depth-5 axis was opened in r68 with parent flops. r69 extends the depth-5 coverage to the unregistered parent-composed mixed-support child-input surface, mirroring how r64 followed r63 at depth 4 and r59 followed r58 at depth 3. Smoke at depth 5 confirmed 341 internal module occurrences with 1457 hierarchy-wide vs 3 top-only mixed-support bindings and 1599 vs 3 parent-composed bindings.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_5_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r69 --yosys-mode both`
+  - `156` scenarios
+  - `4` designs/scenario
+  - `624` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 624/0`
+  - `Yosys without-abc pass/fail = 624/0`
+  - `Yosys with-abc pass/fail = 624/0`
+  - `saw_recursive_hierarchy_depth_5_mixed_support_child_inputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top unregistered parent-composed mixed-support child inputs at exact hierarchy depth 5. `r68` becomes the previous bank (depth-5 parent-flops); `r69` is the current full downstream-clean Phase 4 hierarchy bank.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-04-phase4-recursive-depth-5-parent-local-flops — Open depth-5 axis with recursive non-top parent-local flops
 
 **Landed as:** 063f196

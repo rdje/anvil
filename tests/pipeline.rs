@@ -3846,6 +3846,95 @@ fn recursive_hierarchy_parents_can_emit_local_flops_at_depth_5() {
 }
 
 #[test]
+fn recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_5_without_helpers() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 5,
+            max_hierarchy_depth: 5,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "depth-5 recursive parent-composed mixed-support hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "depth-5 recursive parent-composed mixed-support hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 5);
+        assert_eq!(metrics.realized_max_leaf_depth, 5);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected multiple non-top internal parent occurrences across four intermediate hierarchy layers for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should not instantiate helper children for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_parent_cone_instances, 0,
+            "this focused config should not source child inputs from helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_instance_outputs, 0,
+            "this focused config should not use direct registered sibling routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.child_input_bindings_from_registered_parent_composed_logic, 0,
+            "this focused config should not use registered parent-composed routing for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_local_flops, 0,
+            "this focused config should not emit parent-local flops for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_composed_logic
+                > metrics.top_child_input_bindings_from_parent_composed_logic,
+            "expected non-top depth-5 unregistered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_mixed_support
+                > metrics.top_child_input_bindings_from_mixed_support,
+            "expected non-top depth-5 unregistered parent-composed child-input cones to mix parent ports with child outputs below the top parent for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers() {
     for strategy in [
         ConstructionStrategy::Sequential,

@@ -58,8 +58,30 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r68 opens the depth-5 axis with recursive non-top parent-local flops downstream-clean
+### Phase 4 r69 extends the depth-5 axis with recursive non-top mixed-support child inputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r69/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 156 scenarios / 624 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `624/0`, Yosys without-ABC
+`624/0`, and Yosys with-ABC `624/0`.
+
+This bank extends the depth-5 axis (opened by r68) to the unregistered
+parent-composed mixed-support child-input surface, mirroring how r64
+followed r63 at depth 4 and r59 followed r58 at depth 3. Smoke confirmed
+341 internal module occurrences with 1457 hierarchy-wide vs 3 top-only
+mixed-support bindings and 1599 vs 3 parent-composed bindings at
+depth 5.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r69 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r68 opened the depth-5 axis with recursive non-top parent-local flops downstream-clean
+The previous full downstream-clean Phase 4 hierarchy evidence anchor is
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r68/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
 it to 153 scenarios / 612 designs, with `coverage_gaps = []`,
