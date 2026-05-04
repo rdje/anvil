@@ -3935,6 +3935,89 @@ fn recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_5_withou
 }
 
 #[test]
+fn recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_5_without_helpers() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 5,
+            max_hierarchy_depth: 5,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "depth-5 recursive parent-port-composed parent-output hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "depth-5 recursive parent-port-composed parent-output hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 5);
+        assert_eq!(metrics.realized_max_leaf_depth, 5);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected multiple non-top internal parent occurrences across four intermediate hierarchy layers for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should not instantiate parent-cone helpers for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_outputs_reaching_parent_cone_instances, 0,
+            "this focused config should not route parent outputs through helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_local_flops, 0,
+            "this focused config should not emit parent-local flops for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_composed_outputs > metrics.top_parent_composed_outputs,
+            "expected non-top depth-5 parent outputs to compose child outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_port_composed_outputs
+                > metrics.top_parent_port_composed_outputs,
+            "expected non-top depth-5 parent outputs to mix parent ports with child outputs for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_port_composed_output_fraction > 0.0,
+            "expected non-zero hierarchy parent-port-composed output fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers() {
     for strategy in [
         ConstructionStrategy::Sequential,
