@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r66/tool_matrix_report.json`
-- `147` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r67/tool_matrix_report.json`
+- `150` scenarios
 - `4` designs/scenario
-- `588` total designs
+- `600` total designs
 - `coverage_gaps = []`
-- `Verilator 588/0`
-- `Yosys without-abc 588/0`
-- `Yosys with-abc 588/0`
+- `Verilator 600/0`
+- `Yosys without-abc 600/0`
+- `Yosys with-abc 600/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -635,8 +635,22 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_depth_4_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_depth_4_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_depth_4_stateful_parent_port_composed_outputs = true`
+- `saw_recursive_hierarchy_depth_4_stateful_parent_composed_mixed_support_child_inputs = true`
 
-The `r66` bank extends the depth-4 axis to the stateful
+The `r67` bank closes the depth-4 sweep by extending coverage to the
+stateful unregistered parent-composed mixed-support child-input surface
+(r62's depth-3 territory) at depth 4. The new focus scenario
+`phase4_recur_d4_stateful_parent_composed_mixed_support_child_input`
+per construction strategy uses `4,4` child-instance bounds and
+`hierarchy_parent_flop_prob = 1.0`, forcing unregistered parent-composed
+child-input cones that mix parent ports + child outputs + parent-local
+Qs across three intermediate parent layers below the top. The depth-4
+sweep is now complete across all five mixed-support cells:
+parent-flops (r63), no-state child-input mixed-support (r64), no-state
+parent-output mixed-support (r65), stateful parent-output mixed-support
+(r66), and stateful child-input mixed-support (r67).
+
+The earlier `r66` bank extended the depth-4 axis to the stateful
 parent-port-composed parent-output surface (r61's depth-3 territory)
 at depth 4. The new focus scenario
 `phase4_recur_d4_stateful_parent_port_composed_output` per construction
@@ -1290,8 +1304,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r66` closes them cleanly
-  with `coverage_gaps = []` and `588/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r67` closes them cleanly
+  with `coverage_gaps = []` and `600/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1395,10 +1409,13 @@ local proofs remain useful:
   hierarchy depth 4 without helpers, `r65` is the previous hierarchy
   full bank that extended the depth-4 axis with recursive non-top
   parent-port-composed parent outputs at exact hierarchy depth 4
-  without helpers or state, `r66` is the current hierarchy full bank
-  that extends the depth-4 axis with recursive non-top stateful
+  without helpers or state, `r66` is the previous hierarchy full bank
+  that extended the depth-4 axis with recursive non-top stateful
   parent-port-composed parent outputs at exact hierarchy depth 4
-  without helpers, and the aborted
+  without helpers, `r67` is the current hierarchy full bank that closes
+  the depth-4 sweep with recursive non-top stateful parent-composed
+  mixed-support child inputs at exact hierarchy depth 4 without
+  helpers, and the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently

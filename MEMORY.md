@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r66/tool_matrix_report.json`
-  covers the live `147`-scenario policy at `4` designs/scenario
-  (`588` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `588/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r67/tool_matrix_report.json`
+  covers the live `150`-scenario policy at `4` designs/scenario
+  (`600` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `600/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -101,6 +101,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `cargo test recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`,
   `cargo test recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_4_without_helpers`,
   `cargo test recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_4_without_helpers`,
+  `cargo test recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`,
   `cargo test registered_sibling_mixed_support`,
   and
   `cargo test recursive_hierarchy_parent_composed_helper_routes_can_use_parent_flops_below_top`.
@@ -134,7 +135,36 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r66 batch extends the depth-4 axis by
+- Current Phase 4 hierarchy r67 batch closes the depth-4 sweep by
+  pushing the recursive stateful unregistered parent-composed
+  mixed-support child-input surface (r62's depth-3 territory) to exact
+  hierarchy depth 4 without helpers. The new
+  `saw_recursive_hierarchy_depth_4_stateful_parent_composed_mixed_support_child_inputs`
+  fact requires `realized_max_leaf_depth >= 4`, hierarchy-wide
+  stateful-parent-composed-mixed-support and unregistered
+  parent-composed counters exceeding top-only, parent-local flops below
+  the top, and `hierarchy_parent_cone_instances == 0`. A focused
+  exact-depth-4 proof
+  `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_4_without_helpers`
+  isolates the surface across three intermediate parent layers (no
+  helpers, no sibling routing, no registered routing,
+  parent-composed child-input cones on, parent-local flops on). The new
+  matrix scenario `phase4_recur_d4_stateful_parent_composed_mixed_support_child_input`
+  per construction strategy uses `4,4` child-instance bounds. The slice
+  does not change the generator — it tightens the gate around an
+  already-supported capability. Validation includes the focused
+  pipeline regression, `cargo test --bin tool_matrix`, and the full
+  downstream-clean r67 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r67/tool_matrix_report.json`
+  with `150` scenarios / `600` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_depth_4_stateful_parent_composed_mixed_support_child_inputs = true`,
+  and `600/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  The depth-4 sweep is now structurally complete across all five cells:
+  parent-flops (r63), no-state mixed-support child inputs (r64),
+  no-state parent-port-composed outputs (r65), stateful
+  parent-port-composed outputs (r66), and stateful child-input
+  mixed-support (r67).
+- Previous Phase 4 hierarchy r66 batch extended the depth-4 axis by
   pushing the recursive stateful parent-port-composed parent-output
   surface (r61's depth-3 territory) to exact hierarchy depth 4 without
   helpers. The new
