@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r70/tool_matrix_report.json`
-  covers the live `159`-scenario policy at `4` designs/scenario
-  (`636` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `636/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r71/tool_matrix_report.json`
+  covers the live `162`-scenario policy at `4` designs/scenario
+  (`648` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `648/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -137,10 +137,36 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r70 batch extends the depth-5 axis by
+- Current Phase 4 hierarchy r71 batch extends the depth-5 axis by
+  pushing the recursive stateful parent-port-composed parent-output
+  surface (r66's depth-4 territory, r61's depth-3 territory) to exact
+  hierarchy depth 5. The new
+  `saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs`
+  fact requires `realized_max_leaf_depth >= 5`, hierarchy-wide
+  parent-port-composed parent outputs exceeding top-only,
+  hierarchy-wide parent-port-composed parent outputs through
+  parent-local flops exceeding top-only, hierarchy-wide parent-local
+  flops exceeding top-only, and `hierarchy_parent_cone_instances == 0`.
+  A focused exact-depth-5 proof
+  `recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_5_without_helpers`
+  isolates the surface across four intermediate parent layers (no
+  helpers, no sibling routing, no registered routing, no
+  parent-composed child-input cones, with parent-local flops). The new
+  matrix scenario `phase4_recur_d5_stateful_parent_port_composed_output`
+  per construction strategy uses `2,2` child-instance bounds with
+  `hierarchy_parent_flop_prob = 1.0` and `max_flops_per_module = 64`.
+  The slice does not change the generator — it tightens the gate around
+  an already-supported capability. Validation includes the focused
+  pipeline regression, `cargo test --bin tool_matrix`, and the full
+  downstream-clean r71 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r71/tool_matrix_report.json`
+  with `162` scenarios / `648` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs = true`,
+  and `648/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r70 batch extended the depth-5 axis by
   pushing the recursive unregistered parent-port-composed parent-output
   surface (r65's depth-4 territory, r60's depth-3 territory) to exact
-  hierarchy depth 5. The new
+  hierarchy depth 5. The
   `saw_recursive_hierarchy_depth_5_parent_port_composed_outputs` fact
   requires `realized_max_leaf_depth >= 5`, hierarchy-wide
   parent-port-composed and parent-composed parent outputs exceeding
@@ -149,8 +175,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_5_without_helpers`
   isolates the surface across four intermediate parent layers (no
   helpers, no sibling routing, no registered routing, no
-  parent-composed child-input cones, no parent-local state). The new
-  matrix scenario `phase4_recur_d5_parent_port_composed_output` per
+  parent-composed child-input cones, no parent-local state). The matrix
+  scenario `phase4_recur_d5_parent_port_composed_output` per
   construction strategy uses `2,2` child-instance bounds. The slice
   does not change the generator — it tightens the gate around an
   already-supported capability. Validation includes the focused

@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-05-phase4-recursive-depth-5-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 5 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_5_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 5`, `2,2` child-instance bounds, and `hierarchy_parent_flop_prob = 1.0` (max 64 flops/module), isolating the stateful parent-port-composed parent-output surface across four intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d5_stateful_parent_port_composed_output` per `ConstructionStrategy` via the new `phase4_recursive_d5_stateful_parent_port_composed_output_focus_config` helper (built atop the r70 helper by promoting parent-flop probability and budget).
+- Added the `saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `159` scenarios / `636` designs to `162` scenarios / `648` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r71/tool_matrix_report.json`.
+
+**Why**
+
+- Fourth slice of the depth-5 sweep: r68 opened the depth-5 axis with parent-local flops, r69 extended it with mixed-support child inputs, r70 extended it with parent-port-composed parent outputs. r71 extends it with stateful parent-port-composed parent outputs, mirroring how r66 followed r65 at depth 4 and r61 followed r60 at depth 3. Smoke at depth 5 with 2,2 child instances confirmed 31 non-top internal-parent occurrences with `hierarchy_parent_local_flops = 1980` versus `top_local_flops = 64`, `hierarchy_parent_port_composed_outputs = 340` versus 68 top-only, `hierarchy_parent_port_composed_outputs_through_parent_flops = 336` versus 64 top-only, and `hierarchy_parent_port_composed_parent_flop_output_fraction = 0.988`.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_5_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r71 --yosys-mode both`
+  - `162` scenarios
+  - `4` designs/scenario
+  - `648` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 648/0`
+  - `Yosys without-abc pass/fail = 648/0`
+  - `Yosys with-abc pass/fail = 648/0`
+  - `saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 5 without helpers. `r70` becomes the previous bank (depth-5 unregistered parent-port-composed outputs); `r71` is the current full downstream-clean Phase 4 hierarchy bank. Only one cell remains to close the depth-5 sweep: stateful unregistered parent-composed mixed-support child inputs (depth-3 territory r62 / depth-4 territory r67).
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-05-phase4-recursive-depth-5-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 5 without helpers or parent-local state
 
 **Landed as:** b5219b7
