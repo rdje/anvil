@@ -1,5 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-05-phase4-recursive-depth-5-stateful-mixed-support-child-inputs — Close depth-5 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs to exact hierarchy depth 5 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_5_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 5`, `4,4` child-instance bounds, `hierarchy_child_input_cone_prob = 1.0`, and `hierarchy_parent_flop_prob = 1.0` (max 64 flops/module), isolating the stateful unregistered parent-composed mixed-support child-input surface across four intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d5_stateful_parent_composed_mixed_support_child_input` per `ConstructionStrategy` via the new `phase4_recursive_d5_stateful_parent_composed_mixed_support_focus_config` helper (built atop the r69 helper by promoting parent-flop probability and budget).
+- Added the `saw_recursive_hierarchy_depth_5_stateful_parent_composed_mixed_support_child_inputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `162` scenarios / `648` designs to `165` scenarios / `660` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r72/tool_matrix_report.json`.
+
+**Why**
+
+- Closes the depth-5 sweep. r68 opened the depth-5 axis with parent-local flops, r69 extended with mixed-support child inputs, r70 with parent-port-composed parent outputs, r71 with stateful parent-port-composed parent outputs. r72 closes the sweep with stateful mixed-support child inputs, mirroring how r67 closed depth 4 and r62 closed depth 3. Smoke at depth 5 with 4,4 child instances confirmed 341 non-top internal-parent occurrences with `hierarchy_parent_local_flops = 21820` versus `top_local_flops = 64`, `child_input_bindings_from_parent_composed_logic = 1777` versus 3 top-only, `child_input_bindings_from_stateful_parent_composed_mixed_support = 1460` versus 2 top-only, and `stateful_parent_composed_mixed_support_child_input_binding_fraction = 0.642`.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_5_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r72 --yosys-mode both`
+  - `165` scenarios
+  - `4` designs/scenario
+  - `660` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 660/0`
+  - `Yosys without-abc pass/fail = 660/0`
+  - `Yosys with-abc pass/fail = 660/0`
+  - `saw_recursive_hierarchy_depth_5_stateful_parent_composed_mixed_support_child_inputs = true`
+- Commit-workflow hygiene: pending final gate in this commit.
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves all five mixed-support cells at exact hierarchy depth 5: parent-local flops, unregistered parent-composed mixed-support child inputs, unregistered parent-port-composed parent outputs, stateful parent-port-composed parent outputs, and stateful unregistered parent-composed mixed-support child inputs. The depth-5 sweep is now structurally complete, mirroring the closed depth-3 sweep (r58..r62) and depth-4 sweep (r63..r67). `r71` becomes the previous bank (depth-5 stateful parent-port-composed outputs); `r72` is the current full downstream-clean Phase 4 hierarchy bank closing the depth-5 sweep.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-05-phase4-recursive-depth-5-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 5 without helpers
 
 **Landed as:** ef6e5bd
