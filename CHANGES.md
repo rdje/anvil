@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-05-phase4-recursive-depth-6-parent-local-flops — Open depth-6 axis with recursive non-top parent-local flops at exact hierarchy depth 6
 
-**Landed as:** this commit
+**Landed as:** 88854fd
 
 **What changed**
 
