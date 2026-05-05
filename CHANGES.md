@@ -1,5 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-05-phase4-recursive-depth-6-parent-local-flops — Open depth-6 axis with recursive non-top parent-local flops at exact hierarchy depth 6
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parents_can_emit_local_flops_at_depth_6` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 6` and `2,2` child-instance bounds, isolating the parent-flop surface across five intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d6_parent_state` per `ConstructionStrategy` via the new `phase4_recursive_d6_parent_state_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_6_parent_local_flops` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `165` scenarios / `660` designs to `168` scenarios / `672` designs, and added `(6, 6)` to the recognized `range_depths` set.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r73/tool_matrix_report.json`.
+
+**Why**
+
+- First slice of the depth-6 sweep, opening the axis above the closed depth-5 sweep (r68..r72) just as r68 opened depth-5 above the closed depth-4 sweep (r63..r67) and r63 opened depth-4 above the closed depth-3 sweep (r58..r62). Smoke at depth 6 with 2,2 child instances confirmed 63 non-top internal-parent occurrences with `hierarchy_parent_local_flops = 4028` versus `top_local_flops = 64` and 63 internal occurrences carrying parent-local flops.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parents_can_emit_local_flops_at_depth_6`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r73 --yosys-mode both`
+  - `168` scenarios
+  - `4` designs/scenario
+  - `672` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 672/0`
+  - `Yosys without-abc pass/fail = 672/0`
+  - `Yosys with-abc pass/fail = 672/0`
+  - `saw_recursive_hierarchy_depth_6_parent_local_flops = true`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top parent-local flops at exact hierarchy depth 6. `r72` becomes the previous bank (closing the depth-5 sweep); `r73` is the current full downstream-clean Phase 4 hierarchy bank, opening the depth-6 axis. Future r74..r77 slices will close the depth-6 sweep with mixed-support child inputs, parent-port-composed parent outputs, stateful parent-port-composed parent outputs, and stateful unregistered parent-composed mixed-support child inputs — mirroring the depth-3 (r58..r62), depth-4 (r63..r67), and depth-5 (r68..r72) sweeps.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-05-phase4-recursive-depth-5-stateful-mixed-support-child-inputs — Close depth-5 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs to exact hierarchy depth 5 without helpers
 
 **Landed as:** c646f50

@@ -58,7 +58,35 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r72 closes the depth-5 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean
+### Phase 4 r73 opens the depth-6 axis with recursive non-top parent-local flops downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r73/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 168 scenarios / 672 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `672/0`, Yosys without-ABC
+`672/0`, and Yosys with-ABC `672/0`.
+
+This bank opens the depth-6 axis, mirroring how r68 opened depth-5
+above the closed depth-4 sweep, and r63 opened depth-4 above the closed
+depth-3 sweep. Smoke at depth 6 with 2,2 child instances confirmed 63
+non-top internal-parent occurrences with `hierarchy_parent_local_flops
+= 4028` versus `top_local_flops = 64` and 63 internal occurrences
+carrying parent-local flops.
+
+The depth-5 sweep closed in r72 with all five mixed-support cells gated
+as first-class facts; r73 now starts the depth-6 sweep with the
+simplest surface — parent flops at depth 6 — as a foothold. Future
+r74..r77 slices will close the depth-6 sweep mirroring r58..r62 (depth
+3), r63..r67 (depth 4), and r68..r72 (depth 5).
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r73 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r72 closed the depth-5 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r72/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
