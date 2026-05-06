@@ -1829,6 +1829,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `96fdd4f` — Phase 4: extend depth-6 axis with r75 parent-port-composed parent outputs.
 - `4834f98` — Phase 4: extend depth-6 axis with r74 mixed-support child inputs (2,2 calibrated).
 - `88854fd` — Phase 4: open depth-6 axis with r73 recursive parent-local flops.
 - `c646f50` — Phase 4: close depth-5 sweep with r72 stateful mixed-support child inputs.
