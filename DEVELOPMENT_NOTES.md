@@ -58,7 +58,32 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r74 extends the depth-6 axis with recursive non-top mixed-support child inputs without helpers downstream-clean
+### Phase 4 r75 extends the depth-6 axis with recursive non-top parent-port-composed parent outputs without helpers or parent-local state downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r75/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 174 scenarios / 696 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `696/0`, Yosys without-ABC
+`696/0`, and Yosys with-ABC `696/0`.
+
+This bank extends the depth-6 axis (opened by r73 with parent flops and
+extended by r74 with mixed-support child inputs) to the unregistered
+parent-port-composed parent-output surface, mirroring r70 (depth 5),
+r65 (depth 4), and r60 (depth 3). Smoke confirmed 63 internal module
+occurrences with `hierarchy_parent_port_composed_outputs = 1008` versus
+`top_parent_port_composed_outputs = 168` and a
+`hierarchy_parent_port_composed_output_fraction = 1.0` at depth 6 with
+2,2 child-instance bounds. No calibration drift — parent-port-composed
+cells use 2,2 at all depths.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r75 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r74 extended the depth-6 axis with recursive non-top mixed-support child inputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r74/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
