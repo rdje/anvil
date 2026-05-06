@@ -1,5 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-06-phase4-recursive-depth-6-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 6 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_6_without_helpers` (depth 6, 2,2 children, parent_flop_prob=1.0, max_flops=64).
+- Added matrix scenario `phase4_recur_d6_stateful_parent_port_composed_output` per ConstructionStrategy via `phase4_recursive_d6_stateful_parent_port_composed_output_focus_config`.
+- Added `saw_recursive_hierarchy_depth_6_stateful_parent_port_composed_outputs` coverage fact and matching gap message.
+- Bank counts: 177 scenarios / 708 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r76/tool_matrix_report.json`.
+
+**Why**
+
+- Fourth slice of the depth-6 sweep, mirroring r71 (depth 5), r66 (depth 4), r61 (depth 3). Smoke at depth 6 confirmed 63 occurrences with parent_local_flops 4028 vs top 64, parent_port_composed_outputs_through_parent_flops 890 vs 109, fraction 0.927.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_6_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r76 --yosys-mode both`
+  - 177 scenarios, 4 designs/scenario, 708 total designs
+  - `coverage_gaps = []`, `Verilator 708/0`, `Yosys without-abc 708/0`, `Yosys with-abc 708/0`
+  - `saw_recursive_hierarchy_depth_6_stateful_parent_port_composed_outputs = true`
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- Depth-6 axis now has four first-class coverage facts. Only one cell remains to close depth-6: stateful unregistered parent-composed mixed-support child inputs (r77).
+- Batch step 4/10. No push.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-06-phase4-recursive-depth-6-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 6 without helpers or parent-local state
 
 **Landed as:** 96fdd4f
