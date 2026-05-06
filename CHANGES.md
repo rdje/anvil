@@ -1,5 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-06-phase4-recursive-depth-6-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 6 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added the focused recursive integration proof `recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_6_without_helpers` across all four `ConstructionStrategy` variants. It uses `min/max_hierarchy_depth = 6`, `2,2` child-instance bounds (calibration choice — see Why), and `hierarchy_child_input_cone_prob = 1.0`, isolating the unregistered parent-composed mixed-support child-input surface across five intermediate parent layers below the top.
+- Added the new Phase 4 matrix scenario `phase4_recur_d6_parent_composed_mixed_support_child_input` per `ConstructionStrategy` via the new `phase4_recursive_d6_parent_composed_mixed_support_focus_config` helper.
+- Added the `saw_recursive_hierarchy_depth_6_mixed_support_child_inputs` coverage fact and matching gap message.
+- Updated the Phase 4 hierarchy run-plan and coverage tests from `168` scenarios / `672` designs to `171` scenarios / `684` designs.
+- Ran the full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r74/tool_matrix_report.json`.
+
+**Why**
+
+- Second slice of the depth-6 sweep, mirroring how r69 followed r68 at depth 5, r64 followed r63 at depth 4, and r59 followed r58 at depth 3.
+- **Calibration choice — bounds reduced from 4,4 (d3-d5 pattern) to 2,2 at d6.** Smoke at depth 6 with 4,4 child instances initially confirmed 1365 non-top internal-parent occurrences with `child_input_bindings_from_parent_composed_logic = 6553` versus 3 top-only — but the downstream-clean gate (Verilator + Yosys without-ABC + Yosys with-ABC) ran 22+ minutes on a single design, projecting to ~10h per gate. The 2,2 calibration at depth 6 yields 63 internal occurrences (matching r73's parent-flop scenario) while still proving the mixed-support surface at exact depth 6 cleanly. This is a slice-time calibration choice, not a generator change. Future depth-6 mixed-support cells (r77 stateful) will adopt the same 2,2 calibration.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_6_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r74 --yosys-mode both`
+  - `171` scenarios
+  - `4` designs/scenario
+  - `684` total designs
+  - `artifact_kind = "design"`
+  - `coverage_gaps = []`
+  - `Verilator pass/fail = 684/0`
+  - `Yosys without-abc pass/fail = 684/0`
+  - `Yosys with-abc pass/fail = 684/0`
+  - `saw_recursive_hierarchy_depth_6_mixed_support_child_inputs = true`
+
+**Impact**
+
+- The Phase 4 hierarchy gate now explicitly proves recursive non-top unregistered parent-composed mixed-support child inputs at exact hierarchy depth 6 without helpers. `r73` becomes the previous bank (opening the depth-6 axis with parent-flops); `r74` is the current full downstream-clean Phase 4 hierarchy bank, extending the depth-6 axis with the second cell. Future r75..r77 slices will close the depth-6 sweep.
+- Batch step 2/10.
+
+**Files touched**
+
+- `src/bin/tool_matrix.rs`
+- `tests/pipeline.rs`
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `CODEBASE_ANALYSIS.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `ROADMAP.md`
+- `book/src/hierarchy.md`
+- `book/src/architecture.md`
+
 ## 2026-05-05-phase4-recursive-depth-6-parent-local-flops — Open depth-6 axis with recursive non-top parent-local flops at exact hierarchy depth 6
 
 **Landed as:** 88854fd

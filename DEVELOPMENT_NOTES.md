@@ -58,7 +58,41 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r73 opens the depth-6 axis with recursive non-top parent-local flops downstream-clean
+### Phase 4 r74 extends the depth-6 axis with recursive non-top mixed-support child inputs without helpers downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r74/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 171 scenarios / 684 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `684/0`, Yosys without-ABC
+`684/0`, and Yosys with-ABC `684/0`.
+
+This bank extends the depth-6 axis (opened by r73 with parent flops) to
+the unregistered parent-composed mixed-support child-input surface,
+mirroring how r69 followed r68 at depth 5, r64 followed r63 at depth 4,
+and r59 followed r58 at depth 3.
+
+**Calibration: depth-6 mixed-support cells use 2,2 child-instance
+bounds, not the 4,4 used at depths 3-5.** Smoke at depth 6 with 4,4
+showed 1365 internal module occurrences (4× the d5 count of 341);
+yosys-with-abc spent 22+ minutes on a single design, projecting to ~10h
+per gate. That exceeds a safe-slice budget for a 10-step batch. The 2,2
+calibration at depth 6 yields 63 occurrences (matching r73's
+parent-flop scenario) and proves the same surface cleanly: focused
+proof passes in 0.42s release. This is a slice-time calibration choice,
+not a strategy retirement — the 4,4 mixed-support cells at d3-d5 remain
+unchanged. r77 (stateful mixed-support at d6) will adopt the same 2,2
+calibration. If a future workstream wants a downstream-clean d6 4,4
+mixed-support proof, that can land as a separate slice with a longer
+budget.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r74 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r73 opened the depth-6 axis with recursive non-top parent-local flops downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r73/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands

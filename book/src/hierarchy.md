@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r73/tool_matrix_report.json`
-- `168` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r74/tool_matrix_report.json`
+- `171` scenarios
 - `4` designs/scenario
-- `672` total designs
+- `684` total designs
 - `coverage_gaps = []`
-- `Verilator 672/0`
-- `Yosys without-abc 672/0`
-- `Yosys with-abc 672/0`
+- `Verilator 684/0`
+- `Yosys without-abc 684/0`
+- `Yosys with-abc 684/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -642,14 +642,27 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_depth_5_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_depth_6_parent_local_flops = true`
+- `saw_recursive_hierarchy_depth_6_mixed_support_child_inputs = true`
 
-The `r73` bank opens the depth-6 axis on top of the closed depth-5
-sweep, mirroring how r68 opened depth-5 above the closed depth-4 sweep
-and r63 opened depth-4 above the closed depth-3 sweep. The new focus
-scenario `phase4_recur_d6_parent_state` per construction strategy uses
-`min/max_hierarchy_depth = 6` and `2,2` child-instance bounds,
-isolating the parent-flop surface across five intermediate parent
-layers below the top.
+The `r74` bank extends the depth-6 axis to the unregistered
+parent-composed mixed-support child-input surface (r69's depth-5
+territory, r64's depth-4 territory, r59's depth-3 territory) at
+depth 6. The new focus scenario
+`phase4_recur_d6_parent_composed_mixed_support_child_input` per
+construction strategy uses `2,2` child-instance bounds — a calibration
+choice (depths 3-5 used `4,4` for mixed-support cells; at depth 6 the
+`4,4` case grew the design to 1365 internal module occurrences and
+pushed the downstream-clean gate beyond a safe slice). The 2,2
+calibration still proves the mixed-support surface at exact depth 6
+across five intermediate parent layers below the top.
+
+The earlier `r73` bank opened the depth-6 axis on top of the closed
+depth-5 sweep, mirroring how r68 opened depth-5 above the closed
+depth-4 sweep and r63 opened depth-4 above the closed depth-3 sweep.
+The focus scenario `phase4_recur_d6_parent_state` per construction
+strategy uses `min/max_hierarchy_depth = 6` and `2,2` child-instance
+bounds, isolating the parent-flop surface across five intermediate
+parent layers below the top.
 
 The earlier `r72` bank closed the depth-5 sweep with the stateful unregistered
 parent-composed mixed-support child-input surface (r67's depth-4
@@ -1365,8 +1378,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r73` closes them cleanly
-  with `coverage_gaps = []` and `672/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r74` closes them cleanly
+  with `coverage_gaps = []` and `684/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1489,9 +1502,12 @@ local proofs remain useful:
   hierarchy depth 5 without helpers, `r72` is the previous hierarchy
   full bank that closed the depth-5 sweep with recursive non-top
   stateful unregistered parent-composed mixed-support child inputs at
-  exact hierarchy depth 5 without helpers, `r73` is the current
-  hierarchy full bank that opens the depth-6 axis with recursive
-  non-top parent-local flops at exact hierarchy depth 6, and the aborted
+  exact hierarchy depth 5 without helpers, `r73` is the previous
+  hierarchy full bank that opened the depth-6 axis with recursive
+  non-top parent-local flops at exact hierarchy depth 6, `r74` is the
+  current hierarchy full bank that extends the depth-6 axis with
+  recursive non-top mixed-support child inputs at exact hierarchy
+  depth 6 without helpers, and the aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a
   hierarchy-focused sequential leaf profile instead of silently
