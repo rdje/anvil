@@ -58,7 +58,43 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r76 extends the depth-6 axis with recursive non-top stateful parent-port-composed parent outputs without helpers downstream-clean
+### Phase 4 r77 closes the depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r77/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 180 scenarios / 720 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `720/0`, Yosys without-ABC
+`720/0`, and Yosys with-ABC `720/0`.
+
+This bank closes the depth-6 sweep. r73 opened the depth-6 axis with
+parent flops, r74 extended with mixed-support child inputs (2,2
+calibrated), r75 with parent-port-composed parent outputs, r76 with
+stateful parent-port-composed parent outputs. r77 closes the sweep
+with stateful unregistered parent-composed mixed-support child inputs,
+mirroring r72 (depth 5), r67 (depth 4), and r62 (depth 3).
+
+**Calibration follow-on:** depth-6 stateful mixed-support cells use the
+same 2,2 child-instance calibration adopted by r74. Smoke confirmed 63
+internal module occurrences with `hierarchy_parent_local_flops = 4032`
+versus `top_local_flops = 64`,
+`child_input_bindings_from_stateful_parent_composed_mixed_support = 74`
+versus 1 top-only, and
+`stateful_parent_composed_mixed_support_child_input_binding_fraction
+= 0.454`.
+
+The depth-6 axis now has all five mixed-support cells gated as
+first-class coverage facts, mirroring closed depth-3 (r58..r62),
+depth-4 (r63..r67), and depth-5 (r68..r72) sweeps. The Phase 4 depth
+sweep template is now consistent across depths 3-6.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r77 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r76 extended the depth-6 axis with recursive non-top stateful parent-port-composed parent outputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r76/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands

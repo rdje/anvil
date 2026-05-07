@@ -1,5 +1,41 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-07-phase4-recursive-depth-6-stateful-mixed-support-child-inputs — Close depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs to exact hierarchy depth 6 without helpers (2,2 calibrated)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_6_without_helpers` (depth 6, 2,2 children, child_input_cone_prob=1.0, parent_flop_prob=1.0, max_flops=64).
+- Added matrix scenario `phase4_recur_d6_stateful_parent_composed_mixed_support_child_input` per ConstructionStrategy via `phase4_recursive_d6_stateful_parent_composed_mixed_support_focus_config` (built atop r74's 2,2 helper by promoting parent-flop probability and budget).
+- Added `saw_recursive_hierarchy_depth_6_stateful_parent_composed_mixed_support_child_inputs` coverage fact and matching gap message.
+- Bank counts: 180 scenarios / 720 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r77/tool_matrix_report.json`.
+
+**Why**
+
+- Closes the depth-6 sweep. r73 opened depth-6 with parent flops, r74 extended with mixed-support child inputs (2,2 calibrated), r75 with parent-port-composed parent outputs, r76 with stateful parent-port-composed parent outputs. r77 closes the sweep with stateful mixed-support child inputs, mirroring r72 (depth 5), r67 (depth 4), and r62 (depth 3).
+- Calibration choice mirrors r74 — depth-6 mixed-support cells use 2,2 child instances (not 4,4 like depths 3-5) to keep each gate within a safe slice. Smoke at depth 6 with 2,2 + flops + child-input cone confirmed 63 internal occurrences with parent_local_flops 4032 vs top 64, child_input_bindings_from_stateful_parent_composed_mixed_support 74 vs top 1, fraction 0.454.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_6_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r77 --yosys-mode both`
+  - 180 scenarios, 4 designs/scenario, 720 total designs
+  - `coverage_gaps = []`, `Verilator 720/0`, `Yosys without-abc 720/0`, `Yosys with-abc 720/0`
+  - `saw_recursive_hierarchy_depth_6_stateful_parent_composed_mixed_support_child_inputs = true`
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- The depth-6 axis is now structurally complete: all five mixed-support cells (parent-flops, mixed-support child inputs, parent-port-composed outputs, stateful parent-port-composed outputs, stateful mixed-support child inputs) are gated as first-class facts at exact hierarchy depth 6. Mirrors closed depth-3 (r58..r62), depth-4 (r63..r67), and depth-5 (r68..r72) sweeps.
+- Batch step 5/10 — half of the BMSC=10 batch complete. No push (per BATCH MODE policy).
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-06-phase4-recursive-depth-6-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 6 without helpers
 
 **Landed as:** 89a406d

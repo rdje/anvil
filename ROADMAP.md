@@ -355,7 +355,7 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r76/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r77/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing, direct registered sibling mixed-support
@@ -393,8 +393,8 @@ evidence.
     support, plus recursive non-top parent-output helper routing that
     mixes parent data-port support in the same helper-backed output
     cone, plus direct registered sibling mixed-support routing, plus
-    recursive non-top direct registered sibling mixed-support routing, and recursive non-top unregistered parent-composed mixed-support child-input routing without helper instances, plus recursive non-top stateful parent-port-composed parent-output routing without helper instances, plus recursive non-top stateful unregistered parent-composed mixed-support child-input routing through parent-local Qs without helper instances, plus recursive non-top parent-local flops gated as a first-class coverage fact, plus recursive parent-local flops at exact hierarchy depth 3, plus recursive non-top unregistered parent-composed mixed-support child inputs at exact hierarchy depth 3 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 3 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 3 without helpers, plus recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 3 without helpers, plus recursive non-top parent-local flops at exact hierarchy depth 4, plus recursive non-top mixed-support child inputs at exact hierarchy depth 4 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 4 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 4 without helpers, plus recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 4 without helpers, plus recursive non-top parent-local flops at exact hierarchy depth 5, plus recursive non-top mixed-support child inputs at exact hierarchy depth 5 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 5 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 5 without helpers, plus recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 5 without helpers — closing the depth-5 sweep, plus recursive non-top parent-local flops at exact hierarchy depth 6 — opening the depth-6 axis, plus recursive non-top mixed-support child inputs at exact hierarchy depth 6 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 6 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 6 without helpers. The `r76`
-    report records `177` scenarios, `4` designs/scenario, `708` total designs,
+    recursive non-top direct registered sibling mixed-support routing, and recursive non-top unregistered parent-composed mixed-support child-input routing without helper instances, plus recursive non-top stateful parent-port-composed parent-output routing without helper instances, plus recursive non-top stateful unregistered parent-composed mixed-support child-input routing through parent-local Qs without helper instances, plus recursive non-top parent-local flops gated as a first-class coverage fact, plus recursive parent-local flops at exact hierarchy depth 3, plus recursive non-top unregistered parent-composed mixed-support child inputs at exact hierarchy depth 3 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 3 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 3 without helpers, plus recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 3 without helpers, plus recursive non-top parent-local flops at exact hierarchy depth 4, plus recursive non-top mixed-support child inputs at exact hierarchy depth 4 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 4 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 4 without helpers, plus recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 4 without helpers, plus recursive non-top parent-local flops at exact hierarchy depth 5, plus recursive non-top mixed-support child inputs at exact hierarchy depth 5 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 5 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 5 without helpers, plus recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 5 without helpers — closing the depth-5 sweep, plus recursive non-top parent-local flops at exact hierarchy depth 6 — opening the depth-6 axis, plus recursive non-top mixed-support child inputs at exact hierarchy depth 6 without helpers, plus recursive non-top parent-port-composed parent outputs at exact hierarchy depth 6 without helpers or state, plus recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 6 without helpers, plus recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 6 without helpers (2,2 calibrated) — closing the depth-6 sweep. The `r77`
+    report records `180` scenarios, `4` designs/scenario, `720` total designs,
     `coverage_gaps = []`,
     `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs = true`,
     `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`,
@@ -447,7 +447,8 @@ evidence.
     `saw_recursive_hierarchy_depth_6_mixed_support_child_inputs = true`,
     `saw_recursive_hierarchy_depth_6_parent_port_composed_outputs = true`,
     `saw_recursive_hierarchy_depth_6_stateful_parent_port_composed_outputs = true`,
-    and `708/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+    `saw_recursive_hierarchy_depth_6_stateful_parent_composed_mixed_support_child_inputs = true`,
+    and `720/0` pass-fail in Verilator plus both repo-owned Yosys modes.
   - module names are now allocated from one generator-global sequence
     across leaf modules, recursive parent modules, and repeated
     hierarchical designs in one output run, so multi-file hierarchy
@@ -475,12 +476,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r76/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r77/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
-`177` scenarios, `708` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
+`180` scenarios, `720` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`708/0` in Verilator plus both repo-owned Yosys modes). The `r76` report
+(`720/0` in Verilator plus both repo-owned Yosys modes). The `r77` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`
@@ -637,8 +638,8 @@ top_outputs_reaching_parent_cone_instance_mixed_support`,
 `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops = 0`.
 The live Phase 4 matrix policy now requires
 `saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs`;
-the full downstream-clean `r49` report first proved it, `r50` banked the accumulated mixed-support surface, and `r51` through `r76` carry it forward with
-`coverage_gaps = []` and `708/0` pass-fail in Verilator plus both
+the full downstream-clean `r49` report first proved it, `r50` banked the accumulated mixed-support surface, and `r51` through `r77` carry it forward with
+`coverage_gaps = []` and `720/0` pass-fail in Verilator plus both
 repo-owned Yosys modes.
 
 **Focused recursive non-top parent-output helper budget proof (new targeted evidence):**
@@ -1315,9 +1316,13 @@ depth-6 mixed-support child-input gated coverage hierarchy artifact (2,2 calibra
 `r75` is the previous full downstream-clean 174-scenario recursive
 depth-6 parent-port-composed parent-output gated coverage hierarchy
 artifact.
-`r76` is the current full downstream-clean 177-scenario recursive
+`r76` is the previous full downstream-clean 177-scenario recursive
 depth-6 stateful parent-port-composed parent-output gated coverage
 hierarchy artifact.
+`r77` is the current full downstream-clean 180-scenario recursive
+depth-6 stateful unregistered parent-composed mixed-support child-input
+gated coverage hierarchy artifact (2,2 calibrated), closing the
+depth-6 sweep.
 
 Current-code coverage-only probes after `r19` first aligned the gate
 policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
@@ -1487,7 +1492,14 @@ stateful parent-port-composed parent-output surface (focused
 `phase4_recur_d6_stateful_parent_port_composed_output` matrix scenario
 per construction strategy and the new
 `saw_recursive_hierarchy_depth_6_stateful_parent_port_composed_outputs`
-fact) on the expanded 177-scenario matrix.
+fact) on the expanded 177-scenario matrix. `r77` closes the depth-6
+sweep with the stateful unregistered parent-composed mixed-support
+child-input surface (focused
+`phase4_recur_d6_stateful_parent_composed_mixed_support_child_input`
+matrix scenario per construction strategy and the new
+`saw_recursive_hierarchy_depth_6_stateful_parent_composed_mixed_support_child_inputs`
+fact) on the expanded 180-scenario matrix (with the same 2,2
+child-instance calibration adopted by r74).
 
 **Phase 4 still remains in progress** because the phase is broader than
 the current landed slice. The remaining substantive work is to continue
