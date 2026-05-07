@@ -58,7 +58,38 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r77 closes the depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
+### Phase 4 r78 opens the depth-7 axis with recursive non-top parent-local flops downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r78/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 183 scenarios / 732 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `732/0`, Yosys without-ABC
+`732/0`, and Yosys with-ABC `732/0`.
+
+This bank opens the depth-7 axis, mirroring how r73 opened depth-6
+above the closed depth-5 sweep, r68 opened depth-5 above the closed
+depth-4 sweep, and r63 opened depth-4 above the closed depth-3 sweep.
+Smoke at depth 7 with 2,2 child instances confirmed 127 non-top
+internal-parent occurrences with `hierarchy_parent_local_flops = 8122`
+versus `top_local_flops = 64` and 127 internal occurrences carrying
+parent-local flops.
+
+The depth-6 sweep closed in r77 with all five mixed-support cells gated
+as first-class facts; r78 now starts the depth-7 sweep with the
+simplest surface — parent flops at depth 7 — as a foothold. Future
+r79..r82 will close the depth-7 sweep mirroring r58..r62 (depth 3),
+r63..r67 (depth 4), r68..r72 (depth 5), and r73..r77 (depth 6).
+Mixed-support cells at depth 7 will adopt the 2,2 child-instance
+calibration introduced at depth 6.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r78 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r77 closed the depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r77/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands

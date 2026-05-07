@@ -1,5 +1,41 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-07-phase4-recursive-depth-7-parent-local-flops — Open depth-7 axis with recursive non-top parent-local flops at exact hierarchy depth 7
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_parents_can_emit_local_flops_at_depth_7` (depth 7, 2,2 children, parent_flop_prob=1.0, max_flops=64).
+- Added matrix scenario `phase4_recur_d7_parent_state` per ConstructionStrategy via `phase4_recursive_d7_parent_state_focus_config`.
+- Added `saw_recursive_hierarchy_depth_7_parent_local_flops` coverage fact and matching gap message.
+- Added `(7, 7)` to recognized `range_depths` set.
+- Bank counts: 183 scenarios / 732 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r78/tool_matrix_report.json`.
+
+**Why**
+
+- First slice of the depth-7 sweep, opening the axis above the closed depth-6 sweep (r73..r77), mirroring how r73 opened depth-6 above r68..r72, r68 opened depth-5 above r63..r67, and r63 opened depth-4 above r58..r62. Smoke at depth 7 with 2,2 children confirmed 127 internal-parent occurrences with parent_local_flops 8122 vs top 64 and 127 internal occurrences carrying flops.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parents_can_emit_local_flops_at_depth_7`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r78 --yosys-mode both`
+  - 183 scenarios, 4 designs/scenario, 732 total designs
+  - `coverage_gaps = []`, `Verilator 732/0`, `Yosys without-abc 732/0`, `Yosys with-abc 732/0`
+  - `saw_recursive_hierarchy_depth_7_parent_local_flops = true`
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- Depth-7 axis now open. Future r79..r82 close the depth-7 sweep with mixed-support child inputs, parent-port-composed parent outputs, stateful parent-port-composed parent outputs, and stateful mixed-support child inputs (mirroring depth-3..6 sweeps; mixed-support cells will adopt the same 2,2 calibration as depth 6).
+- Batch step 6/10. No push.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-07-phase4-recursive-depth-6-stateful-mixed-support-child-inputs — Close depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs to exact hierarchy depth 6 without helpers (2,2 calibrated)
 
 **Landed as:** ed4b9f3
