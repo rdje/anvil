@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-08-phase4-recursive-depth-7-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 7 without helpers or parent-local state
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_7_without_helpers` (depth 7, 2,2 children, no flops, no helpers, no child-input cones).
+- Added matrix scenario `phase4_recur_d7_parent_port_composed_output` per ConstructionStrategy via `phase4_recursive_d7_parent_port_composed_output_focus_config`.
+- Added `saw_recursive_hierarchy_depth_7_parent_port_composed_outputs` coverage fact and matching gap message.
+- Bank counts: 189 scenarios / 756 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r80/tool_matrix_report.json`.
+
+**Why**
+
+- Third slice of the depth-7 sweep, mirroring r75 (depth 6), r70 (depth 5), r65 (depth 4), r60 (depth 3). Parent-port-composed cells already use 2,2 children at all depths, so no calibration drift.
+
+**Validation**
+
+- Focused proof passes (~1.3s release).
+- Full gate: 189 scenarios, 756 total designs, `coverage_gaps = []`, `Verilator 756/0`, `Yosys without-abc 756/0`, `Yosys with-abc 756/0`, `saw_recursive_hierarchy_depth_7_parent_port_composed_outputs = true`.
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- Depth-7 axis now has three first-class coverage facts (parent-flops r78, mixed-support child inputs r79, parent-port-composed outputs r80). Future r81/r82 close the depth-7 sweep.
+- Batch step 8/10. No push.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-08-phase4-recursive-depth-7-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 7 without helpers (2,2 calibrated)
 
 **Landed as:** 7bd3235
