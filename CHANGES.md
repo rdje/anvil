@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-08-phase4-recursive-depth-7-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 7 without helpers or parent-local state
 
-**Landed as:** this commit
+**Landed as:** e8eb1a8
 
 **What changed**
 
