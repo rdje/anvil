@@ -1,5 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-08-phase4-recursive-depth-7-mixed-support-child-inputs — Push recursive non-top mixed-support child inputs to exact hierarchy depth 7 without helpers (2,2 calibrated)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_7_without_helpers` (depth 7, 2,2 children, child_input_cone_prob=1.0, no helpers, no flops).
+- Added matrix scenario `phase4_recur_d7_parent_composed_mixed_support_child_input` per ConstructionStrategy via `phase4_recursive_d7_parent_composed_mixed_support_focus_config` (2,2 calibrated, mirrors r74/r77).
+- Added `saw_recursive_hierarchy_depth_7_mixed_support_child_inputs` coverage fact and matching gap message.
+- Bank counts: 186 scenarios / 744 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r79/tool_matrix_report.json`.
+
+**Why**
+
+- Second slice of the depth-7 sweep, mirroring r74 (depth 6), r69 (depth 5), r64 (depth 4), r59 (depth 3). Calibration: depth-7 mixed-support cells use 2,2 child-instance bounds (same as depth 6); the 4,4 tree at depth 7 would balloon to ~5461 internal occurrences, exceeding safe-slice budget. Smoke at depth 7 with 2,2 confirmed 127 internal-parent occurrences with child_input_bindings_from_parent_composed_logic 219 vs top 1, child_input_bindings_from_mixed_support 173 vs top 1.
+
+**Validation**
+
+- `cargo test --test pipeline recursive_hierarchy_parent_composed_routes_mix_parent_ports_at_depth_7_without_helpers`
+- `cargo test --bin tool_matrix`
+- `cargo run --bin tool_matrix -- --phase4-hierarchy-gate --out /tmp/anvil-tool-matrix-phase4-hierarchy-r79 --yosys-mode both`
+  - 186 scenarios, 4 designs/scenario, 744 total designs
+  - `coverage_gaps = []`, `Verilator 744/0`, `Yosys without-abc 744/0`, `Yosys with-abc 744/0`
+  - `saw_recursive_hierarchy_depth_7_mixed_support_child_inputs = true`
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- Depth-7 axis now has two first-class coverage facts (parent-flops r78, mixed-support child inputs r79). Future r80..r82 close the depth-7 sweep.
+- Batch step 7/10. No push.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-07-phase4-recursive-depth-7-parent-local-flops — Open depth-7 axis with recursive non-top parent-local flops at exact hierarchy depth 7
 
 **Landed as:** 6f2bab0

@@ -58,7 +58,36 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r78 opens the depth-7 axis with recursive non-top parent-local flops downstream-clean
+### Phase 4 r79 extends the depth-7 axis with recursive non-top mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r79/tool_matrix_report.json`. It
+keeps the live hierarchy policy at four designs per scenario and expands
+it to 186 scenarios / 744 designs, with `coverage_gaps = []`,
+`artifact_kind = "design"`, Verilator `744/0`, Yosys without-ABC
+`744/0`, and Yosys with-ABC `744/0`.
+
+This bank extends the depth-7 axis (opened by r78 with parent flops) to
+the unregistered parent-composed mixed-support child-input surface,
+mirroring r74 (depth 6), r69 (depth 5), r64 (depth 4), and r59
+(depth 3). Smoke at depth 7 with 2,2 child instances confirmed 127
+internal module occurrences with `child_input_bindings_from_parent_composed_logic = 219`
+versus 1 top-only and `child_input_bindings_from_mixed_support = 173`
+versus 1 top-only.
+
+**Calibration:** depth-7 mixed-support cells continue the 2,2
+child-instance calibration introduced at depth 6. The 4,4 tree at
+depth 7 would yield ~5461 internal occurrences, far beyond a safe-slice
+budget for downstream-clean tools. 2,2 at depth 7 still proves the
+mixed-support surface cleanly.
+
+The slice does not change the generator: it tightens the gate around an
+already-supported capability.
+
+Current-code validation includes the focused recursive pipeline
+regression, `cargo test --bin tool_matrix`, and the full r79 Phase 4
+hierarchy gate through Verilator plus both repo-owned Yosys modes.
+
+### Phase 4 r78 opened the depth-7 axis with recursive non-top parent-local flops downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r78/tool_matrix_report.json`. It
 keeps the live hierarchy policy at four designs per scenario and expands
