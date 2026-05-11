@@ -1992,6 +1992,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `69b2173` — Phase 4: close depth-7 sweep with r82 stateful mixed-support child inputs (2,2 calibrated).
 - `89dadfe` — Phase 4: extend depth-7 axis with r81 stateful parent-port-composed parent outputs.
 - `e8eb1a8` — Phase 4: extend depth-7 axis with r80 parent-port-composed parent outputs.
 - `7bd3235` — Phase 4: extend depth-7 axis with r79 mixed-support child inputs (2,2 calibrated).

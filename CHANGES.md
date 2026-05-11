@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-11-phase4-recursive-depth-7-stateful-mixed-support-child-inputs — Close depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 7 without helpers (2,2 calibrated)
 
-**Landed as:** this commit
+**Landed as:** 69b2173
 
 **What changed**
 
