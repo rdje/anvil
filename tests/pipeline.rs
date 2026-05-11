@@ -4569,6 +4569,69 @@ fn recursive_hierarchy_parent_outputs_mix_parent_ports_at_depth_5_without_helper
 }
 
 #[test]
+fn recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_7_without_helpers() {
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 7,
+            max_hierarchy_depth: 7,
+            min_child_instances_per_module: 2,
+            max_child_instances_per_module: 2,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 1.0,
+            max_flops_per_module: 64,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            min_width: 1,
+            max_width: 8,
+            max_depth: 1,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "depth-7 recursive stateful parent-port-composed parent-output hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "depth-7 recursive stateful parent-port-composed parent-output hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_min_leaf_depth, 7);
+        assert_eq!(metrics.realized_max_leaf_depth, 7);
+        assert!(metrics.num_internal_module_occurrences > 1);
+        assert_eq!(metrics.hierarchy_parent_cone_instances, 0);
+        assert_eq!(metrics.hierarchy_outputs_reaching_parent_cone_instances, 0);
+        assert!(metrics.hierarchy_parent_local_flops > metrics.top_local_flops);
+        assert!(metrics.hierarchy_parent_composed_outputs > metrics.top_parent_composed_outputs);
+        assert!(
+            metrics.hierarchy_parent_port_composed_outputs
+                > metrics.top_parent_port_composed_outputs
+        );
+        assert!(
+            metrics.hierarchy_parent_port_composed_outputs_through_parent_flops
+                > metrics.top_parent_port_composed_outputs_through_parent_flops
+        );
+        assert!(metrics.hierarchy_parent_port_composed_parent_flop_output_fraction > 0.0);
+    }
+}
+
+#[test]
 fn recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_6_without_helpers() {
     for strategy in [
         ConstructionStrategy::Sequential,

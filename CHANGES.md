@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-08-phase4-recursive-depth-7-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 7 without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_stateful_parent_outputs_mix_parent_ports_at_depth_7_without_helpers` (depth 7, 2,2 children, parent_flop_prob=1.0).
+- Added matrix scenario `phase4_recur_d7_stateful_parent_port_composed_output` per ConstructionStrategy via `phase4_recursive_d7_stateful_parent_port_composed_output_focus_config`.
+- Added `saw_recursive_hierarchy_depth_7_stateful_parent_port_composed_outputs` coverage fact and matching gap message.
+- Bank counts: 192 scenarios / 768 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r81/tool_matrix_report.json`.
+
+**Why**
+
+- Fourth slice of the depth-7 sweep, mirroring r76 (depth 6), r71 (depth 5), r66 (depth 4), r61 (depth 3). Stateful parent-port-composed cells already use 2,2 children at all depths, so no calibration drift.
+
+**Validation**
+
+- Focused proof passes (~5s release).
+- Full gate: 192 scenarios, 768 designs, `coverage_gaps = []`, `Verilator 768/0`, both Yosys modes 768/0, `saw_recursive_hierarchy_depth_7_stateful_parent_port_composed_outputs = true`.
+- `cargo fmt`, `cargo clippy`, `mdbook build` all clean.
+
+**Impact**
+
+- Depth-7 axis now has four first-class coverage facts. Only one cell remains: stateful mixed-support child inputs (r82).
+- Batch step 9/10. No push.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-08-phase4-recursive-depth-7-parent-port-composed-outputs — Push recursive non-top parent-port-composed parent outputs to exact hierarchy depth 7 without helpers or parent-local state
 
 **Landed as:** e8eb1a8

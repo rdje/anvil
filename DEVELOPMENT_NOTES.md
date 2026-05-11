@@ -58,7 +58,15 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r80 extends the depth-7 axis with recursive non-top parent-port-composed parent outputs without helpers or parent-local state downstream-clean
+### Phase 4 r81 extends the depth-7 axis with recursive non-top stateful parent-port-composed parent outputs without helpers downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r81/tool_matrix_report.json`:
+192 scenarios / 768 designs, `coverage_gaps = []`, Verilator/Yosys all
+768/0. Fourth slice of the depth-7 sweep mirroring r76/r71/r66/r61.
+Only one cell remains to close depth-7: stateful mixed-support child
+inputs (r82, will adopt the same 2,2 calibration as r74/r77/r79).
+
+### Phase 4 r80 extended the depth-7 axis with recursive non-top parent-port-composed parent outputs without helpers or parent-local state downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r80/tool_matrix_report.json`:
 189 scenarios / 756 designs, `coverage_gaps = []`, Verilator/Yosys all
