@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-11-phase4-recursive-depth-7-stateful-mixed-support-child-inputs — Close depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 7 without helpers (2,2 calibrated)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_7_without_helpers` (depth 7, 2,2 children, child_input_cone_prob=1.0, parent_flop_prob=1.0, max_flops=64).
+- Added matrix scenario `phase4_recur_d7_stateful_parent_composed_mixed_support_child_input` per ConstructionStrategy via `phase4_recursive_d7_stateful_parent_composed_mixed_support_focus_config` (2,2 calibrated, mirrors r77).
+- Added `saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs` coverage fact and matching gap message.
+- Bank counts: 195 scenarios / 780 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`.
+
+**Why**
+
+- Fifth and final slice of the depth-7 sweep, mirroring r77 (depth 6), r72 (depth 5), r67 (depth 4), r62 (depth 3) — closes the depth-7 axis. Calibration: depth-7 stateful mixed-support cells use 2,2 child-instance bounds (same as r77/r79); at 4,4/depth-7 the gate would explode well beyond a safe-slice budget.
+
+**Validation**
+
+- Focused proof passes (~14s release).
+- Full gate: 195 scenarios, 780 designs, `coverage_gaps = []`, `Verilator 780/0`, both Yosys modes 780/0, `saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs = true`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- Depth-7 axis fully closed: all five cells (parent-flops r78, mixed-support child inputs r79, parent-port-composed outputs r80, stateful parent-port-composed outputs r81, stateful mixed-support child inputs r82) are first-class downstream-clean coverage facts.
+- Batch step 10/10. Push follows the hash record.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-08-phase4-recursive-depth-7-stateful-parent-port-composed-outputs — Push recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 7 without helpers
 
 **Landed as:** 89dadfe

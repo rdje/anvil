@@ -58,13 +58,28 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
-### Phase 4 r81 extends the depth-7 axis with recursive non-top stateful parent-port-composed parent outputs without helpers downstream-clean
+### Phase 4 r82 closes the depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`:
+195 scenarios / 780 designs, `coverage_gaps = []`, Verilator/Yosys all
+780/0. Fifth and final slice of the depth-7 sweep mirroring
+r77/r72/r67/r62 — closes the depth-7 axis. Calibration: depth-7 stateful
+mixed-support cells use the same 2,2 child-instance bounds as r77 at
+depth 6 and r79 at depth 7 (mixed-support cells at depths ≥ 6 use 2,2
+because the 4,4 tree at depth 7 would yield ~5461 internal occurrences,
+far beyond a safe-slice budget). The depth-7 axis is now fully closed:
+all five cells (parent-flops r78, mixed-support child inputs r79,
+parent-port-composed outputs r80, stateful parent-port-composed outputs
+r81, stateful mixed-support child inputs r82) are first-class
+downstream-clean coverage facts.
+
+### Phase 4 r81 extended the depth-7 axis with recursive non-top stateful parent-port-composed parent outputs without helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r81/tool_matrix_report.json`:
 192 scenarios / 768 designs, `coverage_gaps = []`, Verilator/Yosys all
 768/0. Fourth slice of the depth-7 sweep mirroring r76/r71/r66/r61.
-Only one cell remains to close depth-7: stateful mixed-support child
-inputs (r82, will adopt the same 2,2 calibration as r74/r77/r79).
+Only one cell remained to close depth-7: stateful mixed-support child
+inputs (r82, with the same 2,2 calibration as r74/r77/r79).
 
 ### Phase 4 r80 extended the depth-7 axis with recursive non-top parent-port-composed parent outputs without helpers or parent-local state downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now

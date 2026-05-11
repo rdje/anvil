@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r81/tool_matrix_report.json`
-  covers the live `192`-scenario policy at `4` designs/scenario
-  (`768` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `768/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`
+  covers the live `195`-scenario policy at `4` designs/scenario
+  (`780` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `780/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -137,7 +137,30 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r81 batch extends the depth-7 axis by
+- Current Phase 4 hierarchy r82 batch closes the depth-7 sweep by
+  pushing the recursive stateful unregistered parent-composed
+  mixed-support child-input surface (r77's depth-6, r72's depth-5,
+  r67's depth-4, r62's depth-3 territory) to exact hierarchy depth 7.
+  The new
+  `saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs`
+  fact requires `realized_max_leaf_depth >= 7`, hierarchy-wide
+  stateful parent-composed mixed-support child-input bindings
+  exceeding top-only, hierarchy-wide unregistered parent-composed
+  child-input bindings exceeding top-only, hierarchy-wide parent-local
+  flops exceeding top-only, and `hierarchy_parent_cone_instances == 0`.
+  Focused proof
+  `recursive_hierarchy_stateful_parent_composed_routes_mix_parent_ports_at_depth_7_without_helpers`
+  isolates the surface across six intermediate parent layers. Matrix
+  scenario
+  `phase4_recur_d7_stateful_parent_composed_mixed_support_child_input`
+  per construction strategy uses 2,2 child-instance bounds (same 2,2
+  calibration as r77/r79). Validation: focused regression,
+  `cargo test --bin tool_matrix`, and the full r82 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`
+  with `195` scenarios / `780` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs = true`,
+  and `780/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r81 batch extended the depth-7 axis by
   pushing the recursive stateful parent-port-composed parent-output
   surface (r76's depth-6 territory and earlier) to exact hierarchy
   depth 7. New `saw_recursive_hierarchy_depth_7_stateful_parent_port_composed_outputs`
