@@ -327,6 +327,7 @@ pub struct DesignMetrics {
     pub top_child_input_bindings_from_registered_mixed_support: usize,
     pub top_child_input_bindings_from_registered_sibling_mixed_support: usize,
     pub top_child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
+    pub top_child_input_bindings_from_registered_three_stage_parent_composed_logic: usize,
     pub top_child_input_bindings_from_registered_multistage_mixed_support: usize,
     pub top_child_input_bindings_from_registered_multistage_instance_outputs: usize,
     pub top_child_input_bindings_from_registered_multistage_parent_cone_instances: usize,
@@ -360,6 +361,7 @@ pub struct DesignMetrics {
     pub top_registered_mixed_support_child_input_binding_fraction: f64,
     pub top_registered_sibling_mixed_support_child_input_binding_fraction: f64,
     pub top_registered_multistage_parent_composed_child_input_binding_fraction: f64,
+    pub top_registered_three_stage_parent_composed_child_input_binding_fraction: f64,
     pub top_registered_multistage_mixed_support_child_input_binding_fraction: f64,
     pub top_registered_multistage_instance_output_child_input_binding_fraction: f64,
     pub top_registered_multistage_parent_cone_instance_child_input_binding_fraction: f64,
@@ -416,6 +418,7 @@ pub struct DesignMetrics {
     pub child_input_bindings_from_registered_mixed_support: usize,
     pub child_input_bindings_from_registered_sibling_mixed_support: usize,
     pub child_input_bindings_from_registered_multistage_parent_composed_logic: usize,
+    pub child_input_bindings_from_registered_three_stage_parent_composed_logic: usize,
     pub child_input_bindings_from_registered_multistage_mixed_support: usize,
     pub child_input_bindings_from_registered_multistage_instance_outputs: usize,
     pub child_input_bindings_from_registered_multistage_parent_cone_instances: usize,
@@ -446,6 +449,7 @@ pub struct DesignMetrics {
     pub registered_mixed_support_child_input_binding_fraction: f64,
     pub registered_sibling_mixed_support_child_input_binding_fraction: f64,
     pub registered_multistage_parent_composed_child_input_binding_fraction: f64,
+    pub registered_three_stage_parent_composed_child_input_binding_fraction: f64,
     pub registered_multistage_mixed_support_child_input_binding_fraction: f64,
     pub registered_multistage_instance_output_child_input_binding_fraction: f64,
     pub registered_multistage_parent_cone_instance_child_input_binding_fraction: f64,
@@ -943,6 +947,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         out.child_input_bindings_from_registered_sibling_mixed_support,
         out.total_child_data_input_bindings,
     );
+    out.registered_three_stage_parent_composed_child_input_binding_fraction = ratio(
+        out.child_input_bindings_from_registered_three_stage_parent_composed_logic,
+        out.total_child_data_input_bindings,
+    );
     out.registered_multistage_parent_composed_child_input_binding_fraction = ratio(
         out.child_input_bindings_from_registered_multistage_parent_composed_logic,
         out.total_child_data_input_bindings,
@@ -1053,6 +1061,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     );
     out.top_registered_multistage_parent_composed_child_input_binding_fraction = ratio(
         out.top_child_input_bindings_from_registered_multistage_parent_composed_logic,
+        out.top_total_child_data_input_bindings,
+    );
+    out.top_registered_three_stage_parent_composed_child_input_binding_fraction = ratio(
+        out.top_child_input_bindings_from_registered_three_stage_parent_composed_logic,
         out.top_total_child_data_input_bindings,
     );
     out.top_registered_multistage_mixed_support_child_input_binding_fraction = ratio(
@@ -1362,6 +1374,16 @@ fn walk_module_occurrence(module: &Module, depth: usize, state: &mut DesignWalkS
                     state
                         .out
                         .top_child_input_bindings_from_registered_multistage_parent_composed_logic += 1;
+                }
+            }
+            if binding_uses_registered_three_stage_parent_composed_logic(module, *node_id) {
+                state
+                    .out
+                    .child_input_bindings_from_registered_three_stage_parent_composed_logic += 1;
+                if module.name == state.out.design {
+                    state
+                        .out
+                        .top_child_input_bindings_from_registered_three_stage_parent_composed_logic += 1;
                 }
             }
             if binding_uses_registered_multistage_mixed_support(module, *node_id) {
@@ -1800,6 +1822,44 @@ fn binding_uses_registered_multistage_parent_composed_logic(
             })
     });
     uses_registered_multistage_parent_composed_logic
+}
+
+fn binding_uses_registered_three_stage_parent_composed_logic(
+    module: &Module,
+    node_id: NodeId,
+) -> bool {
+    if !binding_is_registered_child_input_route(module, node_id) {
+        return false;
+    }
+    let deps = node_deps(module, node_id);
+    let uses_three_stage = deps.flop_virtuals().any(|flop_id| {
+        module
+            .flops
+            .get(flop_id as usize)
+            .and_then(|flop| flop.d)
+            .is_some_and(|d_stage2| {
+                let d2_deps = node_deps(module, d_stage2);
+                let stage2_ok = is_registered_parent_composed_logic_node(module, d_stage2)
+                    && d2_deps.has_instance_output_virtuals();
+                if !stage2_ok {
+                    return false;
+                }
+                let inner_any = d2_deps.flop_virtuals().any(|inner_flop_id| {
+                    module
+                        .flops
+                        .get(inner_flop_id as usize)
+                        .and_then(|flop| flop.d)
+                        .is_some_and(|d_stage3| {
+                            let d3_deps = node_deps(module, d_stage3);
+                            is_registered_parent_composed_logic_node(module, d_stage3)
+                                && d3_deps.has_instance_output_virtuals()
+                                && d3_deps.has_flop_virtuals()
+                        })
+                });
+                inner_any
+            })
+    });
+    uses_three_stage
 }
 
 fn binding_uses_registered_multistage_mixed_support(module: &Module, node_id: NodeId) -> bool {

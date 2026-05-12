@@ -58,6 +58,23 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
+### Phase 4 r83 proves recursive non-top registered parent-composed three-stage chain downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`:
+198 scenarios / 792 designs, `coverage_gaps = []`, Verilator/Yosys all
+792/0. First slice of the broader-Phase-4 work after the depth-7 sweep
+closed in r82. Promotes a new chain-depth axis on top of the closed
+depth-3..7 sweeps: registered parent-composed child-input bindings can
+chain through three parent-local flop stages without helper instances
+below the top parent. Calibration: depth 3, 4,4 child instances,
+`max_flops_per_module = 128`, `max_depth = 8`. These limits give the
+planner enough flop budget and cone depth to naturally produce
+chain-length-3 structures below the top across all four construction
+strategies; the planner has no explicit chain-length knob, so the new
+detection just walks the existing FlopQ -> D chain three deep and
+counts bindings whose Q's D is a non-slice/non-concat gate over both
+instance outputs and another Q.
+
 ### Phase 4 r82 closes the depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs without helpers downstream-clean (2,2 calibrated)
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`:

@@ -1791,6 +1791,86 @@ fn recursive_hierarchy_registered_mixed_support_routes_below_top() {
 }
 
 #[test]
+fn recursive_hierarchy_registered_parent_composed_routes_can_chain_three_stages_below_top() {
+    // Extends the 2-stage chain proof to chain depth >= 3. A 3-stage chain
+    // means: registered child-input binding is FlopQ_a; Q_a.D is
+    // registered parent-composed logic that depends on Q_b; Q_b.D is also
+    // registered parent-composed logic that depends on Q_c. We push
+    // max_flops_per_module=16 to give the planner room to allocate
+    // multiple parent-local Qs that the registered child-input D-cone can
+    // chain through. 4,4 child instances supplies enough instance outputs
+    // for each stage.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 3,
+            max_hierarchy_depth: 3,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 1.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 128,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 8,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate().expect(
+            "three-stage registered parent-composed chain hierarchy config should be valid",
+        );
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "three-stage registered parent-composed chain hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.hierarchy_parent_cone_instances, 0,
+            "this focused config should prove no-helper registered three-stage parent-composed chaining for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_multistage_parent_composed_logic
+                > metrics.top_child_input_bindings_from_registered_multistage_parent_composed_logic,
+            "expected non-top multi-stage (>=2) registered parent-composed child-input bindings as a sanity baseline for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_registered_three_stage_parent_composed_logic
+                > metrics.top_child_input_bindings_from_registered_three_stage_parent_composed_logic,
+            "expected non-top three-stage (chain length >= 3) registered parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.registered_three_stage_parent_composed_child_input_binding_fraction > 0.0,
+            "expected non-zero three-stage registered parent-composed binding fraction for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_registered_parent_composed_routes_can_chain_without_helpers_below_top() {
     for strategy in [
         ConstructionStrategy::Sequential,

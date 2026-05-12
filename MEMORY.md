@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r82/tool_matrix_report.json`
-  covers the live `195`-scenario policy at `4` designs/scenario
-  (`780` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `780/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`
+  covers the live `198`-scenario policy at `4` designs/scenario
+  (`792` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `792/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -137,7 +137,26 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r82 batch closes the depth-7 sweep by
+- Current Phase 4 hierarchy r83 batch opens a chain-depth axis above
+  the closed depth-3..7 sweeps. The new
+  `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain`
+  fact requires `realized_max_leaf_depth > 1`, hierarchy-wide registered
+  parent-composed child-input bindings whose D chain through three or
+  more parent-local flop stages exceeding top-only, and
+  `hierarchy_parent_cone_instances == 0`. Focused proof
+  `recursive_hierarchy_registered_parent_composed_routes_can_chain_three_stages_below_top`
+  isolates the surface at exact hierarchy depth 3 with 4,4 child
+  instances, `max_flops_per_module = 128`, and `max_depth = 8`. Matrix
+  scenario `phase4_recur_d3_registered_three_stage_parent_composed_chain`
+  per construction strategy gates the surface in the full bank.
+  Validation: focused regression, `cargo test --bin tool_matrix`, and
+  the full r83 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`
+  with `198` scenarios / `792` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain = true`,
+  and `792/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  PNT-1 of the autonomous-PNT chain.
+- Previous Phase 4 hierarchy r82 batch closed the depth-7 sweep by
   pushing the recursive stateful unregistered parent-composed
   mixed-support child-input surface (r77's depth-6, r72's depth-5,
   r67's depth-4, r62's depth-3 territory) to exact hierarchy depth 7.

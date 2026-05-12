@@ -1,5 +1,37 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-12-phase4-recursive-three-stage-registered-parent-composed-chain — Prove recursive non-top registered parent-composed child-input bindings can chain through three parent-local flop stages without helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_registered_parent_composed_routes_can_chain_three_stages_below_top` (depth 3, 4,4 children, registered_child_input_cone_prob=1.0, max_flops=128, max_depth=8).
+- Added new metric pair `child_input_bindings_from_registered_three_stage_parent_composed_logic` (top + non-top) plus `registered_three_stage_parent_composed_child_input_binding_fraction` (top + non-top), detected by walking the FlopQ -> D -> FlopQ chain three deep with each stage's D being non-slice/non-concat parent-composed logic that depends on both instance outputs and flop virtuals.
+- Added matrix scenario `phase4_recur_d3_registered_three_stage_parent_composed_chain` per ConstructionStrategy via `phase4_recursive_registered_three_stage_parent_composed_chain_focus_config`.
+- Added `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain` coverage fact and matching gap message.
+- Bank counts: 198 scenarios / 792 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`.
+
+**Why**
+
+- First slice of the broader-Phase-4 work after the depth-7 sweep closed in r82. Extends the registered-parent-composed multi-stage subcase from chain length 2 (proven since the earliest multistage banks) to chain length >= 3. The new metric distinguishes chain depth 3 from any chain depth >= 2, so the matrix gate can keep enforcing both as separate first-class facts. PNT-1 in the autonomous-PNT chain.
+
+**Validation**
+
+- Focused proof passes (~1.2s release) for all four construction strategies.
+- Full gate: 198 scenarios, 792 designs, `coverage_gaps = []`, `Verilator 792/0`, both Yosys modes 792/0, `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain = true`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- Registered parent-composed multi-stage chain is now gated at exactly two distinct chain-depth thresholds (>=2 via the existing `saw_recursive_hierarchy_registered_multistage_routing` family, and >=3 via the new fact). Future slices can extend along chain depth (length 4, 5, ...) the same way the recent slices extended along hierarchy depth.
+- Autonomous PNT-1 of 3. No push until PNT-3 lands.
+
+**Files touched**
+
+- src/metrics.rs, src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-11-phase4-recursive-depth-7-stateful-mixed-support-child-inputs — Close depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 7 without helpers (2,2 calibrated)
 
 **Landed as:** 69b2173
