@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-12-phase4-recursive-three-stage-registered-parent-composed-chain — Prove recursive non-top registered parent-composed child-input bindings can chain through three parent-local flop stages without helpers
 
-**Landed as:** this commit
+**Landed as:** da6a900
 
 **What changed**
 
