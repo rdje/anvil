@@ -58,6 +58,20 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Calibration notes
+### Phase 4 r84 proves a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`:
+201 scenarios / 804 designs, `coverage_gaps = []`, Verilator/Yosys all
+804/0. Second slice of the broader-Phase-4 work (PNT-2 of the
+autonomous-PNT chain). Extends the helper-budget axis from 3 (previous
+saturating proof) to 5. Calibration: depth 2, 4,4 child instances,
+`max_parent_cone_instances_per_module = 5`,
+`hierarchy_child_input_cone_prob = 1.0`, and
+`hierarchy_parent_cone_instance_prob = 1.0`. Each non-top internal
+parent has ~4 children x ~2 inputs = 8 child-input decision sites,
+giving the planner enough demand to fully saturate the budget-5
+allocation per parent.
+
 ### Phase 4 r83 proves recursive non-top registered parent-composed three-stage chain downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`:

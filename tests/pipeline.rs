@@ -871,6 +871,78 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn recursive_hierarchy_parent_cone_helper_budget_5_below_top() {
+    // Extends the budget-3 proof to budget 5. With 4,4 child instances
+    // the parent has ~4 children x ~2 inputs = 8 child-input decision
+    // sites where helper allocation can fire, so budget 5 is well within
+    // demand. This proves the planner saturates configured budgets > 3
+    // both at the top and below the top.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 1.0,
+            max_parent_cone_instances_per_module: 5,
+            hierarchy_parent_flop_prob: 0.0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("recursive budget-5 parent-composed helper hierarchy config should be valid");
+
+        let helper_budget = cfg.max_parent_cone_instances_per_module as usize;
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "recursive budget-5 helper hierarchy strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert_eq!(metrics.realized_max_leaf_depth, 2);
+        assert!(
+            metrics.num_internal_module_occurrences > 1,
+            "expected a recursive hierarchy with non-top internal parents for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics.max_parent_cone_instances_per_internal_module, helper_budget,
+            "expected at least one parent to spend the full budget-5 child-input helper allocation for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.hierarchy_parent_cone_instances > metrics.top_parent_cone_instances,
+            "expected non-top budget-5 helper instances for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.child_input_bindings_from_parent_composed_logic
+                > metrics.top_child_input_bindings_from_parent_composed_logic,
+            "expected non-top parent-composed child-input bindings for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top() {
     for strategy in [
         ConstructionStrategy::Sequential,

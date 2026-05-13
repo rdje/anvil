@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-12-phase4-recursive-parent-cone-helper-budget-5 — Prove a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `recursive_hierarchy_parent_cone_helper_budget_5_below_top` (depth 2, 4,4 children, hierarchy_child_input_cone_prob=1.0, hierarchy_parent_cone_instance_prob=1.0, max_parent_cone_instances_per_module=5).
+- Added matrix scenario `phase4_recur_d2_parent_cone_instance_budget5` per ConstructionStrategy via `phase4_recursive_parent_cone_instance_budget_5_focus_config`.
+- Added `saw_recursive_parent_cone_helper_budget_5` coverage fact and matching gap message. Required condition: `max_parent_cone_instances_per_module >= 5`, planner-realized `max_parent_cone_instances_per_internal_module >= 5`, and non-top helper count strictly exceeding top-only baseline.
+- Bank counts: 201 scenarios / 804 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`.
+
+**Why**
+
+- PNT-2 of the autonomous-PNT chain. Extends the helper-budget axis from `3` (the previous saturating proof) to `5`, demonstrating the planner can spend non-trivial helper budgets per internal parent. Uses 4,4 child instances so each parent has ~8 child-input decision sites — enough demand to saturate budget 5.
+
+**Validation**
+
+- Focused proof passes (~0.1s release) for all four construction strategies.
+- Full gate: 201 scenarios, 804 designs, `coverage_gaps = []`, `Verilator 804/0`, both Yosys modes 804/0, `saw_recursive_parent_cone_helper_budget_5 = true`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- Helper-budget axis is now gated at two thresholds (>=2 via the existing `saw_recursive_multiple_parent_cone_instances_per_parent` family, and >=5 via the new fact). Future slices can push budget further if demand-shape work warrants it.
+- Autonomous PNT-2 of 3. No push until PNT-3 lands.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md.
+
 ## 2026-05-12-phase4-recursive-three-stage-registered-parent-composed-chain — Prove recursive non-top registered parent-composed child-input bindings can chain through three parent-local flop stages without helpers
 
 **Landed as:** da6a900

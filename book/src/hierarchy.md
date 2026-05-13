@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`
-- `198` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`
+- `201` scenarios
 - `4` designs/scenario
-- `792` total designs
+- `804` total designs
 - `coverage_gaps = []`
-- `Verilator 792/0`
-- `Yosys without-abc 792/0`
-- `Yosys with-abc 792/0`
+- `Verilator 804/0`
+- `Yosys without-abc 804/0`
+- `Yosys with-abc 804/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -652,9 +652,18 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_depth_7_stateful_parent_port_composed_outputs = true`
 - `saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs = true`
 - `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain = true`
+- `saw_recursive_parent_cone_helper_budget_5 = true`
 
-The `r83` bank opens a chain-depth axis above the closed depth-3..7
-sweeps. The new focus scenario
+The `r84` bank extends the helper-budget axis above the previous
+budget-3 baseline. The new focus scenario
+`phase4_recur_d2_parent_cone_instance_budget5` per construction strategy
+uses depth 2, 4,4 child instances, and
+`max_parent_cone_instances_per_module = 5` so a non-top internal parent
+has ~8 child-input decision sites — enough demand to fully saturate the
+budget-5 allocation per parent.
+
+The earlier `r83` bank opens a chain-depth axis above the closed
+depth-3..7 sweeps. The focus scenario
 `phase4_recur_d3_registered_three_stage_parent_composed_chain` per
 construction strategy uses depth 3, 4,4 child instances,
 `max_flops_per_module = 128`, and `max_depth = 8` to give the planner
@@ -1466,8 +1475,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r83` closes them cleanly
-  with `coverage_gaps = []` and `792/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r84` closes them cleanly
+  with `coverage_gaps = []` and `804/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,
@@ -1619,9 +1628,12 @@ local proofs remain useful:
   full bank that closed the depth-7 sweep with recursive non-top
   stateful unregistered parent-composed mixed-support child inputs at
   exact hierarchy depth 7 without helpers (2,2 calibrated), `r83` is
-  the current hierarchy full bank that opens a chain-depth axis above
+  the previous hierarchy full bank that opened a chain-depth axis above
   the closed depth-3..7 sweeps with recursive non-top registered
-  parent-composed three-stage chain coverage, and the
+  parent-composed three-stage chain coverage, `r84` is the current
+  hierarchy full bank that extends the helper-budget axis above the
+  previous budget-3 baseline with recursive non-top parent-cone helper
+  budget 5 coverage, and the
   aborted
   `r8`
   rerun is historical evidence that the Phase 4 gate should use a

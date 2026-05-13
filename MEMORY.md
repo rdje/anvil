@@ -16,10 +16,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r83/tool_matrix_report.json`
-  covers the live `198`-scenario policy at `4` designs/scenario
-  (`792` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `792/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`
+  covers the live `201`-scenario policy at `4` designs/scenario
+  (`804` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `804/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -137,7 +137,25 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r83 batch opens a chain-depth axis above
+- Current Phase 4 hierarchy r84 batch extends the helper-budget axis
+  above r83's chain-depth axis. The new
+  `saw_recursive_parent_cone_helper_budget_5` fact requires
+  `realized_max_leaf_depth > 1`,
+  `max_parent_cone_instances_per_module >= 5`, planner-realized
+  `max_parent_cone_instances_per_internal_module >= 5`, and non-top
+  helper count strictly exceeding the top-only baseline. Focused proof
+  `recursive_hierarchy_parent_cone_helper_budget_5_below_top` isolates
+  the surface at exact hierarchy depth 2 with 4,4 child instances.
+  Matrix scenario `phase4_recur_d2_parent_cone_instance_budget5` per
+  construction strategy gates the surface in the full bank. Validation:
+  focused regression, `cargo test --bin tool_matrix`, and the full r84
+  gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`
+  with `201` scenarios / `804` designs, `coverage_gaps = []`,
+  `saw_recursive_parent_cone_helper_budget_5 = true`, and `804/0`
+  pass-fail in Verilator plus both repo-owned Yosys modes. PNT-2 of the
+  autonomous-PNT chain.
+- Previous Phase 4 hierarchy r83 batch opened a chain-depth axis above
   the closed depth-3..7 sweeps. The new
   `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain`
   fact requires `realized_max_leaf_depth > 1`, hierarchy-wide registered
