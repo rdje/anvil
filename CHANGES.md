@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-12-phase4-recursive-parent-cone-helper-budget-5 — Prove a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers
 
-**Landed as:** this commit
+**Landed as:** ed4988b
 
 **What changed**
 
