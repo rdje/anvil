@@ -2051,6 +2051,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `21174d8` — Docs: narrow DIFFERENTIAL-SIMULATION.1 scope to second simulator.
 - `d19d427` — Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1).
 - `f3ee1f3` — Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1).
 - `65ca372` — Docs: register three quality-improvement task trees (INSTA-SNAPSHOTS, DIFFERENTIAL-SIMULATION, COVERAGE-INSTRUMENTATION).

@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-14-differential-simulation-scope-narrowed — Narrow DIFFERENTIAL-SIMULATION.1 scope to "scope the second simulator"
 
-**Landed as:** this commit
+**Landed as:** 21174d8
 
 **What changed**
 
