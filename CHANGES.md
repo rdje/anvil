@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-13-phase4-canonical-module-signature-instrumentation — Add canonical module signatures (first slice of hierarchy-aware identity, HIERARCHY-AWARE-IDENTITY.1)
 
-**Landed as:** this commit
+**Landed as:** f3ee1f3
 
 **What changed**
 
