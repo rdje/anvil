@@ -50,7 +50,9 @@ the broader future artifact families.
 7. `MEMORY.md`: compact, operational continuity/handoff snapshot with git hashes.
 8. `CHANGES.md`: fully detailed description of completed changes.
 9. `COMMIT.md`: canonical commit workflow.
-10. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
+10. `docs/TASK_TREE.md`: repo-local task-tree workflow and active-tree index. Opt-in per top-level task — used for multi-slice work where the linear `rN` cadence does not capture the decomposition (see `docs/TASK_TREE_README.md` for the portable setup guide).
+11. `docs/tasks/*.md`: one file per active top-level task tree, with stable leaf IDs, current frontier, blockers, decisions, and verification log.
+12. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
 

@@ -57,6 +57,38 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ---
 
+## Workflow notes
+### Adopted FSMGen task-tree workflow on ANVIL (2026-05-14)
+Added a repo-local task-tree tracking workflow at `docs/TASK_TREE.md`
+plus the portable setup guide at `docs/TASK_TREE_README.md` (lifted from
+FSMGen's `docs/TASK_TREE_README.md`). One initial active tree:
+`docs/tasks/HIERARCHY-AWARE-IDENTITY.md`, covering the hierarchy-aware
+identity work that r85 opened.
+
+**Scope decision:** task trees are opt-in per top-level task on ANVIL,
+not mandatory. Linear `rN` coverage slices (r73-r82 depth sweeps, r83
+three-stage chain, r84 helper budget 5) already had clean handoff under
+the `rN` + `CHANGES.md` + `MEMORY.md` combination — adding leaf-IDs and
+per-leaf task files there would mostly add overhead without solving a
+real problem. The value of task-tree is highest where the work has:
+more than ~3 planned sub-slices, real blockers or design decisions to
+record, parallel sub-axes that do not fit a single linear `rN` ladder,
+or is likely to span multiple sessions with pause/resume cycles. The
+upcoming hierarchy-aware-identity dedup work fits all four; the closed
+depth sweeps fit none.
+
+**Rejected alternative:** full FSMGen-style mandate ("all work is
+task-tree-managed by default"). FSMGen's ISF lane has that policy
+because every ISF objective has multiple independent dimensions; ANVIL's
+linear `rN` shape does not.
+
+**Commit-workflow tie-in:** `COMMIT.md` gained a "Task-tree-managed
+commits" section requiring the leaf ID in commit subjects when work is
+task-tree-managed, and same-commit updates to the owning
+`docs/tasks/<TREE>.md` file. Non-task-tree commits (linear `rN`,
+isolated doc edits) follow the standard checklist without the
+leaf-ID rule.
+
 ## Calibration notes
 ### Phase 4 r84 proves a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now

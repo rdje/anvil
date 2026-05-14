@@ -253,6 +253,8 @@ evidence.
 
 ## Phase 4 — Hierarchy (in progress)
 
+**Active task tree:** [`HIERARCHY-AWARE-IDENTITY`](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) (current frontier: `HIERARCHY-AWARE-IDENTITY.1`). Phase 4's `rN`-named linear coverage slices (r73…r85) continue to land under the rN cadence; multi-slice sub-objectives like hierarchy-aware identity are now task-tree-managed per [docs/TASK_TREE.md](docs/TASK_TREE.md).
+
 - **Landed slices so far:**
   - the legacy exact wrapper lane:
     `--hierarchy-depth 1 --num-leaf-modules N [--num-child-instances M]`

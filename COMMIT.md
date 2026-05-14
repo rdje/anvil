@@ -122,6 +122,31 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
    - `git --no-pager log -1 --oneline`
    - Record the new commit hash in `MEMORY.md` as the most recent entry (this can be part of the next commit, or a tiny follow-up commit; do not fake-edit history).
 
+## Task-tree-managed commits
+
+When a commit completes a leaf of an active task tree
+(see [docs/TASK_TREE.md](docs/TASK_TREE.md)), the standard checklist above
+still applies in full. Three additional rules:
+
+1. The commit subject or the first body line must contain the leaf ID
+   (e.g., `HIERARCHY-AWARE-IDENTITY.1`). The leaf ID is the durable
+   join key between commits and the task tree — hashes can be backfilled
+   into the tree later, but the leaf ID cannot.
+2. The owning `docs/tasks/<TREE>.md` file must be updated in the same
+   commit with the leaf's new status, verification-log entry, and
+   commit-log entry. The corresponding row in `docs/TASK_TREE.md`'s
+   `Active Task Trees` table must be updated when the current frontier
+   changes.
+3. Commit one completed leaf at a time. Do not bundle two task-tree
+   leaves into one commit even when they touch the same files; the
+   commit log entry in the tree expects a 1:1 mapping.
+
+Commits that are **not** task-tree-managed (linear `rN` coverage
+slices, isolated doc edits, workflow tweaks) follow the standard
+checklist without the additional rules above. Task trees are opt-in
+per top-level task — see [docs/TASK_TREE.md](docs/TASK_TREE.md) for the
+adoption scope.
+
 ## Commit quality rules
 - Keep each commit scoped to one coherent task.
 - Do not include unrelated files in the same commit.

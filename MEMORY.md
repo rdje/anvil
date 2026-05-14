@@ -3,6 +3,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
+- **Active task trees:** `HIERARCHY-AWARE-IDENTITY` (current frontier `HIERARCHY-AWARE-IDENTITY.1`, the canonical-module-signature instrumentation slice). See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) for the full tree. Task trees are opt-in per top-level task: linear `rN` hierarchy slices stay on the existing `rN` + `CHANGES.md` cadence; multi-slice work like hierarchy-aware identity is task-tree-managed.
 - Current README execution found and fixed a source-tree command
   contract break: with both `anvil` and `tool_matrix` binaries present,
   plain `cargo run -- ...` was ambiguous until `Cargo.toml` restored

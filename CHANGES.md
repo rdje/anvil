@@ -1,5 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-14-adopt-task-tree-workflow — Adopt FSMGen task-tree tracking workflow
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added `docs/TASK_TREE_README.md` (portable setup guide, lifted verbatim from FSMGen) and `docs/TASK_TREE.md` (ANVIL-adapted operating spec, active-tree index, PNT selection rules).
+- Added `docs/tasks/TEMPLATE.md` (copyable skeleton, lifted verbatim from FSMGen).
+- Added `docs/tasks/HIERARCHY-AWARE-IDENTITY.md` as the first active tree, covering the multi-slice hierarchy-aware identity work that r85 opens (canonical signatures → structural-duplicate metric → dedup-pass design sketch → opt-in dedup implementation → matrix gate proof).
+- Added a "Task-tree-managed commits" section to `COMMIT.md` requiring leaf-ID traceability and same-commit task-file updates for task-tree-managed work. Non-task-tree commits follow the standard checklist unchanged.
+- Linked the task-tree docs from `README.md`'s fast-ramp-up reading order and `SESSION_BOOTSTRAP.md`'s session-start reading list.
+- Linked the active `HIERARCHY-AWARE-IDENTITY` tree from `ROADMAP.md`'s Phase 4 section.
+- Recorded the adoption decision and scope in `DEVELOPMENT_NOTES.md` under a new "Workflow notes" section, including the rejected alternative (full FSMGen-style mandate).
+
+**Why**
+
+- Two recent pause/resume cycles (mid-r81 and mid-r85) were patched with bespoke `project_*_pause.md` memory entries. That works once or twice but does not scale to the multi-slice hierarchy-aware identity refactor that r85 opens. Task trees give multi-slice work durable leaf IDs, an explicit current frontier, and dedicated places to record blockers, decisions, and verification. FSMGen ships a portable workflow already proven there; lifting it (verbatim where possible, adapted only where ANVIL's live-doc names differ) is cheaper and more correct than re-inventing it locally.
+- Adoption is deliberately scoped: linear `rN` coverage extensions stay on the existing convention; only multi-slice tasks open a tree. This avoids the "two parallel ledgers" failure mode where `CHANGES.md` and `docs/tasks/*.md` drift apart.
+
+**Validation**
+
+- No code change; pure documentation/workflow slice.
+- `mdbook build book` clean (new files live in `docs/`, not `book/src/`, so the book SUMMARY does not need to change).
+- No new cargo dependencies, no new generator behaviour, no new IR shape.
+
+**Impact**
+
+- Future multi-slice work (starting with the dedup follow-ups to r85's canonical signatures) gets a durable execution ledger with stable leaf IDs in commit subjects.
+- The `r85` slice itself (currently uncommitted, paused waiting for a gate rerun) becomes the first task-tree-managed commit: its eventual commit subject will identify `HIERARCHY-AWARE-IDENTITY.1` and update the tree's verification log + commit log in the same commit.
+
+**Files touched**
+
+- New: docs/TASK_TREE_README.md, docs/TASK_TREE.md, docs/tasks/TEMPLATE.md, docs/tasks/HIERARCHY-AWARE-IDENTITY.md.
+- Updated: COMMIT.md, README.md, SESSION_BOOTSTRAP.md, ROADMAP.md, MEMORY.md, DEVELOPMENT_NOTES.md, CHANGES.md.
+
 ## 2026-05-12-phase4-recursive-parent-cone-helper-budget-5 — Prove a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers
 
 **Landed as:** ed4988b
