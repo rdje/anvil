@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-14-coverage-instrumentation-baseline — Add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)
 
-**Landed as:** this commit
+**Landed as:** d19d427
 
 **What changed**
 

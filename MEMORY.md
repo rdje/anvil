@@ -2051,6 +2051,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `d19d427` — Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1).
 - `f3ee1f3` — Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1).
 - `65ca372` — Docs: register three quality-improvement task trees (INSTA-SNAPSHOTS, DIFFERENTIAL-SIMULATION, COVERAGE-INSTRUMENTATION).
 - `f2b95f7` — Docs: adopt FSMGen task-tree workflow (scoped to multi-slice work).
