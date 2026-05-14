@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-14-quality-improvement-task-trees — Register three quality-improvement task trees
 
-**Landed as:** this commit
+**Landed as:** 65ca372
 
 **What changed**
 

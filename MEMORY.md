@@ -2035,6 +2035,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `65ca372` — Docs: register three quality-improvement task trees (INSTA-SNAPSHOTS, DIFFERENTIAL-SIMULATION, COVERAGE-INSTRUMENTATION).
 - `f2b95f7` — Docs: adopt FSMGen task-tree workflow (scoped to multi-slice work).
 - `ed4988b` — Phase 4: prove parent-cone helper budget of 5 saturates below the top (r84).
 - `da6a900` — Phase 4: prove recursive non-top registered parent-composed three-stage chain (r83).
