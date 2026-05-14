@@ -1,5 +1,37 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-14-coverage-instrumentation-baseline — Add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Confirmed cargo-llvm-cov 0.8.7 and `llvm-tools-aarch64-apple-darwin` are already installed locally — no install step required.
+- Ran `cargo llvm-cov --release` over the existing unit + `tests/pipeline.rs` test suite (110 tests, ~295s wall-clock). The 75-min Phase 4 hierarchy matrix gate was intentionally excluded so the baseline stays reproducible in minutes.
+- Wrote `docs/coverage-baseline.md` with per-file line/function/region coverage numbers across all 14 crate files, a top-5 under-covered-files triage target list, and explicit caveats about matrix-gate-excluded paths and defensive-panic unreachability.
+- Closes leaf `COVERAGE-INSTRUMENTATION.1` in [docs/tasks/COVERAGE-INSTRUMENTATION.md](docs/tasks/COVERAGE-INSTRUMENTATION.md). Tree frontier rotates to `.2` (triage of the top-5 under-covered files).
+
+**Why**
+
+- ANVIL's "the matrix is comprehensive by design intent" claim was previously unverified. The baseline gives a concrete measurement: 85.26% lines / 91.95% functions / 87.61% regions covered without the matrix gate. The matrix gate is where the planner core gets its strongest exercise (Phase 4 hierarchy paths in `gen/hierarchy.rs` and `bin/tool_matrix.rs`) — but the baseline still shows `gen/hierarchy.rs` at 95.61% lines and `metrics.rs` at 99.66% from the unit + pipeline suite alone, which is a strong signal that the focused proofs already exercise the planner core comprehensively.
+- The top-5 under-covered files are exactly the ones expected: matrix harness, CLI overlay, defensive validators, clap boilerplate. `.2` triage will decide which uncovered regions are dead code (remove), rarely-fired paths (add focused proofs), or intentionally-unreachable defensive panics (leave and document). The hot-spot is `gen/cone.rs` at 88.65% lines / 454 missed — the only planner-core file outside the 95%+ band — which suggests anti-collapse rollback paths or block-assembly variants worth examining.
+
+**Validation**
+
+- `cargo llvm-cov --release` ran to completion in ~295s, all 110 tests passing.
+- `cargo llvm-cov report --release` produced the per-file breakdown that anchors `docs/coverage-baseline.md`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- ANVIL now has a reproducible, dependency-free coverage baseline; `.2` triage is the next eligible leaf in `COVERAGE-INSTRUMENTATION`.
+- First task-tree-managed slice on `COVERAGE-INSTRUMENTATION`. The leaf-ID convention from `docs/TASK_TREE.md` is followed: commit subject identifies the leaf; task file is updated in the same commit.
+
+**Files touched**
+
+- New: docs/coverage-baseline.md.
+- Updated: docs/TASK_TREE.md, docs/tasks/COVERAGE-INSTRUMENTATION.md, CHANGES.md, MEMORY.md, DEVELOPMENT_NOTES.md.
+
 ## 2026-05-13-phase4-canonical-module-signature-instrumentation — Add canonical module signatures (first slice of hierarchy-aware identity, HIERARCHY-AWARE-IDENTITY.1)
 
 **Landed as:** f3ee1f3

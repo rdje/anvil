@@ -58,6 +58,38 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Workflow notes
+### Coverage baseline established (2026-05-14, COVERAGE-INSTRUMENTATION.1)
+cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already
+installed locally. Baseline run via `cargo llvm-cov --release`
+(intentionally excludes the 75-min Phase 4 hierarchy matrix gate so
+the baseline stays reproducible in minutes). Result: **85.26% lines,
+91.95% functions, 87.61% regions** across 14 crate files. Full
+per-file breakdown lives in `docs/coverage-baseline.md`.
+
+**Key signal:** the planner core (`gen/hierarchy.rs`, `gen/module.rs`,
+`gen/cone.rs`, `ir/compact.rs`, `emit/sv.rs`) sits at 88-99% lines
+*without* the matrix gate's 204 scenarios contributing. That confirms
+the focused-proof + unit-test combination already exercises the
+construction discipline comprehensively, not just at the macro
+(matrix-gate) level. `metrics.rs` is at 99.66% — meaning the
+detection helpers (`binding_uses_*`, canonical-signature hash,
+ratio computations) are very densely tested by the focused proofs
+the recent rN slices added.
+
+**Top-5 under-covered files (for `.2` triage):**
+
+1. `bin/tool_matrix.rs` — 1951 lines, 72.07%. Matrix-gate-only paths.
+2. `gen/cone.rs` — 454 lines, 88.65%. The only planner-core file
+   outside the 95%+ band; likely anti-collapse rollback paths.
+3. `ir/validate.rs` — 254 lines, 75.07%. Mostly defensive panics
+   ("this case cannot happen" invariants); expected.
+4. `config.rs` — 250 lines, 67.87%. CLI overlay variants.
+5. `main.rs` — 142 lines, 60.56%. Clap derives + flag plumbing.
+
+`.2` produces a disposition matrix per file: (a) dead code -> remove,
+(b) rarely-fired path -> add focused proof, (c) defensive
+unreachable -> leave and document.
+
 ### Registered three quality-improvement task trees (2026-05-14)
 Added active task trees for the three quality dials discussed in
 the session that prompted task-tree adoption itself:

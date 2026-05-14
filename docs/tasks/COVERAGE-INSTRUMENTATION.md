@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — test-discipline visibility
 - Created: `2026-05-14`
-- Last updated: `2026-05-14`
+- Last updated: `2026-05-14` (COVERAGE-INSTRUMENTATION.1 landed)
 - Owner: repo-local workflow
 
 ## Goal
@@ -57,11 +57,11 @@ matrix is comprehensive by measurement."
   Children: `COVERAGE-INSTRUMENTATION.1`, `COVERAGE-INSTRUMENTATION.2`, `COVERAGE-INSTRUMENTATION.3`
 
 - ID: `COVERAGE-INSTRUMENTATION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Install cargo-llvm-cov locally; produce a baseline coverage report against the current test suite (unit + tests/pipeline.rs, excluding the slow Phase 4 hierarchy gate). Commit the baseline report as docs/coverage-baseline.md.`
-  Acceptance: `cargo llvm-cov --html runs to completion; docs/coverage-baseline.md exists with line-level numbers per crate file.`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `cargo llvm-cov --release runs to completion; docs/coverage-baseline.md exists with line-level numbers per crate file.`
+  Verification: `cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already installed locally (no install step needed). cargo llvm-cov --release completed: 110 tests passed (~295s), TOTAL 85.26% lines / 91.95% functions / 87.61% regions across 14 crate files. docs/coverage-baseline.md committed with per-file numbers and top-5 under-covered files identified for .2 triage.`
+  Commit: `Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)`
 
 - ID: `COVERAGE-INSTRUMENTATION.2`
   Status: `pending`
@@ -81,7 +81,10 @@ matrix is comprehensive by measurement."
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COVERAGE-INSTRUMENTATION.1` | `pending` | Cannot triage without a baseline report; cannot act without triage. Linear dependency chain. |
+| 1 | `COVERAGE-INSTRUMENTATION.2` | `pending` | Baseline is in `docs/coverage-baseline.md`; top-5 under-covered files identified. Triage decides which uncovered regions are dead code, which are rarely-fired paths needing focused proofs, and which are intentionally-unreachable defensive panics. |
+
+`COVERAGE-INSTRUMENTATION.1` is `done` (landed at the hash recorded in
+this tree's Commit Log).
 
 ## Decisions
 
@@ -107,14 +110,15 @@ matrix is comprehensive by measurement."
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `pending` | `COVERAGE-INSTRUMENTATION.1` | `pending` | `pending` |
+| `2026-05-14` | `COVERAGE-INSTRUMENTATION.1` | `cargo llvm-cov --release` (110 tests passing in ~295s); `cargo llvm-cov report --release`. | All passing. TOTAL coverage: 85.26% lines / 91.95% functions / 87.61% regions across 14 crate files. Baseline written to docs/coverage-baseline.md with top-5 under-covered files identified for .2 triage. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `COVERAGE-INSTRUMENTATION.1` | `pending` | `pending` |
+| `COVERAGE-INSTRUMENTATION.1` | `Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)` | cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already installed locally. Baseline excludes the 75-min Phase 4 hierarchy gate by design. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of the quality-improvement initiative.
+- `2026-05-14`: `.1` landed; baseline at `docs/coverage-baseline.md`. Frontier rotated to `.2` (triage).
