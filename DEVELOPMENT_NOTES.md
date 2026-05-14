@@ -58,6 +58,40 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Workflow notes
+### Registered three quality-improvement task trees (2026-05-14)
+Added active task trees for the three quality dials discussed in
+the session that prompted task-tree adoption itself:
+
+- `INSTA-SNAPSHOTS` — `insta`-backed snapshot tests of generator
+  output, enforcing the "byte-identical forever" reproducibility
+  contract directly. Currently provable only by intent.
+- `DIFFERENTIAL-SIMULATION` — cross-simulator semantic equivalence
+  (Verilator + iverilog at minimum). Raises the downstream contract
+  from "parses and synthesises" to "all observers agree on semantics".
+- `COVERAGE-INSTRUMENTATION` — `cargo-llvm-cov`-backed coverage
+  reports converting matrix-comprehensiveness from intent to
+  measurement.
+
+**Rationale.** ANVIL already does the rarest hard thing right:
+validity by construction. The remaining quality dial is *consistency
+across observers* — different simulators, different runs, different
+platforms, different code paths. Each tree owns one orthogonal axis
+of that dial; together they cover the "signoff-level random RTL"
+ambition stated in `README.md` along its three reachable directions.
+
+**Sequencing intent.** No leaf is `in_progress`. When the user opens
+a quality slice, the natural order is INSTA-SNAPSHOTS.1 (cheapest,
+nothing else depends on it), then COVERAGE-INSTRUMENTATION.1 (medium
+cost, exposes planner test gaps), then DIFFERENTIAL-SIMULATION.1
+(highest cost but highest signoff payoff). The user picks; the trees
+just make the scope durable.
+
+**Rejected alternative.** Folding all three into a single
+`SIGNOFF-QUALITY` umbrella tree. Rejected: the three are
+operationally independent (one can ship without the others), and
+collapsing them would hide which axis is being worked on at any
+given moment.
+
 ### Adopted FSMGen task-tree workflow on ANVIL (2026-05-14)
 Added a repo-local task-tree tracking workflow at `docs/TASK_TREE.md`
 plus the portable setup guide at `docs/TASK_TREE_README.md` (lifted from

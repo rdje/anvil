@@ -3,7 +3,12 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
-- **Active task trees:** `HIERARCHY-AWARE-IDENTITY` (current frontier `HIERARCHY-AWARE-IDENTITY.1`, the canonical-module-signature instrumentation slice). See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) for the full tree. Task trees are opt-in per top-level task: linear `rN` hierarchy slices stay on the existing `rN` + `CHANGES.md` cadence; multi-slice work like hierarchy-aware identity is task-tree-managed.
+- **Active task trees:**
+  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.1` (the canonical-module-signature instrumentation slice, in-flight as r85).
+  - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
+  - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (open-source simulator compatibility investigation). Quality lane: signoff-level downstream consistency.
+  - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.1` (baseline cargo-llvm-cov report). Quality lane: test-discipline visibility.
+  See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and the full active-tree index. Task trees are opt-in per top-level task: linear `rN` hierarchy slices stay on the existing `rN` + `CHANGES.md` cadence; multi-slice work like the four above is task-tree-managed.
 - Current README execution found and fixed a source-tree command
   contract break: with both `anvil` and `tool_matrix` binaries present,
   plain `cargo run -- ...` was ambiguous until `Cargo.toml` restored
@@ -2030,6 +2035,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `f2b95f7` — Docs: adopt FSMGen task-tree workflow (scoped to multi-slice work).
 - `ed4988b` — Phase 4: prove parent-cone helper budget of 5 saturates below the top (r84).
 - `da6a900` — Phase 4: prove recursive non-top registered parent-composed three-stage chain (r83).
 - `69b2173` — Phase 4: close depth-7 sweep with r82 stateful mixed-support child inputs (2,2 calibrated).

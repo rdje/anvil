@@ -1,8 +1,42 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-14-adopt-task-tree-workflow — Adopt FSMGen task-tree tracking workflow
+## 2026-05-14-quality-improvement-task-trees — Register three quality-improvement task trees
 
 **Landed as:** this commit
+
+**What changed**
+
+- Added three new active task trees under `docs/tasks/`:
+  - `INSTA-SNAPSHOTS` (`docs/tasks/INSTA-SNAPSHOTS.md`): enforce byte-identical reproducibility by adding `insta`-backed snapshot tests of generator output for canonical `(seed, config)` tuples covering ANVIL's reachable generation modes (leaf, depth-1 wrapper, recursive lane, library/on-demand sourcing, helper-instance routes). 3 leaves: baseline wire-up → axis coverage → COMMIT.md integration + protocol docs.
+  - `DIFFERENTIAL-SIMULATION` (`docs/tasks/DIFFERENTIAL-SIMULATION.md`): raise the downstream contract from "parses and synthesises" to "all open-source simulators agree on semantics" by driving the same SV through Verilator and iverilog and asserting byte-equal output traces. 4 leaves: simulator-compatibility investigation → single-design harness → tool_matrix `--diff-sim` integration → contract documentation.
+  - `COVERAGE-INSTRUMENTATION` (`docs/tasks/COVERAGE-INSTRUMENTATION.md`): convert "the matrix is comprehensive by design intent" into "by measurement" using `cargo-llvm-cov`. 3 leaves: baseline report → top-5 under-covered triage → act on triage (remove dead code or add focused proofs).
+- Registered all three in `docs/TASK_TREE.md`'s `Active Task Trees` table alongside `HIERARCHY-AWARE-IDENTITY`.
+- No code change. Pure documentation slice. The trees are forward-looking decomposition artifacts; the first eligible leaf in each is `pending` until selected for implementation.
+
+**Why**
+
+- ANVIL's existing test discipline already does the rarest hard thing right: validity by construction. The remaining quality dial is *consistency across observers* — different simulators, different runs, different platforms, different code paths. The three new trees decompose that dial along its three orthogonal axes (byte-identical across runs, semantic agreement across simulators, planner-branch comprehensiveness across the matrix). Each is multi-slice and fits the task-tree adoption rule cleanly.
+- Registering all three as `active` immediately makes the planned scope visible in `docs/TASK_TREE.md` and discoverable in `SESSION_BOOTSTRAP.md`'s reading order. Future sessions see the decomposition without re-deriving it from chat history.
+
+**Validation**
+
+- Pure documentation slice; no code change.
+- `mdbook build book` clean (the new task-tree files live in `docs/tasks/`, not `book/src/`).
+- No new cargo dependencies.
+
+**Impact**
+
+- Three new active task trees register quality-improvement scope. None of the leaves are `in_progress`; selection of the first leaf happens in a future session unless the user picks an explicit ordering.
+- Does not change the frontier of `HIERARCHY-AWARE-IDENTITY` — that tree's `H-A-I.1` slice is still in-flight via the r85 gate at the time this commit lands.
+
+**Files touched**
+
+- New: docs/tasks/INSTA-SNAPSHOTS.md, docs/tasks/DIFFERENTIAL-SIMULATION.md, docs/tasks/COVERAGE-INSTRUMENTATION.md.
+- Updated: docs/TASK_TREE.md, CHANGES.md, MEMORY.md, DEVELOPMENT_NOTES.md.
+
+## 2026-05-14-adopt-task-tree-workflow — Adopt FSMGen task-tree tracking workflow
+
+**Landed as:** f2b95f7
 
 **What changed**
 
