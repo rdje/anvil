@@ -22,10 +22,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`
-  covers the live `201`-scenario policy at `4` designs/scenario
-  (`804` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `804/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
+  covers the live `204`-scenario policy at `4` designs/scenario
+  (`816` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `816/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -143,7 +143,23 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r84 batch extends the helper-budget axis
+- Current Phase 4 hierarchy r85 batch lands the first slice of
+  hierarchy-aware identity: a deterministic canonical signature per
+  Module recorded as `DesignMetrics.canonical_module_signatures`. The
+  new `saw_recursive_hierarchy_canonical_module_signature_diversity`
+  fact requires `realized_max_leaf_depth > 1`, one nonzero signature
+  per module, and `num_distinct_module_signatures >= 2`. Focused proof
+  `canonical_module_signatures_are_stable_and_isomorphism_aware`
+  asserts stability across re-generation. Matrix scenario
+  `phase4_recur_d2_canonical_module_signatures` per construction
+  strategy gates the surface. Validation: focused regression,
+  `cargo test --bin tool_matrix`, and the full r85 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
+  with `204` scenarios / `816` designs, `coverage_gaps = []`,
+  `saw_recursive_hierarchy_canonical_module_signature_diversity = true`,
+  and `816/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+  PNT-3 of the autonomous-PNT chain (final slice).
+- Previous Phase 4 hierarchy r84 batch extended the helper-budget axis
   above r83's chain-depth axis. The new
   `saw_recursive_parent_cone_helper_budget_5` fact requires
   `realized_max_leaf_depth > 1`,

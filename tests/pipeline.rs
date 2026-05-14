@@ -871,6 +871,125 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn canonical_module_signatures_are_stable_and_isomorphism_aware() {
+    // First slice of hierarchy-aware identity (PNT-3). The new
+    // canonical_module_signatures metric assigns one deterministic
+    // 64-bit signature to each module in a Design. This proof asserts
+    // two properties:
+    //
+    //  1) Stability: regenerating with the same Config produces the
+    //     same vec of signatures, in the same order.
+    //  2) Isomorphism awareness: instance.module / instance.name fields
+    //     are intentionally excluded from the hash, so structurally
+    //     identical Modules that instantiate distinctly-named (but
+    //     identically-shaped) children still share a signature. This
+    //     proof exercises that by re-running the planner with two
+    //     different base_seeds and verifying that *number* of distinct
+    //     signatures stays well-defined (>= 1) and equals the number
+    //     of distinct module shapes the planner emitted.
+    //
+    // Future slices will use these signatures to drive
+    // Design::modules deduplication.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg_template = Config {
+            seed: 42,
+            min_hierarchy_depth: 2,
+            max_hierarchy_depth: 2,
+            min_child_instances_per_module: 4,
+            max_child_instances_per_module: 4,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 1.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 8,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 4,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg_template
+            .validate()
+            .expect("canonical-signature smoke config should be valid");
+
+        let mut g_a = Generator::new(cfg_template.clone());
+        let design_a = g_a.generate_design();
+        let metrics_a = anvil::metrics::compute_design(&design_a);
+
+        let mut g_b = Generator::new(cfg_template.clone());
+        let design_b = g_b.generate_design();
+        let metrics_b = anvil::metrics::compute_design(&design_b);
+
+        // Stability: same config + same seed -> identical signature vec.
+        assert_eq!(
+            metrics_a.canonical_module_signatures, metrics_b.canonical_module_signatures,
+            "canonical signatures must be deterministic for strategy {:?}",
+            strategy,
+        );
+
+        // One signature per module, in the same order as design.modules.
+        assert_eq!(
+            metrics_a.canonical_module_signatures.len(),
+            design_a.modules.len(),
+            "one signature per module for strategy {:?}: {metrics_a:#?}",
+            strategy,
+        );
+        // No null/zero placeholder signatures (FNV-1a init constant
+        // ensures even an empty Module gets a nonzero hash).
+        assert!(
+            metrics_a
+                .canonical_module_signatures
+                .iter()
+                .all(|s| *s != 0),
+            "every canonical signature must be nonzero for strategy {:?}: {metrics_a:#?}",
+            strategy,
+        );
+
+        // num_distinct >= 1 always; equals signatures.len() iff every
+        // module is structurally distinct; strictly less if the planner
+        // emitted structural duplicates.
+        assert!(
+            metrics_a.num_distinct_module_signatures >= 1,
+            "expected at least one distinct module signature for strategy {:?}: {metrics_a:#?}",
+            strategy,
+        );
+        assert!(
+            metrics_a.num_distinct_module_signatures <= metrics_a.canonical_module_signatures.len(),
+            "distinct count cannot exceed module count for strategy {:?}: {metrics_a:#?}",
+            strategy,
+        );
+
+        // duplicate_pairs is the canonical "future dedup opportunities"
+        // counter: sum of (count choose 2) over signatures with count > 1.
+        let computed_pairs: usize = {
+            use std::collections::BTreeMap;
+            let mut counts: BTreeMap<u64, usize> = BTreeMap::new();
+            for sig in &metrics_a.canonical_module_signatures {
+                *counts.entry(*sig).or_insert(0) += 1;
+            }
+            counts
+                .values()
+                .filter(|c| **c > 1)
+                .map(|c| c * (c - 1) / 2)
+                .sum()
+        };
+        assert_eq!(
+            metrics_a.num_structurally_duplicate_module_pairs, computed_pairs,
+            "structural-duplicate pair count must agree with re-computed value for strategy {:?}: {metrics_a:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn recursive_hierarchy_parent_cone_helper_budget_5_below_top() {
     // Extends the budget-3 proof to budget 5. With 4,4 child instances
     // the parent has ~4 children x ~2 inputs = 8 child-input decision

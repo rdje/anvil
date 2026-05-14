@@ -260,6 +260,30 @@ pub struct DesignMetrics {
     /// Design identifier (the top module name).
     pub design: String,
 
+    // --- Hierarchy-aware identity instrumentation --------------
+    /// One deterministic canonical signature per module in
+    /// `design.modules`, in the same order. Two modules with the
+    /// same signature have isomorphic ports, nodes, drives, flops,
+    /// and instance interfaces (instance child-module names are
+    /// excluded from the hash, so structurally-identical modules
+    /// are detected even when their instance graphs reference
+    /// distinctly-named children).
+    ///
+    /// This is the first slice of hierarchy-aware identity: pure
+    /// observation, no behaviour change. Future slices will use
+    /// these signatures to dedupe `Design::modules` at construction
+    /// time when `IdentityMode::NodeId` is active.
+    pub canonical_module_signatures: Vec<u64>,
+    /// Number of distinct values in `canonical_module_signatures`.
+    /// Equal to `num_modules` when every module is structurally
+    /// distinct; strictly less when the planner emitted duplicate
+    /// structures.
+    pub num_distinct_module_signatures: usize,
+    /// Pairs of modules in `design.modules` that share the same
+    /// canonical signature (sum of `count choose 2` over signatures
+    /// with `count > 1`). Always 0 when every module is distinct.
+    pub num_structurally_duplicate_module_pairs: usize,
+
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
     pub num_library_modules: usize,
@@ -758,8 +782,27 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .count();
     let num_internal_modules = design.modules.len().saturating_sub(num_leaf_modules);
 
+    let canonical_module_signatures: Vec<u64> = design
+        .modules
+        .iter()
+        .map(canonical_module_signature)
+        .collect();
+    let mut signature_counts: BTreeMap<u64, usize> = BTreeMap::new();
+    for sig in &canonical_module_signatures {
+        *signature_counts.entry(*sig).or_insert(0) += 1;
+    }
+    let num_distinct_module_signatures = signature_counts.len();
+    let num_structurally_duplicate_module_pairs = signature_counts
+        .values()
+        .filter(|count| **count > 1)
+        .map(|count| count * (count - 1) / 2)
+        .sum();
+
     let mut out = DesignMetrics {
         design: design.top.clone(),
+        canonical_module_signatures,
+        num_distinct_module_signatures,
+        num_structurally_duplicate_module_pairs,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,
@@ -2103,6 +2146,153 @@ fn ratio(numer: usize, denom: usize) -> f64 {
         0.0
     } else {
         numer as f64 / denom as f64
+    }
+}
+
+/// Deterministic, dependency-free 64-bit FNV-1a hash. Used as the
+/// canonical-module-signature backbone so signatures are stable across
+/// runs and across rust versions without pulling in a hashing crate.
+fn fnv1a_64_init() -> u64 {
+    0xcbf29ce484222325
+}
+fn fnv1a_64_extend(state: u64, bytes: &[u8]) -> u64 {
+    let mut h = state;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+fn fnv1a_64_u64(state: u64, value: u64) -> u64 {
+    fnv1a_64_extend(state, &value.to_le_bytes())
+}
+fn fnv1a_64_u32(state: u64, value: u32) -> u64 {
+    fnv1a_64_extend(state, &value.to_le_bytes())
+}
+
+/// Canonical, deterministic signature of a `Module`'s structure.
+///
+/// Two modules with the same signature have isomorphic ports
+/// (direction + width sequence), nodes (kind + width + operand
+/// structure), drives, flops, and instance interfaces (instance
+/// child-module names are intentionally excluded so that
+/// structurally-identical parents that instantiate distinctly-named
+/// but structurally-identical children share a signature).
+///
+/// First slice of hierarchy-aware identity (PNT-3). Future slices will
+/// use this signature to drive `Design::modules` deduplication when
+/// `IdentityMode::NodeId` is active and to extend the doctrine "NodeId
+/// = identity of an expression" up to "ModuleId = identity of a
+/// hierarchical module template".
+fn canonical_module_signature(module: &Module) -> u64 {
+    let mut h = fnv1a_64_init();
+    h = fnv1a_64_u64(h, module.inputs.len() as u64);
+    for port in &module.inputs {
+        h = fnv1a_64_u32(h, port.width);
+    }
+    h = fnv1a_64_u64(h, module.outputs.len() as u64);
+    for port in &module.outputs {
+        h = fnv1a_64_u32(h, port.width);
+    }
+    h = fnv1a_64_u32(h, module.clock.is_some() as u32);
+    h = fnv1a_64_u32(h, module.reset.is_some() as u32);
+    h = fnv1a_64_u64(h, module.nodes.len() as u64);
+    for node in &module.nodes {
+        match node {
+            Node::PrimaryInput { port, width } => {
+                h = fnv1a_64_u32(h, 1);
+                h = fnv1a_64_u32(h, *port);
+                h = fnv1a_64_u32(h, *width);
+            }
+            Node::Constant { width, value } => {
+                h = fnv1a_64_u32(h, 2);
+                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_extend(h, &value.to_le_bytes());
+            }
+            Node::FlopQ { flop, width } => {
+                h = fnv1a_64_u32(h, 3);
+                h = fnv1a_64_u32(h, *flop);
+                h = fnv1a_64_u32(h, *width);
+            }
+            Node::InstanceOutput {
+                instance,
+                port,
+                width,
+            } => {
+                h = fnv1a_64_u32(h, 4);
+                h = fnv1a_64_u32(h, *instance);
+                h = fnv1a_64_u32(h, *port);
+                h = fnv1a_64_u32(h, *width);
+            }
+            Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            } => {
+                h = fnv1a_64_u32(h, 5);
+                h = fnv1a_64_u32(h, gate_op_kind_tag(*op));
+                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u64(h, operands.len() as u64);
+                for operand in operands {
+                    h = fnv1a_64_u32(h, *operand);
+                }
+            }
+        }
+    }
+    h = fnv1a_64_u64(h, module.drives.len() as u64);
+    for (port, node_id) in &module.drives {
+        h = fnv1a_64_u32(h, *port);
+        h = fnv1a_64_u32(h, *node_id);
+    }
+    h = fnv1a_64_u64(h, module.flops.len() as u64);
+    for flop in &module.flops {
+        h = fnv1a_64_u32(h, flop.width);
+        h = fnv1a_64_u32(h, flop.d.unwrap_or(u32::MAX));
+    }
+    h = fnv1a_64_u64(h, module.instances.len() as u64);
+    for instance in &module.instances {
+        // Intentionally exclude instance.module (child module name) and
+        // instance.name (instance identifier) so that
+        // structurally-identical parents that instantiate distinctly-named
+        // children still share a signature.
+        h = fnv1a_64_u32(h, instance.role as u32);
+        h = fnv1a_64_u64(h, instance.inputs.len() as u64);
+        for (port, node_id) in &instance.inputs {
+            h = fnv1a_64_u32(h, *port);
+            h = fnv1a_64_u32(h, *node_id);
+        }
+    }
+    h
+}
+
+fn gate_op_kind_tag(op: GateOp) -> u32 {
+    use GateOp::*;
+    match op {
+        And => 0,
+        Or => 1,
+        Xor => 2,
+        Not => 3,
+        Add => 4,
+        Sub => 5,
+        Mul => 6,
+        Eq => 7,
+        Neq => 8,
+        Lt => 9,
+        Gt => 10,
+        Le => 11,
+        Ge => 12,
+        Mux => 13,
+        CaseMux => 14,
+        CasezMux => 15,
+        ForFold { .. } => 16,
+        Slice { .. } => 17,
+        Concat => 18,
+        RedAnd => 19,
+        RedOr => 20,
+        RedXor => 21,
+        Shl => 22,
+        Shr => 23,
     }
 }
 

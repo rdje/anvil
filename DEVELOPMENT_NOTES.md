@@ -124,6 +124,23 @@ isolated doc edits) follow the standard checklist without the
 leaf-ID rule.
 
 ## Calibration notes
+### Phase 4 r85 lands canonical module signatures as the first slice of hierarchy-aware identity downstream-clean
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`:
+204 scenarios / 816 designs, `coverage_gaps = []`, Verilator/Yosys all
+816/0. PNT-3 of the autonomous-PNT chain. Each module gets a
+dependency-free FNV-1a 64-bit signature covering port shape, node
+sequence, drive structure, flop structure, and instance interfaces. The
+hash deliberately omits `instance.module` and `instance.name` so two
+parents that instantiate distinctly-named-but-identically-shaped
+children share a signature — that isomorphism awareness is what makes
+the signature useful for future `Design::modules` deduplication.
+Calibration: depth 2, 4,4 child instances,
+`hierarchy_child_input_cone_prob = 1.0`, no helpers, no flops, no
+sibling routing — a vanilla recursive hierarchy that produces multiple
+distinct module shapes so the diversity fact (`num_distinct >= 2`)
+fires reliably.
+
 ### Phase 4 r84 proves a recursive non-top internal parent can saturate a parent-cone helper budget of 5 helpers downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r84/tool_matrix_report.json`:

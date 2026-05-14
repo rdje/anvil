@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 4 — Hierarchy
 - Created: `2026-05-14`
-- Last updated: `2026-05-14`
+- Last updated: `2026-05-14` (HIERARCHY-AWARE-IDENTITY.1 landed)
 - Owner: repo-local workflow
 
 ## Goal
@@ -59,11 +59,11 @@ gate proves the dedup is downstream-clean.
   Children: `HIERARCHY-AWARE-IDENTITY.1`, `HIERARCHY-AWARE-IDENTITY.2`, `HIERARCHY-AWARE-IDENTITY.3`, `HIERARCHY-AWARE-IDENTITY.4`, `HIERARCHY-AWARE-IDENTITY.5`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.1`
-  Status: `in_progress`
+  Status: `done`
   Goal: `Canonical per-module signature instrumentation as r85 (DesignMetrics.canonical_module_signatures + diversity coverage fact + focused stability/isomorphism proof + matrix scenario).`
   Acceptance: `r85 gate is downstream-clean at 204 scenarios / 816 designs; focused proof passes for all four ConstructionStrategy values; saw_recursive_hierarchy_canonical_module_signature_diversity fires.`
-  Verification: `pending — gate aborted mid-run during 2026-05-13 pause; resume by re-running gate per project_pnt3_pause.md memory.`
-  Commit: `pending — r85 source + docs are wired in the working tree; commit follows successful gate rerun.`
+  Verification: `Full r85 gate downstream-clean — 204 scenarios, 816 designs, coverage_gaps = [], Verilator/Yosys all 816/0, saw_recursive_hierarchy_canonical_module_signature_diversity = true. Focused proof canonical_module_signatures_are_stable_and_isomorphism_aware passes ~0.35s release for all four ConstructionStrategy values. cargo fmt --all -- --check, mdbook build book clean.`
+  Commit: `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.2`
   Status: `pending`
@@ -97,12 +97,13 @@ gate proves the dedup is downstream-clean.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-AWARE-IDENTITY.1` | `in_progress` | r85 source + docs are already wired in the working tree; needs gate rerun + commit before any downstream leaf is well-defined. |
-| 2 | `HIERARCHY-AWARE-IDENTITY.2` | `pending` | Establishes that structural duplicates are even reachable under current planner behaviour; without this signal, the dedup pass has no live exercise. |
-| 3 | `HIERARCHY-AWARE-IDENTITY.3` | `pending` | Design sketch must precede implementation — keeps the "never retire discussed strategies" feedback live, and lets the user weigh in on placement/wiring choices before code lands. |
+| 1 | `HIERARCHY-AWARE-IDENTITY.2` | `pending` | Establishes that structural duplicates are even reachable under current planner behaviour; without this signal, the dedup pass has no live exercise. |
+| 2 | `HIERARCHY-AWARE-IDENTITY.3` | `pending` | Design sketch must precede implementation — keeps the "never retire discussed strategies" feedback live, and lets the user weigh in on placement/wiring choices before code lands. |
 
 `H-A-I.4` and `H-A-I.5` are intentionally NOT on the frontier yet — they
 become eligible only after `H-A-I.3` is `done`.
+`H-A-I.1` is `done` (landed in r85, committed at the hash recorded in
+this tree's Commit Log).
 
 ## Decisions
 
@@ -149,14 +150,15 @@ become eligible only after `H-A-I.3` is `done`.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-05-13` | `HIERARCHY-AWARE-IDENTITY.1` | `cargo test --release --test pipeline canonical_module_signatures_are_stable_and_isomorphism_aware`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests). | Both passing. Full matrix gate aborted mid-run during the 2026-05-13 pause; needs rerun before the leaf can move to `done`. |
+| `2026-05-14` | `HIERARCHY-AWARE-IDENTITY.1` | `cargo test --release --test pipeline canonical_module_signatures_are_stable_and_isomorphism_aware`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r85 hierarchy gate. | All passing. Gate: 204 scenarios / 816 designs, `coverage_gaps = []`, Verilator/Yosys all 816/0, `saw_recursive_hierarchy_canonical_module_signature_diversity = true`. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `HIERARCHY-AWARE-IDENTITY.1` | `pending — Phase 4: add canonical module signatures (r85, first slice of hierarchy-aware identity)` | r85 source + docs wired but uncommitted at tree creation time. |
+| `HIERARCHY-AWARE-IDENTITY.1` | `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)` | First task-tree-managed code slice on ANVIL. |
 
 ## Changelog
 
-- `2026-05-14`: Created task tree as part of FSMGen task-tree workflow adoption on ANVIL. `H-A-I.1` recorded as `in_progress` because r85's source/docs are already in the working tree.
+- `2026-05-14`: Created task tree as part of FSMGen task-tree workflow adoption on ANVIL. `H-A-I.1` recorded as `in_progress` because r85's source/docs were already in the working tree.
+- `2026-05-14`: `H-A-I.1` landed downstream-clean. Status -> `done`. Frontier rotated to `H-A-I.2`.

@@ -1,5 +1,39 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-13-phase4-canonical-module-signature-instrumentation — Add canonical module signatures (first slice of hierarchy-aware identity, HIERARCHY-AWARE-IDENTITY.1)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added `canonical_module_signatures: Vec<u64>` to `DesignMetrics`, one deterministic 64-bit FNV-1a hash per module in `design.modules`. The hash covers port direction+width sequence, clock/reset presence, every node's kind+width+operand-id sequence, every drive, every flop's width+D, and every instance's role+input wiring — but intentionally excludes `instance.module` and `instance.name`, so structurally-identical Modules that instantiate distinctly-named-but-identically-shaped children share a signature.
+- Added `num_distinct_module_signatures` and `num_structurally_duplicate_module_pairs` as derived counters.
+- Added focused proof `canonical_module_signatures_are_stable_and_isomorphism_aware` asserting (a) same config + same seed produces the same signature vec across two independent generator runs, (b) one signature per module, (c) every signature is nonzero, (d) `num_distinct >= 1`, and (e) `num_structurally_duplicate_module_pairs` agrees with the re-computed combinatorial value.
+- Added matrix scenario `phase4_recur_d2_canonical_module_signatures` per ConstructionStrategy as a gate-time anchor for the new instrumentation.
+- Added `saw_recursive_hierarchy_canonical_module_signature_diversity` coverage fact (requires `realized_max_leaf_depth > 1`, `canonical_module_signatures.len() == num_modules`, all signatures nonzero, and `num_distinct_module_signatures >= 2`) and matching gap message.
+- Bank counts: 204 scenarios / 816 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`.
+- Closes leaf `HIERARCHY-AWARE-IDENTITY.1` in [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](docs/tasks/HIERARCHY-AWARE-IDENTITY.md); updates the tree's verification log and commit log in the same commit.
+
+**Why**
+
+- PNT-3 of the autonomous-PNT chain. First slice of hierarchy-aware `NodeId` identity. The metric is purely observational — it doesn't change the planner — but it gives every Module a deterministic structural identity that future slices can use to dedupe `Design::modules` when `IdentityMode::NodeId` is active, extending the doctrine "NodeId = identity of an expression" up to "ModuleId = identity of a hierarchical module template". The signature deliberately excludes child-module *names* so structural isomorphism is detected even when the planner emitted distinctly-named-but-identical sub-hierarchies (which is the entire point of the future dedup work).
+
+**Validation**
+
+- Focused proof passes (~0.35s release) for all four construction strategies.
+- Full gate: 204 scenarios, 816 designs, `coverage_gaps = []`, `Verilator 816/0`, both Yosys modes 816/0, `saw_recursive_hierarchy_canonical_module_signature_diversity = true`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- Every design in the live bank now carries a stable, dependency-free canonical signature per module. Follow-up slices in `HIERARCHY-AWARE-IDENTITY` (leaves `.2`–`.5`) can: (i) flag when the planner emits structural duplicates, (ii) sketch the dedup pass, (iii) implement opt-in dedup, and (iv) prove the dedup path downstream-clean in the matrix gate.
+- Autonomous PNT-3 of 3. First task-tree-managed code slice on ANVIL.
+
+**Files touched**
+
+- src/metrics.rs, src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md, docs/tasks/HIERARCHY-AWARE-IDENTITY.md.
+
 ## 2026-05-14-quality-improvement-task-trees — Register three quality-improvement task trees
 
 **Landed as:** 65ca372
@@ -62,7 +96,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 **Impact**
 
 - Future multi-slice work (starting with the dedup follow-ups to r85's canonical signatures) gets a durable execution ledger with stable leaf IDs in commit subjects.
-- The `r85` slice itself (currently uncommitted, paused waiting for a gate rerun) becomes the first task-tree-managed commit: its eventual commit subject will identify `HIERARCHY-AWARE-IDENTITY.1` and update the tree's verification log + commit log in the same commit.
+- The `r85` slice (the very next commit) is the first task-tree-managed commit: its subject identifies `HIERARCHY-AWARE-IDENTITY.1`.
 
 **Files touched**
 
