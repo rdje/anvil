@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-14-differential-simulation-scope-narrowed — Narrow DIFFERENTIAL-SIMULATION.1 scope to "scope the second simulator"
+
+**Landed as:** this commit
+
+**What changed**
+
+- Updated `docs/tasks/DIFFERENTIAL-SIMULATION.md`: `.1`'s goal now reflects that Verilator-side compatibility is already proven by the matrix gate (Verilator is wired into every focused proof and every scenario in the 204-scenario bank); the leaf's real question is **which second simulator** to pair with it for the differential check, and where iverilog (the default candidate) diverges from Verilator on ANVIL's output. Yosys is explicitly clarified as a synthesizer rather than a differential-simulation peer.
+- Recorded the decision in the tree's `Decisions` section.
+
+**Why**
+
+- User-supplied correction: Verilator and Yosys are already part of the ANVIL flow. The original `.1` scope ("which open-source simulators ingest ANVIL output") asked too broad a question — we already know Verilator does, and Yosys is the wrong axis. The leaf now matches the actual question the next session will work on.
+
+**Validation**
+
+- Pure doc edit on `docs/tasks/DIFFERENTIAL-SIMULATION.md`; no code change.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- `DIFFERENTIAL-SIMULATION.1` is now the most-focused single-investigation leaf among the four open frontiers, since the question shrank from "survey simulators" to "scope iverilog (or alternative) against Verilator's already-clean output". Frontier ordering in `docs/TASK_TREE.md` unchanged.
+
+**Files touched**
+
+- Updated: docs/tasks/DIFFERENTIAL-SIMULATION.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-14-coverage-instrumentation-baseline — Add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)
 
 **Landed as:** d19d427

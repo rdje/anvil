@@ -6,7 +6,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Active task trees:**
   - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.1` (the canonical-module-signature instrumentation slice, in-flight as r85).
   - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
-  - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (open-source simulator compatibility investigation). Quality lane: signoff-level downstream consistency.
+  - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (scope iverilog or alternative as the second simulator; Verilator is already a fait accompli via the matrix gate). Quality lane: signoff-level downstream consistency.
   - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.2` (triage of top-5 under-covered files). Quality lane: test-discipline visibility. Baseline landed at `docs/coverage-baseline.md` (85.26% lines / 91.95% functions / 87.61% regions; planner core 88-99% covered by focused proofs alone).
   See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and the full active-tree index. Task trees are opt-in per top-level task: linear `rN` hierarchy slices stay on the existing `rN` + `CHANGES.md` cadence; multi-slice work like the four above is task-tree-managed.
 - Current README execution found and fixed a source-tree command

@@ -56,8 +56,8 @@ agree on semantics", which is the actual signoff-quality bar.
 
 - ID: `DIFFERENTIAL-SIMULATION.1`
   Status: `pending`
-  Goal: `Investigate and document: which open-source simulators (Verilator, iverilog, sv2v + downstream) can ingest ANVIL output today without configuration? Which subset of ANVIL's emitted SV is supported by each? Output: DEVELOPMENT_NOTES.md entry with a compatibility matrix and a recommended pair of simulators for the differential check.`
-  Acceptance: `DEVELOPMENT_NOTES.md entry exists; the recommended simulator pair is named; rejected alternatives are recorded.`
+  Goal: `Verilator-side compatibility is already proven by the matrix gate. Scope the SECOND simulator (iverilog is the default candidate): does it ingest ANVIL's emitted SV without configuration? Where does its semantics diverge from Verilator's? Output: DEVELOPMENT_NOTES.md entry with a focused compatibility note (what iverilog accepts, what it rejects, what it warns on) and a chosen differential-pair recommendation.`
+  Acceptance: `DEVELOPMENT_NOTES.md entry exists; iverilog (or alternative) compatibility status is named per ANVIL output category (combinational leaf, sequential leaf, hierarchy, helper-instance routes); rejected alternatives are recorded.`
   Verification: `pending`
   Commit: `pending`
 
@@ -91,6 +91,7 @@ agree on semantics", which is the actual signoff-quality bar.
 ## Decisions
 
 - `2026-05-14`: Open-source simulators only for the first pass. Commercial simulator parity (VCS, Xcelium, Questa) is explicitly deferred — those tools are not available in the project's local environment, and the open-source pair already gives independent corroboration. Revisit once Verilator+iverilog parity is solid.
+- `2026-05-14`: Verilator is already a fait accompli — it's wired into the Phase 4 hierarchy matrix gate and every focused proof passes through it. Yosys (a *synthesizer*, not a simulator) is also in the flow but is not a differential-simulation peer. So `DIFFERENTIAL-SIMULATION.1` is really about scoping the **second** simulator: iverilog is the obvious candidate (mature, MIT-licensed, event-driven), but the leaf should also rule on whether `verilator --binary` simulation mode is sufficient or whether we need pure-event-driven semantics (iverilog) as the contrast. The compatibility investigation now has a much narrower question to answer than "which simulators ingest our output" — it's "what does iverilog (or alternative) require to ingest our existing Verilator-clean output, and where do the two diverge."
 
 ## Open Questions
 
