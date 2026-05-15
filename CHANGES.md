@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-15-phase4-dedup-pass-design-sketch — Module-dedup pass design sketch (HIERARCHY-AWARE-IDENTITY.3)
 
-**Landed as:** this commit
+**Landed as:** e83efd8
 
 **What changed**
 
