@@ -871,6 +871,88 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn planner_can_emit_structurally_duplicate_modules() {
+    // HIERARCHY-AWARE-IDENTITY.2 deliverable: prove the planner CAN emit
+    // multiple Modules in design.modules that share the same canonical
+    // signature. Without this signal, the future dedup pass (H-A-I.4)
+    // would have no live exercise.
+    //
+    // The wrapper lane with 4 library leaf modules (each pinned to 1
+    // input / 1 output / width 1 / max_depth 1 / terminal_reuse_prob 1.0)
+    // is constrained tightly enough that every leaf collapses to the
+    // same "drive the output from the lone input" structure. The
+    // canonical_module_signature hash deliberately excludes
+    // instance.name and instance.module, so the four distinct Module
+    // definitions all share the same 64-bit signature even though they
+    // are named differently. With 5 modules total (4 leaves + 1 top),
+    // 4 leaves sharing a signature yields 4*(4-1)/2 = 6 structurally
+    // duplicate pairs.
+    //
+    // The 5 modules / 2 distinct signatures / 6 duplicate pairs split
+    // is what `H-A-I.4`'s dedup pass will eventually collapse.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 4,
+            min_inputs: 1,
+            max_inputs: 1,
+            min_outputs: 1,
+            max_outputs: 1,
+            min_width: 1,
+            max_width: 1,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 1,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        cfg.validate()
+            .expect("structural-duplicate proof config should be valid");
+
+        let mut g = Generator::new(cfg);
+        let design = g.generate_design();
+        anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+            panic!(
+                "structural-duplicate proof strategy {:?}: design validation failed: {}",
+                strategy, e
+            );
+        });
+
+        let metrics = anvil::metrics::compute_design(&design);
+        assert!(
+            metrics.num_modules >= 5,
+            "expected at least 5 modules (4 leaves + 1 top) for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_structurally_duplicate_module_pairs > 0,
+            "expected the planner to emit at least one structurally-duplicate Module pair under tight 1-in/1-out/width-1 leaf constraints for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+        assert!(
+            metrics.num_distinct_module_signatures < metrics.num_modules,
+            "expected distinct-signature count to be strictly less than module count for strategy {:?}: {metrics:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn canonical_module_signatures_are_stable_and_isomorphism_aware() {
     // First slice of hierarchy-aware identity (PNT-3). The new
     // canonical_module_signatures metric assigns one deterministic

@@ -156,6 +156,35 @@ isolated doc edits) follow the standard checklist without the
 leaf-ID rule.
 
 ## Calibration notes
+### Phase 4 r86 proves the planner can emit structurally-duplicate Modules downstream-clean (HIERARCHY-AWARE-IDENTITY.2)
+The latest full downstream-clean Phase 4 hierarchy evidence anchor is
+now `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`:
+207 scenarios / 828 designs, `coverage_gaps = []`, Verilator/Yosys
+all 828/0. Closes leaf `HIERARCHY-AWARE-IDENTITY.2`.
+
+**Calibration discovery.** Initial 500-config sweep (varying
+num_leaf_modules, num_child_instances, seed, strategy with default
+leaf-input/output ranges) produced **zero** structurally-duplicate
+Module pairs. The leaf generator's RNG advances between calls, so two
+leaves with the same interface profile but different RNG states
+produce different gate structures by default.
+
+**Calibration choice.** Tight 1-input / 1-output / width-1 leaves with
+`max_depth = 1` and `terminal_reuse_prob = 1.0` collapse the leaf
+generator's degrees of freedom: there's essentially one legal
+"drive output from the lone input" structure. Under these
+constraints, every library leaf hashes to the same canonical
+signature, so a depth-1 wrapper with 4 leaves produces a
+4*(4-1)/2 = 6 duplicate-pair design.
+
+**Implication for `H-A-I.4` (dedup pass).** Dedup is therefore real
+and applicable to ANVIL's planner. The dedup pass will need to:
+(a) merge Module definitions sharing a canonical signature, and
+(b) remap every `Instance.module` string in the rest of the design
+to point at the surviving merged definition. Both passes are
+straightforward over `Design::modules`. The opt-in toggle is left
+to `H-A-I.4` for the design sketch.
+
 ### Phase 4 r85 lands canonical module signatures as the first slice of hierarchy-aware identity downstream-clean
 The latest full downstream-clean Phase 4 hierarchy evidence anchor is now
 `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`:

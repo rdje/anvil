@@ -320,6 +320,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_three_stage_registered_parent_composed_chain: bool,
     saw_recursive_parent_cone_helper_budget_5: bool,
     saw_recursive_hierarchy_canonical_module_signature_diversity: bool,
+    saw_design_with_structurally_duplicate_modules: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -1182,6 +1183,14 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 phase4_recursive_canonical_module_signature_focus_config(
                     strategy,
                     next_seed + 67,
+                ),
+            ),
+            (
+                "phase4_hier1_structurally_duplicate_modules",
+                "depth-1 wrapper-lane scenario with 4 tightly-constrained 1-in/1-out/width-1 leaf modules that collapse to a single canonical signature — proves the planner can emit structurally-duplicate Module definitions (HIERARCHY-AWARE-IDENTITY.2)",
+                phase4_hierarchy_structurally_duplicate_modules_focus_config(
+                    strategy,
+                    next_seed + 68,
                 ),
             ),
             (
@@ -2177,6 +2186,52 @@ fn phase4_recursive_d7_stateful_parent_composed_mixed_support_focus_config(
     cfg.hierarchy_parent_flop_prob = 1.0;
     cfg.max_flops_per_module = 64;
     cfg
+}
+
+fn phase4_hierarchy_structurally_duplicate_modules_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    // HIERARCHY-AWARE-IDENTITY.2 anchor scenario. Tight 1-in / 1-out /
+    // width-1 / max_depth-1 leaves collapse to a single canonical
+    // structure, so all four library leaves share a canonical signature
+    // and `num_structurally_duplicate_module_pairs > 0`. This gives the
+    // future dedup pass (H-A-I.4) a live example to exercise.
+    //
+    // Intentionally does NOT inherit from `share_heavy_comb_only_config`
+    // — that helper sets `min_inputs = 4`, which would make leaves
+    // structurally diverse and defeat the test. This scenario is the
+    // one Phase 4 hierarchy scenario whose hierarchy-routing
+    // probabilities are all 0.0 by design; its suffix
+    // `phase4_hier1_structurally_duplicate_modules` is in the matrix
+    // unit-test exception list at the bottom of this file.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 4,
+        min_inputs: 1,
+        max_inputs: 1,
+        min_outputs: 1,
+        max_outputs: 1,
+        min_width: 1,
+        max_width: 1,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        terminal_reuse_prob: 1.0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
 }
 
 fn phase4_recursive_canonical_module_signature_focus_config(
@@ -5259,6 +5314,9 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                     .iter()
                     .all(|sig| *sig != 0)
                 && design.metrics.num_distinct_module_signatures >= 2;
+        coverage.saw_design_with_structurally_duplicate_modules |=
+            design.metrics.num_structurally_duplicate_module_pairs > 0
+                && design.metrics.num_distinct_module_signatures < design.metrics.num_modules;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -5565,6 +5623,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_recursive_parent_cone_helper_budget_5 |= src.saw_recursive_parent_cone_helper_budget_5;
     dst.saw_recursive_hierarchy_canonical_module_signature_diversity |=
         src.saw_recursive_hierarchy_canonical_module_signature_diversity;
+    dst.saw_design_with_structurally_duplicate_modules |=
+        src.saw_design_with_structurally_duplicate_modules;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -6571,6 +6631,14 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_design_with_structurally_duplicate_modules
+    {
+        gaps.push(
+            "matrix never proved a design where the planner emitted structurally-duplicate Module definitions (HIERARCHY-AWARE-IDENTITY.2 — the future dedup pass needs at least one live example to exercise)"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -7070,7 +7138,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 816);
+        assert_eq!(plan.total_modules, 828);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -7163,10 +7231,13 @@ mod tests {
                     || scenario
                         .name
                         .ends_with("phase4_recur_d7_stateful_parent_port_composed_output")
+                    || scenario
+                        .name
+                        .ends_with("phase4_hier1_structurally_duplicate_modules")
             );
         }
-        assert_eq!(scenarios.len(), 204);
-        assert_eq!(names.len(), 204);
+        assert_eq!(scenarios.len(), 207);
+        assert_eq!(names.len(), 207);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,

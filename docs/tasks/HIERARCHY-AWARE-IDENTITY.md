@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 4 — Hierarchy
 - Created: `2026-05-14`
-- Last updated: `2026-05-14` (HIERARCHY-AWARE-IDENTITY.1 landed)
+- Last updated: `2026-05-15` (HIERARCHY-AWARE-IDENTITY.2 landed)
 - Owner: repo-local workflow
 
 ## Goal
@@ -66,11 +66,11 @@ gate proves the dedup is downstream-clean.
   Commit: `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Add a structural-duplicate metric that flags when the planner currently emits duplicate Modules (num_structurally_duplicate_module_pairs > 0 in at least one matrix scenario, via a focused config that deliberately produces near-identical sub-trees).`
   Acceptance: `A focused proof produces a Design with num_structurally_duplicate_module_pairs > 0; the gate exercises that proof via a new scenario and a new saw fact saw_design_with_structurally_duplicate_modules.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Full r86 gate downstream-clean — 207 scenarios, 828 designs, coverage_gaps = [], Verilator/Yosys all 828/0, saw_design_with_structurally_duplicate_modules = true. Focused proof planner_can_emit_structurally_duplicate_modules passes ~0.08s release for all four ConstructionStrategy values under tight 1-in/1-out/width-1 leaf constraints (max_depth=1, terminal_reuse_prob=1.0). cargo fmt --all -- --check, mdbook build book clean. Calibration discovery: default leaf-width / leaf-input ranges produce zero duplicates across a 500-config sweep, because the leaf generator's RNG advances between calls. The tight-leaf constraint collapses every library leaf to the same canonical structure.`
+  Commit: `Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.3`
   Status: `pending`
@@ -97,13 +97,12 @@ gate proves the dedup is downstream-clean.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-AWARE-IDENTITY.2` | `pending` | Establishes that structural duplicates are even reachable under current planner behaviour; without this signal, the dedup pass has no live exercise. |
-| 2 | `HIERARCHY-AWARE-IDENTITY.3` | `pending` | Design sketch must precede implementation — keeps the "never retire discussed strategies" feedback live, and lets the user weigh in on placement/wiring choices before code lands. |
+| 1 | `HIERARCHY-AWARE-IDENTITY.3` | `pending` | Design sketch must precede implementation — keeps the "never retire discussed strategies" feedback live, and lets the user weigh in on placement/wiring choices before code lands. The r86 calibration discovery (default leaf-widths produce 0 duplicates; tight 1-in/1-out/width-1 leaves produce many) is the first concrete input the design sketch should fold in: dedup is real and applicable to ANVIL's planner. |
 
 `H-A-I.4` and `H-A-I.5` are intentionally NOT on the frontier yet — they
 become eligible only after `H-A-I.3` is `done`.
-`H-A-I.1` is `done` (landed in r85, committed at the hash recorded in
-this tree's Commit Log).
+`H-A-I.1` is `done` (landed in r85). `H-A-I.2` is `done` (landed in r86).
+Both committed at the hashes recorded in this tree's Commit Log.
 
 ## Decisions
 
@@ -151,14 +150,17 @@ this tree's Commit Log).
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-14` | `HIERARCHY-AWARE-IDENTITY.1` | `cargo test --release --test pipeline canonical_module_signatures_are_stable_and_isomorphism_aware`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r85 hierarchy gate. | All passing. Gate: 204 scenarios / 816 designs, `coverage_gaps = []`, Verilator/Yosys all 816/0, `saw_recursive_hierarchy_canonical_module_signature_diversity = true`. `cargo fmt --all -- --check`, `mdbook build book` clean. |
+| `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.2` | `cargo test --release --test pipeline planner_can_emit_structurally_duplicate_modules`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r86 hierarchy gate. | All passing. Gate: 207 scenarios / 828 designs, `coverage_gaps = []`, Verilator/Yosys all 828/0, `saw_design_with_structurally_duplicate_modules = true`. Tight 1-in/1-out/width-1 leaf constraints collapse the leaf generator's RNG-driven choices to a single canonical structure. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `HIERARCHY-AWARE-IDENTITY.1` | `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)` | First task-tree-managed code slice on ANVIL. |
+| `HIERARCHY-AWARE-IDENTITY.2` | `Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)` | Existence proof: dedup is real and applicable to ANVIL's planner. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of FSMGen task-tree workflow adoption on ANVIL. `H-A-I.1` recorded as `in_progress` because r85's source/docs were already in the working tree.
 - `2026-05-14`: `H-A-I.1` landed downstream-clean. Status -> `done`. Frontier rotated to `H-A-I.2`.
+- `2026-05-15`: `H-A-I.2` landed downstream-clean as r86. Status -> `done`. Frontier rotated to `H-A-I.3`.

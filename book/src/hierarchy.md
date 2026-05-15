@@ -587,14 +587,14 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
-- `204` scenarios
+- `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
+- `207` scenarios
 - `4` designs/scenario
-- `816` total designs
+- `828` total designs
 - `coverage_gaps = []`
-- `Verilator 816/0`
-- `Yosys without-abc 816/0`
-- `Yosys with-abc 816/0`
+- `Verilator 828/0`
+- `Yosys without-abc 828/0`
+- `Yosys with-abc 828/0`
 - `saw_recursive_multiple_parent_cone_instances_per_parent = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs = true`
 - `saw_recursive_multiple_parent_cone_instances_per_parent_through_flops = true`
@@ -654,8 +654,19 @@ hierarchy gate. The latest full downstream-clean bank is:
 - `saw_recursive_hierarchy_three_stage_registered_parent_composed_chain = true`
 - `saw_recursive_parent_cone_helper_budget_5 = true`
 - `saw_recursive_hierarchy_canonical_module_signature_diversity = true`
+- `saw_design_with_structurally_duplicate_modules = true`
 
-The `r85` bank lands the first slice of hierarchy-aware identity by
+The `r86` bank closes `HIERARCHY-AWARE-IDENTITY.2` by proving the
+planner can emit structurally-duplicate Module definitions under
+tight 1-in / 1-out / width-1 / max_depth-1 / terminal_reuse_prob=1.0
+leaf constraints. The new focus scenario
+`phase4_hier1_structurally_duplicate_modules` per construction
+strategy is the one Phase 4 hierarchy scenario whose hierarchy-routing
+probabilities are all 0.0 by design; its sole job is to exercise the
+canonical-signature path with multiple structurally-identical
+Modules so the future dedup pass (H-A-I.4) has live exercise.
+
+The earlier `r85` bank lands the first slice of hierarchy-aware identity by
 adding per-module canonical signatures
 (`DesignMetrics.canonical_module_signatures`,
 `num_distinct_module_signatures`,
@@ -1488,8 +1499,8 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r85` closes them cleanly
-  with `coverage_gaps = []` and `816/0` pass-fail in Verilator plus both
+  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r86` closes them cleanly
+  with `coverage_gaps = []` and `828/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
   recursive non-top direct registered sibling mixed-support,

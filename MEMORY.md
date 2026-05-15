@@ -4,7 +4,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
 - **Active task trees:**
-  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.1` (the canonical-module-signature instrumentation slice, in-flight as r85).
+  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.3` (dedup-pass design sketch). `H-A-I.1` (canonical signatures, r85) and `H-A-I.2` (structural-duplicate proof, r86) both `done`.
   - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
   - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (scope iverilog or alternative as the second simulator; Verilator is already a fait accompli via the matrix gate). Quality lane: signoff-level downstream consistency.
   - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.2` (triage of top-5 under-covered files). Quality lane: test-discipline visibility. Baseline landed at `docs/coverage-baseline.md` (85.26% lines / 91.95% functions / 87.61% regions; planner core 88-99% covered by focused proofs alone).
@@ -22,10 +22,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
-  covers the live `204`-scenario policy at `4` designs/scenario
-  (`816` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `816/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
+  covers the live `207`-scenario policy at `4` designs/scenario
+  (`828` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `828/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -143,7 +143,22 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r85 batch lands the first slice of
+- Current Phase 4 hierarchy r86 batch closes `HIERARCHY-AWARE-IDENTITY.2`:
+  proves the planner can emit structurally-duplicate Module
+  definitions under tight 1-in/1-out/width-1 leaf constraints. New
+  `saw_design_with_structurally_duplicate_modules` fact requires
+  `num_structurally_duplicate_module_pairs > 0` and
+  `num_distinct_module_signatures < num_modules`. Focused proof
+  `planner_can_emit_structurally_duplicate_modules` sweeps the four
+  ConstructionStrategy values. Matrix scenario
+  `phase4_hier1_structurally_duplicate_modules` per construction
+  strategy gates the surface. Validation: focused regression,
+  `cargo test --bin tool_matrix`, and the full r86 gate at
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
+  with `207` scenarios / `828` designs, `coverage_gaps = []`,
+  `saw_design_with_structurally_duplicate_modules = true`, and
+  `828/0` pass-fail in Verilator plus both repo-owned Yosys modes.
+- Previous Phase 4 hierarchy r85 batch lands the first slice of
   hierarchy-aware identity: a deterministic canonical signature per
   Module recorded as `DesignMetrics.canonical_module_signatures`. The
   new `saw_recursive_hierarchy_canonical_module_signature_diversity`
@@ -154,7 +169,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   `phase4_recur_d2_canonical_module_signatures` per construction
   strategy gates the surface. Validation: focused regression,
   `cargo test --bin tool_matrix`, and the full r85 gate at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
   with `204` scenarios / `816` designs, `coverage_gaps = []`,
   `saw_recursive_hierarchy_canonical_module_signature_diversity = true`,
   and `816/0` pass-fail in Verilator plus both repo-owned Yosys modes.

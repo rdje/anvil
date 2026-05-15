@@ -357,7 +357,7 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing, direct registered sibling mixed-support
@@ -486,12 +486,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r85/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
-`204` scenarios, `816` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
+`207` scenarios, `828` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`816/0` in Verilator plus both repo-owned Yosys modes). The `r85` report
+(`828/0` in Verilator plus both repo-owned Yosys modes). The `r86` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`

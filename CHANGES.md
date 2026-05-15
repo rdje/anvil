@@ -1,5 +1,37 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-15-phase4-structural-duplicate-modules — Prove the planner can emit structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added focused proof `planner_can_emit_structurally_duplicate_modules` (depth-1 wrapper lane, 4 leaves, 4 instances, 1-in/1-out/width-1 leaves, max_depth=1, terminal_reuse_prob=1.0). Under these tight constraints the leaf generator's RNG-driven choices collapse to a single canonical structure, so every library leaf shares one canonical signature; `num_structurally_duplicate_module_pairs > 0` for all four ConstructionStrategy values.
+- Added matrix scenario `phase4_hier1_structurally_duplicate_modules` per ConstructionStrategy via `phase4_hierarchy_structurally_duplicate_modules_focus_config`. This is the one Phase 4 hierarchy scenario whose hierarchy-routing probabilities are all 0.0 by design (the test exception list in the matrix unit test was extended to recognise its suffix).
+- Added `saw_design_with_structurally_duplicate_modules` coverage fact and matching gap message. Requires `num_structurally_duplicate_module_pairs > 0` and `num_distinct_module_signatures < num_modules` so the gate explicitly proves the planner produces the dedup-pass exercise material at least once per bank.
+- Bank counts: 207 scenarios / 828 designs.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`.
+- Closes leaf `HIERARCHY-AWARE-IDENTITY.2` in [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](docs/tasks/HIERARCHY-AWARE-IDENTITY.md); tree frontier rotates to `H-A-I.3` (dedup-pass design sketch).
+
+**Why**
+
+- `HIERARCHY-AWARE-IDENTITY.1` (r85) gave every Module a canonical signature. Without a proof that the planner currently emits at least one structurally-duplicate Module pair, the future dedup pass (`H-A-I.4`) would have no live exercise — and we would not know whether dedup is even applicable to ANVIL's planner. This slice establishes the existence proof: the planner CAN produce duplicates under the right knob settings. That removes the only structural blocker on the path from canonical signatures to dedup.
+
+**Validation**
+
+- Focused proof passes (~0.08s release) for all four ConstructionStrategy values.
+- Full gate: 207 scenarios, 828 designs, `coverage_gaps = []`, `Verilator 828/0`, both Yosys modes 828/0, `saw_design_with_structurally_duplicate_modules = true`.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- `HIERARCHY-AWARE-IDENTITY.2` complete; frontier rotates to `.3` (design sketch for the dedup pass, recorded in DEVELOPMENT_NOTES.md as required by the tree).
+- The new scenario `phase4_hier1_structurally_duplicate_modules` is the first Phase 4 hierarchy scenario in the bank whose hierarchy-routing probabilities are all 0.0 by design. It exists specifically to exercise the per-Module canonical-signature path, not any of the existing route surfaces.
+
+**Files touched**
+
+- src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md, docs/TASK_TREE.md, docs/tasks/HIERARCHY-AWARE-IDENTITY.md.
+
 ## 2026-05-14-differential-simulation-scope-narrowed — Narrow DIFFERENTIAL-SIMULATION.1 scope to "scope the second simulator"
 
 **Landed as:** 21174d8
