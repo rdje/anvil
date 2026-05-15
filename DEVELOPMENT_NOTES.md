@@ -57,6 +57,169 @@ If you need to revise any of these, that is a deliberate task with its own commi
 
 ---
 
+## Design notes
+### Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)
+This is the pre-implementation design sketch for the eventual
+`H-A-I.4` dedup pass. No code lands in this slice.
+
+**Pre-conditions established by earlier slices.**
+
+- `H-A-I.1` (r85) gives every `Module` a deterministic 64-bit FNV-1a
+  canonical signature exposed as
+  `DesignMetrics.canonical_module_signatures`. The signature covers
+  port shape, node sequence, drive structure, flop structure, and
+  instance interfaces but intentionally excludes `instance.module`
+  and `instance.name`. Two structurally-identical Modules with
+  distinctly-named children therefore share a signature.
+- `H-A-I.2` (r86) proves the planner can emit structurally-duplicate
+  Modules under tight 1-in/1-out/width-1 / `max_depth=1` /
+  `terminal_reuse_prob=1.0` leaf constraints. The dedup pass has a
+  live exercise.
+
+**Pass goal.** Given a finished `Design`, collapse every group of
+Modules in `design.modules` that share a canonical signature to a
+single surviving entry, and rewrite every `Instance.module` reference
+in the remaining Modules so they point at the surviving canonical
+peer. Default behaviour stays identical to today; the pass is opt-in.
+
+**Pipeline placement.**
+
+- **Chosen placement:** post-finalisation, after the existing
+  per-module `compact_node_ids` pass and right before `Design` is
+  returned from `generate_design`. The post-finalisation point is
+  the only point where every Module's canonical structure is settled
+  (every gate has been compacted, every flop merge has run, every
+  `intern_*` retry has completed) — running before then would dedup
+  Modules that are not yet in their canonical form.
+- **Module location:** new `src/ir/dedup.rs`, alongside
+  `src/ir/compact.rs`. Separate file because the operation is
+  Design-level (cross-Module), not Module-level (per-Module compaction).
+- **Rejected alternative — incremental dedup during construction:**
+  i.e., dedup each Module against the existing pool as soon as it's
+  emitted. Rejected because (a) ANVIL's planner emits parents
+  bottom-up, so dedup at emission time would dedup leaves before
+  their children's instances are wired, breaking the
+  instance-rewrite contract; and (b) it couples the dedup pass to
+  the generator's emission ordering, making future planner changes
+  hostile to dedup.
+- **Rejected alternative — dedup as an emitter pass in
+  `src/emit/sv.rs`:** rejected because emitter doctrine is
+  "dumb serialiser, no transformation". Rule 21 / dumb-emitter
+  doctrine forbids semantic transformations during emit.
+
+**Instance-rewrite policy.**
+
+1. Compute signatures and group Modules by signature.
+2. Within each group, pick the **canonical survivor** as the one
+   with the lexicographically-smallest `Module.name`. Deterministic
+   tiebreaker for stable output.
+3. Build a `name_remap: HashMap<String, String>` from
+   merged-away → survivor.
+4. Walk every surviving Module's `instances` list; for each
+   `Instance.module`, replace with `name_remap.get(...).unwrap_or(self)`.
+5. Drop the merged-away Modules from `design.modules`.
+6. **Iterate to fixed point.** After one pass, second-level parents
+   may now have IDENTICAL instance-graph shapes (because their
+   leaves were deduped to a common name). Re-run the pass; new
+   duplicates may emerge. Repeat until a pass produces no merges.
+   Bottom-up dedup order is the result of fixed-point iteration,
+   not an explicit traversal — simpler and provably correct.
+
+**Edge cases.**
+
+- **Top module.** The Design's top must NEVER be merged away. The
+  canonical-survivor pick must skip the top, or equivalently always
+  pick the top when it appears in a group. Practical implementation:
+  exclude the top from the grouping step.
+- **Empty design / single-Module design.** No work to do; pass
+  returns the Design unchanged. No special-case needed; the grouping
+  produces no groups with `count > 1`.
+- **Library-mode duplicates.** When `hierarchy_child_source_mode =
+  library`, the planner already reuses one Module definition across
+  multiple instance slots — so the signature-collision rate at
+  library mode is already 0 by construction (the duplicates that
+  *would* exist are folded into the library's single definition
+  before dedup runs). Dedup is a no-op for library mode unless the
+  planner's library construction itself emits structural twins,
+  which `H-A-I.2` shows is rare. Most dedup benefit will come from
+  on-demand mode.
+- **Cycles in instance graph.** Cannot happen — `Design::modules`
+  forms a strict DAG (top depends on children depend on
+  grandchildren). The fixed-point iteration terminates because
+  each iteration reduces `design.modules.len()` strictly, bounded
+  below by 1 (the top).
+- **Mismatched instance counts after a merged-away module had
+  different child references than the survivor.** Cannot happen if
+  the signature excludes child-module names but INCLUDES the
+  instance interface structure (`role`, `inputs` shape). My current
+  signature does both — see `canonical_module_signature` in
+  `src/metrics.rs`. So two Modules sharing a signature have the
+  same number of instances with the same input wiring; only the
+  child names differ, and the rewrite handles that.
+
+**Toggle and API.**
+
+- **Chosen toggle:** a new `Config` knob
+  `hierarchy_module_dedup: bool`, default `false`. Plain bool rather
+  than an enum variant because the operation is binary (do dedup /
+  don't). Future extensions (e.g., dedup-with-aggressive-merging
+  beyond canonical signature) would warrant an enum.
+- **Rejected alternative — extend `IdentityMode` with a new
+  `HierarchicalNodeId` variant.** Rejected because `IdentityMode`
+  governs *gate-level* expression identity; extending it to also
+  control module-level identity overloads the enum's meaning. The
+  existing `IdentityMode::NodeId` doctrine ("NodeId = identity of an
+  expression") stands unchanged; the module-level analogue is a
+  separate concern and gets its own knob. (`feedback_never_retire_strategies`
+  applies: don't retire `IdentityMode::NodeId`, don't silently
+  redefine it.)
+- **Rejected alternative — extend `FactorizationLevel` ladder with
+  a `module-dedup` rung.** Rejected for the same reason: the ladder
+  is about gate-level factorization strength, not hierarchy-level
+  identity. Dedup at the Module level is orthogonal.
+
+**Proof shape for `H-A-I.4`.**
+
+- **Focused proof:** build a 4-leaf design under the
+  `H-A-I.2` tight-leaf config. Compute metrics without dedup:
+  `num_modules = 5`, `num_distinct_module_signatures = 2`,
+  `num_structurally_duplicate_module_pairs = 6`. Run dedup. Re-compute
+  metrics: `num_modules = 2` (top + the surviving leaf),
+  `num_distinct = 2`, `num_pairs = 0`. Validate the resulting Design
+  via `validate_design` to ensure no broken instance references.
+- **Matrix scenario:** mirror `H-A-I.2`'s tight-leaf scenario but
+  with the dedup toggle on. New saw fact
+  `saw_design_with_module_dedup_active` requires `num_pairs == 0`
+  AND `num_modules` strictly less than what `H-A-I.2`'s peer
+  scenario emits. Both scenarios stay in the bank so the
+  before/after comparison is visible.
+- **Default-off preservation:** the existing `H-A-I.2` scenario
+  (`phase4_hier1_structurally_duplicate_modules`) must continue to
+  produce `num_structurally_duplicate_module_pairs > 0` after
+  `H-A-I.4` lands, proving the toggle defaults off.
+
+**Open questions for `H-A-I.4` implementation.**
+
+- Should dedup also remove unused Modules (modules that no Instance
+  in the surviving Module set references)? The existing
+  `num_unused_module_definitions` metric flags this — the dedup
+  pass could opportunistically clean up, OR a separate
+  `prune_unused_modules` pass could be a sibling slice. Likely the
+  latter (single responsibility).
+- Should the survivor's name be re-emitted (e.g., `mod_42_merged`)
+  to make the dedup visible in the SV output? Or keep the
+  lexicographically-smallest original name? Default-keep is
+  cheaper; explicit re-emit is more debuggable.
+- Should we emit a manifest entry recording which Modules were
+  deduped onto which survivors? Useful for downstream tools that
+  want to back-trace; trivial to add via a new
+  `DesignMetrics.dedup_remap: BTreeMap<String, String>`.
+
+**Slice budget for `H-A-I.4`.** Implementation should fit in one
+slice: ~50 lines in `src/ir/dedup.rs`, ~20 lines wiring the toggle
+in `Config`, ~30 lines of focused proof, ~15 lines of matrix
+scenario + saw fact. No new dependency on external crates.
+
 ## Workflow notes
 ### Coverage baseline established (2026-05-14, COVERAGE-INSTRUMENTATION.1)
 cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already

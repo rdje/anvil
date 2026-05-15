@@ -1,5 +1,34 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-15-phase4-dedup-pass-design-sketch — Module-dedup pass design sketch (HIERARCHY-AWARE-IDENTITY.3)
+
+**Landed as:** this commit
+
+**What changed**
+
+- Added a "Design notes / Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)" entry in `DEVELOPMENT_NOTES.md` covering pipeline placement, instance-rewrite policy, toggle/API choice, edge cases, proof shape, slice budget for `H-A-I.4`, and open questions. Three rejected alternatives recorded: (a) incremental dedup during construction, (b) dedup as emitter pass, (c) extending `IdentityMode` with a `HierarchicalNodeId` variant.
+- Closed leaf `HIERARCHY-AWARE-IDENTITY.3` in `docs/tasks/HIERARCHY-AWARE-IDENTITY.md`; tree frontier rotates to `H-A-I.4` (implement the dedup pass per this sketch).
+- Pure design slice. No code change.
+
+**Why**
+
+- The dedup pass touches three independent concerns — IR transformation, Config API surface, and existing-doctrine compatibility (`IdentityMode`, "never retire strategies"). Sketching the design first surfaces those concerns where the user can weigh in before code lands, and records rejected alternatives durably so future contributors know why the chosen shape was chosen.
+- `H-A-I.4` now has a concrete plan to follow: ~50 lines in a new `src/ir/dedup.rs`, opt-in via a new `Config::hierarchy_module_dedup: bool`, fixed-point iteration with lexicographic-smallest-name survivor, default-off to preserve existing behaviour.
+
+**Validation**
+
+- `mdbook build book` clean.
+- No code change; no `cargo test` impact.
+
+**Impact**
+
+- `HIERARCHY-AWARE-IDENTITY.3` complete. Frontier rotates to `H-A-I.4` (implement the dedup pass).
+- The "never retire discussed strategies" feedback memory is honoured: the dedup pass does NOT redefine `IdentityMode::NodeId` and does NOT overload `FactorizationLevel`; it adds a new orthogonal Config knob.
+
+**Files touched**
+
+- Updated: DEVELOPMENT_NOTES.md, docs/TASK_TREE.md, docs/tasks/HIERARCHY-AWARE-IDENTITY.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-15-phase4-structural-duplicate-modules — Prove the planner can emit structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)
 
 **Landed as:** 555058d

@@ -73,11 +73,11 @@ gate proves the dedup is downstream-clean.
   Commit: `Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Design sketch in DEVELOPMENT_NOTES.md for the dedup pass: where it sits in the pipeline (IR construction time vs. post-finalisation), how instance.module references are remapped after a Module is folded into a peer, how IdentityMode interacts with it, and what the proof shape looks like.`
   Acceptance: `A DEVELOPMENT_NOTES.md entry describes the pass with at least one rejected alternative recorded; no code change yet.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `DEVELOPMENT_NOTES.md "Design notes / Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)" entry records pipeline placement, instance-rewrite policy, toggle/API choice, edge cases, proof shape, and open questions. Three rejected alternatives recorded (incremental dedup during construction; dedup as emitter pass; extending IdentityMode). mdbook build clean; no code change.`
+  Commit: `Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.4`
   Status: `pending`
@@ -97,12 +97,12 @@ gate proves the dedup is downstream-clean.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-AWARE-IDENTITY.3` | `pending` | Design sketch must precede implementation — keeps the "never retire discussed strategies" feedback live, and lets the user weigh in on placement/wiring choices before code lands. The r86 calibration discovery (default leaf-widths produce 0 duplicates; tight 1-in/1-out/width-1 leaves produce many) is the first concrete input the design sketch should fold in: dedup is real and applicable to ANVIL's planner. |
+| 1 | `HIERARCHY-AWARE-IDENTITY.4` | `pending` | Implement the dedup pass per the design sketch in `DEVELOPMENT_NOTES.md`: new `src/ir/dedup.rs`, fixed-point iteration grouping Modules by canonical signature with lexicographic-smallest-name survivor, opt-in via a new `hierarchy_module_dedup: bool` Config knob. Default-off preserves current behaviour. |
 
-`H-A-I.4` and `H-A-I.5` are intentionally NOT on the frontier yet — they
-become eligible only after `H-A-I.3` is `done`.
-`H-A-I.1` is `done` (landed in r85). `H-A-I.2` is `done` (landed in r86).
-Both committed at the hashes recorded in this tree's Commit Log.
+`H-A-I.5` is NOT on the frontier yet — becomes eligible only after
+`H-A-I.4` is `done`.
+`H-A-I.1` (r85), `H-A-I.2` (r86), and `H-A-I.3` (design sketch) are all
+`done`. Hashes are in this tree's Commit Log.
 
 ## Decisions
 
@@ -151,6 +151,7 @@ Both committed at the hashes recorded in this tree's Commit Log.
 | --- | --- | --- | --- |
 | `2026-05-14` | `HIERARCHY-AWARE-IDENTITY.1` | `cargo test --release --test pipeline canonical_module_signatures_are_stable_and_isomorphism_aware`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r85 hierarchy gate. | All passing. Gate: 204 scenarios / 816 designs, `coverage_gaps = []`, Verilator/Yosys all 816/0, `saw_recursive_hierarchy_canonical_module_signature_diversity = true`. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 | `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.2` | `cargo test --release --test pipeline planner_can_emit_structurally_duplicate_modules`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r86 hierarchy gate. | All passing. Gate: 207 scenarios / 828 designs, `coverage_gaps = []`, Verilator/Yosys all 828/0, `saw_design_with_structurally_duplicate_modules = true`. Tight 1-in/1-out/width-1 leaf constraints collapse the leaf generator's RNG-driven choices to a single canonical structure. `cargo fmt --all -- --check`, `mdbook build book` clean. |
+| `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.3` | `mdbook build book`; design sketch reviewed for completeness against the leaf's acceptance criteria. | Design sketch landed in `DEVELOPMENT_NOTES.md` under "Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)". Records pipeline placement (post-finalisation, new `src/ir/dedup.rs`), instance-rewrite policy (fixed-point iteration, lexicographic-smallest-name survivor), toggle/API choice (new `Config::hierarchy_module_dedup: bool`, default false), edge cases (top must survive, library-mode dedup is no-op, fixed-point termination via strict decrease), proof shape for `H-A-I.4`, and open questions. Three rejected alternatives recorded: incremental dedup during construction; dedup as emitter pass; extending `IdentityMode`. |
 
 ## Commit Log
 
@@ -158,9 +159,11 @@ Both committed at the hashes recorded in this tree's Commit Log.
 | --- | --- | --- |
 | `HIERARCHY-AWARE-IDENTITY.1` | `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)` | First task-tree-managed code slice on ANVIL. |
 | `HIERARCHY-AWARE-IDENTITY.2` | `Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)` | Existence proof: dedup is real and applicable to ANVIL's planner. |
+| `HIERARCHY-AWARE-IDENTITY.3` | `Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3)` | Pure design slice; design sketch landed in DEVELOPMENT_NOTES.md. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of FSMGen task-tree workflow adoption on ANVIL. `H-A-I.1` recorded as `in_progress` because r85's source/docs were already in the working tree.
 - `2026-05-14`: `H-A-I.1` landed downstream-clean. Status -> `done`. Frontier rotated to `H-A-I.2`.
 - `2026-05-15`: `H-A-I.2` landed downstream-clean as r86. Status -> `done`. Frontier rotated to `H-A-I.3`.
+- `2026-05-15`: `H-A-I.3` design sketch landed in `DEVELOPMENT_NOTES.md`. Status -> `done`. Frontier rotated to `H-A-I.4`.

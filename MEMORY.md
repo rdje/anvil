@@ -4,7 +4,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
 - **Active task trees:**
-  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.3` (dedup-pass design sketch). `H-A-I.1` (canonical signatures, r85) and `H-A-I.2` (structural-duplicate proof, r86) both `done`.
+  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.4` (implement the dedup pass per the H-A-I.3 design sketch). `H-A-I.1` (canonical signatures, r85), `H-A-I.2` (structural-duplicate proof, r86), and `H-A-I.3` (design sketch in DEVELOPMENT_NOTES.md) all `done`.
   - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
   - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (scope iverilog or alternative as the second simulator; Verilator is already a fait accompli via the matrix gate). Quality lane: signoff-level downstream consistency.
   - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.2` (triage of top-5 under-covered files). Quality lane: test-discipline visibility. Baseline landed at `docs/coverage-baseline.md` (85.26% lines / 91.95% functions / 87.61% regions; planner core 88-99% covered by focused proofs alone).
