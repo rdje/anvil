@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-15-phase4-structural-duplicate-modules — Prove the planner can emit structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)
 
-**Landed as:** this commit
+**Landed as:** 555058d
 
 **What changed**
 
