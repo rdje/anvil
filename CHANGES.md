@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.4a — PHASE-5-PARAMETERIZATION.2.4a: phase5 matrix scenario + metrics + gap
 
-**Landed as:** this commit
+**Landed as:** 6f87d7a
 
 **What changed**
 
