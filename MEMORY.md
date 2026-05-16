@@ -2084,6 +2084,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `750ef8b` — Phase 4: implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + .5; tree complete).
 - `e4f0f04` — Phase 4: record H-A-I.3 commit hash e83efd8.
 - `e83efd8` — Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3).
 - `555058d` — Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2).

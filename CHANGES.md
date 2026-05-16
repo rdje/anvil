@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-15-phase4-module-dedup-pass — Implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)
 
-**Landed as:** this commit
+**Landed as:** 750ef8b
 
 **What changed**
 
