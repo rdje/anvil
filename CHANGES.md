@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.2.2 — PHASE-5-PARAMETERIZATION.2.2.2: rules-first parameterizable-leaf constructor
 
-**Landed as:** this commit
+**Landed as:** b3c7f0c
 
 **What changed**
 
