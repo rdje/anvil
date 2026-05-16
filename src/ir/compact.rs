@@ -1881,6 +1881,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 2)],
+            param_bindings: Vec::new(),
         });
 
         let removed = merge_equivalent_flops(&mut m);
@@ -1927,6 +1928,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 1)],
+            param_bindings: Vec::new(),
         });
 
         let compacted = compact_node_ids(&mut m);

@@ -288,7 +288,27 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
             let child = modules
                 .get(instance.module.as_str())
                 .expect("child module exists in design");
-            writeln!(out, "    {} {} (", child.name, instance.name).unwrap();
+            // Phase 5: when this instance carries parameter overrides
+            // (`PHASE-5-PARAMETERIZATION.2.2.3b`), emit a
+            // `#(.NAME(value), …)` override list. Empty bindings (every
+            // pre-Phase-5 / default-off instance) emit no `#(...)`, so
+            // emission is byte-identical to before.
+            if instance.param_bindings.is_empty() {
+                writeln!(out, "    {} {} (", child.name, instance.name).unwrap();
+            } else {
+                let overrides = instance
+                    .param_bindings
+                    .iter()
+                    .map(|(name, value)| format!(".{name}({value})"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    out,
+                    "    {} #({}) {} (",
+                    child.name, overrides, instance.name
+                )
+                .unwrap();
+            }
             let input_bindings: BTreeMap<_, _> = instance.inputs.iter().copied().collect();
 
             let mut connections = Vec::new();
@@ -783,6 +803,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
         });
         top.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -831,6 +852,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 2)],
+            param_bindings: Vec::new(),
         });
         top.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -881,6 +903,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
         });
         top.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -921,6 +944,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
         });
         parent.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -948,6 +972,7 @@ mod tests {
             module: "parent".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
         });
         top.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -1316,6 +1341,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
         });
         top.nodes.push(Node::InstanceOutput {
             instance: 0,
@@ -1337,5 +1363,76 @@ mod tests {
         assert!(sv.contains(".a(u_0__a)"));
         assert!(sv.contains(".o(instout_0_1)"));
         assert!(sv.contains("assign u_0__o = instout_0_1;"));
+    }
+
+    #[test]
+    fn instance_with_param_bindings_emits_parameter_override_list() {
+        // PHASE-5-PARAMETERIZATION.2.2.3a: an instance carrying
+        // `param_bindings` emits `child #(.W(v), …) inst (`; an
+        // instance with empty bindings emits no `#(` (byte-identical
+        // to pre-Phase-5).
+        let mut child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 8, Direction::In));
+        child.outputs.push(port(1, "o", 8, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        child.drives.push((1, 0));
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "u_0__a", 8, Direction::In));
+        top.inputs.push(port(2, "u_1__a", 8, Direction::In));
+        top.outputs.push(port(1, "u_0__o", 8, Direction::Out));
+        top.outputs.push(port(3, "u_1__o", 8, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        // Instance 0: parameter override present.
+        top.instances.push(crate::ir::Instance {
+            id: 0,
+            name: "u_0".into(),
+            module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: vec![("W".to_string(), 8)],
+        });
+        // Instance 1: no overrides — must stay byte-identical form.
+        top.instances.push(crate::ir::Instance {
+            id: 1,
+            name: "u_1".into(),
+            module: "child".into(),
+            role: crate::ir::InstanceRole::PlannedChild,
+            inputs: vec![(0, 1)],
+            param_bindings: Vec::new(),
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 8,
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 1,
+            port: 1,
+            width: 8,
+        });
+        top.drives.push((1, 2));
+        top.drives.push((3, 3));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![child, top],
+        };
+        let sv = to_sv_design(&design);
+        assert!(
+            sv.contains("child #(.W(8)) u_0 ("),
+            "instance with param_bindings must emit `#(.W(8))`:\n{sv}"
+        );
+        assert!(
+            sv.contains("child u_1 ("),
+            "instance with empty param_bindings must be byte-identical (no `#(`):\n{sv}"
+        );
     }
 }

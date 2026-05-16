@@ -1700,6 +1700,15 @@ pub struct Instance {
     pub role: InstanceRole,
     /// Child input port id -> parent driving node id.
     pub inputs: Vec<(PortId, NodeId)>,
+    /// Phase 5 parameter overrides for this instance:
+    /// `(parameter_name, resolved_value)`. Empty for every
+    /// non-parameterized instance (default-off / pre-Phase-5), in
+    /// which case emission is byte-identical to before. When
+    /// non-empty, the emitter renders a `#(.NAME(value), …)` override
+    /// list on the instantiation. Populated by
+    /// `PHASE-5-PARAMETERIZATION.2.2.3b` when the instantiated child
+    /// carries a `ParamEnv`.
+    pub param_bindings: Vec<(String, u32)>,
 }
 
 #[derive(Debug, Clone)]
@@ -3122,6 +3131,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
         });
 
         let modules: BTreeMap<_, _> = [(&child), (&parent)]
@@ -3153,6 +3163,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 2)],
+            param_bindings: Vec::new(),
         });
 
         let modules: BTreeMap<_, _> = [(&child), (&parent)]

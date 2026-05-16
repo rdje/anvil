@@ -436,6 +436,7 @@ fn generate_parent_module(
             module: child.name.clone(),
             role: InstanceRole::PlannedChild,
             inputs: input_bindings,
+            param_bindings: Vec::new(),
         });
 
         for child_output in &child.outputs {
@@ -964,6 +965,7 @@ fn maybe_add_parent_cone_instance_source(
         module: child_name,
         role: InstanceRole::ParentCone,
         inputs: input_bindings,
+        param_bindings: Vec::new(),
     });
     *ctx.parent_cone_instances_inserted += 1;
 

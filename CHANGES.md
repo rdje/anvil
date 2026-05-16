@@ -1,5 +1,33 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.2.3a — PHASE-5-PARAMETERIZATION.2.2.3a: Instance.param_bindings + emitter #(.W(v))
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/ir/types.rs`: `Instance` gains `param_bindings: Vec<(String, u32)>` — `(parameter_name, resolved_value)` overrides for this instance. Empty for every non-parameterized instance (default-off / pre-Phase-5) → emission byte-identical.
+- All **19** `Instance { … }` literal construction sites updated with `param_bindings: Vec::new()` (Instance has no `Default`). Completeness was driven by the compiler: the field was added first, then every `missing field` site fixed, and `cargo build --all-targets` clean is the completeness oracle.
+- `src/emit/sv.rs`: instance emission now renders `child #(.NAME(v), …) inst (` when `param_bindings` is non-empty, and the unchanged `child inst (` when empty (byte-identical).
+- Focused unit test `instance_with_param_bindings_emits_parameter_override_list`: a hand-built `Design` with one instance carrying `[("W",8)]` emits `child #(.W(8)) u_0 (`, and a sibling instance with empty bindings emits the byte-identical `child u_1 (`.
+- `.2.2.3` split per the Splitting Rules into `.2.2.3a` (this — IR field + emitter) and `.2.2.3b` (hierarchy instantiation pick + resolved-width validate). Tree updated; no node renumbered (`.2.2.3` became a container).
+
+**Why**
+
+- Mechanically separating the IR/emit surface (no semantics) from the hierarchy/validate semantics keeps each slice signoff-reviewable. `param_bindings` defaulting to empty everywhere makes this slice provably byte-identical for all existing output; the override-emission path is exercised only by the focused unit test until `.2.2.3b` produces real bindings.
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo build --all-targets` clean (19/19 sites); `emit::` suite 18/0 incl. the new test; full `cargo test` green (COMMIT.md gate). No behaviour change when `param_bindings` empty; no `book/` change.
+
+**Impact**
+
+- The IR can now carry per-instance parameter overrides and the emitter renders them. Frontier → `.2.2.3b` (hierarchy picks in-range values + resolved-width validate). No phase label changed.
+
+**Files touched**
+
+- Updated: src/ir/types.rs, src/emit/sv.rs, src/ir/compact.rs, src/ir/validate.rs, src/ir/dedup.rs, src/gen/hierarchy.rs, src/gen/module.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.2.2 — PHASE-5-PARAMETERIZATION.2.2.2: rules-first parameterizable-leaf constructor
 
 **Landed as:** b3c7f0c

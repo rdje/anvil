@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.2.2` rules-first parameterizable-leaf constructor landed; param.rs refactored non-rolling; frontier → `.2.2.3`)
+- Last updated: `2026-05-16` (`.2.2.3` split into `.2.2.3a`/`.2.2.3b`; `.2.2.3a` Instance.param_bindings + emitter `#(.W(v))` landed; frontier → `.2.2.3b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -83,9 +83,21 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.3`
+  Status: `active`
+  Goal: `Instantiation substitution. Split per the Splitting Rules (mixes an IR field + 19 literal sites, an emitter change, a generator change, and a validator change — independently reviewable).`
+  Children: `PHASE-5-PARAMETERIZATION.2.2.3a` (done), `PHASE-5-PARAMETERIZATION.2.2.3b`
+
+- ID: `PHASE-5-PARAMETERIZATION.2.2.3a`
+  Status: `done`
+  Goal: `IR + emit: add Instance.param_bindings: Vec<(String,u32)> (Instance has no Default → update all ~19 literal sites with param_bindings: Vec::new(), driven by the compiler's missing-field errors for completeness). Emitter: when an instance's param_bindings is non-empty, emit child #(.NAME(v), ...) inst (...); empty bindings → byte-identical (no instance #(...)).`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: a hand-built Design with an instance carrying param_bindings emits #(.W(v)); an instance with empty bindings emits no instance #(. Default-off byte-identical. No hierarchy/validate semantics yet.`
+  Verification: `Instance.param_bindings: Vec<(String,u32)> added to src/ir/types.rs; all 19 literal sites updated with param_bindings: Vec::new() (compiler missing-field errors as the completeness oracle — cargo build --all-targets clean confirms all 19). src/emit/sv.rs instance emission: non-empty bindings → "child #(.NAME(v), ...) inst (", empty → byte-identical "child inst (". Focused unit test instance_with_param_bindings_emits_parameter_override_list (one instance with [("W",8)] → "child #(.W(8)) u_0 (", one empty → "child u_1 ("). cargo fmt/clippy -D warnings clean; emit:: suite 18/0; full cargo test (Verification Log). No book/ change.`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))`
+
+- ID: `PHASE-5-PARAMETERIZATION.2.2.3b`
   Status: `pending`
-  Goal: `Instantiation substitution. Add Instance.param_bindings: Vec<(String,u32)> (19 literal sites; Instance has no Default). In src/gen/hierarchy.rs, when a selected child is parameterized, pick an in-range value reproducibly via g.rng, record it in Instance.param_bindings, bind child ports at the resolved width, emit instance #(.W(v)); validate_design uses the resolved width for parameterized child ports.`
-  Acceptance: `Focused proof: a parent instantiates one parameterizable template at >=2 distinct in-range values; validate_design passes; emitted SV carries #(.W(v)) per instance; all four ConstructionStrategy values; cargo gates green.`
+  Goal: `Hierarchy instantiation + resolved-width validate. In src/gen/hierarchy.rs, when a selected child has param_env, pick an in-range value reproducibly via g.rng, record Instance.param_bindings, and bind/route child ports at the RESOLVED width. src/ir/validate.rs: parameterized child-port width checks use the instance's resolved width, not the template design_value.`
+  Acceptance: `Focused proof: a parent instantiates one parameterizable template at >=2 distinct in-range values; validate_design passes; emitted SV carries #(.W(v)) per instance; all four ConstructionStrategy values; default-off byte-identical; cargo gates green.`
   Verification: `pending`
   Commit: `pending`
 
@@ -107,9 +119,9 @@ equivalent).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.2.3` | `pending` | `.2.2.2` rules-first constructor done — parameterized width-generic modules now exist by construction. Instantiation substitution (`Instance.param_bindings` + in-range pick + `#(.W(v))` + resolved-width validate) is the next dependency. |
+| 1 | `PHASE-5-PARAMETERIZATION.2.2.3b` | `pending` | `.2.2.3a` (Instance.param_bindings field + emitter `#(.W(v))`) done. The hierarchy instantiation pick + resolved-width validate is the remaining instantiation work and the dependency for the matrix gate. |
 | 2 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | Parameter-aware identity rule; parameterized modules now exist to prove it against. |
-| 3 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.2.3`–`.2.3`. |
+| 3 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.2.3b`–`.2.3`. |
 
 ## Decisions
 
@@ -197,7 +209,8 @@ equivalent).
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.1` | DEVELOPMENT_NOTES.md design entry landed (codebase-grounded; architecture C chosen; 3 rejected alternatives; identity rule; proof shape). Doc-only, no code; `mdbook build book` clean. | Done. |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.1` | `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` 205/0; focused proof (8 seeds); full `cargo test` green (CARGO_TEST_EXIT=0). No `book/` change. | Done (`4cedad2`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.1` | `is_width_generic` gate + `param_width_decl_w` emitter; `param.rs` 6/0; focused proof; full `cargo test` green. | Done (`8cc4fc4`). |
-| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | New `build_parameterizable_leaf` rules-first constructor + single opt-in roll in `generate_leaf_module_with_interface_profile`; `param.rs` refactored to non-rolling `annotate_parameterized`; `generate_design` post-pass non-rolling (no double-roll). `param.rs` 5/0; focused proof: every forced-on single-module design is a parameterized width-generic leaf across all 4 ConstructionStrategy values, validates, body fully `[W-1:0]`, default-off byte-identical. `cargo fmt`/`clippy -D warnings` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | `build_parameterizable_leaf` rules-first constructor + non-rolling `param.rs` refactor; `param.rs` 5/0; focused proof (4 strategies); full `cargo test` green. | Done (`b3c7f0c`). |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Instance.param_bindings` field + 19 sites (compiler-driven, `cargo build --all-targets` clean = completeness oracle); emitter `#(.NAME(v), …)` for non-empty bindings, byte-identical otherwise; focused unit test `instance_with_param_bindings_emits_parameter_override_list`. `cargo fmt`/`clippy -D warnings` clean; emit:: 18/0; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -206,7 +219,8 @@ equivalent).
 | `PHASE-5-PARAMETERIZATION.1` | `Docs: PHASE-5-PARAMETERIZATION.1 parameterization design` (`786e468`) | Design-only; DEVELOPMENT_NOTES.md entry. |
 | `PHASE-5-PARAMETERIZATION.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.1 width-parameterization scaffold` (`4cedad2`) | IR+config+pass+emitter+focused proof; annotation-only, default-off byte-identical. |
 | `PHASE-5-PARAMETERIZATION.2.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter` (`8cc4fc4`) | Soundness primitives; rules-first pivot found here. |
-| `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
+| `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` (`b3c7f0c`) | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
+| `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
 
 ## Changelog
 
@@ -241,3 +255,12 @@ equivalent).
   validates, emits a fully `[W-1:0]` body, default-off byte-identical.
   The feature now fires by construction. Frontier → `.2.2.3`
   (instantiation substitution).
+- `2026-05-16`: `.2.2.3` split per the Splitting Rules into `.2.2.3a`
+  (IR field + emitter) and `.2.2.3b` (hierarchy pick + resolved-width
+  validate). `.2.2.3a` landed — `Instance.param_bindings:
+  Vec<(String,u32)>` added; all 19 `Instance` literal sites updated
+  (compiler missing-field errors as the completeness oracle, `cargo
+  build --all-targets` clean); `src/emit/sv.rs` emits
+  `child #(.NAME(v), …) inst (` for non-empty bindings and the
+  byte-identical `child inst (` for empty; focused unit test. Frontier
+  → `.2.2.3b`.

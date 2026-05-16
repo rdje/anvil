@@ -167,6 +167,7 @@ mod tests {
             module: "leaf_a".into(),
             role: InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
         });
         top.instances.push(Instance {
             id: 1,
@@ -174,6 +175,7 @@ mod tests {
             module: "leaf_b".into(),
             role: InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
         });
         top.instances.push(Instance {
             id: 2,
@@ -181,6 +183,7 @@ mod tests {
             module: "leaf_c".into(),
             role: InstanceRole::PlannedChild,
             inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
         });
         top.drives.push((1, 0));
 

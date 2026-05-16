@@ -59,7 +59,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | --- | --- | --- | --- | --- |
 | `HIERARCHY-AWARE-IDENTITY` | `done` | Phase 4 — Hierarchy | (complete — all leaves done) | [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](tasks/HIERARCHY-AWARE-IDENTITY.md) |
 | `PHASE-4-HIERARCHY` | `done` | Phase 4 — Hierarchy | (complete — `.1` done, `.2` superseded, `.3` done; Phase 4 closed) | [docs/tasks/PHASE-4-HIERARCHY.md](tasks/PHASE-4-HIERARCHY.md) |
-| `PHASE-5-PARAMETERIZATION` | `active` | Phase 5 — Parameterization | `PHASE-5-PARAMETERIZATION.2.2.3` (`.1`/`.2.1`/`.2.2.1`/`.2.2.2` done; feature fires by construction) | [docs/tasks/PHASE-5-PARAMETERIZATION.md](tasks/PHASE-5-PARAMETERIZATION.md) |
+| `PHASE-5-PARAMETERIZATION` | `active` | Phase 5 — Parameterization | `PHASE-5-PARAMETERIZATION.2.2.3b` (`.1`/`.2.1`/`.2.2.1`/`.2.2.2`/`.2.2.3a` done) | [docs/tasks/PHASE-5-PARAMETERIZATION.md](tasks/PHASE-5-PARAMETERIZATION.md) |
 | `PHASE-5B-AGGREGATES` | `active` | Phase 5b — Synthesizable aggregates | `PHASE-5B-AGGREGATES.1` | [docs/tasks/PHASE-5B-AGGREGATES.md](tasks/PHASE-5B-AGGREGATES.md) |
 | `PHASE-6-ADVANCED-MOTIFS` | `active` | Phase 6 — Advanced motifs | `PHASE-6-ADVANCED-MOTIFS.1` | [docs/tasks/PHASE-6-ADVANCED-MOTIFS.md](tasks/PHASE-6-ADVANCED-MOTIFS.md) |
 | `PHASE-7-ORACLE-MICRODESIGN` | `active` | Phase 7 — Oracle-backed micro-design artifacts | `PHASE-7-ORACLE-MICRODESIGN.1` | [docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md](tasks/PHASE-7-ORACLE-MICRODESIGN.md) |

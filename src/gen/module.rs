@@ -890,6 +890,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(3, 0)],
+            param_bindings: Vec::new(),
         });
 
         shrink_primary_inputs_to_live_width(&mut m);
@@ -917,6 +918,7 @@ mod tests {
             module: "child".into(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, 1)],
+            param_bindings: Vec::new(),
         });
 
         assert_eq!(count_orphan_gates(&m), 0);

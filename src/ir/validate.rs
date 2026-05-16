@@ -1378,6 +1378,7 @@ mod tests {
             module: child.name.clone(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, top_input_node)],
+            param_bindings: Vec::new(),
         });
         let instout = top.nodes.len() as NodeId;
         top.nodes.push(Node::InstanceOutput {
@@ -1411,6 +1412,7 @@ mod tests {
             module: child.name.clone(),
             role: crate::ir::InstanceRole::PlannedChild,
             inputs: vec![(0, top_input_node)],
+            param_bindings: Vec::new(),
         });
 
         let design = Design {
