@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase4-closed — Phase 4 closed (PHASE-4-HIERARCHY.3, evidence-backed scope cut)
 
-**Landed as:** this commit
+**Landed as:** 21ec427
 
 **What changed**
 
