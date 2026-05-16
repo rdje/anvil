@@ -1,5 +1,32 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.3 — PHASE-5-PARAMETERIZATION.2.3: parameter-aware identity
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs` `canonical_module_signature`: now parameter-aware. A one-time `module.param_env.is_some()` marker is hashed, and a `wsig(w)` helper replaces any width equal to `design_value` with a `u32::MAX` sentinel **for parameterized modules only** (sound: the `is_width_generic` gate guarantees a parameterized module is width-homogeneous, so every width is the parameter). Applied at every width hash site (ports, `PrimaryInput`/`Constant`/`FlopQ`/`InstanceOutput`/`Gate` node widths, `flop.width`).
+- Effect: two structurally-identical parameterizable templates that differ **only** in their concrete `design_value` now hash to the **same** signature — they are the same template (instances override the width via `#(.W(v))`), so `dedup_modules` legitimately collapses them. A genuinely concrete module hashes its real widths and marker `0`, so it can **never** alias a structurally-identical parameterized one. `dedup_modules` is **unchanged** (the rule lives entirely in the signature).
+- Non-parameterized modules (every default-off / pre-Phase-5 module, including the whole r87 hierarchy bank): only a constant marker-`0` prefix is added, so *relative* signature equality, determinism, and isomorphism-awareness are preserved. Verified: `canonical_module_signatures_are_stable_and_isomorphism_aware`, `planner_can_emit_structurally_duplicate_modules` (H-A-I.2), and `module_dedup_pass_collapses_structurally_duplicate_modules` (H-A-I.4) all still pass.
+- New unit test `parameter_aware_identity_collapses_templates_differing_only_in_design_width` (`src/ir/dedup.rs`): param template @8 sig == param template @16 sig; concrete @8 sig ≠ param @8 sig (marker disambiguates); structurally-different param templates stay distinct; `dedup_modules` collapses the equal-signature pair under a preserved top.
+
+**Why**
+
+- Completes the doctrine extension from `.1`: "NodeId = identity of an expression" / "ModuleId = identity of a hierarchical module template" → "a parameterized template is one identity across its legal width range". The marker is the refinement that keeps parameterized and concrete modules from ever aliasing.
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `dedup::` 4/0, `metrics::` 22/0, the three H-A-I regression proofs pass; full `cargo test` green (COMMIT.md gate). `dedup_modules` unchanged; non-parameterized dedup/stability preserved; no `book/` change.
+
+**Impact**
+
+- Parameter-aware identity is in place. Frontier → `.2.4` (Phase 5 matrix gate + explicit ROADMAP Phase 5 exit criteria + Phase 5 → done). No phase label changed yet.
+
+**Files touched**
+
+- Updated: src/metrics.rs, src/ir/dedup.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.2.3b — PHASE-5-PARAMETERIZATION.2.2.3b: hierarchy instantiation + resolved-width validate
 
 **Landed as:** 1fd53bd

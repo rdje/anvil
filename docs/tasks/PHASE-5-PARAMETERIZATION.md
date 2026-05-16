@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.2.3` complete — `.2.2.3a` IR/emit + `.2.2.3b` hierarchy instantiation + resolved-width validate; Phase 5 width parameterization end-to-end functional; frontier → `.2.3` parameter-aware identity)
+- Last updated: `2026-05-16` (`.2.3` parameter-aware identity landed — `canonical_module_signature` collapses param templates differing only in design_value, concrete modules unchanged; frontier → `.2.4` matrix gate + Phase 5 closure)
 - Owner: repo-local workflow
 
 ## Goal
@@ -102,11 +102,11 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Parameter-aware identity: parameterized width sites hash a normalized symbolic form in canonical_module_signature (src/metrics.rs); non-parameterized sites unchanged. dedup_modules unchanged.`
   Acceptance: `Identity proof: same template at W=8 and W=16 -> one signature (dedup collapses them); a concrete width-8 module keeps a distinct signature (extends dedup_is_a_no_op_when_modules_are_structurally_distinct). cargo gates green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/metrics.rs canonical_module_signature: one-time param_env-presence marker + wsig(w) replaces any width == design_value with a u32::MAX sentinel for parameterized modules (sound: the soundness gate guarantees width-homogeneity). Non-parameterized modules: a constant marker(0) prefix only — relative equality / stability / isomorphism preserved, so r87 dedup + canonical_module_signatures_are_stable_and_isomorphism_aware + H-A-I.2/.4 proofs all still pass (verified). dedup_modules UNCHANGED. New unit test parameter_aware_identity_collapses_templates_differing_only_in_design_width in src/ir/dedup.rs: param template @8 sig == param template @16 sig; concrete @8 sig != param @8 sig (marker disambiguates); structurally-different param templates distinct; dedup collapses the equal-signature pair under a top. cargo fmt/clippy -D warnings clean; dedup:: 4/0, metrics:: 22/0, the three H-A-I regression proofs pass; full cargo test (Verification Log). No book/ change.`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.4`
   Status: `pending`
@@ -119,8 +119,7 @@ equivalent).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | `.2.2.*` done — Phase 5 width parameterization is end-to-end functional (multi-width `#(.W(v))` reuse, valid by construction). Parameter-aware identity is the next correctness layer (a parameterized template must be one identity across its legal range). |
-| 2 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.3`. |
+| 1 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | `.2.3` done — parameter-aware identity in place. The final Phase 5 slice: a matrix gate proving parameterized designs downstream-clean, explicit ROADMAP Phase 5 exit criteria, and the Phase 5 → done promotion. |
 
 ## Decisions
 
@@ -210,7 +209,8 @@ equivalent).
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.1` | `is_width_generic` gate + `param_width_decl_w` emitter; `param.rs` 6/0; focused proof; full `cargo test` green. | Done (`8cc4fc4`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | `build_parameterizable_leaf` rules-first constructor + non-rolling `param.rs` refactor; `param.rs` 5/0; focused proof (4 strategies); full `cargo test` green. | Done (`b3c7f0c`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Instance.param_bindings` field + 19 sites (compiler-driven completeness); emitter `#(.NAME(v), …)`; focused unit test. emit:: 18/0; full `cargo test` green. | Done (`7950e37`). |
-| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3b` | `resolved_child_port_width` helper + per-instance `g.rng` pick in `generate_parent_module` (None when not parameterized → byte-identical); resolved width threaded through child-input binding / InstanceOutput / pools / top output ports; `validate.rs` `resolved_child_width` closure for parameterized child-port checks. Soundness scoping: only the planned-child loop picks an override (helper/default → empty bindings → default elaboration = template = already valid). Focused proof `width_parameterization_instances_override_at_multiple_values` (legacy wrapper, library mode, 1 leaf × 6 instances, 4 strategies × 4 seeds): per-instance `#(.W(v))`, ≥2 distinct values, `validate_design` passes; default-off byte-identical. `cargo fmt`/`clippy -D warnings` clean; phase5 proofs 2/2; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3b` | hierarchy per-instance override pick + resolved-width thread + `validate.rs` resolved-width checks; soundness-scoped to the planned-child loop; focused multi-width proof; full `cargo test` green. | Done (`1fd53bd`). |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.3` | `canonical_module_signature` param-aware: one-time `param_env`-presence marker + `wsig` sentinel for widths == design_value (sound via the width-homogeneity gate); `dedup_modules` unchanged; non-parameterized signature relatively unchanged → `canonical_module_signatures_are_stable_and_isomorphism_aware` + H-A-I.2/.4 regression proofs all pass. New `parameter_aware_identity_collapses_templates_differing_only_in_design_width` (param@8 sig == param@16; concrete@8 != param@8; structurally-different param distinct; dedup collapses the pair). `cargo fmt`/`clippy -D warnings` clean; dedup:: 4/0, metrics:: 22/0; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -221,7 +221,8 @@ equivalent).
 | `PHASE-5-PARAMETERIZATION.2.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter` (`8cc4fc4`) | Soundness primitives; rules-first pivot found here. |
 | `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` (`b3c7f0c`) | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
 | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` (`7950e37`) | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
-| `PHASE-5-PARAMETERIZATION.2.2.3b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate` | Closes `.2.2.3` and the `.2.2` container; Phase 5 width parameterization end-to-end functional. |
+| `PHASE-5-PARAMETERIZATION.2.2.3b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate` (`1fd53bd`) | Closes `.2.2.3` and the `.2.2` container; Phase 5 width parameterization end-to-end functional. |
+| `PHASE-5-PARAMETERIZATION.2.3` | `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity` | `canonical_module_signature` collapses param templates differing only in design width; dedup unchanged. |
 
 ## Changelog
 
@@ -279,3 +280,19 @@ equivalent).
   distinct values, default-off byte-identical). **Phase 5 width
   parameterization is end-to-end functional.** Frontier → `.2.3`
   (parameter-aware identity).
+- `2026-05-16`: `.2.3` parameter-aware identity landed —
+  `src/metrics.rs canonical_module_signature` gains a one-time
+  `param_env`-presence marker and a `wsig` that sentinels any width
+  equal to `design_value` for parameterized modules (sound: the
+  soundness gate makes them width-homogeneous). Two parameterizable
+  templates differing only in `design_value` now share a signature
+  (dedup collapses them; `#(.W(v))` overrides make them equivalent); a
+  concrete module never aliases a parameterized one. `dedup_modules`
+  unchanged; non-parameterized signatures keep relative
+  equality/stability/isomorphism so r87 dedup + the H-A-I.1/.2/.4
+  proofs still pass. New `parameter_aware_identity_collapses_templates_differing_only_in_design_width`
+  unit test. Extends the doctrine "NodeId = identity of an
+  expression" / "ModuleId = identity of a hierarchical module
+  template" to "a parameterized template is one identity across its
+  legal width range". Frontier → `.2.4` (matrix gate + Phase 5
+  closure).

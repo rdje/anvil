@@ -262,4 +262,82 @@ mod tests {
         assert_eq!(removed, 0);
         assert!(design.modules.iter().any(|m| m.name == "top"));
     }
+
+    fn param_leaf(name: &str, w: u32) -> Module {
+        use crate::ir::ParamEnv;
+        let mut m = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        m.inputs.push(make_port(0, "i", w, Direction::In));
+        m.outputs.push(make_port(1, "o", w, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: w });
+        m.drives.push((1, 0));
+        m.param_env = Some(ParamEnv {
+            name: "W".into(),
+            min: 2,
+            max: 16,
+            design_value: w,
+        });
+        m.parameterized_input_ports = vec![0];
+        m.parameterized_output_ports = vec![1];
+        m
+    }
+
+    #[test]
+    fn parameter_aware_identity_collapses_templates_differing_only_in_design_width() {
+        // PHASE-5-PARAMETERIZATION.2.3: two structurally-identical
+        // parameterizable templates that differ ONLY in their concrete
+        // design_value are the same template and must share a
+        // canonical signature (instances override the width via
+        // `#(.W(v))`). A genuinely concrete module must NOT alias a
+        // parameterized one — the param-presence marker disambiguates.
+        let a = param_leaf("pa", 8);
+        let b = param_leaf("pb", 16);
+        assert_eq!(
+            canonical_module_signature(&a),
+            canonical_module_signature(&b),
+            "parameterizable templates differing only in design_value must share a signature"
+        );
+
+        // Same structure, but concrete (no param_env): distinct.
+        let mut c = param_leaf("c", 8);
+        c.param_env = None;
+        c.parameterized_input_ports.clear();
+        c.parameterized_output_ports.clear();
+        assert_ne!(
+            canonical_module_signature(&a),
+            canonical_module_signature(&c),
+            "a parameterized template must never alias a structurally-identical concrete module"
+        );
+
+        // Different structure (extra width): still distinct even when
+        // both are parameterized.
+        let d = param_leaf("d", 8);
+        let mut e = param_leaf("e", 8);
+        e.outputs.push(make_port(2, "o2", 8, Direction::Out));
+        assert_ne!(
+            canonical_module_signature(&d),
+            canonical_module_signature(&e),
+            "structurally-different parameterized templates must not collide"
+        );
+
+        // dedup collapses the equal-signature pair (a @8, b @16) under
+        // a top; the top is preserved by name.
+        let top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![param_leaf("pa", 8), param_leaf("pb", 16), top],
+        };
+        let removed = dedup_modules(&mut design);
+        assert_eq!(
+            removed, 1,
+            "the two equal-signature templates collapse to one"
+        );
+        assert_eq!(design.modules.len(), 2, "survivor + top");
+        assert!(design.modules.iter().any(|m| m.name == "top"));
+    }
 }

@@ -2185,14 +2185,36 @@ fn fnv1a_64_u32(state: u64, value: u32) -> u64 {
 /// = identity of an expression" up to "ModuleId = identity of a
 /// hierarchical module template".
 pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
+    // Phase 5 parameter-aware identity (PHASE-5-PARAMETERIZATION.2.3).
+    // A parameterized module is width-homogeneous by the
+    // `crate::ir::param` soundness gate (every width == design_value),
+    // and instantiations override the width via `#(.W(v))`. So two
+    // structurally-identical parameterizable templates that differ
+    // ONLY in their concrete `design_value` are the *same* template
+    // and must share a signature: hash a normalized sentinel in place
+    // of any width equal to `design_value`. A one-time
+    // `param_env`-presence marker keeps a parameterized template from
+    // ever aliasing a structurally-identical *concrete* module (which
+    // hashes its real widths and marker 0). Non-parameterized modules
+    // (every default-off / pre-Phase-5 module, including the whole r87
+    // hierarchy bank) are byte-identical to the previous signature.
+    const PARAM_WIDTH_SENTINEL: u32 = u32::MAX;
+    let wsig = |w: u32| -> u32 {
+        match &module.param_env {
+            Some(env) if w == env.design_value => PARAM_WIDTH_SENTINEL,
+            _ => w,
+        }
+    };
+
     let mut h = fnv1a_64_init();
+    h = fnv1a_64_u32(h, module.param_env.is_some() as u32);
     h = fnv1a_64_u64(h, module.inputs.len() as u64);
     for port in &module.inputs {
-        h = fnv1a_64_u32(h, port.width);
+        h = fnv1a_64_u32(h, wsig(port.width));
     }
     h = fnv1a_64_u64(h, module.outputs.len() as u64);
     for port in &module.outputs {
-        h = fnv1a_64_u32(h, port.width);
+        h = fnv1a_64_u32(h, wsig(port.width));
     }
     h = fnv1a_64_u32(h, module.clock.is_some() as u32);
     h = fnv1a_64_u32(h, module.reset.is_some() as u32);
@@ -2202,17 +2224,17 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
             Node::PrimaryInput { port, width } => {
                 h = fnv1a_64_u32(h, 1);
                 h = fnv1a_64_u32(h, *port);
-                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u32(h, wsig(*width));
             }
             Node::Constant { width, value } => {
                 h = fnv1a_64_u32(h, 2);
-                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u32(h, wsig(*width));
                 h = fnv1a_64_extend(h, &value.to_le_bytes());
             }
             Node::FlopQ { flop, width } => {
                 h = fnv1a_64_u32(h, 3);
                 h = fnv1a_64_u32(h, *flop);
-                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u32(h, wsig(*width));
             }
             Node::InstanceOutput {
                 instance,
@@ -2222,7 +2244,7 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
                 h = fnv1a_64_u32(h, 4);
                 h = fnv1a_64_u32(h, *instance);
                 h = fnv1a_64_u32(h, *port);
-                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u32(h, wsig(*width));
             }
             Node::Gate {
                 op,
@@ -2232,7 +2254,7 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
             } => {
                 h = fnv1a_64_u32(h, 5);
                 h = fnv1a_64_u32(h, gate_op_kind_tag(*op));
-                h = fnv1a_64_u32(h, *width);
+                h = fnv1a_64_u32(h, wsig(*width));
                 h = fnv1a_64_u64(h, operands.len() as u64);
                 for operand in operands {
                     h = fnv1a_64_u32(h, *operand);
@@ -2247,7 +2269,7 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
     }
     h = fnv1a_64_u64(h, module.flops.len() as u64);
     for flop in &module.flops {
-        h = fnv1a_64_u32(h, flop.width);
+        h = fnv1a_64_u32(h, wsig(flop.width));
         h = fnv1a_64_u32(h, flop.d.unwrap_or(u32::MAX));
     }
     h = fnv1a_64_u64(h, module.instances.len() as u64);
