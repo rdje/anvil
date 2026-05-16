@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.2-scope — PHASE-5-PARAMETERIZATION.2.2 scope refinement (soundness)
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-5-PARAMETERIZATION.md`: refined the `.2.2` leaf goal/acceptance and recorded a Decisions entry capturing a soundness finding made on entering `.2.2`. With monomorphic bodies, instantiating a parameterized module at a value ≠ `design_value` is unsound unless the emitted body is genuinely width-generic. Architecture (C) is kept sound — without (B)'s symbolic width arithmetic — by restricting parameterization to **width-homogeneous** modules (every port/node/flop width == design value, no `Constant`/`Slice`/`Concat`/`ForFold`/mixed-width site) and rendering *all* those sites (not just ports) as `[W-1:0]`. `.2.2` now also owns tightening `.2.1`'s port-anchored pass to this rule, the `Instance.param_bindings` field (+19 literal sites), the reproducible in-range value pick, and the resolved-width validation path.
+
+**Why**
+
+- Pure-doc tree refinement committed as the leaf's honest pre-implementation outcome (per the `docs/TASK_TREE.md` splitting/refine rule) so the soundness finding is crash-durable and the working tree stays clean before the `.2.2` implementation. No code change.
+
+**Validation**
+
+- Doc-only (only `docs/` + mandatory `CHANGES.md`/`MEMORY.md`); no `.rs`/`Cargo`/`book/` touched, so `cargo` + `mdbook` unaffected (green from `4cedad2`).
+
+**Impact**
+
+- `.2.2` is now correctly scoped to deliver *sound* multi-value instantiation. No phase label changed.
+
+**Files touched**
+
+- Updated: docs/tasks/PHASE-5-PARAMETERIZATION.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-scaffold — PHASE-5-PARAMETERIZATION.2.1: width-parameterization scaffold
 
 **Landed as:** 4cedad2

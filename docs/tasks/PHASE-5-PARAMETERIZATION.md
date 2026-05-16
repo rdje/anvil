@@ -65,8 +65,8 @@ equivalent).
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2`
   Status: `pending`
-  Goal: `Instantiation substitution: reproducible param-value pick from range via g.rng in src/gen/hierarchy.rs (between child selection and input-binding); Instance.param_bindings recorded; child ports bound at resolved width so existing exact-equality child-width validation holds.`
-  Acceptance: `Focused proof: a parent instantiates one template at >=2 in-range values, validate_design passes, emitted instances carry #(.W(v)); all four ConstructionStrategy values; cargo gates green.`
+  Goal: `Sound multi-value instantiation. (a) Soundness restriction in the param pass: only parameterize a WIDTH-HOMOGENEOUS module — every port/node/flop width equals the design value (so the identical SystemVerilog body text is correct for every W); any constant/slice/concat/forfold/mixed-width site disqualifies the module. (b) Emitter renders ALL width-homogeneous sites (internal gate/instance-output wires + flops, not just ports) as [W-1:0] for a parameterized module, so the emitted body is genuinely width-generic. (c) Add Instance.param_bindings: Vec<(String,u32)> (the 19-literal churn deferred from .2.1; Instance cannot derive Default). (d) In src/gen/hierarchy.rs, when a selected child is parameterized, pick an in-range value reproducibly via g.rng, record it in Instance.param_bindings, bind child ports at the resolved width, and emit instance #(.W(v)).`
+  Acceptance: `Focused proof: a parent instantiates one width-homogeneous template at >=2 distinct in-range values; validate_design passes; emitted SV carries #(.W(v)) per instance and a width-generic child body ([W-1:0] internal wires); all four ConstructionStrategy values; cargo fmt/clippy(-D warnings)/check/test green.`
   Verification: `pending`
   Commit: `pending`
 
@@ -119,6 +119,21 @@ equivalent).
   signature consult the annotation. Confirms architecture (C) is
   implementable with zero changes to the invasive width-arithmetic
   code, exactly as the `.1` design predicted.
+- `2026-05-16` (**soundness refinement, found entering `.2.2`**):
+  monomorphic bodies make instantiating a parameterized module at a
+  value ≠ `design_value` *unsound* unless the emitted body is genuinely
+  width-generic. Architecture (C) is kept sound — without resorting to
+  (B)'s full symbolic width arithmetic — by restricting parameterization
+  to **width-homogeneous** modules: a module is parameterizable only if
+  *every* port, node and flop width equals the design value, and the
+  emitter renders *all* those sites (not just ports) as `[W-1:0]`. Then
+  the single emitted body text is literally correct for every `W`
+  (only width-preserving same-width logic; any constant / `Slice` /
+  `Concat` / `ForFold` / mixed-width site disqualifies the module). This
+  stays construction-time sound (a generator rule, no
+  generate-then-filter) and does not weaken factorization. `.2.1`'s
+  pass (port-anchored) is tightened to this rule in `.2.2`; `.2.1`'s
+  default-off byte-identical guarantee is unaffected.
 - `2026-05-16`: **Slice-boundary refinement.** `Instance.param_bindings`
   was moved from `.2.1` to `.2.2`. Reason: adding a non-`Default`
   field to `Instance` would churn 19 literal-construction sites for a
