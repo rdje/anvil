@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.2.1` soundness gate + width-generic emitter landed; rules-first pivot recorded; `.2.2` split into `.2.2.1`/`.2.2.2`/`.2.2.3`; frontier → `.2.2.2`)
+- Last updated: `2026-05-16` (`.2.2.2` rules-first parameterizable-leaf constructor landed; param.rs refactored non-rolling; frontier → `.2.2.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,7 +54,7 @@ equivalent).
 - ID: `PHASE-5-PARAMETERIZATION.2`
   Status: `active`
   Goal: `Implement the .1 design (architecture C), default-off, downstream-clean, with parameter-aware identity. Split into signoff-sized leaves.`
-  Children: `PHASE-5-PARAMETERIZATION.2.1` (done), `.2.2` (active container: `.2.2.1` done, `.2.2.2`, `.2.2.3`), `.2.3`, `.2.4`
+  Children: `PHASE-5-PARAMETERIZATION.2.1` (done), `.2.2` (active container: `.2.2.1` done, `.2.2.2` done, `.2.2.3`), `.2.3`, `.2.4`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.1`
   Status: `done`
@@ -76,11 +76,11 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Rules-first parameterizable-leaf constructor. The unconstrained cone generator essentially never produces a width-homogeneous module, so a post-hoc soundness filter is INERT and is the generate-then-filter anti-pattern the project forbids. Instead, when width_parameterization_prob fires for a module, *construct* it width-homogeneously by rule (single design width; only width-preserving same-width gates; no Constant/Slice/Concat/ForFold/Mux/compare), valid by construction. The .2.2.1 gate then always accepts it (cheap post-construction assertion, never a filter).`
   Acceptance: `Focused proof: forced-on generation reproducibly yields parameterized width-generic modules (organic existence now holds); validate_design passes; emitted body fully [W-1:0]; default-off still byte-identical; all four ConstructionStrategy values; cargo gates green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `New src/gen/module.rs::build_parameterizable_leaf (rules-first valid-by-construction width-homogeneous combinational leaf: W>=2, 2..4 inputs / 1..3 outputs all width W, each output one N-arity Xor/And/Or/Add over all inputs via m.intern_gate, no clk/rst_n/flops/instances/constants). Single opt-in roll added at the top of generate_leaf_module_with_interface_profile (interface_profile None only). param.rs refactored: parameterize_module (rolling) -> annotate_parameterized (non-rolling); generate_design post-pass now non-rolling (no double-roll). Focused proof rewritten: at prob 1.0 EVERY single-module design is a parameterized width-generic leaf across all 4 ConstructionStrategy values, validate_design passes, body fully [W-1:0], no concrete [D-1:0]; default-off byte-identical. param.rs 5/0; cargo fmt/clippy -D warnings clean; full cargo test (Verification Log).`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.3`
   Status: `pending`
@@ -107,10 +107,9 @@ equivalent).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.2.2` | `pending` | `.2.2.1` (soundness gate + width-generic emitter) done. The feature is inert until a rules-first constructor builds width-homogeneous modules — that is the next dependency for everything downstream. |
-| 2 | `PHASE-5-PARAMETERIZATION.2.2.3` | `pending` | Instantiation substitution depends on the constructor (`.2.2.2`) actually producing parameterizable templates. |
-| 3 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | Identity rule depends on the param annotation; best proven once `.2.2.2` makes parameterized modules exist. |
-| 4 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.2.*`–`.2.3`. |
+| 1 | `PHASE-5-PARAMETERIZATION.2.2.3` | `pending` | `.2.2.2` rules-first constructor done — parameterized width-generic modules now exist by construction. Instantiation substitution (`Instance.param_bindings` + in-range pick + `#(.W(v))` + resolved-width validate) is the next dependency. |
+| 2 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | Parameter-aware identity rule; parameterized modules now exist to prove it against. |
+| 3 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.2.3`–`.2.3`. |
 
 ## Decisions
 
@@ -197,7 +196,8 @@ equivalent).
 | --- | --- | --- | --- |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.1` | DEVELOPMENT_NOTES.md design entry landed (codebase-grounded; architecture C chosen; 3 rejected alternatives; identity rule; proof shape). Doc-only, no code; `mdbook build book` clean. | Done. |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.1` | `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` 205/0; focused proof (8 seeds); full `cargo test` green (CARGO_TEST_EXIT=0). No `book/` change. | Done (`4cedad2`). |
-| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.1` | `is_width_generic` gate + `param_width_decl_w` emitter helper; `param.rs` 6/0 unit tests (homogeneous accepted, mixed-width/constant declined, idempotent); focused proof `width_parameterization_is_default_off_and_emits_width_generic_bodies` passes (default-off byte-identical + soundness invariant + no concrete `[D-1:0]` leak); `cargo fmt`/`clippy -D warnings` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.1` | `is_width_generic` gate + `param_width_decl_w` emitter; `param.rs` 6/0; focused proof; full `cargo test` green. | Done (`8cc4fc4`). |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | New `build_parameterizable_leaf` rules-first constructor + single opt-in roll in `generate_leaf_module_with_interface_profile`; `param.rs` refactored to non-rolling `annotate_parameterized`; `generate_design` post-pass non-rolling (no double-roll). `param.rs` 5/0; focused proof: every forced-on single-module design is a parameterized width-generic leaf across all 4 ConstructionStrategy values, validates, body fully `[W-1:0]`, default-off byte-identical. `cargo fmt`/`clippy -D warnings` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -205,7 +205,8 @@ equivalent).
 | --- | --- | --- |
 | `PHASE-5-PARAMETERIZATION.1` | `Docs: PHASE-5-PARAMETERIZATION.1 parameterization design` (`786e468`) | Design-only; DEVELOPMENT_NOTES.md entry. |
 | `PHASE-5-PARAMETERIZATION.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.1 width-parameterization scaffold` (`4cedad2`) | IR+config+pass+emitter+focused proof; annotation-only, default-off byte-identical. |
-| `PHASE-5-PARAMETERIZATION.2.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter` | Soundness primitives; rules-first pivot found here (`.2.2.2` constructor will make it fire). |
+| `PHASE-5-PARAMETERIZATION.2.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter` (`8cc4fc4`) | Soundness primitives; rules-first pivot found here. |
+| `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
 
 ## Changelog
 
@@ -229,3 +230,14 @@ equivalent).
   `.2.2.2` (rules-first constructor — makes the feature fire),
   `.2.2.3` (instantiation substitution). Decision recorded. Frontier →
   `.2.2.2`.
+- `2026-05-16`: `.2.2.2` rules-first constructor landed —
+  `src/gen/module.rs::build_parameterizable_leaf` builds a
+  width-homogeneous combinational leaf by construction; single opt-in
+  roll in `generate_leaf_module_with_interface_profile`; `param.rs`
+  refactored from rolling `parameterize_module` to non-rolling
+  `annotate_parameterized` (post-pass no longer double-rolls). Focused
+  proof: at prob 1.0 every forced-on single-module design across all 4
+  ConstructionStrategy values is a parameterized width-generic leaf,
+  validates, emits a fully `[W-1:0]` body, default-off byte-identical.
+  The feature now fires by construction. Frontier → `.2.2.3`
+  (instantiation substitution).

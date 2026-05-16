@@ -8097,42 +8097,51 @@ fn width_parameterization_is_default_off_and_emits_width_generic_bodies() {
         );
     }
 
-    // (b) forced-on path. The soundness gate only parameterizes a
-    // width-homogeneous module; the *organic* existence of such a
-    // module from the unconstrained cone generator is rare and is
-    // deliberately NOT asserted here — building a parameterizable
-    // module by construction (rules-first, not generate-then-filter)
-    // is the dedicated follow-on constructor slice. The `param.rs`
-    // unit tests already prove the annotation pass on a constructed
-    // width-homogeneous module. What `.2.2.1` proves here: forced-on
-    // designs still validate, and *whenever* a module is
-    // parameterized it satisfies the soundness invariant and emits a
-    // fully width-generic body (no concrete `[D-1:0]` leak).
+    // (b) forced-on path (.2.2.2 rules-first constructor). At prob 1.0
+    // the constructor lane fires deterministically on the free-standing
+    // single-module path, so EVERY generated design's module is a
+    // parameterized width-homogeneous leaf — organic existence now
+    // holds *by construction*, across all four ConstructionStrategy
+    // values and several seeds. Each must validate and emit a fully
+    // width-generic body (no concrete `[D-1:0]` leak).
+    use anvil::config::ConstructionStrategy;
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
     let mut total_parameterized = 0usize;
-    for seed in 0..64u64 {
-        let on = Config {
-            seed,
-            width_parameterization_prob: 1.0,
-            min_width: 8,
-            max_width: 8,
-            constant_prob: 0.0,
-            max_depth: 1,
-            ..Config::default()
-        };
-        on.validate().expect("forced-on config valid");
-        let design_on = Generator::new(on).generate_design();
-        anvil::ir::validate::validate_design(&design_on)
-            .unwrap_or_else(|e| panic!("parameterized design must validate (seed {seed}): {e:?}"));
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let on = Config {
+                seed,
+                width_parameterization_prob: 1.0,
+                min_width: 8,
+                max_width: 8,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            on.validate().expect("forced-on config valid");
+            let design_on = Generator::new(on).generate_design();
+            anvil::ir::validate::validate_design(&design_on).unwrap_or_else(|e| {
+                panic!("parameterized design must validate (seed {seed}, {strategy:?}): {e:?}")
+            });
 
-        for m in design_on.modules.iter().filter(|m| m.param_env.is_some()) {
+            // Single-module lane → exactly one module, and it must be
+            // parameterized by the rules-first constructor.
+            assert_eq!(design_on.modules.len(), 1);
+            let m = &design_on.modules[0];
+            let env = m.param_env.as_ref().unwrap_or_else(|| {
+                panic!("module must be parameterized (seed {seed}, {strategy:?})")
+            });
             total_parameterized += 1;
-            let env = m.param_env.as_ref().unwrap();
             assert_eq!(env.name, "W");
-            assert!(env.design_value >= 2);
+            assert_eq!(env.design_value, 8);
+            assert!(env.min >= 2 && env.min <= env.design_value && env.max >= env.design_value);
             assert!(!m.parameterized_output_ports.is_empty());
 
-            // Soundness invariant: width-generic (no Constant; every
-            // gate/port width == design_value; no flops/instances).
+            // Soundness invariant: width-generic combinational leaf.
             assert!(
                 m.flops.is_empty() && m.instances.is_empty(),
                 "parameterized module {} must be a combinational leaf",
@@ -8176,13 +8185,13 @@ fn width_parameterization_is_default_off_and_emits_width_generic_bodies() {
             let concrete = format!("[{}:0]", env.design_value - 1);
             assert!(
                 !sv.contains(&concrete),
-                "parameterized module {} leaked a concrete `{concrete}` (body not width-generic):\n{sv}",
+                "parameterized module {} leaked a concrete `{concrete}`:\n{sv}",
                 m.name
             );
         }
     }
-    // Informational only in `.2.2.1`: organic occurrence may be zero
-    // until the rules-first parameterizable-leaf constructor lands.
-    // The soundness invariant above is what `.2.2.1` proves.
-    let _ = total_parameterized;
+    assert!(
+        total_parameterized >= strategies.len() * 6,
+        "rules-first constructor must parameterize every forced-on single-module design"
+    );
 }

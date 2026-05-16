@@ -1,30 +1,31 @@
-//! Phase 5 width-parameterization pass.
-//!
-//! Optional, opt-in. When `Config::width_parameterization_prob` rolls
-//! true for a finalized `Module`, this pass annotates the module with a
-//! single width `parameter` (`ParamEnv`) and marks the interface ports
-//! that share the chosen design width as parameterized.
+//! Phase 5 width-parameterization: soundness gate + post-construction
+//! annotation.
 //!
 //! Architecture (C) from `DEVELOPMENT_NOTES.md` "Phase 5
-//! parameterization design (2026-05-16, PHASE-5-PARAMETERIZATION.1)":
-//! the module *body* is left exactly as constructed — concrete `u32`
-//! at the design width — so every existing fold / validate / CSE path
-//! is untouched and the design stays valid by construction. The
-//! emitted `parameter` declaration defaults to the design width, so a
-//! default (non-overridden) instantiation elaborates byte-identically
-//! to the pre-Phase-5 concrete module. Only the emitter rendering and
-//! the canonical identity signature consult the annotation.
+//! parameterization design": the module *body* is left exactly as
+//! constructed — concrete `u32` at the design width — so every existing
+//! fold / validate / CSE path is untouched and the design stays valid
+//! by construction. The emitted `parameter` defaults to the design
+//! width, so a default (non-overridden) instantiation elaborates
+//! byte-identically to the pre-Phase-5 concrete module. Only the
+//! emitter and the canonical identity signature consult the annotation.
 //!
-//! This is the `PHASE-5-PARAMETERIZATION.2.1` scaffold: it establishes
-//! the annotation + the post-construction pass shape. Instantiation
-//! substitution with `#(.W(v))` overrides and the soundness-restricted
-//! override range are `PHASE-5-PARAMETERIZATION.2.2`; the
+//! Rules-first (`DEVELOPMENT_NOTES.md` "Phase 5 rules-first pivot,
+//! PHASE-5-PARAMETERIZATION.2.2.1"): the unconstrained cone generator
+//! essentially never produces a width-homogeneous module, so a post-hoc
+//! homogeneity *filter* would be inert and is the generate-then-filter
+//! anti-pattern. The opt-in decision is therefore taken once at
+//! construction time by `src/gen/module.rs`'s rules-first
+//! `build_parameterizable_leaf` lane (`.2.2.2`), which *constructs* a
+//! width-homogeneous combinational leaf by rule. [`annotate_parameterized`]
+//! here is the **non-rolling** post-construction step: it annotates iff
+//! [`is_width_generic`] holds (always true for a constructor-built
+//! module; ~never for an organically-generated one). Instantiation
+//! substitution with `#(.W(v))` overrides is `.2.2.3`; the
 //! parameter-aware identity rule is `.2.3`; the matrix gate is `.2.4`.
 
 use crate::config::Config;
 use crate::ir::{GateOp, Module, Node, ParamEnv};
-use rand::Rng;
-use rand_chacha::ChaCha8Rng;
 
 /// The fixed parameter name used by the first parameterization slice.
 /// A single width parameter per module; multi-parameter modules are
@@ -79,27 +80,29 @@ fn is_width_generic(module: &Module, design: u32) -> bool {
     })
 }
 
-/// Annotate `module` with a single width `parameter` when the opt-in
-/// `Config::width_parameterization_prob` knob rolls true and the
-/// module passes the [`is_width_generic`] soundness gate. Returns
-/// `true` iff the module was parameterized.
+/// Annotate `module` with a single width `parameter` iff it passes the
+/// [`is_width_generic`] soundness gate. Returns `true` iff annotated.
 ///
-/// **Soundness.** The chosen design value is an existing port width;
+/// **Non-rolling.** The opt-in *decision* (whether to produce a
+/// parameterizable module at all) is taken once, at construction time,
+/// by the rules-first `build_parameterizable_leaf` lane
+/// (`PHASE-5-PARAMETERIZATION.2.2.2`) — see `src/gen/module.rs`. This
+/// function only performs the post-construction annotation, so it never
+/// draws from the RNG. It is therefore safe to call unconditionally on
+/// every design module: a non-width-generic module (the overwhelming
+/// majority) is simply left untouched, and the default-off
+/// (`width_parameterization_prob == 0.0`) caller guard means it is
+/// never invoked at all when the feature is off (byte-identical).
+///
+/// **Soundness.** The design value is an existing output port width;
 /// the emitted `parameter` defaults to it, so default elaboration is
 /// byte-identical to the un-parameterized module. The recorded
 /// `[min, max]` range is the *intended* legal override range; only
-/// `PHASE-5-PARAMETERIZATION.2.2` (instantiation substitution) may
-/// pick override values from it, under the soundness restriction.
-/// This pass never mutates the body and never picks an override.
-pub fn parameterize_module(module: &mut Module, rng: &mut ChaCha8Rng, cfg: &Config) -> bool {
+/// `PHASE-5-PARAMETERIZATION.2.2.3` (instantiation substitution) may
+/// pick override values from it. This function never mutates the body.
+pub fn annotate_parameterized(module: &mut Module, cfg: &Config) -> bool {
     // Idempotent / never double-parameterize.
     if module.param_env.is_some() {
-        return false;
-    }
-    if cfg.width_parameterization_prob <= 0.0 {
-        return false;
-    }
-    if !rng.gen_bool(cfg.width_parameterization_prob.clamp(0.0, 1.0)) {
         return false;
     }
 
@@ -167,7 +170,6 @@ pub fn parameterize_module(module: &mut Module, rng: &mut ChaCha8Rng, cfg: &Conf
 mod tests {
     use super::*;
     use crate::ir::{Direction, Module, Node, Port};
-    use rand::SeedableRng;
 
     fn two_port_module(in_w: u32, out_w: u32) -> Module {
         let mut m = Module {
@@ -194,9 +196,8 @@ mod tests {
         m
     }
 
-    fn cfg_with_prob(p: f64) -> Config {
+    fn cfg_widths() -> Config {
         Config {
-            width_parameterization_prob: p,
             min_width: 1,
             max_width: 16,
             ..Config::default()
@@ -204,28 +205,14 @@ mod tests {
     }
 
     #[test]
-    fn default_off_never_parameterizes() {
+    fn width_homogeneous_module_is_annotated() {
         let mut m = two_port_module(8, 8);
-        let mut rng = ChaCha8Rng::seed_from_u64(1);
-        let changed = parameterize_module(&mut m, &mut rng, &cfg_with_prob(0.0));
-        assert!(!changed);
-        assert!(m.param_env.is_none());
-        assert!(m.parameterized_input_ports.is_empty());
-        assert!(m.parameterized_output_ports.is_empty());
-    }
-
-    #[test]
-    fn forced_prob_parameterizes_matching_width_ports() {
-        let mut m = two_port_module(8, 8);
-        let mut rng = ChaCha8Rng::seed_from_u64(1);
-        let changed = parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0));
-        assert!(changed);
+        assert!(annotate_parameterized(&mut m, &cfg_widths()));
         let env = m.param_env.expect("parameterized");
         assert_eq!(env.name, "W");
         assert_eq!(env.design_value, 8);
         assert!(env.min >= MIN_PARAMETERIZABLE_WIDTH && env.min <= env.design_value);
         assert!(env.max >= env.design_value);
-        // Both ports share the design width 8 -> both parameterized.
         assert_eq!(m.parameterized_input_ports, vec![0]);
         assert_eq!(m.parameterized_output_ports, vec![1]);
     }
@@ -234,11 +221,9 @@ mod tests {
     fn mixed_width_module_is_not_parameterized() {
         // Input width 4, output width 8: not width-homogeneous, so the
         // single monomorphic body would not be correct for every `W`.
-        // The soundness gate declines it entirely (no partial
-        // parameterization).
+        // The soundness gate declines it entirely.
         let mut m = two_port_module(4, 8);
-        let mut rng = ChaCha8Rng::seed_from_u64(2);
-        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(!annotate_parameterized(&mut m, &cfg_widths()));
         assert!(m.param_env.is_none());
         assert!(m.parameterized_input_ports.is_empty());
         assert!(m.parameterized_output_ports.is_empty());
@@ -250,27 +235,23 @@ mod tests {
         // width equals the design width; the gate must decline.
         let mut m = two_port_module(8, 8);
         m.nodes.push(Node::Constant { width: 8, value: 5 });
-        let mut rng = ChaCha8Rng::seed_from_u64(4);
-        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(!annotate_parameterized(&mut m, &cfg_widths()));
         assert!(m.param_env.is_none());
     }
 
     #[test]
     fn width_one_outputs_are_not_parameterized() {
-        // Only a width-1 output: no meaningful `[W-1:0]` form, so the
-        // pass declines even at probability 1.0.
+        // Only a width-1 output: no meaningful `[W-1:0]` form.
         let mut m = two_port_module(1, 1);
-        let mut rng = ChaCha8Rng::seed_from_u64(3);
-        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(!annotate_parameterized(&mut m, &cfg_widths()));
         assert!(m.param_env.is_none());
     }
 
     #[test]
-    fn parameterization_is_idempotent() {
+    fn annotation_is_idempotent() {
         let mut m = two_port_module(8, 8);
-        let mut rng = ChaCha8Rng::seed_from_u64(1);
-        assert!(parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
-        // A second pass must not double-parameterize.
-        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(annotate_parameterized(&mut m, &cfg_widths()));
+        // A second call must not double-parameterize.
+        assert!(!annotate_parameterized(&mut m, &cfg_widths()));
     }
 }

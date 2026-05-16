@@ -27,11 +27,113 @@ pub fn generate_leaf_module(g: &mut Generator, index: u64) -> Module {
     generate_leaf_module_with_interface_profile(g, index, None)
 }
 
+/// Rules-first parameterizable-leaf constructor
+/// (PHASE-5-PARAMETERIZATION.2.2.2).
+///
+/// Builds a **width-homogeneous combinational leaf** by construction:
+/// a single design width `W >= 2`; `n_in` data inputs and `n_out`
+/// outputs all width `W`; no `clk`/`rst_n` (purely combinational, no
+/// flops, no instances); each output driven by one N-arity
+/// width-preserving gate (`Xor`/`And`/`Or`/`Add`) over *all* input
+/// nodes, so every port and every node width equals `W`. No
+/// `Constant`/`Slice`/`Concat`/`ForFold`/`Mux`/compare. The
+/// `is_width_generic` soundness gate therefore always accepts the
+/// result, and the single emitted SystemVerilog body text is correct
+/// for every `W` — valid by construction, not by post-hoc filtering.
+///
+/// All random choices go through `g.rng` (reproducible). The op
+/// palette is indexed by output position so the first outputs use
+/// distinct ops (distinct expressions); identical expressions beyond
+/// the palette legitimately share a node (fanout).
+fn build_parameterizable_leaf(g: &mut Generator, index: u64) -> Module {
+    let mut m = Module {
+        name: g.module_name(index),
+        max_ast_instances: g.cfg.max_ast_instances.max(1),
+        mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
+        operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
+        identity_mode: g.cfg.identity_mode,
+        factorization_level: g.cfg.factorization_level,
+        ..Module::default()
+    };
+
+    // Design width: >= 2 (so `[W-1:0]` is well-formed) and within the
+    // configured width band.
+    let w_lo = g.cfg.min_width.max(2);
+    let w_hi = g.cfg.max_width.max(w_lo);
+    let width: u32 = g.rng.gen_range(w_lo..=w_hi);
+
+    // N-arity width-preserving operators need >= 2 operands; keep the
+    // interface small and bounded.
+    let n_in: usize = g.rng.gen_range(2..=4);
+    let n_out: usize = g.rng.gen_range(1..=3);
+
+    // Data input ports (ids 0..n_in) + their PrimaryInput nodes. No
+    // control ports: a width-homogeneous module is purely
+    // combinational, so width-1 clk/rst_n must not appear.
+    let mut input_nodes: Vec<NodeId> = Vec::with_capacity(n_in);
+    let mut input_deps: Vec<DepSet> = Vec::with_capacity(n_in);
+    for i in 0..n_in {
+        let port_id = i as PortId;
+        m.inputs.push(Port {
+            id: port_id,
+            name: format!("i_{}", i),
+            width,
+            dir: Direction::In,
+        });
+        let node_id = m.nodes.len() as NodeId;
+        m.nodes.push(Node::PrimaryInput {
+            port: port_id,
+            width,
+        });
+        input_nodes.push(node_id);
+        input_deps.push(DepSet::from_port(port_id));
+    }
+
+    // Output ports (ids n_in..n_in+n_out), each driven by one
+    // width-preserving N-arity gate over all input nodes.
+    let palette = [GateOp::Xor, GateOp::And, GateOp::Or, GateOp::Add];
+    let deps = DepSet::union(&input_deps.iter().collect::<Vec<_>>());
+    for o in 0..n_out {
+        let port_id = (n_in + o) as PortId;
+        m.outputs.push(Port {
+            id: port_id,
+            name: format!("o_{}", o),
+            width,
+            dir: Direction::Out,
+        });
+        let op = palette[o % palette.len()];
+        let (root, _) = m.intern_gate(op, input_nodes.clone(), width, deps.clone());
+        m.drives.push((port_id, root));
+    }
+
+    m
+}
+
 pub(super) fn generate_leaf_module_with_interface_profile(
     g: &mut Generator,
     index: u64,
     interface_profile: Option<&ModuleInterfaceProfile>,
 ) -> Module {
+    // Phase 5 (PHASE-5-PARAMETERIZATION.2.2.2): rules-first
+    // parameterizable lane. When the opt-in knob rolls true and this
+    // is the free-standing single-module lane (no parent-demanded
+    // interface profile), *construct* a width-homogeneous
+    // combinational leaf by rule so the feature actually fires —
+    // rather than generating a normal module and hoping it happens to
+    // be width-homogeneous (inert + generate-then-filter). This is the
+    // single opt-in roll; `param::annotate_parameterized` downstream
+    // is non-rolling. Default-off (`prob == 0.0`) never enters here,
+    // so emission stays byte-identical.
+    if interface_profile.is_none()
+        && g.cfg.width_parameterization_prob > 0.0
+        && g.rng
+            .gen_bool(g.cfg.width_parameterization_prob.clamp(0.0, 1.0))
+    {
+        let mut m = build_parameterizable_leaf(g, index);
+        crate::ir::param::annotate_parameterized(&mut m, &g.cfg);
+        return m;
+    }
+
     let planned_profile = interface_profile
         .cloned()
         .unwrap_or_else(|| sample_leaf_interface_profile(g));

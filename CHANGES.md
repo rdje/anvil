@@ -1,5 +1,32 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.2.2 — PHASE-5-PARAMETERIZATION.2.2.2: rules-first parameterizable-leaf constructor
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `src/gen/module.rs::build_parameterizable_leaf(g, index)`: a rules-first, valid-by-construction width-homogeneous combinational leaf — design width `W >= 2` from the configured band; 2..4 inputs and 1..3 outputs all width `W`; no `clk`/`rst_n`/flops/instances; each output driven by one N-arity width-preserving gate (`Xor`/`And`/`Or`/`Add`) over all input nodes via `m.intern_gate` (so dep-sets / identity stay correct). No `Constant`/`Slice`/`Concat`/`ForFold`/`Mux`/compare → `is_width_generic` always accepts it and the single emitted body is correct for every `W`.
+- Single opt-in roll added at the top of `generate_leaf_module_with_interface_profile` (free-standing single-module lane only, `interface_profile.is_none()`): on a `g.rng.gen_bool(width_parameterization_prob)` hit it builds the parameterizable leaf and annotates it. Default-off (`prob == 0.0`) never enters → byte-identical.
+- `src/ir/param.rs` refactored: rolling `parameterize_module(module, rng, cfg)` → **non-rolling** `annotate_parameterized(module, cfg)`. The opt-in decision now lives solely in the constructor lane, so there is no double-roll. `src/gen/mod.rs` `generate_design` post-pass updated to the non-rolling call (still guarded by `width_parameterization_prob > 0.0`, so default-off skips it entirely). `param.rs` unit tests updated to the non-rolling API (5/0); rng imports dropped.
+- Focused proof rewritten: at `prob = 1.0`, **every** forced-on single-module design across all four `ConstructionStrategy` values is a parameterized width-generic leaf, `validate_design` passes, the emitted body is fully `[W-1:0]` with no concrete `[D-1:0]` leak, and the default-off path stays byte-identical. Organic existence now holds **by construction**.
+
+**Why**
+
+- Resolves the `.2.2.1` rules-first pivot: a post-hoc homogeneity filter was inert (the unconstrained generator ~never emits a homogeneous module) and was the generate-then-filter anti-pattern. Constructing the parameterizable leaf by rule makes Phase 5 a real, firing capability while preserving valid-by-construction and the full-factorization doctrine. The non-rolling refactor removes the double-roll and keeps reproducibility clean.
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` param 5/0; focused proof passes (4 strategies × 6 seeds, all parameterized + valid + width-generic); full `cargo test` green (COMMIT.md gate). Default-off byte-identical; no `book/` change.
+
+**Impact**
+
+- Phase 5 width parameterization now fires by construction and is downstream-shaped. Frontier → `.2.2.3` (instantiation substitution: `Instance.param_bindings` + reproducible in-range pick + `#(.W(v))` + resolved-width validate). No phase label changed.
+
+**Files touched**
+
+- Updated: src/gen/module.rs, src/gen/mod.rs, src/ir/param.rs, tests/pipeline.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.2.1 — PHASE-5-PARAMETERIZATION.2.2.1: soundness gate + width-generic emitter
 
 **Landed as:** 8cc4fc4
