@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.2.3` split into `.2.2.3a`/`.2.2.3b`; `.2.2.3a` Instance.param_bindings + emitter `#(.W(v))` landed; frontier → `.2.2.3b`)
+- Last updated: `2026-05-16` (`.2.2.3` complete — `.2.2.3a` IR/emit + `.2.2.3b` hierarchy instantiation + resolved-width validate; Phase 5 width parameterization end-to-end functional; frontier → `.2.3` parameter-aware identity)
 - Owner: repo-local workflow
 
 ## Goal
@@ -83,9 +83,9 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.3`
-  Status: `active`
+  Status: `done`
   Goal: `Instantiation substitution. Split per the Splitting Rules (mixes an IR field + 19 literal sites, an emitter change, a generator change, and a validator change — independently reviewable).`
-  Children: `PHASE-5-PARAMETERIZATION.2.2.3a` (done), `PHASE-5-PARAMETERIZATION.2.2.3b`
+  Children: `PHASE-5-PARAMETERIZATION.2.2.3a` (done), `PHASE-5-PARAMETERIZATION.2.2.3b` (done)
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.3a`
   Status: `done`
@@ -95,11 +95,11 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2.3b`
-  Status: `pending`
+  Status: `done`
   Goal: `Hierarchy instantiation + resolved-width validate. In src/gen/hierarchy.rs, when a selected child has param_env, pick an in-range value reproducibly via g.rng, record Instance.param_bindings, and bind/route child ports at the RESOLVED width. src/ir/validate.rs: parameterized child-port width checks use the instance's resolved width, not the template design_value.`
   Acceptance: `Focused proof: a parent instantiates one parameterizable template at >=2 distinct in-range values; validate_design passes; emitted SV carries #(.W(v)) per instance; all four ConstructionStrategy values; default-off byte-identical; cargo gates green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Soundness scoping: only the legacy-wrapper planned-child loop (generate_parent_module) picks an override; helper / default instantiations leave param_bindings empty → child elaborates at default W=design_value = its concrete template = already valid (no change needed there). resolved_child_port_width helper in src/gen/hierarchy.rs; per-instance g.rng pick from [env.min,env.max] (None / no draw when child not parameterized → byte-identical); resolved width threaded through child-input binding, InstanceOutput node, parent pools, top output ports. src/ir/validate.rs: resolved_child_width closure makes ChildInput/OutputWidthMismatch compare against the instance's override for parameterized ports. Focused proof width_parameterization_instances_override_at_multiple_values (legacy wrapper, library mode, 1 leaf × 6 instances, 4 ConstructionStrategy × 4 seeds): every parameterized-child instance carries a W binding in [2,8], emitted SV has #(.W(v)) per instance, >=2 distinct override values across the sweep (multi-width reuse), validate_design passes; default-off byte-identical (no instance #(). cargo fmt/clippy -D warnings clean; phase5 proofs 2/2; full cargo test (Verification Log). No book/ change.`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.3`
   Status: `pending`
@@ -119,9 +119,8 @@ equivalent).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.2.3b` | `pending` | `.2.2.3a` (Instance.param_bindings field + emitter `#(.W(v))`) done. The hierarchy instantiation pick + resolved-width validate is the remaining instantiation work and the dependency for the matrix gate. |
-| 2 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | Parameter-aware identity rule; parameterized modules now exist to prove it against. |
-| 3 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.2.3b`–`.2.3`. |
+| 1 | `PHASE-5-PARAMETERIZATION.2.3` | `pending` | `.2.2.*` done — Phase 5 width parameterization is end-to-end functional (multi-width `#(.W(v))` reuse, valid by construction). Parameter-aware identity is the next correctness layer (a parameterized template must be one identity across its legal range). |
+| 2 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | Matrix gate + Phase 5 closure; depends on `.2.3`. |
 
 ## Decisions
 
@@ -210,7 +209,8 @@ equivalent).
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.1` | `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` 205/0; focused proof (8 seeds); full `cargo test` green (CARGO_TEST_EXIT=0). No `book/` change. | Done (`4cedad2`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.1` | `is_width_generic` gate + `param_width_decl_w` emitter; `param.rs` 6/0; focused proof; full `cargo test` green. | Done (`8cc4fc4`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | `build_parameterizable_leaf` rules-first constructor + non-rolling `param.rs` refactor; `param.rs` 5/0; focused proof (4 strategies); full `cargo test` green. | Done (`b3c7f0c`). |
-| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Instance.param_bindings` field + 19 sites (compiler-driven, `cargo build --all-targets` clean = completeness oracle); emitter `#(.NAME(v), …)` for non-empty bindings, byte-identical otherwise; focused unit test `instance_with_param_bindings_emits_parameter_override_list`. `cargo fmt`/`clippy -D warnings` clean; emit:: 18/0; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Instance.param_bindings` field + 19 sites (compiler-driven completeness); emitter `#(.NAME(v), …)`; focused unit test. emit:: 18/0; full `cargo test` green. | Done (`7950e37`). |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3b` | `resolved_child_port_width` helper + per-instance `g.rng` pick in `generate_parent_module` (None when not parameterized → byte-identical); resolved width threaded through child-input binding / InstanceOutput / pools / top output ports; `validate.rs` `resolved_child_width` closure for parameterized child-port checks. Soundness scoping: only the planned-child loop picks an override (helper/default → empty bindings → default elaboration = template = already valid). Focused proof `width_parameterization_instances_override_at_multiple_values` (legacy wrapper, library mode, 1 leaf × 6 instances, 4 strategies × 4 seeds): per-instance `#(.W(v))`, ≥2 distinct values, `validate_design` passes; default-off byte-identical. `cargo fmt`/`clippy -D warnings` clean; phase5 proofs 2/2; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -220,7 +220,8 @@ equivalent).
 | `PHASE-5-PARAMETERIZATION.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.1 width-parameterization scaffold` (`4cedad2`) | IR+config+pass+emitter+focused proof; annotation-only, default-off byte-identical. |
 | `PHASE-5-PARAMETERIZATION.2.2.1` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter` (`8cc4fc4`) | Soundness primitives; rules-first pivot found here. |
 | `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` (`b3c7f0c`) | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
-| `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
+| `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` (`7950e37`) | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
+| `PHASE-5-PARAMETERIZATION.2.2.3b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate` | Closes `.2.2.3` and the `.2.2` container; Phase 5 width parameterization end-to-end functional. |
 
 ## Changelog
 
@@ -264,3 +265,17 @@ equivalent).
   `child #(.NAME(v), …) inst (` for non-empty bindings and the
   byte-identical `child inst (` for empty; focused unit test. Frontier
   → `.2.2.3b`.
+- `2026-05-16`: `.2.2.3b` landed — closes `.2.2.3` and the `.2.2`
+  container. `src/gen/hierarchy.rs` `generate_parent_module` picks a
+  per-instance in-range override via `g.rng` for parameterizable
+  children and threads the resolved width through binding /
+  InstanceOutput / pools / top output ports; `src/ir/validate.rs`
+  resolves parameterized child-port widths from the instance's
+  override. Soundness scoping: only the planned-child loop overrides
+  (helper / default instances keep empty bindings → default
+  elaboration = concrete template = already valid; no change needed).
+  Focused proof `width_parameterization_instances_override_at_multiple_values`
+  passes (multi-width `#(.W(v))` reuse, `validate_design` clean, ≥2
+  distinct values, default-off byte-identical). **Phase 5 width
+  parameterization is end-to-end functional.** Frontier → `.2.3`
+  (parameter-aware identity).

@@ -431,6 +431,33 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
                 });
             };
 
+            // Phase 5: for an instance carrying parameter overrides
+            // (`PHASE-5-PARAMETERIZATION.2.2.3b`), a parameterized
+            // child port's effective width is the *resolved* override
+            // value, not the template `design_value`. Non-parameterized
+            // ports and instances without bindings keep the template
+            // width, so default-off / pre-Phase-5 designs are
+            // unaffected.
+            let resolved_child_width = |port_id: PortId, is_input: bool, template_w: u32| -> u32 {
+                if let Some(env) = &child.param_env {
+                    if let Some((_, v)) = instance
+                        .param_bindings
+                        .iter()
+                        .find(|(name, _)| *name == env.name)
+                    {
+                        let parameterized = if is_input {
+                            child.parameterized_input_ports.contains(&port_id)
+                        } else {
+                            child.parameterized_output_ports.contains(&port_id)
+                        };
+                        if parameterized {
+                            return *v;
+                        }
+                    }
+                }
+                template_w
+            };
+
             let expected_inputs: BTreeMap<PortId, &Port> = child
                 .emitted_input_ports_in(Some(&modules_view))
                 .map(|port| (port.id, port))
@@ -452,12 +479,13 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
                     });
                 }
                 let got = module.nodes[*node_id as usize].width();
-                if got != child_port.width {
+                let expected = resolved_child_width(*port_id, true, child_port.width);
+                if got != expected {
                     return Err(DesignValidateError::ChildInputWidthMismatch {
                         module: module.name.clone(),
                         instance: instance.name.clone(),
                         port: *port_id,
-                        expected: child_port.width,
+                        expected,
                         got,
                     });
                 }
@@ -501,12 +529,13 @@ pub fn validate_design(d: &Design) -> Result<(), DesignValidateError> {
                         port: *port,
                     });
                 }
-                if *width != child_port.width {
+                let expected_out = resolved_child_width(*port, false, child_port.width);
+                if *width != expected_out {
                     return Err(DesignValidateError::ChildOutputWidthMismatch {
                         module: module.name.clone(),
                         instance: instance.name.clone(),
                         port: *port,
-                        expected: child_port.width,
+                        expected: expected_out,
                         got: *width,
                     });
                 }

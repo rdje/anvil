@@ -8195,3 +8195,123 @@ fn width_parameterization_is_default_off_and_emits_width_generic_bodies() {
         "rules-first constructor must parameterize every forced-on single-module design"
     );
 }
+
+#[test]
+fn width_parameterization_instances_override_at_multiple_values() {
+    // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
+    // (library mode), the single library leaf is built by the
+    // rules-first parameterizable constructor; the parent instantiates
+    // it `num_child_instances` times, each picking its own in-range
+    // `#(.W(v))` override. The design must validate (resolved-width
+    // child-port checks), every instance must emit `#(.W(v))`, and
+    // across the sweep at least two *distinct* override values must
+    // appear (genuine multi-width reuse of one template). Default-off
+    // stays byte-identical (no instance `#(`).
+    use anvil::config::ConstructionStrategy;
+    use std::collections::BTreeSet;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    let mut distinct_values: BTreeSet<u32> = BTreeSet::new();
+    let mut instance_overrides = 0usize;
+    for strategy in strategies {
+        for seed in 0..4u64 {
+            let on = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 1,
+                num_child_instances: 6,
+                width_parameterization_prob: 1.0,
+                min_width: 2,
+                max_width: 8,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            on.validate().expect("config valid");
+            let design = Generator::new(on).generate_design();
+            anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                panic!("parameterized hierarchy must validate (seed {seed}, {strategy:?}): {e:?}")
+            });
+
+            // The library leaf is parameterized by the constructor.
+            let parameterized_children: BTreeSet<&str> = design
+                .modules
+                .iter()
+                .filter(|m| m.param_env.is_some())
+                .map(|m| m.name.as_str())
+                .collect();
+            assert!(
+                !parameterized_children.is_empty(),
+                "library leaf must be parameterized (seed {seed}, {strategy:?})"
+            );
+
+            let top = design
+                .modules
+                .iter()
+                .find(|m| m.name == design.top)
+                .expect("top module present");
+            let sv = anvil::emit::to_sv_design(&design);
+            for inst in &top.instances {
+                if parameterized_children.contains(inst.module.as_str()) {
+                    let (name, value) = inst
+                        .param_bindings
+                        .iter()
+                        .find(|(n, _)| n == "W")
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "instance {} of parameterized child must carry a W binding",
+                                inst.name
+                            )
+                        });
+                    assert!(
+                        (2..=8).contains(value),
+                        "override {value} out of [2,8] (instance {})",
+                        inst.name
+                    );
+                    assert!(
+                        sv.contains(&format!(".{name}({value})")),
+                        "emitted SV must carry `#(.{name}({value}))` for instance {}:\n{sv}",
+                        inst.name
+                    );
+                    distinct_values.insert(*value);
+                    instance_overrides += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        instance_overrides > 0,
+        "expected parameterized child instances with overrides"
+    );
+    assert!(
+        distinct_values.len() >= 2,
+        "expected >=2 distinct override values across the sweep (multi-width reuse), got {distinct_values:?}"
+    );
+
+    // Default-off: same wrapper config, prob 0.0 → no instance #( and
+    // validate still passes (byte-identical instantiation form).
+    let off = Config {
+        seed: 1,
+        hierarchy_depth: 1,
+        num_leaf_modules: 1,
+        num_child_instances: 4,
+        min_width: 2,
+        max_width: 8,
+        ..Config::default()
+    };
+    let design_off = Generator::new(off).generate_design();
+    anvil::ir::validate::validate_design(&design_off).expect("default-off hierarchy must validate");
+    assert!(
+        design_off.modules.iter().all(|m| m.param_env.is_none()),
+        "default-off must not parameterize any module"
+    );
+    let sv_off = anvil::emit::to_sv_design(&design_off);
+    assert!(
+        !sv_off.contains(" #("),
+        "default-off hierarchy SV must contain no instance/param `#(`:\n{sv_off}"
+    );
+}

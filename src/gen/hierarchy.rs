@@ -32,6 +32,30 @@ struct BuiltSubtree {
     modules: Vec<Module>,
 }
 
+/// Phase 5 (`PHASE-5-PARAMETERIZATION.2.2.3b`): effective width of a
+/// child port at an instance that overrides the child's width
+/// parameter. `pv` is the chosen override value when the child carries
+/// a `ParamEnv` and this instance overrides it; `None` (default-off /
+/// non-parameterized child / no override) keeps the template width, so
+/// existing designs are byte-identical.
+fn resolved_child_port_width(
+    child: &Module,
+    port_id: PortId,
+    template_w: u32,
+    is_input: bool,
+    pv: Option<u32>,
+) -> u32 {
+    match pv {
+        Some(v)
+            if (is_input && child.parameterized_input_ports.contains(&port_id))
+                || (!is_input && child.parameterized_output_ports.contains(&port_id)) =>
+        {
+            v
+        }
+        _ => template_w,
+    }
+}
+
 pub fn generate_design(g: &mut Generator) -> Design {
     if g.cfg.uses_hierarchy_range_mode() {
         generate_recursive_design(g)
@@ -370,6 +394,17 @@ fn generate_parent_module(
         let instance_name = format!("u_{}", instance_idx);
         let mut input_bindings = Vec::new();
 
+        // Phase 5: pick a per-instance width-parameter override when
+        // the child is parameterizable. Reproducible (g.rng). For a
+        // non-parameterized child (default-off / pre-Phase-5) this
+        // draws nothing and stays byte-identical. Per-instance picks
+        // give genuine multi-width reuse of one template.
+        let param_binding: Option<(String, u32)> = child.param_env.as_ref().map(|env| {
+            let v = g.rng.gen_range(env.min..=env.max);
+            (env.name.clone(), v)
+        });
+        let pv = param_binding.as_ref().map(|(_, v)| *v);
+
         if child.carries_sequential_state_in(Some(&modules_by_name)) {
             let (clk_port, clk_node) =
                 shared_clock.expect("sequential children require shared clk");
@@ -408,7 +443,7 @@ fn generate_parent_module(
                 &mut binding_ctx,
                 &instance_name,
                 &child_input.name,
-                child_input.width,
+                resolved_child_port_width(child, child_input.id, child_input.width, true, pv),
                 external_profile.is_some(),
             );
             input_bindings.push((child_input.id, node_id));
@@ -436,29 +471,33 @@ fn generate_parent_module(
             module: child.name.clone(),
             role: InstanceRole::PlannedChild,
             inputs: input_bindings,
-            param_bindings: Vec::new(),
+            param_bindings: param_binding.clone().into_iter().collect(),
         });
 
         for child_output in &child.outputs {
+            // Resolved output width: the override value for a
+            // parameterized output port, else the template width.
+            let out_w =
+                resolved_child_port_width(child, child_output.id, child_output.width, false, pv);
             let node_id = top.nodes.len() as NodeId;
             top.nodes.push(Node::InstanceOutput {
                 instance: instance_id,
                 port: child_output.id,
-                width: child_output.width,
+                width: out_w,
             });
             let deps = DepSet::from_instance_output_virtual(instance_id, child_output.id);
-            instance_pool.add(node_id, child_output.width, deps.clone());
-            parent_source_pool.add(node_id, child_output.width, deps);
+            instance_pool.add(node_id, out_w, deps.clone());
+            parent_source_pool.add(node_id, out_w, deps);
             if external_profile.is_none() {
                 let top_output_id = *next_port_id;
                 *next_port_id += 1;
                 top.outputs.push(Port {
                     id: top_output_id,
                     name: format!("{}__{}", instance_name, child_output.name),
-                    width: child_output.width,
+                    width: out_w,
                     dir: Direction::Out,
                 });
-                planned_outputs.push((top_output_id, child_output.width));
+                planned_outputs.push((top_output_id, out_w));
             }
         }
     }

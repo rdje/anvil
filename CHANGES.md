@@ -1,5 +1,33 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.2.3b — PHASE-5-PARAMETERIZATION.2.2.3b: hierarchy instantiation + resolved-width validate
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/gen/hierarchy.rs`: new `resolved_child_port_width` helper. In `generate_parent_module`, each instantiated child that carries a `ParamEnv` gets a per-instance override value picked reproducibly via `g.rng.gen_range(env.min..=env.max)`, recorded in `Instance.param_bindings`. The resolved width (override for parameterized ports, template width otherwise) is threaded through child-input binding, the `InstanceOutput` node, the instance/parent source pools, and the synthesized top output ports. A non-parameterized child draws nothing → byte-identical.
+- `src/ir/validate.rs`: a `resolved_child_width` closure makes `ChildInputWidthMismatch` / `ChildOutputWidthMismatch` compare against the instance's resolved override for parameterized child ports (template width otherwise). Default-off / pre-Phase-5 designs unaffected.
+- **Soundness scoping** (recorded): only the planned-child loop picks an override. Helper / default instantiations leave `param_bindings` empty → the child elaborates at its default `W = design_value`, which is exactly its concrete monomorphic template → already valid by construction, no change needed there. This bounds the slice to one instantiation site + validate and stays sound.
+- Focused proof `width_parameterization_instances_override_at_multiple_values` (legacy depth-1 wrapper, library mode, 1 parameterizable leaf × 6 instances, 4 `ConstructionStrategy` × 4 seeds): every parameterized-child instance carries a `W` binding in `[2,8]`; emitted SV carries `#(.W(v))` per instance; ≥2 *distinct* override values across the sweep (genuine multi-width reuse of one template); `validate_design` passes; default-off hierarchy emits no instance `#(` and validates.
+- Closes leaf `.2.2.3b`, the `.2.2.3` container, and (with `.2.2.1`/`.2.2.2`) the `.2.2` container. **Phase 5 width parameterization is now end-to-end functional**: rules-first parameterizable leaves, multi-width `#(.W(v))` instantiation, valid by construction, downstream-shaped.
+
+**Why**
+
+- Completes instantiation substitution so a parameterized template is genuinely reused at multiple widths. The soundness scoping (helpers/defaults need no change because a parameterized module at its default == its concrete template) keeps the change minimal and provably correct.
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; phase5 focused proofs 2/2; full `cargo test` green (COMMIT.md gate). Default-off byte-identical; no `book/` change.
+
+**Impact**
+
+- Phase 5's core capability is delivered. Frontier → `.2.3` (parameter-aware identity: a parameterized template must be one identity across its legal range), then `.2.4` (matrix gate + Phase 5 closure). No phase label changed.
+
+**Files touched**
+
+- Updated: src/gen/hierarchy.rs, src/ir/validate.rs, tests/pipeline.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.2.3a — PHASE-5-PARAMETERIZATION.2.2.3a: Instance.param_bindings + emitter #(.W(v))
 
 **Landed as:** 7950e37
