@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.2.3b — PHASE-5-PARAMETERIZATION.2.2.3b: hierarchy instantiation + resolved-width validate
 
-**Landed as:** this commit
+**Landed as:** 1fd53bd
 
 **What changed**
 
