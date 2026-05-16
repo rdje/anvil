@@ -2092,6 +2092,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `7950e37` — Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v)).
+- `c5fe28d` — Phase 5: record PHASE-5-PARAMETERIZATION.2.2.2 commit hash b3c7f0c.
 - `b3c7f0c` — Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor.
 - `862bf67` — Phase 5: record PHASE-5-PARAMETERIZATION.2.2.1 commit hash 8cc4fc4.
 - `8cc4fc4` — Phase 5: PHASE-5-PARAMETERIZATION.2.2.1 soundness gate + width-generic emitter.

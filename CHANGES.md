@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.2.3a — PHASE-5-PARAMETERIZATION.2.2.3a: Instance.param_bindings + emitter #(.W(v))
 
-**Landed as:** this commit
+**Landed as:** 7950e37
 
 **What changed**
 
