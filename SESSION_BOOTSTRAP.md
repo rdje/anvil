@@ -1,6 +1,12 @@
 # Session Bootstrap
 Read this first when starting or recovering a session.
 
+> This file is also **automatically re-injected after context
+> compaction** by a `PostCompact` hook in `.claude/settings.json`
+> (it emits this file as `additionalContext`). So after an auto- or
+> manual `/compact`, treat the recovery protocol below as freshly in
+> force and re-run it — do not assume prior in-context state survived.
+
 ## What you (the AI/LLM) must do at session start
 
 1. **Read every live doc, in this order, in full:**

@@ -2,6 +2,7 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
+- **Session recovery:** a `PostCompact` hook in `.claude/settings.json` auto-re-injects the full `SESSION_BOOTSTRAP.md` as context after every compaction. After an auto/manual compact, re-run the SESSION_BOOTSTRAP recovery protocol — do not assume prior in-context state survived. (`.claude/settings.local.json` carries the local `Write(.claude/settings.json)` allow rule; it stays uncommitted.)
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is done** (2026-05-16, closed by `PHASE-4-HIERARCHY.3` as a deliberate evidence-backed scope cut against explicit ROADMAP exit criteria; closing artifact r87, `coverage_gaps=[]`, 840/0). **Phase 5 (parameterization) is the next numbered phase, not started** (now unblocked).
 - **Active task trees:**
   - `HIERARCHY-AWARE-IDENTITY` — **tree complete** (all five leaves `done`): `H-A-I.1` (canonical signatures, r85), `H-A-I.2` (existence proof, r86), `H-A-I.3` (design sketch), `H-A-I.4` (dedup-pass implementation, r87), `H-A-I.5` (matrix gate proof, r87 same commit). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob.

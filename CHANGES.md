@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-postcompact-bootstrap-hook — Re-inject SESSION_BOOTSTRAP.md after context compaction
+
+**Landed as:** this commit
+
+**What changed**
+
+- New project-scoped `.claude/settings.json` (first committed `.claude/` file in this repo) with a `PostCompact` hook: `jq -Rs '{hookSpecificOutput:{hookEventName:"PostCompact",additionalContext:.}}' SESSION_BOOTSTRAP.md 2>/dev/null || true`. After every compaction (auto or manual `/compact`) the harness re-injects the full `SESSION_BOOTSTRAP.md` as `additionalContext`, so a compacted session is handed the project's recovery protocol (which itself lists the full live-doc reading order + sanity checks) instead of relying only on the compaction summary.
+- `SESSION_BOOTSTRAP.md`: added a note at the top documenting that it is auto-re-injected post-compaction by that hook, so a recovering session knows to re-run the protocol.
+
+**Why**
+
+- Audit finding: this repo had **no** post-compaction re-read mechanism (no `PostCompact`/`SessionStart` hook, no project `settings.json`, no `CLAUDE.md`). SESSION_BOOTSTRAP.md was not re-read after compaction because nothing was. The owner asked for it to be part of the post-compaction re-read set; the correct mechanism is a `PostCompact` hook. Owner explicitly authorized a committed, team-wide project-scope hook and granted the `Write(.claude/settings.json)` permission for it.
+
+**Validation**
+
+- `jq -e` confirms valid JSON + the command is present. Running the stored command emits valid `PostCompact` JSON whose `additionalContext` is the full SESSION_BOOTSTRAP.md (3120 B, first line `# Session Bootstrap`, includes the "What you must do at session start" protocol). Missing-file path exits 0 (graceful — never breaks compaction). Relative path = portable for teammates. Config/doc-only: no `.rs`/`Cargo` touched (cargo gates unaffected, green from prior); not part of the mdBook (mdbook unaffected).
+
+**Impact**
+
+- Every future compacted session in this repo is re-handed the recovery protocol automatically. `.claude/settings.local.json` (which now also carries the `Write(.claude/settings.json)` allow rule) stays local/uncommitted as before; only `.claude/settings.json` is tracked.
+
+**Files touched**
+
+- New: .claude/settings.json.
+- Updated: SESSION_BOOTSTRAP.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.4a — PHASE-5-PARAMETERIZATION.2.4a: phase5 matrix scenario + metrics + gap
 
 **Landed as:** 6f87d7a
