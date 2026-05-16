@@ -283,6 +283,15 @@ pub struct DesignMetrics {
     /// canonical signature (sum of `count choose 2` over signatures
     /// with `count > 1`). Always 0 when every module is distinct.
     pub num_structurally_duplicate_module_pairs: usize,
+    /// Phase 5: number of `Design::modules` carrying a width
+    /// `parameter` (`Module::param_env.is_some()`). 0 for every
+    /// default-off / pre-Phase-5 design.
+    pub num_width_parameterized_modules: usize,
+    /// Phase 5: number of `Instance`s across the design that carry a
+    /// non-empty `param_bindings` (i.e. instantiate a parameterized
+    /// child with an explicit `#(.W(v))` override). 0 when the feature
+    /// is off.
+    pub num_param_override_instances: usize,
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
@@ -797,12 +806,26 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .filter(|count| **count > 1)
         .map(|count| count * (count - 1) / 2)
         .sum();
+    // Phase 5 (PHASE-5-PARAMETERIZATION.2.4) coverage inputs.
+    let num_width_parameterized_modules = design
+        .modules
+        .iter()
+        .filter(|m| m.param_env.is_some())
+        .count();
+    let num_param_override_instances = design
+        .modules
+        .iter()
+        .flat_map(|m| m.instances.iter())
+        .filter(|i| !i.param_bindings.is_empty())
+        .count();
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
         canonical_module_signatures,
         num_distinct_module_signatures,
         num_structurally_duplicate_module_pairs,
+        num_width_parameterized_modules,
+        num_param_override_instances,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,

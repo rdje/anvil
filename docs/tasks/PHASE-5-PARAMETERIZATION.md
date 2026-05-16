@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.3` parameter-aware identity landed — `canonical_module_signature` collapses param templates differing only in design_value, concrete modules unchanged; frontier → `.2.4` matrix gate + Phase 5 closure)
+- Last updated: `2026-05-16` (`.2.4` split into `.2.4a` gate-scenario+metrics [done] / `.2.4b` real-gate-verify+promote; frontier → `.2.4b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -109,9 +109,21 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.4`
+  Status: `active`
+  Goal: `Matrix gate + Phase 5 closure. Split per the r87 no-aspirational-claims precedent: land the gate scenario/metrics first, then promote only on the verified downstream-clean artifact.`
+  Children: `PHASE-5-PARAMETERIZATION.2.4a`, `PHASE-5-PARAMETERIZATION.2.4b`
+
+- ID: `PHASE-5-PARAMETERIZATION.2.4a`
+  Status: `done`
+  Goal: `tool_matrix scenario + metrics + gap (no ROADMAP promotion). New phase5_width_parameterized scenario (legacy wrapper, library mode, width_parameterization_prob=1.0, 4 leaves/4 instances to match the dedup anchor shape); DesignMetrics.num_width_parameterized_modules + num_param_override_instances; CoverageSummary.saw_width_parameterized_design set + merged + a Phase4Hierarchy gap; bin-test counts updated (213 scenarios / 852 designs) + exception-list entry.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. tool_matrix phase4 bin tests (3/3); NO ROADMAP phase label change yet.`
+  Verification: `src/metrics.rs: DesignMetrics gains num_width_parameterized_modules + num_param_override_instances, populated in compute_design. src/bin/tool_matrix.rs: phase5_width_parameterization_focus_config (depth-1 wrapper, library, width_parameterization_prob=1.0, 4 leaves/4 instances, min_width 2/max_width 8, routing probs 0.0) + phase5_width_parameterized scenario tuple + CoverageSummary.saw_width_parameterized_design (set when config.width_parameterization_prob>0 && num_width_parameterized_modules>0 && num_param_override_instances>0) + merge + Phase4Hierarchy compute_coverage_gaps arm. Bin tests: counts 210->213 scenarios, 840->852 designs, exception-list entry added; tool_matrix phase4 bin tests 3/3. cargo fmt/clippy -D warnings clean; full cargo test (Verification Log). ROADMAP unchanged (promotion is .2.4b). No book/ change.`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap`
+
+- ID: `PHASE-5-PARAMETERIZATION.2.4b`
   Status: `pending`
-  Goal: `Matrix gate + Phase 5 closure: opt-in phase5 focus config sweeping the param range, saw_width_parameterized_design coverage fact + gap, downstream-clean (Verilator + both Yosys); add explicit ROADMAP Phase 5 exit criteria; promote Phase 5 -> done; sync README/CODEBASE_ANALYSIS/MEMORY/book.`
-  Acceptance: `Phase 5 matrix scenario coverage_gaps=[] and downstream-clean at >=2 swept param values; ROADMAP Phase 5 exit criteria authored + label done; tree -> done.`
+  Goal: `Run the real repo-owned Phase 4 hierarchy gate (now including phase5_width_parameterized) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all pass, saw_width_parameterized_design=true) BEFORE any promotion. Then author an explicit ROADMAP Phase 5 "Exit criteria (met)" block tied to that artifact, promote ROADMAP Phase 5 (not started) -> (done), sync README/CODEBASE_ANALYSIS/MEMORY/book, and close the PHASE-5-PARAMETERIZATION tree.`
+  Acceptance: `A banked gate report shows coverage_gaps=[] + all-pass Verilator/Yosys + saw_width_parameterized_design=true; ROADMAP Phase 5 = done with exit criteria; tree -> done. No aspirational claims (verified artifact precedes promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -119,7 +131,7 @@ equivalent).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.4` | `pending` | `.2.3` done — parameter-aware identity in place. The final Phase 5 slice: a matrix gate proving parameterized designs downstream-clean, explicit ROADMAP Phase 5 exit criteria, and the Phase 5 → done promotion. |
+| 1 | `PHASE-5-PARAMETERIZATION.2.4b` | `pending` | `.2.4a` (phase5 gate scenario + metrics + gap) done. `.2.4b` runs the real repo-owned gate, verifies downstream-clean, then authors ROADMAP Phase 5 exit criteria + promotes Phase 5 `done` + closes the tree — promotion strictly follows the verified artifact (r87 no-aspirational-claims discipline). |
 
 ## Decisions
 
@@ -210,7 +222,8 @@ equivalent).
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.2` | `build_parameterizable_leaf` rules-first constructor + non-rolling `param.rs` refactor; `param.rs` 5/0; focused proof (4 strategies); full `cargo test` green. | Done (`b3c7f0c`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Instance.param_bindings` field + 19 sites (compiler-driven completeness); emitter `#(.NAME(v), …)`; focused unit test. emit:: 18/0; full `cargo test` green. | Done (`7950e37`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3b` | hierarchy per-instance override pick + resolved-width thread + `validate.rs` resolved-width checks; soundness-scoped to the planned-child loop; focused multi-width proof; full `cargo test` green. | Done (`1fd53bd`). |
-| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.3` | `canonical_module_signature` param-aware: one-time `param_env`-presence marker + `wsig` sentinel for widths == design_value (sound via the width-homogeneity gate); `dedup_modules` unchanged; non-parameterized signature relatively unchanged → `canonical_module_signatures_are_stable_and_isomorphism_aware` + H-A-I.2/.4 regression proofs all pass. New `parameter_aware_identity_collapses_templates_differing_only_in_design_width` (param@8 sig == param@16; concrete@8 != param@8; structurally-different param distinct; dedup collapses the pair). `cargo fmt`/`clippy -D warnings` clean; dedup:: 4/0, metrics:: 22/0; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.3` | `canonical_module_signature` param-aware (marker + `wsig` sentinel); `dedup_modules` unchanged; H-A-I.1/.2/.4 regression-clean; new identity unit test; full `cargo test` green. | Done (`2e99d6d`). |
+| `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.4a` | `DesignMetrics.num_width_parameterized_modules`/`num_param_override_instances` + populate; `phase5_width_parameterization_focus_config` + `phase5_width_parameterized` scenario; `CoverageSummary.saw_width_parameterized_design` set/merge + Phase4Hierarchy gap; bin-test counts 210→213 / 840→852 + exception-list entry; tool_matrix phase4 bin tests 3/3. `cargo fmt`/`clippy -D warnings` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (promotion is `.2.4b`). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -222,6 +235,8 @@ equivalent).
 | `PHASE-5-PARAMETERIZATION.2.2.2` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.2 rules-first parameterizable-leaf constructor` (`b3c7f0c`) | Constructor makes the feature fire by construction; param.rs refactored non-rolling. |
 | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` (`7950e37`) | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
 | `PHASE-5-PARAMETERIZATION.2.2.3b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate` (`1fd53bd`) | Closes `.2.2.3` and the `.2.2` container; Phase 5 width parameterization end-to-end functional. |
+| `PHASE-5-PARAMETERIZATION.2.3` | `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity` (`2e99d6d`) | Param-aware `canonical_module_signature`; dedup unchanged. |
+| `PHASE-5-PARAMETERIZATION.2.4a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap` | Gate scenario/metrics/gap only; no ROADMAP promotion (that is `.2.4b` on verified evidence). |
 | `PHASE-5-PARAMETERIZATION.2.3` | `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity` | `canonical_module_signature` collapses param templates differing only in design width; dedup unchanged. |
 
 ## Changelog
@@ -296,3 +311,12 @@ equivalent).
   template" to "a parameterized template is one identity across its
   legal width range". Frontier → `.2.4` (matrix gate + Phase 5
   closure).
+- `2026-05-16`: `.2.4` split per the r87 no-aspirational-claims
+  precedent into `.2.4a` (gate scenario/metrics/gap, no promotion) and
+  `.2.4b` (run real gate → verify → promote). `.2.4a` landed:
+  `DesignMetrics.num_width_parameterized_modules` /
+  `num_param_override_instances`; `phase5_width_parameterized`
+  tool_matrix scenario (legacy wrapper, library, prob 1.0, 4 leaves/4
+  instances) + `saw_width_parameterized_design` coverage fact + merge
+  + Phase4Hierarchy gap; bin-test counts 213/852 + exception entry;
+  phase4 bin tests 3/3. ROADMAP unchanged. Frontier → `.2.4b`.

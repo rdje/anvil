@@ -322,6 +322,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_canonical_module_signature_diversity: bool,
     saw_design_with_structurally_duplicate_modules: bool,
     saw_recursive_hierarchy_module_dedup_active: bool,
+    saw_width_parameterized_design: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -1198,6 +1199,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 "phase4_hier1_module_dedup_active",
                 "depth-1 wrapper-lane scenario identical to phase4_hier1_structurally_duplicate_modules but with hierarchy_module_dedup = true; proves the post-finalisation dedup pass collapses duplicates downstream-clean (HIERARCHY-AWARE-IDENTITY.4)",
                 phase4_hierarchy_module_dedup_active_focus_config(strategy, next_seed + 69),
+            ),
+            (
+                "phase5_width_parameterized",
+                "depth-1 wrapper, library mode, width_parameterization_prob = 1.0: the library leaves are built by the rules-first parameterizable constructor and instantiated with per-instance #(.W(v)) overrides. Proves Phase 5 parameterized designs are downstream-clean (PHASE-5-PARAMETERIZATION.2.4)",
+                phase5_width_parameterization_focus_config(strategy, next_seed + 70),
             ),
             (
                 "phase4_recur_d2_registered_sibling_multistage_state",
@@ -2208,6 +2214,44 @@ fn phase4_hierarchy_module_dedup_active_focus_config(
     let mut cfg = phase4_hierarchy_structurally_duplicate_modules_focus_config(strategy, seed);
     cfg.hierarchy_module_dedup = true;
     cfg
+}
+
+fn phase5_width_parameterization_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // PHASE-5-PARAMETERIZATION.2.4 anchor scenario. Legacy depth-1
+    // wrapper, library child-sourcing (default), shaped exactly like
+    // the dedup anchor (4 leaves / 4 instances) so the matrix's
+    // leaf/child shape-coverage sets are unperturbed. With
+    // `width_parameterization_prob = 1.0` each library leaf is built
+    // by the rules-first `build_parameterizable_leaf` constructor (a
+    // width-homogeneous combinational leaf), and the parent
+    // instantiates them with per-instance in-range `#(.W(v))`
+    // overrides (`min_width`/`max_width` span a real range). All
+    // hierarchy-routing probabilities are 0.0; the leaves are purely
+    // combinational. Suffix `phase5_width_parameterized` is in the
+    // matrix unit-test exception list at the bottom of this file.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 4,
+        width_parameterization_prob: 1.0,
+        min_width: 2,
+        max_width: 8,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
 }
 
 fn phase4_hierarchy_structurally_duplicate_modules_focus_config(
@@ -5344,6 +5388,10 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
                 && design.metrics.num_modules >= 2
                 && design.metrics.num_structurally_duplicate_module_pairs == 0
                 && design.metrics.num_distinct_module_signatures == design.metrics.num_modules;
+        coverage.saw_width_parameterized_design |= scenario.config.width_parameterization_prob
+            > 0.0
+            && design.metrics.num_width_parameterized_modules > 0
+            && design.metrics.num_param_override_instances > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -5654,6 +5702,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_design_with_structurally_duplicate_modules;
     dst.saw_recursive_hierarchy_module_dedup_active |=
         src.saw_recursive_hierarchy_module_dedup_active;
+    dst.saw_width_parameterized_design |= src.saw_width_parameterized_design;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -6676,6 +6725,12 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_width_parameterized_design {
+        gaps.push(
+            "matrix never proved a downstream-clean design with a width-parameterized module instantiated via #(.W(v)) (PHASE-5-PARAMETERIZATION.2.4)"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -7175,7 +7230,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 840);
+        assert_eq!(plan.total_modules, 852);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -7272,10 +7327,11 @@ mod tests {
                         .name
                         .ends_with("phase4_hier1_structurally_duplicate_modules")
                     || scenario.name.ends_with("phase4_hier1_module_dedup_active")
+                    || scenario.name.ends_with("phase5_width_parameterized")
             );
         }
-        assert_eq!(scenarios.len(), 210);
-        assert_eq!(names.len(), 210);
+        assert_eq!(scenarios.len(), 213);
+        assert_eq!(names.len(), 213);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,

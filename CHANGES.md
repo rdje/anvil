@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.4a — PHASE-5-PARAMETERIZATION.2.4a: phase5 matrix scenario + metrics + gap
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs`: `DesignMetrics` gains `num_width_parameterized_modules` (modules with `param_env.is_some()`) and `num_param_override_instances` (instances with non-empty `param_bindings`), populated in `compute_design`. Both 0 for default-off / pre-Phase-5 designs.
+- `src/bin/tool_matrix.rs`: new `phase5_width_parameterization_focus_config` (legacy depth-1 wrapper, library child-sourcing, `width_parameterization_prob = 1.0`, 4 leaves / 4 instances — shaped exactly like the dedup anchor so the matrix's leaf/child shape-coverage sets are unperturbed, `min_width 2`/`max_width 8`, all hierarchy-routing probs 0.0) and a `phase5_width_parameterized` scenario tuple in the Phase 4 hierarchy set. New `CoverageSummary.saw_width_parameterized_design` (set when `config.width_parameterization_prob > 0 && num_width_parameterized_modules > 0 && num_param_override_instances > 0`), merged in `merge_coverage`, and a `ScenarioSet::Phase4Hierarchy` `compute_coverage_gaps` arm. Bin-test counts updated 210→213 scenarios / 840→852 designs, and `phase5_width_parameterized` added to the all-routing-probs-0.0 exception list.
+- `.2.4` split per the r87 no-aspirational-claims precedent into `.2.4a` (this — scenario/metrics/gap, **no ROADMAP promotion**) and `.2.4b` (run the real gate, verify downstream-clean, then author ROADMAP Phase 5 exit criteria + promote Phase 5 `done` + close the tree).
+
+**Why**
+
+- Promotion of a roadmap phase must follow a verified downstream-clean artifact, never precede it (the r87 lesson). This slice lands only the instrumentation so the next slice can run the real gate and promote on evidence.
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `tool_matrix` phase4 bin tests 3/3 (counts/exception verified); full `cargo test` green (COMMIT.md gate). **No ROADMAP phase label changed** (that is `.2.4b`, gated on the real artifact). No `book/` change.
+
+**Impact**
+
+- The repo-owned hierarchy gate now includes a parameterized-design scenario with a coverage gap that fails if no downstream-clean parameterized design is proven. Frontier → `.2.4b` (run gate → verify → promote).
+
+**Files touched**
+
+- Updated: src/metrics.rs, src/bin/tool_matrix.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.3 — PHASE-5-PARAMETERIZATION.2.3: parameter-aware identity
 
 **Landed as:** 2e99d6d
