@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-postcompact-bootstrap-hook — Re-inject SESSION_BOOTSTRAP.md after context compaction
 
-**Landed as:** this commit
+**Landed as:** 04b13ec
 
 **What changed**
 

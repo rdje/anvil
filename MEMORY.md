@@ -2093,6 +2093,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `04b13ec` — Config: PostCompact hook re-injects SESSION_BOOTSTRAP.md after compaction.
+- `1ab78f0` — Phase 5: record PHASE-5-PARAMETERIZATION.2.4a commit hash 6f87d7a.
 - `6f87d7a` — Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap.
 - `99be245` — Phase 5: record PHASE-5-PARAMETERIZATION.2.3 commit hash 2e99d6d.
 - `2e99d6d` — Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity.
