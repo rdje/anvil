@@ -1,5 +1,34 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-register-remaining-phase-task-trees — Register every remaining roadmap phase as a task tree
+
+**Landed as:** this commit
+
+**What changed**
+
+- New task-tree files under `docs/tasks/` for every not-yet-tracked remaining roadmap phase: `PHASE-4-HIERARCHY.md`, `PHASE-5-PARAMETERIZATION.md`, `PHASE-5B-AGGREGATES.md`, `PHASE-6-ADVANCED-MOTIFS.md`, `PHASE-7-ORACLE-MICRODESIGN.md`, `PHASE-8-FRONTEND-ACCEPT.md`, `PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`. Each follows the `docs/tasks/TEMPLATE.md` Required Task File Sections (Metadata, Goal, Non-Goals, Acceptance Criteria, Task Tree, Current Frontier, Decisions, Open Questions, Blockers, Verification Log, Commit Log, Changelog), with Goal/Non-Goals/Acceptance derived from the corresponding `ROADMAP.md` phase text.
+- `docs/TASK_TREE.md`: the Active Task Trees table gains the seven phase rows; a dated "Project-wide tracking directive" note reconciles the Adoption-Scope section with the new reality — every remaining phase is now task-tree-tracked while `rN` is explicitly preserved as the within-leaf slice cadence (mirrors the closed `HIERARCHY-AWARE-IDENTITY` leaves landing as r85/r86/r87).
+- `PHASE-4-HIERARCHY` is the only tree with an executable frontier now (`.1` = a no-risk Surface-Inventory audit that enumerates the finite remaining hierarchy surface so "complete exhaustion" is bounded). The not-started phase trees open with an unblocked design-only frontier leaf and record their real blockers (e.g., Phase 5 implementation blocked by Phase 4).
+
+**Why**
+
+- Owner directive: the whole roadmap must be trackable through task trees. Prior state only had the closed `HIERARCHY-AWARE-IDENTITY` sub-tree plus three quality trees; Phases 4 (remaining), 5, 5b, 6, 7, 8, 9 had no tree. Registering them makes the frontier explicit and PNT-drivable without retiring the `rN` cadence (never-retire-strategies).
+- Precedent: commit `65ca372` registered three quality task trees in one coherent doc commit; this slice mirrors that shape for the phase trees.
+
+**Validation**
+
+- Doc-only slice: no Rust touched, so `cargo check/test/clippy/fmt` are unaffected and remain green from r87. `docs/tasks/*.md` and `docs/TASK_TREE.md` are not part of the mdBook (`book/src/`), so `mdbook build` is unaffected.
+- `docs/TASK_TREE.md` internal consistency re-checked: Active Task Trees table, Adoption-Scope directive note, and the seven new files agree on tree IDs, frontiers, and the rN-preservation decision.
+
+**Impact**
+
+- The entire remaining roadmap (Phases 4–9) is now decomposed into trackable task trees. `PHASE-4-HIERARCHY.1` is the next executable leaf; the rest carry honest blockers. No phase label changed; no code/behaviour change.
+
+**Files touched**
+
+- New: docs/tasks/PHASE-4-HIERARCHY.md, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/tasks/PHASE-5B-AGGREGATES.md, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md, docs/tasks/PHASE-8-FRONTEND-ACCEPT.md, docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md.
+- Updated: docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-15-phase4-module-dedup-pass — Implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)
 
 **Landed as:** 750ef8b

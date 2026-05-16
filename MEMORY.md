@@ -5,10 +5,18 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
 - **Active task trees:**
   - `HIERARCHY-AWARE-IDENTITY` — **tree complete** (all five leaves `done`): `H-A-I.1` (canonical signatures, r85), `H-A-I.2` (existence proof, r86), `H-A-I.3` (design sketch), `H-A-I.4` (dedup-pass implementation, r87), `H-A-I.5` (matrix gate proof, r87 same commit). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob.
+  - **Every remaining roadmap phase is now task-tree-tracked (2026-05-16 owner directive):**
+    - `PHASE-4-HIERARCHY` — current frontier `PHASE-4-HIERARCHY.1` (Surface-Inventory audit that bounds Phase 4 "complete exhaustion"). **This is the active PNT lane.**
+    - `PHASE-5-PARAMETERIZATION` — frontier `.1` (design, unblocked); `.2` blocked by Phase 4.
+    - `PHASE-5B-AGGREGATES` — frontier `.1` (design, unblocked; emitter-only, Phase-4-independent).
+    - `PHASE-6-ADVANCED-MOTIFS` — frontier `.1` (inferrable-memory design, unblocked).
+    - `PHASE-7-ORACLE-MICRODESIGN` — frontier `.1` (expected-facts design, unblocked).
+    - `PHASE-8-FRONTEND-ACCEPT` — frontier `.1` (source-level IR design, unblocked).
+    - `PHASE-9-MULTI-ARTIFACT-UMBRELLA` — frontier `.1` (selector/plumbing design, unblocked); `.2` blocked until ≥2 lanes exist.
   - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
   - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (scope iverilog or alternative as the second simulator; Verilator is already a fait accompli via the matrix gate). Quality lane: signoff-level downstream consistency.
   - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.2` (triage of top-5 under-covered files). Quality lane: test-discipline visibility. Baseline landed at `docs/coverage-baseline.md` (85.26% lines / 91.95% functions / 87.61% regions; planner core 88-99% covered by focused proofs alone).
-  See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and the full active-tree index. Task trees are opt-in per top-level task: linear `rN` hierarchy slices stay on the existing `rN` + `CHANGES.md` cadence; multi-slice work like the four above is task-tree-managed.
+  See [docs/TASK_TREE.md](docs/TASK_TREE.md) for the workflow and the full active-tree index. The whole roadmap is now trackable via task trees; `rN` is **not** retired — it remains the within-leaf slice cadence (each phase tree owns the decomposition; linear coverage slices inside a leaf still land under `rN` + `CHANGES.md`, exactly as the closed `HIERARCHY-AWARE-IDENTITY` leaves landed as r85/r86/r87).
 - Current README execution found and fixed a source-tree command
   contract break: with both `anvil` and `tool_matrix` binaries present,
   plain `cargo run -- ...` was ambiguous until `Cargo.toml` restored

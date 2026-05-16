@@ -39,11 +39,32 @@ The first concrete fit is hierarchy-aware identity (the work `r85` opens —
 canonical signatures → dedup → `IdentityMode::NodeId` wiring at the module
 level → cross-module factorization), which is explicitly multi-slice.
 
+**Project-wide tracking directive (2026-05-16):** by explicit owner
+directive, *every remaining roadmap phase* now has a registered
+top-level task tree (`PHASE-4-HIERARCHY`, `PHASE-5-PARAMETERIZATION`,
+`PHASE-5B-AGGREGATES`, `PHASE-6-ADVANCED-MOTIFS`,
+`PHASE-7-ORACLE-MICRODESIGN`, `PHASE-8-FRONTEND-ACCEPT`,
+`PHASE-9-MULTI-ARTIFACT-UMBRELLA`) so the whole roadmap is trackable
+through task trees. This **does not retire `rN`**: `rN` remains the
+within-leaf slice cadence. Each phase tree owns the sub-objective
+decomposition, frontier, blockers, and completion evidence; individual
+linear coverage slices inside a leaf still land under the `rN` naming +
+`CHANGES.md` + `MEMORY.md` combination, exactly as the closed
+`HIERARCHY-AWARE-IDENTITY` tree's leaves landed as r85/r86/r87. Closed
+`rN` slices are still not migrated retroactively.
+
 ## Active Task Trees
 
 | Tree | Status | Roadmap lane | Current frontier | File |
 | --- | --- | --- | --- | --- |
 | `HIERARCHY-AWARE-IDENTITY` | `done` | Phase 4 — Hierarchy | (complete — all leaves done) | [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](tasks/HIERARCHY-AWARE-IDENTITY.md) |
+| `PHASE-4-HIERARCHY` | `active` | Phase 4 — Hierarchy | `PHASE-4-HIERARCHY.1` | [docs/tasks/PHASE-4-HIERARCHY.md](tasks/PHASE-4-HIERARCHY.md) |
+| `PHASE-5-PARAMETERIZATION` | `active` | Phase 5 — Parameterization | `PHASE-5-PARAMETERIZATION.1` | [docs/tasks/PHASE-5-PARAMETERIZATION.md](tasks/PHASE-5-PARAMETERIZATION.md) |
+| `PHASE-5B-AGGREGATES` | `active` | Phase 5b — Synthesizable aggregates | `PHASE-5B-AGGREGATES.1` | [docs/tasks/PHASE-5B-AGGREGATES.md](tasks/PHASE-5B-AGGREGATES.md) |
+| `PHASE-6-ADVANCED-MOTIFS` | `active` | Phase 6 — Advanced motifs | `PHASE-6-ADVANCED-MOTIFS.1` | [docs/tasks/PHASE-6-ADVANCED-MOTIFS.md](tasks/PHASE-6-ADVANCED-MOTIFS.md) |
+| `PHASE-7-ORACLE-MICRODESIGN` | `active` | Phase 7 — Oracle-backed micro-design artifacts | `PHASE-7-ORACLE-MICRODESIGN.1` | [docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md](tasks/PHASE-7-ORACLE-MICRODESIGN.md) |
+| `PHASE-8-FRONTEND-ACCEPT` | `active` | Phase 8 — Frontend/elaboration accept corpora | `PHASE-8-FRONTEND-ACCEPT.1` | [docs/tasks/PHASE-8-FRONTEND-ACCEPT.md](tasks/PHASE-8-FRONTEND-ACCEPT.md) |
+| `PHASE-9-MULTI-ARTIFACT-UMBRELLA` | `active` | Phase 9 — Multi-artifact ANVIL umbrella | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.1` | [docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md](tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md) |
 | `INSTA-SNAPSHOTS` | `active` | Quality — reproducibility regressions | `INSTA-SNAPSHOTS.1` | [docs/tasks/INSTA-SNAPSHOTS.md](tasks/INSTA-SNAPSHOTS.md) |
 | `DIFFERENTIAL-SIMULATION` | `active` | Quality — signoff-level downstream consistency | `DIFFERENTIAL-SIMULATION.1` | [docs/tasks/DIFFERENTIAL-SIMULATION.md](tasks/DIFFERENTIAL-SIMULATION.md) |
 | `COVERAGE-INSTRUMENTATION` | `active` | Quality — test-discipline visibility | `COVERAGE-INSTRUMENTATION.2` | [docs/tasks/COVERAGE-INSTRUMENTATION.md](tasks/COVERAGE-INSTRUMENTATION.md) |
