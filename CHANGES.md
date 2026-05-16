@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-scaffold — PHASE-5-PARAMETERIZATION.2.1: width-parameterization scaffold
 
-**Landed as:** this commit
+**Landed as:** 4cedad2
 
 **What changed**
 
