@@ -1,5 +1,30 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-design — PHASE-5-PARAMETERIZATION.1: parameterization design
+
+**Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Phase 5 parameterization design (2026-05-16, PHASE-5-PARAMETERIZATION.1)" entry. Codebase-grounded (file-anchored audit of the bare-`u32` width surface in `ir/types.rs`, the invasive width-arithmetic in `gen/cone.rs`/`ir/validate.rs`, the single `width_decl`/header/instance emission chokepoints in `emit/sv.rs`, the identity hashing in `metrics.rs` + `ir/dedup.rs`, the instantiation attach point in `gen/hierarchy.rs`, and the config/RNG/tool_matrix patterns). Chosen architecture **(C)**: a post-construction parameterization pass + monomorphic instantiation that preserves valid-by-construction with zero changes to the invasive width math and keeps the full-factorization doctrine intact. Three rejected alternatives recorded: (A) monomorphize-only with a lying symbolic header, (B) full symbolic `WidthExpr` threaded through construction (recorded as the strict follow-on, not a rework), (C') factorization-disable for parameterized modules. Explicit parameter-aware identity rule (hash the normalized symbolic form at parameterized sites in `canonical_module_signature`; `dedup_modules` unchanged), proof shape, and open questions.
+- `docs/tasks/PHASE-5-PARAMETERIZATION.md`: `.1` → `done`; Phase 4 reaching `done` unblocked `.2`, which is split into signoff-sized leaves `.2.1` (IR+emit scaffold) → `.2.2` (instantiation substitution) → `.2.3` (parameter-aware identity) → `.2.4` (matrix gate + Phase 5 closure). Frontier → `.2.1`. Decision/Open-Questions/Blockers/Verification/Commit/Changelog updated. `docs/TASK_TREE.md` frontier row updated.
+
+**Why**
+
+- PNT directive: drive Phase 5 to exhaustion. The honest entry point is the design decision between monomorphize-only, full-symbolic, and a post-construction pass — recorded with rejected alternatives so `.2.x` has an unambiguous, doctrine-aligned target and a future reviewer sees why (B) was deferred rather than missed.
+
+**Validation**
+
+- Doc-only slice: no `.rs`/`Cargo` touched (cargo `check/test/clippy/fmt` unaffected, green from r87); `DEVELOPMENT_NOTES.md` and `docs/` are not in the mdBook so `mdbook` is unaffected. Design grounded in a file-anchored read-only audit of the live code.
+
+**Impact**
+
+- Phase 5 has a concrete, signoff-grade implementation plan and a split, unblocked `.2.x` frontier. No code/behaviour change; no phase label changed.
+
+**Files touched**
+
+- Updated: DEVELOPMENT_NOTES.md, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase4-closed — Phase 4 closed (PHASE-4-HIERARCHY.3, evidence-backed scope cut)
 
 **Landed as:** 21ec427

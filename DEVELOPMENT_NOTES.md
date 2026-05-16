@@ -58,6 +58,151 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Phase 5 parameterization design (2026-05-16, PHASE-5-PARAMETERIZATION.1)
+
+Design-only slice. No code. Lifts `book/src/ir.md` "Parameters and
+generics (Phase 5)" into a concrete, codebase-grounded implementation +
+parameter-aware-identity plan, with rejected alternatives and a proof
+shape, so the implementation leaf (`.2`) has an unambiguous target.
+
+**Goal (from ROADMAP Phase 5).** Emitted modules carry `parameter`
+declarations for widths; instances pick parameter values from allowed
+ranges and override via `#(.W(value))`; parameter-dependent widths
+propagate correctly; parameter-aware identity stays sound (distinct
+parameter values must not alias to one `NodeId` or one module template
+unless genuinely equivalent). Default-off; never retire existing
+behaviour.
+
+**Code reality that constrains the design** (audited; key anchors):
+width is a bare `u32` everywhere — `Port.width`, `Node::*` width fields,
+`Flop.width`, the `intern_gate`/`intern_constant` CSE keys
+(`src/ir/types.rs`), the per-op width arithmetic in
+`input_widths_for` / `make_width_adapter` (`src/gen/cone.rs`), the
+gate-shape + design child-width equality rules (`src/ir/validate.rs`),
+the single `width_decl` rendering chokepoint and the parameterless
+module header / instance emission (`src/emit/sv.rs`), and the
+width-hashing in `canonical_module_signature` (`src/metrics.rs:2187`)
+that `src/ir/dedup.rs` groups on. Constant folding/peephole in
+`intern_gate`, `make_width_adapter`, `input_widths_for`, `ForFold`
+(`trip_count*chunk_width`) and `Slice` (`hi`/`lo` are themselves bare
+indices) do **genuine integer arithmetic** and cannot run on opaque
+symbolic widths. `shrink_primary_inputs_to_live_width`
+(`src/gen/module.rs`) actively rewrites port widths post-construction.
+
+**Architectural decision — chosen: (C) post-construction
+parameterization pass + monomorphic instantiation.** Phase 5 lands as a
+*post-finalisation pass* (sibling in spirit to the module-dedup pass),
+not as a symbolic type threaded through construction:
+
+1. The cone/module is constructed exactly as today, at a concrete
+   "design" width `W0` drawn (reproducibly, via `g.rng`) from the new
+   parameter's allowed range. All existing fold/validate/cse machinery
+   runs unchanged on concrete `u32` — **valid-by-construction is
+   preserved with zero changes to the invasive width-arithmetic code**.
+2. A post-construction pass marks a *sound parameterizable subset* of
+   widths as symbolic in `W`: the interface port widths chosen to carry
+   the parameter, plus exactly those internal node widths that the
+   construction-time width relations make **affine in `W0`** and that
+   stay legal for the whole declared `W` range. Widths that enter
+   structurally-constrained integer math (`ForFold trip_count*chunk`,
+   `Slice hi/lo`, replicate counts in `make_width_adapter`,
+   constant-fold masks) are **excluded from the parameterized set in the
+   first slice** — they keep concrete `u32`. The pass records a
+   per-module `ParamEnv { name: "W", range: CountRange, design_value:
+   W0 }` and a lightweight `WidthExpr` (small enum
+   `{ Lit(u32), Param }`, deliberately *not* the full
+   `Add/Mul/Clog2/...` algebra yet — see rejected (B)) only on the
+   parameterized width sites, each also retaining its resolved `u32`.
+3. Instantiation (`src/gen/hierarchy.rs`, between child selection and
+   the input-binding loop) picks a value from the param range via
+   `g.rng`, records it in a new `Instance.param_bindings`, and binds
+   child ports at the **resolved** width so the existing exact-equality
+   child-width validation still holds.
+4. Emitter: `width_decl` and the module header learn the symbolic form
+   (`logic [W-1:0]`, `#( parameter int W = W0 )`); instance emission
+   gains `#(.W(value))`. Everywhere a width is *not* in the
+   parameterized set, emission is byte-identical to today.
+
+Soundness rule: a module is only emitted parameterized when its chosen
+parameterized widths remain legal (validator-clean, downstream-clean)
+for **every** value in the declared range — guaranteed by restricting
+the parameterized set to affine-in-`W` interface/derived widths and by
+the matrix gate sweeping ≥2 values per parameterized scenario. This is
+construction-time soundness (a generator rule), not generate-then-filter.
+
+**Parameter-aware identity rule.** The single place width enters module
+identity is the per-port/per-node `fnv1a_64_u32(h, width)` calls in
+`canonical_module_signature` (`src/metrics.rs`). The rule:
+parameterized width sites hash their **normalized symbolic form**
+(`WidthExpr::Param` → a fixed sentinel, not `W0`); non-parameterized
+sites hash their concrete `u32` as today. Consequence: two
+instantiations / monomorphic emissions of the *same template* at W=8
+and W=16 produce the **same** signature (legitimately one template — the
+existing `dedup_modules` then collapses them with no change to
+`dedup.rs`); a genuinely concrete width-7 module still hashes distinctly
+and never aliases a parameterized one. `Instance.param_bindings` is
+*not* hashed into the parent signature (consistent with the existing
+exclusion of `Instance.module`/`name`), so a parent that instantiates
+one template at several values keeps one child template — which is the
+entire point of parameterization. This extends the doctrine "NodeId =
+identity of an expression" / "ModuleId = identity of a hierarchical
+module template" to "a parameterized template is one identity across its
+legal parameter range".
+
+**Rejected alternatives.**
+- **(A) Monomorphize only, emit a symbolic header over a fixed body.**
+  Pick `W0`, build the body at `W0`, emit `parameter W=W0` + `[W-1:0]`
+  but never make the body width-generic. Rejected: the emitted module is
+  a *lie* — overriding `#(.W(16))` on a body built for `W0=8` is not
+  valid-by-construction (it would only be correct at `W==W0`). It would
+  also force generate-then-filter to avoid bad overrides. Violates the
+  by-construction and no-post-hoc-repair doctrines.
+- **(B) Full symbolic `WidthExpr{Add,Sub,Mul,Div,Clog2,Max,Min}`
+  threaded through the IR from construction.** The book's eventual
+  target. Rejected *as the first slice*: it propagates through every
+  invasive site in §6 of the audit (all constant folding/peephole, the
+  width adapter, `input_widths_for`, `ForFold`, symbolic `Slice`
+  indices) — constant folding cannot operate on symbolic widths at all,
+  so the e-graph/factorization doctrine would have to be suspended for
+  parameterized cones. Too large for one signoff-quality slice and
+  high-risk to the existing proven surface. Recorded as the **Phase 5
+  follow-on** once (C) is downstream-clean: (C)'s `WidthExpr{Lit,Param}`
+  is deliberately the minimal seed of (B)'s algebra, so (B) is a strict
+  extension, not a rework.
+- **(C') Symbolic widths but disable factorization for parameterized
+  modules.** Rejected: silently weakening `identity_mode = node-id`
+  for a whole class of modules is exactly the kind of silent
+  mode-retirement the project forbids.
+
+**Proof shape for `.2`.** (1) Focused proof: a parameterized module is
+emitted with `parameter W` and instantiated at ≥2 distinct in-range
+values via `#(.W(v))`; `ir::validate::validate_design` passes; the
+emitted SV elaborates/synthesizes clean at each value. (2) Identity
+proof: same template at W=8 and W=16 → one `canonical_module_signature`
+(and `dedup_modules` collapses them); a concrete non-parameterized
+module of width 8 keeps a distinct signature (extends the existing
+`dedup_is_a_no_op_when_modules_are_structurally_distinct` test). (3)
+Matrix gate: new opt-in knob `width_parameterization_prob` (f64, default
+`0.0`, serde-default pattern like `hierarchy_module_dedup`), a
+`phase5_*` focus config sweeping the param range, a new
+`saw_width_parameterized_design` coverage fact gated under a new
+`ScenarioSet::Phase5` (or folded into the Phase 4 design set initially),
+proven downstream-clean (Verilator + both Yosys modes) with
+`coverage_gaps=[]`. Default-off keeps every existing scenario
+byte-identical.
+
+**Open questions (do not block `.2`; recorded for it).**
+- Whether Phase 5 gets its own `ScenarioSet::Phase5` gate or rides the
+  Phase 4 design harness for the first slice. Lean: ride Phase 4
+  harness first (cheaper), split when the parameterized matrix grows.
+- Whether `.2` should be split (IR+emit scaffold → instantiation
+  substitution → identity rule → matrix gate) — likely yes; `.2` will
+  be re-decomposed in the tree when reached.
+- Multi-parameter modules and parameter-dependent *depth/count* (not
+  just width) are explicitly out of the first slice (ROADMAP notes
+  parameter-aware child selection / parameter-driven parent generation
+  remain later Phase 5 work).
+
 ### Module-dedup pass implemented (2026-05-15, r87, HIERARCHY-AWARE-IDENTITY.4 + .5)
 The dedup pass design sketched in `HIERARCHY-AWARE-IDENTITY.3` is now
 live as `src/ir/dedup.rs`. Implementation matches the sketch
