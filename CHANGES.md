@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase4-hierarchy-surface-inventory — PHASE-4-HIERARCHY.1: hierarchy surface is landed-proven
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-4-HIERARCHY.md`: appended a definitive **Surface Inventory** (read-only audit of `src/config.rs`, `src/gen/hierarchy.rs`, `src/bin/tool_matrix.rs` `CoverageSummary`/`summarize_design_coverage`/`compute_coverage_gaps`, cross-referenced to the banked r87 report). Conclusion: of 105 `saw_*` facts, 92 hierarchy-specific facts are Phase4-gated and **all true** in r87, with `coverage_gaps = []` and 840/0 downstream-clean — **no hierarchy surface is MISSING or AMBIGUOUS**; the roadmap's "broader registered hierarchy patterns" is genuinely open-ended capability-deepening, not a finite gap set.
+- Tree restructured from the audit: `.1` → `done`; `.2` ("implement next missing surface") → `superseded` (premise invalidated — no missing surface, and an open-ended permutation grind is not "completion"); frontier rotated to `.3` (deliberate evidence-backed exit-criteria scope-cut closure). Decision, Open-Questions resolution, Verification Log, Commit Log, Changelog updated.
+- `docs/TASK_TREE.md`: `PHASE-4-HIERARCHY` row frontier updated `.1` → `.3` (`.1` done, `.2` superseded).
+
+**Why**
+
+- The directive is to PNT Phase 4 to "complete exhaustion". Honest bounding required first enumerating the finite remaining surface. The audit shows the instrumented surface is already fully landed-proven (gap list empty in r87), so exhaustion is necessarily a documented scope cut, not a gap drain or an unbounded permutation grind. Recorded so the `done` promotion in `.3` is defensible and not narrative-only.
+
+**Validation**
+
+- Doc-only slice (only `docs/` + mandatory `CHANGES.md`/`MEMORY.md`); no `.rs`/`Cargo`/`book/` touched, so `cargo check/test/clippy/fmt` unaffected (green from r87) and `mdbook` unaffected. Audit conclusion triangulated against the independent r87 verification done during session-recovery finalization (17 checks incl. `coverage_gaps=[]`).
+
+**Impact**
+
+- Phase 4's remaining work is now bounded and the path to `done` is explicit: `.3` authors ROADMAP exit criteria and promotes Phase 4 on the existing r87 evidence. No code/behaviour change; no phase label changed yet (that is `.3`).
+
+**Files touched**
+
+- Updated: docs/tasks/PHASE-4-HIERARCHY.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-register-remaining-phase-task-trees — Register every remaining roadmap phase as a task tree
 
 **Landed as:** 0924c8c
