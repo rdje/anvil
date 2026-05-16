@@ -2092,6 +2092,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `8c28eae` — Docs: PHASE-5-PARAMETERIZATION.2.2 scope refinement (soundness).
+- `6646c97` — Phase 5: record PHASE-5-PARAMETERIZATION.2.1 commit hash 4cedad2.
 - `4cedad2` — Phase 5: PHASE-5-PARAMETERIZATION.2.1 width-parameterization scaffold.
 - `786e468` — Docs: PHASE-5-PARAMETERIZATION.1 parameterization design (architecture C chosen).
 - `9f07576` — Phase 4: record Phase-4-closure commit hash 21ec427.

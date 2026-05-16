@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.2-scope — PHASE-5-PARAMETERIZATION.2.2 scope refinement (soundness)
 
-**Landed as:** this commit
+**Landed as:** 8c28eae
 
 **What changed**
 
