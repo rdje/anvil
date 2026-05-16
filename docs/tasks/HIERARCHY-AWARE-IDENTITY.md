@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `HIERARCHY-AWARE-IDENTITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Phase 4 — Hierarchy
 - Created: `2026-05-14`
-- Last updated: `2026-05-15` (HIERARCHY-AWARE-IDENTITY.2 landed)
+- Last updated: `2026-05-15` (HIERARCHY-AWARE-IDENTITY.4 + .5 landed; tree complete)
 - Owner: repo-local workflow
 
 ## Goal
@@ -80,29 +80,33 @@ gate proves the dedup is downstream-clean.
   Commit: `Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.4`
-  Status: `pending`
-  Goal: `Implement the dedup pass per the H-A-I.3 sketch, guarded by an opt-in toggle (IdentityMode::NodeId at the hierarchy level or a dedicated config knob). Default behaviour stays identical to today — never retire existing modes.`
-  Acceptance: `cargo test all green; focused proof shows a Design with two structurally-identical Modules collapses to one when the toggle is on and remains two when off; cargo fmt / clippy / mdbook build clean.`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `Implement the dedup pass per the H-A-I.3 sketch, guarded by an opt-in toggle (a dedicated Config knob — IdentityMode is left untouched per the design sketch). Default behaviour stays identical to today — never retire existing modes.`
+  Acceptance: `cargo test all green; focused proof shows a Design with structurally-identical Modules collapses when the toggle is on and remains separate when off; cargo fmt / clippy / mdbook build clean.`
+  Verification: `New src/ir/dedup.rs (3 unit tests passing). Focused proof module_dedup_pass_collapses_structurally_duplicate_modules passes for all four ConstructionStrategy values. cargo test --bin tool_matrix --release phase4_hierarchy (3/3 unit tests). cargo fmt --all -- --check, mdbook build book clean.`
+  Commit: `Phase 4: implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)`
 
 - ID: `HIERARCHY-AWARE-IDENTITY.5`
-  Status: `pending`
+  Status: `done`
   Goal: `Matrix gate proves dedup is downstream-clean: add a focused scenario with the dedup toggle on, run the full Phase 4 hierarchy gate, prove Verilator/Yosys all-green and a new saw fact saw_recursive_hierarchy_module_dedup_active fires.`
   Acceptance: `Full hierarchy gate green at the new scenario count, including both with-dedup and without-dedup configurations; matrix coverage_gaps stays [].`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `r87 gate: 210 scenarios / 840 designs, coverage_gaps = [], Verilator/Yosys all 840/0, saw_recursive_hierarchy_module_dedup_active = true. The earlier saw_design_with_structurally_duplicate_modules fact still fires because the H-A-I.2 baseline scenario remains in the bank with dedup off (before/after comparison visible in the matrix output).`
+  Commit: `Phase 4: implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `HIERARCHY-AWARE-IDENTITY.4` | `pending` | Implement the dedup pass per the design sketch in `DEVELOPMENT_NOTES.md`: new `src/ir/dedup.rs`, fixed-point iteration grouping Modules by canonical signature with lexicographic-smallest-name survivor, opt-in via a new `hierarchy_module_dedup: bool` Config knob. Default-off preserves current behaviour. |
+The `HIERARCHY-AWARE-IDENTITY` task tree is complete. All five leaves
+(`.1` canonical signatures, `.2` existence proof, `.3` design sketch,
+`.4` implementation, `.5` matrix gate proof) are `done`. The doctrine
+"NodeId = identity of an expression" now extends to "ModuleId =
+identity of a hierarchical module template" under the opt-in
+`Config::hierarchy_module_dedup` knob. Hashes are in this tree's
+Commit Log.
 
-`H-A-I.5` is NOT on the frontier yet — becomes eligible only after
-`H-A-I.4` is `done`.
-`H-A-I.1` (r85), `H-A-I.2` (r86), and `H-A-I.3` (design sketch) are all
-`done`. Hashes are in this tree's Commit Log.
+Future follow-up work (not part of this tree) is recorded in the
+"Open Questions" section: optionally prune Modules referenced by no
+Instance after dedup; an explicit re-emit name for merged survivors;
+a `DesignMetrics.dedup_remap` audit trail.
 
 ## Decisions
 
@@ -152,6 +156,7 @@ gate proves the dedup is downstream-clean.
 | `2026-05-14` | `HIERARCHY-AWARE-IDENTITY.1` | `cargo test --release --test pipeline canonical_module_signatures_are_stable_and_isomorphism_aware`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r85 hierarchy gate. | All passing. Gate: 204 scenarios / 816 designs, `coverage_gaps = []`, Verilator/Yosys all 816/0, `saw_recursive_hierarchy_canonical_module_signature_diversity = true`. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 | `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.2` | `cargo test --release --test pipeline planner_can_emit_structurally_duplicate_modules`; `cargo test --bin tool_matrix --release phase4_hierarchy` (3/3 unit tests); full r86 hierarchy gate. | All passing. Gate: 207 scenarios / 828 designs, `coverage_gaps = []`, Verilator/Yosys all 828/0, `saw_design_with_structurally_duplicate_modules = true`. Tight 1-in/1-out/width-1 leaf constraints collapse the leaf generator's RNG-driven choices to a single canonical structure. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 | `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.3` | `mdbook build book`; design sketch reviewed for completeness against the leaf's acceptance criteria. | Design sketch landed in `DEVELOPMENT_NOTES.md` under "Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)". Records pipeline placement (post-finalisation, new `src/ir/dedup.rs`), instance-rewrite policy (fixed-point iteration, lexicographic-smallest-name survivor), toggle/API choice (new `Config::hierarchy_module_dedup: bool`, default false), edge cases (top must survive, library-mode dedup is no-op, fixed-point termination via strict decrease), proof shape for `H-A-I.4`, and open questions. Three rejected alternatives recorded: incremental dedup during construction; dedup as emitter pass; extending `IdentityMode`. |
+| `2026-05-15` | `HIERARCHY-AWARE-IDENTITY.4 + .5` | 3 unit tests in `src/ir/dedup.rs`; `cargo test --release --test pipeline module_dedup_pass_collapses_structurally_duplicate_modules`; `cargo test --bin tool_matrix --release phase4_hierarchy`; full r87 hierarchy gate. | All passing. Gate: 210 scenarios / 840 designs, `coverage_gaps = []`, Verilator/Yosys all 840/0, `saw_recursive_hierarchy_module_dedup_active = true`. The earlier `saw_design_with_structurally_duplicate_modules` fact still fires because the H-A-I.2 baseline scenario remains in the bank with dedup off. `cargo fmt --all -- --check`, `mdbook build book` clean. |
 
 ## Commit Log
 
@@ -160,6 +165,7 @@ gate proves the dedup is downstream-clean.
 | `HIERARCHY-AWARE-IDENTITY.1` | `Phase 4: add canonical module signatures (r85, HIERARCHY-AWARE-IDENTITY.1)` | First task-tree-managed code slice on ANVIL. |
 | `HIERARCHY-AWARE-IDENTITY.2` | `Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2)` | Existence proof: dedup is real and applicable to ANVIL's planner. |
 | `HIERARCHY-AWARE-IDENTITY.3` | `Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3)` | Pure design slice; design sketch landed in DEVELOPMENT_NOTES.md. |
+| `HIERARCHY-AWARE-IDENTITY.4 + .5` | `Phase 4: implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)` | Implementation + matrix-gate proof landed together; tree complete. |
 
 ## Changelog
 
@@ -167,3 +173,4 @@ gate proves the dedup is downstream-clean.
 - `2026-05-14`: `H-A-I.1` landed downstream-clean. Status -> `done`. Frontier rotated to `H-A-I.2`.
 - `2026-05-15`: `H-A-I.2` landed downstream-clean as r86. Status -> `done`. Frontier rotated to `H-A-I.3`.
 - `2026-05-15`: `H-A-I.3` design sketch landed in `DEVELOPMENT_NOTES.md`. Status -> `done`. Frontier rotated to `H-A-I.4`.
+- `2026-05-15`: `H-A-I.4` (dedup-pass implementation) AND `H-A-I.5` (matrix gate proof) both landed together as r87. Tree status -> `done`. No active frontier.

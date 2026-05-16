@@ -321,6 +321,7 @@ struct CoverageSummary {
     saw_recursive_parent_cone_helper_budget_5: bool,
     saw_recursive_hierarchy_canonical_module_signature_diversity: bool,
     saw_design_with_structurally_duplicate_modules: bool,
+    saw_recursive_hierarchy_module_dedup_active: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -1192,6 +1193,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                     strategy,
                     next_seed + 68,
                 ),
+            ),
+            (
+                "phase4_hier1_module_dedup_active",
+                "depth-1 wrapper-lane scenario identical to phase4_hier1_structurally_duplicate_modules but with hierarchy_module_dedup = true; proves the post-finalisation dedup pass collapses duplicates downstream-clean (HIERARCHY-AWARE-IDENTITY.4)",
+                phase4_hierarchy_module_dedup_active_focus_config(strategy, next_seed + 69),
             ),
             (
                 "phase4_recur_d2_registered_sibling_multistage_state",
@@ -2185,6 +2191,22 @@ fn phase4_recursive_d7_stateful_parent_composed_mixed_support_focus_config(
     let mut cfg = phase4_recursive_d7_parent_composed_mixed_support_focus_config(strategy, seed);
     cfg.hierarchy_parent_flop_prob = 1.0;
     cfg.max_flops_per_module = 64;
+    cfg
+}
+
+fn phase4_hierarchy_module_dedup_active_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    // HIERARCHY-AWARE-IDENTITY.4 anchor scenario. Identical to
+    // phase4_hierarchy_structurally_duplicate_modules_focus_config but
+    // with hierarchy_module_dedup enabled. The dedup pass collapses
+    // the 4 library leaves to 1 surviving leaf, leaving the top + 1
+    // leaf = 2 modules total, all structurally distinct
+    // (num_distinct == num_modules). Both scenarios stay in the bank
+    // so the before/after comparison is visible.
+    let mut cfg = phase4_hierarchy_structurally_duplicate_modules_focus_config(strategy, seed);
+    cfg.hierarchy_module_dedup = true;
     cfg
 }
 
@@ -5317,6 +5339,11 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
         coverage.saw_design_with_structurally_duplicate_modules |=
             design.metrics.num_structurally_duplicate_module_pairs > 0
                 && design.metrics.num_distinct_module_signatures < design.metrics.num_modules;
+        coverage.saw_recursive_hierarchy_module_dedup_active |=
+            scenario.config.hierarchy_module_dedup
+                && design.metrics.num_modules >= 2
+                && design.metrics.num_structurally_duplicate_module_pairs == 0
+                && design.metrics.num_distinct_module_signatures == design.metrics.num_modules;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -5625,6 +5652,8 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_canonical_module_signature_diversity;
     dst.saw_design_with_structurally_duplicate_modules |=
         src.saw_design_with_structurally_duplicate_modules;
+    dst.saw_recursive_hierarchy_module_dedup_active |=
+        src.saw_recursive_hierarchy_module_dedup_active;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -6639,6 +6668,14 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy
+        && !coverage.saw_recursive_hierarchy_module_dedup_active
+    {
+        gaps.push(
+            "matrix never proved a design where the module-dedup pass ran and produced a duplicate-free survivor set (HIERARCHY-AWARE-IDENTITY.4)"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -7138,7 +7175,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 828);
+        assert_eq!(plan.total_modules, 840);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -7234,10 +7271,11 @@ mod tests {
                     || scenario
                         .name
                         .ends_with("phase4_hier1_structurally_duplicate_modules")
+                    || scenario.name.ends_with("phase4_hier1_module_dedup_active")
             );
         }
-        assert_eq!(scenarios.len(), 207);
-        assert_eq!(names.len(), 207);
+        assert_eq!(scenarios.len(), 210);
+        assert_eq!(names.len(), 210);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,

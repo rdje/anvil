@@ -253,7 +253,7 @@ evidence.
 
 ## Phase 4 — Hierarchy (in progress)
 
-**Active task tree:** [`HIERARCHY-AWARE-IDENTITY`](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) (current frontier: `HIERARCHY-AWARE-IDENTITY.1`). Phase 4's `rN`-named linear coverage slices (r73…r85) continue to land under the rN cadence; multi-slice sub-objectives like hierarchy-aware identity are now task-tree-managed per [docs/TASK_TREE.md](docs/TASK_TREE.md).
+**Completed task tree:** [`HIERARCHY-AWARE-IDENTITY`](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) is `done` — all five leaves landed (`.1` canonical signatures r85, `.2` existence proof r86, `.3` design sketch, `.4` dedup-pass implementation r87, `.5` matrix-gate proof r87). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob. Phase 4's `rN`-named linear coverage slices continue to land under the rN cadence; multi-slice sub-objectives like hierarchy-aware identity are task-tree-managed per [docs/TASK_TREE.md](docs/TASK_TREE.md).
 
 - **Landed slices so far:**
   - the legacy exact wrapper lane:
@@ -357,7 +357,7 @@ evidence.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`.
+    `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing, direct registered sibling mixed-support
@@ -486,12 +486,12 @@ evidence.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
-`207` scenarios, `828` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
+`210` scenarios, `840` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
 elaboration/synthesis on the broadened hierarchy matrix
-(`828/0` in Verilator plus both repo-owned Yosys modes). The `r86` report
+(`840/0` in Verilator plus both repo-owned Yosys modes). The `r87` report
 proves all of the current representative hierarchy axes directly:
 - wrapper exact / reuse / under-instantiation profiles
 - recursive depth `2`

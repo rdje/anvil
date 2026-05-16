@@ -1,6 +1,7 @@
 //! The circuit IR. See `book/src/ir.md` for rationale.
 
 pub mod compact;
+pub mod dedup;
 pub mod types;
 pub mod validate;
 

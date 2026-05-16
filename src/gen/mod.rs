@@ -93,7 +93,7 @@ impl Generator {
     }
 
     pub fn generate_design(&mut self) -> Design {
-        if self.cfg.effective_hierarchy_depth_range().is_none() {
+        let mut design = if self.cfg.effective_hierarchy_depth_range().is_none() {
             let m = self.generate_module();
             let name = m.name.clone();
             Design {
@@ -102,7 +102,11 @@ impl Generator {
             }
         } else {
             hierarchy::generate_design(self)
+        };
+        if self.cfg.hierarchy_module_dedup {
+            crate::ir::dedup::dedup_modules(&mut design);
         }
+        design
     }
 }
 

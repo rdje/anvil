@@ -99,6 +99,10 @@ Control the size and topology of generated modules.
   bounded recursive hierarchy controls (Phase 4).
 - `max_parent_cone_instances_per_module` — per-parent helper-instance
   budget for hierarchy parent-cone sources (Phase 4).
+- `hierarchy_module_dedup` — opt-in post-finalisation pass that collapses
+  structurally-identical `Module` definitions in a `Design` to one
+  survivor (Phase 4, hierarchy-aware identity). Config/library-only;
+  no CLI flag.
 
 ### Sequential knobs (flops and mux motifs)
 
@@ -403,6 +407,69 @@ instead of creating fresh logic.
   cones. Range `[0.0, 1.0]`.
   Default `0.0`, so hierarchy remains combinational unless state is
   explicitly requested.
+- `hierarchy_module_dedup` — opt-in `bool`, default `false`. When
+  `true`, the generator runs the post-finalisation module-dedup pass
+  (`src/ir/dedup.rs`) after `generate_design` has assembled and
+  finalised every `Module`. The pass groups `Design::modules` by the
+  same canonical FNV-1a structural signature recorded in
+  `DesignMetrics.canonical_module_signatures`, keeps one survivor per
+  group (the lexicographically-smallest module name; the top module is
+  never merged away), rewrites every `Instance.module` reference in the
+  surviving modules to point at the survivor, and drops the merged-away
+  definitions. This extends the doctrine *"NodeId = identity of an
+  expression"* up one level to *"ModuleId = identity of a hierarchical
+  module template"*: structurally-identical `Module`s collapse the same
+  way structurally-identical expressions already share a `NodeId`. It
+  is purely structural — two modules that compute the same function via
+  different gate sequences stay distinct. Default `false` preserves
+  today's behaviour exactly; this knob never retires an existing mode.
+
+  This knob is **config/library-only — there is no `--hierarchy-module-dedup`
+  CLI flag**. Set it through a `Config` value (library use) or a config
+  file, and confirm it with `anvil --dump-config`. Worked before/after,
+  using the tight leaf constraints that make every library leaf
+  structurally identical:
+
+  ```rust
+  use anvil::{Config, Generator, metrics};
+
+  // Four library leaves, all collapsed to one canonical shape by the
+  // 1-in / 1-out / width-1 / max_depth-1 constraints.
+  let base = Config {
+      seed: 42,
+      hierarchy_depth: 1,
+      num_leaf_modules: 4,
+      num_child_instances: 4,
+      min_inputs: 1, max_inputs: 1,
+      min_outputs: 1, max_outputs: 1,
+      min_width: 1, max_width: 1,
+      max_depth: 1,
+      terminal_reuse_prob: 1.0,
+      constant_prob: 0.0,
+      ..Config::default()
+  };
+
+  // Dedup OFF (default): the planner emits structural duplicates.
+  let off = metrics::compute_design(&Generator::new(base.clone()).generate_design());
+  assert!(off.num_structurally_duplicate_module_pairs > 0);
+
+  // Dedup ON: duplicates collapse to a single survivor + top.
+  let mut on_cfg = base;
+  on_cfg.hierarchy_module_dedup = true;
+  let on = metrics::compute_design(&Generator::new(on_cfg).generate_design());
+  assert_eq!(on.num_structurally_duplicate_module_pairs, 0);
+  assert!(on.num_modules < off.num_modules);          // fewer modules
+  assert_eq!(on.num_distinct_module_signatures, on.num_modules); // all unique
+  ```
+
+  The emitted `Design` stays valid by construction: instance references
+  are rewritten before the merged definitions are dropped, so
+  `ir::validate::validate_design` still passes. Repo-owned proof:
+  `module_dedup_pass_collapses_structurally_duplicate_modules` in
+  `tests/pipeline.rs` plus the `phase4_hier1_module_dedup_active`
+  matrix scenario (the `phase4_hier1_structurally_duplicate_modules`
+  baseline stays in the bank with dedup off so the before/after
+  comparison is visible directly in the gate output).
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
@@ -481,6 +548,7 @@ Config {
     hierarchy_parent_cone_instance_prob: 0.0,
     max_parent_cone_instances_per_module: 1,
     hierarchy_parent_flop_prob: 0.0,
+    hierarchy_module_dedup: false,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,

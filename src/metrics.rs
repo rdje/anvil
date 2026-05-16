@@ -2184,7 +2184,7 @@ fn fnv1a_64_u32(state: u64, value: u32) -> u64 {
 /// `IdentityMode::NodeId` is active and to extend the doctrine "NodeId
 /// = identity of an expression" up to "ModuleId = identity of a
 /// hierarchical module template".
-fn canonical_module_signature(module: &Module) -> u64 {
+pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
     let mut h = fnv1a_64_init();
     h = fnv1a_64_u64(h, module.inputs.len() as u64);
     for port in &module.inputs {

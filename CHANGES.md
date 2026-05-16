@@ -1,5 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-15-phase4-module-dedup-pass — Implement and gate module-dedup pass (r87, HIERARCHY-AWARE-IDENTITY.4 + HIERARCHY-AWARE-IDENTITY.5)
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `src/ir/dedup.rs` module implementing `dedup_modules(&mut Design) -> usize`. Fixed-point iteration: each pass groups Modules by canonical FNV-1a signature (the same signature used by `DesignMetrics.canonical_module_signatures`), picks the lexicographically-smallest-name survivor per group (with the top always preserved by explicit name match), builds a name-remap, rewrites every `Instance.module` reference in the surviving Modules, and drops merged-away entries. Iteration terminates because each non-trivial pass strictly decreases `design.modules.len()`. Three unit tests cover the typical case, the no-op case, and the top-preservation invariant.
+- New `Config::hierarchy_module_dedup: bool` knob (default `false`). When `true`, `Generator::generate_design` runs `dedup_modules` after the existing per-Module finalisation passes (compact, flop-merge, gate-merge). Default-off preserves all existing behaviour.
+- `pub(crate)` exposure of `canonical_module_signature` in `src/metrics.rs` so `src/ir/dedup.rs` reuses the same hash function. Single source of truth.
+- Focused proof `module_dedup_pass_collapses_structurally_duplicate_modules` (depth-1 wrapper lane, 4 leaves, 4 instances, 1-in/1-out/width-1 leaves, max_depth=1, terminal_reuse_prob=1.0). For each of the four ConstructionStrategy values: runs the baseline (dedup off) and verifies `num_structurally_duplicate_module_pairs > 0`; runs the same config with dedup on and verifies (a) `num_modules < baseline`, (b) `num_structurally_duplicate_module_pairs == 0`, (c) `num_distinct == num_modules` (every survivor is unique), and (d) `validate_design` still passes (instance references resolvable post-rewrite).
+- Matrix scenario `phase4_hier1_module_dedup_active` per ConstructionStrategy via `phase4_hierarchy_module_dedup_active_focus_config` (thin wrapper that toggles `hierarchy_module_dedup = true` on top of `phase4_hierarchy_structurally_duplicate_modules_focus_config`). Both scenarios stay in the bank so the before/after comparison is visible in the matrix output.
+- New `saw_recursive_hierarchy_module_dedup_active` coverage fact requires the scenario's `hierarchy_module_dedup` is true, the design has ≥2 surviving Modules, 0 duplicate pairs, and `num_distinct == num_modules`. Matching gap message references `HIERARCHY-AWARE-IDENTITY.4`.
+- Bank counts: 210 scenarios / 840 designs.
+- Doc-sync (session-recovery finalization): added the `hierarchy_module_dedup` knob to `book/src/knobs.md` — summary-list bullet, a detailed entry with a worked before/after Rust example, and the `Config::default()` snippet — closing a knob-reference sync gap; the entry states explicitly that it is config/library-only with **no CLI flag**. Fixed the stale ROADMAP.md Phase 4 task-tree line (was "current frontier: HIERARCHY-AWARE-IDENTITY.1"; now reflects tree completion, consistent with MEMORY.md / docs/TASK_TREE.md / the task file). Removed a crash-left spurious `mut` in a `src/ir/dedup.rs` unit test that would have failed `clippy -D warnings`.
+- Ran full Phase 4 hierarchy gate at `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
+- Closes leaves `HIERARCHY-AWARE-IDENTITY.4` AND `HIERARCHY-AWARE-IDENTITY.5` in `docs/tasks/HIERARCHY-AWARE-IDENTITY.md` (the matrix-gate proof from `.5` is delivered by the same r87 gate run that proves `.4` is downstream-clean). Tree status moves to `done` since every leaf has landed.
+
+**Why**
+
+- `H-A-I.3` design sketch fixed the dedup pass's shape; this slice implements it exactly as specified. Pipeline placement (post-finalisation, in `Generator::generate_design` after the existing per-Module passes), instance-rewrite policy (fixed-point with lex-smallest-name survivor, top always preserved), and toggle/API choice (new orthogonal `Config` bool, not an extension of `IdentityMode`) all match the sketch. The proof shape also matches: baseline-vs-dedup comparison, both scenarios coexist in the bank.
+- Closing `.4` and `.5` together is the natural consequence of having the matrix scenario in the same commit: the r87 gate IS the `.5` deliverable. Splitting would be artificial.
+
+**Validation**
+
+- 3 unit tests in `src/ir/dedup.rs`: typical case, no-op case, top-preservation.
+- Focused proof `module_dedup_pass_collapses_structurally_duplicate_modules` passes (~0.05s release) for all four ConstructionStrategy values.
+- Full gate: 210 scenarios, 840 designs, `coverage_gaps = []`, `Verilator 840/0`, both Yosys modes 840/0, `saw_recursive_hierarchy_module_dedup_active = true`. The earlier `saw_design_with_structurally_duplicate_modules` fact still fires because the baseline `H-A-I.2` scenario remains in the bank with dedup off.
+- `cargo fmt --all -- --check`, `mdbook build book` clean.
+
+**Impact**
+
+- `HIERARCHY-AWARE-IDENTITY` tree complete: `.1` (canonical signatures, r85) -> `.2` (existence proof, r86) -> `.3` (design sketch) -> `.4`+`.5` (implementation + matrix gate, r87). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob.
+- Default-off behaviour is preserved end-to-end. The existing `H-A-I.2` scenario still produces structurally-duplicate Modules and the `saw_design_with_structurally_duplicate_modules` fact still fires on it.
+
+**Files touched**
+
+- New: src/ir/dedup.rs.
+- Updated: src/config.rs, src/gen/mod.rs, src/ir/mod.rs, src/metrics.rs (canonical_module_signature visibility), src/bin/tool_matrix.rs, tests/pipeline.rs, CHANGES.md, DEVELOPMENT_NOTES.md, MEMORY.md, CODEBASE_ANALYSIS.md, USER_GUIDE.md, README.md, ROADMAP.md, book/src/hierarchy.md, book/src/architecture.md, book/src/knobs.md, docs/TASK_TREE.md, docs/tasks/HIERARCHY-AWARE-IDENTITY.md.
+
 ## 2026-05-15-phase4-dedup-pass-design-sketch — Module-dedup pass design sketch (HIERARCHY-AWARE-IDENTITY.3)
 
 **Landed as:** e83efd8

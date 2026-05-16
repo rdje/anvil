@@ -58,6 +58,32 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Module-dedup pass implemented (2026-05-15, r87, HIERARCHY-AWARE-IDENTITY.4 + .5)
+The dedup pass design sketched in `HIERARCHY-AWARE-IDENTITY.3` is now
+live as `src/ir/dedup.rs`. Implementation matches the sketch
+exactly: pipeline placement (post-finalisation, called from
+`Generator::generate_design`), instance-rewrite policy (fixed-point
+iteration with lexicographic-smallest-name survivor, top always
+preserved by name), toggle/API choice (new `Config::hierarchy_module_dedup:
+bool`, default `false`, orthogonal to `IdentityMode`). The
+canonical-signature hash is reused from `src/metrics.rs` (exposed as
+`pub(crate)` for that purpose — single source of truth).
+
+**Validation evidence:** r87 gate downstream-clean at 210 scenarios /
+840 designs / `coverage_gaps = []`. The new
+`phase4_hier1_module_dedup_active` matrix scenario per construction
+strategy proves dedup runs cleanly through Verilator and both Yosys
+modes; the earlier `phase4_hier1_structurally_duplicate_modules`
+scenario remains in the bank with dedup off, providing the
+side-by-side before/after comparison.
+
+**`HIERARCHY-AWARE-IDENTITY` tree status:** complete. All five leaves
+(`.1` canonical signatures, `.2` existence proof, `.3` design sketch,
+`.4` implementation, `.5` matrix gate proof) are `done`. The doctrine
+extension — "ModuleId = identity of a hierarchical module template"
+— is now live under the opt-in `Config::hierarchy_module_dedup`
+knob.
+
 ### Module-dedup pass design sketch (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)
 This is the pre-implementation design sketch for the eventual
 `H-A-I.4` dedup pass. No code lands in this slice.

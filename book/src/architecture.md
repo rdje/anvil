@@ -429,9 +429,9 @@ structured-surface gate is now closed as well via
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
-(828 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-828/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+(840 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
+840/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes

@@ -871,6 +871,100 @@ fn hierarchy_parent_cone_helper_budget_allows_multiple_helpers() {
 }
 
 #[test]
+fn module_dedup_pass_collapses_structurally_duplicate_modules() {
+    // HIERARCHY-AWARE-IDENTITY.4 deliverable: when
+    // Config::hierarchy_module_dedup is enabled, the post-finalisation
+    // dedup pass collapses every group of Modules sharing a canonical
+    // signature to a single survivor and rewrites Instance.module
+    // references accordingly. Compared to the same config without the
+    // toggle (H-A-I.2's scenario), num_modules strictly decreases,
+    // num_structurally_duplicate_module_pairs becomes 0, and
+    // validate_design still passes (instance references remain
+    // resolvable).
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let base = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 4,
+            min_inputs: 1,
+            max_inputs: 1,
+            min_outputs: 1,
+            max_outputs: 1,
+            min_width: 1,
+            max_width: 1,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 1,
+            construction_strategy: strategy,
+            ..Config::default()
+        };
+        base.validate()
+            .expect("dedup proof config (without toggle) should be valid");
+
+        // Baseline: dedup off — confirms H-A-I.2's existence proof
+        // still holds in the live code path.
+        let cfg_off = base.clone();
+        let mut g_off = Generator::new(cfg_off);
+        let design_off = g_off.generate_design();
+        anvil::ir::validate::validate_design(&design_off).expect("baseline design should validate");
+        let metrics_off = anvil::metrics::compute_design(&design_off);
+        assert!(
+            metrics_off.num_structurally_duplicate_module_pairs > 0,
+            "baseline (dedup off) should still produce duplicates for strategy {:?}: {metrics_off:#?}",
+            strategy,
+        );
+        let modules_before = metrics_off.num_modules;
+
+        // With dedup: the same config + toggle on should collapse the
+        // duplicates. validate_design must still pass — that
+        // confirms the instance-rewrite policy is sound.
+        let mut cfg_on = base;
+        cfg_on.hierarchy_module_dedup = true;
+        let mut g_on = Generator::new(cfg_on);
+        let design_on = g_on.generate_design();
+        anvil::ir::validate::validate_design(&design_on)
+            .expect("post-dedup design should still validate");
+        let metrics_on = anvil::metrics::compute_design(&design_on);
+
+        assert_eq!(
+            metrics_on.num_structurally_duplicate_module_pairs, 0,
+            "expected zero duplicate pairs after dedup for strategy {:?}: {metrics_on:#?}",
+            strategy,
+        );
+        assert!(
+            metrics_on.num_modules < modules_before,
+            "expected fewer modules after dedup for strategy {:?}: before={modules_before}, after={}",
+            strategy,
+            metrics_on.num_modules,
+        );
+        assert!(
+            metrics_on.num_modules >= 2,
+            "expected dedup to preserve at least the top + one surviving leaf for strategy {:?}",
+            strategy,
+        );
+        assert_eq!(
+            metrics_on.num_distinct_module_signatures, metrics_on.num_modules,
+            "after dedup, every surviving module should have a unique canonical signature for strategy {:?}: {metrics_on:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
 fn planner_can_emit_structurally_duplicate_modules() {
     // HIERARCHY-AWARE-IDENTITY.2 deliverable: prove the planner CAN emit
     // multiple Modules in design.modules that share the same canonical

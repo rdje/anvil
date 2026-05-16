@@ -43,7 +43,7 @@ level → cross-module factorization), which is explicitly multi-slice.
 
 | Tree | Status | Roadmap lane | Current frontier | File |
 | --- | --- | --- | --- | --- |
-| `HIERARCHY-AWARE-IDENTITY` | `active` | Phase 4 — Hierarchy | `HIERARCHY-AWARE-IDENTITY.4` | [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](tasks/HIERARCHY-AWARE-IDENTITY.md) |
+| `HIERARCHY-AWARE-IDENTITY` | `done` | Phase 4 — Hierarchy | (complete — all leaves done) | [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](tasks/HIERARCHY-AWARE-IDENTITY.md) |
 | `INSTA-SNAPSHOTS` | `active` | Quality — reproducibility regressions | `INSTA-SNAPSHOTS.1` | [docs/tasks/INSTA-SNAPSHOTS.md](tasks/INSTA-SNAPSHOTS.md) |
 | `DIFFERENTIAL-SIMULATION` | `active` | Quality — signoff-level downstream consistency | `DIFFERENTIAL-SIMULATION.1` | [docs/tasks/DIFFERENTIAL-SIMULATION.md](tasks/DIFFERENTIAL-SIMULATION.md) |
 | `COVERAGE-INSTRUMENTATION` | `active` | Quality — test-discipline visibility | `COVERAGE-INSTRUMENTATION.2` | [docs/tasks/COVERAGE-INSTRUMENTATION.md](tasks/COVERAGE-INSTRUMENTATION.md) |

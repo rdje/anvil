@@ -4,7 +4,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
 ## Current state
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is still in progress.**
 - **Active task trees:**
-  - `HIERARCHY-AWARE-IDENTITY` — current frontier `HIERARCHY-AWARE-IDENTITY.4` (implement the dedup pass per the H-A-I.3 design sketch). `H-A-I.1` (canonical signatures, r85), `H-A-I.2` (structural-duplicate proof, r86), and `H-A-I.3` (design sketch in DEVELOPMENT_NOTES.md) all `done`.
+  - `HIERARCHY-AWARE-IDENTITY` — **tree complete** (all five leaves `done`): `H-A-I.1` (canonical signatures, r85), `H-A-I.2` (existence proof, r86), `H-A-I.3` (design sketch), `H-A-I.4` (dedup-pass implementation, r87), `H-A-I.5` (matrix gate proof, r87 same commit). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob.
   - `INSTA-SNAPSHOTS` — current frontier `INSTA-SNAPSHOTS.1` (baseline insta wire-up). Quality lane: reproducibility regressions.
   - `DIFFERENTIAL-SIMULATION` — current frontier `DIFFERENTIAL-SIMULATION.1` (scope iverilog or alternative as the second simulator; Verilator is already a fait accompli via the matrix gate). Quality lane: signoff-level downstream consistency.
   - `COVERAGE-INSTRUMENTATION` — current frontier `COVERAGE-INSTRUMENTATION.2` (triage of top-5 under-covered files). Quality lane: test-discipline visibility. Baseline landed at `docs/coverage-baseline.md` (85.26% lines / 91.95% functions / 87.61% regions; planner core 88-99% covered by focused proofs alone).
@@ -22,10 +22,10 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   operator-arity note no longer implies they exist only inside flop
   D-inputs.
 - Latest full downstream-clean Phase 4 hierarchy bank is:
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r86/tool_matrix_report.json`
-  covers the live `207`-scenario policy at `4` designs/scenario
-  (`828` total designs), with `artifact_kind = "design"`,
-  `coverage_gaps = []`, and `828/0` pass-fail in Verilator plus both
+  `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+  covers the live `210`-scenario policy at `4` designs/scenario
+  (`840` total designs), with `artifact_kind = "design"`,
+  `coverage_gaps = []`, and `840/0` pass-fail in Verilator plus both
   repo-owned Yosys modes. It includes the direct sibling helper route,
   direct registered sibling helper route, multi-stage registered sibling
   route, stateful parent-output helper route, multi-stage direct
@@ -143,7 +143,25 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   mixed-support bank, `r49` recursive non-top parent-output helper
   mixed-support bank, and `r50` accumulated mixed-support hierarchy
   bank are now historical breadcrumbs.
-- Current Phase 4 hierarchy r86 batch closes `HIERARCHY-AWARE-IDENTITY.2`:
+- Current Phase 4 hierarchy r87 batch closes `HIERARCHY-AWARE-IDENTITY.4`
+  AND `.5`: implements `src/ir/dedup.rs`, wires the opt-in
+  `Config::hierarchy_module_dedup: bool` knob, and adds the matrix
+  scenario `phase4_hier1_module_dedup_active` per construction
+  strategy. New `saw_recursive_hierarchy_module_dedup_active` fact
+  requires the toggle is on, ≥2 surviving Modules, 0 duplicate
+  pairs, and `num_distinct == num_modules`. Focused proof
+  `module_dedup_pass_collapses_structurally_duplicate_modules`
+  asserts (a) baseline duplicates remain when dedup off,
+  (b) `num_modules` strictly decreases with dedup on,
+  (c) 0 duplicate pairs after dedup, (d) `validate_design` still
+  passes post-rewrite. Validation: 3 unit tests in
+  `src/ir/dedup.rs`, focused regression, `cargo test --bin tool_matrix`,
+  and the full r87 gate with `210` scenarios / `840` designs,
+  `coverage_gaps = []`,
+  `saw_recursive_hierarchy_module_dedup_active = true`, and `840/0`
+  pass-fail in Verilator plus both repo-owned Yosys modes. The
+  HIERARCHY-AWARE-IDENTITY tree is complete.
+- Previous Phase 4 hierarchy r86 batch closed `HIERARCHY-AWARE-IDENTITY.2`:
   proves the planner can emit structurally-duplicate Module
   definitions under tight 1-in/1-out/width-1 leaf constraints. New
   `saw_design_with_structurally_duplicate_modules` fact requires
@@ -2066,6 +2084,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `e4f0f04` — Phase 4: record H-A-I.3 commit hash e83efd8.
 - `e83efd8` — Phase 4: dedup-pass design sketch (HIERARCHY-AWARE-IDENTITY.3).
 - `555058d` — Phase 4: prove planner emits structurally-duplicate Modules (r86, HIERARCHY-AWARE-IDENTITY.2).
 - `21174d8` — Docs: narrow DIFFERENTIAL-SIMULATION.1 scope to second simulator.

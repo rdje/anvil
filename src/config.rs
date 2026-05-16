@@ -487,6 +487,21 @@ pub struct Config {
     #[serde(default = "default_hierarchy_parent_flop_prob")]
     pub hierarchy_parent_flop_prob: f64,
 
+    /// When `true`, the generator runs `crate::ir::dedup::dedup_modules`
+    /// after `generate_design` finishes assembling the design's
+    /// modules. The pass collapses every group of `Module`s in
+    /// `design.modules` that share a canonical structural signature
+    /// (the same FNV-1a 64-bit hash recorded in
+    /// `DesignMetrics.canonical_module_signatures`) to a single
+    /// surviving entry and rewrites every `Instance.module`
+    /// reference in the surviving Modules so they point at the
+    /// survivor. The top module is never merged away. The pass is
+    /// opt-in: `default = false` preserves existing behaviour.
+    /// First slice: `HIERARCHY-AWARE-IDENTITY.4` — see
+    /// `docs/tasks/HIERARCHY-AWARE-IDENTITY.md`.
+    #[serde(default)]
+    pub hierarchy_module_dedup: bool,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -636,6 +651,7 @@ impl Default for Config {
             hierarchy_parent_cone_instance_prob: default_hierarchy_parent_cone_instance_prob(),
             max_parent_cone_instances_per_module: default_max_parent_cone_instances_per_module(),
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
+            hierarchy_module_dedup: false,
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
