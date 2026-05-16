@@ -1,8 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-16-phase4-hierarchy-surface-inventory — PHASE-4-HIERARCHY.1: hierarchy surface is landed-proven
+## 2026-05-16-phase4-closed — Phase 4 closed (PHASE-4-HIERARCHY.3, evidence-backed scope cut)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `ROADMAP.md`: Phase 4 header `(in progress)` → `(done)`; added an explicit 5-point **"Exit criteria (met)"** block (each point tied to a concrete r87 fact), and reframed the Phase 4 intro to record both Phase 4 task trees complete and the deliberate scope-cut rationale.
+- Phase-4-status flipped to `done` across all live docs: `README.md` (Current-scope / next-honest-work paragraph), `CODEBASE_ANALYSIS.md` (phase-coverage row `in progress` → `done` + residual reframed), `MEMORY.md` (Phase line + `PHASE-4-HIERARCHY` tree line), `book/src/hierarchy.md` ("Phase 4 status: done" rewrite of the closing section), `book/src/architecture.md` (lead clause).
+- `docs/tasks/PHASE-4-HIERARCHY.md`: `.3` → `done`, container + tree Status → `done`, frontier = complete, Verification/Commit/Changelog finalised. `docs/TASK_TREE.md` row → `done`.
+- Backfilled the `PHASE-4-HIERARCHY.1` entry's `Landed as:` with its hash `0219ac7`; recorded `0219ac7` and this commit in `MEMORY.md` recent-commits.
+
+**Why**
+
+- The `.1` audit proved the instrumented hierarchy surface is fully landed-proven (r87, `coverage_gaps=[]`) with no missing surface, and the roadmap residual ("broader registered hierarchy patterns") is open-ended capability-deepening with no finite completion point. "Complete exhaustion" of Phase 4 is therefore necessarily a deliberate, documented, evidence-backed scope cut against explicit exit criteria — not a gap drain (already empty) nor an unbounded permutation grind. No mode/strategy retired (never-retire-strategies upheld). This satisfies the COMMIT.md rule that a phase is not promoted to `done` from narrative alone: the r87 repo-owned artifact is the visible evidence and was re-verified directly.
+
+**Validation**
+
+- r87 re-verified directly: `scenario_count=210`, `total_modules=840`, `coverage_gaps=[]`, Verilator/Yosys-no-abc/Yosys-abc all `840/0`, all 105 `saw_*` `true`, zero `false`.
+- Doc-only slice: no `.rs`/`Cargo` touched, so `cargo check/test/clippy/fmt` unaffected (green from r87). `book/src/*` changed → `mdbook build book` run and clean.
+
+**Impact**
+
+- ROADMAP Phase 4 = `done`; Phase 5 (Parameterization) is the next numbered phase and is now unblocked. The `PHASE-4-HIERARCHY` task tree is complete, fulfilling the PNT-to-exhaustion directive for Phase 4. No code/behaviour change.
+
+**Files touched**
+
+- Updated: ROADMAP.md, README.md, CODEBASE_ANALYSIS.md, MEMORY.md, book/src/hierarchy.md, book/src/architecture.md, docs/tasks/PHASE-4-HIERARCHY.md, docs/TASK_TREE.md, CHANGES.md.
+
+## 2026-05-16-phase4-hierarchy-surface-inventory — PHASE-4-HIERARCHY.1: hierarchy surface is landed-proven
+
+**Landed as:** 0219ac7
 
 **What changed**
 

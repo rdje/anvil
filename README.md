@@ -809,31 +809,22 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `r87` is the current bank that implements the post-finalisation module-dedup pass under the opt-in `Config::hierarchy_module_dedup` knob and proves it downstream-clean (HIERARCHY-AWARE-IDENTITY.4 + .5),
   and the clean `r22` run records the
   pre-fix 126-design budget mismatch. The live gate now preserves four
-  designs per Phase 4 scenario directly. The next honest work is deeper
-  hierarchy capability:
-  additional helper-instance placement beyond the current
-  parent-composed child-input, direct sibling, direct registered
-  sibling, registered child-input, parent-output, stateful
-  parent-output, stateful parent-composed child-input,
-  recursive non-top stateful parent-composed child-input,
-  recursive non-top stateful parent-composed mixed-support child-input,
-  recursive non-top parent-port-composed parent-output,
-  recursive non-top stateful parent-port-composed parent-output,
-  recursive non-top direct sibling helper,
-  recursive non-top direct registered sibling helper,
-  recursive non-top multi-stage direct registered helper,
-  recursive non-top multi-stage registered parent-composed helper,
-  recursive non-top registered parent-composed helper,
-  recursive non-top multi-helper budget,
-  recursive non-top stateful multi-helper budget, recursive non-top
-  child-input multi-helper budget, and multi-stage
-  direct registered helper slices,
-  broader registered
-  hierarchy patterns, and
-  later hierarchy-aware identity.
-  Parameterization and broader artifact-family selection are still
-  roadmap work. See
-  `ROADMAP.md` for phase gating.
+  designs per Phase 4 scenario directly. **Phase 4 is `done`** as of
+  `2026-05-16`: closed by the `PHASE-4-HIERARCHY.3` deliberate,
+  evidence-backed scope cut against explicit `ROADMAP.md` Phase 4 exit
+  criteria, with the r87 gate (210 scenarios, 840 designs,
+  `coverage_gaps = []`, 840/0 in Verilator and both Yosys modes) as the
+  closing artifact. Hierarchy-aware identity is delivered
+  (`HIERARCHY-AWARE-IDENTITY` tree, r85–r87). The residual *"broader
+  registered hierarchy patterns"* (further helper-instance placements,
+  deeper registered child-to-child routing, richer parent-side
+  composition) is open-ended capability-deepening with no finite
+  completion point; it is explicitly **not** a Phase 4 blocker and no
+  mode was retired — any future breadth lands as optional
+  post-Phase-4 `rN` slices without reopening the phase. The next
+  numbered phase is **Phase 5 — Parameterization** (now unblocked);
+  every remaining roadmap phase is tracked as a task tree under
+  `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

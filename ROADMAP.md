@@ -251,9 +251,26 @@ repo-owned Yosys modes).
 the structured surface has its own representative clean-run closure
 evidence.
 
-## Phase 4 — Hierarchy (in progress)
+## Phase 4 — Hierarchy (done)
 
-**Completed task tree:** [`HIERARCHY-AWARE-IDENTITY`](docs/tasks/HIERARCHY-AWARE-IDENTITY.md) is `done` — all five leaves landed (`.1` canonical signatures r85, `.2` existence proof r86, `.3` design sketch, `.4` dedup-pass implementation r87, `.5` matrix-gate proof r87). The doctrine "NodeId = identity of an expression" now extends to "ModuleId = identity of a hierarchical module template" under the opt-in `Config::hierarchy_module_dedup` knob. Phase 4's `rN`-named linear coverage slices continue to land under the rN cadence; multi-slice sub-objectives like hierarchy-aware identity are task-tree-managed per [docs/TASK_TREE.md](docs/TASK_TREE.md).
+**Status:** `done` as of `2026-05-16`. Both Phase 4 task trees are
+complete: [`HIERARCHY-AWARE-IDENTITY`](docs/tasks/HIERARCHY-AWARE-IDENTITY.md)
+(all five leaves, r85–r87 — the doctrine "NodeId = identity of an
+expression" now extends to "ModuleId = identity of a hierarchical module
+template" under the opt-in `Config::hierarchy_module_dedup` knob) and
+[`PHASE-4-HIERARCHY`](docs/tasks/PHASE-4-HIERARCHY.md) (the
+Surface-Inventory audit `.1` proved the instrumented hierarchy surface
+is fully landed-proven, and `.3` closed Phase 4 against the explicit
+exit criteria below). Phase 4's `rN`-named linear coverage slices landed
+under the rN cadence; multi-slice sub-objectives were task-tree-managed
+per [docs/TASK_TREE.md](docs/TASK_TREE.md). Phase 4 is **closed by a
+deliberate, evidence-backed scope cut** (see `PHASE-4-HIERARCHY`
+Decisions): the implemented surface is declared a sufficient real
+design/instance layer; the residual "broader registered hierarchy
+patterns" is open-ended capability-deepening with no completion point
+and is **not** a Phase 4 blocker. No mode or strategy was retired — every
+implemented route remains; further breadth, if ever pursued, lands as
+post-Phase-4 `rN` slices without reopening the phase.
 
 - **Landed slices so far:**
   - the legacy exact wrapper lane:
@@ -483,6 +500,40 @@ evidence.
     `identity_mode = node-id`, equivalent instantiated structures
     should eventually participate in the same sharing story instead of
     creating a second identity system beside gates/flops
+
+**Exit criteria (met):** Phase 4 closes when all of the following hold,
+each visible in a repo-owned artifact (not narrative):
+
+1. ANVIL emits real multi-file hierarchical `Design`s — a declared top
+   plus instantiated children, design-level validated — across both the
+   legacy exact wrapper lane and the bounded recursive lane, including
+   mixed leaf depth and per-depth branching. *(met: r87, `artifact_kind
+   = "design"`, recursive + wrapper scenarios)*
+2. Both child-sourcing modes (`library` reuse/under-instantiation and
+   `on-demand` profiled child synthesis) are exercised. *(met: r87
+   `saw_on_demand_child_sourcing`, `saw_profiled_child_interface_synthesis`,
+   `saw_reused_child_definition`, `saw_underinstantiated_library`)*
+3. The full instrumented hierarchy routing/composition surface
+   (combinational + registered sibling and parent-composed child-input
+   binding, parent-cone helper instances and multi-helper budgets,
+   parent-local flops, parent-port-composed parent outputs, recursive
+   non-top variants, hierarchy-aware identity/dedup) is proven by gated
+   coverage facts. *(met: r87 — 92 Phase4-gated hierarchy `saw_*` facts
+   all `true`, `coverage_gaps = []`)*
+4. The closing matrix gate is downstream-clean. *(met: r87 — 210
+   scenarios, 840 designs, `840/0` in Verilator and both repo-owned
+   Yosys modes)*
+5. The surface is a sufficient real design/instance layer to unblock
+   Phase 5 parameterization. *(met: criteria 1–4 jointly satisfy the
+   Phase 5 hard prerequisite; remaining parameter-aware work belongs to
+   Phase 5 by roadmap decree, not Phase 4)*
+
+Scope note: "broader registered hierarchy patterns" is open-ended
+capability-deepening, not an exit criterion; per the `PHASE-4-HIERARCHY`
+audit it has no finite completion point and is explicitly excluded from
+the Phase 4 bar (no mode/strategy retired; future breadth is optional
+post-Phase-4 `rN` work). Closing artifact:
+`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at

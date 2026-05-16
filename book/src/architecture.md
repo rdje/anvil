@@ -100,9 +100,11 @@ src/
                      # child-module instantiations. Inline unit tests.
 ```
 
-Phase 4 is now in progress: `src/gen/hierarchy.rs` owns both the older
-exact depth-1 wrapper lane and the newer bounded recursive hierarchy
-lane. The older wrapper-baseline surface has a repo-owned closure gate
+Phase 4 is `done` (closed `2026-05-16` by the `PHASE-4-HIERARCHY.3`
+scope-cut against explicit `ROADMAP.md` exit criteria; closing artifact
+r87, `coverage_gaps = []`, 840/0): `src/gen/hierarchy.rs` owns both the
+older exact depth-1 wrapper lane and the newer bounded recursive
+hierarchy lane. The older wrapper-baseline surface has a repo-owned closure gate
 in `tool_matrix`, and current HEAD now extends hierarchy with both
 parent-side composition, bounded recursive tree planning, mixed-depth
 leaf shaping inside a requested depth interval, and depth-specific

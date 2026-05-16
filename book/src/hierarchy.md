@@ -1723,21 +1723,27 @@ branching in the recursive lane:
   - `hierarchy_parent_composed_outputs = 36`
   - `top_parent_composed_outputs = 18`
 
-## The next real steps
+## Phase 4 status: done
 
-Phase 4 is now `in progress`, not `not started`. The next honest work
-items are:
+Phase 4 is **`done`** as of `2026-05-16`, in the same sense the
+leaf-kernel phases are done. The implemented hierarchy surface — both
+lanes, library and on-demand child sourcing, the full combinational and
+registered sibling / parent-composed child-input binding surface,
+parent-cone helper instances and multi-helper budgets, parent-local
+flops, parent-port-composed parent outputs, recursive non-top variants,
+and hierarchy-aware identity/dedup — is proven downstream-clean by the
+repo-owned matrix gate (r87: 210 scenarios, 840 designs,
+`coverage_gaps = []`, `840/0` in Verilator and both Yosys modes) against
+explicit `ROADMAP.md` Phase 4 exit criteria.
 
-1. broaden helper-instance placement beyond the current
-   parent-composed child-input, stateful parent-composed child-input,
-   direct sibling, direct registered sibling, registered child-input,
-   parent-output, stateful parent-output, budgeted helper, and
-   multi-stage helper slices;
-2. deepen registered child-to-child routing using the local
-   parent-state surface;
-3. deepen the parent-side routing/composition surface beyond the
-   current mixed-output, sibling-binding, parent-input-cone, and
-   local-parent-flop surfaces.
+Phase 4 was closed by a **deliberate, evidence-backed scope cut** (see
+`docs/tasks/PHASE-4-HIERARCHY.md`): the residual *"broader registered
+hierarchy patterns"* is open-ended capability-deepening with no finite
+completion point, so it is explicitly **not** a Phase 4 blocker. Nothing
+was retired — every implemented route stays. If ever pursued, more
+breadth (further helper-instance placements, deeper registered
+child-to-child routing, richer parent-side composition) lands as
+optional post-Phase-4 `rN` slices without reopening the phase.
 
-Only after that does Phase 4 become "done" in the same sense that the
-leaf-kernel phases are done today.
+The next numbered phase is **Phase 5 — Parameterization**, which Phase 4
+now unblocks (it required a real design/instance layer).

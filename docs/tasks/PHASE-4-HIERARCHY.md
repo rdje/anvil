@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `PHASE-4-HIERARCHY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Phase 4 — Hierarchy
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.1` audit landed; `.2` superseded; frontier → `.3` closure)
+- Last updated: `2026-05-16` (tree complete: `.1` done, `.2` superseded, `.3` done — Phase 4 closed)
 - Owner: repo-local workflow
 
 ## Goal
@@ -55,9 +55,9 @@ owns the remaining *breadth* of hierarchy structure.
 ## Task Tree
 
 - ID: `PHASE-4-HIERARCHY`
-  Status: `active`
+  Status: `done`
   Goal: `Land every remaining Phase 4 hierarchy surface, prove it downstream-clean, and exit-criteria-gate Phase 4 to done.`
-  Children: `PHASE-4-HIERARCHY.1` (done), `PHASE-4-HIERARCHY.2` (superseded by .3), `PHASE-4-HIERARCHY.3`
+  Children: `PHASE-4-HIERARCHY.1` (done), `PHASE-4-HIERARCHY.2` (superseded by .3), `PHASE-4-HIERARCHY.3` (done)
 
 - ID: `PHASE-4-HIERARCHY.1`
   Status: `done`
@@ -74,17 +74,20 @@ owns the remaining *breadth* of hierarchy structure.
   Commit: `n/a (superseded)`
 
 - ID: `PHASE-4-HIERARCHY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Phase 4 exit-criteria closure as a deliberate, evidence-backed scope cut: add an explicit Phase 4 exit-criteria block to ROADMAP.md, show the repo-owned r87 artifact satisfies it (coverage_gaps=[], 840/0 Verilator+both Yosys, full hierarchy saw_* surface proven, real design/instance layer sufficient to unblock Phase 5), and promote ROADMAP Phase 4 in progress -> done.`
   Acceptance: `ROADMAP.md has a Phase 4 exit-criteria block; the closing artifact is the banked r87 gate; ROADMAP Phase 4 label = done; README/CODEBASE_ANALYSIS/MEMORY/book synced; PHASE-4-HIERARCHY tree -> done.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `ROADMAP.md Phase 4 header -> (done) with a 5-point "Exit criteria (met)" block, each point tied to an r87 fact; r87 re-verified directly (scenario_count=210, total_modules=840, coverage_gaps=[], Verilator/Yosys-no-abc/Yosys-abc all 840/0, all 105 saw_* true, zero false). Synced: README.md, CODEBASE_ANALYSIS.md (phase row -> done), MEMORY.md (phase line), book/src/hierarchy.md ("Phase 4 status: done"), book/src/architecture.md. Doc-only slice (no .rs/Cargo); mdbook build clean.`
+  Commit: `Phase 4: close Phase 4 (PHASE-4-HIERARCHY.3) — done via evidence-backed scope cut`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `PHASE-4-HIERARCHY.3` | `pending` | `.1` proved the surface is landed-proven and the gap list empty; `.2` superseded. The only honest path to "complete exhaustion" is the deliberate exit-criteria scope cut + `done` promotion on the r87 evidence. |
+The `PHASE-4-HIERARCHY` tree is **complete**. All leaves resolved:
+`.1` `done` (Surface Inventory — surface landed-proven), `.2`
+`superseded` (no missing surface; premise invalidated), `.3` `done`
+(Phase 4 closed against explicit ROADMAP exit criteria as a deliberate,
+documented, evidence-backed scope cut; closing artifact r87). No active
+frontier. ROADMAP Phase 4 = `done`; Phase 5 is the next numbered phase.
 
 ## Decisions
 
@@ -138,25 +141,30 @@ owns the remaining *breadth* of hierarchy structure.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-16` | `PHASE-4-HIERARCHY.1` | Read-only audit of config.rs / gen/hierarchy.rs / bin/tool_matrix.rs (CoverageSummary, summarize_design_coverage, compute_coverage_gaps) vs README/ROADMAP, cross-referenced to the banked r87 report. | Done. 92 Phase4-gated hierarchy `saw_*` facts all true in r87; `coverage_gaps = []`; 840/0 Verilator + both Yosys. No MISSING/AMBIGUOUS surface. "Broader patterns" = open-ended. Doc-only; no code touched. |
-| `2026-05-16` | `PHASE-4-HIERARCHY.3` | `pending` | `pending` |
+| `2026-05-16` | `PHASE-4-HIERARCHY.3` | r87 re-verified directly (210 scenarios, 840 designs, `coverage_gaps=[]`, Verilator/Yosys-no-abc/Yosys-abc all 840/0, 105 `saw_*` true / 0 false); ROADMAP exit-criteria block authored + Phase 4 → done; README/CODEBASE_ANALYSIS/MEMORY/book synced; doc-only (no .rs/Cargo); `mdbook build book` clean. | Done. Phase 4 closed by deliberate evidence-backed scope cut. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `PHASE-4-HIERARCHY.1` | `Docs(PHASE-4-HIERARCHY.1): Surface Inventory — Phase 4 hierarchy surface is landed-proven` | Audit slice; restructured the tree (`.2` superseded, frontier → `.3`). |
-| `PHASE-4-HIERARCHY.3` | `pending` | `pending` |
+| `PHASE-4-HIERARCHY.1` | `Docs: PHASE-4-HIERARCHY.1 Surface Inventory (surface landed-proven)` (`0219ac7`) | Audit slice; restructured the tree (`.2` superseded, frontier → `.3`). |
+| `PHASE-4-HIERARCHY.3` | `Phase 4: close Phase 4 (PHASE-4-HIERARCHY.3) — done via scope cut` | Closes the tree and the roadmap phase. |
 
 ## Changelog
 
 - `2026-05-16`: Created task tree as part of the directive to task-tree
   every remaining roadmap phase. Frontier opened at `.1` (Surface
   Inventory audit).
-- `2026-05-16`: `.1` landed. Audit conclusion: Phase 4 hierarchy surface
-  is fully landed-proven (r87, gap list empty); no missing surface;
-  "broader patterns" is open-ended. `.2` -> `superseded` (premise
-  invalidated). Frontier rotated to `.3` (exit-criteria scope-cut
-  closure). Decision recorded above.
+- `2026-05-16`: `.1` landed (`0219ac7`). Audit conclusion: Phase 4
+  hierarchy surface is fully landed-proven (r87, gap list empty); no
+  missing surface; "broader patterns" is open-ended. `.2` ->
+  `superseded` (premise invalidated). Frontier rotated to `.3`.
+- `2026-05-16`: `.3` landed. ROADMAP Phase 4 gained an explicit
+  "Exit criteria (met)" block and was promoted `in progress` -> `done`
+  on the re-verified r87 evidence; all live docs + book synced. Tree
+  status -> `done`. Phase 4 complete; Phase 5 is next. This closes the
+  `PHASE-4-HIERARCHY` tree and the PNT-to-exhaustion directive for
+  Phase 4.
 
 ## Surface Inventory (`PHASE-4-HIERARCHY.1`)
 
