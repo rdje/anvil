@@ -1,5 +1,32 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-2.2.1 — PHASE-5-PARAMETERIZATION.2.2.1: soundness gate + width-generic emitter
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/ir/param.rs`: added `is_width_generic(module, design)` soundness gate — only a width-homogeneous combinational leaf qualifies (no flops/instances; every input/output port and every node width == design; no `Constant`; no `Slice`/`Concat`/`ForFold`; `Mux`/compare auto-excluded because their select/result nodes are width-1 ≠ design ≥ 2). `parameterize_module` now declines anything that does not pass. Unit tests updated/added: homogeneous accepted, mixed-width declined, **module-with-Constant declined**, idempotent (6/0).
+- `src/emit/sv.rs`: new `param_width_decl_w(m, w)` so a parameterized module renders **every** width-homogeneous site — internal gate/instance-output wires and flop registers, not just ports — as `[W-1:0]`. The emitted body is now fully width-generic; `param_env == None` stays byte-identical.
+- `tests/pipeline.rs`: focused proof renamed to `width_parameterization_is_default_off_and_emits_width_generic_bodies` — proves (a) default-off byte-identical, (b) for any parameterized module the soundness invariant holds and the SV leaks no concrete `[D-1:0]`. Organic-existence is deliberately *not* asserted here (see pivot below).
+- **Rules-first pivot (recorded in `DEVELOPMENT_NOTES.md` + tree Decisions):** a 64-seed forced-on sweep produced zero organically width-homogeneous modules. A post-hoc homogeneity filter is therefore inert *and* the generate-then-filter anti-pattern the project forbids. `.2.2` was split into `.2.2.1` (these soundness primitives — done), `.2.2.2` (a rules-first parameterizable-leaf *constructor* that makes the feature actually fire — new frontier), `.2.2.3` (instantiation substitution). No node renumbered; `.2.2` became a container.
+
+**Why**
+
+- The soundness primitives are correct and committable on their own (default-off byte-identical, proven by unit tests + the focused proof). Splitting out the rules-first constructor keeps each slice signoff-reviewable and records *why* the original post-filter plan was wrong (durable, per the crash-recovery + rules-first doctrines).
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` (param.rs 6/0); focused proof passes; full `cargo test` green (COMMIT.md gate). No `.sv`-affecting change when default-off; no `book/` change so `mdbook` unaffected.
+
+**Impact**
+
+- Phase 5 soundness is locked in; the next slice (`.2.2.2`) makes parameterization non-inert by construction. No phase label changed.
+
+**Files touched**
+
+- Updated: src/ir/param.rs, src/emit/sv.rs, tests/pipeline.rs, DEVELOPMENT_NOTES.md, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-2.2-scope — PHASE-5-PARAMETERIZATION.2.2 scope refinement (soundness)
 
 **Landed as:** 8c28eae

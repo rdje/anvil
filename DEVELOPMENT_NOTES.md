@@ -58,6 +58,40 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Phase 5 rules-first pivot (2026-05-16, PHASE-5-PARAMETERIZATION.2.2.1)
+
+Implementation finding that corrects the `.1` design's instantiation
+assumption. The `.1`/`.2.1` plan was: build modules normally, then a
+post-construction pass marks the width-homogeneous ones parameterized.
+A 64-seed forced-on sweep (`width_parameterization_prob = 1.0`,
+single width, `constant_prob = 0`, `max_depth = 1`) produced **zero**
+width-homogeneous modules: the unconstrained cone generator almost
+always introduces a constant, a comparison, a mux, a slice/concat, or
+mixed operand widths. Two consequences:
+
+1. **Inert.** A parameterization that only fires when the RNG happens
+   to emit a homogeneous module would essentially never fire on real
+   output — a feature that cannot trigger is not a capability.
+2. **Doctrine violation.** "Generate, then keep the ones that happen to
+   qualify" is precisely the generate-then-filter anti-pattern ANVIL
+   forbids (valid/structured *by construction*, not by post-hoc
+   selection).
+
+**Decision:** keep the `is_width_generic` gate (it is correct and
+cheap) but demote it to a post-construction *assertion*, and add a
+**rules-first parameterizable-leaf constructor** (`.2.2.2`): when the
+knob fires for a module, *construct* it width-homogeneously by rule
+(one design width; only width-preserving same-width gates; no
+`Constant`/`Slice`/`Concat`/`ForFold`/`Mux`/compare), valid by
+construction. The gate then always accepts it. Rejected alternative:
+"loosen the gate to parameterize partially-homogeneous modules" —
+rejected because a module mixing `[W-1:0]` and `[7:0]` logic that must
+agree in width is unsound when `W ≠ 8`; partial parameterization
+re-introduces exactly the multi-width unsoundness `.1` set out to
+avoid. This does not change architecture (C) (still post-construction
+annotation + monomorphic body); it changes *how the body is built* so
+the sound subset is reached by rule instead of by luck.
+
 ### Phase 5 parameterization design (2026-05-16, PHASE-5-PARAMETERIZATION.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Parameters and

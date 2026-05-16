@@ -123,7 +123,7 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         writeln!(
             out,
             "    logic {} {};",
-            width_decl(flop.width),
+            param_width_decl_w(m, flop.width),
             flop_name(flop.id)
         )
         .unwrap();
@@ -152,7 +152,7 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
                     out,
                     "    {} {} {};",
                     decl_kind,
-                    width_decl(*width),
+                    param_width_decl_w(m, *width),
                     names[idx].as_ref().expect("gate name assigned")
                 )
                 .unwrap();
@@ -161,7 +161,7 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
                 writeln!(
                     out,
                     "    wire {} {};",
-                    width_decl(*width),
+                    param_width_decl_w(m, *width),
                     names[idx]
                         .as_ref()
                         .expect("instance-output name assigned by build_names")
@@ -480,6 +480,24 @@ fn param_width_decl(m: &Module, port: &Port) -> String {
         }
     }
     width_decl(port.width)
+}
+
+/// Width declaration for an internal width-bearing site (gate wire,
+/// instance-output wire, flop register) honoring Phase 5
+/// parameterization. A parameterized module is **width-homogeneous**
+/// by the `crate::ir::param` soundness gate, so every such width
+/// equals the parameter's design value and renders symbolically as
+/// `[<param>-1:0]`, making the whole emitted body width-generic. Any
+/// width that is not the design value (and every site in a
+/// non-parameterized / `param_env == None` module) falls back to the
+/// concrete `width_decl`, so default-off emission is byte-identical.
+fn param_width_decl_w(m: &Module, w: u32) -> String {
+    if let Some(env) = &m.param_env {
+        if w == env.design_value {
+            return format!("[{}-1:0]", env.name);
+        }
+    }
+    width_decl(w)
 }
 
 fn port_name(m: &Module, id: crate::ir::PortId) -> String {

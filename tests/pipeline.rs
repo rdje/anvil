@@ -8062,31 +8062,28 @@ fn gate_categories_are_exercisable_end_to_end() {
 }
 
 #[test]
-fn width_parameterization_round_trips_and_is_default_off() {
-    // PHASE-5-PARAMETERIZATION.2.1 deliverable. Two properties:
+fn width_parameterization_is_default_off_and_emits_width_generic_bodies() {
+    // PHASE-5-PARAMETERIZATION.2.1 + .2.2.1 deliverable.
     //
     //  (a) Default-off is byte-identical: with the default
     //      `width_parameterization_prob = 0.0`, `generate_design`
-    //      skips the parameterization pass entirely, so no module
-    //      carries a `param_env` and the emitted SV contains no
-    //      `parameter`/`#(` parameter header — i.e. emission is
-    //      unchanged from pre-Phase-5.
+    //      skips the pass entirely, no module carries a `param_env`,
+    //      and emitted SV contains no parameter header.
     //
-    //  (b) When the opt-in knob is forced on, a generated module is
-    //      annotated with a single width `parameter W`, the design
-    //      still passes `validate_design` (the body is concrete at
-    //      the design width and the `parameter` defaults to it, so it
-    //      is valid by construction), and the emitted SV renders the
-    //      `#( parameter int W = D )` header plus `[W-1:0]` on the
-    //      parameterized interface ports.
+    //  (b) Soundness (.2.2.1): a parameterized module is
+    //      width-homogeneous, so the emitted body is *fully
+    //      width-generic* — not just ports but every internal wire
+    //      renders `[W-1:0]`, and the concrete design-width form
+    //      `[D-1:0]` never appears. The design still validates.
+    use anvil::ir::Node;
+
+    // (a) default-off path, several seeds.
     for seed in 0..8u64 {
-        // (a) default-off path.
         let off = Config {
             seed,
             ..Config::default()
         };
-        let mut g_off = Generator::new(off);
-        let design_off = g_off.generate_design();
+        let design_off = Generator::new(off).generate_design();
         anvil::ir::validate::validate_design(&design_off)
             .expect("default-off design must validate");
         assert!(
@@ -8098,46 +8095,67 @@ fn width_parameterization_round_trips_and_is_default_off() {
             !sv_off.contains("parameter ") && !sv_off.contains(" #("),
             "default-off SV must contain no parameter header (seed {seed})"
         );
+    }
 
-        // (b) forced-on path. min_width >= 2 guarantees every output
-        // port is wide enough to parameterize, so the pass fires
-        // deterministically at prob 1.0 for a single-module design.
+    // (b) forced-on path. The soundness gate only parameterizes a
+    // width-homogeneous module; the *organic* existence of such a
+    // module from the unconstrained cone generator is rare and is
+    // deliberately NOT asserted here — building a parameterizable
+    // module by construction (rules-first, not generate-then-filter)
+    // is the dedicated follow-on constructor slice. The `param.rs`
+    // unit tests already prove the annotation pass on a constructed
+    // width-homogeneous module. What `.2.2.1` proves here: forced-on
+    // designs still validate, and *whenever* a module is
+    // parameterized it satisfies the soundness invariant and emits a
+    // fully width-generic body (no concrete `[D-1:0]` leak).
+    let mut total_parameterized = 0usize;
+    for seed in 0..64u64 {
         let on = Config {
             seed,
             width_parameterization_prob: 1.0,
-            min_width: 4,
+            min_width: 8,
             max_width: 8,
+            constant_prob: 0.0,
+            max_depth: 1,
             ..Config::default()
         };
         on.validate().expect("forced-on config valid");
-        let mut g_on = Generator::new(on);
-        let design_on = g_on.generate_design();
+        let design_on = Generator::new(on).generate_design();
         anvil::ir::validate::validate_design(&design_on)
             .unwrap_or_else(|e| panic!("parameterized design must validate (seed {seed}): {e:?}"));
-        let parameterized: Vec<_> = design_on
-            .modules
-            .iter()
-            .filter(|m| m.param_env.is_some())
-            .collect();
-        assert!(
-            !parameterized.is_empty(),
-            "forced-on (prob 1.0, min_width 4) must parameterize at least one module (seed {seed})"
-        );
-        for m in &parameterized {
+
+        for m in design_on.modules.iter().filter(|m| m.param_env.is_some()) {
+            total_parameterized += 1;
             let env = m.param_env.as_ref().unwrap();
             assert_eq!(env.name, "W");
+            assert!(env.design_value >= 2);
+            assert!(!m.parameterized_output_ports.is_empty());
+
+            // Soundness invariant: width-generic (no Constant; every
+            // gate/port width == design_value; no flops/instances).
             assert!(
-                env.design_value >= 2,
-                "design value must be a meaningfully parameterizable width"
+                m.flops.is_empty() && m.instances.is_empty(),
+                "parameterized module {} must be a combinational leaf",
+                m.name
             );
-            assert!(
-                !m.parameterized_output_ports.is_empty(),
-                "a parameterized module must have >=1 parameterized output port"
-            );
+            for n in &m.nodes {
+                match n {
+                    Node::Constant { .. } => {
+                        panic!("parameterized module {} must contain no Constant", m.name)
+                    }
+                    Node::Gate { width, .. } | Node::PrimaryInput { width, .. } => assert_eq!(
+                        *width, env.design_value,
+                        "every node width must equal the design width in {}",
+                        m.name
+                    ),
+                    other => panic!("unexpected node {other:?} in width-generic {}", m.name),
+                }
+            }
+
             let sv = anvil::emit::to_sv_in_design(m, &design_on);
             assert!(
                 sv.contains(&format!("module {} #(", m.name)),
-                "parameterized module {} must emit a #( parameter header:\n{sv}",
+                "module {} must emit a #( parameter header:\n{sv}",
                 m.name
             );
             assert!(
@@ -8145,14 +8163,26 @@ fn width_parameterization_round_trips_and_is_default_off() {
                     "parameter int {} = {}",
                     env.name, env.design_value
                 )),
-                "parameterized module {} must declare `parameter int W = D`:\n{sv}",
+                "module {} must declare `parameter int W = D`:\n{sv}",
                 m.name
             );
             assert!(
                 sv.contains(&format!("[{}-1:0]", env.name)),
-                "parameterized module {} must render at least one [W-1:0] port:\n{sv}",
+                "module {} must render `[W-1:0]`:\n{sv}",
+                m.name
+            );
+            // Fully width-generic: the concrete design-width range
+            // form must NOT appear anywhere in the parameterized body.
+            let concrete = format!("[{}:0]", env.design_value - 1);
+            assert!(
+                !sv.contains(&concrete),
+                "parameterized module {} leaked a concrete `{concrete}` (body not width-generic):\n{sv}",
                 m.name
             );
         }
     }
+    // Informational only in `.2.2.1`: organic occurrence may be zero
+    // until the rules-first parameterizable-leaf constructor lands.
+    // The soundness invariant above is what `.2.2.1` proves.
+    let _ = total_parameterized;
 }

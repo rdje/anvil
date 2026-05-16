@@ -22,7 +22,7 @@
 //! parameter-aware identity rule is `.2.3`; the matrix gate is `.2.4`.
 
 use crate::config::Config;
-use crate::ir::{Module, ParamEnv};
+use crate::ir::{GateOp, Module, Node, ParamEnv};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
@@ -38,10 +38,51 @@ const PARAM_NAME: &str = "W";
 /// the symbolic `[W-1:0]` form is well-formed and meaningful.
 const MIN_PARAMETERIZABLE_WIDTH: u32 = 2;
 
+/// Soundness gate (PHASE-5-PARAMETERIZATION.2.2). The body is
+/// monomorphic — it is constructed once at `design`. Emitting it with
+/// a `parameter W` and instantiating at `W != design` is only valid if
+/// the *identical* SystemVerilog body text is correct for every `W`.
+/// That holds iff the module is **width-homogeneous**: a purely
+/// combinational leaf (no flops, no instances) in which every port and
+/// every node width equals `design`, built only from width-preserving
+/// same-width gates, with no fixed-width `Constant` and no
+/// width-changing `Slice` / `Concat` / `ForFold`. Comparison and `Mux`
+/// modules are excluded automatically: their select / result nodes
+/// have width 1 (≠ `design ≥ 2`) and fail the per-node check.
+///
+/// This keeps architecture (C) sound without (B)'s symbolic width
+/// arithmetic, and is a construction-time rule (no generate-then-
+/// filter): a module that does not qualify is simply left
+/// un-parameterized.
+fn is_width_generic(module: &Module, design: u32) -> bool {
+    if !module.flops.is_empty() || !module.instances.is_empty() {
+        return false;
+    }
+    if module.inputs.iter().any(|p| p.width != design)
+        || module.outputs.iter().any(|p| p.width != design)
+    {
+        return false;
+    }
+    module.nodes.iter().all(|n| match n {
+        Node::PrimaryInput { width, .. } => *width == design,
+        Node::Gate { op, width, .. } => {
+            *width == design
+                && !matches!(
+                    op,
+                    GateOp::Slice { .. } | GateOp::Concat | GateOp::ForFold { .. }
+                )
+        }
+        // Constant: fixed-width literal, not width-generic.
+        // FlopQ / InstanceOutput: excluded by the no-flops /
+        // no-instances guard above; listed for exhaustiveness.
+        Node::Constant { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => false,
+    })
+}
+
 /// Annotate `module` with a single width `parameter` when the opt-in
-/// `Config::width_parameterization_prob` knob rolls true and a sound
-/// parameterizable site exists. Returns `true` iff the module was
-/// parameterized.
+/// `Config::width_parameterization_prob` knob rolls true and the
+/// module passes the [`is_width_generic`] soundness gate. Returns
+/// `true` iff the module was parameterized.
 ///
 /// **Soundness.** The chosen design value is an existing port width;
 /// the emitted `parameter` defaults to it, so default elaboration is
@@ -74,6 +115,12 @@ pub fn parameterize_module(module: &mut Module, rng: &mut ChaCha8Rng, cfg: &Conf
     else {
         return false;
     };
+
+    // Soundness gate: only parameterize a width-homogeneous module so
+    // the single monomorphic body text is correct for every `W`.
+    if !is_width_generic(module, design_value) {
+        return false;
+    }
 
     // Every interface port that shares exactly the design width is
     // parameterized together, yielding the canonical
@@ -184,14 +231,28 @@ mod tests {
     }
 
     #[test]
-    fn ports_of_other_widths_stay_concrete() {
-        // Output width 8 chosen as the parameter; the width-4 input
-        // does not share it and must stay concrete.
+    fn mixed_width_module_is_not_parameterized() {
+        // Input width 4, output width 8: not width-homogeneous, so the
+        // single monomorphic body would not be correct for every `W`.
+        // The soundness gate declines it entirely (no partial
+        // parameterization).
         let mut m = two_port_module(4, 8);
         let mut rng = ChaCha8Rng::seed_from_u64(2);
-        assert!(parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(m.param_env.is_none());
         assert!(m.parameterized_input_ports.is_empty());
-        assert_eq!(m.parameterized_output_ports, vec![1]);
+        assert!(m.parameterized_output_ports.is_empty());
+    }
+
+    #[test]
+    fn module_with_a_constant_is_not_parameterized() {
+        // A fixed-width Constant is not width-generic even if its
+        // width equals the design width; the gate must decline.
+        let mut m = two_port_module(8, 8);
+        m.nodes.push(Node::Constant { width: 8, value: 5 });
+        let mut rng = ChaCha8Rng::seed_from_u64(4);
+        assert!(!parameterize_module(&mut m, &mut rng, &cfg_with_prob(1.0)));
+        assert!(m.param_env.is_none());
     }
 
     #[test]
