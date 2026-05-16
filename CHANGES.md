@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-design — PHASE-5-PARAMETERIZATION.1: parameterization design
 
-**Landed as:** this commit
+**Landed as:** 786e468
 
 **What changed**
 

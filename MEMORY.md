@@ -2092,6 +2092,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `786e468` — Docs: PHASE-5-PARAMETERIZATION.1 parameterization design (architecture C chosen).
+- `9f07576` — Phase 4: record Phase-4-closure commit hash 21ec427.
 - `21ec427` — Phase 4: close Phase 4 done (PHASE-4-HIERARCHY.3, evidence-backed scope cut).
 - `0219ac7` — Docs: PHASE-4-HIERARCHY.1 Surface Inventory (hierarchy surface landed-proven).
 - `0924c8c` — Docs: register every remaining roadmap phase as a task tree (Phases 4-9).
