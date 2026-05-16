@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-phase5-2.3 — PHASE-5-PARAMETERIZATION.2.3: parameter-aware identity
 
-**Landed as:** this commit
+**Landed as:** 2e99d6d
 
 **What changed**
 
