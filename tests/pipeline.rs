@@ -8060,3 +8060,99 @@ fn gate_categories_are_exercisable_end_to_end() {
         );
     }
 }
+
+#[test]
+fn width_parameterization_round_trips_and_is_default_off() {
+    // PHASE-5-PARAMETERIZATION.2.1 deliverable. Two properties:
+    //
+    //  (a) Default-off is byte-identical: with the default
+    //      `width_parameterization_prob = 0.0`, `generate_design`
+    //      skips the parameterization pass entirely, so no module
+    //      carries a `param_env` and the emitted SV contains no
+    //      `parameter`/`#(` parameter header — i.e. emission is
+    //      unchanged from pre-Phase-5.
+    //
+    //  (b) When the opt-in knob is forced on, a generated module is
+    //      annotated with a single width `parameter W`, the design
+    //      still passes `validate_design` (the body is concrete at
+    //      the design width and the `parameter` defaults to it, so it
+    //      is valid by construction), and the emitted SV renders the
+    //      `#( parameter int W = D )` header plus `[W-1:0]` on the
+    //      parameterized interface ports.
+    for seed in 0..8u64 {
+        // (a) default-off path.
+        let off = Config {
+            seed,
+            ..Config::default()
+        };
+        let mut g_off = Generator::new(off);
+        let design_off = g_off.generate_design();
+        anvil::ir::validate::validate_design(&design_off)
+            .expect("default-off design must validate");
+        assert!(
+            design_off.modules.iter().all(|m| m.param_env.is_none()),
+            "default-off (prob 0.0) must never parameterize (seed {seed})"
+        );
+        let sv_off = anvil::emit::to_sv_design(&design_off);
+        assert!(
+            !sv_off.contains("parameter ") && !sv_off.contains(" #("),
+            "default-off SV must contain no parameter header (seed {seed})"
+        );
+
+        // (b) forced-on path. min_width >= 2 guarantees every output
+        // port is wide enough to parameterize, so the pass fires
+        // deterministically at prob 1.0 for a single-module design.
+        let on = Config {
+            seed,
+            width_parameterization_prob: 1.0,
+            min_width: 4,
+            max_width: 8,
+            ..Config::default()
+        };
+        on.validate().expect("forced-on config valid");
+        let mut g_on = Generator::new(on);
+        let design_on = g_on.generate_design();
+        anvil::ir::validate::validate_design(&design_on)
+            .unwrap_or_else(|e| panic!("parameterized design must validate (seed {seed}): {e:?}"));
+        let parameterized: Vec<_> = design_on
+            .modules
+            .iter()
+            .filter(|m| m.param_env.is_some())
+            .collect();
+        assert!(
+            !parameterized.is_empty(),
+            "forced-on (prob 1.0, min_width 4) must parameterize at least one module (seed {seed})"
+        );
+        for m in &parameterized {
+            let env = m.param_env.as_ref().unwrap();
+            assert_eq!(env.name, "W");
+            assert!(
+                env.design_value >= 2,
+                "design value must be a meaningfully parameterizable width"
+            );
+            assert!(
+                !m.parameterized_output_ports.is_empty(),
+                "a parameterized module must have >=1 parameterized output port"
+            );
+            let sv = anvil::emit::to_sv_in_design(m, &design_on);
+            assert!(
+                sv.contains(&format!("module {} #(", m.name)),
+                "parameterized module {} must emit a #( parameter header:\n{sv}",
+                m.name
+            );
+            assert!(
+                sv.contains(&format!(
+                    "parameter int {} = {}",
+                    env.name, env.design_value
+                )),
+                "parameterized module {} must declare `parameter int W = D`:\n{sv}",
+                m.name
+            );
+            assert!(
+                sv.contains(&format!("[{}-1:0]", env.name)),
+                "parameterized module {} must render at least one [W-1:0] port:\n{sv}",
+                m.name
+            );
+        }
+    }
+}

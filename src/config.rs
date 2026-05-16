@@ -78,6 +78,10 @@ fn default_hierarchy_parent_flop_prob() -> f64 {
     0.0
 }
 
+fn default_width_parameterization_prob() -> f64 {
+    0.0
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -502,6 +506,20 @@ pub struct Config {
     #[serde(default)]
     pub hierarchy_module_dedup: bool,
 
+    /// Phase 5 (parameterization). Probability that a finalized module
+    /// is given a single width `parameter` by the post-construction
+    /// `crate::ir::param::parameterize_module` pass. The module body
+    /// stays concrete at the chosen design width; the `parameter`
+    /// declaration defaults to that design width, so a default
+    /// instantiation is byte-identical to the pre-Phase-5 module
+    /// (valid by construction). `default = 0.0` keeps every existing
+    /// output byte-identical. First slice:
+    /// `PHASE-5-PARAMETERIZATION.2.1` — see
+    /// `docs/tasks/PHASE-5-PARAMETERIZATION.md` and
+    /// `DEVELOPMENT_NOTES.md` "Phase 5 parameterization design".
+    #[serde(default = "default_width_parameterization_prob")]
+    pub width_parameterization_prob: f64,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -652,6 +670,7 @@ impl Default for Config {
             max_parent_cone_instances_per_module: default_max_parent_cone_instances_per_module(),
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             hierarchy_module_dedup: false,
+            width_parameterization_prob: default_width_parameterization_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -986,6 +1005,10 @@ impl Config {
             ),
             ("mux_arm_duplication_rate", self.mux_arm_duplication_rate),
             ("operand_duplication_rate", self.operand_duplication_rate),
+            (
+                "width_parameterization_prob",
+                self.width_parameterization_prob,
+            ),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

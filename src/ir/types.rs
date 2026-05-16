@@ -28,6 +28,46 @@ pub struct Port {
     pub dir: Direction,
 }
 
+/// A width expression for Phase 5 parameterization.
+///
+/// Deliberately minimal: the only forms the first parameterization
+/// slice needs are a concrete literal width and a reference to the
+/// owning module's single `ParamEnv` parameter. The richer
+/// `Add`/`Mul`/`Clog2`/… algebra described in `book/src/ir.md` is the
+/// recorded strict follow-on (architecture (B) in
+/// `DEVELOPMENT_NOTES.md` "Phase 5 parameterization design"); this
+/// `{ Lit, Param }` enum is its seed, not a different design.
+///
+/// Internally every emitted module body stays concrete `u32` (the
+/// monomorphic design value); `WidthExpr` only annotates *which*
+/// interface widths the emitter renders symbolically and feeds the
+/// parameter-aware identity rule. The IR's load-bearing `width: u32`
+/// fields are intentionally untouched.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum WidthExpr {
+    /// A concrete, non-parameterized width.
+    Lit(u32),
+    /// The owning module's parameter (`ParamEnv::name`).
+    Param,
+}
+
+/// Per-module parameter environment (Phase 5, single width parameter).
+///
+/// `design_value` is the concrete width the module body was actually
+/// constructed at. The emitted `parameter` declaration defaults to
+/// `design_value`, so a module instantiated *without* an override
+/// elaborates byte-identically to the pre-parameterization concrete
+/// module — parameterization is valid by construction. `[min, max]`
+/// is the inclusive range an instantiation may legally override the
+/// parameter to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParamEnv {
+    pub name: String,
+    pub min: u32,
+    pub max: u32,
+    pub design_value: u32,
+}
+
 /// Exact data-interface shape requested for a generated module.
 ///
 /// This profile intentionally excludes `clk` / `rst_n`: control ports
@@ -198,6 +238,25 @@ pub struct Module {
     /// empirical fire-rate `fires / attempts` should converge to
     /// the knob value across large seed sweeps.
     pub knob_rolls: KnobRollCounters,
+
+    // --- Phase 5 parameterization (default-off, additive) -------
+    /// When `Some`, this module carries a single width `parameter`
+    /// (Phase 5). The module *body* is still concrete `u32` at
+    /// `ParamEnv::design_value`; this only changes how the emitter
+    /// renders the header and the marked interface ports, and how
+    /// `canonical_module_signature` hashes those ports. `None`
+    /// (the `Default`) is byte-identical to pre-Phase-5 behaviour.
+    /// Set by the post-construction `crate::ir::param` pass under the
+    /// opt-in `Config::width_parameterization_prob` knob.
+    pub param_env: Option<ParamEnv>,
+    /// Input port ids whose width the emitter renders symbolically as
+    /// `[<param>-1:0]` and whose width
+    /// `canonical_module_signature` hashes as the parameter's
+    /// normalized symbolic form. Empty unless `param_env.is_some()`.
+    pub parameterized_input_ports: Vec<PortId>,
+    /// Output port ids parameterized the same way as
+    /// `parameterized_input_ports`.
+    pub parameterized_output_ports: Vec<PortId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

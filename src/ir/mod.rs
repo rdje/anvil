@@ -2,6 +2,7 @@
 
 pub mod compact;
 pub mod dedup;
+pub mod param;
 pub mod types;
 pub mod validate;
 

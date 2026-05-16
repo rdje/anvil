@@ -106,6 +106,14 @@ impl Generator {
         if self.cfg.hierarchy_module_dedup {
             crate::ir::dedup::dedup_modules(&mut design);
         }
+        // Phase 5: opt-in post-construction width parameterization.
+        // Default-off (prob 0.0) leaves every module byte-identical.
+        // Runs after dedup so it annotates the surviving modules.
+        if self.cfg.width_parameterization_prob > 0.0 {
+            for module in &mut design.modules {
+                crate::ir::param::parameterize_module(module, &mut self.rng, &self.cfg);
+            }
+        }
         design
     }
 }

@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-16-phase5-scaffold — PHASE-5-PARAMETERIZATION.2.1: width-parameterization scaffold
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `src/ir/param.rs`: `parameterize_module(&mut Module, &mut ChaCha8Rng, &Config) -> bool`, an opt-in **annotation-only** post-construction pass. When `Config::width_parameterization_prob` rolls true it picks a design width from an existing output port (≥2 so `[W-1:0]` is well-formed), records `ParamEnv { name:"W", min, max, design_value }`, and marks every interface port sharing that width. The module body is never touched. 5 unit tests (default-off, forced-on, mixed-width, width-1 decline, idempotence).
+- `src/ir/types.rs`: new `WidthExpr { Lit(u32), Param }` (the minimal seed of the recorded architecture-(B) follow-on, not a different design) and `ParamEnv`. `Module` gains three **additive, `Default`** fields (`param_env: Option<ParamEnv>`, `parameterized_input_ports`, `parameterized_output_ports`) — zero churn to `..Module::default()` sites and no change to any load-bearing `width: u32` field.
+- `src/config.rs`: opt-in `width_parameterization_prob: f64` (serde-default `0.0`, included in the probability-range validation).
+- `src/gen/mod.rs`: pass wired into `generate_design` after dedup, gated by the knob — `prob == 0.0` skips it entirely (default-off byte-identical).
+- `src/emit/sv.rs`: module header emits `#( parameter int W = <design_value> )` when `param_env` is set; new `param_width_decl` renders `[W-1:0]` for parameterized ports, falling back to the concrete `width_decl` everywhere else (so `param_env == None` is byte-identical to before).
+- Focused proof `width_parameterization_round_trips_and_is_default_off` in `tests/pipeline.rs` (8 seeds): default-off path emits no parameter header and never sets `param_env`; forced-on path round-trips IR → `validate_design` → emit with `module X #(`, `parameter int W = D`, and `[W-1:0]`.
+- Slice-boundary refinement: `Instance.param_bindings` moved from `.2.1` to `.2.2` (it is produced/consumed at instantiation; adding a non-`Default` `Instance` field in `.2.1` would churn 19 literal sites for a field unused until `.2.2`). Recorded in the task tree Decisions; no ID renumbering.
+
+**Why**
+
+- Implements architecture (C) from the `.1` design as the first Phase 5 code slice: a post-construction annotation pass + emitter feature that preserves valid-by-construction with **zero** changes to the invasive width-arithmetic / fold / validate code, and keeps the full-factorization doctrine intact. Default-off keeps every existing artifact byte-identical (no mode retired).
+
+**Validation**
+
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` 205/0 (200 prior + 5 new); focused proof passes (8 seeds); full `cargo test` green (COMMIT.md gate). No `.sv`-affecting behaviour change when default-off; no `book/` change so `mdbook` unaffected.
+
+**Impact**
+
+- Phase 5 has a landed IR/emit/knob scaffold. Frontier → `.2.2` (instantiation substitution + `Instance.param_bindings` + reproducible in-range value pick + `#(.W(v))`). No phase label changed.
+
+**Files touched**
+
+- New: src/ir/param.rs.
+- Updated: src/ir/types.rs, src/ir/mod.rs, src/config.rs, src/gen/mod.rs, src/emit/sv.rs, tests/pipeline.rs, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-16-phase5-design — PHASE-5-PARAMETERIZATION.1: parameterization design
 
 **Landed as:** 786e468
