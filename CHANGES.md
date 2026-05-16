@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-16-register-remaining-phase-task-trees — Register every remaining roadmap phase as a task tree
 
-**Landed as:** this commit
+**Landed as:** 0924c8c
 
 **What changed**
 
