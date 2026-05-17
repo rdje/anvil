@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-17-task-tree-mandatory-doctrine — Task-tree ownership is mandatory for all code changes
 
-**Landed as:** this commit
+**Landed as:** b3c1906
 
 **What changed**
 
