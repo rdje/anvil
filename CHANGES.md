@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-17-gitignore-claude-runtime — Ignore Claude Code harness runtime artifacts
 
-**Landed as:** this commit
+**Landed as:** 80516ca
 
 **What changed**
 
