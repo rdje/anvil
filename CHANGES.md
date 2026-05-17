@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-17-phase5b-2.2 — PHASE-5B-AGGREGATES.2.2: organic-existence proof + identity-invariance
 
-**Landed as:** this commit
+**Landed as:** d0d7ad6
 
 **What changed**
 

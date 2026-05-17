@@ -2094,7 +2094,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
-- `<pending>` — Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof (68/80 ~85% → no rules-first pivot) + identity-invariance (signature-invariant + projected-twin dedup-collapses); proofs only, no feature code change.
+- `d0d7ad6` — Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof (68/80 ~85% → no rules-first pivot) + identity-invariance (signature-invariant + projected-twin dedup-collapses); proofs only, no feature code change.
 - `67e909d` — Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + `aggregate_prob` knob + boundary-alias emitter projection (default-off byte-identical; projected design verilator-clean; StructPacked/non-instantiated/non-param scoped).
 - `3fbbc79` — Docs: PHASE-5B-AGGREGATES.2 split into `.2.1`–`.2.4` signoff-sized leaves (Splitting Rules + r87 no-aspirational-claims; tree-planning, no code).
 - `6976346` — Docs: PHASE-5B-AGGREGATES.1 packed-aggregate emitter-projection design (architecture (P); 3 rejected alternatives; identity-invariance resolved; design-only, no code; frontier → `.2`).
