@@ -2093,7 +2093,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
-- `<pending>` — Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure (Phase 5 closed; next is Phase 5b).
+- `53e4c7f` — Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure (Phase 5 closed; next is Phase 5b).
 - `04b13ec` — Config: PostCompact hook re-injects SESSION_BOOTSTRAP.md after compaction.
 - `1ab78f0` — Phase 5: record PHASE-5-PARAMETERIZATION.2.4a commit hash 6f87d7a.
 - `6f87d7a` — Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap.

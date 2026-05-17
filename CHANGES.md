@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-17-phase5-2.4b — PHASE-5-PARAMETERIZATION.2.4b: real-gate verify → ROADMAP Phase 5 (not started)→(done) + tree closure
 
-**Landed as:** this commit
+**Landed as:** 53e4c7f
 
 **What changed**
 
