@@ -58,6 +58,155 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
+
+Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable
+aggregates" (the **packed** sub-question only) into a concrete,
+codebase-grounded implementation plan with a rejected-alternatives
+trail and a proof shape, so the implementation leaf
+(`PHASE-5B-AGGREGATES.2`) has an unambiguous target.
+
+**Goal (from ROADMAP Phase 5b / book "Synthesizable aggregates").**
+Emit packed `struct` / `union` / `array` as an **opt-in projection
+over the existing flat IR**, valid by construction, downstream-clean
+(Verilator + both Yosys modes). Purpose is **parser/elaboration
+coverage** in downstream tools, not new synthesis behaviour: a packed
+aggregate is semantically a flat bit vector (synthesis treats it as
+concatenation with named field-access sugar). Default-off /
+byte-identical; no IR restructuring; no Phase-4/Phase-5 dependency;
+never retire existing behaviour.
+
+**Code reality that constrains the design** (audited; key anchors):
+
+- The emitter is an explicit **dumb serialiser**
+  (`src/emit/sv.rs:49-56` `to_sv_with_modules`): it walks `m.nodes`
+  in order, assumes every IR invariant was enforced upstream, does no
+  filtering or reachability. The module surface is built from flat
+  scalar vectors only: header `module {name} (` / `#( parameter int
+  {W} = {D} )` (sv.rs:79-118), ports `input|output logic {wd} {name}`
+  via `param_width_decl` (sv.rs:91-116), internal `wire|logic {wd}
+  {name};` per `Node::Gate`/`InstanceOutput` (sv.rs:140-173), flop
+  `logic {wd} {name};` (sv.rs:122-130), then combinational `assign`s,
+  child instance port connections (sv.rs:~315) and output-port
+  `assign`s (sv.rs:376-380).
+- `Port { id, name, width: u32, dir }` (`src/ir/types.rs:24-29`) and
+  every `Node::*`/`Flop` width is a bare `u32`. There is **no**
+  aggregate/struct concept anywhere in the IR, validators
+  (`src/ir/validate.rs`), CSE keys (`intern_gate`/`intern_constant`),
+  or the dedup signature (`canonical_module_signature`,
+  `src/metrics.rs`).
+- **Phase 5 set the exact precedent to follow.** `param_env:
+  Option<ParamEnv>` + `WidthExpr` (`src/ir/types.rs:31-69`) is a
+  per-module annotation the IR body never reads; only the emitter
+  consults it at the `param_width_decl` width chokepoint, and the
+  identity rule consults it in `canonical_module_signature`. The flat
+  `width: u32` fields were intentionally untouched. Default-off
+  (`param_env == None`) ⇒ byte-identical emission. Phase 5b is the
+  same shape one layer out: an emitter-consulted annotation that
+  regroups *which* ports render as a packed aggregate, with the IR
+  body still flat.
+
+**Architectural decision — chosen: (P) emitter-only packed-aggregate
+projection driven by a per-module annotation.** Mirror Phase 5's
+annotation-consulted-only-by-emitter architecture (C):
+
+1. Construction is **unchanged**. Modules are built exactly as today
+   over flat `u32`-width ports/nodes; all fold/validate/CSE/dedup
+   machinery runs untouched.
+2. A post-construction, opt-in pass records a lightweight per-module
+   annotation (working name `AggregateLayout`): a small additive,
+   `Default`-able `Module` field (zero churn to `..Module::default()`
+   sites, exactly as `param_env`/`parameterized_*_ports` were added)
+   describing **how a contiguous, same-direction subset of ports
+   maps onto one packed type**: kind (`StructPacked` |
+   `UnionPacked` | `ArrayPacked`), the chosen type name
+   (`{module}_{in|out}_t`), and the ordered `(field_name, PortId)`
+   list. The bit layout is the existing port concatenation order — a
+   **bijective, bit-layout-preserving regrouping**, semantically a
+   no-op (the synthesised netlist is identical to the flat form).
+3. Emitter learns the projection at the same chokepoints Phase 5
+   touched: emit `typedef struct packed { logic [w-1:0] f0; … }
+   {module}_in_t;` (and/or union/array) before the module, replace
+   the grouped port list with one aggregate port, and rewrite
+   references to a grouped port from `name` to `agg.fieldN` (a pure
+   rename at the SV surface — the internal flat wires/assigns are
+   unchanged; only the port-boundary read/drive uses `.fieldN`). For
+   `union`, all members share the same total width (legal because the
+   group's total width is fixed); for `array`, the fields are
+   same-width slots. No annotation (default-off) ⇒ byte-identical.
+4. Knob surface: opt-in `aggregate_*_prob` (`f64`, serde-default
+   `0.0`, probability-range validated) — same pattern as
+   `width_parameterization_prob`. Default 0.0 ⇒ no annotation ⇒
+   byte-identical for fixed seeds. (Single `aggregate_prob` + a
+   kind-choice sub-roll vs three separate probs is a `.2`
+   calibration sub-decision; the design only fixes "opt-in,
+   default-off, serde-default".)
+
+**Soundness rule.** A packed `struct`/`union`/`array` is *defined* by
+the SV LRM to be bit-equivalent to the concatenation of its members;
+the projection only chooses a syntactic surface for a fixed bit
+layout the flat form already had. Therefore the projection is **valid
+by construction** for *every* generated module whose grouped ports are
+contiguous and same-direction, with **no** validator participation and
+**no** generate-then-filter: it is a construction-time emitter rule,
+not a post-hoc text rewrite. Downstream-cleanliness follows from the
+equivalence and is *proven*, not assumed, by the matrix gate.
+
+**Identity interaction (resolves the tree's Open Question).**
+`canonical_module_signature` is computed from the **flat IR**, which
+the projection never mutates. The aggregate annotation is *not* hashed
+into the signature (unlike Phase 5's `param_env`, which had to be,
+because parameterization changes the legal width set — aggregates
+change *nothing* semantic). Consequence: a module and its
+aggregate-projected twin share one signature and **dedup-collapse**,
+which is correct (they are the identical circuit). `dedup_modules`
+unchanged. This is the opposite of the Phase 5 identity rule and is
+deliberate.
+
+**Rejected alternatives.**
+
+- **(A) First-class aggregate IR nodes** (`struct`/`union`/`array`
+  variants in `Port`/`Node`, width-aware). Rejected: a massive
+  invasive change rippling through `validate.rs`, the
+  `intern_gate`/`intern_constant` CSE keys, `canonical_module_signature`
+  + `dedup.rs`, and all per-op width arithmetic — for **zero new
+  synthesis behaviour** (packed aggregates are semantically flat).
+  Directly violates the book's "keep the IR flat" and this tree's
+  Non-Goal "any IR restructuring; aggregates are an emitter projection
+  over the existing flat IR". It is the strict superset only if/when a
+  *semantically distinct* aggregate (unpacked memory) is pursued —
+  that is Phase 6, not here.
+- **(B) Post-hoc textual/AST rewrite of the emitted SV string.**
+  Rejected: fragile, can desync from the IR, and is exactly the
+  post-hoc-rewrite / generate-then-filter anti-pattern the project
+  doctrine forbids (rules-first, construction-time). The projection
+  must be a deterministic emitter rule reading a recorded annotation,
+  not a regex pass over `to_sv` output.
+- **(C) Unpacked aggregates / enums in this phase.** Rejected /
+  deferred (restated so the deferral is not silently revisited, per
+  the existing 2026-05-16 tree Decision): unpacked array is the Phase
+  6 memory-inference motif; unpacked datapath `struct`/`union` is
+  mostly non-synthesizable; enums are thin (typed constant sets with
+  no stress value beyond constants). Phase 5b is **packed-only**.
+
+**Proof shape (for `.2`).** (1) Default-off byte-identical for fixed
+seeds across all `ConstructionStrategy` values (no annotation ⇒
+identical `to_sv`). (2) Forced-on: a focused proof that a projected
+module's emitted SV declares a `typedef … packed` and a single
+aggregate port, and that field references resolve. (3) A
+`tool_matrix` aggregate scenario downstream-clean: Verilator
+`--lint-only` + both Yosys modes all-pass, `coverage_gaps=[]`, a new
+`saw_packed_aggregate_design` coverage fact. (4) Identity-invariance:
+a unit test that a module and its aggregate-projected twin produce the
+**same** `canonical_module_signature` (annotation not hashed) and
+dedup-collapse. (5) Full `cargo` hygiene gate; `mdbook` clean with
+`book/src/ir.md` "Synthesizable aggregates" reconciled to what landed
+and `book/src/knobs.md` documenting `aggregate_*_prob`.
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-5B-AGGREGATES.1`); it makes no code change, consistent with
+the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Phase 5 rules-first pivot (2026-05-16, PHASE-5-PARAMETERIZATION.2.2.1)
 
 Implementation finding that corrects the `.1` design's instantiation

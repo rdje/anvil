@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-phase5b-1 — PHASE-5B-AGGREGATES.1: packed-aggregate emitter-projection design
+
+**Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new design-notes entry "Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)". Codebase-grounded (file-anchored audit of `src/emit/sv.rs` dumb-serialiser chokepoints, `src/ir/types.rs` flat `Port`/`u32`-width reality, the Phase 5 `param_env` annotation precedent). Chosen architecture **(P)**: emitter-only packed-aggregate projection driven by an additive `Default`-able per-module `AggregateLayout` annotation — construction/validate/CSE/dedup all unchanged, bijective bit-layout-preserving regrouping, opt-in `aggregate_*_prob` serde-default `0.0` (byte-identical). Three rejected alternatives: (A) first-class aggregate IR nodes, (B) post-hoc SV text rewrite, (C) unpacked aggregates/enums now. Resolves the tree's identity Open Question (annotation **not** hashed into `canonical_module_signature` — opposite of Phase 5, because aggregates change nothing semantic; projected twin dedup-collapses, correct). Proof shape for `.2` specified.
+- `docs/tasks/PHASE-5B-AGGREGATES.md`: `.1` `pending`→`done` (Verification + Commit filled), frontier `.1`→`.2`, identity Open Question resolved, Decisions/Verification-Log/Commit-Log/Changelog/Metadata updated.
+- `docs/TASK_TREE.md`: `PHASE-5B-AGGREGATES` frontier row `.1`→`.2`.
+
+**Why**
+
+- `PHASE-5B-AGGREGATES.1` (design-only leaf): give `.2` an unambiguous, codebase-grounded implementation target with the rejected-alternatives trail recorded durably (not just in a commit message). Continuous-PNT mode: Phase 5 closed, so the loop advanced to the next open tree.
+
+**Validation**
+
+- Design/docs only — **no code change** (leaf is design-only; task-tree owned by `PHASE-5B-AGGREGATES.1`, doctrine-compliant). `cargo fmt`/`clippy -D warnings`/`check` green; `cargo test` unchanged-green (no `src/`/`tests/` touched since the `b5cto7m8m` exit-0 run); `mdbook build book` clean.
+
+**Impact**
+
+- Phase 5b frontier advances to `PHASE-5B-AGGREGATES.2` (implementation: `AggregateLayout` annotation + `aggregate_*_prob` knob + emitter `typedef … packed` projection + matrix scenario + downstream-clean proof, then ROADMAP Phase 5b → done). No behavioural change.
+
+**Files touched**
+
+- Updated: DEVELOPMENT_NOTES.md, docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-gitignore-claude-runtime — Ignore Claude Code harness runtime artifacts
 
 **Landed as:** 80516ca
