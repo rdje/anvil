@@ -26,6 +26,21 @@ Read this first when starting or recovering a session.
 
 This bootstrap protocol exists so a fresh session reaches the same operational state as the session that just ended, with no silent assumptions and no drift between docs and code.
 
+## Non-negotiable doctrine: task-tree ownership of code
+
+**(2026-05-17, owner directive, no compromise.)** It is **strictly
+forbidden to make any code change without it being task-tree tracked
+or task-tree owned first.** Before touching `src/`, `tests/`,
+`examples/`, or any build/codegen logic, confirm a task-tree leaf owns
+the change; if none exists, create or extend a tree
+(`docs/tasks/<TREE>.md` + a `docs/TASK_TREE.md` row) and name the
+owning leaf **before** editing code. The leaf ID goes in the commit
+subject. Pure-docs / live-doc / mdBook / workflow-config edits are not
+"code changes" and are exempt. Full statement and the code/not-code
+boundary: `docs/TASK_TREE.md` "ANVIL Adoption Scope" and `COMMIT.md`
+"Task-tree-managed commits". A recovering session must treat this as
+in force immediately.
+
 ## Sanity checks
 ```bash
 cargo check --all-targets

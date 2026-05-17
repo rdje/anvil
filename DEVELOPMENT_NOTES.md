@@ -426,6 +426,40 @@ in `Config`, ~30 lines of focused proof, ~15 lines of matrix
 scenario + saw fact. No new dependency on external crates.
 
 ## Workflow notes
+### Task-tree ownership is mandatory for all code changes (2026-05-17, owner directive)
+
+**Doctrine, non-negotiable, no compromise.** It is strictly forbidden
+to make any code change without it being task-tree tracked or
+task-tree owned **first**. This supersedes the earlier "task trees are
+opt-in per top-level task" / "stay on `rN` for linear coverage" scope:
+that softer framing no longer governs code.
+
+**Why:** the owner observed that task-tree ownership improved code
+review and code quality *tremendously* over the ad-hoc / linear-`rN`
+cadence — the recursive breakdown, explicit frontier, recorded
+decisions/blockers, and the 1:1 leaf↔commit mapping force each change
+to be scoped, justified, and reviewable before it lands, and make
+pause/resume recovery lossless. The empirical improvement, not a
+process preference, is the rationale.
+
+**Boundary.** "Code" = anything that changes program/generator
+behaviour or generated RTL (`src/`, `tests/`, `examples/`,
+build/codegen logic, behaviour-altering `Cargo` manifests). Pure-docs
+/ live-doc / mdBook / workflow-config edits and recording doctrine
+itself are *not* code changes and need no tree (this very entry is an
+example). `rN` is **not** retired — it survives only as the optional
+within-leaf slice cadence *inside* a tree; a bare unowned `rN` code
+slice is no longer legal.
+
+**Mechanics.** Before editing code, confirm/create the owning leaf
+(`docs/tasks/<TREE>.md` + `docs/TASK_TREE.md` row); leaf ID in the
+commit subject; one completed leaf per commit; the frontier names the
+next eligible leaf. Recorded across `COMMIT.md`, `docs/TASK_TREE.md`
+("ANVIL Adoption Scope"), `SESSION_BOOTSTRAP.md`, this file,
+`README.md`, and the mdBook (`architecture.md`); session memory
+`feedback_task_tree_available.md`. Keep all in sync if the policy
+ever changes.
+
 ### Coverage baseline established (2026-05-14, COVERAGE-INSTRUMENTATION.1)
 cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already
 installed locally. Baseline run via `cargo llvm-cov --release`

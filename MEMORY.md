@@ -2,6 +2,7 @@
 Compact, operational continuity snapshot. Read on session bootstrap. Keep only what is actionable.
 
 ## Current state
+- **DOCTRINE (2026-05-17, non-negotiable, owner directive):** no code change may be made without a task-tree leaf owning it **first** (`src/`/`tests/`/`examples/`/build-codegen = code; pure-docs/mdBook/workflow/doctrine edits exempt). `rN` survives only as the optional within-leaf cadence. Recorded in `docs/TASK_TREE.md` "ANVIL Adoption Scope", `COMMIT.md`, `SESSION_BOOTSTRAP.md`, `DEVELOPMENT_NOTES.md`, `README.md`, `book/src/architecture.md`. Supersedes the earlier "task trees opt-in / `rN` for linear coverage" scope.
 - **Session recovery:** a `PostCompact` hook in `.claude/settings.json` auto-re-injects the full `SESSION_BOOTSTRAP.md` as context after every compaction. After an auto/manual compact, re-run the SESSION_BOOTSTRAP recovery protocol — do not assume prior in-context state survived. (`.claude/settings.local.json` carries the local `Write(.claude/settings.json)` allow rule; it stays uncommitted.)
 - **Phase:** Phase 0 done. Phase 1 (Single-module MVP) is done. Phase 2 (Signal sharing / DAG cones) is done. Phase 3 (structured combinational ops) is done. **Phase 4 (hierarchy) is done** (2026-05-16, closed by `PHASE-4-HIERARCHY.3` as a deliberate evidence-backed scope cut against explicit ROADMAP exit criteria; closing artifact r87, `coverage_gaps=[]`, 840/0). **Phase 5 (parameterization) is done** (2026-05-17, `PHASE-5-PARAMETERIZATION` tree complete: rules-first width-parameterizable leaves + `#(.W(v))` instantiation + parameter-aware identity, closed against explicit ROADMAP exit criteria; closing artifact `/tmp/anvil-tool-matrix-phase5-p1` — 213 scenarios / 852 designs, `coverage_gaps=[]`, Verilator+both-Yosys 852/0, `saw_width_parameterized_design=true`). **Phase 5b (synthesizable aggregates) is the next numbered phase, not started.**
 - **Active task trees:**
@@ -2093,6 +2094,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `<pending>` — Doctrine: task-tree ownership mandatory for all code changes (live-docs + book + memory; supersedes opt-in/`rN` scope).
 - `53e4c7f` — Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure (Phase 5 closed; next is Phase 5b).
 - `04b13ec` — Config: PostCompact hook re-injects SESSION_BOOTSTRAP.md after compaction.
 - `1ab78f0` — Phase 5: record PHASE-5-PARAMETERIZATION.2.4a commit hash 6f87d7a.

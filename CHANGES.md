@@ -1,5 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-task-tree-mandatory-doctrine — Task-tree ownership is mandatory for all code changes
+
+**Landed as:** this commit
+
+**What changed**
+
+- New **non-negotiable doctrine (owner directive)**: it is strictly forbidden to make any code change without it being task-tree tracked or task-tree owned first. Recorded across the live-docs and the live-book:
+  - `docs/TASK_TREE.md` "ANVIL Adoption Scope" rewritten from "opt-in per top-level task" to the mandate, with an explicit code/not-code boundary and the `rN`-survives-only-within-a-leaf rule.
+  - `COMMIT.md` "Task-tree-managed commits": closing paragraph rewritten to state the mandate; non-task-tree commits are now limited to non-code (docs/mdBook/workflow/doctrine).
+  - `SESSION_BOOTSTRAP.md`: new "Non-negotiable doctrine: task-tree ownership of code" section so every recovering session enforces it immediately.
+  - `DEVELOPMENT_NOTES.md` "Workflow notes": new dated entry with the rationale (task-tree ownership *measurably* improved review and code quality; supersedes the earlier opt-in/`rN` scope).
+  - `README.md`: the `docs/TASK_TREE.md` doc-index line updated from "Opt-in per top-level task" to the mandate.
+  - `book/src/architecture.md`: new "Development doctrine: task-tree ownership of code" section (the contributor-facing Reference chapter).
+- Session memory: `feedback_task_tree_available.md` rewritten from "adopt at your own pace" to the mandate (slug `task-tree-mandatory-for-code-changes`); memory index line updated.
+
+**Why**
+
+- Owner directive: task-tree ownership improved code review and code quality tremendously over the ad-hoc / linear-`rN` cadence. Doctrine going forward, no compromise, non-negotiable. Must be permanent (live-docs + book), not just a commit message.
+
+**Validation**
+
+- Docs/book/workflow only — **no code change** (consistent with the doctrine's own code/not-code boundary; this commit is itself an exempt non-code change). `mdbook build book` clean. `cargo fmt`/`clippy -D warnings`/`check`/`test` unaffected and green (unchanged from `53e4c7f`).
+
+**Impact**
+
+- Forward-going: every code change must have a task-tree leaf owning it before the edit, leaf ID in the commit subject. `rN` is not retired — it remains the optional within-leaf cadence. Closed `rN` work is not migrated retroactively.
+
+**Files touched**
+
+- Updated: docs/TASK_TREE.md, COMMIT.md, SESSION_BOOTSTRAP.md, DEVELOPMENT_NOTES.md, README.md, book/src/architecture.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-phase5-2.4b — PHASE-5-PARAMETERIZATION.2.4b: real-gate verify → ROADMAP Phase 5 (not started)→(done) + tree closure
 
 **Landed as:** 53e4c7f

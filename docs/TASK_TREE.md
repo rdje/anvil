@@ -21,23 +21,31 @@ for one top-level task.
 
 ## ANVIL Adoption Scope
 
-Task trees are **opt-in per top-level task**, not mandatory across the project.
+**Doctrine (2026-05-17, non-negotiable, owner directive):** it is
+**strictly forbidden to make any code change without it being
+task-tree tracked or task-tree owned first.** Task-tree ownership
+demonstrably improved code review and code quality over the earlier
+ad-hoc/linear cadence, so it is now the mandatory mode of work for all
+code — no compromise, no exceptions.
 
-- **Use a task tree when** the work has more than ~3 planned sub-slices, has
-  real blockers or design decisions to record, has parallel sub-axes that do
-  not fit a single linear `rN` ladder, or is likely to span multiple sessions
-  with pause/resume cycles.
-- **Stay on the rN convention when** the work is a linear coverage extension
-  along a single axis (e.g., the Phase 4 hierarchy depth sweeps r73–r82, the
-  helper-budget single-slice r84). The `rN` naming + `CHANGES.md` + `MEMORY.md`
-  combination already gives stable IDs and clean handoff for that shape of
-  work.
-- **Do not migrate finished work** into task trees retroactively. Closed `rN`
-  slices stay where they are.
-
-The first concrete fit is hierarchy-aware identity (the work `r85` opens —
-canonical signatures → dedup → `IdentityMode::NodeId` wiring at the module
-level → cross-module factorization), which is explicitly multi-slice.
+- **Code change ⇒ a task-tree leaf must own it, *before* the edit.**
+  "Code" means anything that changes program/generator behaviour or
+  generated RTL: `src/`, `tests/`, `examples/`, build/codegen logic,
+  `Cargo` manifests that alter behaviour. If no tree/leaf covers the
+  change, create or extend one (`docs/tasks/<TREE>.md` + a
+  `docs/TASK_TREE.md` row) and name the owning leaf first. The leaf ID
+  goes in the commit subject / first body line (`COMMIT.md` task-tree
+  rules).
+- **Exempt (no tree required):** pure-docs / live-doc / mdBook edits,
+  workflow-config tweaks, and recording doctrine itself. These are not
+  code changes. They still follow the standard `COMMIT.md` checklist.
+- **`rN` is *not* retired** — it survives only as the optional
+  within-leaf slice cadence *inside* a task tree (as the closed
+  `HIERARCHY-AWARE-IDENTITY` leaves landed as r85/r86/r87). A bare
+  `rN` slice that no task-tree leaf owns is no longer a legal way to
+  land a code change.
+- **Do not migrate finished work** retroactively. Closed `rN` slices
+  stay where they are; the mandate is forward-going.
 
 **Project-wide tracking directive (2026-05-16):** by explicit owner
 directive, *every remaining roadmap phase* now has a registered

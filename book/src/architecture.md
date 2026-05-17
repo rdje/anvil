@@ -347,6 +347,31 @@ pub fn trace_debug_enabled() -> bool;
 #[macro_export] macro_rules! trace_verbose { ... }
 ```
 
+## Development doctrine: task-tree ownership of code
+
+ANVIL's working doctrine is **non-negotiable (owner directive,
+2026-05-17): no code change is made without a task-tree leaf owning it
+first.** "Code" means anything that changes program/generator
+behaviour or generated RTL — `src/`, `tests/`, `examples/`,
+build/codegen logic. Pure-docs, mdBook, and workflow-config edits are
+not code changes and are exempt (this chapter edit is itself an
+example).
+
+Why the project works this way: task-tree ownership measurably
+improved code review and code quality over the earlier ad-hoc /
+linear cadence. Each tree (`docs/tasks/<TREE>.md`, indexed in
+`docs/TASK_TREE.md`) carries the recursive breakdown, the current
+*frontier* (the next eligible leaf), recorded decisions and blockers,
+acceptance criteria, and a 1:1 leaf↔commit mapping. The effect is that
+every behavioural change is scoped, justified, and reviewable *before*
+it lands, and a session can be paused and resumed without loss.
+
+Practically: before editing code, confirm or create the owning leaf,
+put its ID in the commit subject, and land one completed leaf per
+commit. The legacy `rN` slice numbering is not retired — it survives
+only as the optional within-leaf cadence *inside* a tree. The full
+workflow is `docs/TASK_TREE.md`; the commit mechanics are `COMMIT.md`.
+
 ## Testing strategy
 
 Three layers:

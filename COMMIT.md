@@ -141,11 +141,22 @@ still applies in full. Three additional rules:
    leaves into one commit even when they touch the same files; the
    commit log entry in the tree expects a 1:1 mapping.
 
-Commits that are **not** task-tree-managed (linear `rN` coverage
-slices, isolated doc edits, workflow tweaks) follow the standard
-checklist without the additional rules above. Task trees are opt-in
-per top-level task — see [docs/TASK_TREE.md](docs/TASK_TREE.md) for the
-adoption scope.
+**Doctrine (2026-05-17, non-negotiable, owner directive): no code
+change may be committed unless a task-tree leaf owns it.** "Code" =
+anything that changes program/generator behaviour or generated RTL
+(`src/`, `tests/`, `examples/`, build/codegen logic, behaviour-altering
+`Cargo` manifests). The owning leaf must exist *before* the edit; its
+ID goes in the commit subject / first body line. A bare `rN` slice
+that no task-tree leaf owns is no longer a legal way to land a code
+change — `rN` survives only as the optional within-leaf slice cadence
+*inside* a tree.
+
+Commits that are **not** task-tree-managed are limited to changes that
+are **not code**: pure-docs / live-doc / mdBook edits, workflow tweaks
+(including this file), and recording doctrine. Those follow the
+standard checklist without the additional task-tree rules above. See
+[docs/TASK_TREE.md](docs/TASK_TREE.md) "ANVIL Adoption Scope" for the
+full doctrine and the code/not-code boundary.
 
 ## Commit quality rules
 - Keep each commit scoped to one coherent task.
