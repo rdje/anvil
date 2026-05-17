@@ -8346,6 +8346,53 @@ fn packed_aggregate_is_default_off_and_projects_when_forced_on() {
 }
 
 #[test]
+fn packed_aggregate_organic_existence_is_not_inert() {
+    // PHASE-5B-AGGREGATES.2.2(a). Unlike Phase 5 width-homogeneity
+    // (which the unconstrained generator essentially never produced —
+    // forcing the rules-first pivot), packed-aggregate eligibility is
+    // just "≥2 same-direction data ports", the common shape. This
+    // proves the projection is NOT inert on *organic* output (DEFAULT
+    // port ranges, no forcing) so no rules-first constructor is
+    // needed — the `.2.1` post-construction pass is sound, not the
+    // generate-then-filter anti-pattern.
+    use anvil::config::ConstructionStrategy;
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    let mut projected = 0usize;
+    let mut total = 0usize;
+    for strategy in strategies {
+        for seed in 0..20u64 {
+            let cfg = Config {
+                seed,
+                aggregate_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let d = Generator::new(cfg).generate_design();
+            anvil::ir::validate::validate_design(&d).expect("organic design validates");
+            total += 1;
+            if d.modules.iter().any(|m| m.aggregate_layout.is_some()) {
+                projected += 1;
+            }
+        }
+    }
+    eprintln!("packed-aggregate organic projection rate: {projected}/{total}");
+    // Threshold pinned from observation (see commit message / tree
+    // Verification). Existence is robust, not marginal.
+    assert!(
+        projected * 2 >= total,
+        "packed-aggregate projection must fire on a substantial fraction \
+         of organic designs (got {projected}/{total}); if this regresses \
+         to ~0 the feature has become inert and needs a rules-first \
+         eligible-interface constructor (Phase-5 pivot discipline)"
+    );
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5b — Synthesizable aggregates
 - Created: `2026-05-16`
-- Last updated: `2026-05-17` (`.2.1` scaffold landed; frontier → `.2.2`)
+- Last updated: `2026-05-17` (`.2.2` existence+identity proofs landed; frontier → `.2.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -60,11 +60,11 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection`
 
 - ID: `PHASE-5B-AGGREGATES.2.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Soundness + organic-existence proof, and identity-invariance. (a) Prove the unconstrained generator actually yields group-eligible modules (>=2 contiguous same-direction ports) at usable rates so the projection is non-inert — if a forced-on sweep shows it inert, pivot to a rules-first eligible-interface construction rule (Phase-5 rules-first-pivot discipline; no generate-then-filter). (b) Unit test: a module and its aggregate-projected twin produce the same canonical_module_signature and dedup-collapse (annotation not hashed; IR unchanged).`
   Acceptance: `cargo gates green; existence proof reproducible (or the rules-first pivot landed + recorded in Decisions); identity-invariance unit test passes; default-off still byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `(a) tests/pipeline.rs::packed_aggregate_organic_existence_is_not_inert — with DEFAULT port ranges (NO forcing) + aggregate_prob=1.0 across 4 ConstructionStrategy x 20 seeds, the projection fires on 68/80 (~85%) organic single-module designs (observed; threshold pinned at >=50% — robust, not marginal). Conclusion: unlike Phase 5 width-homogeneity, packed-aggregate eligibility (>=2 same-direction data ports) is the common organic shape, so the .2.1 post-construction pass is NOT inert and NO rules-first constructor is needed (recorded in Decisions). (b) src/ir/aggregate.rs: canonical_signature_is_invariant_under_projection (sig identical before/after annotate_aggregate; flat ports unchanged) + aggregate_projected_twin_dedup_collapses (a concrete module and its projected twin share canonical_module_signature and dedup_modules collapses them under a top, removed==1). aggregate:: 10/0 (8 prior + 2 new). Default-off byte-identical unaffected (annotate only sets the annotation; .2.1 proof still green). cargo fmt/clippy -D warnings/check clean; full cargo test (COMMIT.md gate). No book/ change.`
+  Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof + identity-invariance`
 
 - ID: `PHASE-5B-AGGREGATES.2.3`
   Status: `pending`
@@ -84,7 +84,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5B-AGGREGATES.2.2` | `pending` | `.2.1` scaffold landed (IR annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean). `.2.2` proves organic existence (group-eligible modules at usable rates, else rules-first pivot) and identity-invariance (projected twin shares `canonical_module_signature` + dedup-collapses). |
+| 1 | `PHASE-5B-AGGREGATES.2.3` | `pending` | `.2.2` proved organic existence robust (~85%, no rules-first pivot) + identity-invariance. `.2.3` lands the `tool_matrix` `packed_aggregate` scenario + `DesignMetrics`/`saw_packed_aggregate_design` coverage fact + gap + bin-test counts — **no** ROADMAP promotion (that is `.2.4` on a verified gate artifact, r87 discipline). |
 
 ## Decisions
 
@@ -127,17 +127,32 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   scope for the scaffold; `annotate_aggregate` skips `param_env`
   modules. `aggregate_prob == 0` keeps both features off and
   byte-identical regardless.
+- `2026-05-17` (`.2.2` outcome — **no rules-first pivot**): a DEFAULT
+  port-range sweep (4 `ConstructionStrategy` × 20 seeds, no forcing,
+  `aggregate_prob = 1.0`) projects **68/80 ≈ 85 %** of organic
+  single-module designs. Unlike Phase 5 width-homogeneity (which the
+  unconstrained generator essentially never produced — forcing the
+  rules-first `build_parameterizable_leaf` pivot), packed-aggregate
+  eligibility (≥2 same-direction data ports) is the *common* organic
+  shape. Conclusion (recorded so it is not silently revisited): the
+  `.2.1` post-construction pass is **not** inert and is **not** the
+  generate-then-filter anti-pattern; **no rules-first eligible-
+  interface constructor is added**. Existence threshold pinned at
+  ≥ 50 % (robust headroom over the observed 85 %).
 
 ## Open Questions
 
-- Resolved by `.1`: aggregate emission does **not** interact with the
-  module-dedup signature. `canonical_module_signature` is computed
-  from the flat IR, which the projection never mutates; the
-  `AggregateLayout` annotation is deliberately **not** hashed into the
-  signature (the opposite of Phase 5's `param_env`, because aggregates
-  change nothing semantic). A module and its aggregate-projected twin
-  therefore share one signature and correctly dedup-collapse.
-  `dedup_modules` unchanged.
+- Resolved by `.1` (design) and **proven in code by `.2.2`**:
+  aggregate emission does **not** interact with the module-dedup
+  signature. `canonical_module_signature` is computed from the flat
+  IR, which the projection never mutates; the `AggregateLayout`
+  annotation is deliberately **not** hashed into the signature (the
+  opposite of Phase 5's `param_env`, because aggregates change nothing
+  semantic). `canonical_signature_is_invariant_under_projection` +
+  `aggregate_projected_twin_dedup_collapses` (`src/ir/aggregate.rs`)
+  assert exactly this: a module and its aggregate-projected twin share
+  one signature and `dedup_modules` collapses them. `dedup_modules`
+  unchanged. (No open questions remain.)
 
 ## Blockers
 
@@ -149,6 +164,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | --- | --- | --- | --- |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.1` | `DEVELOPMENT_NOTES.md` Phase 5b design entry landed (codebase-grounded; architecture (P) chosen; 3 rejected alternatives; identity-invariance resolved; proof shape). Doc-only, no code; `cargo fmt`/`clippy -D warnings`/`check` green; `cargo test` unchanged-green (no `src/`/`tests/` touched since `b5cto7m8m` exit 0); `mdbook build book` clean. | Done. |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.1` | IR `aggregate_layout` annotation + `AggregateKind`/`AggregateGroup`; `Config::aggregate_prob` (serde-default 0.0 + validation); `src/ir/aggregate.rs::annotate_aggregate` non-rolling pass (6 unit tests); seeded per-module Bernoulli roll at `gen/mod.rs` post-pass scoped to non-instantiated modules; boundary-alias emitter projection (typedef struct packed + aggregate port + alias wires/assigns, flat body byte-identical). Focused proof `packed_aggregate_is_default_off_and_projects_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on projects + validates + SV tokens). Real `verilator --lint-only` of a projected hierarchy design: EXIT 0. `cargo fmt`/`clippy -D warnings`/`check` clean; `aggregate::` 6/0 + focused proof green; full `cargo test` (COMMIT.md gate). No `book/` change (reconciliation is `.2.4`). | Done. |
+| `2026-05-17` | `PHASE-5B-AGGREGATES.2.2` | (a) `packed_aggregate_organic_existence_is_not_inert` — 68/80 (~85%) organic single-module designs projected with DEFAULT port ranges (4 strategies × 20 seeds), threshold ≥50%; **no rules-first pivot** (recorded in Decisions). (b) `canonical_signature_is_invariant_under_projection` + `aggregate_projected_twin_dedup_collapses` (`src/ir/aggregate.rs`): signature identical before/after `annotate_aggregate`, flat ports unchanged; projected twin shares `canonical_module_signature` and `dedup_modules` collapses it (removed==1, survivor+top). `aggregate::` 10/0; `cargo fmt`/`clippy -D warnings`/`check` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -156,6 +172,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | --- | --- | --- |
 | `PHASE-5B-AGGREGATES.1` | `Docs: PHASE-5B-AGGREGATES.1 packed-aggregate emitter-projection design` | Design-only; `DEVELOPMENT_NOTES.md` entry, architecture (P), 3 rejected alternatives. No code. |
 | `PHASE-5B-AGGREGATES.2.1` | `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection` | Scaffold: `aggregate_layout` annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean. StructPacked / non-instantiated / non-param scoped (Decisions). |
+| `PHASE-5B-AGGREGATES.2.2` | `Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof + identity-invariance` | Existence 68/80 (~85%) → no rules-first pivot; signature-invariant + projected-twin dedup-collapses. `aggregate::` 10/0. No code change to the feature (proofs only). |
 
 ## Changelog
 
@@ -197,3 +214,16 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   (clean). Scoping decisions (StructPacked-only / non-instantiated /
   non-param) recorded in Decisions. No `book/` change. Frontier →
   `.2.2` (organic-existence + identity-invariance).
+- `2026-05-17`: **`.2.2` landed (proofs only — no feature code
+  change).** (a) `packed_aggregate_organic_existence_is_not_inert`:
+  with DEFAULT port ranges (no forcing) + `aggregate_prob = 1.0`,
+  68/80 ≈ 85 % of organic single-module designs are projected across
+  4 `ConstructionStrategy` × 20 seeds → the projection is **not
+  inert**; **no rules-first pivot** (recorded in Decisions; threshold
+  pinned ≥ 50 %). (b) `canonical_signature_is_invariant_under_projection`
+  + `aggregate_projected_twin_dedup_collapses` (`src/ir/aggregate.rs`):
+  `annotate_aggregate` leaves `canonical_module_signature` and the
+  flat ports unchanged, and a projected twin dedup-collapses into its
+  concrete equal (annotation deliberately not hashed — the Open
+  Question, now proven in code). `aggregate::` 10/0. Frontier →
+  `.2.3` (matrix scenario + metrics + gap, no promotion).

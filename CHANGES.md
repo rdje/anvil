@@ -1,5 +1,30 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-phase5b-2.2 — PHASE-5B-AGGREGATES.2.2: organic-existence proof + identity-invariance
+
+**Landed as:** this commit
+
+**What changed**
+
+- `tests/pipeline.rs`: new `packed_aggregate_organic_existence_is_not_inert` — with **DEFAULT** port ranges (no forcing) and `aggregate_prob = 1.0`, sweeps 4 `ConstructionStrategy` × 20 seeds and asserts the projection fires on a substantial fraction of *organic* single-module designs. Observed **68/80 ≈ 85 %**; durable threshold pinned at ≥ 50 %.
+- `src/ir/aggregate.rs`: two new unit tests — `canonical_signature_is_invariant_under_projection` (signature + flat ports identical before/after `annotate_aggregate`) and `aggregate_projected_twin_dedup_collapses` (a concrete module and its aggregate-projected twin share `canonical_module_signature` and `dedup_modules` collapses them under a top, `removed == 1`). `aggregate::` 8 → 10.
+
+**Why**
+
+- `PHASE-5B-AGGREGATES.2.2`: (a) prove the `.2.1` post-construction pass is **not inert** on organic output (the Phase-5 rules-first-pivot guard) — and it is robustly not, unlike Phase 5 width-homogeneity, so **no rules-first eligible-interface constructor is added** (decision recorded in the tree). (b) prove in code the identity Open Question: the annotation is not hashed into module identity, so projection is semantically a no-op.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `aggregate::` 10/10; existence sweep 68/80; full `cargo test` (COMMIT.md gate — see Verification Log). Proofs only — **no change to the feature code**; default-off byte-identical unaffected.
+
+**Impact**
+
+- Phase 5b frontier → `PHASE-5B-AGGREGATES.2.3` (tool_matrix scenario + metrics + coverage gap; no ROADMAP promotion until the verified gate at `.2.4`). No behavioural change.
+
+**Files touched**
+
+- Updated: tests/pipeline.rs, src/ir/aggregate.rs, docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-phase5b-2.1 — PHASE-5B-AGGREGATES.2.1: packed-aggregate IR annotation + knob + emitter projection
 
 **Landed as:** 67e909d

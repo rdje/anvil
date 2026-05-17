@@ -212,4 +212,91 @@ mod tests {
             "clk/rst_n must be excluded from the data aggregate"
         );
     }
+
+    // ---- PHASE-5B-AGGREGATES.2.2(b): identity-invariance ----
+
+    fn named_comb(name: &str, n_in: u32, n_out: u32) -> Module {
+        let mut m = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        for i in 0..n_in {
+            m.inputs.push(port(i, &format!("a{i}"), 8, Direction::In));
+        }
+        for i in 0..n_out {
+            m.outputs
+                .push(port(100 + i, &format!("o{i}"), 8, Direction::Out));
+            // Drive each output from input 0 so the signature reflects
+            // real structure, not just an empty port list.
+            m.nodes
+                .push(crate::ir::Node::PrimaryInput { port: 0, width: 8 });
+            m.drives.push((100 + i, (i) as crate::ir::NodeId));
+        }
+        m
+    }
+
+    #[test]
+    fn canonical_signature_is_invariant_under_projection() {
+        // The projection is an emitter-surface annotation only; the
+        // flat IR (ports/nodes/drives) is untouched, so the module's
+        // canonical signature must be identical before and after
+        // `annotate_aggregate` — the annotation is deliberately NOT
+        // hashed into identity (opposite of Phase 5's `param_env`).
+        use crate::metrics::canonical_module_signature;
+        let mut m = named_comb("m", 3, 2);
+        let key = |ps: &[crate::ir::Port]| -> Vec<(u32, u32, String)> {
+            ps.iter().map(|p| (p.id, p.width, p.name.clone())).collect()
+        };
+        let sig_before = canonical_module_signature(&m);
+        let ins_before = key(&m.inputs);
+        let outs_before = key(&m.outputs);
+
+        assert!(annotate_aggregate(&mut m));
+        assert!(m.aggregate_layout.is_some());
+
+        assert_eq!(
+            canonical_module_signature(&m),
+            sig_before,
+            "aggregate annotation must not change the canonical signature"
+        );
+        // Flat IR is genuinely unchanged.
+        assert_eq!(key(&m.inputs), ins_before);
+        assert_eq!(key(&m.outputs), outs_before);
+    }
+
+    #[test]
+    fn aggregate_projected_twin_dedup_collapses() {
+        // A concrete module and a structurally-identical module that
+        // has been aggregate-projected are the SAME circuit and must
+        // dedup-collapse (the projection changes nothing semantic).
+        use crate::ir::dedup::dedup_modules;
+        use crate::ir::Design;
+        use crate::metrics::canonical_module_signature;
+
+        let a = named_comb("a", 3, 2);
+        let mut b = named_comb("b", 3, 2);
+        assert!(annotate_aggregate(&mut b));
+
+        assert_eq!(
+            canonical_module_signature(&a),
+            canonical_module_signature(&b),
+            "a module and its aggregate-projected twin must share a signature"
+        );
+
+        let top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![a, b, top],
+        };
+        let removed = dedup_modules(&mut design);
+        assert_eq!(
+            removed, 1,
+            "the projected twin collapses into its concrete equal"
+        );
+        assert_eq!(design.modules.len(), 2, "survivor + top");
+        assert!(design.modules.iter().any(|m| m.name == "top"));
+    }
 }
