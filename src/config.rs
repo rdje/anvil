@@ -82,6 +82,10 @@ fn default_width_parameterization_prob() -> f64 {
     0.0
 }
 
+fn default_aggregate_prob() -> f64 {
+    0.0
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -520,6 +524,20 @@ pub struct Config {
     #[serde(default = "default_width_parameterization_prob")]
     pub width_parameterization_prob: f64,
 
+    /// Phase 5b (synthesizable aggregates). Probability that a
+    /// finalized, non-parameterized module with an eligible
+    /// same-direction data-port group is given a packed-aggregate
+    /// emitter projection by the post-construction
+    /// `crate::ir::aggregate::annotate_aggregate` pass. Purely an
+    /// emitter-surface regrouping; the flat IR body, validators, CSE
+    /// keys and `canonical_module_signature` are all unaffected.
+    /// `default = 0.0` keeps every existing output byte-identical.
+    /// First slice: `PHASE-5B-AGGREGATES.2.1` — see
+    /// `docs/tasks/PHASE-5B-AGGREGATES.md` and `DEVELOPMENT_NOTES.md`
+    /// "Phase 5b packed-aggregate emitter projection design".
+    #[serde(default = "default_aggregate_prob")]
+    pub aggregate_prob: f64,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -671,6 +689,7 @@ impl Default for Config {
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             hierarchy_module_dedup: false,
             width_parameterization_prob: default_width_parameterization_prob(),
+            aggregate_prob: default_aggregate_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -1009,6 +1028,7 @@ impl Config {
                 "width_parameterization_prob",
                 self.width_parameterization_prob,
             ),
+            ("aggregate_prob", self.aggregate_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

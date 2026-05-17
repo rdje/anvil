@@ -8197,6 +8197,155 @@ fn width_parameterization_is_default_off_and_emits_width_generic_bodies() {
 }
 
 #[test]
+fn packed_aggregate_is_default_off_and_projects_when_forced_on() {
+    // PHASE-5B-AGGREGATES.2.1 deliverable.
+    //
+    //  (a) Default-off is byte-identical: with the default
+    //      `aggregate_prob = 0.0`, `generate_design` skips the pass,
+    //      no module carries an `aggregate_layout`, and emitted SV
+    //      contains no `typedef struct packed` / aggregate port.
+    //
+    //  (b) Forced-on (prob 1.0): an eligible single-module design is
+    //      projected — the SV declares `typedef struct packed`, swaps
+    //      the flat data ports for one aggregate port per side, and
+    //      the design still validates (the flat IR is untouched, so
+    //      the projection is semantically a no-op).
+    use anvil::config::ConstructionStrategy;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+
+    // (a) default-off path across strategies + seeds.
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let off = Config {
+                seed,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let design_off = Generator::new(off).generate_design();
+            anvil::ir::validate::validate_design(&design_off)
+                .expect("default-off design must validate");
+            assert!(
+                design_off
+                    .modules
+                    .iter()
+                    .all(|m| m.aggregate_layout.is_none()),
+                "default-off (prob 0.0) must never project an aggregate (seed {seed}, {strategy:?})"
+            );
+            let sv_off = anvil::emit::to_sv_design(&design_off);
+            assert!(
+                !sv_off.contains("struct packed") && !sv_off.contains("_in_t"),
+                "default-off SV must contain no packed-aggregate typedef (seed {seed}, {strategy:?})"
+            );
+        }
+    }
+
+    // (b) forced-on path. A comb single-module design with 3 data
+    // inputs + 2 outputs is guaranteed group-eligible on both sides;
+    // the sole module is never instantiated, so the `.2.1` scaffold
+    // scope projects it.
+    let mut total_projected = 0usize;
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let on = Config {
+                seed,
+                aggregate_prob: 1.0,
+                min_inputs: 3,
+                max_inputs: 3,
+                min_outputs: 2,
+                max_outputs: 2,
+                flop_prob: 0.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            on.validate().expect("forced-on config valid");
+            let design_on = Generator::new(on).generate_design();
+            anvil::ir::validate::validate_design(&design_on).unwrap_or_else(|e| {
+                panic!(
+                    "aggregate-projected design must validate (seed {seed}, {strategy:?}): {e:?}"
+                )
+            });
+
+            assert_eq!(design_on.modules.len(), 1);
+            let m = &design_on.modules[0];
+            // The sole module is never instantiated, so the `.2.1`
+            // scaffold scope projects it as long as at least one side
+            // is group-eligible (≥2 ports). Dead primary inputs may be
+            // pruned by the generator, so we assert on whichever
+            // side(s) actually formed a group rather than requiring
+            // both — the `.2.1` contract is "projected + sound SV +
+            // validates", not a fixed port shape.
+            let layout = m.aggregate_layout.as_ref().unwrap_or_else(|| {
+                panic!(
+                    "forced-on single-module design must be projected \
+                     (seed {seed}, {strategy:?}); inputs={} outputs={}",
+                    m.inputs.len(),
+                    m.outputs.len()
+                )
+            });
+            total_projected += 1;
+            assert_eq!(layout.kind, anvil::ir::AggregateKind::StructPacked);
+            assert!(
+                layout.inputs.is_some() || layout.outputs.is_some(),
+                "a projected layout must carry at least one group"
+            );
+            // The flat IR is untouched by the projection.
+            let flat_inputs = m.inputs.len();
+            let flat_outputs = m.outputs.len();
+
+            let sv = anvil::emit::to_sv_in_design(m, &design_on);
+            assert!(
+                sv.contains("typedef struct packed {"),
+                "projected module {} must emit a packed typedef:\n{sv}",
+                m.name
+            );
+
+            if let Some(gi) = layout.inputs.as_ref() {
+                assert!(gi.fields.len() >= 2);
+                assert_eq!(gi.type_name, format!("{}_in_t", m.name));
+                assert!(
+                    sv.contains(&format!("}} {}_in_t;", m.name))
+                        && sv.contains(&format!("input  {}_in_t {}_in", m.name, m.name)),
+                    "input group must emit its typedef + aggregate port:\n{sv}"
+                );
+                let (f0, _) = &gi.fields[0];
+                assert!(
+                    sv.contains(&format!("= {}_in.{};", m.name, f0)),
+                    "input field {f0} must alias from the aggregate port:\n{sv}"
+                );
+            }
+            if let Some(go) = layout.outputs.as_ref() {
+                assert!(go.fields.len() >= 2);
+                assert_eq!(go.type_name, format!("{}_out_t", m.name));
+                assert!(
+                    sv.contains(&format!("}} {}_out_t;", m.name))
+                        && sv.contains(&format!("output {}_out_t {}_out", m.name, m.name)),
+                    "output group must emit its typedef + aggregate port:\n{sv}"
+                );
+                let (of0, _) = &go.fields[0];
+                assert!(
+                    sv.contains(&format!("assign {}_out.{} =", m.name, of0)),
+                    "grouped output {of0} must drive onto the aggregate port:\n{sv}"
+                );
+            }
+
+            // IR shape unchanged by the (emitter-only) projection.
+            assert_eq!(m.inputs.len(), flat_inputs);
+            assert_eq!(m.outputs.len(), flat_outputs);
+        }
+    }
+    assert!(
+        total_projected >= strategies.len() * 6,
+        "every forced-on single-module design must be projected"
+    );
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

@@ -68,6 +68,50 @@ pub struct ParamEnv {
     pub design_value: u32,
 }
 
+/// Packed-aggregate surface kind for the Phase 5b emitter projection.
+///
+/// `.2.1` (scaffold) only ever selects `StructPacked` — the general,
+/// always-sound case for a group of differing-width ports (a packed
+/// `struct` is LRM-defined to be bit-equivalent to the concatenation
+/// of its members). `UnionPacked` / `ArrayPacked` require a same-width
+/// group and are deferred to a later `.2.x` calibration sub-slice; the
+/// enum is defined now so the IR shape is stable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AggregateKind {
+    /// `typedef struct packed { … } <name>;`
+    StructPacked,
+}
+
+/// Phase 5b packed-aggregate emitter projection (architecture (P),
+/// `DEVELOPMENT_NOTES.md` "Phase 5b packed-aggregate emitter projection
+/// design"). A purely **additive emitter-surface** annotation: a
+/// contiguous, same-direction group of data ports is rendered as one
+/// packed-aggregate port plus boundary alias wires, leaving the flat
+/// IR body byte-identical. Never hashed into
+/// `canonical_module_signature` (aggregates change nothing semantic).
+/// `None` (the `Default`) is byte-identical to pre-Phase-5b behaviour.
+/// Set by the post-construction `crate::ir::aggregate` pass under the
+/// opt-in `Config::aggregate_prob` knob.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregateGroup {
+    /// Emitted SV type name, e.g. `m_in_t`.
+    pub type_name: String,
+    /// Emitted aggregate port name, e.g. `m_in`.
+    pub port_name: String,
+    /// Ordered `(field_name, PortId)` — field order is the emitted
+    /// port order; the bit layout is internal to the projection.
+    pub fields: Vec<(String, PortId)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregateLayout {
+    pub kind: AggregateKind,
+    /// Input-side group, if the module's data inputs were projected.
+    pub inputs: Option<AggregateGroup>,
+    /// Output-side group, if the module's outputs were projected.
+    pub outputs: Option<AggregateGroup>,
+}
+
 /// Exact data-interface shape requested for a generated module.
 ///
 /// This profile intentionally excludes `clk` / `rst_n`: control ports
@@ -257,6 +301,13 @@ pub struct Module {
     /// Output port ids parameterized the same way as
     /// `parameterized_input_ports`.
     pub parameterized_output_ports: Vec<PortId>,
+    /// Phase 5b packed-aggregate emitter projection. `None` (the
+    /// `Default`) ⇒ byte-identical to pre-Phase-5b emission. Set by
+    /// the post-construction `crate::ir::aggregate` pass under the
+    /// opt-in `Config::aggregate_prob` knob. Purely an emitter-surface
+    /// regrouping; the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected.
+    pub aggregate_layout: Option<AggregateLayout>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

@@ -7,6 +7,7 @@ pub mod pool;
 
 use crate::config::Config;
 use crate::ir::{Design, KnobId, Module, ModuleInterfaceProfile};
+use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -119,6 +120,40 @@ impl Generator {
         if self.cfg.width_parameterization_prob > 0.0 {
             for module in &mut design.modules {
                 crate::ir::param::annotate_parameterized(module, &self.cfg);
+            }
+        }
+        // Phase 5b: opt-in post-construction packed-aggregate emitter
+        // projection (`PHASE-5B-AGGREGATES.2.1`). The per-module
+        // *decision* is rolled here via the seeded generator RNG
+        // (reproducible; never `thread_rng`) so `0 < p < 1` is a real
+        // Bernoulli choice; `annotate_aggregate` itself is non-rolling.
+        // Runs after dedup + the param pass; the pass skips
+        // parameterized modules (`.2.1` scoping) and modules with no
+        // eligible same-direction data-port group. Default-off (prob
+        // 0.0) skips entirely → every module byte-identical.
+        if self.cfg.aggregate_prob > 0.0 {
+            let p = self.cfg.aggregate_prob.clamp(0.0, 1.0);
+            // `.2.1` scaffold scoping: only project modules that are
+            // **not instantiated** by any other module. A projected
+            // child would change its emitted port surface while the
+            // parent-side instance connection still uses the flat port
+            // names; rewriting parent-side aggregate connections is
+            // deferred to a later `.2.x` sub-slice. Single-module
+            // designs and the (never-instantiated) top are eligible;
+            // hierarchy children are left flat. Soundness-scoped in
+            // the same spirit as Phase 5's planned-child loop.
+            let instantiated: std::collections::BTreeSet<String> = design
+                .modules
+                .iter()
+                .flat_map(|m| m.instances.iter().map(|i| i.module.clone()))
+                .collect();
+            for module in &mut design.modules {
+                if instantiated.contains(&module.name) {
+                    continue;
+                }
+                if self.rng.gen_bool(p) {
+                    crate::ir::aggregate::annotate_aggregate(module);
+                }
             }
         }
         design

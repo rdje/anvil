@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5b — Synthesizable aggregates
 - Created: `2026-05-16`
-- Last updated: `2026-05-17` (`.1` design landed; `.2` split into `.2.1`–`.2.4`; frontier → `.2.1`)
+- Last updated: `2026-05-17` (`.2.1` scaffold landed; frontier → `.2.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -53,11 +53,11 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   Children: `PHASE-5B-AGGREGATES.2.1`, `.2.2`, `.2.3`, `.2.4`
 
 - ID: `PHASE-5B-AGGREGATES.2.1`
-  Status: `pending`
+  Status: `done`
   Goal: `IR + emitter scaffold (architecture (P)). Additive Default-able Module.aggregate_layout: Option<AggregateLayout> ({kind: Struct|Union|Array packed, type_name, ordered (field_name, PortId)} ); Config::aggregate_prob (f64, serde-default 0.0, probability-range validated); post-construction opt-in pass that records a layout over a contiguous same-direction port group; emitter renders typedef <name> packed + a single aggregate port + projects grouped-port references to .fieldN at the port boundary. Internal flat wires/assigns unchanged. No matrix scenario yet.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: default-off byte-identical for fixed seeds across all ConstructionStrategy values; forced-on a projected module round-trips IR->validate->emit and the SV declares a typedef ... packed + one aggregate port; validate_design passes (IR unchanged). No book/ change (book reconciliation is .2.4).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Additive Default-able Module.aggregate_layout: Option<AggregateLayout> + AggregateKind{StructPacked} + AggregateGroup{type_name,port_name,fields:Vec<(String,PortId)>} in src/ir/types.rs (zero churn to ..Module::default() sites). Config::aggregate_prob (serde-default 0.0 + probability-range validation tuple entry). New src/ir/aggregate.rs::annotate_aggregate non-rolling post-construction pass (idempotent; skips param_env modules; data-input/output groups >=2; clk/rst_n excluded via emitted_data_input_ports) with 6 unit tests. Per-module Bernoulli roll at the gen/mod.rs post-pass via the seeded ChaCha8 RNG (reproducible; never thread_rng), scoped to NON-instantiated modules so hierarchy child connections stay byte-identical. Emitter: boundary-alias projection (typedef struct packed before module; grouped ports replaced by one aggregate port/side; input fields alias to same-named wires; grouped outputs become internal logic + boundary assign) — the flat IR body emission is byte-for-byte unchanged. Focused proof packed_aggregate_is_default_off_and_projects_when_forced_on: default-off byte-identical (no aggregate artifacts) across 4 ConstructionStrategy x 6 seeds; forced-on projects every single-module design, SV declares typedef struct packed + aggregate port(s) + boundary alias/assign, validate_design clean, IR shape unchanged. Real verilator --lint-only spot-check of a projected hierarchy design (top mod_5_0001 with packed-struct out port): EXIT 0 (clean). cargo fmt/clippy -D warnings clean; aggregate:: 6/0; focused proof green; full cargo test (Verification Log). No book/ change.`
+  Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection`
 
 - ID: `PHASE-5B-AGGREGATES.2.2`
   Status: `pending`
@@ -84,7 +84,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5B-AGGREGATES.2.1` | `pending` | `.1` design done; `.2` split (Splitting Rules + r87 no-aspirational-claims). `.2.1` lands the IR `AggregateLayout` annotation + `aggregate_prob` knob + emitter `typedef … packed` projection, default-off byte-identical — the reviewable scaffold before existence-proof (`.2.2`), gate scenario (`.2.3`), and verified promotion (`.2.4`). |
+| 1 | `PHASE-5B-AGGREGATES.2.2` | `pending` | `.2.1` scaffold landed (IR annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean). `.2.2` proves organic existence (group-eligible modules at usable rates, else rules-first pivot) and identity-invariance (projected twin shares `canonical_module_signature` + dedup-collapses). |
 
 ## Decisions
 
@@ -111,6 +111,22 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   invariance, `.2.3` matrix scenario+metrics+gap (no promotion),
   `.2.4` real-gate verify → ROADMAP Phase 5b `done` + tree closure.
   No node renumbered; `.2` is now a container. Frontier → `.2.1`.
+- `2026-05-17` (`.2.1` scaffold scoping — recorded so it is not
+  silently revisited): (i) **`AggregateKind::StructPacked` only.** A
+  packed `struct` is the general always-sound surface for a
+  differing-width group; `UnionPacked`/`ArrayPacked` need a same-width
+  group and are a later `.2.x` calibration sub-slice (the enum is
+  defined now so the IR shape is stable). (ii) **Non-instantiated
+  modules only.** A projected child would change its emitted port
+  surface while the parent-side instance connection still uses the
+  flat port names; rewriting parent-side aggregate connections is
+  deferred. Single-module designs and the never-instantiated top are
+  projected; hierarchy children stay flat. Soundness-scoped in the
+  same spirit as Phase 5's planned-child loop. (iii) **Parameterized
+  modules skipped.** The param/aggregate cross-product is out of
+  scope for the scaffold; `annotate_aggregate` skips `param_env`
+  modules. `aggregate_prob == 0` keeps both features off and
+  byte-identical regardless.
 
 ## Open Questions
 
@@ -132,12 +148,14 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.1` | `DEVELOPMENT_NOTES.md` Phase 5b design entry landed (codebase-grounded; architecture (P) chosen; 3 rejected alternatives; identity-invariance resolved; proof shape). Doc-only, no code; `cargo fmt`/`clippy -D warnings`/`check` green; `cargo test` unchanged-green (no `src/`/`tests/` touched since `b5cto7m8m` exit 0); `mdbook build book` clean. | Done. |
+| `2026-05-17` | `PHASE-5B-AGGREGATES.2.1` | IR `aggregate_layout` annotation + `AggregateKind`/`AggregateGroup`; `Config::aggregate_prob` (serde-default 0.0 + validation); `src/ir/aggregate.rs::annotate_aggregate` non-rolling pass (6 unit tests); seeded per-module Bernoulli roll at `gen/mod.rs` post-pass scoped to non-instantiated modules; boundary-alias emitter projection (typedef struct packed + aggregate port + alias wires/assigns, flat body byte-identical). Focused proof `packed_aggregate_is_default_off_and_projects_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on projects + validates + SV tokens). Real `verilator --lint-only` of a projected hierarchy design: EXIT 0. `cargo fmt`/`clippy -D warnings`/`check` clean; `aggregate::` 6/0 + focused proof green; full `cargo test` (COMMIT.md gate). No `book/` change (reconciliation is `.2.4`). | Done. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `PHASE-5B-AGGREGATES.1` | `Docs: PHASE-5B-AGGREGATES.1 packed-aggregate emitter-projection design` | Design-only; `DEVELOPMENT_NOTES.md` entry, architecture (P), 3 rejected alternatives. No code. |
+| `PHASE-5B-AGGREGATES.2.1` | `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection` | Scaffold: `aggregate_layout` annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean. StructPacked / non-instantiated / non-param scoped (Decisions). |
 
 ## Changelog
 
@@ -162,3 +180,20 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   promotion), `.2.4` (real-gate verify → ROADMAP Phase 5b `done` +
   tree closure). `.2` became a container; no renumbering. Frontier →
   `.2.1`.
+- `2026-05-17`: **`.2.1` scaffold landed.** IR: additive
+  `Default`-able `Module.aggregate_layout: Option<AggregateLayout>` +
+  `AggregateKind{StructPacked}` + `AggregateGroup` (`src/ir/types.rs`).
+  Knob: `Config::aggregate_prob` serde-default 0.0 + validation. New
+  `src/ir/aggregate.rs::annotate_aggregate` non-rolling pass (6 unit
+  tests); per-module seeded Bernoulli roll at the `gen/mod.rs`
+  post-pass, scoped to non-instantiated modules. Emitter:
+  boundary-alias projection (`typedef struct packed` + one aggregate
+  port/side + input alias wires + grouped-output internal logic +
+  boundary assigns) leaving the flat IR body byte-identical. Focused
+  proof `packed_aggregate_is_default_off_and_projects_when_forced_on`
+  (default-off byte-identical 4 strategies × 6 seeds; forced-on
+  projects + `validate_design` clean + SV tokens). Real
+  `verilator --lint-only` of a projected hierarchy design: EXIT 0
+  (clean). Scoping decisions (StructPacked-only / non-instantiated /
+  non-param) recorded in Decisions. No `book/` change. Frontier →
+  `.2.2` (organic-existence + identity-invariance).

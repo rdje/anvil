@@ -1,8 +1,38 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-17-phase5b-2-split — PHASE-5B-AGGREGATES.2 split into signoff-sized leaves
+## 2026-05-17-phase5b-2.1 — PHASE-5B-AGGREGATES.2.1: packed-aggregate IR annotation + knob + emitter projection
 
 **Landed as:** this commit
+
+**What changed**
+
+- **IR** (`src/ir/types.rs`): additive `Default`-able `Module.aggregate_layout: Option<AggregateLayout>` + `AggregateKind { StructPacked }` + `AggregateGroup { type_name, port_name, fields: Vec<(String, PortId)> }`. Zero churn to `..Module::default()` sites (mirrors the Phase 5 `param_env` additive pattern). New `pub mod aggregate;` in `src/ir/mod.rs`.
+- **Knob** (`src/config.rs`): `Config::aggregate_prob: f64`, `#[serde(default = "default_aggregate_prob")]` (= 0.0), Default-impl line, and a probability-range validation tuple entry — identical pattern to `width_parameterization_prob`.
+- **Pass** (`src/ir/aggregate.rs`, new): `annotate_aggregate` — non-rolling, idempotent, skips `param_env` modules, builds an input group from `emitted_data_input_ports()` (clk/rst_n excluded) and an output group from `outputs`, each requiring ≥2 ports. 6 unit tests.
+- **Generator** (`src/gen/mod.rs`): post-pass after dedup + the param pass; per-module Bernoulli roll via the seeded ChaCha8 RNG (reproducible; never `thread_rng`), scoped to **non-instantiated** modules so hierarchy child connections stay byte-identical.
+- **Emitter** (`src/emit/sv.rs`): boundary-alias projection — `typedef struct packed { … } <name>;` before the module; grouped ports replaced by one aggregate port per side; input fields aliased to same-named `wire`s; grouped outputs become internal `logic` + a boundary `assign <agg>.<field> = <name>;`. The flat IR body emission is byte-for-byte unchanged.
+- **Proof** (`tests/pipeline.rs`): `packed_aggregate_is_default_off_and_projects_when_forced_on`.
+
+**Why**
+
+- `PHASE-5B-AGGREGATES.2.1`: the reviewable scaffold for architecture (P) (design `.1`), default-off byte-identical, before the organic-existence/identity proof (`.2.2`), the matrix scenario (`.2.3`), and verified ROADMAP promotion (`.2.4`). Continuous-PNT mode.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `aggregate::` 6/6; focused proof green (default-off byte-identical across 4 `ConstructionStrategy` × 6 seeds; forced-on projects every single-module design, `validate_design` clean, SV declares `typedef struct packed` + aggregate port + boundary alias/assign, IR shape unchanged); full `cargo test` (COMMIT.md gate — see Verification Log). Real generator-output spot-check: a projected hierarchy design (top `mod_5_0001`, packed-struct output port) `verilator --lint-only` → EXIT 0 (clean).
+- Scaffold scoping (recorded in the tree Decisions, not silent): `AggregateKind::StructPacked` only (union/array need same-width groups — later sub-slice); non-instantiated modules only (parent-side aggregate connection deferred); `param_env` modules skipped (param/aggregate cross-product deferred). `aggregate_prob == 0` (default) keeps every feature off and output byte-identical.
+
+**Impact**
+
+- Opt-in `aggregate_prob > 0` projects eligible non-instantiated modules' data ports as a packed `struct`. Default-off ⇒ no behavioural change. Phase 5b frontier → `PHASE-5B-AGGREGATES.2.2`.
+
+**Files touched**
+
+- New: src/ir/aggregate.rs. Updated: src/ir/types.rs, src/ir/mod.rs, src/config.rs, src/gen/mod.rs, src/emit/sv.rs, tests/pipeline.rs, docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
+## 2026-05-17-phase5b-2-split — PHASE-5B-AGGREGATES.2 split into signoff-sized leaves
+
+**Landed as:** 3fbbc79
 
 **What changed**
 
