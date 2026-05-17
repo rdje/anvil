@@ -1,5 +1,30 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-phase5b-2-split — PHASE-5B-AGGREGATES.2 split into signoff-sized leaves
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-5B-AGGREGATES.md`: `.2` ("implement the projection per `.1`") was a single oversized leaf mixing IR + knob + emitter + tests + matrix gate + ROADMAP promotion. Split it into a container with `.2.1` (IR `AggregateLayout` annotation + `Config::aggregate_prob` knob + emitter `typedef … packed` projection, default-off byte-identical), `.2.2` (soundness / organic-existence proof — with the Phase-5 rules-first-pivot fallback if the unconstrained generator is inert — + identity-invariance unit test), `.2.3` (tool_matrix scenario + metrics + `saw_packed_aggregate_design` gap, **no** ROADMAP promotion), `.2.4` (run the real repo-owned gate, verify downstream-clean, then ROADMAP Phase 5b → done + book reconciliation + tree closure). `.2` is now a container; no node renumbered. Frontier `.2` → `.2.1`. Decisions + Changelog + Metadata updated.
+- `docs/TASK_TREE.md`: `PHASE-5B-AGGREGATES` frontier row `.2` → `.2.1`.
+
+**Why**
+
+- Splitting Rules: `.2` cannot reach signoff in one slice and mixes independently-reviewable concerns. The r87 no-aspirational-claims precedent additionally requires the matrix-gate scenario to land (`.2.3`) before any ROADMAP promotion (`.2.4` on a verified artifact). Decomposition mirrors the proven Phase 5 `.2.1`–`.2.4` shape.
+
+**Validation**
+
+- Tree-planning doc change only — **no code change**. `cargo` gates unaffected/green (no `src/`/`tests/` touched); `mdbook` unaffected (no `book/` change).
+
+**Impact**
+
+- Phase 5b implementation frontier is now `PHASE-5B-AGGREGATES.2.1` (the reviewable scaffold). No behavioural change.
+
+**Files touched**
+
+- Updated: docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-phase5b-1 — PHASE-5B-AGGREGATES.1: packed-aggregate emitter-projection design
 
 **Landed as:** 6976346
