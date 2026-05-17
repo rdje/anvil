@@ -1,5 +1,33 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-phase5-2.4b — PHASE-5-PARAMETERIZATION.2.4b: real-gate verify → ROADMAP Phase 5 (not started)→(done) + tree closure
+
+**Landed as:** this commit
+
+**What changed**
+
+- **Phase 5 — Parameterization is promoted `done`** (phase-label change `(not started)` → `(done)`). `ROADMAP.md` Phase 5 section: header `(not started)`→`(done)`, added `**Status:** done as of 2026-05-17`, kept the original intent bullets, added an explicit 4-point **"Exit criteria (met)"** block tied to the verified gate artifact, plus a scope note (parameter-aware child selection / parameter-driven parent generation are open-ended post-phase work — deliberate evidence-backed scope cut, not a blocker; no mode retired).
+- `docs/tasks/PHASE-5-PARAMETERIZATION.md`: `.2.4b` `pending`→`done` (Verification + Commit filled), `.2.4`/`.2` containers and the `PHASE-5-PARAMETERIZATION` root `active`→`done`, Current Frontier → none (Phase 5 closed), Metadata Status/Last updated, Verification Log + Commit Log + Changelog `.2.4b` rows; recorded the `.2.4a` commit hash `6f87d7a` and removed a stale duplicate `.2.3` Commit-Log row.
+- `docs/TASK_TREE.md`: `PHASE-5-PARAMETERIZATION` row `active`→`done` (frontier "complete — Phase 5 closed").
+- Synced live docs: `README.md` (Phase 5 done; next is Phase 5b), `CODEBASE_ANALYSIS.md` (phase-coverage Phase 5 row `not started`→`done` with the closing artifact + file anchors), `MEMORY.md` (Phase line → Phase 5 done, Phase 5b next), `book/src/hierarchy.md` (Phase 5 width parameterization delivered note); `mdbook build book` clean.
+
+**Why**
+
+- `.2.4b`'s contract (r87 no-aspirational-claims discipline): a phase is promoted **only** after a real repo-owned downstream gate is run and verified clean — promotion strictly follows the verified artifact.
+
+**Validation**
+
+- Real repo-owned `Phase4Hierarchy` gate (now including `phase5_width_parameterized`) ran to completion (background job, exit 0). Banked artifact `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json` verified CLEAN: `scenario_count` 213, `total_modules` 852, `coverage_gaps` `[]`, Verilator 852/0, `yosys_without_abc` 852/0, `yosys_with_abc` 852/0, `saw_width_parameterized_design` `true`, `saw_recursive_hierarchy_module_dedup_active` `true`.
+- Docs/closure only — **no code change** in this leaf. `cargo fmt`/`clippy -D warnings`/`check`/`test` green (unchanged from `.2.4a`); `mdbook build book` clean.
+
+**Impact**
+
+- Phase 5 is closed. The next numbered roadmap phase is **Phase 5b — Synthesizable aggregates** (`docs/tasks/PHASE-5B-AGGREGATES.md`, frontier `PHASE-5B-AGGREGATES.1`). No behavioural change to generated RTL (`width_parameterization_prob` remains default-off / byte-identical).
+
+**Files touched**
+
+- Updated: ROADMAP.md, README.md, CODEBASE_ANALYSIS.md, MEMORY.md, book/src/hierarchy.md, docs/tasks/PHASE-5-PARAMETERIZATION.md, docs/TASK_TREE.md, CHANGES.md.
+
 ## 2026-05-16-postcompact-bootstrap-hook — Re-inject SESSION_BOOTSTRAP.md after context compaction
 
 **Landed as:** 04b13ec

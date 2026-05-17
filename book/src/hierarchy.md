@@ -1745,5 +1745,10 @@ breadth (further helper-instance placements, deeper registered
 child-to-child routing, richer parent-side composition) lands as
 optional post-Phase-4 `rN` slices without reopening the phase.
 
-The next numbered phase is **Phase 5 — Parameterization**, which Phase 4
-now unblocks (it required a real design/instance layer).
+**Phase 5 — Parameterization** (which Phase 4 unblocked) is now also
+`done` (2026-05-17): generated modules can carry a width `parameter`
+and be instantiated at multiple widths via `#(.W(v))`, rules-first and
+downstream-clean (see `book/src/knobs.md`
+`width_parameterization_prob`, `docs/tasks/PHASE-5-PARAMETERIZATION.md`,
+and the `ROADMAP.md` Phase 5 exit criteria). The next numbered phase is
+**Phase 5b — Synthesizable aggregates**.

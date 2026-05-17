@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `PHASE-5-PARAMETERIZATION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Phase 5 — Parameterization
 - Created: `2026-05-16`
-- Last updated: `2026-05-16` (`.2.4` split into `.2.4a` gate-scenario+metrics [done] / `.2.4b` real-gate-verify+promote; frontier → `.2.4b`)
+- Last updated: `2026-05-17` (`.2.4b` real-gate verified downstream-clean → ROADMAP Phase 5 exit criteria authored + Phase 5 promoted `done`; `.2.4`/`.2`/tree closed; frontier none — Phase 5 closed)
 - Owner: repo-local workflow
 
 ## Goal
@@ -40,9 +40,9 @@ equivalent).
 ## Task Tree
 
 - ID: `PHASE-5-PARAMETERIZATION`
-  Status: `active`
+  Status: `done`
   Goal: `Deliver parameterized modules/instances with sound parameter-aware identity.`
-  Children: `PHASE-5-PARAMETERIZATION.1` (done), `PHASE-5-PARAMETERIZATION.2` (active container)
+  Children: `PHASE-5-PARAMETERIZATION.1` (done), `PHASE-5-PARAMETERIZATION.2` (done container)
 
 - ID: `PHASE-5-PARAMETERIZATION.1`
   Status: `done`
@@ -52,9 +52,9 @@ equivalent).
   Commit: `Docs: PHASE-5-PARAMETERIZATION.1 parameterization design`
 
 - ID: `PHASE-5-PARAMETERIZATION.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the .1 design (architecture C), default-off, downstream-clean, with parameter-aware identity. Split into signoff-sized leaves.`
-  Children: `PHASE-5-PARAMETERIZATION.2.1` (done), `.2.2` (active container: `.2.2.1` done, `.2.2.2` done, `.2.2.3`), `.2.3`, `.2.4`
+  Children: `PHASE-5-PARAMETERIZATION.2.1` (done), `.2.2` (done container: `.2.2.1` done, `.2.2.2` done, `.2.2.3` done), `.2.3` (done), `.2.4` (done container)
 
 - ID: `PHASE-5-PARAMETERIZATION.2.1`
   Status: `done`
@@ -109,9 +109,9 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.4`
-  Status: `active`
+  Status: `done`
   Goal: `Matrix gate + Phase 5 closure. Split per the r87 no-aspirational-claims precedent: land the gate scenario/metrics first, then promote only on the verified downstream-clean artifact.`
-  Children: `PHASE-5-PARAMETERIZATION.2.4a`, `PHASE-5-PARAMETERIZATION.2.4b`
+  Children: `PHASE-5-PARAMETERIZATION.2.4a` (done), `PHASE-5-PARAMETERIZATION.2.4b` (done)
 
 - ID: `PHASE-5-PARAMETERIZATION.2.4a`
   Status: `done`
@@ -121,17 +121,17 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.4b`
-  Status: `pending`
+  Status: `done`
   Goal: `Run the real repo-owned Phase 4 hierarchy gate (now including phase5_width_parameterized) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all pass, saw_width_parameterized_design=true) BEFORE any promotion. Then author an explicit ROADMAP Phase 5 "Exit criteria (met)" block tied to that artifact, promote ROADMAP Phase 5 (not started) -> (done), sync README/CODEBASE_ANALYSIS/MEMORY/book, and close the PHASE-5-PARAMETERIZATION tree.`
   Acceptance: `A banked gate report shows coverage_gaps=[] + all-pass Verilator/Yosys + saw_width_parameterized_design=true; ROADMAP Phase 5 = done with exit criteria; tree -> done. No aspirational claims (verified artifact precedes promotion).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Real repo-owned Phase4Hierarchy gate run to completion (background job, exit 0). Banked artifact /tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json verified CLEAN: scenario_count 213, total_modules 852, coverage_gaps [], verilator 852/0, yosys_without_abc 852/0, yosys_with_abc 852/0, saw_width_parameterized_design true, saw_recursive_hierarchy_module_dedup_active true. Promotion strictly followed the verified artifact (r87 no-aspirational-claims discipline): ROADMAP.md Phase 5 header (not started) -> (done) + "Status: done as of 2026-05-17" + explicit 4-point "Exit criteria (met)" block tied to that report + scope note (parameter-aware child selection / parameter-driven parent generation are open-ended post-phase, scope-cut, not a blocker). Synced README.md, CODEBASE_ANALYSIS.md (Phase 5 row -> done), MEMORY.md (Phase line; Phase 5b is next), book/src/hierarchy.md (Phase 5 delivered note); mdbook build book clean. Tree closed: .2.4b/.2.4/.2/root -> done, frontier none. cargo fmt/clippy(-D warnings)/check/test green (no code change in this leaf — docs/closure only).`
+  Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `PHASE-5-PARAMETERIZATION.2.4b` | `pending` | `.2.4a` (phase5 gate scenario + metrics + gap) done. `.2.4b` runs the real repo-owned gate, verifies downstream-clean, then authors ROADMAP Phase 5 exit criteria + promotes Phase 5 `done` + closes the tree — promotion strictly follows the verified artifact (r87 no-aspirational-claims discipline). |
+None — `PHASE-5-PARAMETERIZATION` is `done` (Phase 5 closed
+`2026-05-17`). The next numbered roadmap phase is **Phase 5b —
+Synthesizable aggregates** (`docs/tasks/PHASE-5B-AGGREGATES.md`).
 
 ## Decisions
 
@@ -224,6 +224,7 @@ equivalent).
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.2.3b` | hierarchy per-instance override pick + resolved-width thread + `validate.rs` resolved-width checks; soundness-scoped to the planned-child loop; focused multi-width proof; full `cargo test` green. | Done (`1fd53bd`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.3` | `canonical_module_signature` param-aware (marker + `wsig` sentinel); `dedup_modules` unchanged; H-A-I.1/.2/.4 regression-clean; new identity unit test; full `cargo test` green. | Done (`2e99d6d`). |
 | `2026-05-16` | `PHASE-5-PARAMETERIZATION.2.4a` | `DesignMetrics.num_width_parameterized_modules`/`num_param_override_instances` + populate; `phase5_width_parameterization_focus_config` + `phase5_width_parameterized` scenario; `CoverageSummary.saw_width_parameterized_design` set/merge + Phase4Hierarchy gap; bin-test counts 210→213 / 840→852 + exception-list entry; tool_matrix phase4 bin tests 3/3. `cargo fmt`/`clippy -D warnings` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (promotion is `.2.4b`). No `book/` change. | Done. |
+| `2026-05-17` | `PHASE-5-PARAMETERIZATION.2.4b` | Real repo-owned `Phase4Hierarchy` gate completed (bg, exit 0). Banked `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json` verified CLEAN: 213 scenarios / 852 designs, `coverage_gaps=[]`, Verilator 852/0, `yosys_without_abc` 852/0, `yosys_with_abc` 852/0, `saw_width_parameterized_design=true`, `saw_recursive_hierarchy_module_dedup_active=true`. ROADMAP Phase 5 `(not started)`→`(done)` + 4-point "Exit criteria (met)" block tied to that artifact + scope note; README/CODEBASE_ANALYSIS/MEMORY/`book/src/hierarchy.md` synced; `mdbook build book` clean; tree closed (`.2.4b`/`.2.4`/`.2`/root → done, frontier none). Docs/closure only — no code change; `cargo fmt`/`clippy -D warnings`/`check`/`test` green. | Done. |
 
 ## Commit Log
 
@@ -236,8 +237,8 @@ equivalent).
 | `PHASE-5-PARAMETERIZATION.2.2.3a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3a Instance.param_bindings + emitter #(.W(v))` (`7950e37`) | IR field + 19 sites + instance override emission; no hierarchy/validate semantics yet. |
 | `PHASE-5-PARAMETERIZATION.2.2.3b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.2.3b hierarchy instantiation + resolved-width validate` (`1fd53bd`) | Closes `.2.2.3` and the `.2.2` container; Phase 5 width parameterization end-to-end functional. |
 | `PHASE-5-PARAMETERIZATION.2.3` | `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity` (`2e99d6d`) | Param-aware `canonical_module_signature`; dedup unchanged. |
-| `PHASE-5-PARAMETERIZATION.2.4a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap` | Gate scenario/metrics/gap only; no ROADMAP promotion (that is `.2.4b` on verified evidence). |
-| `PHASE-5-PARAMETERIZATION.2.3` | `Phase 5: PHASE-5-PARAMETERIZATION.2.3 parameter-aware identity` | `canonical_module_signature` collapses param templates differing only in design width; dedup unchanged. |
+| `PHASE-5-PARAMETERIZATION.2.4a` | `Phase 5: PHASE-5-PARAMETERIZATION.2.4a phase5 matrix scenario + metrics + gap` (`6f87d7a`) | Gate scenario/metrics/gap only; no ROADMAP promotion (that is `.2.4b` on verified evidence). |
+| `PHASE-5-PARAMETERIZATION.2.4b` | `Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure` | Closes `.2.4`, the `.2` container, and the `PHASE-5-PARAMETERIZATION` tree. Promotion strictly follows the verified `/tmp/anvil-tool-matrix-phase5-p1` artifact (r87 no-aspirational-claims). Docs/closure only — no code change. |
 
 ## Changelog
 
@@ -320,3 +321,24 @@ equivalent).
   instances) + `saw_width_parameterized_design` coverage fact + merge
   + Phase4Hierarchy gap; bin-test counts 213/852 + exception entry;
   phase4 bin tests 3/3. ROADMAP unchanged. Frontier → `.2.4b`.
+- `2026-05-17`: **`.2.4b` landed — closes `.2.4`, the `.2` container,
+  and the `PHASE-5-PARAMETERIZATION` tree; Phase 5 is `done`.** The
+  real repo-owned `Phase4Hierarchy` gate (now including
+  `phase5_width_parameterized`) ran to completion and was verified
+  CLEAN on the banked artifact
+  `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`: 213
+  scenarios / 852 designs, `coverage_gaps=[]`, Verilator 852/0,
+  `yosys_without_abc` 852/0, `yosys_with_abc` 852/0,
+  `saw_width_parameterized_design=true`,
+  `saw_recursive_hierarchy_module_dedup_active=true`. Promotion strictly
+  followed the verified artifact (r87 no-aspirational-claims): `ROADMAP.md`
+  Phase 5 `(not started)`→`(done)` + `Status: done as of 2026-05-17`
+  + an explicit 4-point **"Exit criteria (met)"** block tied to that
+  report + a scope note (parameter-aware child selection /
+  parameter-driven parent generation are open-ended post-phase work,
+  scope-cut, not a blocker; no mode retired). Synced `README.md`,
+  `CODEBASE_ANALYSIS.md` (Phase 5 row → done), `MEMORY.md` (Phase line;
+  Phase 5b is next), `book/src/hierarchy.md` (Phase 5 delivered note);
+  `mdbook build book` clean. Docs/closure only — no code change. The
+  next numbered roadmap phase is **Phase 5b — Synthesizable
+  aggregates**. Frontier → none (Phase 5 closed).

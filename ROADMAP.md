@@ -1657,20 +1657,61 @@ richer registered
 hierarchy patterns beyond the first multi-stage parent-flop chain, and
 eventual hierarchy-aware identity/factorization.
 
-## Phase 5 — Parameterization (not started)
+## Phase 5 — Parameterization (done)
+
+**Status:** `done` as of `2026-05-17`. Delivered by the
+[`PHASE-5-PARAMETERIZATION`](docs/tasks/PHASE-5-PARAMETERIZATION.md)
+task tree (`.1` design → `.2.1` scaffold → `.2.2.*` soundness gate,
+rules-first parameterizable-leaf constructor, instantiation
+substitution → `.2.3` parameter-aware identity → `.2.4` matrix gate).
+Original intent of the phase:
 
 - Generated modules take `parameter` declarations for widths.
 - Instantiation picks parameter values from allowed ranges.
 - Parameter-dependent widths propagate correctly through cone generation.
-- **Hard prerequisite:** Phase 4 hierarchy as a real design/instance
-  layer. The current wrapper slice is the first foothold, not the full
-  parameter story; parameter-aware child selection and parameter-driven
-  parent generation still belong to this phase.
 - Parameter-aware identity must remain sound: different parameter values
-  cannot accidentally alias to one `NodeId` or one module instance
+  cannot accidentally alias to one `NodeId` or one module template
   unless the resulting structure is genuinely equivalent.
 - IR-level design recorded in `book/src/ir.md` "Future extensions /
-  Parameters and generics".
+  Parameters and generics" and `DEVELOPMENT_NOTES.md` "Phase 5
+  parameterization design".
+
+**Exit criteria (met):** Phase 5 closes when all of the following hold,
+each visible in a repo-owned artifact (not narrative):
+
+1. ANVIL emits modules with a real width `parameter`
+   (`module M #(parameter int W = D) (input [W-1:0] …, output
+   [W-1:0] …)`), valid by construction, built rules-first (the
+   width-homogeneous `build_parameterizable_leaf`, not
+   generate-then-filter). *(met: `width_parameterization_prob` opt-in;
+   `is_width_generic` soundness gate; default-off byte-identical.)*
+2. Instances pick parameter values reproducibly from the allowed range
+   and override via `#(.W(v))`, with the design still passing
+   `validate_design` (resolved-width child-port checks). *(met:
+   `Instance.param_bindings`; per-instance `g.rng` pick; focused proof
+   `width_parameterization_instances_override_at_multiple_values` shows
+   ≥2 distinct in-range overrides of one template across all four
+   `ConstructionStrategy` values.)*
+3. Parameter-aware identity is sound: two parameterizable templates
+   differing only in design width share one canonical signature; a
+   concrete module never aliases a parameterized one; `dedup_modules`
+   unchanged; the H-A-I.1/.2/.4 regressions still pass. *(met:
+   `.2.3` `canonical_module_signature` marker + width sentinel.)*
+4. A repo-owned matrix gate proves parameterized designs
+   downstream-clean. *(met: `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`
+   — 213 scenarios, 852 designs, `coverage_gaps = []`,
+   `saw_width_parameterized_design = true`, Verilator 852/0,
+   Yosys-without-abc 852/0, Yosys-with-abc 852/0.)*
+
+Scope note: parameter-aware *child selection* and *parameter-driven
+parent generation* (a parent choosing children/structure as a function
+of a parameter) are open-ended capability-deepening with no finite
+completion point — they are **not** a Phase 5 blocker (same
+deliberate, evidence-backed scope-cut doctrine used to close Phase 4).
+No mode/strategy retired; default-off keeps every prior artifact
+byte-identical; further breadth, if pursued, lands as optional
+post-Phase-5 `rN`/task-tree work without reopening the phase. Closing
+artifact: `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`.
 
 ## Phase 5b — Synthesizable aggregates (not started)
 

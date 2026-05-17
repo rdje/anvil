@@ -821,10 +821,17 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   composition) is open-ended capability-deepening with no finite
   completion point; it is explicitly **not** a Phase 4 blocker and no
   mode was retired — any future breadth lands as optional
-  post-Phase-4 `rN` slices without reopening the phase. The next
-  numbered phase is **Phase 5 — Parameterization** (now unblocked);
-  every remaining roadmap phase is tracked as a task tree under
-  `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
+  post-Phase-4 `rN` slices without reopening the phase. **Phase 5 —
+  Parameterization is also `done`** (2026-05-17): modules can carry a
+  width `parameter` and be instantiated at multiple widths via
+  `#(.W(v))`, rules-first and downstream-clean (closing artifact
+  `/tmp/anvil-tool-matrix-phase5-p1`: 213 scenarios / 852 designs,
+  `coverage_gaps = []`, 852/0 Verilator + both Yosys); parameter-aware
+  child selection / parameter-driven parent generation are open-ended
+  post-Phase-5 work (scope-cut, not a blocker). The next numbered phase
+  is **Phase 5b — Synthesizable aggregates**; every remaining roadmap
+  phase is tracked as a task tree under `docs/TASK_TREE.md`. See
+  `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.
