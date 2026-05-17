@@ -5,3 +5,10 @@ Cargo.lock
 
 # Untracked commit-message scratchpad. See COMMIT.md.
 git_message_brief.txt
+
+# Claude Code harness runtime artifacts. The committed, team-wide config
+# is .claude/settings.json (tracked); everything below is per-machine /
+# per-session runtime or personal overrides and must never be committed.
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.claude/settings.local.json

@@ -2094,6 +2094,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `<pending>` — Ignore Claude Code harness runtime artifacts (`.claude/scheduled_tasks.lock`, `.claude/worktrees/`, `.claude/settings.local.json`); `git status` now spotless. `.claude/settings.json` stays tracked.
 - `b3c1906` — Doctrine: task-tree ownership mandatory for all code changes (live-docs + book + memory; supersedes opt-in/`rN` scope).
 - `53e4c7f` — Phase 5: PHASE-5-PARAMETERIZATION.2.4b real-gate verify + ROADMAP Phase 5 (not started)->(done) + tree closure (Phase 5 closed; next is Phase 5b).
 - `04b13ec` — Config: PostCompact hook re-injects SESSION_BOOTSTRAP.md after compaction.

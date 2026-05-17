@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-gitignore-claude-runtime — Ignore Claude Code harness runtime artifacts
+
+**Landed as:** this commit
+
+**What changed**
+
+- `.gitignore`: added `.claude/scheduled_tasks.lock`, `.claude/worktrees/`, and `.claude/settings.local.json` under a comment clarifying that the committed team-wide config is `.claude/settings.json` (tracked) while those three are per-machine/per-session runtime or personal overrides that must never be committed.
+
+**Why**
+
+- After the Phase 5 / doctrine commits, `git status` was clean for all tracked files but still listed `.claude/scheduled_tasks.lock` and `.claude/worktrees/` as untracked harness runtime. These are Claude Code session artifacts, not project state. `.claude/settings.local.json` was previously excluded only via a non-shared mechanism (`.git/info/exclude`/global); making the ignore explicit in-repo is portable for teammates and prevents an accidental future commit of personal settings (the recommended hygiene when a project commits `.claude/settings.json`).
+
+**Validation**
+
+- `git check-ignore -v` confirms all three patterns match. `git ls-files .claude/` still lists `.claude/settings.json` (tracked config preserved). `git status --porcelain` now shows only the `.gitignore` edit; no other untracked entries. Workflow/config only — **no code change** (consistent with the task-tree doctrine's code/not-code boundary; cargo gates unaffected and green from `53e4c7f`/`b3c1906`, `cargo test` exit 0 at `b5cto7m8m` — zero `src/`/`tests/`/build files touched).
+
+**Impact**
+
+- `git status` is now fully spotless (no stray untracked harness files). No behavioural change.
+
+**Files touched**
+
+- Updated: .gitignore, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-task-tree-mandatory-doctrine — Task-tree ownership is mandatory for all code changes
 
 **Landed as:** b3c1906
