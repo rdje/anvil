@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5b — Synthesizable aggregates
 - Created: `2026-05-16`
-- Last updated: `2026-05-17` (`.2.2` existence+identity proofs landed; frontier → `.2.3`)
+- Last updated: `2026-05-17` (`.2.3` matrix scenario+metrics+gap landed; frontier → `.2.4`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -67,11 +67,11 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof + identity-invariance`
 
 - ID: `PHASE-5B-AGGREGATES.2.3`
-  Status: `pending`
+  Status: `done`
   Goal: `tool_matrix scenario + metrics + gap (no ROADMAP promotion). New packed_aggregate scenario; DesignMetrics.num_packed_aggregate_modules (+ aggregate-port count); CoverageSummary.saw_packed_aggregate_design set + merged + a compute_coverage_gaps arm; bin-test scenario/design counts updated + exception-list entry.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. tool_matrix phase4 bin tests; NO ROADMAP phase label change yet.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/metrics.rs: DesignMetrics.num_packed_aggregate_modules (count of modules with aggregate_layout.is_some()), populated in compute_design. src/bin/tool_matrix.rs: new phase5b_packed_aggregate_focus_config (depth-1 wrapper, library, aggregate_prob=1.0, shaped EXACTLY like the phase5/dedup anchor — 4 leaves / 4 instances, all routing 0.0 — so leaf/child/range/source shape-coverage sets are unperturbed) + phase5b_packed_aggregate scenario tuple + CoverageSummary.saw_packed_aggregate_design (set when config.aggregate_prob>0 && num_packed_aggregate_modules>0) + merge_coverage + Phase4Hierarchy compute_coverage_gaps arm. Bin tests: scenario_count 213→216, total_modules 852→864 (observed deterministically, not guessed), exception-list entry added; tool_matrix phase4 bin tests 3/3. New phase5b_packed_aggregate_scenario_is_non_vacuous bin test proves every phase5b_packed_aggregate scenario projects ≥1 module (the top wrapper) so the coverage fact is reachable (3/3 strategies). cargo fmt/clippy -D warnings/check clean; full cargo test (COMMIT.md gate). ROADMAP unchanged (promotion is .2.4). No book/ change.`
+  Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.3 packed_aggregate matrix scenario + metrics + gap`
 
 - ID: `PHASE-5B-AGGREGATES.2.4`
   Status: `pending`
@@ -84,7 +84,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-5B-AGGREGATES.2.3` | `pending` | `.2.2` proved organic existence robust (~85%, no rules-first pivot) + identity-invariance. `.2.3` lands the `tool_matrix` `packed_aggregate` scenario + `DesignMetrics`/`saw_packed_aggregate_design` coverage fact + gap + bin-test counts — **no** ROADMAP promotion (that is `.2.4` on a verified gate artifact, r87 discipline). |
+| 1 | `PHASE-5B-AGGREGATES.2.4` | `pending` | `.2.3` landed the `phase5b_packed_aggregate` matrix scenario + `num_packed_aggregate_modules` metric + `saw_packed_aggregate_design` fact/gap (bin 213→216 / 852→864; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_packed_aggregate_design=true`), then authors ROADMAP Phase 5b exit criteria + promotes Phase 5b `done` + reconciles the book + closes the tree — promotion strictly follows the verified artifact (r87 no-aspirational-claims). |
 
 ## Decisions
 
@@ -165,6 +165,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | `2026-05-17` | `PHASE-5B-AGGREGATES.1` | `DEVELOPMENT_NOTES.md` Phase 5b design entry landed (codebase-grounded; architecture (P) chosen; 3 rejected alternatives; identity-invariance resolved; proof shape). Doc-only, no code; `cargo fmt`/`clippy -D warnings`/`check` green; `cargo test` unchanged-green (no `src/`/`tests/` touched since `b5cto7m8m` exit 0); `mdbook build book` clean. | Done. |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.1` | IR `aggregate_layout` annotation + `AggregateKind`/`AggregateGroup`; `Config::aggregate_prob` (serde-default 0.0 + validation); `src/ir/aggregate.rs::annotate_aggregate` non-rolling pass (6 unit tests); seeded per-module Bernoulli roll at `gen/mod.rs` post-pass scoped to non-instantiated modules; boundary-alias emitter projection (typedef struct packed + aggregate port + alias wires/assigns, flat body byte-identical). Focused proof `packed_aggregate_is_default_off_and_projects_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on projects + validates + SV tokens). Real `verilator --lint-only` of a projected hierarchy design: EXIT 0. `cargo fmt`/`clippy -D warnings`/`check` clean; `aggregate::` 6/0 + focused proof green; full `cargo test` (COMMIT.md gate). No `book/` change (reconciliation is `.2.4`). | Done. |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.2` | (a) `packed_aggregate_organic_existence_is_not_inert` — 68/80 (~85%) organic single-module designs projected with DEFAULT port ranges (4 strategies × 20 seeds), threshold ≥50%; **no rules-first pivot** (recorded in Decisions). (b) `canonical_signature_is_invariant_under_projection` + `aggregate_projected_twin_dedup_collapses` (`src/ir/aggregate.rs`): signature identical before/after `annotate_aggregate`, flat ports unchanged; projected twin shares `canonical_module_signature` and `dedup_modules` collapses it (removed==1, survivor+top). `aggregate::` 10/0; `cargo fmt`/`clippy -D warnings`/`check` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-17` | `PHASE-5B-AGGREGATES.2.3` | `DesignMetrics.num_packed_aggregate_modules` + populate; `phase5b_packed_aggregate_focus_config` (depth-1 wrapper, library, `aggregate_prob=1.0`, dedup-anchor 4 leaves/4 instances → shape-coverage sets unperturbed) + `phase5b_packed_aggregate` scenario tuple; `CoverageSummary.saw_packed_aggregate_design` set/merge + Phase4Hierarchy `compute_coverage_gaps` arm; bin counts 213→216 / 852→864 (observed) + exception-list entry; tool_matrix phase4 bin tests 3/3; new `phase5b_packed_aggregate_scenario_is_non_vacuous` proves the scenario projects ≥1 module per strategy (coverage fact reachable). `cargo fmt`/`clippy -D warnings`/`check` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (promotion is `.2.4`). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -173,6 +174,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | `PHASE-5B-AGGREGATES.1` | `Docs: PHASE-5B-AGGREGATES.1 packed-aggregate emitter-projection design` | Design-only; `DEVELOPMENT_NOTES.md` entry, architecture (P), 3 rejected alternatives. No code. |
 | `PHASE-5B-AGGREGATES.2.1` | `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection` | Scaffold: `aggregate_layout` annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean. StructPacked / non-instantiated / non-param scoped (Decisions). |
 | `PHASE-5B-AGGREGATES.2.2` | `Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof + identity-invariance` | Existence 68/80 (~85%) → no rules-first pivot; signature-invariant + projected-twin dedup-collapses. `aggregate::` 10/0. No code change to the feature (proofs only). |
+| `PHASE-5B-AGGREGATES.2.3` | `Phase 5b: PHASE-5B-AGGREGATES.2.3 packed_aggregate matrix scenario + metrics + gap` | `num_packed_aggregate_modules` metric + `phase5b_packed_aggregate` scenario + `saw_packed_aggregate_design` fact/gap; bin 213→216 / 852→864; non-vacuity test. No ROADMAP promotion (that is `.2.4` on verified evidence). |
 
 ## Changelog
 
@@ -227,3 +229,20 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   concrete equal (annotation deliberately not hashed — the Open
   Question, now proven in code). `aggregate::` 10/0. Frontier →
   `.2.3` (matrix scenario + metrics + gap, no promotion).
+- `2026-05-17`: **`.2.3` landed (matrix scenario + metrics + gap; no
+  ROADMAP promotion).** `src/metrics.rs`
+  `DesignMetrics.num_packed_aggregate_modules` + populate.
+  `src/bin/tool_matrix.rs`: `phase5b_packed_aggregate_focus_config`
+  (depth-1 wrapper, library, `aggregate_prob = 1.0`, shaped exactly
+  like the phase5/dedup anchor so leaf/child/range/source shape sets
+  are unperturbed) + `phase5b_packed_aggregate` scenario tuple;
+  `CoverageSummary.saw_packed_aggregate_design` set/merge +
+  `Phase4Hierarchy` `compute_coverage_gaps` arm; bin counts
+  213 → 216 / 852 → 864 (observed deterministically) + exception-list
+  entry; tool_matrix phase4 bin tests 3/3. New
+  `phase5b_packed_aggregate_scenario_is_non_vacuous` proves every such
+  scenario projects ≥ 1 module (the top wrapper) so
+  `saw_packed_aggregate_design` is reachable — `.2.4`'s gate cannot
+  carry a permanent coverage gap. ROADMAP unchanged. Frontier →
+  `.2.4` (real-gate verify → promote Phase 5b `done` + book
+  reconciliation + tree closure).

@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-17-phase5b-2.3 — PHASE-5B-AGGREGATES.2.3: packed_aggregate matrix scenario + metrics + gap
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs`: `DesignMetrics.num_packed_aggregate_modules` (count of `Design::modules` with `aggregate_layout.is_some()`), populated in `compute_design`.
+- `src/bin/tool_matrix.rs`: new `phase5b_packed_aggregate_focus_config` (depth-1 wrapper, library mode, `aggregate_prob = 1.0`, shaped **exactly** like the phase5 / dedup anchor — 4 leaves / 4 instances, all hierarchy-routing probs 0.0 — so the matrix leaf/child/range/source shape-coverage sets are unperturbed; the never-instantiated top wrapper is projected, leaves stay flat per the `.2.1` scaffold scope) + a `phase5b_packed_aggregate` scenario tuple; `CoverageSummary.saw_packed_aggregate_design` (set when `config.aggregate_prob > 0 && num_packed_aggregate_modules > 0`) + `merge_coverage` + a `Phase4Hierarchy` `compute_coverage_gaps` arm.
+- Bin tests: `scenario_count` 213 → **216**, `total_modules` 852 → **864** (observed deterministically from the run, not guessed); exception-list entry `phase5b_packed_aggregate`; `tool_matrix` phase4 bin tests 3/3. New `phase5b_packed_aggregate_scenario_is_non_vacuous` bin test proves every `phase5b_packed_aggregate` scenario projects ≥ 1 module (the top wrapper) across all strategies, so `saw_packed_aggregate_design` is reachable and `.2.4`'s gate cannot carry a permanent coverage gap.
+
+**Why**
+
+- `PHASE-5B-AGGREGATES.2.3` (r87 no-aspirational-claims discipline): land the gate scenario, metric, coverage fact and gap **before** any ROADMAP promotion. Promotion happens only at `.2.4` on a verified downstream-clean artifact.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `tool_matrix` phase4 bin tests 3/3; non-vacuity test green (3/3 strategies project the wrapper); full `cargo test` (COMMIT.md gate — see Verification Log). **ROADMAP unchanged** (no phase label change — that is `.2.4`). No `book/` change (reconciliation is `.2.4`).
+
+**Impact**
+
+- The Phase 4 hierarchy matrix now carries a `phase5b_packed_aggregate` scenario that exercises the packed-aggregate projection downstream; `.2.4` will run the real gate and, only on a clean verified artifact, promote ROADMAP Phase 5b → done. Frontier → `PHASE-5B-AGGREGATES.2.4`.
+
+**Files touched**
+
+- Updated: src/metrics.rs, src/bin/tool_matrix.rs, docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-17-phase5b-2.2 — PHASE-5B-AGGREGATES.2.2: organic-existence proof + identity-invariance
 
 **Landed as:** d0d7ad6

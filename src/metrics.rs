@@ -292,6 +292,10 @@ pub struct DesignMetrics {
     /// child with an explicit `#(.W(v))` override). 0 when the feature
     /// is off.
     pub num_param_override_instances: usize,
+    /// Phase 5b: number of `Design::modules` carrying a packed-aggregate
+    /// emitter projection (`Module::aggregate_layout.is_some()`). 0 for
+    /// every default-off / pre-Phase-5b design.
+    pub num_packed_aggregate_modules: usize,
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
@@ -818,6 +822,12 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .flat_map(|m| m.instances.iter())
         .filter(|i| !i.param_bindings.is_empty())
         .count();
+    // Phase 5b (PHASE-5B-AGGREGATES.2.3) coverage input.
+    let num_packed_aggregate_modules = design
+        .modules
+        .iter()
+        .filter(|m| m.aggregate_layout.is_some())
+        .count();
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
@@ -826,6 +836,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_structurally_duplicate_module_pairs,
         num_width_parameterized_modules,
         num_param_override_instances,
+        num_packed_aggregate_modules,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,
