@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-17-phase5b-1 — PHASE-5B-AGGREGATES.1: packed-aggregate emitter-projection design
 
-**Landed as:** this commit
+**Landed as:** 6976346
 
 **What changed**
 
