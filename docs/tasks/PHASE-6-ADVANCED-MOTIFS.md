@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.3.3` FSM structural-contract + factorization-opacity proof landed; frontier: `.2.4` gate-blocked ‖ `.3.4` next — last Phase 6 leaf)
+- Last updated: `2026-05-18` (`.3.4` split → `.3.4a` done [phase6_fsm scenario+metric+gap, 222/888] / `.3.4b` gate-blocked; frontier: `.2.4` gate-blocked ‖ `.3.4b` — last Phase 6 leaf)
 - Owner: repo-local workflow
 
 ## Goal
@@ -132,9 +132,21 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.3 FSM structural-contract + factorization-opacity proof`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.4`
+  Status: `active`
+  Goal: `Scenario + real-gate verify → close Phase 6. Split (Splitting Rules + the proven memory .2.3/.2.4 decomposition + r87 no-aspirational-claims: the matrix scenario+metric+gap is code that lands before any advance; the real-gate verification + ROADMAP/tree closure + book reconcile is a separate gated step) into .3.4a (phase6_fsm scenario + num_fsm_modules metric + saw_fsm_design fact/Phase4Hierarchy gap + non-vacuity test; no advance — unblocked) and .3.4b (run the real repo-owned gate, verify downstream-clean, then close ROADMAP Phase 6 + the tree + reconcile the book — gate-blocked).`
+  Children: `PHASE-6-ADVANCED-MOTIFS.3.4a`, `.3.4b`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.3.4a`
+  Status: `done`
+  Goal: `Mirror memory .2.3 for FSM. src/metrics.rs: DesignMetrics.num_fsm_modules (count !Module::fsms.is_empty()) + populate. src/bin/tool_matrix.rs: phase6_fsm_focus_config (clone of phase6_inferrable_memory_focus_config — depth-1 wrapper, library, 4 leaves/4 instances, all hierarchy-routing probs 0.0, EGraph; the only change fsm_prob=1.0 instead of memory_prob) + phase6_fsm scenario tuple; CoverageSummary.saw_fsm_design field + set (fsm_prob>0 && num_fsm_modules>0) + merge + Phase4Hierarchy compute_coverage_gaps arm; bump scenario/module bin counts (219→222 / 876→888) + the scenario-name exception list; new phase6_fsm_scenario_is_non_vacuous proving every such scenario builds ≥1 Fsm module. No ROADMAP advance.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; phase4 bin tests updated + green; phase6_fsm_scenario_is_non_vacuous green; ROADMAP unchanged (advance is .3.4b); no book/ change.`
+  Verification: `src/metrics.rs: DesignMetrics.num_fsm_modules (count of design.modules with !fsms.is_empty()) + computed + added to the struct literal, mirroring num_memory_modules. src/bin/tool_matrix.rs: CoverageSummary.saw_fsm_design field; phase6_fsm scenario tuple registered after phase6_inferrable_memory (next_seed + 73); phase6_fsm_focus_config (exact clone of phase6_inferrable_memory_focus_config — depth-1 wrapper, library, 4 leaves/4 instances, all hierarchy-routing probs 0.0, EGraph, min/max_width 2/8 — only fsm_prob=1.0 instead of memory_prob, so the leaf/child/range/source shape-coverage sets are unperturbed); coverage set (scenario.config.fsm_prob>0 && design.metrics.num_fsm_modules>0); merge_into; Phase4Hierarchy compute_coverage_gaps arm ("…generated-encoding FSM (PHASE-6-ADVANCED-MOTIFS.3.4)"); bin counts 219→222 scenarios / 876→888 modules (verified: phase4_hierarchy bin test + the 222-scenario covers_wrapper test green — the +3/+12 delta matches phase6_inferrable_memory exactly); scenario-name exception list += phase6_fsm; new phase6_fsm_scenario_is_non_vacuous (every phase6_fsm scenario builds ≥1 Fsm module so saw_fsm_design is reachable — .3.4b's gate cannot carry a permanent gap). cargo check --all-targets clean (CoverageSummary uses ..Default::default() ⇒ no literal breakage); cargo test --bin tool_matrix 29/29; cargo fmt --all --check / clippy --all-targets -- -D warnings clean; full cargo test green (COMMIT.md gate). ROADMAP unchanged (advance is .3.4b on a verified gate). No book/ change.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4a phase6_fsm matrix scenario + num_fsm_modules metric + gap`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.3.4b`
   Status: `pending`
-  Goal: `phase6_fsm matrix scenario + DesignMetrics.num_fsm_modules + saw_fsm_design fact/Phase4Hierarchy gap + non-vacuity test (no advance), THEN run the real repo-owned Phase4Hierarchy gate and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all-pass, saw_fsm_design=true, P4/P5/P5b/P6-memory regressions clean) BEFORE promotion. FSM is the LAST Phase 6 motif: record FSM delivered + (memory delivered at .2.4) close ROADMAP Phase 6 + the PHASE-6-ADVANCED-MOTIFS tree; reconcile book/src/ir.md + knobs.md (fsm_prob); sync README/CODEBASE_ANALYSIS/MEMORY. Multi-clock CDC stays the explicitly-optional separately-prioritised deferral (not a Phase 6 blocker).`
-  Acceptance: `Banked gate report: coverage_gaps=[] + all-pass Verilator/Yosys + saw_fsm_design=true; ROADMAP Phase 6 → done (exit criteria met, with the multi-clock optional-deferral note); .3 container + PHASE-6-ADVANCED-MOTIFS tree → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
+  Goal: `Run the real repo-owned Phase4Hierarchy gate (now including phase6_fsm) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all-pass, saw_fsm_design=true, saw_inferrable_memory_design=true, P4/P5/P5b regressions clean, 222 scenarios / 888 modules) BEFORE any promotion. FSM is the LAST Phase 6 motif: record FSM delivered + (memory delivered at .2.4) close ROADMAP Phase 6 + the PHASE-6-ADVANCED-MOTIFS tree; reconcile book/src/ir.md + knobs.md (fsm_prob); sync README/CODEBASE_ANALYSIS/MEMORY. Multi-clock CDC stays the explicitly-optional separately-prioritised deferral (not a Phase 6 blocker). A single fresh gate run covers BOTH memory and fsm (supersedes the in-flight memory-only .2.4 gate as the Phase-6-closing artifact; .2.4 may still record memory delivered from its own run).`
+  Acceptance: `Banked gate report: coverage_gaps=[] + all-pass Verilator/Yosys + saw_fsm_design=true + saw_inferrable_memory_design=true; ROADMAP Phase 6 → done (exit criteria met, with the multi-clock optional-deferral note); .3.4 + .3 container + PHASE-6-ADVANCED-MOTIFS tree → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -143,7 +155,7 @@ multi-clock handshakes.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `PHASE-6-ADVANCED-MOTIFS.2.4` | `pending` (gate-blocked) | `.2.3` landed the `phase6_inferrable_memory` matrix scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap (bin 216→219 / 864→876; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean), then records memory **delivered** in ROADMAP Phase 6 (Phase 6 stays open for `.3` FSM — no tree closure) + reconciles the book — promotion strictly follows the verified artifact (r87 no-aspirational-claims). The real gate is **currently running** (`/tmp/anvil-tool-matrix-phase6-p1`); `.2.4` is verification/recording only — actioned when the gate completes. |
-| 2 | `PHASE-6-ADVANCED-MOTIFS.3.4` | `pending` | `.3.3` **done** — cargo-portable proof `fsm_block_matches_probed_template_and_is_factorization_opaque` (96 designs: exact per-encoding `state_const`/`state_width` template + 1 `FsmOut`/0 `Gate` across every FactorizationLevel incl. EGraph + all 3 encodings reachable; full `cargo test` green). `.3.4` (the last Phase 6 leaf) lands `phase6_fsm` matrix scenario + `num_fsm_modules` metric + `saw_fsm_design` fact/`Phase4Hierarchy` gap + non-vacuity test (no advance), then the real repo-owned gate verifies downstream-clean → records FSM delivered + (memory delivered at `.2.4`) **closes ROADMAP Phase 6 + the tree** + reconciles the book. The scenario+metric+gap part is **unblocked**; the gate-verify needs a fresh repo gate run (the currently-running gate is the memory `.2.4` one). |
+| 2 | `PHASE-6-ADVANCED-MOTIFS.3.4b` | `pending` (gate-blocked) | `.3.4a` **done** — `phase6_fsm` matrix scenario + `num_fsm_modules` metric + `saw_fsm_design` fact/`Phase4Hierarchy` gap + `phase6_fsm_scenario_is_non_vacuous` (bin 219→222 / 876→888, verified; tool_matrix 29/29; full `cargo test` green). `.3.4b` (the **last** Phase 6 leaf) runs a fresh real repo-owned `Phase4Hierarchy` gate (now including `phase6_fsm`), verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_fsm_design=true` + `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean, 222/888), then records FSM delivered + (memory delivered at `.2.4`) **closes ROADMAP Phase 6 + the `PHASE-6-ADVANCED-MOTIFS` tree** + reconciles the book. Gate-blocked: needs a fresh run with the new binary (the in-flight gate is the old memory-only `.2.4` one); a single fresh gate covers both memory + fsm. |
 
 ## Decisions
 
@@ -240,6 +252,21 @@ multi-clock handshakes.
   should be solved first") and matching the proven memory
   decomposition. `.3.2` is now a container; `.3.3`/`.3.4` unchanged;
   no renumbering. Frontier → `.3.2a` (‖ `.2.4` gate-blocked).
+- `2026-05-18`: **`.3.4` split** into `.3.4a` (phase6_fsm matrix
+  scenario + `num_fsm_modules` metric + `saw_fsm_design` fact/gap +
+  non-vacuity — code, no advance, unblocked) and `.3.4b` (real-gate
+  verify → close ROADMAP Phase 6 + the tree + reconcile the book —
+  gate-blocked). Splitting Rules + the proven memory `.2.3`/`.2.4`
+  decomposition + r87 no-aspirational-claims: the matrix
+  scenario+metric+gap is code that lands *before* any advance; the
+  real-gate verification + ROADMAP/tree closure is a separate gated
+  step that must follow a verified clean artifact. Note: the
+  in-flight gate (`/tmp/anvil-tool-matrix-phase6-p1`, alive at
+  ~110/219, old memory-only binary) is the `.2.4` artifact; `.3.4b`
+  needs a **fresh** gate with the post-`.3.4a` binary — that single
+  fresh run covers BOTH memory + fsm (+ P4/P5/P5b) and is the
+  Phase-6-closing artifact. `.3.4` is now a container; no
+  renumbering. Frontier → `.3.4a` (‖ `.2.4` gate-blocked).
 
 ## Open Questions
 
@@ -280,6 +307,7 @@ multi-clock handshakes.
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.2a` | FSM IR core (`FsmId`; `FsmEncoding{Binary,OneHot,Gray}` + `state_width`/`state_const`; `Fsm` struct; additive `Default`-empty `Module.fsms`; opaque `Node::FsmOut`; `DepAtom::FsmVirtual`/`from_fsm_virtual`; `has_local_fsms` OR'd into both `carries_sequential_state` predicates). `FsmOut` threaded by compiler-as-oracle through every exhaustive `Node` match (compact.rs incl. the **load-bearing reachability** marking `fsm.sel` alive + `StructuralNodeShape`/`LeafEndpoint`/cone-eval/rebuild/instance-table/`node_deps`; cone.rs ×5; hierarchy.rs; module.rs; param.rs; metrics.rs ×3 incl. structural-hash tag 7). `validate.rs` step 5c + 5 `ValidateError` variants. Emitter: per-FSM decls + the `.3.1`-probed-clean template (encoding-derived `FSM<id>_S<k>` localparams, `always_comb` next-state `case` on `sel`, async-low-reset state `always_ff` on shared `clk`/`rst_n`, `always_comb` Moore output `case`). 3 unit proofs green (roundtrip+validate+emit Binary 4-state; sel-cone-survives-compaction OneHot; structural-distinctness/CSE-opacity incl. two distinct FSMs). `cargo check --all-targets` (Module `Default` covers additive `fsms` → no struct-literal breakage) / `cargo fmt --all --check` / `cargo clippy --all-targets -- -D warnings` clean; full `cargo test` (COMMIT.md gate). No generator/knob ⇒ Modules without an `Fsm` byte-identical. No `book/` change. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.2b` | `src/config.rs`: `Config::fsm_prob` (serde-default `default_fsm_prob`→0.0; Default-impl line; probability-range validation tuple), mirroring `memory_prob`/`aggregate_prob`. `src/gen/module.rs`: rules-first `build_fsm_block` (clk(0)/rst_n(1)+sel(2,sel_width) inputs, q(3,out_width) output; `num_states` g.rng 2..=6; `encoding` g.rng Binary\|OneHot\|Gray; `sel_width` g.rng 1..=2; `out_width` from the configured width band; `transitions[s][j]=(s+1+j)%num_states` by rule; distinct masked Moore outputs; opaque `FsmOut` drives q; no gates/flops; all rolls via `g.rng`) + single opt-in roll in `generate_leaf_module_with_interface_profile` AFTER the Phase 5 param + Phase 6 memory lanes (interface_profile None only; mutually exclusive; default-off `fsm_prob==0.0` never enters → byte-identical). Focused proof `tests/pipeline.rs::fsm_block_is_default_off_and_constructs_when_forced_on`: (a) default-off byte-identical (no `Fsm`, no `fsm_state_0`/` fsm_0;`) across 4 `ConstructionStrategy` × 6 seeds; (b) forced-on (1.0) every single-module design is a 1-`Fsm` leaf that `validate_design`-passes, exposes a `FsmOut`, emits the `.3.1`-probed-clean template (`fsm_state_0`+`FSM0_S0=` constants + async-reset `always_ff @(posedge clk or negedge rst_n)` with `if (!rst_n) fsm_state_0 <= FSM0_S0` + `case (fsm_state_0)`); AND all 3 encodings reachable across the 24-design sweep. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; focused proof green; full `cargo test` (COMMIT.md gate). No ROADMAP advance (that is `.3.4`). No `book/` change. Closes the `.3.2` container. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.3` | `tests/pipeline.rs::fsm_block_matches_probed_template_and_is_factorization_opaque` — 4 `ConstructionStrategy` × 4 `FactorizationLevel` (None/Cse/Commutative/EGraph) × 6 seeds (96 designs; cargo-portable formalization, tool-level proof is `.3.4`'s real gate). validate_design clean; 1 module / 1 `Fsm`. (b) **Opacity**: exactly one `FsmOut` survives every factorization level (incl. EGraph) + the FSM leaf has ZERO `Gate` nodes (the state machine never enters the NodeId graph). (a) **Structural correctness keyed on the exact encoding**: every state `s` ⇒ SV contains `localparam logic [sw-1:0] FSM0_S<s> = <sw>'h<FsmEncoding::state_const(s)>;` with `sw = FsmEncoding::state_width(num_states)` (Binary=`s`/OneHot=`1<<s`/Gray=`s^(s>>1)`) — proves correctness + structural distinctness where params differ (robust where Binary/Gray coincide at N=2); + exact async-low-reset state `always_ff` (`if(!rst_n) fsm_state_0<=FSM0_S0; else fsm_state_0<=fsm_next_0;`) + sel-selected next-state/Moore cases. All 3 encodings reachable across seeds 0..6 (matches `.3.2b`; encoding fixed by `(strategy,seed)`, deterministic/reproducible). Proof-only — `git diff` = `tests/pipeline.rs` (+ tree/live-docs), no `src/`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). Default-off byte-identical reaffirmed by `.3.2b` (unchanged). No `book/` change. | Done. |
+| `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.4a` | `src/metrics.rs`: `DesignMetrics.num_fsm_modules` (count `!Module::fsms.is_empty()`) + computed + struct-literal, mirroring `num_memory_modules`. `src/bin/tool_matrix.rs`: `CoverageSummary.saw_fsm_design`; `phase6_fsm` scenario tuple (after `phase6_inferrable_memory`, `next_seed+73`); `phase6_fsm_focus_config` (exact clone of the memory anchor — depth-1 wrapper / library / 4 leaves / 4 instances / EGraph / routing-probs 0.0, only `fsm_prob=1.0` — shape-coverage sets unperturbed); coverage set (`fsm_prob>0 && num_fsm_modules>0`); `merge_into`; `Phase4Hierarchy` gap arm; bin counts **219→222 scenarios / 876→888 modules** (verified — phase4 bin test + 222-scenario covers_wrapper test green; +3/+12 matches `phase6_inferrable_memory`); scenario-name exception list `+= phase6_fsm`; new `phase6_fsm_scenario_is_non_vacuous` (every `phase6_fsm` scenario builds ≥1 `Fsm` module ⇒ `saw_fsm_design` reachable). `cargo check --all-targets` clean (`CoverageSummary` uses `..Default::default()`); `cargo test --bin tool_matrix` 29/29; `cargo fmt --all --check`/`clippy --all-targets -- -D warnings` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (advance is `.3.4b`). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -295,6 +323,7 @@ multi-clock handshakes.
 | `PHASE-6-ADVANCED-MOTIFS.3.2a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2a FSM IR core + opaque FsmOut leaf + compact.rs reachability` | IR core + `FsmOut` through every exhaustive `Node` match + load-bearing `compact.rs` reachability + emitter (.3.1 template) + validator 5c + 3 unit proofs. No generator/knob (default-off byte-identical). |
 | `PHASE-6-ADVANCED-MOTIFS.3.2b` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2b fsm_prob knob + rules-first build_fsm_block` | `Config::fsm_prob` + rules-first `build_fsm_block` in the mutually-exclusive opt-in lane + focused proof (default-off byte-identical; forced-on 1-`Fsm` leaf, all 3 encodings reachable). Closes the `.3.2` container. |
 | `PHASE-6-ADVANCED-MOTIFS.3.3` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.3 FSM structural-contract + factorization-opacity proof` | Cargo-portable proof (96 designs): exact per-encoding `state_const`/`state_width` template + 1 `FsmOut`/0 `Gate` across every FactorizationLevel incl. EGraph + all 3 encodings reachable. Proof-only (no `src/`). |
+| `PHASE-6-ADVANCED-MOTIFS.3.4a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4a phase6_fsm matrix scenario + num_fsm_modules metric + gap` | `num_fsm_modules` metric + `phase6_fsm` scenario + `saw_fsm_design` fact/gap; bin 219→222 / 876→888; non-vacuity test. No ROADMAP advance (that is `.3.4b` on verified evidence). |
 
 ## Changelog
 
@@ -514,3 +543,21 @@ multi-clock handshakes.
   clean → records FSM delivered + (memory delivered at `.2.4`)
   closes ROADMAP Phase 6 + the `PHASE-6-ADVANCED-MOTIFS` tree
   (‖ `.2.4` gate-blocked).
+- `2026-05-18`: **`.3.4` split + `.3.4a` landed** (continuous-PNT
+  while the `.2.4` memory gate runs). `.3.4` → `.3.4a` (scenario,
+  code, unblocked) / `.3.4b` (real-gate verify + Phase-6/tree
+  closure, gate-blocked) — Splitting Rules + the proven memory
+  `.2.3`/`.2.4` decomposition + r87. `.3.4a` mirrors memory `.2.3`
+  exactly: `DesignMetrics.num_fsm_modules`; `phase6_fsm` matrix
+  scenario + `phase6_fsm_focus_config` (clone of the memory anchor,
+  only `fsm_prob=1.0` ⇒ shape-coverage sets unperturbed);
+  `CoverageSummary.saw_fsm_design` + set + merge +
+  `Phase4Hierarchy` gap; bin **219→222 / 876→888** (verified, +3/+12
+  matching `phase6_inferrable_memory`); scenario-name exception list;
+  `phase6_fsm_scenario_is_non_vacuous`. `cargo test --bin
+  tool_matrix` 29/29; full `cargo` gate green. No ROADMAP advance
+  (promotion is `.3.4b` on a verified gate). Frontier → `.3.4b` —
+  the **last Phase 6 leaf** (a fresh real repo-owned gate, now
+  including `phase6_fsm`, verified clean → records FSM delivered +
+  closes ROADMAP Phase 6 + the `PHASE-6-ADVANCED-MOTIFS` tree;
+  one fresh run covers memory + fsm) (‖ `.2.4` gate-blocked).

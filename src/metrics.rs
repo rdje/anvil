@@ -300,6 +300,10 @@ pub struct DesignMetrics {
     /// `Memory` block (`!Module::memories.is_empty()`). 0 for every
     /// default-off / pre-Phase-6 design.
     pub num_memory_modules: usize,
+    /// Phase 6: number of `Design::modules` carrying a generated-
+    /// encoding `Fsm` block (`!Module::fsms.is_empty()`). 0 for every
+    /// default-off / pre-`.3` design.
+    pub num_fsm_modules: usize,
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
@@ -842,6 +846,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .iter()
         .filter(|m| !m.memories.is_empty())
         .count();
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.4a) coverage input.
+    let num_fsm_modules = design.modules.iter().filter(|m| !m.fsms.is_empty()).count();
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
@@ -852,6 +858,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_param_override_instances,
         num_packed_aggregate_modules,
         num_memory_modules,
+        num_fsm_modules,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,

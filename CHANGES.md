@@ -1,8 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-3.3 — PHASE-6-ADVANCED-MOTIFS.3.3: FSM structural-contract + factorization-opacity proof
+## 2026-05-18-phase6-3.4a — PHASE-6-ADVANCED-MOTIFS.3.4a: `phase6_fsm` matrix scenario + `num_fsm_modules` metric + gap
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs`: `DesignMetrics.num_fsm_modules` (count of
+  `design.modules` with `!fsms.is_empty()`) + computed + added to the
+  struct literal — mirrors `num_memory_modules`.
+- `src/bin/tool_matrix.rs`: `CoverageSummary.saw_fsm_design`; the
+  `phase6_fsm` scenario tuple (registered after
+  `phase6_inferrable_memory`, `next_seed + 73`);
+  `phase6_fsm_focus_config` — an exact clone of
+  `phase6_inferrable_memory_focus_config` (depth-1 wrapper, library,
+  4 leaves / 4 instances, all hierarchy-routing probabilities 0.0,
+  EGraph, width band 2..8) with the **single** change
+  `fsm_prob = 1.0` instead of `memory_prob`, so the matrix's
+  leaf/child/range/source shape-coverage sets are unperturbed;
+  coverage set (`fsm_prob > 0 && num_fsm_modules > 0`); `merge_into`;
+  the `Phase4Hierarchy` `compute_coverage_gaps` arm; bin counts
+  **219→222 scenarios / 876→888 modules**; the scenario-name
+  exception list `+= phase6_fsm`; a new
+  `phase6_fsm_scenario_is_non_vacuous` test.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.3.4a` — the matrix scenario + metric +
+  coverage gap for the FSM motif, mirroring memory `.2.3` exactly.
+  `.3.4` was split (`.3.4a` scenario code, no advance / `.3.4b`
+  real-gate verify + Phase-6/tree closure) per the proven memory
+  `.2.3`/`.2.4` decomposition + r87: the scenario lands before any
+  advance; the gate-verify is a separate gated step. The non-vacuity
+  test guarantees the `saw_fsm_design` coverage fact is reachable so
+  `.3.4b`'s gate cannot carry a permanent gap.
+
+**Validation**
+
+- `cargo check --all-targets` clean (`CoverageSummary` uses
+  `..Default::default()` ⇒ no struct-literal breakage);
+  `cargo test --bin tool_matrix` **29/29** (the phase4 bin test +
+  the 222-scenario `covers_wrapper` test confirm the **+3 scenarios
+  / +12 modules** delta matches `phase6_inferrable_memory` exactly);
+  `phase6_fsm_scenario_is_non_vacuous` green; `cargo fmt --all
+  --check` / `cargo clippy --all-targets -- -D warnings` clean; full
+  `cargo test` green (COMMIT.md gate). **No ROADMAP advance** —
+  promotion is `.3.4b` on a verified gate (r87 no-aspirational-
+  claims). No `book/` change (book reconciliation is `.3.4b`).
+  `CODEBASE_ANALYSIS.md` / `DEVELOPMENT_NOTES.md` intentionally
+  unchanged — consistent with the memory `.2.3` sibling precedent
+  (mechanical scenario mirror, no new design decision/gotcha; the
+  bootstrap-refreshed snapshot is not amended per scenario slice).
+
+**Impact**
+
+- The FSM coverage scenario + metric + gap are wired; `.3.4b` (a
+  fresh real repo-owned gate — one run covers memory + fsm —
+  verified clean → records FSM delivered + closes ROADMAP Phase 6 +
+  the `PHASE-6-ADVANCED-MOTIFS` tree) is the last remaining leaf,
+  gate-blocked. Frontier: `.2.4` (gate-blocked) ‖ `.3.4b`.
+
+**Files touched**
+
+- `src/metrics.rs`; `src/bin/tool_matrix.rs`;
+  `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-3.3 — PHASE-6-ADVANCED-MOTIFS.3.3: FSM structural-contract + factorization-opacity proof
+
+**Landed as:** 725e7fc
 
 **What changed**
 
