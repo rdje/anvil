@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-ci-pages-workflows — Add GitHub Actions CI + Pages workflows (repo public; none existed)
 
-**Landed as:** this commit
+**Landed as:** a612a5f
 
 **What changed**
 
