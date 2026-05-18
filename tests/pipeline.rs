@@ -8697,6 +8697,137 @@ fn inferrable_memory_matches_yosys_template_and_is_factorization_opaque() {
 }
 
 #[test]
+fn fsm_block_matches_probed_template_and_is_factorization_opaque() {
+    // PHASE-6-ADVANCED-MOTIFS.3.3.
+    //
+    // The cargo gate cannot shell out to Yosys/Verilator (those run
+    // only in the repo-owned tool_matrix gate — .3.4). The
+    // cargo-portable formalization of the Phase 6 FSM contract is:
+    // the generator emits *exactly* the encoding-derived Moore
+    // template `.3.1`'s empirical probe proved clean in Verilator +
+    // both repo Yosys modes (the template equivalence IS the
+    // contract; the tool-level proof is `.3.4`'s real gate). Plus:
+    // the opaque `FsmOut` leaf is factorization/CSE-invariant on
+    // *generated* output across every ConstructionStrategy AND
+    // FactorizationLevel (incl. the strongest, EGraph) — the state
+    // machine never enters the NodeId expression graph; and the
+    // emitted state constants are *exactly* the chosen encoding's
+    // (`FsmEncoding::state_width`/`state_const`), which both proves
+    // structural correctness and makes the three encodings
+    // structurally distinct wherever their parameters differ.
+    use anvil::config::{ConstructionStrategy, FactorizationLevel};
+    use anvil::ir::FsmEncoding;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    let factorizations = [
+        FactorizationLevel::None,
+        FactorizationLevel::Cse,
+        FactorizationLevel::Commutative,
+        FactorizationLevel::EGraph,
+    ];
+
+    let mut checked = 0usize;
+    let (mut saw_binary, mut saw_onehot, mut saw_gray) = (false, false, false);
+    for strategy in strategies {
+        for fl in factorizations {
+            // Seeds 0..6 (matches the `.3.2b` reachability sweep):
+            // encoding is fixed by (strategy, seed) — FactorizationLevel
+            // is a post-construction pass — so this deterministically
+            // covers all three encodings, reproducibly.
+            for seed in 0..6u64 {
+                let cfg = Config {
+                    seed,
+                    fsm_prob: 1.0,
+                    construction_strategy: strategy,
+                    factorization_level: fl,
+                    ..Config::default()
+                };
+                let design = Generator::new(cfg).generate_design();
+                anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                    panic!("fsm design must validate ({strategy:?}/{fl:?}/{seed}): {e:?}")
+                });
+                assert_eq!(design.modules.len(), 1);
+                let m = &design.modules[0];
+                assert_eq!(m.fsms.len(), 1, "must be an FSM leaf");
+
+                // (b) Factorization/CSE-opacity on generated output:
+                // exactly one FsmOut survives every factorization
+                // level, and the FSM leaf has NO Gate nodes (the FSM
+                // never enters the expression graph).
+                let fsm_outs = m
+                    .nodes
+                    .iter()
+                    .filter(|n| matches!(n, anvil::ir::Node::FsmOut { .. }))
+                    .count();
+                assert_eq!(
+                    fsm_outs, 1,
+                    "the opaque FsmOut must be factorization-invariant \
+                     ({strategy:?}/{fl:?}/{seed})"
+                );
+                assert!(
+                    !m.nodes
+                        .iter()
+                        .any(|n| matches!(n, anvil::ir::Node::Gate { .. })),
+                    "an FSM leaf must contain no expression-graph gates \
+                     ({strategy:?}/{fl:?}/{seed})"
+                );
+
+                // (a) Structural contract: the emitted SV is exactly
+                // the `.3.1`-probed-clean encoding-derived template.
+                let fsm = &m.fsms[0];
+                match fsm.encoding {
+                    FsmEncoding::Binary => saw_binary = true,
+                    FsmEncoding::OneHot => saw_onehot = true,
+                    FsmEncoding::Gray => saw_gray = true,
+                }
+                let sv = anvil::emit::to_sv_in_design(m, &design);
+                let sw = fsm.encoding.state_width(fsm.num_states);
+                // Every state constant is *exactly* this encoding's.
+                for s in 0..fsm.num_states {
+                    let want = format!(
+                        "localparam logic [{}:0] FSM0_S{} = {}'h{:x};",
+                        sw - 1,
+                        s,
+                        sw,
+                        fsm.encoding.state_const(s)
+                    );
+                    assert!(
+                        sv.contains(&want),
+                        "state constant must be the chosen encoding's \
+                         (`{want}`) ({strategy:?}/{fl:?}/{seed} {:?}):\n{sv}",
+                        fsm.encoding
+                    );
+                }
+                assert!(
+                    sv.contains("always_ff @(posedge clk or negedge rst_n) begin")
+                        && sv.contains("if (!rst_n) fsm_state_0 <= FSM0_S0;")
+                        && sv.contains("else fsm_state_0 <= fsm_next_0;"),
+                    "must emit the exact async-low-reset state register \
+                     ({strategy:?}/{fl:?}/{seed}):\n{sv}"
+                );
+                assert!(
+                    sv.contains("case (fsm_state_0)") && sv.contains("case (sel)"),
+                    "must emit the next-state decode selected by sel \
+                     ({strategy:?}/{fl:?}/{seed}):\n{sv}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked >= strategies.len() * factorizations.len() * 6);
+    assert!(
+        saw_binary && saw_onehot && saw_gray,
+        "all three generated encodings must be reachable across the sweep \
+         (binary={saw_binary} onehot={saw_onehot} gray={saw_gray})"
+    );
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

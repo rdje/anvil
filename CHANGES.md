@@ -1,8 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-3.2b — PHASE-6-ADVANCED-MOTIFS.3.2b: `fsm_prob` knob + rules-first `build_fsm_block` (`.3.2` container done)
+## 2026-05-18-phase6-3.3 — PHASE-6-ADVANCED-MOTIFS.3.3: FSM structural-contract + factorization-opacity proof
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tests/pipeline.rs`: new proof
+  `fsm_block_matches_probed_template_and_is_factorization_opaque` —
+  across 4 `ConstructionStrategy` × 4 `FactorizationLevel`
+  (None/Cse/Commutative/EGraph) × 6 seeds (96 designs), with
+  `fsm_prob = 1.0`: `validate_design` clean; exactly 1 module / 1
+  `Fsm`; **exactly one `FsmOut` survives every factorization level
+  (incl. EGraph) and the FSM leaf has zero `Gate` nodes** (the state
+  machine never enters the NodeId expression graph); the emitted
+  state constants are **exactly** the chosen `FsmEncoding`'s
+  (`state_width`/`state_const`: Binary `s` / OneHot `1<<s` / Gray
+  `s^(s>>1)`) plus the exact async-low-reset state register and the
+  `sel`-selected next-state / Moore `case`s; all three encodings
+  reachable across the deterministic seeds-0..6 sweep.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.3.3` — the cargo-portable formalization
+  of the Phase 6 FSM contract (the cargo gate cannot shell
+  Yosys/Verilator; the tool-level proof is `.3.4`'s real repo gate).
+  The template-equivalence + factorization/CSE-opacity *is* the
+  contract, mirroring how memory `.2.2` was proved. Keying the
+  structural assertion on the exact `FsmEncoding` constant formula
+  is robust where Binary/Gray coincide at `N = 2` (a weaker
+  "pairwise-distinct SV" claim would be false there).
+
+**Validation**
+
+- Proof-only — `git diff` = `tests/pipeline.rs` (+ tree/live-docs);
+  **no `src/` change**. New proof green; `cargo fmt --all --check` /
+  `cargo clippy --all-targets -- -D warnings` / `cargo check
+  --all-targets` clean; full `cargo test` green (COMMIT.md gate).
+  Default-off byte-identical is reaffirmed by `.3.2b`'s focused proof
+  (unchanged). No `book/` change (book reconciliation is `.3.4`).
+  `CODEBASE_ANALYSIS.md` intentionally unchanged — consistent with
+  the memory `.2.2` proof-only sibling precedent (the
+  bootstrap-refreshed snapshot is not amended per proof slice; the
+  live record is the tree + `CHANGES.md` + `MEMORY.md`).
+
+**Impact**
+
+- The FSM motif's structural correctness + factorization-opacity is
+  cargo-proven. `.3.4` (the last Phase 6 leaf — `phase6_fsm` matrix
+  scenario + metric + gap → real-gate verify → closes ROADMAP Phase 6
+  + the tree) is unblocked for its scenario-landing part. No ROADMAP
+  advance. Frontier: `.2.4` (gate-blocked) ‖ `.3.4`.
+
+**Files touched**
+
+- `tests/pipeline.rs`; `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-3.2b — PHASE-6-ADVANCED-MOTIFS.3.2b: `fsm_prob` knob + rules-first `build_fsm_block` (`.3.2` container done)
+
+**Landed as:** 9ee5285
 
 **What changed**
 
