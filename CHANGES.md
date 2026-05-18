@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-book-examples-2.2-scope — BOOK-EXAMPLES-RUNNABLE.2.2 scope: record a discovered `.2.1` migration gap
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`: `.2.2` goal expanded + an honest Open-Questions correction recorded. **Discovered during `.2.2` recon:** the `.2.1` migration and its `missed_runnable_bare_anvil = 0` audit were **line-leading only** — bare `anvil` *embedded* in shell command-substitution (`gates=$(anvil …)`) and inside `for … do anvil … done` loops was not migrated and is still not paste-runnable. Full bash-block classification recorded: 48 pure `cargo run`; 8 `# comment` + `cargo run` (runnable); the remainder `$()`/loop (runnable via the harness shell-script model once embedded `anvil` is migrated) or external-tool (`verilator`/`yosys`/`jq`) / `git clone` install blocks (genuine skips). `.2.2` now owns: (a) completing the embedded-position migration; (b) skip sentinels on the ~6 non-runnable blocks; (c) the `tests/book_examples.rs` harness (shell-script model, `cargo run`/`anvil` both shimmed to `CARGO_BIN_EXE_anvil`, offline, timeout, exit-0, fail-on-unclassified, negative control); (d) the `mdbook test book` CI step.
+
+**Why**
+
+- Faithful reporting: `.2.1`'s audit overclaimed (line-leading only). Surfacing it immediately + folding the corrective into `.2.2` (whose harness makes this gap class impossible to reintroduce) is the honest fix, rather than silently patching or leaving a false "0 missed" claim.
+
+**Validation**
+
+- Tree/docs-only — **no code change**. `cargo`/`mdbook` unaffected. (`.2.1`'s book migration remains correct for the common line-leading case; the published book is still strictly better than before — the residual is `$()`/loop embeddings, fixed in `.2.2`.)
+
+**Impact**
+
+- `.2.2` scope is now precise and honest. No behavioural change.
+
+**Files touched**
+
+- Updated: docs/tasks/BOOK-EXAMPLES-RUNNABLE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-book-examples-runnable-2.1 — BOOK-EXAMPLES-RUNNABLE.2.1: migrate book examples to `cargo run --release --`
 
 **Landed as:** 415818c

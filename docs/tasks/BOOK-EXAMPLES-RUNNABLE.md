@@ -73,8 +73,8 @@ silently rot). This is now load-bearing because the repo is public
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2.2`
   Status: `pending`
-  Goal: `Enforcement. Land tests/book_examples.rs (cargo integration test): build the binary once, walk book/src/*.md, parse ```bash fences, honour the skip sentinel, run each block in a fresh temp CWD offline (CARGO_NET_OFFLINE) with a per-command timeout, assert exit 0; tagged sample-output match (seed-stable→exact, else shape); a deliberate-broken negative-control unit. Add an `mdbook test book` step to .github/workflows/ci.yml (cargo test already runs the harness). Both gate main.`
-  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. the new harness over all runnable blocks; mdbook test book green; ci.yml has the mdbook-test step; negative control proves the harness actually fails on a broken example.`
+  Goal: `Enforcement + complete the migration. (a) Migration-completeness fix (discovered during .2.2 recon — see Open Questions): .2.1 migrated only LINE-LEADING anvil; bare anvil embedded in $(...) command-substitution and for-loops was missed and is still not paste-runnable. Migrate those too (book correctness). (b) Add HTML-comment skip sentinels (mandatory reason) to the ~6 genuinely non-harness-runnable blocks: the Install git-clone block, the cargo-install shorthand, and verilator/yosys/jq external-tool blocks. (c) Land tests/book_examples.rs cargo integration test: enumerate book/src/*.md ```bash fences, honour the skip sentinel, run each non-skipped block as a shell script in a fresh temp CWD with cargo run --release -- AND bare anvil shimmed to env!(CARGO_BIN_EXE_anvil) (handles comments/for-loops/$()), offline (CARGO_NET_OFFLINE), per-block timeout, assert exit 0; FAIL on any non-skipped block whose commands aren't anvil/cargo-run (forces explicit classification — no silent gaps); a deliberate-broken negative-control test proving the harness detects failure. (d) Add `mdbook test book` step to .github/workflows/ci.yml. Inventory: 48 pure-cargo-run + 8 comment+cargo-run runnable; ~6 external-tool/install skip; the for-loop/$() blocks run via the shell-script model. Sample-output match deferred (exit-0 + classification is the .2.2 contract; recorded).`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. the new harness over all runnable blocks; no bare anvil remains anywhere in a runnable bash fence (incl. $()/loops); skip sentinels carry reasons; mdbook test book green; ci.yml has the mdbook-test step; negative control proves the harness actually fails on a broken example.`
   Verification: `pending`
   Commit: `pending`
 
@@ -110,11 +110,26 @@ silently rot). This is now load-bearing because the repo is public
 ## Open Questions
 
 - Exact "not-run" fence marker for genuinely illustrative bash
-  snippets (e.g. a trailing `# illustrative` or an HTML-comment
-  sentinel the harness recognises) — owner: `.1` design.
+  snippets — resolved (`.1`): HTML-comment sentinel
+  `<!-- book-test: skip — <reason> -->` on the line before the
+  fence; mandatory reason; default = run.
 - Whether sample-output blocks are asserted verbatim or
-  shape-matched (seed-stable output can be exact; tool-version-
-  sensitive output shape-matched) — owner: `.1` design.
+  shape-matched — deferred past `.2.2` (the `.2.2` contract is
+  exit-0 + explicit classification + negative control; output-match
+  is a recorded later sub-slice, not a `.2.2` gap).
+- **Discovered in `.2.2` recon (`2026-05-18`) — honest correction
+  to `.2.1`:** the `.2.1` migration + its `missed_runnable_bare_anvil
+  = 0` audit were **line-leading only**. Bare `anvil` *embedded* in
+  shell command-substitution (`gates=$(anvil …)`) and inside
+  `for … do anvil … done` loops was **not** migrated and is still
+  not paste-runnable. Classification of all bash blocks: 48 pure
+  `cargo run`, 8 `# comment` + `cargo run` (runnable), the rest are
+  `$()`/loop (runnable via the shell-script harness model once the
+  embedded `anvil` is migrated) or external-tool (`verilator`/
+  `yosys`/`jq`) / `git clone` install blocks (genuine skips). `.2.2`
+  goal updated to complete the embedded-position migration + add the
+  skip sentinels + the harness that makes this class of gap
+  impossible to reintroduce.
 
 ## Blockers
 
