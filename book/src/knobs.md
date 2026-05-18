@@ -430,7 +430,7 @@ instead of creating fresh logic.
   using the tight leaf constraints that make every library leaf
   structurally identical:
 
-  ```rust
+  ```rust,ignore
   use anvil::{Config, Generator, metrics};
 
   // Four library leaves, all collapsed to one canonical shape by the
@@ -484,7 +484,7 @@ The canonical source of truth is `Config::default()` in
 `src/config.rs`. Run `anvil --dump-config` to see the effective
 knob set for your build.
 
-```rust
+```rust,ignore
 Config {
     seed: 0,
     // Structure
@@ -717,15 +717,15 @@ resume/checkpoint behavior, and which external tools are invoked.
 Knobs are a `serde`-derived struct. Loading from JSON:
 
 ```bash
-anvil --config knobs.json --seed 42
+cargo run --release -- --config knobs.json --seed 42
 ```
 
 Writing the effective knobs back out (the merge of defaults and CLI
 overrides) lets users save and replay configurations:
 
 ```bash
-anvil --seed 42 --max-depth 8 --dump-config > my-knobs.json
-anvil --config my-knobs.json --seed 42  # byte-identical to previous
+cargo run --release -- --seed 42 --max-depth 8 --dump-config > my-knobs.json
+cargo run --release -- --config my-knobs.json --seed 42  # byte-identical to previous
 ```
 
 The manifest file in the output directory records the effective knobs

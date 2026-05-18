@@ -8,7 +8,7 @@ exact command, and explains which knobs matter.
 Small, fast-to-generate modules for a CI Verilator/Yosys lint pass:
 
 ```bash
-anvil --seed 1 --count 50 --out ./smoke/ \
+cargo run --release -- --seed 1 --count 50 --out ./smoke/ \
       --max-depth 3 --max-inputs 4 --max-outputs 2 \
       --max-width 16 --flop-prob 0.2 --share-prob 0.3
 ```
@@ -62,7 +62,7 @@ Generate a depth-1 parent with a library of three leaf module
 definitions:
 
 ```bash
-anvil --seed 42 --out ./hier-smoke \
+cargo run --release -- --seed 42 --out ./hier-smoke \
       --hierarchy-depth 1 \
       --num-leaf-modules 3
 ```
@@ -100,7 +100,7 @@ Make the parent instantiate more child slots than there are unique leaf
 definitions:
 
 ```bash
-anvil --seed 42 --out ./hier-reuse \
+cargo run --release -- --seed 42 --out ./hier-reuse \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 5
@@ -115,7 +115,7 @@ and `avg_instances_per_unique_instantiated_module`.
 The opposite shape also matters:
 
 ```bash
-anvil --seed 42 --out ./hier-under \
+cargo run --release -- --seed 42 --out ./hier-under \
       --hierarchy-depth 1 \
       --num-leaf-modules 5 \
       --num-child-instances 2
@@ -130,7 +130,7 @@ and `unused_library_fraction`.
 Use the bounded recursive lane rather than `--hierarchy-depth 1`:
 
 ```bash
-anvil --seed 42 --out ./hier-recursive \
+cargo run --release -- --seed 42 --out ./hier-recursive \
       --min-hierarchy-depth 2 \
       --max-hierarchy-depth 3 \
       --min-child-instances-per-module 2 \
@@ -146,7 +146,7 @@ top. The realized tree shape is numeric in the manifest:
 To force a wide top and narrower lower level:
 
 ```bash
-anvil --seed 42 --out ./hier-profiled-depth \
+cargo run --release -- --seed 42 --out ./hier-profiled-depth \
       --min-hierarchy-depth 2 \
       --max-hierarchy-depth 2 \
       --min-child-instances-per-module 1 \
@@ -165,7 +165,7 @@ pool and instantiate from it. To synthesize a fresh child definition for
 each planned slot, use `on-demand`:
 
 ```bash
-anvil --seed 42 --out ./hier-on-demand \
+cargo run --release -- --seed 42 --out ./hier-on-demand \
       --hierarchy-depth 1 \
       --num-child-instances 4 \
       --hierarchy-child-source-mode on-demand
@@ -181,7 +181,7 @@ confirm that the requested interfaces were actually realized.
 Direct sibling routing:
 
 ```bash
-anvil --seed 42 --out ./hier-sibling-route \
+cargo run --release -- --seed 42 --out ./hier-sibling-route \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -191,7 +191,7 @@ anvil --seed 42 --out ./hier-sibling-route \
 Parent-composed child-input cones:
 
 ```bash
-anvil --seed 42 --out ./hier-parent-cones \
+cargo run --release -- --seed 42 --out ./hier-parent-cones \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -203,7 +203,7 @@ Parent-cone helper instances, where the parent instantiates an extra
 helper child as a source for child-input cones:
 
 ```bash
-anvil --seed 42 --out ./hier-helper-cones \
+cargo run --release -- --seed 42 --out ./hier-helper-cones \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -228,7 +228,7 @@ Useful metrics:
 To allow more than one helper child in a single parent:
 
 ```bash
-anvil --seed 42 --out ./hier-helper-budget3 \
+cargo run --release -- --seed 42 --out ./hier-helper-budget3 \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -252,7 +252,7 @@ To focus helper instances on parent-output composition instead of
 child-input bindings:
 
 ```bash
-anvil --seed 42 --out ./hier-helper-outputs \
+cargo run --release -- --seed 42 --out ./hier-helper-outputs \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -276,7 +276,7 @@ To make the parent-output helper route stateful, also enable
 parent-local flops and keep the helper/child-input routes isolated:
 
 ```bash
-anvil --seed 42 --out ./hier-helper-output-state \
+cargo run --release -- --seed 42 --out ./hier-helper-output-state \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -308,7 +308,7 @@ registered child-input routes disabled and enable parent-local helper
 state:
 
 ```bash
-anvil --seed 42 --out ./hier-helper-child-input-state \
+cargo run --release -- --seed 42 --out ./hier-helper-child-input-state \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -342,7 +342,7 @@ Useful metrics:
 Registered sibling route:
 
 ```bash
-anvil --seed 42 --out ./hier-registered-sibling \
+cargo run --release -- --seed 42 --out ./hier-registered-sibling \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -355,7 +355,7 @@ anvil --seed 42 --out ./hier-registered-sibling \
 Registered parent-composed route:
 
 ```bash
-anvil --seed 42 --out ./hier-registered-parent-cone \
+cargo run --release -- --seed 42 --out ./hier-registered-parent-cone \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -369,7 +369,7 @@ anvil --seed 42 --out ./hier-registered-parent-cone \
 Registered parent-composed route whose D cones use helper instances:
 
 ```bash
-anvil --seed 42 --out ./hier-registered-helper-cones \
+cargo run --release -- --seed 42 --out ./hier-registered-helper-cones \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -387,7 +387,7 @@ anvil --seed 42 --out ./hier-registered-helper-cones \
 Multi-stage registered sibling route:
 
 ```bash
-anvil --seed 42 --out ./hier-registered-sibling-chain \
+cargo run --release -- --seed 42 --out ./hier-registered-sibling-chain \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -405,7 +405,7 @@ anvil --seed 42 --out ./hier-registered-sibling-chain \
 Multi-stage registered parent-composed helper route:
 
 ```bash
-anvil --seed 42 --out ./hier-registered-helper-parent-chain \
+cargo run --release -- --seed 42 --out ./hier-registered-helper-parent-chain \
       --hierarchy-depth 1 \
       --num-leaf-modules 2 \
       --num-child-instances 4 \
@@ -450,7 +450,7 @@ elimination, timing convergence, and fanout-aware buffering in
 synthesis:
 
 ```bash
-anvil --seed 42 --max-depth 6 --min-inputs 6 --max-inputs 8 \
+cargo run --release -- --seed 42 --max-depth 6 --min-inputs 6 --max-inputs 8 \
       --min-outputs 4 --max-outputs 6 \
       --share-prob 0.9 --flop-prob 0.0
 ```
@@ -467,7 +467,7 @@ For testing sequential optimizations, clock-network synthesis, or
 retiming:
 
 ```bash
-anvil --seed 7 --max-depth 4 --flop-prob 0.5 \
+cargo run --release -- --seed 7 --max-depth 4 --flop-prob 0.5 \
       --max-flops-per-module 64 \
       --flop-qfeedback-prob 0.7
 ```
@@ -483,7 +483,7 @@ If your tooling has special-case code for case-statement / encoded
 mux synthesis, exercise it specifically:
 
 ```bash
-anvil --seed 13 --flop-prob 1.0 --max-flops-per-module 16 \
+cargo run --release -- --seed 13 --flop-prob 1.0 --max-flops-per-module 16 \
       --min-mux-arms 3 --max-mux-arms 8 \
       --flop-mux-encoding-prob 1.0
 ```
@@ -500,7 +500,7 @@ as first-class combinational blocks. Crank `--comb-mux-prob` to make
 them show up routinely:
 
 ```bash
-anvil --seed 5 --max-depth 5 --comb-mux-prob 0.4 \
+cargo run --release -- --seed 5 --max-depth 5 --comb-mux-prob 0.4 \
       --comb-mux-encoding-prob 0.5 \
       --min-mux-arms 2 --max-mux-arms 4
 ```
@@ -514,7 +514,7 @@ become M-to-1 combinational muxes. Use `--comb-mux-encoding-prob
 The mirror of the previous recipe:
 
 ```bash
-anvil --seed 14 --flop-prob 1.0 --max-flops-per-module 16 \
+cargo run --release -- --seed 14 --flop-prob 1.0 --max-flops-per-module 16 \
       --min-mux-arms 3 --max-mux-arms 8 \
       --flop-mux-encoding-prob 0.0
 ```
@@ -529,7 +529,7 @@ Small widths exercise 1-bit and narrow-integer code paths in
 synthesis tools that sometimes treat these specially:
 
 ```bash
-anvil --seed 20 --max-width 4 --min-width 1 \
+cargo run --release -- --seed 20 --max-width 4 --min-width 1 \
       --max-depth 5 --flop-prob 0.2 --share-prob 0.4
 ```
 
@@ -539,7 +539,7 @@ Symmetrically, wide data exercises wide-adder, wide-concat, and
 memory-macro inference paths:
 
 ```bash
-anvil --seed 30 --min-width 32 --max-width 128 \
+cargo run --release -- --seed 30 --min-width 32 --max-width 128 \
       --max-depth 4 --flop-prob 0.2 --share-prob 0.4
 ```
 
@@ -570,7 +570,7 @@ replay a specific module from a batch:
 2. Replay the exact same seed and config:
 
    ```bash
-   anvil --seed 42 --count 100 --config extracted_knobs.json \
+   cargo run --release -- --seed 42 --count 100 --config extracted_knobs.json \
          --out ./replay/
    ```
 
@@ -592,7 +592,7 @@ is the reproduction mechanism.)
 ## "I want to test my parser only, not synthesis"
 
 ```bash
-anvil --seed 1 --count 1000 --out ./parse-stress/ \
+cargo run --release -- --seed 1 --count 1000 --out ./parse-stress/ \
       --max-depth 8 --max-width 64
 ```
 
@@ -605,7 +605,7 @@ Generate many small modules with moderate complexity so the formal
 tool has time to prove equivalence against some reference:
 
 ```bash
-anvil --seed 1 --count 200 --out ./equiv/ \
+cargo run --release -- --seed 1 --count 200 --out ./equiv/ \
       --max-depth 4 --max-inputs 4 --max-outputs 2 \
       --max-width 16 --max-flops-per-module 8 \
       --share-prob 0.3
@@ -623,14 +623,14 @@ that need the result just reference `eq_0` instead of creating
 their own copy.
 
 ```bash
-anvil --seed 42
+cargo run --release -- --seed 42
 # --max-ast-instances 1 is the default.
 ```
 
 To verify this is in effect, look at the metrics block:
 
 ```bash
-anvil --seed 42 --metrics 2>&1 >/dev/null | grep ast_multiplicity
+cargo run --release -- --seed 42 --metrics 2>&1 >/dev/null | grep ast_multiplicity
 # max_gate_ast_multiplicity: 1
 # max_constant_ast_multiplicity: 1
 ```
@@ -644,7 +644,7 @@ Downstream synthesis tools sometimes have special handling for
 redundant subexpressions. To exercise that path, raise the cap:
 
 ```bash
-anvil --seed 42 --max-ast-instances 5 --metrics 2>&1 >/dev/null | grep ast_multiplicity
+cargo run --release -- --seed 42 --max-ast-instances 5 --metrics 2>&1 >/dev/null | grep ast_multiplicity
 # max_gate_ast_multiplicity: 3       ← higher than 1: CSE relaxed
 # max_constant_ast_multiplicity: 4
 ```
@@ -660,16 +660,16 @@ stress testing:
 
 ```bash
 # 50% chance of a duplicate arm being accepted.
-anvil --seed 42 --mux-arm-duplication-rate 0.5
+cargo run --release -- --seed 42 --mux-arm-duplication-rate 0.5
 
 # Full relaxation — arms may all be connected to the same data.
-anvil --seed 42 --mux-arm-duplication-rate 1.0
+cargo run --release -- --seed 42 --mux-arm-duplication-rate 1.0
 ```
 
 Verify with metrics:
 
 ```bash
-anvil --seed 42 --mux-arm-duplication-rate 1.0 --metrics 2>&1 >/dev/null \
+cargo run --release -- --seed 42 --mux-arm-duplication-rate 1.0 --metrics 2>&1 >/dev/null \
       | grep -E "num_muxes_(2to1|degenerate)"
 # num_muxes_2to1: 11         ← total 2-to-1 muxes
 # num_muxes_degenerate: 1    ← of which one has (s)?(x):(x)
@@ -686,10 +686,10 @@ run at a boundary value, grep the metric.
 
 ```bash
 # Default flop count for seed 42:
-anvil --seed 42 --metrics 2>&1 >/dev/null | grep num_flops
+cargo run --release -- --seed 42 --metrics 2>&1 >/dev/null | grep num_flops
 
 # Crank flops up:
-anvil --seed 42 --flop-prob 0.5 --metrics 2>&1 >/dev/null | grep num_flops
+cargo run --release -- --seed 42 --flop-prob 0.5 --metrics 2>&1 >/dev/null | grep num_flops
 
 # Expect num_flops to increase.
 ```
@@ -704,7 +704,7 @@ The metrics block is JSON; use `jq` or a short script:
 
 ```bash
 for fp in 0.0 0.1 0.3 0.5 0.7; do
-  anvil --seed 42 --flop-prob $fp --metrics 2>&1 >/dev/null \
+  cargo run --release -- --seed 42 --flop-prob $fp --metrics 2>&1 >/dev/null \
         | jq -r "\"flop-prob=$fp num_flops=\\(.num_flops) num_nodes=\\(.num_nodes)\""
 done
 ```
@@ -784,7 +784,7 @@ Turn on the trace. Levels go off → low → medium → high → debug:
 
 ```bash
 # Module milestones + warnings only (quiet).
-anvil --seed 42 --trace low 2>log && head log
+cargo run --release -- --seed 42 --trace low 2>log && head log
 ```
 
 ```

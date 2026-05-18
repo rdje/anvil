@@ -433,16 +433,16 @@ Useful for isolating the effect of a single rung:
 
 ```bash
 # Disable every factorization layer — stress test CSE downstream.
-anvil --seed 42 --factorization-level none
+cargo run --release -- --seed 42 --factorization-level none
 
 # CSE only, no operand uniqueness. Shows why CSE alone isn't enough.
-anvil --seed 42 --factorization-level cse
+cargo run --release -- --seed 42 --factorization-level cse
 
 # Walk up one rung at a time.
 for lvl in none cse operand-unique commutative associative \
            constant-fold peephole e-graph; do
     echo "=== $lvl ==="
-    anvil --seed 42 --factorization-level "$lvl" --metrics 2>&1 \
+    cargo run --release -- --seed 42 --factorization-level "$lvl" --metrics 2>&1 \
         | grep -E 'num_gates|flatten_associative|fold_identities|peephole|nodes_compacted' \
         | head -6
 done

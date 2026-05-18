@@ -76,7 +76,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `INSTA-SNAPSHOTS` | `active` | Quality — reproducibility regressions | `INSTA-SNAPSHOTS.1` | [docs/tasks/INSTA-SNAPSHOTS.md](tasks/INSTA-SNAPSHOTS.md) |
 | `DIFFERENTIAL-SIMULATION` | `active` | Quality — signoff-level downstream consistency | `DIFFERENTIAL-SIMULATION.1` | [docs/tasks/DIFFERENTIAL-SIMULATION.md](tasks/DIFFERENTIAL-SIMULATION.md) |
 | `COVERAGE-INSTRUMENTATION` | `active` | Quality — test-discipline visibility | `COVERAGE-INSTRUMENTATION.2` | [docs/tasks/COVERAGE-INSTRUMENTATION.md](tasks/COVERAGE-INSTRUMENTATION.md) |
-| `BOOK-EXAMPLES-RUNNABLE` | `active` | Quality — user-facing book correctness | `BOOK-EXAMPLES-RUNNABLE.2.1` (`.1` design done; `.2` split → `.2.1` convention migration (docs) then `.2.2` harness+mdbook-test+CI) | [docs/tasks/BOOK-EXAMPLES-RUNNABLE.md](tasks/BOOK-EXAMPLES-RUNNABLE.md) |
+| `BOOK-EXAMPLES-RUNNABLE` | `active` | Quality — user-facing book correctness | `BOOK-EXAMPLES-RUNNABLE.2.2` (`.2.1` done — 45 examples migrated to `cargo run --release --`, missed=0, spot-runs pass; `.2.2` = harness + `mdbook test` + CI enforcement) | [docs/tasks/BOOK-EXAMPLES-RUNNABLE.md](tasks/BOOK-EXAMPLES-RUNNABLE.md) |
 
 ## Directory Layout
 

@@ -14,11 +14,23 @@ cd anvil
 cargo build --release
 ```
 
-The binary lands at `target/release/anvil`. Add it to your `PATH` or
-invoke it through `cargo run --`. Cargo's default run target is
-`anvil`, so the examples below keep working even though the repository
-also contains the auxiliary `tool_matrix` binary; run that harness with
-`cargo run --bin tool_matrix -- ...`.
+The binary lands at `target/release/anvil`.
+
+**Every example in this book uses `cargo run --release -- …`** so it
+works immediately after `git clone`, with zero extra setup — just
+copy, paste, run. Cargo's default run target is `anvil`, so this
+invokes the generator even though the repository also contains the
+auxiliary `tool_matrix` binary (run that one with `cargo run --bin
+tool_matrix -- …`).
+
+> **Optional shorthand.** If you'd rather type `anvil …` than `cargo
+> run --release -- …`, install it once and use the short form
+> everywhere instead:
+>
+> ```bash
+> cargo install --path .
+> anvil --seed 42 --max-depth 2
+> ```
 
 ## Your first module
 

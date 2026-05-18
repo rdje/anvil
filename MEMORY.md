@@ -2094,7 +2094,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
-- `<pending>` — Docs: split BOOK-EXAMPLES-RUNNABLE.2 → `.2.1` (convention migration + rust-sketch annotation, docs) / `.2.2` (extraction harness + mdbook-test + CI wiring); dependency order (correct before enforced). Tree-planning, no code.
+- `<pending>` — Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to `cargo run --release --` (45 bash heads across factorization/knobs/recipes; missed=0; 9 rust sketches→rust,ignore; shorthand note; spot-runs incl. full multi-line recipe→50 .sv exit 0). Book/docs only, no code; published book now copy-paste-correct.
+- `5cb6fb1` — Docs: split BOOK-EXAMPLES-RUNNABLE.2 → `.2.1` (convention migration + rust-sketch annotation, docs) / `.2.2` (extraction harness + mdbook-test + CI wiring); dependency order (correct before enforced). Tree-planning, no code.
 - `38c49fb` — Docs: BOOK-EXAMPLES-RUNNABLE.1 — new quality tree + design-only DEVELOPMENT_NOTES.md entry (62-bash/8-rust/9-sv/4-text inventory; `cargo run --release --` convention; `tests/book_examples.rs` integration harness + `mdbook test` + skip-sentinel; 3 rejected alternatives; CI-wired). No code; mdbook clean.
 - `8076e25` — pushed; **repo confirmed PUBLIC**, CI workflow active (first run in progress), Pages enabled (source=GitHub Actions) and the mdBook is **live at https://rdje.github.io/anvil/** (deploy run succeeded, HTTP 200). [earlier `{owner}/{repo}`-resolved `gh` query returned a stale PRIVATE; explicit `rdje/anvil` = PUBLIC.]
 - `a612a5f` — Add GitHub Actions CI (.github/workflows/ci.yml — fmt/clippy/test/mdbook) + Pages (pages.yml — mdBook deploy) workflows; none existed. Workflow-config, no code.

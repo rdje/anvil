@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — user-facing book correctness
 - Created: `2026-05-18`
-- Last updated: `2026-05-18` (`.1` design landed; `.2` split `.2.1`/`.2.2`; frontier → `.2.1`)
+- Last updated: `2026-05-18` (`.2.1` convention migration landed; frontier → `.2.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -65,11 +65,11 @@ silently rot). This is now load-bearing because the repo is public
   Children: `BOOK-EXAMPLES-RUNNABLE.2.1` (convention migration + rust-sketch annotation), `BOOK-EXAMPLES-RUNNABLE.2.2` (extraction harness + mdbook-test + CI wiring)
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Convention migration (docs). In every runnable book/src bash block, rewrite the command head 'anvil ' → 'cargo run --release -- ' preserving \-continuations / | pipes / redirections; add ONE optional 'cargo install --path . → then use anvil' shorthand note (getting-started + knobs reference); annotate the 8 illustrative rust sketches as rust,ignore; add the HTML-comment skip sentinel only where a bash block is genuinely illustrative (with mandatory reason). No prose/meaning change; output (systemverilog/text) blocks untouched.`
   Acceptance: `mdbook build book clean; every runnable bash block starts with cargo run --release -- (or carries the skip sentinel); the 8 rust blocks are rust,ignore; manual spot-run of 2–3 migrated commands succeeds; no code change (book/docs only).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Surgical migrator (line-leading 'anvil ' inside ```bash fences only, preserving indent/$-prompt/\-continuations/pipes; prose + output blocks untouched): 45 command heads rewritten anvil→cargo run --release -- across factorization.md(3), knobs.md(3), recipes.md(39); getting-started/introduction/tutorial already on cargo run (0). Audit: missed_runnable_bare_anvil=0 (no runnable block left bare-anvil); faq.md 'verilator --lint-only anvil_output.sv' correctly NOT matched (not an anvil invocation). All 9 ```rust illustrative sketches → ```rust,ignore (bare_rust_blocks=0). Optional shorthand note added in getting-started.md Install (cargo install --path . → anvil). mdbook build book clean. Spot-runs (verbatim, paste-and-run simulation): getting-started reproduce-style → real SV exit 0; --dump-config → valid JSON exit 0; first full multi-line recipes block → 50 .sv files exit 0. git diff = book/src/*.md only (7 files) — docs/book, no code; cargo/tests untouched (unchanged-green).`
+  Commit: `Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to cargo run --release --`
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2.2`
   Status: `pending`
@@ -82,7 +82,7 @@ silently rot). This is now load-bearing because the repo is public
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-EXAMPLES-RUNNABLE.2.1` | `pending` | `.2` split per the Splitting Rules into `.2.1` (convention migration + rust-sketch annotation — docs) and `.2.2` (harness + mdbook-test + CI wiring — code/workflow). `.2.1` first so the book is *correct* (every example runnable from a fresh clone) before `.2.2` *enforces* it. Independent of the running Phase 6 gate. |
+| 1 | `BOOK-EXAMPLES-RUNNABLE.2.2` | `pending` | `.2.1` done — every runnable book example now uses `cargo run --release --` (45 migrated; missed=0; rust sketches `rust,ignore`; spot-runs incl. a full multi-line recipe → 50 .sv exit 0). `.2.2` lands `tests/book_examples.rs` (build-once, run every block offline, exit-0 + tagged-output + negative control) + `mdbook test` + `ci.yml` step so it can't regress. Independent of the running Phase 6 gate. |
 
 ## Decisions
 
@@ -126,12 +126,14 @@ silently rot). This is now load-bearing because the repo is public
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-18` | `BOOK-EXAMPLES-RUNNABLE.1` | `DEVELOPMENT_NOTES.md` design entry landed (full fenced-block inventory; `cargo run --release --` convention + HTML-comment skip sentinel; `tests/book_examples.rs` integration-harness architecture; `mdbook test` + `rust,ignore` sketch policy; CI wiring; 3 rejected alternatives; `.2` proof shape). Design-only, no code (diff = DEVELOPMENT_NOTES.md + docs/TASK_TREE.md + new tree file); `mdbook build book` clean; `cargo fmt --check` clean; `cargo test` unchanged-green. | Done. |
+| `2026-05-18` | `BOOK-EXAMPLES-RUNNABLE.2.1` | Surgical migrator rewrote 45 line-leading `anvil ` heads → `cargo run --release -- ` in ```bash fences (factorization 3 / knobs 3 / recipes 39; getting-started/introduction/tutorial already on cargo run). Audit `missed_runnable_bare_anvil = 0`; `faq` `verilator … anvil_output.sv` correctly untouched. All 9 ```rust sketches → ```rust,ignore. Optional `cargo install` shorthand note added (getting-started Install). Spot-runs (paste-and-run sim): reproduce-style → SV exit 0; `--dump-config` → JSON exit 0; full multi-line recipes block → 50 `.sv` exit 0. `mdbook build book` clean; `git diff` = `book/src/*.md` only (7 files) — docs, no code; `cargo test` unchanged-green. | Done. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `BOOK-EXAMPLES-RUNNABLE.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.1 book-examples-runnable design + tree` | Tree created + registered; design-only DEVELOPMENT_NOTES.md entry; architecture + 3 rejected alternatives. No code. |
+| `BOOK-EXAMPLES-RUNNABLE.2.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to cargo run --release --` | 45 bash heads migrated + 9 rust sketches `rust,ignore` + shorthand note; missed=0; spot-runs pass. Book/docs only, no code. |
 
 ## Changelog
 
@@ -158,3 +160,20 @@ silently rot). This is now load-bearing because the repo is public
   wiring — code/workflow). Dependency order: `.2.1` makes the book
   correct, `.2.2` enforces it. `.2` became a container; no
   renumbering. Frontier → `.2.1`.
+- `2026-05-18`: **`.2.1` landed (docs only — no code).** Surgical
+  migrator rewrote 45 line-leading `anvil ` command heads →
+  `cargo run --release -- ` across `factorization.md`(3),
+  `knobs.md`(3), `recipes.md`(39), preserving
+  `\`-continuations / pipes / `$`-prompts / indentation; prose and
+  `systemverilog`/`text` output blocks untouched;
+  `getting-started`/`introduction`/`tutorial` already used
+  `cargo run`. Audit: **`missed_runnable_bare_anvil = 0`** (no
+  runnable block left bare-`anvil`); `faq`'s
+  `verilator … anvil_output.sv` correctly not matched. All 9 ```rust
+  illustrative sketches → ```rust,ignore. One optional
+  `cargo install --path .` → `anvil` shorthand note added
+  (getting-started Install). `mdbook build book` clean; three
+  paste-and-run spot-runs pass (incl. a full multi-line recipes
+  block → 50 `.sv`, exit 0). The published book is now correct for
+  copy-paste users. Frontier → `.2.2` (harness + `mdbook test` +
+  CI — enforcement so it can't regress).

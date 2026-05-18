@@ -195,7 +195,7 @@ than accidental:
 
 ## Key types at a glance
 
-```rust
+```rust,ignore
 // ir/types.rs
 pub struct Module {
     pub name: String,

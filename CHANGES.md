@@ -1,8 +1,34 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-book-examples-runnable-2-split — BOOK-EXAMPLES-RUNNABLE.2 split into migration + enforcement
+## 2026-05-18-book-examples-runnable-2.1 — BOOK-EXAMPLES-RUNNABLE.2.1: migrate book examples to `cargo run --release --`
 
 **Landed as:** this commit
+
+**What changed**
+
+- A surgical migrator rewrote every line-leading `anvil ` command head **inside ```bash fences** to `cargo run --release -- `, preserving `\`-continuations, `|` pipes, `$`-prompts and indentation: **45** heads across `book/src/factorization.md` (3), `knobs.md` (3), `recipes.md` (39). `getting-started.md`/`introduction.md`/`tutorial.md` already used `cargo run`. Prose mentions of "anvil" and `systemverilog`/`text` output blocks were left untouched; `faq.md`'s `verilator --lint-only anvil_output.sv` was correctly **not** matched (not an anvil invocation).
+- All **9** illustrative ```rust IR/struct sketches annotated ```rust,ignore (rendered identically; `mdbook test` will skip them — `.2.2`).
+- `getting-started.md` Install: one optional `cargo install --path .` → `anvil` shorthand note (the book otherwise uses `cargo run --release --` everywhere so it works zero-setup from a fresh clone).
+
+**Why**
+
+- `BOOK-EXAMPLES-RUNNABLE.2.1`: the repo is public and the book is live (https://rdje.github.io/anvil/); bare `anvil …` examples are not runnable from a fresh clone (no binary on PATH). Owner decision: standardize on `cargo run --release --`. This makes the published book *correct* before `.2.2` *enforces* it.
+
+**Validation**
+
+- Audit `missed_runnable_bare_anvil = 0` (no runnable ```bash block left bare-`anvil`); `bare_rust_blocks = 0` / `rust,ignore = 9`. `mdbook build book` clean. Three paste-and-run spot-runs against the release binary: reproduce-style → real SV, exit 0; `--dump-config` → valid JSON, exit 0; first full **multi-line** `recipes.md` block run verbatim → **50 `.sv` files, exit 0**. **Docs/book only — no code change** (`git diff` = `book/src/*.md`, 7 files); `cargo`/tests untouched (unchanged-green).
+
+**Impact**
+
+- Every published book example is now copy-paste runnable from a fresh clone. Frontier → `BOOK-EXAMPLES-RUNNABLE.2.2` (the `tests/book_examples.rs` harness + `mdbook test` + CI step — drift enforcement). Independent of the running Phase 6 `.2.4` gate.
+
+**Files touched**
+
+- Updated: book/src/{architecture,factorization,getting-started,hierarchy,ir,knobs,recipes}.md, docs/tasks/BOOK-EXAMPLES-RUNNABLE.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
+## 2026-05-18-book-examples-runnable-2-split — BOOK-EXAMPLES-RUNNABLE.2 split into migration + enforcement
+
+**Landed as:** 5cb6fb1
 
 **What changed**
 

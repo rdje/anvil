@@ -329,7 +329,7 @@ registered D cone.
 
 Hierarchy now lives directly in the circuit IR:
 
-```rust
+```rust,ignore
 pub struct Design {
     pub top: String,
     pub modules: Vec<Module>,
@@ -374,7 +374,7 @@ Two details matter:
 Local module validation still exists, but hierarchy needs a second
 layer:
 
-```rust
+```rust,ignore
 pub fn validate_design(d: &Design) -> Result<(), DesignValidateError>
 ```
 
@@ -398,7 +398,7 @@ cross-module contract.
 
 The emitter now has three entry points:
 
-```rust
+```rust,ignore
 to_sv(&Module)
 to_sv_in_design(&Module, &Design)
 to_sv_design(&Design)

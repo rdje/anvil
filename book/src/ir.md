@@ -5,7 +5,7 @@ operates on it.
 
 ## Core types
 
-```rust
+```rust,ignore
 pub struct Design {
     pub top:     String,
     pub modules: Vec<Module>,
@@ -165,7 +165,7 @@ hierarchy-aware identity/factorization.
 All `Node::Gate` and `Node::Constant` creation in the generator
 goes through two methods on `Module`:
 
-```rust
+```rust,ignore
 impl Module {
     pub fn intern_gate(
         &mut self,
@@ -294,7 +294,7 @@ rewinds by `Vec::truncate`, which is safe because no other code holds
 
 ## Dependency sets
 
-```rust
+```rust,ignore
 pub struct DepSet(BTreeSet<u32>);
 ```
 
