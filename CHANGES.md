@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase5b-2.4 — PHASE-5B-AGGREGATES.2.4: real-gate verify → ROADMAP Phase 5b (not started)→(done) + tree closure
 
-**Landed as:** this commit
+**Landed as:** 957b1aa
 
 **What changed**
 
