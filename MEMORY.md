@@ -2094,6 +2094,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
+- `<pending>` — Add GitHub Actions CI (.github/workflows/ci.yml — fmt/clippy/test/mdbook) + Pages (pages.yml — mdBook deploy) workflows; none existed. Workflow-config, no code. NOTE: `gh repo view` still reports PRIVATE despite owner saying public; no Pages site yet — surfaced for owner confirmation; workflows inert until repo public + Pages source = GitHub Actions.
 - `ac18cd5` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.3 phase6_inferrable_memory matrix scenario + num_memory_modules metric + saw_inferrable_memory_design fact/gap (bin 216→219/864→876; non-vacuity test; no ROADMAP advance).
 - `f4ee02f` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.2 memory inference structural-contract + factorization-opacity proof (64 combos: 4 strategies × 4 FactorizationLevel × 4 seeds; template equivalence + MemRead/array never in NodeId graph incl. EGraph; tool-level $mem_v2 proof = .2.1b spot-check + .2.4 gate). Proof only, no code.
 - `aa9abf0` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf (opt-in roll after the param lane, mutually exclusive; default-off byte-identical; forced-on memory leaf validates; spot-check generated SV → 1 $mem_v2 + verilator/both-yosys clean). Closes the .2.1 container.

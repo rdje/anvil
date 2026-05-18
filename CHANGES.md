@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-ci-pages-workflows — Add GitHub Actions CI + Pages workflows (repo public; none existed)
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `.github/` (first CI in this repo): `.github/workflows/ci.yml` — repo-owned fast hygiene gate mirroring the COMMIT.md checklist (`cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `mdbook build book`) on push/PR to `main`, with cargo caching + `cancel-in-progress`. `.github/workflows/pages.yml` — builds the mdBook and deploys `book/book-out` to GitHub Pages (`upload-pages-artifact@v3` + `deploy-pages@v4`, `github-pages` environment), on `book/**` changes + `workflow_dispatch`.
+
+**Why**
+
+- Owner re-enabled Actions + Pages and made the repo public, asking to "re-enable whatever needs re-enabling". Investigation found **no `.github/` at all** — CI/Pages had to be created, not re-enabled. CI is deliberately scoped to the fast gates; the multi-hour Phase-4 hierarchy downstream gate (Verilator + both Yosys, ~9h) stays a local/manual repo-owned gate, never in CI.
+
+**Validation**
+
+- YAML authored to the documented Actions schema; `mdbook build book` verified clean locally; CI runs the exact COMMIT.md gate commands. Workflow-config only — **no code change**. **Not yet executing on GitHub**: `gh repo view` still reports `PRIVATE` and no Pages site exists — surfaced to the owner (the files are correct and inert until the repo is public + Pages source = "GitHub Actions").
+
+**Impact**
+
+- Once the repo is public with Actions + Pages source = GitHub Actions, every push to `main` runs the hygiene gate and republishes the user-facing mdBook. No generator behaviour change.
+
+**Files touched**
+
+- New: .github/workflows/ci.yml, .github/workflows/pages.yml. Updated: CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase6-2.3 — PHASE-6-ADVANCED-MOTIFS.2.3: phase6_inferrable_memory matrix scenario + metric + gap
 
 **Landed as:** ac18cd5

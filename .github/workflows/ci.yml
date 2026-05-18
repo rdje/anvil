@@ -1,0 +1,54 @@
+name: CI
+
+# Repo-owned fast hygiene gate (NOT the multi-hour Phase-4 hierarchy
+# downstream gate — that needs Verilator + Yosys and is run locally /
+# manually per COMMIT.md, never in CI). Mirrors the COMMIT.md
+# non-negotiable checklist: fmt, clippy -D warnings, full cargo test,
+# and a clean mdBook build.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  hygiene:
+    name: fmt / clippy / test / mdbook
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable) + components
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo fmt --all --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test
+
+      - name: Install mdBook
+        run: |
+          mkdir -p "$HOME/.cargo/bin"
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C "$HOME/.cargo/bin"
+
+      - name: mdbook build book
+        run: mdbook build book
