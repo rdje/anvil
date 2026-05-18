@@ -496,6 +496,147 @@ exclusive motif per free-standing single-module design;
 emission is byte-identical). This keeps the four opt-in motif lanes
 (param / aggregate-via-annotation / memory / FSM) from interacting.
 
+### Phase 7 oracle-backed micro-design artifact family design (2026-05-18, PHASE-7-ORACLE-MICRODESIGN.1)
+
+Design-only slice. No code. Lifts ROADMAP Phase 7 ("oracle-backed
+micro-design artifacts — `rtl_const_expr`-style corpora") into a
+concrete, codebase-grounded plan: the expected-facts schema, the
+oracle-by-construction generation strategy, the reproducibility
+contract, the parity-check harness shape, the boundary with the
+existing DUT lane and Phases 8/9, rejected alternatives, and the
+`.2` proof shape + split. Mirrors the proven Phase 5/5b/6
+design-first method.
+
+**The conceptual shift (why this is a new family, not a knob).**
+Phases 1–6 generate *structurally valid random RTL* whose function
+is deliberately meaningless — the contract is "lints/elaborates/
+synthesizes clean", there is **no semantic oracle** ("structural,
+not meaningful" — `book/src/non-triviality.md`). Phase 7 is the
+**opposite**: tiny `.sv` files whose *elaboration facts are exactly
+known by construction*, shipped with a machine-checkable manifest,
+so a downstream tool can be checked against an **oracle** (does the
+tool resolve this parameter / width / generate-branch to the value
+ANVIL already knows?), not merely "did it not error". Pressure point
+= front-end constant-expression / parameter / elaboration
+correctness, not cone-synthesis robustness.
+
+**Codebase grounding.** The existing IR (`src/ir/types.rs`) is a
+scalar-`u32` gate-level circuit graph: `Port`/`Node`/`Flop`/
+`Memory`/`Fsm`/`Instance`, no notion of `parameter`/`localparam`,
+elaboration-time expressions, `generate`, packages, or typed
+constants. `WidthExpr{Lit,Param}`/`ParamEnv` (Phase 5) is the
+*closest* existing concept but is a narrow width-only annotation on
+the circuit IR, not a general constant-expression/elaboration model.
+Therefore Phase 7 needs its **own small source-level
+constant/parameter IR** — a parameter+localparam dependency DAG of
+typed constant expressions with their *evaluated* values — distinct
+from and not threaded through the circuit IR (same operators-vs-
+blocks / category-boundary discipline that kept memory and FSM as
+blocks rather than datatypes). It reuses ANVIL's seeding (ChaCha8,
+no `thread_rng`), CLI/knob plumbing, and reproducibility doctrine,
+but is a **separate generator path** — it does not go through
+`build_cone`.
+
+**Artifact family — `rtl_const_expr` (per ROADMAP).** One module (or
+a tiny package+module cluster) exercising, by construction:
+parameter/localparam dependency chains
+(`localparam B = A*2; localparam C = B + W;`); expression-derived
+widths/ranges (`logic [DEPTH-1:0]`, `[$clog2(N)-1:0]`); `generate
+if`/`for` whose conditions and bounds are expression-driven;
+package-qualified constants (`pkg::WIDTH`); and precedence-sensitive
+arithmetic / shift / comparison / equality / bitwise / logical /
+ternary expressions. Typical size: one module, or a small cluster
+when the pressure point needs local hierarchy.
+
+**Expected-facts manifest (schema sketch).** One JSON manifest per
+emitted `.sv`, capturing only *obviously-checkable elaboration
+facts* the generator already knows:
+
+```json
+{ "seed": <u64>, "top": "<module>",
+  "params":   { "<name>": { "value": <int>, "expr": "<src>" } },
+  "localparams": { "<name>": { "value": <int>, "expr": "<src>" } },
+  "widths":   { "<signal>": { "msb": <int>, "lsb": <int>, "bits": <int> } },
+  "generate": { "<label>": { "taken": <bool> | "iterations": <int> } },
+  "package_constants": { "pkg::<name>": <int> },
+  "const_exprs": [ { "expr": "<src>", "value": <int>, "width": <int> } ] }
+```
+
+**Generation strategy — oracle by construction (the key idea).** The
+generator builds the parameter/localparam/const-expression DAG and
+**evaluates every node as it constructs it** (it chose the literals
+and operators, so it computes the resolved integer/width *the same
+way SV elaboration must*). The `.sv` text is emitted *from* that
+evaluated DAG; the manifest is emitted *from the same resolved
+values*. The generator **is** the oracle — there is no separate
+analysis pass and no re-parsing of generated text. This is the exact
+valid-by-construction / rules-first doctrine that governs the rest
+of ANVIL (compute the fact at construction time; never
+generate-then-analyze). Evaluation uses wide integer semantics
+matching SV's constant-expression rules (2-state, sign/width per
+LRM) for the integer subset Phase 7 emits — deliberately bounded so
+the oracle is trivially correct.
+
+**Reproducibility contract.** Identical to the DUT lane: `(seed,
+knobs)` → byte-identical `.sv` **and** byte-identical `.json`
+manifest, on any platform, forever. The manifest is part of the
+reproducible artifact, not a side report.
+
+**Parity-check harness.** Separate from the `tool_matrix`
+lint/synth DUT gate (that proves *acceptance*; Phase 7 proves *fact
+agreement*). The harness elaborates each emitted `.sv` with a
+downstream consumer that can report resolved facts — candidate:
+Yosys `read_verilog -sv; ... ; write_json` (parameter/width facts)
+and/or Verilator/`slang` parameter introspection — and compares the
+reported facts to the manifest: exact agreement, or a **retained
+counterexample** (the `.sv` + manifest + tool output kept for
+triage), never a silent pass. As with memory/FSM, a cargo-portable
+formalization is available — the emitted declarations' widths/param
+values equal the manifest *by construction* (structural-equivalence,
+`cargo test`-able) — while the genuine downstream parity runs in the
+repo-owned gate (cargo cannot shell yosys/verilator; project
+convention since Phase 1).
+
+**Boundaries.** Phase 7 = *constant/elaboration facts on tiny
+modules*. Phase 8 (frontend/elaboration accept corpora) = *compact
+elaboratable hierarchies* with a richer source-level hierarchy/
+package IR — Phase 7's const-expr IR is the seed of, but smaller
+than, Phase 8's. Phase 9 (umbrella) = the artifact-family selector
+unifying DUT / Phase-7 / Phase-8 lanes; Phase 7 lands behind an
+explicit family flag now and is rehomed under the Phase 9 selector
+later. Phase 7 does **not** build the selector (that is Phase 9's
+`.1`-blocked-until-≥2-lanes leaf).
+
+**Rejected alternatives.** (A) **Reuse the gate-level circuit IR**
+for const-expr artifacts — rejected: it has no parameter/localparam/
+generate/package/typed-constant concept; forcing them through scalar
+`u32` node graphs is the same category error as memory's rejected
+datatype option (C). (B) **Generate random SV then parse it back to
+derive the manifest** (generate-then-analyze) — rejected: violates
+the oracle-by-construction doctrine and re-implements elaboration in
+the oracle, so the oracle can be as wrong as the tool under test;
+the generator already holds every resolved value. (C) **Bundle a
+reference elaborator** to compute expected facts — rejected: project
+non-goal (no bundled reference simulator); the construction-time
+oracle is exact and free. (D) **Emit facts as SV comments instead of
+a separate manifest** — rejected: not machine-checkable without
+re-parsing, and couples the oracle to comment-formatting; a typed
+JSON manifest is the durable contract.
+
+**Proof shape (`.2`, expected to split).** Reproducible corpus
+(byte-stable `.sv` + `.json` across re-runs and the existing
+cross-platform reproducibility harness); a manifest-schema
+validator; the parity harness over ≥1 downstream consumer green (or
+counterexamples retained); behind an explicit artifact-family flag;
+no regression to the DUT lane. Split candidates (independently
+reviewable): const-expr/parameter IR + construction-time evaluator /
+SV emitter + manifest emitter / parity harness + repo-owned gate.
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-7-ORACLE-MICRODESIGN.1`); it makes no code change,
+consistent with the task-tree-ownership doctrine's code/not-code
+boundary.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

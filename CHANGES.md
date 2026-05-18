@@ -1,8 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-3.4a — PHASE-6-ADVANCED-MOTIFS.3.4a: `phase6_fsm` matrix scenario + `num_fsm_modules` metric + gap
+## 2026-05-18-phase7-1 — PHASE-7-ORACLE-MICRODESIGN.1: oracle-backed micro-design artifact-family design
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Phase 7 oracle-backed micro-design
+  artifact family design (2026-05-18, PHASE-7-ORACLE-MICRODESIGN.1)"
+  entry — the conceptual shift (Phases 1–6 random RTL with no
+  semantic oracle vs Phase 7 tiny `.sv` whose elaboration facts are
+  known by construction + a machine-checkable manifest); codebase
+  grounding (the scalar-`u32` circuit IR has no
+  parameter/localparam/generate/package/typed-constant concept ⇒
+  Phase 7 needs its own small source-level const/parameter IR and a
+  separate generator path); the `rtl_const_expr` family; the
+  expected-facts JSON manifest schema sketch; the
+  **oracle-by-construction** generation strategy (the generator
+  evaluates every const-expr/param node as it builds it and emits
+  the `.sv` and the manifest from the same resolved values — no
+  analysis pass, no re-parse); the reproducibility contract; a new
+  parity harness distinct from the `tool_matrix` DUT gate; the
+  Phase-8/9 boundaries; 4 rejected alternatives; the `.2` proof
+  shape + split candidates.
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: `.1` done (Verification
+  / Commit / Frontier→`.2` / both Open Questions resolved [typed JSON
+  manifest; new separate parity harness] / Verification-Log /
+  Commit-Log / Changelog / Metadata). `docs/TASK_TREE.md` Phase 7
+  row updated.
+
+**Why**
+
+- Continuous-PNT: both remaining Phase 6 leaves (`.2.4`, `.3.4b`)
+  are gate-blocked (the in-flight memory gate is alive but
+  CPU-starved; a second concurrent gate would starve both). Phase 7
+  `.1` is design-only — no code, no CPU contention, no
+  full-cargo-test — exactly the right unblocked work while the
+  gates drain, and it mirrors the proven Phase 5/5b/6 design-first
+  method.
+
+**Validation**
+
+- Design-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the Phase 7 tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`). `mdbook build book` clean; `cargo fmt --all --check`
+  clean; full `cargo test` was green at this slice's base `5db4ac9`
+  and no `src/`/`tests/` were touched since.
+
+**Impact**
+
+- Phase 7 has an unambiguous, codebase-grounded target; `.2`
+  (implement, expected to split IR+evaluator / emitters /
+  harness+gate) is unblocked. No ROADMAP advance (design-only). The
+  Phase 6 gate situation is unchanged (still draining).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-3.4a — PHASE-6-ADVANCED-MOTIFS.3.4a: `phase6_fsm` matrix scenario + `num_fsm_modules` metric + gap
+
+**Landed as:** 5db4ac9
 
 **What changed**
 
