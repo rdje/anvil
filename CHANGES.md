@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-book-examples-runnable-2.1 — BOOK-EXAMPLES-RUNNABLE.2.1: migrate book examples to `cargo run --release --`
 
-**Landed as:** this commit
+**Landed as:** 415818c
 
 **What changed**
 
