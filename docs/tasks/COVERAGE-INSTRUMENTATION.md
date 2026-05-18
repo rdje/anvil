@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — test-discipline visibility
 - Created: `2026-05-14`
-- Last updated: `2026-05-14` (COVERAGE-INSTRUMENTATION.1 landed)
+- Last updated: `2026-05-18` (`.2` triage landed; frontier → `.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -64,11 +64,11 @@ matrix is comprehensive by measurement."
   Commit: `Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)`
 
 - ID: `COVERAGE-INSTRUMENTATION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Triage the baseline: identify the top-5 under-covered source files by uncovered-line count. For each, decide: (a) is the uncovered region dead code? (b) is it a rarely-fired planner path that should have a focused proof? (c) is it a defensive panic that is intentionally unreachable? Record findings in DEVELOPMENT_NOTES.md.`
   Acceptance: `DEVELOPMENT_NOTES.md entry exists with the triage matrix and explicit disposition for each of the top-5 files.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `DEVELOPMENT_NOTES.md "Coverage baseline triage — top-5 under-covered files (2026-05-18, COVERAGE-INSTRUMENTATION.2)" entry landed: a per-file disposition table for all top-5 (bin/tool_matrix.rs / gen/cone.rs / ir/validate.rs / config.rs / main.rs) with (a)/(b)/(c) classification + the .3 action. Method = reasoned code inspection (orphan-symbol audit: every *_focus_config/scenario builder referenced from build_scenarios ⇒ no dead/retired builders; 45 cone.rs panic/expect/unreachable + the build_cone_with_retry/rollback/anti-collapse-reject/pick_terminal-fallback sites enumerated; 62 validate.rs Err-return arms vs 26 inline tests; config.rs 137 pub fields / 37 validate sites). Headline finding: NO confirmed dead code in the top-5 — the 3314 headline uncovered lines are gate-exclusive (tool_matrix), intentional-defensive (validate.rs), or integration-only (config.rs/main.rs) BY DESIGN; the single high-value .3 target is a handful of gen/cone.rs focused proofs (retry-exhaustion / anti-collapse-reject / adapter-fallback) + an optional config.rs orphan-knob spot-audit. This right-sizes .3 away from broad coverage-chasing. Triage-only — no code change (diff = DEVELOPMENT_NOTES.md + tree/live-docs); mdbook build book clean; cargo fmt --all --check clean; full cargo test green at base 9806028 (no src/tests touched).`
+  Commit: `Docs: COVERAGE-INSTRUMENTATION.2 top-5 under-covered-file triage`
 
 - ID: `COVERAGE-INSTRUMENTATION.3`
   Status: `pending`
@@ -81,7 +81,7 @@ matrix is comprehensive by measurement."
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COVERAGE-INSTRUMENTATION.2` | `pending` | Baseline is in `docs/coverage-baseline.md`; top-5 under-covered files identified. Triage decides which uncovered regions are dead code, which are rarely-fired paths needing focused proofs, and which are intentionally-unreachable defensive panics. |
+| 1 | `COVERAGE-INSTRUMENTATION.3` | `pending` | `.2` triage **done** — DEVELOPMENT_NOTES.md disposition table for all top-5; no confirmed dead code; the only high-value target is a handful of `gen/cone.rs` focused proofs (retry-exhaustion / anti-collapse-reject / `pick_terminal` adapter-fallback) + an optional `config.rs` orphan-knob spot-audit. `.3` acts on exactly that (add the cone focused proofs; leave defensive/gate-exclusive/integration-only as documented), then refresh the coverage baseline. Code slice (needs full `cargo test`); `.3` is now tightly scoped, not a broad coverage chase. |
 
 `COVERAGE-INSTRUMENTATION.1` is `done` (landed at the hash recorded in
 this tree's Commit Log).
@@ -111,14 +111,29 @@ this tree's Commit Log).
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-14` | `COVERAGE-INSTRUMENTATION.1` | `cargo llvm-cov --release` (110 tests passing in ~295s); `cargo llvm-cov report --release`. | All passing. TOTAL coverage: 85.26% lines / 91.95% functions / 87.61% regions across 14 crate files. Baseline written to docs/coverage-baseline.md with top-5 under-covered files identified for .2 triage. |
+| `2026-05-18` | `COVERAGE-INSTRUMENTATION.2` | Reasoned-inspection triage of all top-5 under-covered files → DEVELOPMENT_NOTES.md disposition table. Orphan-symbol audit (no retired `*_focus_config`/scenario builders ⇒ no dead code in `tool_matrix.rs`); cone.rs panic/rollback/anti-collapse-reject/adapter-fallback sites enumerated; validate.rs 62 Err-arms vs 26 inline tests; config.rs 137 fields/37 validate sites. Triage-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `9806028` (no `src/`/`tests/` touched). | Done. No confirmed dead code; `.3` right-sized to a handful of `gen/cone.rs` focused proofs + optional `config.rs` orphan-knob spot-audit. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `COVERAGE-INSTRUMENTATION.1` | `Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)` | cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already installed locally. Baseline excludes the 75-min Phase 4 hierarchy gate by design. |
+| `COVERAGE-INSTRUMENTATION.2` | `Docs: COVERAGE-INSTRUMENTATION.2 top-5 under-covered-file triage` | Triage-only; per-file (a)/(b)/(c) disposition; no confirmed dead code; `.3` scoped to a few `gen/cone.rs` focused proofs. No code. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of the quality-improvement initiative.
 - `2026-05-14`: `.1` landed; baseline at `docs/coverage-baseline.md`. Frontier rotated to `.2` (triage).
+- `2026-05-18`: **`.2` triage landed** (triage-only, no code) —
+  continuous-PNT while Phase 6 `.2.4`/`.3.4b` are gate-blocked.
+  `DEVELOPMENT_NOTES.md` "Coverage baseline triage — top-5
+  under-covered files": per-file (a) dead / (b) rarely-fired-proof /
+  (c) intentional-or-integration disposition. Headline: **no
+  confirmed dead code** in the top-5 — the headline 3314 uncovered
+  lines are gate-exclusive (`tool_matrix`), intentional-defensive
+  (`validate.rs`), or integration-only (`config.rs`/`main.rs`) by
+  design; the only high-value `.3` target is a handful of
+  `gen/cone.rs` focused proofs (retry-exhaustion /
+  anti-collapse-reject / `pick_terminal` adapter-fallback) + an
+  optional `config.rs` orphan-knob spot-audit. `.3` right-sized away
+  from broad coverage-chasing. Frontier rotated to `.3`.

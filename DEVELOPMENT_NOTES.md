@@ -896,6 +896,42 @@ This entry is design-only and is itself task-tree owned
 consistent with the task-tree-ownership doctrine's code/not-code
 boundary.
 
+### Coverage baseline triage — top-5 under-covered files (2026-05-18, COVERAGE-INSTRUMENTATION.2)
+
+Triage-only slice (no code; `.3` acts on these findings). Classifies
+every top-5 under-covered file from `docs/coverage-baseline.md`
+(85.26% lines overall) into: **(a) dead code → remove**,
+**(b) rarely-fired real path → add a focused proof**, **(c)
+intentionally unreachable / integration-only → leave + document**.
+Method: reasoned code inspection (orphan-symbol audit, panic/
+rollback-site enumeration, `Err`-return vs inline-test count), not a
+coverage re-measure.
+
+| # | File | Uncov / % | Disposition | `.3` action |
+| --- | --- | --- | --- | --- |
+| 1 | `bin/tool_matrix.rs` | 1951 / 72.07% | **(c)** gate-exclusive. Every `*_focus_config` / scenario-builder is referenced from `build_scenarios` — **no orphan/retired builders, zero dead code**. The miss is the `Phase4Hierarchy` scenario + per-scenario config helpers, which fire only under the matrix gate the baseline *deliberately* excludes (75-min runtime). Already exercised by the repo-owned gate. | None. Optionally a "deep" `cargo llvm-cov` incl. the gate for an occasional refresh — not every-slice discipline. |
+| 2 | `gen/cone.rs` | 454 / 88.65% | **(b) + (c)** — the **only real proof-gap in the top-5**. 45 panic/`expect`/`unreachable` sites: most are (c) by-construction-invariant guards. But `build_cone_with_retry`'s **retry-budget-exhaustion** path (`⚠️ cone retry budget exhausted`), `rollback_construction_snapshot`, the **anti-collapse reject / skipped-emission** branches, and `pick_terminal`'s adapter fallback are (b) genuinely reachable under specific knob/seed pressure. | `.3`: add focused proofs forcing (i) empty-dep-root retry→rollback→exhaustion, (ii) an anti-collapse reject, (iii) the `pick_terminal` adapter fallback. Leave the invariant-guard `expect`s. |
+| 3 | `ir/validate.rs` | 254 / 75.07% | **(c)** intentional defensive validation. 62 `return Err(ValidateError::…)` arms; 26 inline tests already drive the malformed-input-reachable subset (hand-crafted broken modules). The residual arms guard "cannot happen from any generator path" invariants — the safety net the valid-by-construction doctrine relies on; **not dead, not a meaningful proof gap**. | Leave + documented here. Optional low-priority `.3`: a few more hand-broken-IR unit tests for the highest-value invariants. |
+| 4 | `config.rs` | 250 / 67.87% | **(c) + audit** integration-only. Unit tests build `Config` via `..Config::default()`, bypassing the clap/serde-default + probability-range validation arms (only a real binary invocation drives them). 137 `pub` fields / 37 validate sites; the orphan-builder-style check found no retired symbols, but a per-field *wiring* audit was out of scope for triage. | `.3`: spot-audit for orphan knobs no longer wired (baseline-flagged); otherwise integration-style binary invocations, lower leverage. |
+| 5 | `main.rs` | 142 / 60.56% | **(c)** clap-derive + flag→`Config` overlay boilerplate, exercised only by real binary runs (no test spawns the binary). **Lowest leverage of the five**; not dead, not a real proof gap. | None / optional `.3` binary-smoke with a few flag combos. |
+
+**Headline finding (right-sizes `.3`).** There is **no confirmed
+dead code** in the top-5 — the 3314 headline uncovered lines are
+*gate-exclusive* (`tool_matrix`), *intentional defensive*
+(`validate.rs`), or *integration-only* (`config.rs`/`main.rs`) **by
+design**, not test debt. The single high-value `.3` target is a
+**handful of `gen/cone.rs` focused proofs** (retry-exhaustion /
+anti-collapse-reject / adapter-fallback). `.3` should therefore be
+scoped to those cone proofs + an optional `config.rs` orphan-knob
+spot-audit — *not* a broad coverage-chasing exercise. This is the
+honest disposition the baseline's "(a)/(b)/(c) per file" promise
+asked for.
+
+This entry is triage-only and is itself task-tree owned
+(`COVERAGE-INSTRUMENTATION.2`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary
+(`.3` performs the code actions).
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

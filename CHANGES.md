@@ -1,8 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase9-1 — PHASE-9-MULTI-ARTIFACT-UMBRELLA.1: artifact-family selector + shared-plumbing design
+## 2026-05-18-coverage-2 — COVERAGE-INSTRUMENTATION.2: top-5 under-covered-file triage
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Coverage baseline triage — top-5
+  under-covered files (2026-05-18, COVERAGE-INSTRUMENTATION.2)"
+  entry — a per-file disposition table for `bin/tool_matrix.rs`,
+  `gen/cone.rs`, `ir/validate.rs`, `config.rs`, `main.rs`,
+  classifying each into **(a) dead → remove**, **(b) rarely-fired
+  → focused proof**, **(c) intentionally-unreachable / integration-
+  only → leave + document**, with the `.3` action per file.
+- `docs/tasks/COVERAGE-INSTRUMENTATION.md`: `.2` done (Verification
+  / Commit / Frontier→`.3` / Verification-Log / Commit-Log /
+  Changelog / Metadata). `docs/TASK_TREE.md` row updated.
+
+**Why**
+
+- `COVERAGE-INSTRUMENTATION.2` — triage the `.1` baseline so `.3` is
+  scoped to real gaps, not a blind coverage chase. Continuous-PNT
+  while Phase 6 `.2.4`/`.3.4b` are gate-blocked: triage-only (no
+  code, no `cargo test`, no external tool) ⇒ zero contention on the
+  in-flight gate.
+
+**Findings (headline).** Method = reasoned code inspection
+(orphan-symbol audit; panic/rollback-site enumeration; `Err`-arm vs
+inline-test counts), not a coverage re-measure. **No confirmed dead
+code in the top-5**: the 3314 headline uncovered lines are
+*gate-exclusive* (`tool_matrix.rs` — every `*_focus_config`/
+scenario builder is referenced; the miss is the
+deliberately-excluded 75-min Phase 4 gate), *intentional defensive*
+(`ir/validate.rs` — 62 `Err` arms guarding cannot-happen
+invariants, the by-construction safety net; 26 inline tests already
+drive the malformed-input-reachable subset), or *integration-only*
+(`config.rs`/`main.rs` — clap/serde-default + validation paths only
+a real binary invocation drives). The single high-value `.3` target
+is a **handful of `gen/cone.rs` focused proofs**
+(retry-budget-exhaustion / anti-collapse-reject / `pick_terminal`
+adapter-fallback) + an optional `config.rs` orphan-knob spot-audit.
+This right-sizes `.3`.
+
+**Validation**
+
+- Triage-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the COVERAGE tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`). `mdbook build book` clean; `cargo fmt --all
+  --check` clean; full `cargo test` was green at this slice's base
+  `9806028` and no `src/`/`tests/` were touched since.
+
+**Impact**
+
+- `.3` is now tightly scoped (cone focused proofs + optional config
+  audit) instead of an open-ended coverage exercise. No ROADMAP
+  change (Quality lane).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/COVERAGE-INSTRUMENTATION.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase9-1 — PHASE-9-MULTI-ARTIFACT-UMBRELLA.1: artifact-family selector + shared-plumbing design
+
+**Landed as:** 9806028
 
 **What changed**
 
