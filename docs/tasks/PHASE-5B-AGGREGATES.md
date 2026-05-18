@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 5b — Synthesizable aggregates
 - Created: `2026-05-16`
-- Last updated: `2026-05-17` (`.2.3` matrix scenario+metrics+gap landed; frontier → `.2.4`)
+- Last updated: `2026-05-18` (`.2.4` real-gate verified clean → ROADMAP Phase 5b `done`; tree closed; frontier none — Phase 5b complete)
 - Owner: repo-local workflow
 
 ## Goal
@@ -36,9 +36,9 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 ## Task Tree
 
 - ID: `PHASE-5B-AGGREGATES`
-  Status: `active`
+  Status: `done`
   Goal: `Land packed struct/union/array emission as a flat-IR projection, downstream-clean.`
-  Children: `PHASE-5B-AGGREGATES.1` (done), `PHASE-5B-AGGREGATES.2` (active container)
+  Children: `PHASE-5B-AGGREGATES.1` (done), `PHASE-5B-AGGREGATES.2` (done container)
 
 - ID: `PHASE-5B-AGGREGATES.1`
   Status: `done`
@@ -48,9 +48,9 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   Commit: `Docs: PHASE-5B-AGGREGATES.1 packed-aggregate emitter-projection design`
 
 - ID: `PHASE-5B-AGGREGATES.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the packed-aggregate projection per .1, opt-in, with a matrix scenario and downstream-clean proof. Split per the Splitting Rules + the r87 no-aspirational-claims precedent (gate scenario lands before any ROADMAP promotion); mirrors the proven Phase 5 .2.1–.2.4 decomposition.`
-  Children: `PHASE-5B-AGGREGATES.2.1`, `.2.2`, `.2.3`, `.2.4`
+  Children: `PHASE-5B-AGGREGATES.2.1` (done), `.2.2` (done), `.2.3` (done), `.2.4` (done)
 
 - ID: `PHASE-5B-AGGREGATES.2.1`
   Status: `done`
@@ -74,17 +74,18 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.3 packed_aggregate matrix scenario + metrics + gap`
 
 - ID: `PHASE-5B-AGGREGATES.2.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Run the real repo-owned gate (now including packed_aggregate) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all-pass, saw_packed_aggregate_design=true) BEFORE any promotion. Then author an explicit ROADMAP Phase 5b "Exit criteria (met)" block tied to that artifact, promote ROADMAP Phase 5b (not started) -> (done), reconcile book/src/ir.md "Synthesizable aggregates" + book/src/knobs.md (aggregate_prob), sync README/CODEBASE_ANALYSIS/MEMORY, and close the PHASE-5B-AGGREGATES tree.`
   Acceptance: `A banked gate report shows coverage_gaps=[] + all-pass Verilator/Yosys + saw_packed_aggregate_design=true; ROADMAP Phase 5b = done with exit criteria; tree -> done. No aspirational claims (verified artifact precedes promotion).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Real repo-owned Phase4Hierarchy gate run to completion (background bifczmcw7, exit 0): ./target/release/tool_matrix --phase4-hierarchy-gate --yosys-mode both --base-seed 0 --out /tmp/anvil-tool-matrix-phase5b-p1. Banked /tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json verified CLEAN: scenario_count 216, total_modules 864, coverage_gaps [], tool_summary verilator 864/0, yosys_without_abc 864/0, yosys_with_abc 864/0, coverage.saw_packed_aggregate_design true, coverage.saw_width_parameterized_design true (Phase 5 regression clean), coverage.saw_recursive_hierarchy_module_dedup_active true (Phase 4 regression clean). Promotion strictly followed the verified artifact (r87 no-aspirational-claims): ROADMAP.md Phase 5b (not started)->(done) + "Status: done as of 2026-05-18" + explicit 3-point "Exit criteria (met)" block tied to that report + scope note (StructPacked-only / non-instantiated / param_env-skipped are open-ended post-phase, not blockers; no mode retired). Reconciled book/src/ir.md "Synthesizable aggregates" (Delivered note) + book/src/knobs.md (aggregate_prob + width_parameterization_prob in the config-only knob list and the effectiveness map); mdbook build clean. Synced README.md, CODEBASE_ANALYSIS.md (new 5b phase-coverage row → done), MEMORY.md (Phase line; Phase 6 next). Tree closed: .2.4/.2/root → done, frontier none. No code change in this leaf (gate run + docs/closure only); cargo gates green from .2.3.`
+  Commit: `Phase 5b: PHASE-5B-AGGREGATES.2.4 real-gate verify + ROADMAP Phase 5b (not started)->(done) + tree closure`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `PHASE-5B-AGGREGATES.2.4` | `pending` | `.2.3` landed the `phase5b_packed_aggregate` matrix scenario + `num_packed_aggregate_modules` metric + `saw_packed_aggregate_design` fact/gap (bin 213→216 / 852→864; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_packed_aggregate_design=true`), then authors ROADMAP Phase 5b exit criteria + promotes Phase 5b `done` + reconciles the book + closes the tree — promotion strictly follows the verified artifact (r87 no-aspirational-claims). |
+None — `PHASE-5B-AGGREGATES` is `done` (Phase 5b closed
+`2026-05-18`, verified artifact `/tmp/anvil-tool-matrix-phase5b-p1`).
+The next numbered roadmap phase is **Phase 6 — Advanced motifs**
+(`docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`).
 
 ## Decisions
 
@@ -166,6 +167,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.1` | IR `aggregate_layout` annotation + `AggregateKind`/`AggregateGroup`; `Config::aggregate_prob` (serde-default 0.0 + validation); `src/ir/aggregate.rs::annotate_aggregate` non-rolling pass (6 unit tests); seeded per-module Bernoulli roll at `gen/mod.rs` post-pass scoped to non-instantiated modules; boundary-alias emitter projection (typedef struct packed + aggregate port + alias wires/assigns, flat body byte-identical). Focused proof `packed_aggregate_is_default_off_and_projects_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on projects + validates + SV tokens). Real `verilator --lint-only` of a projected hierarchy design: EXIT 0. `cargo fmt`/`clippy -D warnings`/`check` clean; `aggregate::` 6/0 + focused proof green; full `cargo test` (COMMIT.md gate). No `book/` change (reconciliation is `.2.4`). | Done. |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.2` | (a) `packed_aggregate_organic_existence_is_not_inert` — 68/80 (~85%) organic single-module designs projected with DEFAULT port ranges (4 strategies × 20 seeds), threshold ≥50%; **no rules-first pivot** (recorded in Decisions). (b) `canonical_signature_is_invariant_under_projection` + `aggregate_projected_twin_dedup_collapses` (`src/ir/aggregate.rs`): signature identical before/after `annotate_aggregate`, flat ports unchanged; projected twin shares `canonical_module_signature` and `dedup_modules` collapses it (removed==1, survivor+top). `aggregate::` 10/0; `cargo fmt`/`clippy -D warnings`/`check` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
 | `2026-05-17` | `PHASE-5B-AGGREGATES.2.3` | `DesignMetrics.num_packed_aggregate_modules` + populate; `phase5b_packed_aggregate_focus_config` (depth-1 wrapper, library, `aggregate_prob=1.0`, dedup-anchor 4 leaves/4 instances → shape-coverage sets unperturbed) + `phase5b_packed_aggregate` scenario tuple; `CoverageSummary.saw_packed_aggregate_design` set/merge + Phase4Hierarchy `compute_coverage_gaps` arm; bin counts 213→216 / 852→864 (observed) + exception-list entry; tool_matrix phase4 bin tests 3/3; new `phase5b_packed_aggregate_scenario_is_non_vacuous` proves the scenario projects ≥1 module per strategy (coverage fact reachable). `cargo fmt`/`clippy -D warnings`/`check` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (promotion is `.2.4`). No `book/` change. | Done. |
+| `2026-05-18` | `PHASE-5B-AGGREGATES.2.4` | Real repo-owned `Phase4Hierarchy` gate (incl. `phase5b_packed_aggregate`) ran to completion (bg `bifczmcw7`, exit 0). Banked `/tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json` verified CLEAN: scenario_count 216, total_modules 864, `coverage_gaps=[]`, Verilator 864/0, `yosys_without_abc` 864/0, `yosys_with_abc` 864/0, `saw_packed_aggregate_design=true`, `saw_width_parameterized_design=true` (P5 regression), `saw_recursive_hierarchy_module_dedup_active=true` (P4 regression). ROADMAP Phase 5b `(not started)`→`(done)` + 3-point "Exit criteria (met)" + scope note; `book/src/ir.md`+`knobs.md` reconciled (`mdbook build` clean); README/CODEBASE_ANALYSIS/MEMORY synced; tree closed (`.2.4`/`.2`/root → done, frontier none). Gate-run + docs/closure only — no code change; cargo gates green from `.2.3`. | Done. |
 
 ## Commit Log
 
@@ -175,6 +177,7 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
 | `PHASE-5B-AGGREGATES.2.1` | `Phase 5b: PHASE-5B-AGGREGATES.2.1 packed-aggregate IR annotation + knob + emitter projection` | Scaffold: `aggregate_layout` annotation + `aggregate_prob` knob + boundary-alias emitter projection; default-off byte-identical; projected design verilator-clean. StructPacked / non-instantiated / non-param scoped (Decisions). |
 | `PHASE-5B-AGGREGATES.2.2` | `Phase 5b: PHASE-5B-AGGREGATES.2.2 organic-existence proof + identity-invariance` | Existence 68/80 (~85%) → no rules-first pivot; signature-invariant + projected-twin dedup-collapses. `aggregate::` 10/0. No code change to the feature (proofs only). |
 | `PHASE-5B-AGGREGATES.2.3` | `Phase 5b: PHASE-5B-AGGREGATES.2.3 packed_aggregate matrix scenario + metrics + gap` | `num_packed_aggregate_modules` metric + `phase5b_packed_aggregate` scenario + `saw_packed_aggregate_design` fact/gap; bin 213→216 / 852→864; non-vacuity test. No ROADMAP promotion (that is `.2.4` on verified evidence). |
+| `PHASE-5B-AGGREGATES.2.4` | `Phase 5b: PHASE-5B-AGGREGATES.2.4 real-gate verify + ROADMAP Phase 5b (not started)->(done) + tree closure` | Closes `.2`, the container, and the `PHASE-5B-AGGREGATES` tree. Promotion strictly follows the verified `/tmp/anvil-tool-matrix-phase5b-p1` artifact (216/864, `coverage_gaps=[]`, 864/0 Verilator + both Yosys, `saw_packed_aggregate_design=true`). Gate-run + docs/closure only — no code change. |
 
 ## Changelog
 
@@ -246,3 +249,26 @@ not fixed relative to Phase 5; this can land independently of Phase 4.
   carry a permanent coverage gap. ROADMAP unchanged. Frontier →
   `.2.4` (real-gate verify → promote Phase 5b `done` + book
   reconciliation + tree closure).
+- `2026-05-18`: **`.2.4` landed — closes `.2`, the container, and the
+  `PHASE-5B-AGGREGATES` tree; Phase 5b is `done`.** The real
+  repo-owned `Phase4Hierarchy` gate (now including
+  `phase5b_packed_aggregate`) ran to completion (bg `bifczmcw7`,
+  exit 0) and was verified CLEAN on the banked artifact
+  `/tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json`: 216
+  scenarios / 864 designs, `coverage_gaps=[]`, Verilator 864/0,
+  `yosys_without_abc` 864/0, `yosys_with_abc` 864/0,
+  `saw_packed_aggregate_design=true`, `saw_width_parameterized_design=true`
+  (Phase 5 regression clean), `saw_recursive_hierarchy_module_dedup_active=true`
+  (Phase 4 regression clean). Promotion strictly followed the verified
+  artifact (r87 no-aspirational-claims): `ROADMAP.md` Phase 5b
+  `(not started)`→`(done)` + `Status: done as of 2026-05-18` + an
+  explicit 3-point **"Exit criteria (met)"** block + scope note
+  (StructPacked-only / non-instantiated / `param_env`-skipped are
+  open-ended post-phase sub-slices, not blockers; no mode retired).
+  Reconciled `book/src/ir.md` "Synthesizable aggregates" + `book/src/knobs.md`
+  (`aggregate_prob` + `width_parameterization_prob` in the config-only
+  list and effectiveness map); `mdbook build book` clean. Synced
+  `README.md`, `CODEBASE_ANALYSIS.md` (new `5b` phase-coverage row →
+  done), `MEMORY.md` (Phase line; Phase 6 next). Gate-run + docs /
+  closure only — no code change. The next numbered roadmap phase is
+  **Phase 6 — Advanced motifs**. Frontier → none (Phase 5b closed).

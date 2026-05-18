@@ -1713,9 +1713,10 @@ byte-identical; further breadth, if pursued, lands as optional
 post-Phase-5 `rN`/task-tree work without reopening the phase. Closing
 artifact: `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`.
 
-## Phase 5b — Synthesizable aggregates (not started)
+## Phase 5b — Synthesizable aggregates (done)
 
-Scheduled alongside Phase 5; order is not fixed.
+**Status:** done as of 2026-05-18 (`PHASE-5B-AGGREGATES` tree
+complete). Scheduled alongside Phase 5; order was not fixed.
 
 Three sub-paths, each with its own cost and payoff (full analysis in
 `book/src/ir.md` "Future extensions / Synthesizable aggregates"):
@@ -1728,6 +1729,50 @@ Three sub-paths, each with its own cost and payoff (full analysis in
 - **Unpacked struct / union for datapath, enums** — deprioritised
   (unpacked datapath is mostly non-synthesizable; enums add no
   distinct stress value beyond typed constants).
+
+**Exit criteria (met):**
+
+1. **Packed-aggregate emission as a flat-IR projection, valid by
+   construction.** Architecture (P): an additive `Default`-able
+   `Module.aggregate_layout` annotation consulted only by the emitter;
+   construction, validators, CSE keys and `canonical_module_signature`
+   are all untouched. A packed `struct` is LRM-defined bit-equivalent
+   to the concatenation of its members, so the boundary-alias
+   projection (`typedef struct packed` + one aggregate port/side +
+   alias wires/assigns) is a semantically-empty regrouping. Opt-in
+   `Config::aggregate_prob` (serde-default `0.0`); default-off is
+   byte-identical for fixed seeds across all `ConstructionStrategy`
+   values (`PHASE-5B-AGGREGATES.2.1`).
+2. **Not inert; sound identity.** Organic existence proven — with
+   default port ranges the projection fires on ~85 % of organic
+   single-module designs, so no rules-first pivot was needed (unlike
+   Phase 5 width-homogeneity). The annotation is deliberately **not**
+   hashed into module identity: a module and its aggregate-projected
+   twin share one `canonical_module_signature` and dedup-collapse
+   (`PHASE-5B-AGGREGATES.2.2`).
+3. **Repr matrix gate, verified downstream-clean.** The repo-owned
+   `Phase4Hierarchy` gate, now including the `phase5b_packed_aggregate`
+   scenario, ran to completion (background, exit 0) and the banked
+   artifact `/tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json`
+   was verified CLEAN: **216 scenarios / 864 designs**,
+   `coverage_gaps = []`, **Verilator 864/0**, **Yosys without-abc
+   864/0**, **Yosys with-abc 864/0**, `saw_packed_aggregate_design =
+   true`; Phase 5 (`saw_width_parameterized_design`) and Phase 4
+   (`saw_recursive_hierarchy_module_dedup_active`) regressions stay
+   clean (`PHASE-5B-AGGREGATES.2.3` scenario/metrics/gap,
+   `PHASE-5B-AGGREGATES.2.4` verify + promote).
+
+**Scope note (not blockers; no mode retired):** the `.2.1` scaffold is
+deliberately scoped to `AggregateKind::StructPacked` only
+(`UnionPacked`/`ArrayPacked` need a same-width group), to
+**non-instantiated** modules (parent-side aggregate connections are
+deferred so hierarchy child connections stay byte-identical), and
+skips Phase 5 `param_env` modules (the param/aggregate cross-product
+is deferred). These are open-ended capability deepenings recorded in
+the tree's Decisions; they are explicitly **not** Phase 5b blockers
+and land as optional post-Phase-5b sub-slices without reopening the
+phase. Unpacked arrays remain Phase 6; unpacked datapath/enums stay
+deprioritised.
 
 ## Phase 6 — Advanced motifs (not started)
 

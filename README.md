@@ -828,10 +828,20 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `/tmp/anvil-tool-matrix-phase5-p1`: 213 scenarios / 852 designs,
   `coverage_gaps = []`, 852/0 Verilator + both Yosys); parameter-aware
   child selection / parameter-driven parent generation are open-ended
-  post-Phase-5 work (scope-cut, not a blocker). The next numbered phase
-  is **Phase 5b — Synthesizable aggregates**; every remaining roadmap
-  phase is tracked as a task tree under `docs/TASK_TREE.md`. See
-  `ROADMAP.md` for phase gating.
+  post-Phase-5 work (scope-cut, not a blocker). **Phase 5b —
+  Synthesizable aggregates is also `done`** (2026-05-18): the opt-in
+  `aggregate_prob` knob folds a non-instantiated module's
+  same-direction data ports into one packed-`struct` emitter
+  projection (flat IR / validators / dedup untouched; default-off
+  byte-identical), closed against the `Phase4Hierarchy` matrix gate
+  (closing artifact `/tmp/anvil-tool-matrix-phase5b-p1`: 216 scenarios
+  / 864 designs, `coverage_gaps = []`, 864/0 Verilator + both Yosys,
+  `saw_packed_aggregate_design = true`); `union`/`array` packing,
+  parent-side aggregate connections and the param/aggregate
+  cross-product are open-ended post-Phase-5b sub-slices (scope-cut,
+  not a blocker). The next numbered phase is **Phase 6 — Advanced
+  motifs**; every remaining roadmap phase is tracked as a task tree
+  under `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

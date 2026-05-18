@@ -450,6 +450,25 @@ sessions.
   primary value is **parser / elaboration coverage** in
   downstream tools, not new synthesis behavior. Cheap, standalone,
   can land early (roughly Phase-3-adjacent).
+
+  **Delivered (Phase 5b, 2026-05-18).** This is implemented as the
+  opt-in `aggregate_prob` knob (default `0.0` → byte-identical).
+  When it fires, a non-instantiated module's contiguous
+  same-direction *data* ports are folded into one packed-`struct`
+  port via a post-construction `Module.aggregate_layout`
+  annotation that the emitter renders as a `typedef struct packed`
+  + a single aggregate port + boundary alias wires/assigns — the
+  flat IR body, validators, CSE and the dedup signature are all
+  untouched (a module and its projected twin dedup-collapse). The
+  scaffold is scoped to `struct packed`, to non-instantiated
+  modules, and skips Phase 5 parameterized modules; `union`/`array`
+  packing, parent-side aggregate connections and the
+  param/aggregate cross-product are recorded follow-on sub-slices.
+  Closed against the `Phase4Hierarchy` matrix gate
+  (`phase5b_packed_aggregate` scenario, downstream-clean — Verilator
+  + both Yosys). See `book/src/knobs.md` `aggregate_prob`,
+  `docs/tasks/PHASE-5B-AGGREGATES.md`, and the `ROADMAP.md` Phase 5b
+  exit criteria.
 - **Unpacked arrays** — `reg [W-1:0] mem [0:D-1]` — is the
   **memory-inference pattern** and is already on the roadmap as
   Phase 6's memory motif. Stresses memory-inference heuristics

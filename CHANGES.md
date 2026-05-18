@@ -1,5 +1,34 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase5b-2.4 — PHASE-5B-AGGREGATES.2.4: real-gate verify → ROADMAP Phase 5b (not started)→(done) + tree closure
+
+**Landed as:** this commit
+
+**What changed**
+
+- **Phase 5b — Synthesizable aggregates is promoted `done`** (phase-label change `(not started)` → `(done)`). `ROADMAP.md` Phase 5b: header `(not started)`→`(done)`, `**Status:** done as of 2026-05-18`, an explicit 3-point **"Exit criteria (met)"** block tied to the verified gate artifact, plus a scope note (StructPacked-only / non-instantiated / `param_env`-skipped are open-ended post-phase sub-slices — deliberate scope cut, not blockers; no mode retired).
+- `docs/tasks/PHASE-5B-AGGREGATES.md`: `.2.4` `pending`→`done` (Verification + Commit filled), `.2.4`/`.2` container and the `PHASE-5B-AGGREGATES` root `active`→`done`, Current Frontier → none, Metadata, Verification/Commit-Log/Changelog `.2.4` rows.
+- `docs/TASK_TREE.md`: `PHASE-5B-AGGREGATES` row `active`→`done`.
+- Book reconciled: `book/src/ir.md` "Synthesizable aggregates" gains a **Delivered (Phase 5b)** note; `book/src/knobs.md` documents `aggregate_prob` (and the previously-undocumented `width_parameterization_prob`) in the config-only knob list + the knob-effectiveness map. `mdbook build book` clean.
+- Synced live docs: `README.md` (Phase 5b done; next is Phase 6), `CODEBASE_ANALYSIS.md` (new `5b — Synthesizable aggregates` phase-coverage row → done), `MEMORY.md` (Phase line → Phase 5b done, Phase 6 next).
+
+**Why**
+
+- `.2.4`'s contract (r87 no-aspirational-claims): a phase is promoted **only** after a real repo-owned downstream gate is run and verified clean — promotion strictly follows the verified artifact.
+
+**Validation**
+
+- Real repo-owned `Phase4Hierarchy` gate (now including `phase5b_packed_aggregate`) ran to completion (background `bifczmcw7`, exit 0). Banked `/tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json` verified CLEAN: `scenario_count` 216, `total_modules` 864, `coverage_gaps` `[]`, Verilator 864/0, `yosys_without_abc` 864/0, `yosys_with_abc` 864/0, `saw_packed_aggregate_design` `true`, `saw_width_parameterized_design` `true` (Phase 5 regression), `saw_recursive_hierarchy_module_dedup_active` `true` (Phase 4 regression).
+- Gate-run + docs/closure only — **no code change** in this leaf. `cargo` gates green from `.2.3` (`6fabd7e`); `mdbook build book` clean.
+
+**Impact**
+
+- Phase 5b is closed. The next numbered roadmap phase is **Phase 6 — Advanced motifs** (`docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`, frontier `PHASE-6-ADVANCED-MOTIFS.1`). No behavioural change to generated RTL (`aggregate_prob` remains default-off / byte-identical).
+
+**Files touched**
+
+- Updated: ROADMAP.md, README.md, CODEBASE_ANALYSIS.md, MEMORY.md, book/src/ir.md, book/src/knobs.md, docs/tasks/PHASE-5B-AGGREGATES.md, docs/TASK_TREE.md, CHANGES.md.
+
 ## 2026-05-17-phase5b-2.3 — PHASE-5B-AGGREGATES.2.3: packed_aggregate matrix scenario + metrics + gap
 
 **Landed as:** 6fabd7e
