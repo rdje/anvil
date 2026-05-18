@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-2.3 — PHASE-6-ADVANCED-MOTIFS.2.3: phase6_inferrable_memory matrix scenario + metric + gap
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs`: `DesignMetrics.num_memory_modules` (count of `Design::modules` with `!memories.is_empty()`), populated in `compute_design`.
+- `src/bin/tool_matrix.rs`: new `phase6_inferrable_memory_focus_config` (a clone of `phase5b_packed_aggregate_focus_config` — depth-1 wrapper, library mode, **exact** dedup/phase5/5b anchor shape: 4 leaves / 4 instances, all hierarchy-routing probs 0.0 — so leaf/child/range/source shape-coverage sets are unperturbed; sole difference `memory_prob = 1.0`, so the rules-first library leaves are inferrable-memory blocks instantiated by the wrapper) + a `phase6_inferrable_memory` scenario tuple; `CoverageSummary.saw_inferrable_memory_design` (set when `config.memory_prob > 0 && num_memory_modules > 0`) + `merge_coverage` + a `Phase4Hierarchy` `compute_coverage_gaps` arm.
+- Bin tests: `scenario_count` 216 → **219**, `total_modules` 864 → **876** (observed deterministically from the run, not guessed); exception-list entry `phase6_inferrable_memory`; `tool_matrix` phase4 bin tests 3/3. New `phase6_inferrable_memory_scenario_is_non_vacuous` bin test proves every `phase6_inferrable_memory` scenario builds ≥1 memory module across all strategies, so `saw_inferrable_memory_design` is reachable and `.2.4`'s gate cannot carry a permanent coverage gap.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.2.3` (r87 no-aspirational-claims): land the gate scenario, metric, coverage fact and gap **before** any ROADMAP advance — that happens only at `.2.4` on a verified downstream-clean artifact.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `tool_matrix` phase4 bin tests 3/3; non-vacuity test green (3/3 strategies build a memory module); full `cargo test` (COMMIT.md gate — see Verification Log). **ROADMAP unchanged** (no phase label change — that is `.2.4`). No `book/` change (reconciliation is `.2.4`).
+
+**Impact**
+
+- The Phase 4 hierarchy matrix now carries a `phase6_inferrable_memory` scenario that exercises inferrable memory downstream; `.2.4` will run the real gate and, only on a clean verified artifact, record memory **delivered** in ROADMAP Phase 6 (Phase 6 stays open for the `.3` FSM motif — no tree closure). Frontier → `PHASE-6-ADVANCED-MOTIFS.2.4`.
+
+**Files touched**
+
+- Updated: src/metrics.rs, src/bin/tool_matrix.rs, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase6-2.2 — PHASE-6-ADVANCED-MOTIFS.2.2: memory inference structural-contract + factorization-opacity proof
 
 **Landed as:** f4ee02f

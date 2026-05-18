@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.2.2` structural-contract + factorization-opacity proof landed; frontier → `.2.3`)
+- Last updated: `2026-05-18` (`.2.3` matrix scenario+metric+gap landed; frontier → `.2.4`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -80,11 +80,11 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.2 memory inference structural-contract + factorization-opacity proof`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.3`
-  Status: `pending`
+  Status: `done`
   Goal: `tool_matrix scenario + metrics + gap (no ROADMAP advance). New phase6_inferrable_memory scenario (dedup/phase5/5b-anchor shape so shape-coverage sets are unperturbed); DesignMetrics.num_memory_modules; CoverageSummary.saw_inferrable_memory_design set + merged + a compute_coverage_gaps arm; bin-test scenario/design counts updated (observed, not guessed) + exception-list entry; non-vacuity test (scenario projects >=1 memory).`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. tool_matrix phase4 bin tests; NO ROADMAP phase label change yet.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/metrics.rs: DesignMetrics.num_memory_modules (count of modules with !memories.is_empty()), populated in compute_design. src/bin/tool_matrix.rs: new phase6_inferrable_memory_focus_config (cloned from phase5b_packed_aggregate_focus_config — depth-1 wrapper, library, EXACT dedup/phase5/5b anchor shape (4 leaves / 4 instances, all routing 0.0) so leaf/child/range/source shape-coverage sets are unperturbed; sole diff memory_prob=1.0 → rules-first library leaves are inferrable-memory blocks instantiated by the wrapper) + phase6_inferrable_memory scenario tuple + CoverageSummary.saw_inferrable_memory_design (set when config.memory_prob>0 && num_memory_modules>0) + merge_coverage + Phase4Hierarchy compute_coverage_gaps arm. Bin tests: scenario_count 216→219, total_modules 864→876 (observed deterministically from the run, not guessed), exception-list entry; tool_matrix phase4 bin tests 3/3. New phase6_inferrable_memory_scenario_is_non_vacuous proves every phase6_inferrable_memory scenario builds ≥1 memory module (coverage fact reachable) — 3/3 strategies. cargo fmt/clippy -D warnings/check --all-targets clean; full cargo test (COMMIT.md gate — Verification Log). ROADMAP unchanged (advance is .2.4). No book/ change.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.3 phase6_inferrable_memory matrix scenario + metric + gap`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.4`
   Status: `pending`
@@ -104,7 +104,7 @@ multi-clock handshakes.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.2.3` | `pending` | `.2.2` done (structural-contract template equivalence + factorization/CSE-opacity on generated output across 4 strategies × 4 factorization levels; tool-level `$mem_v2` proof is `.2.1b` spot-check + `.2.4` gate). `.2.3` lands the `tool_matrix` `phase6_inferrable_memory` scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap + non-vacuity (no ROADMAP advance — that is `.2.4`). |
+| 1 | `PHASE-6-ADVANCED-MOTIFS.2.4` | `pending` | `.2.3` landed the `phase6_inferrable_memory` matrix scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap (bin 216→219 / 864→876; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean), then records memory **delivered** in ROADMAP Phase 6 (Phase 6 stays open for `.3` FSM — no tree closure) + reconciles the book — promotion strictly follows the verified artifact (r87 no-aspirational-claims). |
 
 ## Decisions
 
@@ -184,6 +184,7 @@ multi-clock handshakes.
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.1a` | IR core (`MemId`/`MemKind`/`Memory`/additive `Module.memories`/opaque `Node::MemRead`/`DepAtom::MemVirtual`/`from_mem_virtual`/`has_local_memories`) + `MemRead` threaded through all ~21 exhaustive `Node` matches (compiler-as-oracle, mirrors `FlopQ`); **load-bearing `compact.rs` reachability** (a live `MemRead` keeps `mem.{we,waddr,wdata,raddr}` cones alive; `StructuralNodeShape`/`LeafEndpoint::MemRead`); emitter inferrable template (`mem_<id>` array + `memrd_<id>` + reset-less `always_ff @(posedge clk)`); validator memory step-5b. 3 unit proofs (roundtrip+validate+emit; **compaction-reachability**; structural-distinctness/CSE-opacity) — `ir::compact::tests` mem 3/3. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No generator/knob ⇒ default-off trivially byte-identical. No `book/` change. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.1b` | `Config::memory_prob` (serde-default 0.0 + validation, mirrors `aggregate_prob`); rules-first `build_memory_leaf` (`clk`/`rst_n`+`we`/`waddr`/`wdata`[+`raddr`] inputs, `rdata` out, one `Memory` kind rolled via `g.rng`, opaque `MemRead` drive; no gates/flops) + single opt-in roll after the Phase 5 param lane (mutually exclusive; default-off never enters). Focused proof `inferrable_memory_is_default_off_and_constructs_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on every single-module design is a 1-`Memory` leaf, validates, emits the inferrable template). Real spot-check (binary seed 3, prob 1.0): `verilator --lint-only` exit 0; yosys `memory_collect` → `1 $mem_v2`; `synth -noabc` & `synth;abc -fast` both `check -assert` clean. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done (closes the `.2.1` container). |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.2` | `tests/pipeline.rs::inferrable_memory_matches_yosys_template_and_is_factorization_opaque` — across 4 `ConstructionStrategy` × 4 `FactorizationLevel` (None/Cse/Commutative/EGraph) × 4 seeds (64 combos): `validate_design` clean; SV is exactly the `.1`-validated Yosys-inferrable form (concrete `mem_0 [0:depth]`, reset-less `always_ff @(posedge clk)`, `if (we) mem_0[..] <= wdata;`, `memrd_0 <= mem_0[..]`); exactly one `MemRead` survives every factorization level + zero expression-graph `Gate` nodes (array/`MemRead` never enter the NodeId graph — CSE/factorization-opaque incl. EGraph). Tool-level `$mem_v2`/Verilator proof is `.2.1b`'s spot-check (interim) + `.2.4`'s real gate (authoritative; cargo can't shell yosys — see Decisions). Default-off byte-identical reaffirmed by the `.2.1b` proof. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done. |
+| `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.3` | `DesignMetrics.num_memory_modules` + populate; `phase6_inferrable_memory_focus_config` (clone of the phase5b/dedup anchor — depth-1 wrapper, library, `memory_prob=1.0`, 4 leaves/4 instances → shape-coverage sets unperturbed) + `phase6_inferrable_memory` scenario tuple; `CoverageSummary.saw_inferrable_memory_design` set/merge + Phase4Hierarchy `compute_coverage_gaps` arm; bin counts 216→219 / 864→876 (observed) + exception-list entry; tool_matrix phase4 bin tests 3/3; new `phase6_inferrable_memory_scenario_is_non_vacuous` proves the scenario builds ≥1 memory module per strategy (coverage fact reachable). `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (advance is `.2.4`). No `book/` change. | Done. |
 
 ## Commit Log
 
@@ -193,6 +194,7 @@ multi-clock handshakes.
 | `PHASE-6-ADVANCED-MOTIFS.2.1a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration` | IR core + `MemRead` through ~21 matches + the load-bearing `compact.rs` reachability + emitter template + validator + 3 unit proofs. No generator/knob (default-off trivially byte-identical). |
 | `PHASE-6-ADVANCED-MOTIFS.2.1b` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf` | Knob + rules-first constructor + opt-in roll (mutually exclusive with the param lane) + focused proof; generated memory spot-checked `1 $mem_v2` + verilator/both-yosys clean. Closes the `.2.1` container. |
 | `PHASE-6-ADVANCED-MOTIFS.2.2` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.2 memory inference structural-contract + factorization-opacity proof` | Cargo-portable structural-template-equivalence + factorization/CSE-opacity (64 combos incl. EGraph); tool-level `$mem_v2` proof = `.2.1b` spot-check + `.2.4` gate. No code change (proof only). |
+| `PHASE-6-ADVANCED-MOTIFS.2.3` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.3 phase6_inferrable_memory matrix scenario + metric + gap` | `num_memory_modules` metric + `phase6_inferrable_memory` scenario + `saw_inferrable_memory_design` fact/gap; bin 216→219 / 864→876; non-vacuity test. No ROADMAP advance (that is `.2.4` on verified evidence). |
 
 ## Changelog
 
@@ -287,3 +289,21 @@ multi-clock handshakes.
   (authoritative, r87). Default-off byte-identical reaffirmed by the
   `.2.1b` proof. Frontier → `.2.3` (matrix scenario + metric + gap,
   no ROADMAP advance).
+- `2026-05-18`: **`.2.3` landed (matrix scenario + metric + gap; no
+  ROADMAP advance).** `src/metrics.rs`
+  `DesignMetrics.num_memory_modules` + populate. `src/bin/tool_matrix.rs`:
+  `phase6_inferrable_memory_focus_config` (clone of the
+  phase5b/dedup anchor — depth-1 wrapper, library, `memory_prob = 1.0`,
+  4 leaves/4 instances so leaf/child/range/source shape sets are
+  unperturbed; the rules-first library leaves are memory blocks
+  instantiated by the wrapper) + `phase6_inferrable_memory` scenario
+  tuple; `CoverageSummary.saw_inferrable_memory_design` set/merge +
+  `Phase4Hierarchy` `compute_coverage_gaps` arm; bin counts
+  216 → 219 / 864 → 876 (observed deterministically) + exception-list
+  entry; tool_matrix phase4 bin tests 3/3. New
+  `phase6_inferrable_memory_scenario_is_non_vacuous` proves every such
+  scenario builds ≥1 memory module so `saw_inferrable_memory_design`
+  is reachable — `.2.4`'s gate cannot carry a permanent coverage gap.
+  ROADMAP unchanged. Frontier → `.2.4` (real-gate verify → ROADMAP
+  memory-delivered note + book reconciliation; Phase 6 stays open for
+  `.3` FSM — no tree closure).

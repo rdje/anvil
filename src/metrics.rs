@@ -296,6 +296,10 @@ pub struct DesignMetrics {
     /// emitter projection (`Module::aggregate_layout.is_some()`). 0 for
     /// every default-off / pre-Phase-5b design.
     pub num_packed_aggregate_modules: usize,
+    /// Phase 6: number of `Design::modules` carrying an inferrable
+    /// `Memory` block (`!Module::memories.is_empty()`). 0 for every
+    /// default-off / pre-Phase-6 design.
+    pub num_memory_modules: usize,
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
@@ -829,6 +833,12 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .iter()
         .filter(|m| m.aggregate_layout.is_some())
         .count();
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.2.3) coverage input.
+    let num_memory_modules = design
+        .modules
+        .iter()
+        .filter(|m| !m.memories.is_empty())
+        .count();
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
@@ -838,6 +848,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_width_parameterized_modules,
         num_param_override_instances,
         num_packed_aggregate_modules,
+        num_memory_modules,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,

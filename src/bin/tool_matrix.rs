@@ -324,6 +324,7 @@ struct CoverageSummary {
     saw_recursive_hierarchy_module_dedup_active: bool,
     saw_width_parameterized_design: bool,
     saw_packed_aggregate_design: bool,
+    saw_inferrable_memory_design: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -1210,6 +1211,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 "phase5b_packed_aggregate",
                 "depth-1 wrapper, library mode, aggregate_prob = 1.0: the never-instantiated top wrapper is given a packed-struct emitter projection (data ports folded into one aggregate port + boundary alias wires); leaves stay flat (scaffold scope). Proves Phase 5b packed-aggregate designs are downstream-clean (PHASE-5B-AGGREGATES.2.3)",
                 phase5b_packed_aggregate_focus_config(strategy, next_seed + 71),
+            ),
+            (
+                "phase6_inferrable_memory",
+                "depth-1 wrapper, library mode, memory_prob = 1.0: the rules-first library leaves are inferrable-memory blocks (synchronous write + registered read) instantiated by the wrapper. Proves Phase 6 inferrable-memory designs are downstream-clean (PHASE-6-ADVANCED-MOTIFS.2.3)",
+                phase6_inferrable_memory_focus_config(strategy, next_seed + 72),
             ),
             (
                 "phase4_recur_d2_registered_sibling_multistage_state",
@@ -2283,6 +2289,44 @@ fn phase5b_packed_aggregate_focus_config(strategy: ConstructionStrategy, seed: u
         num_leaf_modules: 4,
         num_child_instances: 4,
         aggregate_prob: 1.0,
+        min_width: 2,
+        max_width: 8,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
+}
+
+fn phase6_inferrable_memory_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // PHASE-6-ADVANCED-MOTIFS.2.3 anchor scenario. Shaped EXACTLY like the
+    // phase5 / dedup anchor (depth-1 wrapper, library child-sourcing,
+    // 4 leaves / 4 instances, all hierarchy-routing probabilities 0.0,
+    // purely combinational) so the matrix's leaf/child/range/source
+    // shape-coverage sets are unperturbed — only the scenario and
+    // module counts grow. The single difference from
+    // `phase5_width_parameterization_focus_config` is
+    // `memory_prob = 1.0` instead of width parameterization: the
+    // rules-first library leaves are inferrable-memory blocks
+    // (synchronous write + registered read) instantiated by the
+    // wrapper. Suffix `phase6_inferrable_memory` is in the matrix
+    // unit-test exception list at the bottom of this file.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 4,
+        memory_prob: 1.0,
         min_width: 2,
         max_width: 8,
         flop_prob: 0.0,
@@ -5439,6 +5483,8 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             && design.metrics.num_param_override_instances > 0;
         coverage.saw_packed_aggregate_design |=
             scenario.config.aggregate_prob > 0.0 && design.metrics.num_packed_aggregate_modules > 0;
+        coverage.saw_inferrable_memory_design |=
+            scenario.config.memory_prob > 0.0 && design.metrics.num_memory_modules > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -5751,6 +5797,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
         src.saw_recursive_hierarchy_module_dedup_active;
     dst.saw_width_parameterized_design |= src.saw_width_parameterized_design;
     dst.saw_packed_aggregate_design |= src.saw_packed_aggregate_design;
+    dst.saw_inferrable_memory_design |= src.saw_inferrable_memory_design;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -6785,6 +6832,12 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_inferrable_memory_design {
+        gaps.push(
+            "matrix never proved a downstream-clean design with an inferrable memory (PHASE-6-ADVANCED-MOTIFS.2.3)"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -7284,7 +7337,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 864);
+        assert_eq!(plan.total_modules, 876);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -7383,10 +7436,11 @@ mod tests {
                     || scenario.name.ends_with("phase4_hier1_module_dedup_active")
                     || scenario.name.ends_with("phase5_width_parameterized")
                     || scenario.name.ends_with("phase5b_packed_aggregate")
+                    || scenario.name.ends_with("phase6_inferrable_memory")
             );
         }
-        assert_eq!(scenarios.len(), 216);
-        assert_eq!(names.len(), 216);
+        assert_eq!(scenarios.len(), 219);
+        assert_eq!(names.len(), 219);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -7519,6 +7573,41 @@ mod tests {
             projected, checked,
             "every phase5b_packed_aggregate scenario must project ≥1 module \
              (got {projected}/{checked}); the coverage fact would be unreachable"
+        );
+    }
+
+    #[test]
+    fn phase6_inferrable_memory_scenario_is_non_vacuous() {
+        // PHASE-6-ADVANCED-MOTIFS.2.3: the `phase6_inferrable_memory`
+        // anchor must actually produce ≥1 `Memory`-bearing module
+        // (the rules-first library leaves), otherwise the
+        // `saw_inferrable_memory_design` coverage fact would be
+        // unreachable and `.2.4`'s gate would carry a permanent
+        // coverage gap. Proven here so the scenario cannot silently go
+        // vacuous.
+        let scenarios =
+            build_scenarios(0, ScenarioSet::Phase4Hierarchy).expect("build phase4 scenarios");
+        let mut checked = 0usize;
+        let mut with_memory = 0usize;
+        for scenario in &scenarios {
+            if !scenario.name.ends_with("phase6_inferrable_memory") {
+                continue;
+            }
+            checked += 1;
+            assert_eq!(scenario.config.memory_prob, 1.0);
+            let design = Generator::new(scenario.config.clone()).generate_design();
+            anvil::ir::validate::validate_design(&design)
+                .expect("phase6 anchor design must validate");
+            let m = anvil::metrics::compute_design(&design);
+            if m.num_memory_modules > 0 {
+                with_memory += 1;
+            }
+        }
+        assert!(checked > 0, "phase6_inferrable_memory scenario must exist");
+        assert_eq!(
+            with_memory, checked,
+            "every phase6_inferrable_memory scenario must build ≥1 memory module \
+             (got {with_memory}/{checked}); the coverage fact would be unreachable"
         );
     }
 
