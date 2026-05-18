@@ -637,6 +637,32 @@ This entry is design-only and is itself task-tree owned
 consistent with the task-tree-ownership doctrine's code/not-code
 boundary.
 
+**As-built — `.2a` IR + evaluator (2026-05-19).** `.2` split into
+`.2a` (IR + evaluator/oracle) / `.2b` (SV + manifest emitters) /
+`.2c` (parity harness + gate). `.2a` landed as a **new separate
+top-level module `src/microdesign/`** (`pub mod microdesign` in
+`src/lib.rs`) — *not* under `src/ir/`, exactly as the design's
+rejected-alternative (A) requires (the gate-level circuit IR has no
+parameter/localparam/expression concept; it must stay a separate
+generator path). Concrete shape decisions worth recording: the
+const-expr value type is **`i128`** (the rules-first builder keeps
+every intermediate well inside it, so the oracle is *trivially
+exact*; width-sized truncation against declared port/param widths is
+deferred to `.2b` where widths exist — `.2a` is purely the value
+DAG). `eval()` is total except two **defensive** `EvalError`s
+(`DivByZero`, `UndefinedParam`) that the rules-first builder never
+triggers but a hand-malformed unit must classify rather than panic;
+shift amounts are clamped `[0,127]` so a (builder-impossible) huge
+amount cannot panic Rust's shift. `resolve()` *is* the oracle: it
+runs once at construction time and fills every `ParamDecl.value`;
+the load-bearing `.2a` invariant (unit-proven) is that this stored
+value never drifts from a fresh re-evaluation of its expression over
+the resolved prefix — that equality is *why* `.2b` can emit both the
+SV and the JSON manifest from `value` without a second analysis pass
+or a re-parse. `build_constexpr_unit(seed,n)` uses the project
+ChaCha8 convention verbatim (`ChaCha8Rng::seed_from_u64`, no
+`thread_rng`).
+
 ### Phase 8 frontend/elaboration accept-corpus source-IR design (2026-05-18, PHASE-8-FRONTEND-ACCEPT.1)
 
 Design-only slice. No code. Lifts ROADMAP Phase 8 ("frontend/

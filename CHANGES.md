@@ -1,8 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-2.4 — PHASE-6-ADVANCED-MOTIFS.2.4: memory delivered (verified gate + ROADMAP/book reconcile); `.2` container CLOSED
+## 2026-05-19-phase7-2a — PHASE-7-ORACLE-MICRODESIGN.2a: const-expr/parameter IR + construction-time evaluator (the oracle)
 
 **Landed as:** this commit
+
+**What changed**
+
+- New separate top-level module `src/microdesign/mod.rs`
+  (`pub mod microdesign` in `src/lib.rs`) — Phase 7's source-level
+  const-expr / parameter IR + construction-time evaluator.
+  Deliberately **not** under `src/ir/`: the gate-level circuit IR has
+  no parameter/localparam/expression concept (the category error
+  `.1` rejected); Phase 7 is a separate generator path.
+- IR: `ConstExpr` (`Lit`/`Param`/`Unary`/`Bin`/`Ternary`), `UnOp`,
+  `BinOp` (full integer/bitwise/shift/compare/logical set),
+  `ParamKind` (`Parameter`/`Localparam`), `ParamDecl` (with the
+  construction-time-resolved `value` — *the oracle*),
+  `ConstExprUnit` (an ordered forward-ref-free parameter/localparam
+  dependency DAG).
+- Evaluator: `eval()` (bounded SV-constant-expression `i128`
+  semantics — truncating div/mod toward zero, clamped shift,
+  comparisons/logicals → 1/0; defensive `EvalError{UndefinedParam,
+  DivByZero}`); `resolve()` fills every `ParamDecl.value` in
+  declaration order — run once at construction time, the single
+  source of truth `.2b`'s SV + manifest will read.
+- `build_constexpr_unit(seed, n)`: a rules-first reproducible builder
+  (`ChaCha8Rng::seed_from_u64`, project convention, no `thread_rng`)
+  — literal root + earlier-decl chains / precedence-sensitive /
+  ternary, resolved in place (the builder *is* the oracle: no
+  analysis pass, no re-parse).
+- 4 inline unit proofs: `eval_matches_known_values`,
+  `eval_reports_div_by_zero_and_undefined_param`,
+  `build_is_reproducible_and_seed_sensitive`, and the load-bearing
+  `stored_values_are_consistent_with_a_fresh_reeval` (the oracle
+  never drifts from its expressions).
+
+**Why**
+
+- `PHASE-7-ORACLE-MICRODESIGN.2a` — the foundational IR + oracle for
+  the oracle-backed micro-design lane; `.2b` (SV + JSON manifest
+  emitters), `.2c` (parity harness + gate), `PHASE-8-FRONTEND-
+  ACCEPT.2` and the Phase-9 manifest plumbing all reuse this
+  evaluator core. Resumed active PNT on your "continue" (the
+  zero-contention work was exhausted; this is the next unblocked
+  frontier).
+
+**Validation**
+
+- 4 microdesign unit proofs green; `cargo fmt --all --check` /
+  `cargo clippy --all-targets -- -D warnings` / `cargo check
+  --all-targets` clean; full `cargo test` green incl. the new
+  module (lib 221→225; COMMIT.md gate). No SV/manifest emit, no
+  harness (`.2b`/`.2c`). No ROADMAP/`book/` change. (Runs
+  concurrently with the `.3.4b` Phase-6 gate — accepted per
+  continuous-PNT; the gate is bounded.)
+
+**Impact**
+
+- Phase 7 has a working, reproducible, unit-proven IR + oracle;
+  `.2b` is unblocked. No ROADMAP advance (Phase 7 closes at `.2c`'s
+  verified gate, r87).
+
+**Files touched**
+
+- `src/microdesign/mod.rs` (new); `src/lib.rs`;
+  `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `DEVELOPMENT_NOTES.md`; `CODEBASE_ANALYSIS.md`; `CHANGES.md`;
+  `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-2.4 — PHASE-6-ADVANCED-MOTIFS.2.4: memory delivered (verified gate + ROADMAP/book reconcile); `.2` container CLOSED
+
+**Landed as:** 8836522
 
 **What changed**
 

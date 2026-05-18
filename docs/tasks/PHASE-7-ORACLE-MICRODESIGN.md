@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 7 — Oracle-backed micro-design artifacts
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.2` split → `.2a`/`.2b`/`.2c`; frontier → `.2a`)
+- Last updated: `2026-05-19` (`.2a` const-expr IR + evaluator/oracle landed; frontier → `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,11 +54,11 @@ checks.
   Children: `PHASE-7-ORACLE-MICRODESIGN.2a`, `PHASE-7-ORACLE-MICRODESIGN.2b`, `PHASE-7-ORACLE-MICRODESIGN.2c`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2a`
-  Status: `pending`
+  Status: `done`
   Goal: `The source-level const-expr/parameter IR + the construction-time evaluator (the oracle). A small typed parameter+localparam dependency DAG of integer constant expressions with their evaluated values (wide-int semantics matching SV constant-expression rules for the bounded integer subset), reproducible from (seed, knobs) via the existing ChaCha8 stream. Separate generator path; NOT threaded through the gate-level circuit IR. Unit-proven: the evaluator's resolved values match by construction; reproducible byte-stable IR for a fixed seed. No SV/manifest emit yet, no harness.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; new const-expr IR + evaluator with unit proofs (evaluation correctness on a curated expr set incl. precedence/width/localparam-chain cases; reproducibility); no emit/harness; no ROADMAP advance; no book/ change.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `New separate top-level module src/microdesign/mod.rs (registered pub mod microdesign in src/lib.rs; deliberately NOT in src/ir/ — the circuit IR has no param/localparam/expr concept; the category error .1 rejected). IR: ConstExpr{Lit(i128),Param(name),Unary(UnOp{Neg,BitNot,LogNot}),Bin(BinOp{Add,Sub,Mul,Div,Mod,Shl,Shr,BitAnd,BitOr,BitXor,Eq,Ne,Lt,Gt,Le,Ge,LogAnd,LogOr}),Ternary}; ParamDecl{name,kind:Parameter|Localparam,expr,value:i128 (the construction-time-resolved oracle)}; ConstExprUnit{params:Vec<ParamDecl>} = an ordered forward-ref-free dependency DAG. Construction-time evaluator: eval() (SV-constant-expr-style — truncating div/mod toward zero, clamped shift, comparisons/logicals→1/0; defensive EvalError{UndefinedParam,DivByZero}); resolve() fills every ParamDecl.value in declaration order = THE ORACLE (run once at construction; .2b's SV+manifest will read these, never re-derive). build_constexpr_unit(seed,n) = rules-first reproducible builder (ChaCha8::seed_from_u64, project convention, no thread_rng): decl 0 a literal root, each later decl an expr over earlier decls + small literals (parameter/localparam chains, precedence-sensitive a+b*c, ternary-over-comparison), resolved in place (builder IS the oracle — no analysis pass/re-parse). 4 unit proofs green: eval_matches_known_values (precedence 2+3*4=14, (5<<2)|1=21, cmp/logical→1/0, trunc div/mod -7/2=-3 rem -1, ternary+unary, localparam chain A=5;B=A*2;C=B+A→5,10,15), eval_reports_div_by_zero_and_undefined_param (defensive paths), build_is_reproducible_and_seed_sensitive (byte-identical per seed across {0,1,7,42,12345}; distinct seeds differ), stored_values_are_consistent_with_a_fresh_reeval (the load-bearing invariant: stored oracle value == fresh re-eval of each decl's expr over the resolved prefix, seeds 0..16; decl 0 is always Parameter). cargo fmt --all --check / clippy --all-targets -- -D warnings / check --all-targets clean; full cargo test green (COMMIT.md gate). No SV/manifest emit, no harness (.2b/.2c). No ROADMAP/book change.`
+  Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2b`
   Status: `pending`
@@ -78,7 +78,7 @@ checks.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-7-ORACLE-MICRODESIGN.2a` | `pending` | `.1` design done; `.2` **split** into `.2a` (const-expr/parameter IR + construction-time evaluator/oracle), `.2b` (SV + JSON-manifest emitters behind an artifact-family flag), `.2c` (parity harness + repo-owned gate → ROADMAP Phase 7). `.2a` is the foundational, independently-reviewable IR+evaluator slice (unit-proven, no emit/harness). Unblocked code slice; PHASE-8/9 `.2` reuse this evaluator/manifest core (sequence after). |
+| 1 | `PHASE-7-ORACLE-MICRODESIGN.2b` | `pending` | `.2a` **done** — `src/microdesign/` const-expr/parameter IR + construction-time evaluator/oracle landed (4 unit proofs green incl. the oracle-no-drift invariant; reproducible; full `cargo test` green; no emit/harness). `.2b` adds the SV emitter (`rtl_const_expr` family — param/localparam chains, expr-derived widths/ranges, generate if/for, package-qualified constants, precedence-sensitive expressions) + the JSON expected-facts manifest emitter, **both from the same evaluated IR**, behind an explicit artifact-family flag (default-off ⇒ DUT lane byte-identical). Unblocked code slice; PHASE-8.2 / Phase-9 reuse this evaluator+manifest core. |
 
 ## Decisions
 
@@ -125,6 +125,7 @@ checks.
 | --- | --- | --- | --- |
 | `2026-05-18` | `PHASE-7-ORACLE-MICRODESIGN.1` | `DEVELOPMENT_NOTES.md` Phase 7 design entry landed (conceptual shift; codebase grounding — own source-level const/param IR, separate generator path; `rtl_const_expr` family; expected-facts JSON schema; oracle-by-construction generation; reproducibility; new parity harness; Phase-8/9 boundaries; 4 rejected alternatives; `.2` split). Design-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `5db4ac9` (no `src/`/`tests/` touched). | Done. |
 | `2026-05-18` | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `.2` made a container with children `.2a` (const-expr/parameter IR + construction-time evaluator/oracle), `.2b` (SV + JSON-manifest emitters behind an artifact-family flag), `.2c` (parity harness + repo-owned gate → ROADMAP Phase 7) — the exact independently-reviewable boundaries `.1`'s design named. Tree-planning, docs-only; no `src/`/`tests/` (cargo unchanged-green vs base `e550db1`). | Done. Frontier → `.2a`. |
+| `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2a` | New separate top-level `src/microdesign/mod.rs` (`pub mod microdesign`; not in `src/ir/`): `ConstExpr`/`UnOp`/`BinOp`/`ParamKind`/`ParamDecl`(+`value` oracle)/`ConstExprUnit` IR; `eval()` (SV-constant-expr semantics — trunc div/mod, clamped shift, cmp/logical→1/0, defensive `EvalError`); `resolve()` = the construction-time oracle (fills every value in decl order); `build_constexpr_unit(seed,n)` rules-first reproducible builder (`ChaCha8::seed_from_u64`, no `thread_rng`; literal root + earlier-decl chains/precedence/ternary; resolved in place). 4 unit proofs green: `eval_matches_known_values`, `eval_reports_div_by_zero_and_undefined_param`, `build_is_reproducible_and_seed_sensitive`, `stored_values_are_consistent_with_a_fresh_reeval` (the oracle-no-drift invariant). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No SV/manifest emit, no harness; no ROADMAP/book change. | Done. Frontier → `.2b`. |
 
 ## Commit Log
 
@@ -132,6 +133,7 @@ checks.
 | --- | --- | --- |
 | `PHASE-7-ORACLE-MICRODESIGN.1` | `Docs: PHASE-7-ORACLE-MICRODESIGN.1 oracle-backed micro-design artifact-family design` | Design-only; expected-facts JSON schema + oracle-by-construction strategy + new parity harness + 4 rejected alternatives. No code. |
 | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2 into .2a (IR+evaluator) / .2b (emitters) / .2c (parity gate)` | Tree-planning, no code. Boundaries per `.1`'s named split candidates. |
+| `PHASE-7-ORACLE-MICRODESIGN.2a` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)` | New `src/microdesign/` IR + evaluator/oracle + reproducible rules-first builder; 4 unit proofs; no emit/harness. |
 
 ## Changelog
 
@@ -171,3 +173,30 @@ checks.
   evaluator/manifest core is the reuse `PHASE-8-FRONTEND-ACCEPT.2`
   and the Phase-9 plumbing depend on. `cargo` unchanged-green vs
   `e550db1`. Frontier → `.2a`.
+- `2026-05-19`: **`.2a` landed** — the foundational Phase 7 IR +
+  oracle. New separate top-level module `src/microdesign/mod.rs`
+  (`pub mod microdesign` in `src/lib.rs`; deliberately *not* in
+  `src/ir/` — the circuit IR has no parameter/localparam/expression
+  concept, the category error `.1` rejected). `ConstExpr` AST
+  (`Lit`/`Param`/`Unary`/`Bin`/`Ternary`), `ParamDecl` with the
+  construction-time-resolved `value` (the oracle),
+  `ConstExprUnit` (an ordered forward-ref-free parameter/localparam
+  dependency DAG). `eval()` implements the bounded SV
+  constant-expression integer semantics (truncating div/mod,
+  clamped shift, comparisons/logicals → 1/0; defensive
+  `EvalError`). `resolve()` = the **oracle**: fills every
+  `ParamDecl.value` in declaration order, run once at construction
+  time (`.2b`'s SV + manifest will read these, never re-derive).
+  `build_constexpr_unit(seed, n)` = a rules-first reproducible
+  builder (`ChaCha8::seed_from_u64`, project convention, no
+  `thread_rng`): literal root + earlier-decl chains / precedence /
+  ternary, resolved in place (the builder *is* the oracle — no
+  analysis pass, no re-parse). 4 unit proofs green incl. the
+  load-bearing `stored_values_are_consistent_with_a_fresh_reeval`
+  invariant (the stored oracle value never drifts from its expr)
+  and `build_is_reproducible_and_seed_sensitive`. `cargo fmt
+  --all --check` / `clippy --all-targets -- -D warnings` /
+  `check --all-targets` clean; full `cargo test` green incl. the
+  new module (COMMIT.md gate). No SV/manifest emit, no harness
+  (`.2b`/`.2c`); no ROADMAP/book change. Frontier → `.2b`
+  (SV + JSON-manifest emitters from this evaluated IR).

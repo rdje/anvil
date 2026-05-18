@@ -10,6 +10,12 @@ pub mod emit;
 pub mod gen;
 pub mod ir;
 pub mod metrics;
+/// Phase 7 oracle-backed micro-design lane (`PHASE-7-ORACLE-MICRODESIGN`).
+/// A **separate generator path** from the DUT lane: a source-level
+/// const-expr / parameter IR + construction-time evaluator (the
+/// oracle). Deliberately not threaded through the gate-level circuit
+/// IR (`ir`).
+pub mod microdesign;
 
 pub use config::Config;
 pub use gen::{Generator, GeneratorCheckpoint};
