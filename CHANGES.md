@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-book-examples-2.2 — BOOK-EXAMPLES-RUNNABLE.2.2: book-examples harness + embedded migration + mdbook-test CI (tree CLOSED)
 
-**Landed as:** this commit
+**Landed as:** 0b799b6
 
 **What changed**
 
