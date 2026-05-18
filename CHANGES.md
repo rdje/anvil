@@ -1,8 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-insta-1 — INSTA-SNAPSHOTS.1: insta dev-dep pin + tests/snapshots.rs baseline
+## 2026-05-18-insta-2 — INSTA-SNAPSHOTS.2: expand snapshots to 6 shapes (on-demand / sibling / parent-composed / dedup)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tests/snapshots.rs`: expanded from 2 → **6** fully-deterministic
+  `(seed, config)` snapshot shapes, adding `bounded_recursive_ondemand`
+  (`HierarchyChildSourceMode::OnDemand`), `sibling_route`
+  (`hierarchy_sibling_route_prob = 1.0` — helper-instance/sibling
+  route), `parent_composed_route` (`hierarchy_child_input_cone_prob =
+  1.0` + `hierarchy_parent_cone_instance_prob = 1.0`), and
+  `dedup_canonical_signatures` (the dedup proof base +
+  `hierarchy_module_dedup = true` — exercises
+  `canonical_module_signatures` + the post-finalisation
+  instance-rewrite). Each config proven from the corresponding
+  `tests/pipeline.rs` shape; fixed seed / exact `min == max` bounds /
+  fixed `ConstructionStrategy::Sequential` ⇒ byte-stable.
+- `tests/snapshots/snapshots__bounded_recursive_ondemand.snap`,
+  `…__sibling_route.snap`, `…__parent_composed_route.snap`,
+  `…__dedup_canonical_signatures.snap`: the 4 new accepted baselines.
+
+**Why**
+
+- `INSTA-SNAPSHOTS.2` — cover the reachable generation axes so any
+  drift in library/on-demand sourcing, helper-instance/sibling or
+  parent-composed routing, or dedup instance-rewrite breaks a
+  snapshot. The dedup shape specifically guards
+  `HIERARCHY-AWARE-IDENTITY` follow-up work. Continuous-PNT while
+  Phase 6 `.2.4`/`.3.4b` are gate-blocked; one contained
+  cargo-test slice.
+
+**Validation**
+
+- Generated via `INSTA_UPDATE=always cargo test --test snapshots`,
+  then **re-run without update → all 6 pass** (byte-stability).
+  `cargo fmt --all --check` / `cargo clippy --all-targets --
+  -D warnings` clean; full `cargo test` green incl. the snapshots
+  binary, **no other test regressed** (COMMIT.md gate). No `book/`
+  change (`.3` documents the acceptance protocol). ≥5-shapes
+  acceptance met (6 distinct shapes spanning every listed axis).
+
+**Impact**
+
+- Reproducibility drift is now guard-railed across all reachable
+  generation modes; `.3` (COMMIT.md checklist + book protocol —
+  closes the INSTA-SNAPSHOTS tree) is unblocked. No ROADMAP change
+  (Quality lane).
+
+**Files touched**
+
+- `tests/snapshots.rs`; the 4 new `tests/snapshots/*.snap`;
+  `docs/tasks/INSTA-SNAPSHOTS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-insta-1 — INSTA-SNAPSHOTS.1: insta dev-dep pin + tests/snapshots.rs baseline
+
+**Landed as:** d00bfe3
 
 **What changed**
 

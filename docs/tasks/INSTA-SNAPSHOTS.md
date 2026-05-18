@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — reproducibility regressions
 - Created: `2026-05-14`
-- Last updated: `2026-05-18` (`.1` landed — insta pinned + baseline snapshots; frontier → `.2`)
+- Last updated: `2026-05-18` (`.2` landed — 6 byte-stable snapshot shapes; frontier → `.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -61,11 +61,11 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
   Commit: `Quality: INSTA-SNAPSHOTS.1 insta dev-dep pin + tests/snapshots.rs baseline (leaf + bounded recursive)`
 
 - ID: `INSTA-SNAPSHOTS.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Expand snapshots to cover library/on-demand child sourcing, helper-instance routes, registered/parent-composed routes, and at least one design that exercises canonical_module_signatures (so dedup follow-up work in HIERARCHY-AWARE-IDENTITY can detect snapshot drift caused by dedup).`
   Acceptance: `Snapshots cover ≥5 distinct (seed, config) shapes spanning the listed axes; cargo insta test green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `tests/snapshots.rs expanded from 2 → 6 fully-deterministic snapshot shapes (≥5, spanning all listed axes): (1) canonical_leaf [.1], (2) bounded_recursive_library [.1 — library child sourcing], (3) bounded_recursive_ondemand [HierarchyChildSourceMode::OnDemand — the other child-sourcing axis], (4) sibling_route [hierarchy_sibling_route_prob=1.0 — helper-instance/sibling route], (5) parent_composed_route [hierarchy_child_input_cone_prob=1.0 + hierarchy_parent_cone_instance_prob=1.0 — parent-composed via parent-cone helper instance], (6) dedup_canonical_signatures [the dedup proof base + hierarchy_module_dedup=true — exercises canonical_module_signatures + the post-finalisation instance-rewrite, so HIERARCHY-AWARE-IDENTITY dedup drift breaks this snapshot]. Every config is fully deterministic (fixed seed, exact min==max bounds where applicable, fixed ConstructionStrategy::Sequential for the route/dedup shapes); each proven from the corresponding tests/pipeline.rs config. emit() asserts cfg.validate() + validate_design() before snapshotting. Baselines generated via INSTA_UPDATE=always then RE-RUN without update → all 6 pass (byte-stable); 4 new tests/snapshots/snapshots__*.snap committed. cargo fmt --all --check / clippy --all-targets -- -D warnings clean; full cargo test green incl. the snapshots binary, no other test regressed (COMMIT.md gate). No book/ change (.3 documents the protocol).`
+  Commit: `Quality: INSTA-SNAPSHOTS.2 expand snapshots to 6 shapes (on-demand / sibling / parent-composed / dedup)`
 
 - ID: `INSTA-SNAPSHOTS.3`
   Status: `pending`
@@ -78,7 +78,7 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `INSTA-SNAPSHOTS.2` | `pending` | `.1` **done** — `insta` pinned `=1.47.2`; `tests/snapshots.rs` baseline (canonical leaf + bounded recursive library) generated, stable on re-run, full suite green. `.2` expands to ≥5 shapes spanning library/on-demand child sourcing, helper-instance routes, registered/parent-composed routes, and a `canonical_module_signatures`-exercising design (so dedup drift is detectable). Unblocked; one cargo-test slice. |
+| 1 | `INSTA-SNAPSHOTS.3` | `pending` | `.2` **done** — `tests/snapshots.rs` now has 6 byte-stable shapes (canonical leaf / recursive library / recursive on-demand / sibling-route / parent-composed / dedup-canonical-signatures), full suite green. `.3` adds `cargo insta test` to `COMMIT.md`'s pre-commit checklist + documents the snapshot-acceptance protocol (changing a snapshot is a deliberate `cargo insta accept`, not an accident) in `book/src/`. Docs/workflow only — closes the INSTA-SNAPSHOTS tree; low gate-contention. |
 
 ## Decisions
 
@@ -98,12 +98,14 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-18` | `INSTA-SNAPSHOTS.1` | `insta` pinned `=1.47.2` (Cargo.lock unchanged); `tests/snapshots.rs` with `snapshot_canonical_leaf` + `snapshot_bounded_recursive_library` (fixed deterministic configs, validate+validate_design before snapshot). Baselines via `INSTA_UPDATE=always` then **re-run without update → both pass** (byte-stable). `cargo fmt --all --check` / `clippy --all-targets -- -D warnings` clean; full `cargo test` green incl. the new binary, no regression. | Done. Frontier → `.2`. |
+| `2026-05-18` | `INSTA-SNAPSHOTS.2` | `tests/snapshots.rs` 2 → 6 deterministic shapes: + `bounded_recursive_ondemand` (OnDemand child sourcing), `sibling_route` (helper-instance/sibling route), `parent_composed_route` (parent-cone-instance + child-input-cone), `dedup_canonical_signatures` (dedup base + `hierarchy_module_dedup=true` — exercises `canonical_module_signatures` + instance-rewrite). Fixed seeds / `min==max` bounds / `Sequential` strategy ⇒ byte-stable; generated via `INSTA_UPDATE=always` then **re-run → all 6 pass**. `cargo fmt --all --check` / `clippy --all-targets -- -D warnings` clean; full `cargo test` green, no regression. | Done. ≥5-shapes acceptance met; frontier → `.3`. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `INSTA-SNAPSHOTS.1` | `Quality: INSTA-SNAPSHOTS.1 insta dev-dep pin + tests/snapshots.rs baseline (leaf + bounded recursive)` | `insta = "=1.47.2"`; 2 deterministic snapshots; stable on re-run; full suite green. |
+| `INSTA-SNAPSHOTS.2` | `Quality: INSTA-SNAPSHOTS.2 expand snapshots to 6 shapes (on-demand / sibling / parent-composed / dedup)` | +4 deterministic shapes spanning all listed axes; 6/6 byte-stable; full suite green. |
 
 ## Changelog
 
@@ -120,3 +122,17 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
   Questions touching `.1` resolved (one `snapshots.rs` driving
   per-test `.snap` files under `tests/snapshots/`). Frontier → `.2`
   (expand to ≥5 shapes).
+- `2026-05-18`: **`.2` landed** (continuous-PNT while Phase 6
+  `.2.4`/`.3.4b` gate-blocked). `tests/snapshots.rs` 2 → 6
+  fully-deterministic shapes covering every listed axis: library
+  *and* on-demand child sourcing, helper-instance/sibling route,
+  parent-composed (parent-cone-instance) route, and a
+  `hierarchy_module_dedup`-on design exercising
+  `canonical_module_signatures` (so `HIERARCHY-AWARE-IDENTITY` dedup
+  drift breaks a snapshot). Each config proven from the
+  corresponding `tests/pipeline.rs` shape; fixed seed / `min==max`
+  bounds / `Sequential` strategy ⇒ byte-stable (generated via
+  `INSTA_UPDATE=always`, re-verified on plain re-run, all 6 pass).
+  Full `cargo test` green, no regression. Frontier → `.3`
+  (`COMMIT.md` checklist + book acceptance-protocol — closes the
+  tree).
