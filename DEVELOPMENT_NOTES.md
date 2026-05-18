@@ -786,6 +786,116 @@ This entry is design-only and is itself task-tree owned
 (`PHASE-8-FRONTEND-ACCEPT.1`); it makes no code change, consistent
 with the task-tree-ownership doctrine's code/not-code boundary.
 
+### Phase 9 multi-artifact umbrella selector design (2026-05-18, PHASE-9-MULTI-ARTIFACT-UMBRELLA.1)
+
+Design-only slice. No code. Lifts ROADMAP Phase 9 ("multi-artifact
+ANVIL umbrella — an artifact-family selector with shared plumbing")
+into a concrete plan: the lane interface, the shared
+reproducibility/manifest/seed/output/check contract, the
+CLI/selector surface, the lane-migration plan, rejected
+alternatives, the `.2` proof shape + split. Designed *now* (per the
+tree's 2026-05-16 Decision) so Phases 7/8 are built
+selector-compatible rather than retrofitted.
+
+**The point (and the explicit anti-goal).** Phase 9 makes one tool
+drive every valid-by-construction lane *with the lanes kept
+separate*. The anti-goal it exists to prevent: collapsing into "one
+generator that emits random SV files" with contradictory promises.
+The lane *interface* unifies **plumbing** (seed, knobs,
+reproducibility, manifest, output layout, downstream dispatch); it
+does **not** merge the generators.
+
+**The lanes.**
+
+- **L1 — DUT RTL** (Phases 1–6): structurally-valid random
+  synthesizable RTL; oracle = lint/elaborate/synth-clean (the
+  `tool_matrix` gate). Generator = `build_cone`/hierarchy; circuit
+  IR. **No semantic manifest** (deliberate — "structural, not
+  meaningful").
+- **L2 — oracle-backed micro-design** (Phase 7): tiny const-expr
+  `.sv` + expected-facts manifest; oracle = fact agreement (parity).
+  Const/param IR.
+- **L3 — frontend/elaboration accept** (Phase 8): compact
+  un-elaborated hierarchies + elaborated-facts manifest; oracle =
+  elaboration-fact agreement (hierarchy parity). Source AST IR.
+- Future valid synthesizable lanes plug in via the same contract.
+
+**Lane interface (the abstraction).**
+
+```
+trait ArtifactLane {
+    fn name(&self) -> &str;                 // "dut" | "oracle-microdesign" | "frontend-accept"
+    fn validate_knobs(&self, &Config) -> Result<(), ConfigError>; // lane-scoped only
+    fn generate(&self, seed, &Config) -> Corpus;   // (seed,knobs) -> byte-stable artifacts
+    fn manifest(&self, &Corpus) -> Option<Manifest>;// None for L1 (first-class, not a hack)
+    fn check_plan(&self, &Corpus) -> CheckPlan;     // SynthAccept (L1) | ParityVsManifest (L2/L3)
+}
+```
+
+Shared plumbing the umbrella owns (never duplicated per lane):
+ChaCha8 seed→artifact derivation + byte-stable cross-platform output
+(today's doctrine, centralized); the JSON manifest emitter + schema
+versioning (Phase 7 core; `Option` so L1's absence is typed, not a
+sentinel); a lane-scoped knob namespace (each lane validates only
+its knobs; cross-lane knob bleed is rejected); a uniform on-disk
+layout (`<out>/<lane>/<scenario>/… [+ manifest.json]`); a uniform
+`CheckPlan` the repo-owned gate dispatches (synth-accept for L1,
+parity-vs-manifest for L2/L3).
+
+**CLI/selector surface — Open-Question resolution.** **Resolved**:
+a top-level **`--artifact <lane>` flag on the existing `anvil`
+binary, default `dut`**. Default-`dut` ⇒ every current invocation,
+the entire book, and CI keep working **byte-identically** (this is
+load-bearing — `BOOK-EXAMPLES-RUNNABLE` made hundreds of
+`cargo run --release -- …` examples a CI-gated contract; a
+subcommand-only redesign would regress all of them). `--artifact
+oracle-microdesign` / `--artifact frontend-accept` opt into L2/L3.
+`tool_matrix` stays the L1 gate harness; the umbrella adds lane
+dispatch, not a rewrite. Rejected forms recorded below.
+
+**Lane-migration plan.** L1 is wrapped as the **default** lane with
+**zero behaviour change**: `DutLane::generate` *is* today's
+`generate_design`; the default selector reproduces every existing
+seed byte-identically (a hard regression gate in `.2`). L2/L3 are
+built against this `ArtifactLane` contract from the start (Phases
+7.2 / 8.2 implement to it — the reason `.1` is designed early), so
+there is **no retrofit**. The shared
+`(lane, seed, lane_knobs) → byte-identical corpus (+ manifest)`
+contract is a strict superset of today's `(seed, knobs)` DUT
+contract with `lane` prepended and `dut` defaulted.
+
+**Rejected alternatives.** (A) **Separate binaries per lane** —
+rejected: duplicates seed/knob/reproducibility plumbing, fragments
+the "one go-to tool" goal, multiplies the CI/book surface. (B)
+**One generator path emitting all families via mode flags inside
+`build_cone`** — rejected: the explicit anti-goal; synth-clean vs
+oracle-exact vs elaboration-accept are contradictory promises that
+cannot share one generator without category errors — unify the
+*interface*, not the generators. (C) **Subcommand-only CLI**
+(`anvil gen-dut …`) — rejected: breaks the existing flat CLI and the
+entire CI-gated book example surface for no plumbing benefit a
+default-`dut` `--artifact` flag does not already provide. (D)
+**Defer the abstraction until ≥2 lanes exist** — rejected by the
+tree's standing Decision: designing it now is exactly what keeps
+Phases 7/8 lane-compatible instead of retrofitted.
+
+**Proof shape (`.2`, blocked until ≥2 delivered lanes).** The
+`ArtifactLane` contract + shared plumbing implemented; the DUT lane
+wrapped default-`dut` **byte-identical** (every existing seed
+reproduces — hard regression gate, incl. the book/CI examples); ≥1
+of L2/L3 selectable via `--artifact`; uniform output layout +
+manifest plumbing; lane-scoped knob validation; no
+DUT-lane/book/CI regression. Unblock condition (recorded in the
+tree): the DUT lane plus ≥1 of Phase 7/8 lanes exist. Split
+candidates (independently reviewable): lane trait + shared plumbing
+/ DUT-lane wrap (byte-identical regression-gated) / first non-DUT
+lane wired to the selector.
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-9-MULTI-ARTIFACT-UMBRELLA.1`); it makes no code change,
+consistent with the task-tree-ownership doctrine's code/not-code
+boundary.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

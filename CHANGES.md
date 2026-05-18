@@ -1,8 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase8-1 — PHASE-8-FRONTEND-ACCEPT.1: source-level frontend/elaboration accept-corpus IR design
+## 2026-05-18-phase9-1 — PHASE-9-MULTI-ARTIFACT-UMBRELLA.1: artifact-family selector + shared-plumbing design
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Phase 9 multi-artifact umbrella
+  selector design (2026-05-18, PHASE-9-MULTI-ARTIFACT-UMBRELLA.1)"
+  entry — the explicit anti-goal (unify *plumbing*, not the
+  generators); the three lanes (L1 DUT / L2 oracle-microdesign / L3
+  frontend-accept); the `ArtifactLane` trait + umbrella-owned shared
+  plumbing (ChaCha8 seed→artifact, JSON manifest + schema
+  versioning, lane-scoped knob namespace, uniform output layout,
+  uniform `CheckPlan`); the **default-`dut` `--artifact` flag**
+  chosen specifically so every current invocation + the entire
+  CI-gated book + CI keep working **byte-identically**
+  (load-bearing vs `BOOK-EXAMPLES-RUNNABLE`); the L1-wrap
+  lane-migration plan (no retrofit; Phases 7/8 built to the
+  contract); 4 rejected alternatives; the `.2` proof shape +
+  unblock condition.
+- `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`: `.1` done
+  (Verification / Commit / Frontier→`.2` / Open Question resolved
+  [`--artifact` flag] / Verification-Log / Commit-Log / Changelog /
+  Metadata). `docs/TASK_TREE.md` Phase 9 row updated.
+
+**Why**
+
+- Continuous-PNT while Phase 6 `.2.4`/`.3.4b` are gate-blocked.
+  Design-only; clears the **last design-only `.1` leaf** (Phase
+  7/8/9 designs now all landed) with zero contention on the
+  in-flight gate, and the umbrella abstraction must be designed
+  early so Phases 7/8 are built selector-compatible (the tree's
+  standing Decision).
+
+**Validation**
+
+- Design-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the Phase 9 tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`). `mdbook build book` clean; `cargo fmt --all
+  --check` clean; full `cargo test` was green at this slice's base
+  `5c9932c` and no `src/`/`tests/` were touched since.
+
+**Impact**
+
+- Phase 9 has a codebase-grounded target that constrains Phases 7/8
+  to be lane-compatible; `.2` remains correctly blocked until ≥2
+  delivered lanes exist. No ROADMAP advance.
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`;
+  `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase8-1 — PHASE-8-FRONTEND-ACCEPT.1: source-level frontend/elaboration accept-corpus IR design
+
+**Landed as:** 5c9932c
 
 **What changed**
 
