@@ -1,8 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-coverage-3 — COVERAGE-INSTRUMENTATION.3: cone retry-exhaustion focused proof + orphan-knob audit + baseline refresh (tree CLOSED)
+## 2026-05-18-insta-1 — INSTA-SNAPSHOTS.1: insta dev-dep pin + tests/snapshots.rs baseline
 
 **Landed as:** this commit
+
+**What changed**
+
+- `Cargo.toml`: `[dev-dependencies] insta = "1"` → `insta =
+  "=1.47.2"` — an **explicit pin** (the snapshot tooling itself must
+  be deterministic; a silent minor bump could reformat snapshots and
+  mass-invalidate baselines). Pinned to the version already in the
+  local registry cache ⇒ offline-safe; **Cargo.lock unchanged**
+  (`"1"` already resolved to 1.47.2).
+- `tests/snapshots.rs` (new integration test): two fully-
+  deterministic fixed-`(seed, Config)` `insta::assert_snapshot!`
+  baselines — `snapshot_canonical_leaf` (seed 1, minimal
+  combinational leaf) and `snapshot_bounded_recursive_library`
+  (seed 11, exact `min==max` hierarchy depth 2 + exact `min==max` 2
+  child instances, library mode — a proven config shape from
+  `tests/pipeline.rs`). `emit()` asserts `cfg.validate()` +
+  `validate_design()` before snapshotting.
+- `tests/snapshots/snapshots__canonical_leaf.snap` (639 B) +
+  `snapshots__bounded_recursive_library.snap` (~227 KB): the
+  accepted baselines.
+- `CODEBASE_ANALYSIS.md` testing-surface line updated (two → three
+  integration tests).
+
+**Why**
+
+- `INSTA-SNAPSHOTS.1` — the cheapest *direct* enforcement of the
+  "byte-identical `(seed, config)` output forever" contract: any
+  accidental drift (HashMap order, RNG re-seed, planner/emit
+  reorder) now breaks a snapshot and forces a deliberate
+  `cargo insta accept`. Continuous-PNT while Phase 6 `.2.4`/`.3.4b`
+  are gate-blocked; one contained cargo-test slice. (`.2` expands
+  the axes; `.3` wires the pre-commit checklist + acceptance
+  protocol — cargo-insta is not installed, so `INSTA_UPDATE=always`
+  is used here.)
+
+**Validation**
+
+- Baselines generated via `INSTA_UPDATE=always cargo test --test
+  snapshots`, then **re-run without update → both pass** (proves
+  byte-stability, the contract). `cargo fmt --all --check` /
+  `cargo clippy --all-targets -- -D warnings` clean; full `cargo
+  test` green including the new `tests/snapshots.rs` binary, **no
+  other test regressed** (COMMIT.md gate). Cargo.lock unchanged. No
+  `book/` change (`.3` documents the acceptance protocol). Open
+  Question resolved: one `tests/snapshots.rs` driving per-test
+  `.snap` files under `tests/snapshots/` (insta default).
+
+**Impact**
+
+- Reproducibility drift is now guard-railed for two canonical
+  modes; `.2` (≥5 shapes) is unblocked. No ROADMAP change (Quality
+  lane).
+
+**Files touched**
+
+- `Cargo.toml`; `tests/snapshots.rs` (new);
+  `tests/snapshots/snapshots__canonical_leaf.snap` (new);
+  `tests/snapshots/snapshots__bounded_recursive_library.snap`
+  (new); `CODEBASE_ANALYSIS.md`;
+  `docs/tasks/INSTA-SNAPSHOTS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-coverage-3 — COVERAGE-INSTRUMENTATION.3: cone retry-exhaustion focused proof + orphan-knob audit + baseline refresh (tree CLOSED)
+
+**Landed as:** 199db6b
 
 **What changed**
 

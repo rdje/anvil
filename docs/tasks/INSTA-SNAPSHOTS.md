@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — reproducibility regressions
 - Created: `2026-05-14`
-- Last updated: `2026-05-14`
+- Last updated: `2026-05-18` (`.1` landed — insta pinned + baseline snapshots; frontier → `.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,11 +54,11 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
   Children: `INSTA-SNAPSHOTS.1`, `INSTA-SNAPSHOTS.2`, `INSTA-SNAPSHOTS.3`
 
 - ID: `INSTA-SNAPSHOTS.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Wire insta into Cargo.toml dev-dependencies (explicit pin), create tests/snapshots.rs with one canonical leaf snapshot, and one bounded recursive snapshot. Commit lands the baseline; no drift detection yet.`
   Acceptance: `cargo test --test snapshots passes on main; cargo insta test reports two clean snapshots; no other test regresses.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Cargo.toml [dev-dependencies] insta "1" → "=1.47.2" (explicit pin to the version in the local registry cache — the snapshot tooling itself must be deterministic; offline-safe; Cargo.lock UNCHANGED since "1" already resolved to 1.47.2). New tests/snapshots.rs with two fully-deterministic fixed-(seed,Config) snapshots via insta::assert_snapshot!: snapshot_canonical_leaf (seed 1, minimal combinational leaf) and snapshot_bounded_recursive_library (seed 11, exact min==max hierarchy depth 2 + exact min==max 2 child instances, library mode — a proven-shape config from tests/pipeline.rs::generates_valid_recursive_hierarchy_designs_with_bounded_shape). Each emit() asserts cfg.validate() + validate_design() before snapshotting. Baselines generated via INSTA_UPDATE=always then RE-RUN without update → both pass (byte-identical/stable: tests/snapshots/snapshots__canonical_leaf.snap 639 B + snapshots__bounded_recursive_library.snap ~227 KB committed). cargo-insta not installed → INSTA_UPDATE env used (no subcommand needed; .3 wires the pre-commit checklist + acceptance protocol). cargo fmt --all --check / clippy --all-targets -- -D warnings clean; full cargo test green incl. the new tests/snapshots.rs binary, no other test regressed (COMMIT.md gate). Open Question resolved: snapshots live under tests/snapshots/ (insta default, per-test .snap files) driven by one tests/snapshots.rs. No book/ change (.3 documents the protocol).`
+  Commit: `Quality: INSTA-SNAPSHOTS.1 insta dev-dep pin + tests/snapshots.rs baseline (leaf + bounded recursive)`
 
 - ID: `INSTA-SNAPSHOTS.2`
   Status: `pending`
@@ -78,7 +78,7 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `INSTA-SNAPSHOTS.1` | `pending` | Wire-up first; nothing else is verifiable until baseline snapshots exist. |
+| 1 | `INSTA-SNAPSHOTS.2` | `pending` | `.1` **done** — `insta` pinned `=1.47.2`; `tests/snapshots.rs` baseline (canonical leaf + bounded recursive library) generated, stable on re-run, full suite green. `.2` expands to ≥5 shapes spanning library/on-demand child sourcing, helper-instance routes, registered/parent-composed routes, and a `canonical_module_signatures`-exercising design (so dedup drift is detectable). Unblocked; one cargo-test slice. |
 
 ## Decisions
 
@@ -86,7 +86,7 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
 
 ## Open Questions
 
-- Should snapshots live under `tests/snapshots/` (one file per shape) or under `tests/snapshots.rs` (one file with multiple `assert_snapshot!` calls)? `insta`'s default uses per-test files; the matrix output convention suggests directory-based. Owner: implementation choice in `INSTA-SNAPSHOTS.1`. Does not block other leaves.
+- Should snapshots live under `tests/snapshots/` (one file per shape) or under `tests/snapshots.rs` (one file with multiple `assert_snapshot!` calls)? **Resolved by `.1`**: one `tests/snapshots.rs` driving multiple named `insta::assert_snapshot!` calls, with `insta`'s default per-test `.snap` files under `tests/snapshots/` (`snapshots__<name>.snap`). Best of both — single test file, reviewable per-shape `.snap` diffs.
 - Should the snapshot suite also pin canonical `cargo run --bin tool_matrix` JSON-report fragments (e.g., a stable subset of `tool_matrix_report.json`), or strictly the generator's SV output? Owner: `INSTA-SNAPSHOTS.2`.
 
 ## Blockers
@@ -97,14 +97,26 @@ reproducibility contract stated in `README.md` and `book/src/knobs.md`.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `pending` | `INSTA-SNAPSHOTS.1` | `pending` | `pending` |
+| `2026-05-18` | `INSTA-SNAPSHOTS.1` | `insta` pinned `=1.47.2` (Cargo.lock unchanged); `tests/snapshots.rs` with `snapshot_canonical_leaf` + `snapshot_bounded_recursive_library` (fixed deterministic configs, validate+validate_design before snapshot). Baselines via `INSTA_UPDATE=always` then **re-run without update → both pass** (byte-stable). `cargo fmt --all --check` / `clippy --all-targets -- -D warnings` clean; full `cargo test` green incl. the new binary, no regression. | Done. Frontier → `.2`. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `INSTA-SNAPSHOTS.1` | `pending` | `pending` |
+| `INSTA-SNAPSHOTS.1` | `Quality: INSTA-SNAPSHOTS.1 insta dev-dep pin + tests/snapshots.rs baseline (leaf + bounded recursive)` | `insta = "=1.47.2"`; 2 deterministic snapshots; stable on re-run; full suite green. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of the quality-improvement initiative (alongside `DIFFERENTIAL-SIMULATION` and `COVERAGE-INSTRUMENTATION`).
+- `2026-05-18`: **`.1` landed** (continuous-PNT while Phase 6
+  `.2.4`/`.3.4b` gate-blocked). `insta` pinned `=1.47.2` (Cargo.lock
+  unchanged — `"1"` already resolved there); `tests/snapshots.rs`
+  with two fully-deterministic baseline snapshots (canonical leaf +
+  bounded recursive library, proven-shape config); generated via
+  `INSTA_UPDATE=always` and **re-verified stable on a plain re-run**
+  (the byte-identical contract holds). `cargo fmt`/`clippy
+  -D warnings` clean; full `cargo test` green incl. the new
+  `tests/snapshots.rs` binary, no other test regressed. Both Open
+  Questions touching `.1` resolved (one `snapshots.rs` driving
+  per-test `.snap` files under `tests/snapshots/`). Frontier → `.2`
+  (expand to ≥5 shapes).

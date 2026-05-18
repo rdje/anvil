@@ -19,7 +19,11 @@ tracing = { version = "0.1", features = ["release_max_level_info"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
-insta = "1"
+# Explicit pin (INSTA-SNAPSHOTS.1): the snapshot tooling itself must be
+# deterministic — a silent `insta` minor bump could change snapshot
+# formatting and mass-invalidate baselines. Pinned to the version in
+# the local registry cache (offline-safe).
+insta = "=1.47.2"
 
 [[bin]]
 name = "anvil"
