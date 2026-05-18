@@ -1,8 +1,89 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-book-examples-2.2-scope — BOOK-EXAMPLES-RUNNABLE.2.2 scope: record a discovered `.2.1` migration gap
+## 2026-05-18-book-examples-2.2 — BOOK-EXAMPLES-RUNNABLE.2.2: book-examples harness + embedded migration + mdbook-test CI (tree CLOSED)
 
 **Landed as:** this commit
+
+**What changed**
+
+- **`tests/book_examples.rs` (NEW, leaf-owned code).** A std-only cargo
+  integration test that makes every runnable mdBook `bash` example a
+  CI gate. It builds the release `anvil` once, parses every ```bash
+  fence in `book/src/*.md`, honours an HTML-comment skip sentinel
+  (`<!-- book-test: skip — <reason> -->`, mandatory reason), substitutes
+  `cargo run --release --` → `"$ANVIL"`, **panics** on any unclassified
+  residual (`cargo` / bare `anvil` / `verilator` / `yosys` / `jq` /
+  `git clone`) so a gap can never be silent, then runs each non-skipped
+  block via `bash -eu -o pipefail` in a fresh temp CWD, offline
+  (`CARGO_NET_OFFLINE`), asserting exit 0. Plus a **negative-control**
+  test (a deliberately broken flag must fail — so a green run is
+  meaningful, not vacuous) and a skip-sentinel-reason test.
+- **Embedded-position migration completed** (the honest `.2.1`
+  correction): the one `$()`-embedded bare `anvil` → `cargo run`;
+  9 reasoned skip sentinels on the install / `verilator` / `yosys` /
+  `jq` blocks; 32 bare ``` fences → ```text so `mdbook test` stops
+  trying to compile prose as Rust. One real broken example fixed in a
+  prior slice (tutorial `min_inputs > max_inputs`) plus two
+  dependency-chain blocks made self-contained / sentineled.
+- **`.github/workflows/ci.yml`**: added the `mdbook test book` step
+  (alongside the existing fmt / clippy / test / `mdbook build`).
+- Tree docs (`docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`,
+  `docs/TASK_TREE.md`) closed: `.2.2`, the `.2` container, and the
+  `BOOK-EXAMPLES-RUNNABLE` tree are all `done`.
+
+**Why**
+
+- The repo is public with live Pages; the owner mandate is that every
+  book example works for copy-paste users and can never silently rot.
+  `.2.1` made the book *correct*; `.2.2` makes it *enforced* — a broken
+  or drifted example now fails CI.
+- **Root-caused a harness pipe-buffer deadlock (a harness bug, not a
+  book defect).** The first full runs reported 12 blocks "TIMED OUT
+  after 600s". A default `--seed 42` module is ≈86 KB of stdout (a
+  5-level `factorization` sweep ≈525 KB) but the macOS OS pipe buffer
+  is ≈64 KB; `run_script` used `Stdio::piped()` with a `try_wait()`
+  loop that never drained the pipe, so `anvil` blocked on `write()`,
+  never exited, and the loop spun to the timeout (12 × 600 s ≈ the
+  observed 7273 s first-run total). Direct invocation proved the
+  examples are correct — each runs in 0.03–0.15 s. Fix: capture child
+  stdout/stderr to temp **files** (no buffer limit, std-only, no
+  reader-thread plumbing) and reap the child after a timeout kill.
+
+**Validation**
+
+- `cargo test --test book_examples` = **3 passed / 0 failed**: ran
+  **54** runnable blocks (all exit 0), **9** skip-sentineled, **76.4 s**
+  (was 7273 s before the deadlock fix). Negative control fails on a
+  broken command as required.
+- `mdbook build book` clean; `mdbook test book` exit 0; `ci.yml`
+  carries the `mdbook test book` step.
+- `cargo fmt --all --check` clean; `cargo check --all-targets` clean;
+  `cargo clippy --all-targets -- -D warnings` clean; full `cargo test`
+  green (the only new code is `tests/book_examples.rs`, a separate
+  integration binary that cannot regress the lib/unit suite).
+
+**Impact**
+
+- Every runnable book example is now CI-gated against drift. New code
+  is one self-contained, leaf-owned integration test; the generator,
+  library, and other tests are untouched. `BOOK-EXAMPLES-RUNNABLE` tree
+  CLOSED.
+
+**Files touched**
+
+- `tests/book_examples.rs` (new); `.github/workflows/ci.yml`;
+  `book/src/*.md` (embedded migration + skip sentinels + bare→text:
+  algorithm, architecture, factorization, faq, getting-started, knobs,
+  non-triviality, recipes, sequential, sharing, tutorial);
+  `docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`; `docs/TASK_TREE.md`;
+  `DEVELOPMENT_NOTES.md`; `CODEBASE_ANALYSIS.md`; `CHANGES.md`;
+  `MEMORY.md`.
+
+---
+
+## 2026-05-18-book-examples-2.2-scope — BOOK-EXAMPLES-RUNNABLE.2.2 scope: record a discovered `.2.1` migration gap
+
+**Landed as:** 481d9fc
 
 **What changed**
 

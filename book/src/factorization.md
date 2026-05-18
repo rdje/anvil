@@ -50,7 +50,7 @@ Why mostly at intern time and not as a post-pass? Three reasons:
 
 `IdentityMode` + `FactorizationLevel` in `src/config.rs`:
 
-```
+```text
 identity_mode: node-id | relaxed
 ```
 
@@ -62,7 +62,7 @@ expressions may keep different `NodeId`s, and the ladder is forced to
 
 Within `identity_mode = node-id`, the ladder is:
 
-```
+```text
 none → cse → operand-unique → commutative → associative →
 constant-fold → peephole → e-graph (default)
 ```

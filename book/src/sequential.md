@@ -62,7 +62,7 @@ logic: combinational logic between registers.
 
 ## The worklist
 
-```
+```text
 flop_worklist = Queue::new()
 
 # generate output cones first
@@ -209,14 +209,14 @@ The one-hot variants below describe the assembled gate tree; the
 encoded variants use a chained ternary over `Eq(sel, k)` for each k.
 
 ### Kind 1 — `ZeroDefault`
-```
+```text
 D = ({N{sel_0}} & data_0) | ({N{sel_1}} & data_1) | ... | ({N{sel_{M-1}}} & data_{M-1})
 ```
 When all M selects are 0, all AND-masked terms are 0 and D = 0. The
 flop loads zero on the next clock edge.
 
 ### Kind 2 — `QFeedback`
-```
+```text
 none_selected = ~(sel_0 | sel_1 | ... | sel_{M-1})
 D = ({N{sel_0}} & data_0) | ... | ({N{none_selected}} & Q)
 ```
@@ -229,7 +229,7 @@ When M = 0, the flop's D is built by a single recursive cone of width
 N. When M >= 2, every one of the M N-bit data entries and every one
 of the M 1-bit select bits is a **recursion point**:
 
-```
+```text
 build_flop_d(width N, kind):
     M = pick_M()                              // 0 or 2..=max_mux_arms
     if M == 0:

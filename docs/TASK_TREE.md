@@ -76,7 +76,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `INSTA-SNAPSHOTS` | `active` | Quality — reproducibility regressions | `INSTA-SNAPSHOTS.1` | [docs/tasks/INSTA-SNAPSHOTS.md](tasks/INSTA-SNAPSHOTS.md) |
 | `DIFFERENTIAL-SIMULATION` | `active` | Quality — signoff-level downstream consistency | `DIFFERENTIAL-SIMULATION.1` | [docs/tasks/DIFFERENTIAL-SIMULATION.md](tasks/DIFFERENTIAL-SIMULATION.md) |
 | `COVERAGE-INSTRUMENTATION` | `active` | Quality — test-discipline visibility | `COVERAGE-INSTRUMENTATION.2` | [docs/tasks/COVERAGE-INSTRUMENTATION.md](tasks/COVERAGE-INSTRUMENTATION.md) |
-| `BOOK-EXAMPLES-RUNNABLE` | `active` | Quality — user-facing book correctness | `BOOK-EXAMPLES-RUNNABLE.2.2` (`.2.1` done — 45 examples migrated to `cargo run --release --`, missed=0, spot-runs pass; `.2.2` = harness + `mdbook test` + CI enforcement) | [docs/tasks/BOOK-EXAMPLES-RUNNABLE.md](tasks/BOOK-EXAMPLES-RUNNABLE.md) |
+| `BOOK-EXAMPLES-RUNNABLE` | `done` | Quality — user-facing book correctness | (complete — closed `2026-05-18`; `.1`/`.2.1`/`.2.2` done: 45+1 examples migrated to `cargo run --release --`, `tests/book_examples.rs` harness + `mdbook test` CI gate, pipe-deadlock root-caused & fixed, `cargo test --test book_examples` 3/3 green, 54 runnable exit-0) | [docs/tasks/BOOK-EXAMPLES-RUNNABLE.md](tasks/BOOK-EXAMPLES-RUNNABLE.md) |
 
 ## Directory Layout
 

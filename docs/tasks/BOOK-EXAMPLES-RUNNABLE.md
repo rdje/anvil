@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `BOOK-EXAMPLES-RUNNABLE`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality — user-facing book correctness
 - Created: `2026-05-18`
-- Last updated: `2026-05-18` (`.2.1` convention migration landed; frontier → `.2.2`)
+- Last updated: `2026-05-18` (`.2.2` harness + embedded migration + skip sentinels + `mdbook test` CI landed; pipe-deadlock root-caused & fixed; tree CLOSED)
 - Owner: repo-local workflow
 
 ## Goal
@@ -48,9 +48,9 @@ silently rot). This is now load-bearing because the repo is public
 ## Task Tree
 
 - ID: `BOOK-EXAMPLES-RUNNABLE`
-  Status: `active`
+  Status: `done`
   Goal: `Make every mdBook example copy-paste runnable from a fresh clone and CI-enforced against drift.`
-  Children: `BOOK-EXAMPLES-RUNNABLE.1` (done), `BOOK-EXAMPLES-RUNNABLE.2` (active container: `.2.1`, `.2.2`)
+  Children: `BOOK-EXAMPLES-RUNNABLE.1` (done), `BOOK-EXAMPLES-RUNNABLE.2` (done container: `.2.1`, `.2.2`)
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.1`
   Status: `done`
@@ -60,7 +60,7 @@ silently rot). This is now load-bearing because the repo is public
   Commit: `Docs: BOOK-EXAMPLES-RUNNABLE.1 book-examples-runnable design + tree`
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement per .1. Split per the Splitting Rules (the convention migration is docs across 7 chapters; the harness is test code; CI wiring is workflow-config — independently reviewable). Children land in dependency order so the book is correct before it is enforced.`
   Children: `BOOK-EXAMPLES-RUNNABLE.2.1` (convention migration + rust-sketch annotation), `BOOK-EXAMPLES-RUNNABLE.2.2` (extraction harness + mdbook-test + CI wiring)
 
@@ -72,17 +72,17 @@ silently rot). This is now load-bearing because the repo is public
   Commit: `Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to cargo run --release --`
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Enforcement + complete the migration. (a) Migration-completeness fix (discovered during .2.2 recon — see Open Questions): .2.1 migrated only LINE-LEADING anvil; bare anvil embedded in $(...) command-substitution and for-loops was missed and is still not paste-runnable. Migrate those too (book correctness). (b) Add HTML-comment skip sentinels (mandatory reason) to the ~6 genuinely non-harness-runnable blocks: the Install git-clone block, the cargo-install shorthand, and verilator/yosys/jq external-tool blocks. (c) Land tests/book_examples.rs cargo integration test: enumerate book/src/*.md ```bash fences, honour the skip sentinel, run each non-skipped block as a shell script in a fresh temp CWD with cargo run --release -- AND bare anvil shimmed to env!(CARGO_BIN_EXE_anvil) (handles comments/for-loops/$()), offline (CARGO_NET_OFFLINE), per-block timeout, assert exit 0; FAIL on any non-skipped block whose commands aren't anvil/cargo-run (forces explicit classification — no silent gaps); a deliberate-broken negative-control test proving the harness detects failure. (d) Add `mdbook test book` step to .github/workflows/ci.yml. Inventory: 48 pure-cargo-run + 8 comment+cargo-run runnable; ~6 external-tool/install skip; the for-loop/$() blocks run via the shell-script model. Sample-output match deferred (exit-0 + classification is the .2.2 contract; recorded).`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. the new harness over all runnable blocks; no bare anvil remains anywhere in a runnable bash fence (incl. $()/loops); skip sentinels carry reasons; mdbook test book green; ci.yml has the mdbook-test step; negative control proves the harness actually fails on a broken example.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `tests/book_examples.rs landed (std-only cargo integration test): builds the release anvil once, parses every ```bash fence in book/src/*.md, honours the <!-- book-test: skip — <reason> --> sentinel, substitutes 'cargo run --release --' → "$ANVIL", classification-guard panics on any unclassified residual (cargo/bare-anvil/verilator/yosys/jq/git clone), runs each block via bash 'set -euo pipefail' in a fresh temp CWD offline with a defensive 600s timeout, asserts exit 0; + negative-control test (broken flag → must fail) + skip-sentinel-reason test. Embedded-position migration completed (1 $()-embedded anvil → cargo run; 9 skip sentinels with reasons; 32 bare ``` fences → ```text so mdbook test does not compile prose as Rust). RESULT: cargo test --test book_examples = 3 passed / 0 failed, ran 54 runnable blocks (all exit 0) + 9 skip-sentineled, 76.4s. Root-caused & fixed a harness pipe-buffer deadlock (a default module is ~86 KB > ~64 KB OS pipe; Stdio::piped() + an undrained try_wait() loop hung 12 blocks to the 600s timeout — 12×600≈the 7273s first-run total; the examples themselves run in 0.03–0.15s): run_script now captures child stdout/stderr to temp FILES and reaps after a timeout kill. mdbook build book clean; mdbook test book exit 0; .github/workflows/ci.yml has the 'mdbook test book' step (also covers fmt/clippy/test/mdbook build). cargo fmt --all --check clean; cargo check --all-targets clean; cargo clippy --all-targets -- -D warnings clean; full cargo test green (only tests/book_examples.rs is new code — a separate integration binary that cannot regress the lib/unit suite). Frontier closed: .2.2 + .2 + the tree are done.`
+  Commit: `BOOK-EXAMPLES-RUNNABLE.2.2 book-examples harness + embedded migration + mdbook-test CI`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-EXAMPLES-RUNNABLE.2.2` | `pending` | `.2.1` done — every runnable book example now uses `cargo run --release --` (45 migrated; missed=0; rust sketches `rust,ignore`; spot-runs incl. a full multi-line recipe → 50 .sv exit 0). `.2.2` lands `tests/book_examples.rs` (build-once, run every block offline, exit-0 + tagged-output + negative control) + `mdbook test` + `ci.yml` step so it can't regress. Independent of the running Phase 6 gate. |
+| — | — | `CLOSED` | Tree complete. `.1` (design) → `.2.1` (convention migration) → `.2.2` (embedded migration + `tests/book_examples.rs` harness + `mdbook test` CI; pipe-deadlock root-caused & fixed) all `done`. `cargo test --test book_examples` = 3/3 green, 54 runnable blocks exit-0, negative control proves detection. CI now gates every book example against drift. No remaining work. |
 
 ## Decisions
 
@@ -130,6 +130,24 @@ silently rot). This is now load-bearing because the repo is public
   goal updated to complete the embedded-position migration + add the
   skip sentinels + the harness that makes this class of gap
   impossible to reintroduce.
+- **Harness defect found + fixed in `.2.2` (`2026-05-18`):** the first
+  full `cargo test --test book_examples` runs reported 12 blocks
+  "TIMED OUT after 600s". Root-caused: **not** a book defect — every
+  one of those 12 blocks emits a module (or sweep) to **stdout**
+  larger than the OS pipe buffer (default `--seed 42` module =
+  87,890 B; the `factorization` e-graph 5-level sweep = 538,146 B;
+  macOS pipe ≈ 65,536 B). `run_script` used `Stdio::piped()` and a
+  `try_wait()` loop that **never drained the pipe** before the child
+  exited, so `anvil` blocked on `write()`, never exited, and the loop
+  spun to the 600 s timeout (12 × 600 s ≈ the observed 7273 s total).
+  Proof the examples are correct: each runs in 0.03–0.15 s when
+  invoked directly. Fix (owned by `.2.2`, harness test code):
+  `run_script` redirects child stdout/stderr to temp **files**
+  (no buffer limit, std-only, no reader-thread plumbing) and reaps
+  the child after a timeout kill. The three earlier `exit 1`
+  failures (tutorial `min_inputs>max_inputs`; two dependency-chain
+  blocks) were real and were already fixed/sentineled — the harness
+  logic is sound; only its I/O wait was buggy.
 
 ## Blockers
 
@@ -142,6 +160,7 @@ silently rot). This is now load-bearing because the repo is public
 | --- | --- | --- | --- |
 | `2026-05-18` | `BOOK-EXAMPLES-RUNNABLE.1` | `DEVELOPMENT_NOTES.md` design entry landed (full fenced-block inventory; `cargo run --release --` convention + HTML-comment skip sentinel; `tests/book_examples.rs` integration-harness architecture; `mdbook test` + `rust,ignore` sketch policy; CI wiring; 3 rejected alternatives; `.2` proof shape). Design-only, no code (diff = DEVELOPMENT_NOTES.md + docs/TASK_TREE.md + new tree file); `mdbook build book` clean; `cargo fmt --check` clean; `cargo test` unchanged-green. | Done. |
 | `2026-05-18` | `BOOK-EXAMPLES-RUNNABLE.2.1` | Surgical migrator rewrote 45 line-leading `anvil ` heads → `cargo run --release -- ` in ```bash fences (factorization 3 / knobs 3 / recipes 39; getting-started/introduction/tutorial already on cargo run). Audit `missed_runnable_bare_anvil = 0`; `faq` `verilator … anvil_output.sv` correctly untouched. All 9 ```rust sketches → ```rust,ignore. Optional `cargo install` shorthand note added (getting-started Install). Spot-runs (paste-and-run sim): reproduce-style → SV exit 0; `--dump-config` → JSON exit 0; full multi-line recipes block → 50 `.sv` exit 0. `mdbook build book` clean; `git diff` = `book/src/*.md` only (7 files) — docs, no code; `cargo test` unchanged-green. | Done. |
+| `2026-05-18` | `BOOK-EXAMPLES-RUNNABLE.2.2` | Landed `tests/book_examples.rs` (std-only): build release `anvil` once, parse every ```bash fence, honour the skip sentinel, substitute `cargo run --release --`→`"$ANVIL"`, classification-guard panic on residual cargo/bare-anvil/external-tool, run each block via `bash set -euo pipefail` in a fresh temp CWD offline, assert exit 0; + negative control + skip-reason test. Embedded migration finished (1 `$()`-embedded `anvil`→cargo run; 9 reasoned skip sentinels; 32 bare ``` → ```text). **Root-caused & fixed a harness pipe-buffer deadlock** (default module ≈86 KB > ≈64 KB OS pipe; `Stdio::piped()`+undrained `try_wait()` loop hung 12 blocks to the 600s timeout — examples themselves run 0.03–0.15s; fix = capture child stdio to temp files + reap after kill). `cargo test --test book_examples` = **3 passed / 0 failed**, 54 runnable blocks exit-0, 9 skip-sentineled, 76.4s (was 7273s pre-fix). `mdbook build book` clean; `mdbook test book` exit 0; `ci.yml` has the `mdbook test book` step. `cargo fmt --all --check` / `cargo check --all-targets` / `cargo clippy --all-targets -- -D warnings` clean; full `cargo test` green. Tree CLOSED. | Done. |
 
 ## Commit Log
 
@@ -149,6 +168,7 @@ silently rot). This is now load-bearing because the repo is public
 | --- | --- | --- |
 | `BOOK-EXAMPLES-RUNNABLE.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.1 book-examples-runnable design + tree` | Tree created + registered; design-only DEVELOPMENT_NOTES.md entry; architecture + 3 rejected alternatives. No code. |
 | `BOOK-EXAMPLES-RUNNABLE.2.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to cargo run --release --` | 45 bash heads migrated + 9 rust sketches `rust,ignore` + shorthand note; missed=0; spot-runs pass. Book/docs only, no code. |
+| `BOOK-EXAMPLES-RUNNABLE.2.2` | `BOOK-EXAMPLES-RUNNABLE.2.2 book-examples harness + embedded migration + mdbook-test CI` | `tests/book_examples.rs` (new code, leaf-owned) + embedded migration + 9 skip sentinels + bare→text + `ci.yml` `mdbook test` step; pipe-deadlock root-caused & fixed; 3/3 green, 54 runnable exit-0. Tree closed. |
 
 ## Changelog
 
@@ -192,3 +212,27 @@ silently rot). This is now load-bearing because the repo is public
   block → 50 `.sv`, exit 0). The published book is now correct for
   copy-paste users. Frontier → `.2.2` (harness + `mdbook test` +
   CI — enforcement so it can't regress).
+- `2026-05-18`: **`.2.2` landed — `.2` + the tree CLOSED.**
+  `tests/book_examples.rs` (std-only cargo integration test, leaf-
+  owned code) extracts every ```bash fence, honours the skip
+  sentinel, resolves `cargo run --release --`→`"$ANVIL"`, panics on
+  any unclassified residual, runs each block via
+  `bash set -euo pipefail` in a fresh temp CWD offline, asserts
+  exit 0; a negative-control test proves the harness actually fails
+  on a broken example. Embedded-position migration finished (the
+  `$()`-embedded `anvil` from the `.2.1` honest-correction → cargo
+  run; 9 reasoned skip sentinels on install/external-tool blocks;
+  32 bare ``` fences → ```text so `mdbook test` stops compiling
+  prose as Rust). The first full runs surfaced 12 "TIMED OUT"
+  blocks — **root-caused as a harness bug, not a book defect**: a
+  default module is ≈86 KB of stdout but the OS pipe buffer is
+  ≈64 KB, and `run_script` used `Stdio::piped()` with a
+  `try_wait()` loop that never drained it, so `anvil` blocked on
+  `write()` forever (12 × 600 s timeout ≈ the 7273 s first-run
+  total; the examples run in 0.03–0.15 s). Fixed by capturing child
+  stdout/stderr to temp files + reaping after a timeout kill. Result:
+  `cargo test --test book_examples` 3 passed / 0 failed, 54 runnable
+  blocks all exit-0, 9 skip-sentineled, 76.4 s. `mdbook build` clean,
+  `mdbook test book` exit 0, `ci.yml` carries the `mdbook test book`
+  step (+ fmt/clippy/test/mdbook build). Every book example is now
+  CI-gated against drift — the tree's goal is fully met.

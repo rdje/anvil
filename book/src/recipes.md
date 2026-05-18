@@ -24,6 +24,7 @@ Knobs to tune:
 Use the repo-owned matrix harness instead of hand-running one seed at a
 time:
 
+<!-- book-test: skip — tool_matrix matrix run invokes Verilator/Yosys (external; not the generator surface) -->
 ```bash
 cargo run --bin tool_matrix -- --out ./tool-matrix
 ```
@@ -39,6 +40,7 @@ This does more than emit files:
 
 Useful variants:
 
+<!-- book-test: skip — tool_matrix matrix run invokes Verilator/Yosys (external; not the generator surface) -->
 ```bash
 # See the built-in scenario names without generating anything.
 cargo run --bin tool_matrix -- --list-scenarios
@@ -81,6 +83,7 @@ hier-smoke/
 
 The top is recorded in the manifest:
 
+<!-- book-test: skip — needs jq + a prior run's manifest.json (external tool) -->
 ```bash
 jq -r '.designs[0].top' ./hier-smoke/manifest.json
 ```
@@ -88,6 +91,7 @@ jq -r '.designs[0].top' ./hier-smoke/manifest.json
 Run tools by reading every generated `.sv` file and selecting the
 manifest top:
 
+<!-- book-test: skip — needs jq + Verilator + Yosys (external tools) -->
 ```bash
 top=$(jq -r '.designs[0].top' ./hier-smoke/manifest.json)
 verilator --lint-only --top-module "$top" ./hier-smoke/*.sv
@@ -569,6 +573,7 @@ replay a specific module from a batch:
 
 2. Replay the exact same seed and config:
 
+   <!-- book-test: skip — step 2 of the recipe; consumes extracted_knobs.json produced by step 1 above -->
    ```bash
    cargo run --release -- --seed 42 --count 100 --config extracted_knobs.json \
          --out ./replay/
@@ -702,6 +707,7 @@ isn't actually wired. File an issue with the two metric dumps.
 
 The metrics block is JSON; use `jq` or a short script:
 
+<!-- book-test: skip — pipes to jq (external tool, not assumed in CI) -->
 ```bash
 for fp in 0.0 0.1 0.3 0.5 0.7; do
   cargo run --release -- --seed 42 --flop-prob $fp --metrics 2>&1 >/dev/null \
@@ -711,7 +717,7 @@ done
 
 Sample output (seed 42, other knobs at defaults):
 
-```
+```text
 flop-prob=0.0 num_flops=0  num_nodes=106
 flop-prob=0.1 num_flops=6  num_nodes=131
 flop-prob=0.3 num_flops=14 num_nodes=150
@@ -726,9 +732,10 @@ Clean monotone — the knob does what it says.
 The `--factorization-level` knob is a single dial along the
 sharing chain. Sweep it and see what each layer changes:
 
+<!-- book-test: skip — pipes to jq (external tool, not assumed in CI) -->
 ```bash
 for lvl in none cse operand-unique commutative e-graph; do
-  gates=$(anvil --seed 42 --factorization-level $lvl --metrics 2>&1 >/dev/null \
+  gates=$(cargo run --release -- --seed 42 --factorization-level $lvl --metrics 2>&1 >/dev/null \
     | jq -r .num_gates)
   printf "%-16s gates=%s\n" "$lvl" "$gates"
 done
@@ -736,7 +743,7 @@ done
 
 Sample output at seed 42:
 
-```
+```text
 none             gates=1961
 cse              gates=1776
 operand-unique   gates=2368
@@ -787,7 +794,7 @@ Turn on the trace. Levels go off → low → medium → high → debug:
 cargo run --release -- --seed 42 --trace low 2>log && head log
 ```
 
-```
+```text
 INFO anvil: 🚀 anvil start seed=42 count=1
 INFO generate_leaf_module{index=0 seed=42}: anvil::gen::module: 🚀 build module n_in=3 n_out=4 strategy=Interleaved
 WARN generate_leaf_module{index=0 seed=42}: anvil::gen::cone: 🔁 cone root empty-dep, retrying attempt=0

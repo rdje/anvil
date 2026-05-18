@@ -27,7 +27,7 @@ dep-set: primary inputs, flop-Qs, and every `Gate` node as it is
 created. During `build_cone`, when the recursion needs an operand at
 width W, it rolls the `share_prob` coin:
 
-```
+```text
 for w in operand_widths:
     if rand() < share_prob and try_share(pool, w, exclude) is Some(node):
         operands.push(node)          # SHARING — terminate at pool entry

@@ -303,6 +303,7 @@ you need to replay a specific module across a version boundary.
 Nothing beyond the usual tool invocation. `anvil` output is
 directly consumable:
 
+<!-- book-test: skip — needs Verilator/Yosys (external tools) + a prior-generated anvil_output.sv -->
 ```bash
 verilator --lint-only anvil_output.sv
 yosys -p "read_verilog -sv anvil_output.sv; synth -noabc; stat"

@@ -23,7 +23,7 @@ contract.
 
 ```bash
 cargo run --release -- \
-    --seed 1 --max-depth 1 --max-inputs 1 --max-outputs 1 \
+    --seed 1 --max-depth 1 --min-inputs 1 --max-inputs 1 --max-outputs 1 \
     --flop-prob 0 --share-prob 0
 ```
 

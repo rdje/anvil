@@ -156,6 +156,37 @@ This entry is design-only and is itself task-tree owned
 (`BOOK-EXAMPLES-RUNNABLE.1`); it makes no code change, consistent
 with the task-tree-ownership doctrine's code/not-code boundary.
 
+**As-built resolution (2026-05-18, `.2.2` — tree CLOSED).** The
+harness landed as `tests/book_examples.rs` essentially per design.
+One implementation deviation worth recording: blocks are run with the
+**shell-script model** (`bash -eu -o pipefail`, one child per block,
+`cargo run --release --` text-substituted to `"$ANVIL"` = the
+once-built release binary) rather than a parsed-command model — this
+is what makes `$()`/for-loop/`# comment` blocks runnable verbatim,
+and a classification guard *panics* on any unclassified residual so a
+silent gap is impossible.
+
+**Non-obvious gotcha (cost a full debugging cycle — record
+permanently).** The first full runs reported 12 blocks "TIMED OUT
+after 600 s". This was **not** a book defect: a default `--seed 42`
+module is ≈86 KB on stdout (a 5-level `factorization` sweep ≈525 KB),
+but the OS pipe buffer is ≈64 KB. The original `run_script` used
+`Stdio::piped()` and a `try_wait()` poll loop that **never drained
+the pipe until after the child exited** — so `anvil` blocked forever
+in `write()`, the child never exited, and the loop spun to the
+timeout (12 × 600 s ≈ the observed 7273 s total). Directly invoking
+each "timed-out" command proved the examples are correct (0.03–0.15 s
+each). **Rule for any future child-process harness here: never pair
+`Stdio::piped()` with a non-draining wait loop for a child whose
+output can exceed ~64 KB.** Fix chosen: redirect child stdout/stderr
+to temp **files** (no buffer limit, std-only, no reader-thread
+plumbing) and reap the child after a timeout kill. Post-fix:
+`cargo test --test book_examples` = 3/3, 54 runnable blocks exit-0,
+9 skip-sentineled, 76.4 s (down from 7273 s). The `PER_BLOCK_TIMEOUT`
+is now purely a defensive backstop, not a hot path. CI gates this via
+`cargo test` + the added `.github/workflows/ci.yml` `mdbook test
+book` step.
+
 ### Phase 6 inferrable-memory motif design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

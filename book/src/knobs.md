@@ -566,7 +566,7 @@ file. The canonical list comes from `anvil --help`; the snapshot below
 is accurate as of this commit.
 
 ### Run control
-```
+```text
 --seed, --count, --out, --config, --dump-config
 --trace <none|low|medium|high|debug>, --trace-file <path>
 --metrics
@@ -574,7 +574,7 @@ is accurate as of this commit.
 ```
 
 ### Structure
-```
+```text
 --min-inputs, --max-inputs
 --min-outputs, --max-outputs
 --min-width, --max-width
@@ -582,44 +582,44 @@ is accurate as of this commit.
 ```
 
 ### Sequential
-```
+```text
 --flop-prob, --max-flops-per-module
 --min-mux-arms, --max-mux-arms
 --flop-qfeedback-prob, --flop-mux-encoding-prob
 ```
 
 ### Sharing
-```
+```text
 --share-prob
 --terminal-reuse-prob
 ```
 
 ### Operator arity (N-ary for And/Or/Xor/Add/Mul)
-```
+```text
 --min-gate-arity, --max-gate-arity
 ```
 
 ### Coefficient motif (linear combinations)
-```
+```text
 --coefficient-prob
 --min-coefficient, --max-coefficient
 ```
 
 ### Shift motif
-```
+```text
 --const-shift-amount-prob
 --min-shift-amount, --max-shift-amount
 --gate-shift-weight
 ```
 
 ### Comparand motif
-```
+```text
 --const-comparand-prob
 --min-comparand, --max-comparand
 ```
 
 ### Gate mix and leaf termination
-```
+```text
 --constant-prob
 --gate-bitwise-weight
 --gate-arith-weight
@@ -629,7 +629,7 @@ is accurate as of this commit.
 ```
 
 ### Blocks
-```
+```text
 --priority-encoder-prob
 --case-mux-prob, --casez-mux-prob
 --for-fold-prob
@@ -637,13 +637,13 @@ is accurate as of this commit.
 ```
 
 ### Construction strategy
-```
+```text
 --construction-strategy <sequential|shuffled|interleaved|graph-first>
 --graph-first-pool-size
 ```
 
 ### Identity / factorization
-```
+```text
 --identity-mode <node-id|relaxed>
 --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>
 --full-factorization
@@ -654,7 +654,7 @@ is accurate as of this commit.
 ```
 
 ### Hierarchy
-```
+```text
 --hierarchy-depth
 --num-leaf-modules
 --num-child-instances
@@ -672,7 +672,7 @@ is accurate as of this commit.
 ```
 
 ### `tool_matrix` auxiliary binary
-```
+```text
 --out
 --base-seed
 --modules-per-scenario
@@ -714,9 +714,11 @@ resume/checkpoint behavior, and which external tools are invoked.
 
 ## Knob serialization
 
-Knobs are a `serde`-derived struct. Loading from JSON:
+Knobs are a `serde`-derived struct. Dump the effective config, then
+load it back (self-contained — paste and run as one block):
 
 ```bash
+cargo run --release -- --dump-config > knobs.json
 cargo run --release -- --config knobs.json --seed 42
 ```
 

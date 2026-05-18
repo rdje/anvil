@@ -8,6 +8,7 @@ comes out.
 
 `anvil` is a Rust crate. Clone, build, run:
 
+<!-- book-test: skip — install instructions (placeholder git URL; not a generator example) -->
 ```bash
 git clone <repo-url> anvil
 cd anvil
@@ -27,6 +28,7 @@ tool_matrix -- …`).
 > run --release -- …`, install it once and use the short form
 > everywhere instead:
 >
+> <!-- book-test: skip — optional install shorthand; not a generator example -->
 > ```bash
 > cargo install --path .
 > anvil --seed 42 --max-depth 2

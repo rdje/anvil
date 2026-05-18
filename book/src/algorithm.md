@@ -16,7 +16,7 @@ The heart of `anvil`. Written as pseudocode; the Rust implementation in
 
 ## Module-level generation
 
-```
+```text
 generate_leaf_module(rng, knobs, index):
     n_in  = rand(knobs.min_inputs,  knobs.max_inputs)
     n_out = rand(knobs.min_outputs, knobs.max_outputs)
@@ -70,7 +70,7 @@ generate_leaf_module(rng, knobs, index):
 
 ## Cone recursion
 
-```
+```text
 build_cone(width, depth, exclude):
     leaf_prob  = depth / max_depth
     force_leaf = depth >= max_depth OR rand() < leaf_prob
@@ -178,7 +178,7 @@ Each flop on the worklist gets:
 - A random `FlopMux` style (`OneHot` | `Encoded`) via
   `flop_mux_encoding_prob`.
 
-```
+```text
 drain_flop_worklist():
     while (flop_id = worklist.pop()) is Some:
         width    = m.flops[flop_id].width
@@ -209,7 +209,7 @@ shapes (OR-of-masks vs chained ternary over `Eq(sel, k)`).
 
 ## Terminal selection
 
-```
+```text
 pick_terminal(width, exclude):
     # 1. Prefer matching-width pool entries with non-empty deps.
     with_deps = pool.of_width(width)

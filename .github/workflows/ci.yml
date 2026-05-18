@@ -52,3 +52,12 @@ jobs:
 
       - name: mdbook build book
         run: mdbook build book
+
+      # `rust` blocks are illustrative IR sketches annotated
+      # `rust,ignore` (BOOK-EXAMPLES-RUNNABLE.2.1); this asserts that
+      # stays true and that any future real `rust` example compiles.
+      # The 56 runnable `bash` examples are gated by the
+      # `book_examples` integration test under `cargo test` above
+      # (BOOK-EXAMPLES-RUNNABLE.2.2).
+      - name: mdbook test book
+        run: mdbook test book

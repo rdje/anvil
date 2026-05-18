@@ -18,7 +18,7 @@ useless — you have tested nothing downstream.
 Every node in the IR caches a `DepSet` — the set of primary inputs
 whose values can influence this node's value.
 
-```
+```text
 Constant.deps     = {}
 PrimaryInput.deps = {self}
 FlopQ.deps        = { virtual_input_for_this_flop }  // see below
@@ -27,7 +27,7 @@ Gate.deps         = union(operand.deps for operand in operands)
 
 At the cone root of each module output, the generator requires:
 
-```
+```text
 output_node.deps.len() >= 1
 ```
 

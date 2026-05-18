@@ -2,7 +2,7 @@
 
 ## Crate layout
 
-```
+```text
 src/
 ├── main.rs          # CLI entry point (clap-derived); Cargo's
 │                    # default run target is `anvil`, so plain
@@ -116,7 +116,7 @@ axis.
 
 ## Dependency direction
 
-```
+```text
 main  ->  lib  ->  gen  ->  ir
                     |        ^
                     v        |
