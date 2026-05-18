@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-2.3 — PHASE-6-ADVANCED-MOTIFS.2.3: phase6_inferrable_memory matrix scenario + metric + gap
 
-**Landed as:** this commit
+**Landed as:** ac18cd5
 
 **What changed**
 
