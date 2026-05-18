@@ -1,8 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-coverage-2 — COVERAGE-INSTRUMENTATION.2: top-5 under-covered-file triage
+## 2026-05-18-coverage-3 — COVERAGE-INSTRUMENTATION.3: cone retry-exhaustion focused proof + orphan-knob audit + baseline refresh (tree CLOSED)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tests/pipeline.rs`: new focused proof
+  `constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible`
+  (4 `ConstructionStrategy` × 4 seeds, `constant_prob = 1.0`,
+  `max_depth = 1`) — exercises `gen/cone.rs::pick_terminal`'s
+  constant branch + `build_cone_with_retry`'s empty-dep
+  retry/`rollback_construction_snapshot` loop and the
+  budget-exhausted "accept last attempt" fallback (triage item #2,
+  the one real proof-gap). Pins the invariant that **maximum
+  constant pressure cannot break the pipeline**: still
+  `validate_design`-clean and byte-reproducible.
+- `docs/coverage-baseline.md`: refreshed via `cargo llvm-cov
+  --release` + a `COVERAGE-INSTRUMENTATION.3` addendum recording
+  the new proof and the orphan-knob audit result.
+- `DEVELOPMENT_NOTES.md`: `.3` outcome appended to the
+  `COVERAGE-INSTRUMENTATION.2` triage entry.
+- `docs/tasks/COVERAGE-INSTRUMENTATION.md`, `docs/TASK_TREE.md`:
+  `.3` done + the `COVERAGE-INSTRUMENTATION` tree **closed**.
+
+**Why**
+
+- `COVERAGE-INSTRUMENTATION.3` acts on the `.2` triage exactly as
+  scoped — no broad coverage chase. Continuous-PNT while Phase 6
+  `.2.4`/`.3.4b` are gate-blocked.
+
+**Findings (orphan-knob audit, triage item #4).** Of 74 `pub
+Config` fields, exactly 3 have zero external field-access —
+`library_prob`, `max_nodes_per_module`, `use_async_reset` — and
+**all three are intentionally-reserved knobs already documented as
+such in `book/src/knobs.md`** (future Phase-4+ dial / safety
+ceiling / unused-by-async-reset-discipline). Removing them would
+break serde-config compatibility and contradict the book ⇒ **no
+dead code; leave as-is**, positively confirming `.2`'s headline.
+Defensive (`validate.rs`) / gate-exclusive (`tool_matrix.rs`) /
+integration-only (`config.rs`/`main.rs`) regions left as
+`.2`-documented.
+
+**Validation**
+
+- New focused proof green; `cargo fmt --all --check` / `cargo
+  clippy --all-targets -- -D warnings` clean; the COMMIT.md
+  `cargo test` gate was satisfied by the `cargo llvm-cov --release`
+  instrumented full-suite run (one heavy run = test gate + baseline
+  refresh). Only new code is the one isolated `tests/pipeline.rs`
+  proof; no `src/` change (no dead code to remove — confirmed). No
+  ROADMAP change (Quality lane). `book/` unchanged (the knobs the
+  audit examined are already correctly documented there).
+
+**Impact**
+
+- The single real coverage proof-gap (`gen/cone.rs` retry
+  exhaustion) is closed; every other top-5 "gap" is positively
+  confirmed intentional. `COVERAGE-INSTRUMENTATION` tree CLOSED.
+
+**Files touched**
+
+- `tests/pipeline.rs`; `docs/coverage-baseline.md`;
+  `DEVELOPMENT_NOTES.md`; `docs/tasks/COVERAGE-INSTRUMENTATION.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-coverage-2 — COVERAGE-INSTRUMENTATION.2: top-5 under-covered-file triage
+
+**Landed as:** 01990d1
 
 **What changed**
 

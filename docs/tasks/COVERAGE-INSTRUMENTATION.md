@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — test-discipline visibility
 - Created: `2026-05-14`
-- Last updated: `2026-05-18` (`.2` triage landed; frontier → `.3`)
+- Last updated: `2026-05-18` (`.3` landed — cone retry-exhaustion proof + orphan-knob audit + baseline refresh; tree CLOSED)
 - Owner: repo-local workflow
 
 ## Goal
@@ -52,9 +52,9 @@ matrix is comprehensive by measurement."
 ## Task Tree
 
 - ID: `COVERAGE-INSTRUMENTATION`
-  Status: `active`
+  Status: `done`
   Goal: `Add line/branch coverage measurement; convert matrix-comprehensiveness from intent to measurement.`
-  Children: `COVERAGE-INSTRUMENTATION.1`, `COVERAGE-INSTRUMENTATION.2`, `COVERAGE-INSTRUMENTATION.3`
+  Children: `COVERAGE-INSTRUMENTATION.1` (done), `COVERAGE-INSTRUMENTATION.2` (done), `COVERAGE-INSTRUMENTATION.3` (done)
 
 - ID: `COVERAGE-INSTRUMENTATION.1`
   Status: `done`
@@ -71,17 +71,17 @@ matrix is comprehensive by measurement."
   Commit: `Docs: COVERAGE-INSTRUMENTATION.2 top-5 under-covered-file triage`
 
 - ID: `COVERAGE-INSTRUMENTATION.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Act on the triage: remove dead code where confirmed, add focused proofs where rarely-fired paths are real, leave defensive panics as-is. Update coverage baseline.`
   Acceptance: `Coverage baseline updated; new focused proofs (if any) commit-traceable to specific uncovered branches; cargo test all green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Acted on the .2 triage exactly as it scoped .3 (no broad coverage-chase). (b) Added the high-value focused proof tests/pipeline.rs::constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible (4 ConstructionStrategy × 4 seeds, constant_prob=1.0, max_depth=1): pick_terminal always takes its "emit fresh constant" branch ⇒ empty-dep cone roots ⇒ build_cone_with_retry runs the rare empty-dep retry + rollback_construction_snapshot loop on all MAX_RETRIES then the "⚠️ retry budget exhausted, accepting last attempt" fallback; the proof pins the invariant that maximum constant pressure cannot break the pipeline (still validate_design-clean + byte-reproducible). Commit-traceable to cone.rs::pick_terminal constant branch + build_cone_with_retry rollback/budget-exhausted accept (triage #2, the only real proof-gap). (a) config.rs orphan-knob spot-audit (triage #4): of 74 pub Config fields, 3 have no external field-access — library_prob / max_nodes_per_module / use_async_reset — but ALL THREE are intentionally-reserved/safety/unused-by-discipline knobs ALREADY documented as such in book/src/knobs.md (future Phase-4+ dial / safety ceiling / unused-by-async-reset-discipline); removing them would break serde-config + contradict the book ⇒ NO dead code, leave as-is (confirms .2's headline). (c) defensive/gate-exclusive/integration-only paths left as documented in .2. Baseline refreshed: re-ran cargo llvm-cov --release (instrumented full suite — also the COMMIT.md cargo-test gate) and updated docs/coverage-baseline.md with the new numbers + a .3 addendum. cargo fmt --all --check / clippy --all-targets -- -D warnings clean; new proof + full suite green. Closes the COVERAGE-INSTRUMENTATION tree.`
+  Commit: `Quality: COVERAGE-INSTRUMENTATION.3 cone retry-exhaustion focused proof + orphan-knob audit + baseline refresh`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COVERAGE-INSTRUMENTATION.3` | `pending` | `.2` triage **done** — DEVELOPMENT_NOTES.md disposition table for all top-5; no confirmed dead code; the only high-value target is a handful of `gen/cone.rs` focused proofs (retry-exhaustion / anti-collapse-reject / `pick_terminal` adapter-fallback) + an optional `config.rs` orphan-knob spot-audit. `.3` acts on exactly that (add the cone focused proofs; leave defensive/gate-exclusive/integration-only as documented), then refresh the coverage baseline. Code slice (needs full `cargo test`); `.3` is now tightly scoped, not a broad coverage chase. |
+| — | — | `CLOSED` | Tree complete. `.1` (cargo-llvm-cov baseline) → `.2` (top-5 triage: no dead code; right-sized `.3`) → `.3` (cone retry-exhaustion focused proof + config orphan-knob audit [3 reserved knobs, no dead code] + baseline refresh) all `done`. Coverage measurement is wired, triaged, and the one real proof-gap closed; no remaining work. |
 
 `COVERAGE-INSTRUMENTATION.1` is `done` (landed at the hash recorded in
 this tree's Commit Log).
@@ -112,6 +112,7 @@ this tree's Commit Log).
 | --- | --- | --- | --- |
 | `2026-05-14` | `COVERAGE-INSTRUMENTATION.1` | `cargo llvm-cov --release` (110 tests passing in ~295s); `cargo llvm-cov report --release`. | All passing. TOTAL coverage: 85.26% lines / 91.95% functions / 87.61% regions across 14 crate files. Baseline written to docs/coverage-baseline.md with top-5 under-covered files identified for .2 triage. |
 | `2026-05-18` | `COVERAGE-INSTRUMENTATION.2` | Reasoned-inspection triage of all top-5 under-covered files → DEVELOPMENT_NOTES.md disposition table. Orphan-symbol audit (no retired `*_focus_config`/scenario builders ⇒ no dead code in `tool_matrix.rs`); cone.rs panic/rollback/anti-collapse-reject/adapter-fallback sites enumerated; validate.rs 62 Err-arms vs 26 inline tests; config.rs 137 fields/37 validate sites. Triage-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `9806028` (no `src/`/`tests/` touched). | Done. No confirmed dead code; `.3` right-sized to a handful of `gen/cone.rs` focused proofs + optional `config.rs` orphan-knob spot-audit. |
+| `2026-05-18` | `COVERAGE-INSTRUMENTATION.3` | (b) New focused proof `constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible` (4 strategies × 4 seeds, `constant_prob=1.0`) — drives `pick_terminal` constant branch + `build_cone_with_retry` rollback/budget-exhausted-accept; pins "constant pressure can't break the pipeline" (validate-clean + byte-reproducible); green. (a) `config.rs` orphan-knob audit: 3/74 fields unconsumed (`library_prob`/`max_nodes_per_module`/`use_async_reset`) but all documented-reserved/safety/unused-by-discipline in `book/src/knobs.md` ⇒ no dead code, leave as-is. (c) defensive/gate-exclusive/integration-only left as `.2`-documented. Baseline refreshed via `cargo llvm-cov --release` (= COMMIT.md cargo-test gate); `docs/coverage-baseline.md` updated + `.3` addendum. `cargo fmt --all --check` / `clippy --all-targets -- -D warnings` clean. | Done. Closes the COVERAGE-INSTRUMENTATION tree. |
 
 ## Commit Log
 
@@ -119,11 +120,27 @@ this tree's Commit Log).
 | --- | --- | --- |
 | `COVERAGE-INSTRUMENTATION.1` | `Quality: add cargo-llvm-cov baseline (COVERAGE-INSTRUMENTATION.1)` | cargo-llvm-cov 0.8.7 + llvm-tools-aarch64-apple-darwin already installed locally. Baseline excludes the 75-min Phase 4 hierarchy gate by design. |
 | `COVERAGE-INSTRUMENTATION.2` | `Docs: COVERAGE-INSTRUMENTATION.2 top-5 under-covered-file triage` | Triage-only; per-file (a)/(b)/(c) disposition; no confirmed dead code; `.3` scoped to a few `gen/cone.rs` focused proofs. No code. |
+| `COVERAGE-INSTRUMENTATION.3` | `Quality: COVERAGE-INSTRUMENTATION.3 cone retry-exhaustion focused proof + orphan-knob audit + baseline refresh` | One focused proof (constant-pressure retry-exhaustion invariant) + config orphan-knob audit (no dead code; 3 documented-reserved knobs) + llvm-cov baseline refresh. Closes the tree. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of the quality-improvement initiative.
 - `2026-05-14`: `.1` landed; baseline at `docs/coverage-baseline.md`. Frontier rotated to `.2` (triage).
+- `2026-05-18`: **`.3` landed → COVERAGE-INSTRUMENTATION tree
+  CLOSED** (continuous-PNT while Phase 6 `.2.4`/`.3.4b` gate-blocked).
+  Acted on the `.2` triage exactly as scoped: (b) added the focused
+  proof `constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible`
+  (the high-value gap — `pick_terminal` constant branch +
+  `build_cone_with_retry` rollback/budget-exhausted accept; pins the
+  "constant pressure can't break the pipeline" invariant);
+  (a) `config.rs` orphan-knob spot-audit found 3/74 unconsumed
+  fields, all *documented-reserved* in `book/src/knobs.md`
+  (`library_prob` future dial / `max_nodes_per_module` safety
+  ceiling / `use_async_reset` unused-by-discipline) ⇒ **no dead
+  code**, leave as-is (confirms `.2`); (c) defensive/gate-exclusive/
+  integration-only left as documented. Baseline refreshed via
+  `cargo llvm-cov --release`; `docs/coverage-baseline.md` updated +
+  `.3` addendum. Tree complete.
 - `2026-05-18`: **`.2` triage landed** (triage-only, no code) —
   continuous-PNT while Phase 6 `.2.4`/`.3.4b` are gate-blocked.
   `DEVELOPMENT_NOTES.md` "Coverage baseline triage — top-5

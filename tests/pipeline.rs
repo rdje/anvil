@@ -8828,6 +8828,65 @@ fn fsm_block_matches_probed_template_and_is_factorization_opaque() {
 }
 
 #[test]
+fn constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible() {
+    // COVERAGE-INSTRUMENTATION.3 — the high-value triage target
+    // (cone.rs #2). With `constant_prob = 1.0`, `pick_terminal`
+    // always takes its "emit fresh constant" branch, so every cone
+    // root is trivially constant (empty dep-set). That drives
+    // `build_cone_with_retry` through its rare paths: the empty-dep
+    // retry + `rollback_construction_snapshot` loop on all
+    // `MAX_RETRIES` attempts, then the "⚠️ cone retry budget
+    // exhausted, accepting last attempt" fallback. The invariant
+    // those paths exist to guarantee — and that this proof pins — is
+    // that *maximum constant pressure cannot break the pipeline*:
+    // the generator still yields a `validate_design`-clean,
+    // byte-reproducible design (it neither panics, infinite-loops,
+    // nor emits invalid IR; trivially-constant outputs are accepted,
+    // not fatal). Commit-traceable to: `cone.rs::pick_terminal`
+    // constant branch, `build_cone_with_retry` rollback +
+    // budget-exhausted accept.
+    use anvil::config::ConstructionStrategy;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    for strategy in strategies {
+        for seed in 0..4u64 {
+            let cfg = || Config {
+                seed,
+                constant_prob: 1.0,
+                max_depth: 1,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let d1 = Generator::new(cfg()).generate_design();
+            anvil::ir::validate::validate_design(&d1).unwrap_or_else(|e| {
+                panic!(
+                    "constant-pressure design must validate \
+                     (retry-exhaustion fallback must stay sound) \
+                     ({strategy:?}/{seed}): {e:?}"
+                )
+            });
+            // Reproducible despite the retry/rollback churn.
+            let d2 = Generator::new(cfg()).generate_design();
+            assert_eq!(
+                anvil::emit::to_sv_design(&d1),
+                anvil::emit::to_sv_design(&d2),
+                "constant-pressure generation must stay byte-reproducible \
+                 ({strategy:?}/{seed})"
+            );
+            // The fallback is allowed to produce trivially-constant
+            // outputs — that is the documented "accept last attempt"
+            // behaviour, not a failure — so we assert soundness +
+            // reproducibility, not non-triviality, here.
+        }
+    }
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

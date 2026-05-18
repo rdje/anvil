@@ -932,6 +932,48 @@ This entry is triage-only and is itself task-tree owned
 with the task-tree-ownership doctrine's code/not-code boundary
 (`.3` performs the code actions).
 
+**`.3` outcome (2026-05-18, COVERAGE-INSTRUMENTATION.3 — tree
+CLOSED).** Acted on the triage exactly as scoped, nothing more:
+
+- **(b) cone.rs #2 — the one real proof-gap — closed.** Added
+  `tests/pipeline.rs::constant_pressure_exhausts_cone_retry_and_stays_valid_and_reproducible`
+  (4 `ConstructionStrategy` × 4 seeds, `constant_prob = 1.0`,
+  `max_depth = 1`). `constant_prob = 1.0` makes `pick_terminal`
+  always take its "emit fresh constant" branch ⇒ every cone root is
+  empty-dep ⇒ `build_cone_with_retry` runs the empty-dep retry +
+  `rollback_construction_snapshot` loop across all `MAX_RETRIES`
+  then the "⚠️ retry budget exhausted, accepting last attempt"
+  fallback. The proof pins the invariant those branches exist to
+  guarantee: *maximum constant pressure cannot break the pipeline*
+  — `generate_design` stays `validate_design`-clean and
+  byte-reproducible (no panic / infinite-loop / invalid IR;
+  trivially-constant outputs are accepted, not fatal). Soundness +
+  reproducibility are asserted, *not* non-triviality (the fallback
+  is documented to allow trivially-constant outputs).
+- **(a) config.rs #4 — orphan-knob spot-audit — no dead code.** Of
+  74 `pub Config` fields, exactly 3 have zero external field-access:
+  `library_prob`, `max_nodes_per_module`, `use_async_reset`. All
+  three are **intentionally-reserved** and *already documented as
+  such* in `book/src/knobs.md` — a future Phase-4+ probabilistic
+  dial, a safety ceiling "not typically tuned", and "currently
+  unused; flops are always async-reset by discipline",
+  respectively. They are serde/CLI-stable knobs whose removal would
+  break config compatibility and contradict the book. **Disposition:
+  leave as-is** — confirms `.2`'s "no confirmed dead code"
+  headline, with the orphan-knob question now positively resolved.
+- **(c)** the gate-exclusive (`tool_matrix.rs`), intentional-
+  defensive (`validate.rs`), and integration-only
+  (`config.rs`/`main.rs`) regions are left exactly as `.2`
+  documented — not test debt.
+- **Baseline refreshed** via `cargo llvm-cov --release` (the
+  instrumented full suite, which also served as this slice's
+  COMMIT.md `cargo test` gate); `docs/coverage-baseline.md` carries
+  the refreshed numbers + a `.3` addendum. Net: the
+  `COVERAGE-INSTRUMENTATION` tree is **closed** with the single real
+  proof-gap closed and every other "gap" positively confirmed
+  intentional — no broad coverage-chasing, exactly the honest
+  outcome `.2` argued for.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable
