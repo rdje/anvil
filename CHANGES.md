@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-2.1a — PHASE-6-ADVANCED-MOTIFS.2.1a: memory IR core + opaque-stateful-leaf pipeline integration
 
-**Landed as:** this commit
+**Landed as:** 244cabd
 
 **What changed**
 
