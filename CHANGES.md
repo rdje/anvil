@@ -1,8 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-diffsim-2a — DIFFERENTIAL-SIMULATION.2a: single-design differential-harness design (`.2` split)
+## 2026-05-18-phase7-2-split — PHASE-7-ORACLE-MICRODESIGN.2 split into `.2a`/`.2b`/`.2c`
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: `.2` becomes a
+  container with children `.2a` (the source-level
+  const-expr/parameter IR + the construction-time evaluator/oracle —
+  unit-proven, no emit/harness), `.2b` (the un-resolved-SV emitter +
+  the JSON expected-facts manifest emitter from the same evaluated
+  IR, behind an explicit artifact-family flag, default-off ⇒ DUT
+  lane byte-identical), `.2c` (the parity harness + repo-owned gate,
+  tool-gated so `cargo test` stays tool-less, → ROADMAP Phase 7
+  only after a verified clean run per r87). Decisions / Frontier→
+  `.2a` / Verification-Log / Commit-Log / Changelog / Metadata
+  updated. `docs/TASK_TREE.md` Phase 7 row updated.
+
+**Why**
+
+- `.2` bundled three independently-reviewable concerns that `.1`'s
+  design already named as split candidates ("const-expr/parameter
+  IR + construction-time evaluator / SV emitter + manifest emitter /
+  parity harness + repo-owned gate"). Splitting Rules ⇒ make them
+  explicit leaves. Continuous-PNT: every design/research/triage
+  leaf across all open trees is now exhausted; formalising this
+  split is the remaining ~zero-contention advance — the heavy
+  `.2a`/`.2b`/`.2c` implementation is deliberately deferred until
+  the near-complete Phase 6 priority gate (`.2.4`/`.3.4b`) frees
+  the machine, the same contention-aware sequencing applied all
+  session (it let the gate recover 115→175). `.2a`+`.2b`'s
+  evaluator/manifest core is the dependency `PHASE-8-FRONTEND-
+  ACCEPT.2` and the Phase-9 manifest plumbing reuse.
+
+**Validation**
+
+- Tree-planning, docs-only — **no code change** (diff = the Phase 7
+  tree + `docs/TASK_TREE.md` + `CHANGES.md` + `MEMORY.md`); `cargo
+  test` unchanged-green vs base `e550db1` (no `src/`/`tests/`
+  touched); `cargo fmt --all --check` clean.
+
+**Impact**
+
+- Phase 7 implementation is decomposed into reviewable slices;
+  `.2a` is the next code frontier (deferred for gate-contention).
+  No ROADMAP change.
+
+**Files touched**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-diffsim-2a — DIFFERENTIAL-SIMULATION.2a: single-design differential-harness design (`.2` split)
+
+**Landed as:** e550db1
 
 **What changed**
 
