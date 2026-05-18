@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — signoff-level downstream consistency
 - Created: `2026-05-14`
-- Last updated: `2026-05-14`
+- Last updated: `2026-05-18` (`.1` landed — iverilog zero-config-compatible all 4 categories; frontier → `.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -55,11 +55,11 @@ agree on semantics", which is the actual signoff-quality bar.
   Children: `DIFFERENTIAL-SIMULATION.1`, `DIFFERENTIAL-SIMULATION.2`, `DIFFERENTIAL-SIMULATION.3`, `DIFFERENTIAL-SIMULATION.4`
 
 - ID: `DIFFERENTIAL-SIMULATION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Verilator-side compatibility is already proven by the matrix gate. Scope the SECOND simulator (iverilog is the default candidate): does it ingest ANVIL's emitted SV without configuration? Where does its semantics diverge from Verilator's? Output: DEVELOPMENT_NOTES.md entry with a focused compatibility note (what iverilog accepts, what it rejects, what it warns on) and a chosen differential-pair recommendation.`
   Acceptance: `DEVELOPMENT_NOTES.md entry exists; iverilog (or alternative) compatibility status is named per ANVIL output category (combinational leaf, sequential leaf, hierarchy, helper-instance routes); rejected alternatives are recorded.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `DEVELOPMENT_NOTES.md "Second-simulator (iverilog) compatibility note (2026-05-18, DIFFERENTIAL-SIMULATION.1)" entry landed. Installed Icarus Verilog 13.0 (stable) and empirically probed iverilog -g2012 -o /dev/null (full parse+elaborate) vs verilator --lint-only on freshly-generated release output for ALL FOUR categories: combinational leaf (--seed 7 --flop-prob 0), sequential leaf with flops (--seed 5 --flop-prob 1.0), bounded recursive hierarchy (4 modules, --min/max-hierarchy-depth 2), helper-instance/sibling routes (3 modules, --hierarchy-sibling-route-prob 1.0). RESULT: iverilog exit 0 SILENT on every category; verilator clean on every category. Verdict: iverilog is a ZERO-CONFIGURATION second simulator (only the standard -g2012 SV-2012 select; no source edits/shims/per-category flags). Chosen differential pair = Verilator (compiled, 2-state-default, cycle-driven) ↔ iverilog (interpreted, 4-state, event-driven) — strong because the engines are semantically independent. Documented the single material divergence to design around (NOT an ingest blocker): pre-reset 4-state behaviour (iverilog flops x until async reset deasserts vs Verilator 2-state 0) ⇒ .2 harness must drive a deterministic reset, sample at one canonical post-reset point, compare defined bits only (these are exactly the tree's .2/.3 Open Questions — confirmed design problems, not feasibility blockers). 4 rejected/deferred alternatives (verilator self-vs-self / Yosys-as-sim / commercial / single-simulator). Research-only — no code change (diff = DEVELOPMENT_NOTES.md + tree/live-docs); cargo unchanged-green vs base da3a00d (no src/tests touched). iverilog now installed locally (icarus-verilog via brew).`
+  Commit: `Docs: DIFFERENTIAL-SIMULATION.1 iverilog second-simulator compatibility note`
 
 - ID: `DIFFERENTIAL-SIMULATION.2`
   Status: `pending`
@@ -86,7 +86,7 @@ agree on semantics", which is the actual signoff-quality bar.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DIFFERENTIAL-SIMULATION.1` | `pending` | Cannot design the harness without first establishing which simulators can ingest current output. The compatibility investigation is a pure-research leaf and unblocks everything else. |
+| 1 | `DIFFERENTIAL-SIMULATION.2` | `pending` | `.1` **done** — iverilog 13.0 installed; empirically proven a zero-config second simulator for all 4 ANVIL output categories (parse+elaborate exit 0 silent); pair = Verilator ↔ iverilog; the one divergence (pre-reset 4-state) documented as a `.2` design constraint, not a blocker. `.2` builds the single-design differential harness `(generated SV, input-vector seed, cycles) → aligned post-reset output traces` from both simulators, with a focused byte-equal proof on a combinational + a sequential design. Unblocked; code slice (one cargo-test). |
 
 ## Decisions
 
@@ -116,14 +116,32 @@ agree on semantics", which is the actual signoff-quality bar.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `pending` | `DIFFERENTIAL-SIMULATION.1` | `pending` | `pending` |
+| `2026-05-18` | `DIFFERENTIAL-SIMULATION.1` | Installed iverilog 13.0; `iverilog -g2012 -o /dev/null` vs `verilator --lint-only` on freshly-generated release SV for all 4 categories (comb leaf / seq-flop leaf / 4-module recursive hierarchy / 3-module helper-sibling routes). | **All categories: iverilog exit 0 silent + verilator clean.** iverilog is a zero-config second simulator; pair = Verilator↔iverilog; pre-reset 4-state divergence documented as a `.2` design constraint; 4 rejected alternatives. Research-only, no code; `cargo` unchanged-green vs `da3a00d`. Done; frontier → `.2`. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `DIFFERENTIAL-SIMULATION.1` | `pending` | `pending` |
+| `DIFFERENTIAL-SIMULATION.1` | `Docs: DIFFERENTIAL-SIMULATION.1 iverilog second-simulator compatibility note` | Research-only; iverilog 13.0 zero-config-compatible all 4 categories; Verilator↔iverilog pair chosen; 4 rejected alternatives. No code. |
 
 ## Changelog
 
 - `2026-05-14`: Created task tree as part of the quality-improvement initiative.
+- `2026-05-18`: **`.1` landed** (research-only, no code) —
+  continuous-PNT while Phase 6 `.2.4`/`.3.4b` gate-blocked.
+  Installed Icarus Verilog 13.0 and empirically proved iverilog
+  ingests **all four** ANVIL output categories (combinational leaf,
+  sequential-flop leaf, bounded recursive hierarchy, helper-instance/
+  sibling routes) with **zero configuration** beyond `-g2012`
+  (`iverilog -o /dev/null` exit 0 silent; Verilator clean on the
+  same). Differential pair chosen: **Verilator (compiled, 2-state,
+  cycle-driven) ↔ iverilog (interpreted, 4-state, event-driven)** —
+  engine-independent. The one material divergence (pre-reset
+  4-state: iverilog `x` until async reset deasserts vs Verilator
+  `0`) is documented as a `.2` harness design constraint (drive a
+  reset, sample at one canonical post-reset point, compare defined
+  bits), confirming the tree's `.2`/`.3` Open Questions are design
+  problems, not feasibility blockers. 4 rejected/deferred
+  alternatives recorded. `DEVELOPMENT_NOTES.md` entry landed; tree
+  unblocked through `.4`. Frontier → `.2` (build the single-design
+  differential harness).

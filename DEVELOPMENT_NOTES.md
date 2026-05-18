@@ -896,6 +896,71 @@ This entry is design-only and is itself task-tree owned
 consistent with the task-tree-ownership doctrine's code/not-code
 boundary.
 
+### Second-simulator (iverilog) compatibility note (2026-05-18, DIFFERENTIAL-SIMULATION.1)
+
+Research-only slice (no code). Establishes which second simulator
+can ingest ANVIL's existing Verilator-clean SV and where it would
+diverge, so `DIFFERENTIAL-SIMULATION.2`'s harness has a concrete
+target.
+
+**Empirical ingest probe.** Installed Icarus Verilog **13.0
+(stable)** and ran `iverilog -g2012 -o /dev/null <files>`
+(SV-2012, full parse + elaborate) against freshly-generated release
+output for every ANVIL output category, with `verilator
+--lint-only` on the same files as the contrast:
+
+| Category | sample | `iverilog -g2012` | `verilator --lint-only` |
+| --- | --- | --- | --- |
+| combinational leaf | `--seed 7 --flop-prob 0` | **exit 0, silent** | exit 0, clean |
+| sequential leaf (flops) | `--seed 5 --flop-prob 1.0` | **exit 0, silent** | exit 0, clean |
+| bounded recursive hierarchy (4 modules) | `--min/max-hierarchy-depth 2`, 2 inst | **exit 0, silent** | exit 0, clean |
+| helper-instance / sibling routes (3 modules) | `--hierarchy-sibling-route-prob 1.0` | **exit 0, silent** | exit 0, clean |
+
+**Verdict: iverilog is a zero-configuration second simulator for
+every ANVIL output category.** No source edits, no compat shims,
+no per-category flags — only the standard `-g2012` SV-2012 select
+(ANVIL emits SystemVerilog: `always_ff`/`always_comb`, packed
+part-selects, `{N{x}}` replication, async-reset flops, ANSI ports,
+multi-module hierarchies). Both engines accept all four categories,
+so the **chosen differential pair is Verilator ↔ iverilog** — and
+it is a *strong* pair precisely because the engines are
+semantically independent: **Verilator** is a compiled,
+2-state-by-default, cycle-driven simulator; **iverilog** is an
+interpreted, 4-state (`0/1/x/z`), event-driven simulator. Agreement
+across that gap is meaningful corroboration, not two views of the
+same engine.
+
+**Where they will diverge (the `.2`/`.3` harness must design around
+this — not an ingest blocker).** ANVIL output is combinational +
+synchronous-reset flops with no `X`/`Z` injection, so the only
+material Verilator/iverilog semantic gap is **pre-reset 4-state
+behaviour**: iverilog drives flops `x` until the async reset
+deasserts; Verilator (2-state default) starts them `0`. Therefore
+the differential harness must (a) drive a deterministic reset
+sequence first, (b) sample outputs **only at a single canonical
+post-reset point**, and (c) compare defined bits only. Combinational
+cones are pure functions of inputs ⇒ no timing gap once inputs are
+held. These are exactly the Open Questions the tree already routes
+to `.2` (input-vector scheme; canonical sample point; timing) —
+this note confirms they are *design* problems, not *feasibility*
+blockers.
+
+**Rejected alternatives.** (A) `verilator --binary` self-vs-self —
+rejected: same engine, zero independent corroboration (the whole
+point is engine independence). (B) Yosys as the sim peer — rejected
+(already in tree Decisions): Yosys is a *synthesizer*, not an
+event-driven simulator; it cannot be a semantic-equivalence peer.
+(C) Commercial simulators (VCS/Xcelium/Questa) — deferred (tree
+Decision): unavailable in-environment; the open-source pair already
+gives independent corroboration. (D) Single-simulator (Verilator
+only) — rejected: cannot prove *cross-simulator* agreement, which
+is the signoff-quality bar this tree exists to raise.
+
+This entry is research-only and is itself task-tree owned
+(`DIFFERENTIAL-SIMULATION.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary
+(`.2`+ build the harness).
+
 ### Coverage baseline triage — top-5 under-covered files (2026-05-18, COVERAGE-INSTRUMENTATION.2)
 
 Triage-only slice (no code; `.3` acts on these findings). Classifies

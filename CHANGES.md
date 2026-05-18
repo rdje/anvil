@@ -1,8 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-insta-3 — INSTA-SNAPSHOTS.3: snapshot-acceptance protocol (COMMIT.md + book) — tree CLOSED
+## 2026-05-18-diffsim-1 — DIFFERENTIAL-SIMULATION.1: iverilog second-simulator compatibility note
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Second-simulator (iverilog)
+  compatibility note (2026-05-18, DIFFERENTIAL-SIMULATION.1)" entry
+  — the empirical ingest probe table (Icarus Verilog 13.0
+  `iverilog -g2012` vs `verilator --lint-only` across all four
+  ANVIL output categories), the verdict (iverilog is a
+  zero-configuration second simulator), the chosen
+  Verilator↔iverilog differential pair + why it is engine-
+  independent, the single material divergence to design the
+  `.2` harness around (pre-reset 4-state), and 4 rejected/deferred
+  alternatives.
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md`, `docs/TASK_TREE.md`:
+  `.1` done (Verification / Commit / Frontier→`.2` / Verification-
+  Log / Commit-Log / Changelog / Metadata).
+- Environment: Icarus Verilog 13.0 installed locally
+  (`brew install icarus-verilog`) — the second simulator the tree
+  needs; explicitly required by this research leaf.
+
+**Why**
+
+- `DIFFERENTIAL-SIMULATION.1` is the pure-research leaf that
+  unblocks the rest of the tree: the harness cannot be designed
+  until the second simulator's ingest status + divergence points
+  are known. Continuous-PNT while Phase 6 `.2.4`/`.3.4b` are
+  gate-blocked; research output is docs-only with only a handful of
+  tiny iverilog/verilator runs (low gate contention, like the
+  memory/FSM `.1` probes).
+
+**Findings.** Across freshly-generated release output for the
+combinational leaf, sequential-flop leaf, 4-module bounded
+recursive hierarchy, and 3-module helper-instance/sibling-route
+categories, `iverilog -g2012 -o /dev/null` exits **0, silent** on
+every one (Verilator `--lint-only` clean on the same). iverilog is
+a **zero-config** second simulator (only the standard SV-2012
+select). The chosen pair is **Verilator (compiled, 2-state-default,
+cycle-driven) ↔ iverilog (interpreted, 4-state, event-driven)** —
+strong corroboration because the engines are semantically
+independent. The only material gap (pre-reset 4-state: iverilog
+flops `x` until async reset deasserts vs Verilator `0`) is an
+explicit `.2`/`.3` harness design constraint (drive a reset, sample
+one canonical post-reset point, compare defined bits), **not** an
+ingest blocker.
+
+**Validation**
+
+- Research/docs-only — **no code change** (diff =
+  `DEVELOPMENT_NOTES.md` + the DIFFERENTIAL tree +
+  `docs/TASK_TREE.md` + `CHANGES.md` + `MEMORY.md`); `cargo test`
+  unchanged-green vs base `da3a00d` (no `src/`/`tests/` touched).
+  No `book/` change (README/USER_GUIDE/book updates are the tree's
+  later acceptance, after the harness exists). `cargo fmt --all
+  --check` clean (no `.rs` change).
+
+**Impact**
+
+- The differential-pair question is answered with empirical
+  evidence; `.2` (build the single-design Verilator↔iverilog
+  differential harness) is unblocked. No ROADMAP change (Quality
+  lane).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/DIFFERENTIAL-SIMULATION.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-insta-3 — INSTA-SNAPSHOTS.3: snapshot-acceptance protocol (COMMIT.md + book) — tree CLOSED
+
+**Landed as:** da3a00d
 
 **What changed**
 
