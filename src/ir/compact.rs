@@ -124,6 +124,10 @@ enum StructuralNodeShape {
         flop: FlopId,
         width: u32,
     },
+    MemRead {
+        mem: crate::ir::MemId,
+        width: u32,
+    },
     Gate {
         op: GateOp,
         width: u32,
@@ -164,6 +168,10 @@ enum LeafEndpoint {
         flop: FlopId,
         width: u32,
     },
+    MemRead {
+        mem: crate::ir::MemId,
+        width: u32,
+    },
 }
 
 impl LeafEndpoint {
@@ -171,7 +179,8 @@ impl LeafEndpoint {
         match self {
             LeafEndpoint::PrimaryInput { width, .. }
             | LeafEndpoint::InstanceOutput { width, .. }
-            | LeafEndpoint::FlopQ { width, .. } => width,
+            | LeafEndpoint::FlopQ { width, .. }
+            | LeafEndpoint::MemRead { width, .. } => width,
         }
     }
 }
@@ -218,6 +227,10 @@ fn structural_node_sig_id(
         }),
         Node::FlopQ { flop, width } => ctx.intern(StructuralNodeShape::FlopQ {
             flop: *flop,
+            width: *width,
+        }),
+        Node::MemRead { mem, width } => ctx.intern(StructuralNodeShape::MemRead {
+            mem: *mem,
             width: *width,
         }),
         Node::Gate {
@@ -275,6 +288,10 @@ fn collect_leaf_endpoints(
         }]),
         Node::FlopQ { flop, width } => BTreeSet::from([LeafEndpoint::FlopQ {
             flop: *flop,
+            width: *width,
+        }]),
+        Node::MemRead { mem, width } => BTreeSet::from([LeafEndpoint::MemRead {
+            mem: *mem,
             width: *width,
         }]),
         Node::Constant { .. } => BTreeSet::new(),
@@ -350,6 +367,14 @@ fn evaluate_node_under_assignment(
         Node::FlopQ { flop, width } => {
             let endpoint = LeafEndpoint::FlopQ {
                 flop: *flop,
+                width: *width,
+            };
+            let offset = endpoint_offsets[&endpoint];
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::MemRead { mem, width } => {
+            let endpoint = LeafEndpoint::MemRead {
+                mem: *mem,
                 width: *width,
             };
             let offset = endpoint_offsets[&endpoint];
@@ -871,7 +896,10 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
 
     for node in &mut m.nodes {
         match node {
-            Node::PrimaryInput { .. } | Node::Constant { .. } | Node::InstanceOutput { .. } => {}
+            Node::PrimaryInput { .. }
+            | Node::Constant { .. }
+            | Node::InstanceOutput { .. }
+            | Node::MemRead { .. } => {}
             Node::FlopQ { flop, .. } => {
                 *flop = old_to_new[*flop as usize];
             }
@@ -1361,6 +1389,18 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                     }
                 }
             }
+            Node::MemRead { mem, .. } => {
+                // Load-bearing (PHASE-6-ADVANCED-MOTIFS.2.1a): a
+                // reachable MemRead keeps the memory's write/read
+                // source cones alive, exactly as a reachable FlopQ
+                // keeps its flop's D cone. Memories are never
+                // dead-eliminated in Phase 6.2.1 (no unread memory
+                // can arise), so the MemId is stable — no remap.
+                let mem = &m.memories[*mem as usize];
+                for src in [mem.we, mem.waddr, mem.wdata, mem.raddr] {
+                    mark_node(src, &mut reachable, &mut stack);
+                }
+            }
             Node::PrimaryInput { .. } | Node::Constant { .. } | Node::InstanceOutput { .. } => {}
         }
     }
@@ -1421,6 +1461,7 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                 flop: old_flop_to_new[flop as usize],
                 width,
             },
+            Node::MemRead { mem, width } => Node::MemRead { mem, width },
             Node::InstanceOutput {
                 instance,
                 port,
@@ -1655,7 +1696,10 @@ fn rebuild_instance_tables(m: &mut Module) {
     for (id, node) in nodes.iter().enumerate() {
         let node_id = id as NodeId;
         match node {
-            Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => {}
+            Node::PrimaryInput { .. }
+            | Node::FlopQ { .. }
+            | Node::MemRead { .. }
+            | Node::InstanceOutput { .. } => {}
             Node::Constant { width, value } => {
                 const_instances
                     .entry((*width, *value))
@@ -2084,6 +2128,7 @@ mod tests {
                 DepSet::from_instance_output_virtual(*instance, *port)
             }
             Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
+            Node::MemRead { mem, .. } => DepSet::from_mem_virtual(*mem),
             Node::Gate { deps, .. } => deps.clone(),
         }
     }
@@ -2868,5 +2913,194 @@ mod tests {
 
         rebuild_instance_tables(&mut m);
         m
+    }
+
+    // ---- PHASE-6-ADVANCED-MOTIFS.2.1a: inferrable-memory IR core ----
+
+    /// Minimal valid memory leaf: clk/rst_n control ports, we/waddr/
+    /// wdata/raddr data inputs, one `Memory`, and a `MemRead` driving
+    /// the `rdata` output. `wdata` is driven through a gate cone so a
+    /// reachability regression would visibly strip it.
+    fn memory_leaf(aw: u32, dw: u32, kind: crate::ir::MemKind) -> Module {
+        use crate::ir::{Direction, MemKind, Memory, Port};
+        let mut m = Module {
+            name: "mem_leaf".into(),
+            clock: Some(0),
+            reset: Some(1),
+            ..Module::default()
+        };
+        let mk_in = |m: &mut Module, id: PortId, name: &str, w: u32| {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: w,
+                dir: Direction::In,
+            });
+        };
+        mk_in(&mut m, 0, "clk", 1);
+        mk_in(&mut m, 1, "rst_n", 1);
+        mk_in(&mut m, 2, "we", 1);
+        mk_in(&mut m, 3, "waddr", aw);
+        mk_in(&mut m, 4, "wdata_a", dw);
+        mk_in(&mut m, 5, "wdata_b", dw);
+        mk_in(&mut m, 6, "raddr", aw);
+        m.outputs.push(Port {
+            id: 7,
+            name: "rdata".into(),
+            width: dw,
+            dir: Direction::Out,
+        });
+        // nodes
+        let we = m.nodes.len() as NodeId; // 0
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 });
+        let waddr = m.nodes.len() as NodeId; // 1
+        m.nodes.push(Node::PrimaryInput { port: 3, width: aw });
+        let wa = m.nodes.len() as NodeId; // 2
+        m.nodes.push(Node::PrimaryInput { port: 4, width: dw });
+        let wb = m.nodes.len() as NodeId; // 3
+        m.nodes.push(Node::PrimaryInput { port: 5, width: dw });
+        let raddr = m.nodes.len() as NodeId; // 4
+        m.nodes.push(Node::PrimaryInput { port: 6, width: aw });
+        // wdata = wa ^ wb (a real cone feeding the memory write)
+        let wdata = push_gate(&mut m, GateOp::Xor, vec![wa, wb], dw);
+        let waddr_for = if matches!(kind, MemKind::SinglePort) {
+            // SinglePort shares one address: raddr == waddr.
+            waddr
+        } else {
+            raddr
+        };
+        let mem_id = m.memories.len() as crate::ir::MemId;
+        m.memories.push(Memory {
+            id: mem_id,
+            addr_width: aw,
+            data_width: dw,
+            kind,
+            we,
+            waddr,
+            wdata,
+            raddr: waddr_for,
+        });
+        let rd = m.nodes.len() as NodeId;
+        m.nodes.push(Node::MemRead {
+            mem: mem_id,
+            width: dw,
+        });
+        m.drives.push((7, rd));
+        m
+    }
+
+    #[test]
+    fn memory_leaf_roundtrips_validate_and_emit() {
+        let m = memory_leaf(4, 8, crate::ir::MemKind::SimpleDualPort);
+        validate(&m).expect("memory leaf must validate");
+        let sv = crate::emit::to_sv(&m);
+        assert!(
+            sv.contains("logic [7:0] mem_0 [0:15];"),
+            "must declare the inferrable array:\n{sv}"
+        );
+        assert!(
+            sv.contains("logic [7:0] memrd_0;"),
+            "must declare the registered read signal:\n{sv}"
+        );
+        assert!(
+            sv.contains("always_ff @(posedge clk) begin"),
+            "memory must use a reset-less synchronous block:\n{sv}"
+        );
+        assert!(
+            sv.contains("mem_0[") && sv.contains("] <= ") && sv.contains("memrd_0 <= mem_0["),
+            "must emit the synchronous write + registered read:\n{sv}"
+        );
+        // clk is exposed even with no flops (memory is sequential state).
+        assert!(sv.contains("input  logic  clk") || sv.contains("input  logic clk"));
+    }
+
+    #[test]
+    fn memread_keeps_memory_source_cones_through_compaction() {
+        let mut m = memory_leaf(4, 8, crate::ir::MemKind::SimpleDualPort);
+        // Add a genuinely dead gate that nothing references.
+        let we = 0 as NodeId;
+        let _dead = push_raw_gate(&mut m, GateOp::Not, vec![we], 1);
+        let before = m.nodes.len();
+        let removed = compact_node_ids(&mut m);
+        assert!(removed >= 1, "the dead gate must be compacted away");
+        assert!(m.nodes.len() < before);
+        // The memory's source cones (incl. the wdata XOR) survived, so
+        // the module still validates and re-emits the write/read.
+        validate(&m).expect("memory module must still validate after compaction");
+        let sv = crate::emit::to_sv(&m);
+        assert!(
+            sv.contains("memrd_0 <= mem_0[") && sv.contains("] <= "),
+            "memory write/read cones must survive dead-elimination:\n{sv}"
+        );
+        // The Xor feeding wdata must still be present.
+        assert!(
+            m.nodes.iter().any(|n| matches!(
+                n,
+                Node::Gate {
+                    op: GateOp::Xor,
+                    ..
+                }
+            )),
+            "the wdata cone (Xor) must not be dead-stripped"
+        );
+    }
+
+    #[test]
+    fn memread_is_structurally_distinct_and_not_cse_merged() {
+        use crate::metrics::canonical_module_signature;
+        // (a) A MemRead-driven module has a different canonical
+        // signature than a structurally-identical PrimaryInput-driven
+        // one — MemRead carries its own structural identity, so it can
+        // never be CSE-merged with a non-MemRead node.
+        let mem_mod = memory_leaf(4, 8, crate::ir::MemKind::SimpleDualPort);
+        let mut plain = mem_mod.clone();
+        plain.memories.clear();
+        // redirect rdata to a plain input instead of the MemRead node
+        let pin = plain.nodes.len() as NodeId;
+        plain.nodes.push(Node::PrimaryInput { port: 4, width: 8 });
+        plain.drives.clear();
+        plain.drives.push((7, pin));
+        assert_ne!(
+            canonical_module_signature(&mem_mod),
+            canonical_module_signature(&plain),
+            "a MemRead node must be structurally distinct from a PrimaryInput"
+        );
+        // (b) Two distinct memories' reads are distinct leaves: they
+        // are never merged, and both survive compaction.
+        let mut two = memory_leaf(4, 8, crate::ir::MemKind::SimpleDualPort);
+        let m1 = two.memories.len() as crate::ir::MemId;
+        // a second independent memory reusing the same source nodes
+        let src = &two.memories[0];
+        let (we, wa, wd, ra) = (src.we, src.waddr, src.wdata, src.raddr);
+        two.memories.push(crate::ir::Memory {
+            id: m1,
+            addr_width: 4,
+            data_width: 8,
+            kind: crate::ir::MemKind::SimpleDualPort,
+            we,
+            waddr: wa,
+            wdata: wd,
+            raddr: ra,
+        });
+        let rd1 = two.nodes.len() as NodeId;
+        two.nodes.push(Node::MemRead { mem: m1, width: 8 });
+        two.outputs.push(crate::ir::Port {
+            id: 8,
+            name: "rdata1".into(),
+            width: 8,
+            dir: crate::ir::Direction::Out,
+        });
+        two.drives.push((8, rd1));
+        validate(&two).expect("two-memory module validates");
+        compact_node_ids(&mut two);
+        let mem_reads = two
+            .nodes
+            .iter()
+            .filter(|n| matches!(n, Node::MemRead { .. }))
+            .count();
+        assert_eq!(
+            mem_reads, 2,
+            "two distinct memories' reads must never be CSE-merged"
+        );
     }
 }

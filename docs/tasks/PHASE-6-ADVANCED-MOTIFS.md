@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.1` done; `.2` split `.2.1`–`.2.4`; `.2.1` split `.2.1a`/`.2.1b` on a discovered compaction-reachability dependency; frontier → `.2.1a`)
+- Last updated: `2026-05-18` (`.2.1a` IR core + opaque-stateful-leaf pipeline integration landed; frontier → `.2.1b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -59,11 +59,11 @@ multi-clock handshakes.
   Children: `PHASE-6-ADVANCED-MOTIFS.2.1a`, `PHASE-6-ADVANCED-MOTIFS.2.1b`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1a`
-  Status: `pending`
+  Status: `done`
   Goal: `IR core + opaque-stateful-leaf pipeline integration. Add MemId; MemKind{SinglePort,SimpleDualPort}; Memory{id,addr_width,data_width,kind,we,waddr,wdata,raddr:NodeId}; additive Default-empty Module.memories: Vec<Memory>; new opaque leaf Node::MemRead{mem,width}; DepAtom::MemVirtual(MemId) + DepSet::from_mem_virtual. Thread MemRead through ALL exhaustive Node matches (compiler-as-completeness-oracle, ~20 sites) mirroring FlopQ as an opaque identity-by-instance leaf. **Load-bearing correctness (the discovered dependency): src/ir/compact.rs reachability/dead-elimination must, like FlopQ keeps its flop's D cone, make a reachable MemRead transitively keep the memory's we/waddr/wdata/raddr source cones alive; canonical_module_signature/StructuralNodeShape/LeafEndpoint get distinct MemRead arms; MemRead is never CSE'd/merged.** Emitter renders the .1-validated inferrable template + a memrd_<id> read signal; validator: widths consistent + MemRead resolves to a declared memory + control-port logic emits clk for memory-bearing modules. NO knob, NO generator wiring (no Memory is ever constructed yet → default-off trivially byte-identical).`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; unit tests: a hand-built Memory module round-trips IR->validate->emit (SV declares the array + synchronous write/read on clk), survives compact_node_ids with we/waddr/wdata/raddr cones intact (the reachability proof), MemRead is opaque to CSE (two memories' reads never merge), and canonical signature distinguishes a MemRead node. No book/ change.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/ir/types.rs: MemId; MemKind{SinglePort,SimpleDualPort}; Memory{id,addr_width,data_width,kind,we,waddr,wdata,raddr}; additive Default-empty Module.memories; opaque leaf Node::MemRead{mem,width}; DepAtom::MemVirtual + DepSet::from_mem_virtual; has_local_memories() and the sequential-state predicates OR it in (clk exposed for memory-only modules; has_local_flops untouched so flop emission gates unchanged). MemRead threaded through all ~21 exhaustive Node matches via cargo-check completeness oracle, mirroring FlopQ as an opaque identity-by-instance leaf (gen/cone.rs, gen/hierarchy.rs, gen/module.rs, ir/param.rs, metrics.rs incl. canonical_module_signature tag 6, ir/compact.rs). Load-bearing reachability: compact.rs walk gains a Node::MemRead arm that marks mem.{we,waddr,wdata,raddr} reachable (memories never dead-eliminated in Phase 6.2.1 → MemId stable, no remap) + StructuralNodeShape::MemRead + LeafEndpoint::MemRead (+ width()). Emitter: memrd_<id> helper + node_ref arm + per-memory `logic [DW-1:0] mem_<id> [0:2^AW-1]` + `logic memrd_<id>` decls + a reset-less `always_ff @(posedge clk)` synchronous write/read block. Validator: BadMemory/UndefinedMemoryNode/MemoryNodeWidthMismatch/DanglingMemRead/MemReadWidthMismatch + a step-5b that checks every Memory's widths/SinglePort-shared-addr and every MemRead resolves. 3 unit proofs in ir/compact.rs: memory_leaf_roundtrips_validate_and_emit, memread_keeps_memory_source_cones_through_compaction (the reachability proof — dead gate stripped, wdata XOR cone survives, validate+emit clean), memread_is_structurally_distinct_and_not_cse_merged (distinct canonical signature vs PrimaryInput; two memories' reads never merged). cargo fmt/clippy -D warnings/check --all-targets clean; lib mem tests 3/3; full cargo test (COMMIT.md gate — Verification Log). No generator/knob ⇒ default-off trivially byte-identical (no Memory constructed). No book/ change.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1b`
   Status: `pending`
@@ -104,7 +104,7 @@ multi-clock handshakes.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1a` | `pending` | `.2.1` split (discovered dependency — see 2026-05-18 Decision): a new opaque **stateful** leaf is not mechanical FlopQ-mirroring; `compact.rs` reachability must transitively keep the memory's input cones alive (correctness-critical). `.2.1a` lands the IR core + that pipeline integration + unit proofs (no generator, default-off trivially byte-identical); `.2.1b` then adds the knob + rules-first construction + focused proof. |
+| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1b` | `pending` | `.2.1a` landed the IR core + opaque-stateful-leaf pipeline integration (incl. the load-bearing `compact.rs` reachability) + 3 unit proofs; no generator/knob (default-off trivially byte-identical). `.2.1b` adds `Config::memory_prob` + rules-first `build_memory_leaf` + the single opt-in roll + default-off/forced-on focused proof. |
 
 ## Decisions
 
@@ -165,12 +165,14 @@ multi-clock handshakes.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.1` | `DEVELOPMENT_NOTES.md` Phase 6 memory design entry landed (codebase-grounded; empirical Yosys probe → single-port + simple-dual-port both `1 $mem_v2`, clean both modes; architecture (M) `Memory` block + opaque `MemRead` leaf; 3 rejected alternatives; proof shape). Doc-only, no code; `mdbook build book` clean; `cargo fmt --check` clean; `cargo test` unchanged-green (no `src/`/`tests/` touched since Phase 5b `.2.3`). | Done. |
+| `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.1a` | IR core (`MemId`/`MemKind`/`Memory`/additive `Module.memories`/opaque `Node::MemRead`/`DepAtom::MemVirtual`/`from_mem_virtual`/`has_local_memories`) + `MemRead` threaded through all ~21 exhaustive `Node` matches (compiler-as-oracle, mirrors `FlopQ`); **load-bearing `compact.rs` reachability** (a live `MemRead` keeps `mem.{we,waddr,wdata,raddr}` cones alive; `StructuralNodeShape`/`LeafEndpoint::MemRead`); emitter inferrable template (`mem_<id>` array + `memrd_<id>` + reset-less `always_ff @(posedge clk)`); validator memory step-5b. 3 unit proofs (roundtrip+validate+emit; **compaction-reachability**; structural-distinctness/CSE-opacity) — `ir::compact::tests` mem 3/3. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No generator/knob ⇒ default-off trivially byte-identical. No `book/` change. | Done. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `PHASE-6-ADVANCED-MOTIFS.1` | `Docs: PHASE-6-ADVANCED-MOTIFS.1 inferrable-memory motif design` | Design-only; architecture (M) `Memory` block + `MemRead` leaf; empirical Yosys probe; 3 rejected alternatives. No code. |
+| `PHASE-6-ADVANCED-MOTIFS.2.1a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration` | IR core + `MemRead` through ~21 matches + the load-bearing `compact.rs` reachability + emitter template + validator + 3 unit proofs. No generator/knob (default-off trivially byte-identical). |
 
 ## Changelog
 
@@ -209,3 +211,24 @@ multi-clock handshakes.
   focused proof). In-flight IR-core edits reverted to the clean
   `.2`-split base so `.2.1a` lands atomically. `.2.1` became a
   container; no renumbering. Frontier → `.2.1a`.
+- `2026-05-18`: **`.2.1a` landed.** IR core: `MemId`,
+  `MemKind{SinglePort,SimpleDualPort}`, `Memory`, additive
+  `Default`-empty `Module.memories`, opaque leaf `Node::MemRead`,
+  `DepAtom::MemVirtual` + `DepSet::from_mem_virtual`,
+  `has_local_memories()` OR'd into the sequential-state predicates
+  (clk exposed for memory-only modules; `has_local_flops` untouched).
+  `MemRead` threaded through all ~21 exhaustive `Node` matches via the
+  compiler-as-completeness-oracle, mirroring `FlopQ`. **Load-bearing
+  correctness**: `compact.rs` reachability gains a `MemRead` arm that
+  keeps `mem.{we,waddr,wdata,raddr}` cones alive (memories never
+  dead-eliminated in 6.2.1 → stable `MemId`, no remap);
+  `StructuralNodeShape`/`LeafEndpoint::MemRead`; canonical-signature
+  tag 6. Emitter renders the `.1`-validated inferrable template
+  (`mem_<id>` array + `memrd_<id>` + reset-less
+  `always_ff @(posedge clk)`); validator step-5b checks memory widths
+  / SinglePort-shared-addr / `MemRead` resolution. 3 unit proofs
+  (roundtrip+validate+emit; compaction-reachability; structural
+  distinctness + two-memory CSE-opacity) green; full `cargo` gate
+  clean. No generator/knob ⇒ default-off trivially byte-identical; no
+  `book/` change. Frontier → `.2.1b` (knob + rules-first
+  `build_memory_leaf` + focused proof).

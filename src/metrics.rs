@@ -540,6 +540,7 @@ pub fn compute(m: &Module) -> Metrics {
         match node {
             Node::PrimaryInput { .. } => out.num_primary_inputs += 1,
             Node::FlopQ { .. } => out.num_flop_q_refs += 1,
+            Node::MemRead { .. } => {}
             Node::InstanceOutput { .. } => out.num_instance_outputs += 1,
             Node::Constant { width, value } => {
                 out.num_constants += 1;
@@ -1789,6 +1790,7 @@ fn node_deps(module: &Module, node_id: NodeId) -> crate::ir::DepSet {
     match &module.nodes[node_id as usize] {
         Node::PrimaryInput { port, .. } => crate::ir::DepSet::from_port(*port),
         Node::FlopQ { flop, .. } => crate::ir::DepSet::from_flop_virtual(*flop),
+        Node::MemRead { mem, .. } => crate::ir::DepSet::from_mem_virtual(*mem),
         Node::InstanceOutput { instance, port, .. } => {
             crate::ir::DepSet::from_instance_output_virtual(*instance, *port)
         }
@@ -2264,6 +2266,11 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
                 h = fnv1a_64_u32(h, 2);
                 h = fnv1a_64_u32(h, wsig(*width));
                 h = fnv1a_64_extend(h, &value.to_le_bytes());
+            }
+            Node::MemRead { mem, width } => {
+                h = fnv1a_64_u32(h, 6);
+                h = fnv1a_64_u32(h, *mem);
+                h = fnv1a_64_u32(h, wsig(*width));
             }
             Node::FlopQ { flop, width } => {
                 h = fnv1a_64_u32(h, 3);

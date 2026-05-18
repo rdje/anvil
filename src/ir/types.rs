@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 pub type PortId = u32;
 pub type NodeId = u32;
 pub type FlopId = u32;
+pub type MemId = u32;
 pub type InstanceId = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,6 +141,13 @@ pub struct Module {
     pub planned_interface_profile: Option<ModuleInterfaceProfile>,
     pub nodes: Vec<Node>,
     pub flops: Vec<Flop>,
+    /// Phase 6 inferrable-memory blocks (`PHASE-6-ADVANCED-MOTIFS.2`).
+    /// Additive, `Default`-empty: a module with no `Memory` is
+    /// byte-identical to pre-Phase-6 emission. A `Memory` is a
+    /// first-class clocked block (sibling to `Flop`); its read result
+    /// enters the gate graph only via the opaque `Node::MemRead`
+    /// leaf, so the array never participates in CSE/factorization.
+    pub memories: Vec<Memory>,
     pub instances: Vec<Instance>,
     /// (output_port_id, driving_node_id)
     pub drives: Vec<(PortId, NodeId)>,
@@ -468,12 +476,20 @@ impl Module {
         !self.flops.is_empty()
     }
 
+    /// Phase 6: a `Memory` is local sequential state (clocked block),
+    /// so a memory-bearing module must expose `clk` even with no
+    /// flops. Kept separate from [`has_local_flops`] so the flop
+    /// decl / `always_ff` emission gates are unaffected.
+    pub fn has_local_memories(&self) -> bool {
+        !self.memories.is_empty()
+    }
+
     /// Whether this module carries sequential state either locally or
     /// through instantiated descendants in the provided design view.
     /// Without design context, only local flops are visible.
     pub fn carries_sequential_state_in(&self, modules: Option<&BTreeMap<&str, &Module>>) -> bool {
         let Some(modules) = modules else {
-            return self.has_local_flops();
+            return self.has_local_flops() || self.has_local_memories();
         };
         self.carries_sequential_state_with_visited(modules, &mut BTreeSet::new())
     }
@@ -483,7 +499,7 @@ impl Module {
         modules: &BTreeMap<&str, &Module>,
         visiting: &mut BTreeSet<String>,
     ) -> bool {
-        if self.has_local_flops() {
+        if self.has_local_flops() || self.has_local_memories() {
             return true;
         }
         if !visiting.insert(self.name.clone()) {
@@ -1762,6 +1778,42 @@ pub struct Instance {
     pub param_bindings: Vec<(String, u32)>,
 }
 
+/// Phase 6 inferrable-memory kind (`PHASE-6-ADVANCED-MOTIFS.2`). Only
+/// the two empirically Yosys-`$mem_v2`-inferred shapes from the `.1`
+/// probe; both clean in Verilator + both repo Yosys modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MemKind {
+    /// One shared synchronous read/write address (`mem[addr]`).
+    SinglePort,
+    /// One write port (`waddr`/`we`/`wdata`) + one independent
+    /// synchronous read port (`raddr`).
+    SimpleDualPort,
+}
+
+/// A first-class inferrable-memory block (`PHASE-6-ADVANCED-MOTIFS.2`).
+/// Clocked by the module's shared `clk` (single-clock discipline);
+/// emitted as the `.1`-validated synchronous-write / synchronous-read
+/// template Yosys infers as `$mem_v2`. The write/read address and
+/// write-data inputs are real generated cones (`NodeId`s, dependency
+/// tracked + validated); the registered read output is exposed as the
+/// opaque `Node::MemRead` leaf, never folded into the expression graph.
+#[derive(Debug, Clone)]
+pub struct Memory {
+    pub id: MemId,
+    pub addr_width: u32,
+    pub data_width: u32,
+    pub kind: MemKind,
+    /// Write-enable source (width 1).
+    pub we: NodeId,
+    /// Write address source (width `addr_width`).
+    pub waddr: NodeId,
+    /// Write data source (width `data_width`).
+    pub wdata: NodeId,
+    /// Read address source (width `addr_width`). For `SinglePort`
+    /// this is the same node as `waddr` (one shared address).
+    pub raddr: NodeId,
+}
+
 #[derive(Debug, Clone)]
 pub enum Node {
     PrimaryInput {
@@ -1774,6 +1826,15 @@ pub enum Node {
     },
     FlopQ {
         flop: FlopId,
+        width: u32,
+    },
+    /// Registered read output of a `Memory` block
+    /// (`PHASE-6-ADVANCED-MOTIFS.2`). An **opaque leaf**, exactly like
+    /// `FlopQ`: identity-by-instance (the `MemId`), never merged by
+    /// CSE / never an expression — the clock edge breaks the
+    /// combinational path. `width == Memory.data_width`.
+    MemRead {
+        mem: MemId,
         width: u32,
     },
     InstanceOutput {
@@ -1795,6 +1856,7 @@ impl Node {
             Node::PrimaryInput { width, .. }
             | Node::Constant { width, .. }
             | Node::FlopQ { width, .. }
+            | Node::MemRead { width, .. }
             | Node::InstanceOutput { width, .. }
             | Node::Gate { width, .. } => *width,
         }
@@ -1924,7 +1986,14 @@ pub struct Flop {
 enum DepAtom {
     Port(PortId),
     FlopVirtual(FlopId),
-    InstanceOutputVirtual { instance: InstanceId, port: PortId },
+    /// Virtual endpoint for a `Memory` block's registered read
+    /// (`Node::MemRead`), keyed by `MemId` so distinct memories'
+    /// reads are distinct leaf endpoints — like `FlopVirtual`.
+    MemVirtual(MemId),
+    InstanceOutputVirtual {
+        instance: InstanceId,
+        port: PortId,
+    },
 }
 
 /// Set of leaf variables that a node depends on.
@@ -1952,6 +2021,14 @@ impl DepSet {
     pub fn from_flop_virtual(flop: FlopId) -> Self {
         let mut s = BTreeSet::new();
         s.insert(DepAtom::FlopVirtual(flop));
+        Self { set: s }
+    }
+
+    /// Virtual dep for a `Memory` block's registered read
+    /// (`PHASE-6-ADVANCED-MOTIFS.2`); mirrors [`from_flop_virtual`].
+    pub fn from_mem_virtual(mem: MemId) -> Self {
+        let mut s = BTreeSet::new();
+        s.insert(DepAtom::MemVirtual(mem));
         Self { set: s }
     }
 

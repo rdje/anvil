@@ -110,6 +110,34 @@ pub enum ValidateError {
     },
     #[error("output cone for port {0} has empty dep-set (trivially constant)")]
     TrivialOutput(PortId),
+    #[error("memory {mem} is malformed: {reason}")]
+    BadMemory {
+        mem: crate::ir::MemId,
+        reason: &'static str,
+    },
+    #[error("memory {mem} field `{field}` references undefined node {node}")]
+    UndefinedMemoryNode {
+        mem: crate::ir::MemId,
+        field: &'static str,
+        node: NodeId,
+    },
+    #[error("memory {mem} field `{field}` node {node} width {got} != expected {expected}")]
+    MemoryNodeWidthMismatch {
+        mem: crate::ir::MemId,
+        field: &'static str,
+        node: NodeId,
+        got: u32,
+        expected: u32,
+    },
+    #[error("MemRead node {node} references undefined memory {mem}")]
+    DanglingMemRead { node: NodeId, mem: crate::ir::MemId },
+    #[error("MemRead node {node} width {got} != memory {mem} data_width {expected}")]
+    MemReadWidthMismatch {
+        node: NodeId,
+        mem: crate::ir::MemId,
+        got: u32,
+        expected: u32,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -336,6 +364,71 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
             }
             Node::InstanceOutput { .. } => {}
             _ => {}
+        }
+    }
+
+    // 5b. Phase 6: every Memory is well-formed and every MemRead
+    // resolves to a declared memory at the right width.
+    let node_w = |id: NodeId| -> Option<u32> { m.nodes.get(id as usize).map(|n| n.width()) };
+    for (slot, mem) in m.memories.iter().enumerate() {
+        if mem.id as usize != slot {
+            return Err(ValidateError::BadMemory {
+                mem: mem.id,
+                reason: "memory table slot id mismatch",
+            });
+        }
+        if mem.addr_width == 0 || mem.data_width == 0 {
+            return Err(ValidateError::BadMemory {
+                mem: mem.id,
+                reason: "addr_width and data_width must be >= 1",
+            });
+        }
+        for (field, src, expected) in [
+            ("we", mem.we, 1u32),
+            ("waddr", mem.waddr, mem.addr_width),
+            ("wdata", mem.wdata, mem.data_width),
+            ("raddr", mem.raddr, mem.addr_width),
+        ] {
+            let Some(w) = node_w(src) else {
+                return Err(ValidateError::UndefinedMemoryNode {
+                    mem: mem.id,
+                    field,
+                    node: src,
+                });
+            };
+            if w != expected {
+                return Err(ValidateError::MemoryNodeWidthMismatch {
+                    mem: mem.id,
+                    field,
+                    node: src,
+                    got: w,
+                    expected,
+                });
+            }
+        }
+        if matches!(mem.kind, crate::ir::MemKind::SinglePort) && mem.raddr != mem.waddr {
+            return Err(ValidateError::BadMemory {
+                mem: mem.id,
+                reason: "SinglePort memory must share one address (raddr == waddr)",
+            });
+        }
+    }
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        if let Node::MemRead { mem, width } = node {
+            let Some(owner) = m.memories.get(*mem as usize) else {
+                return Err(ValidateError::DanglingMemRead {
+                    node: node_id as NodeId,
+                    mem: *mem,
+                });
+            };
+            if owner.data_width != *width {
+                return Err(ValidateError::MemReadWidthMismatch {
+                    node: node_id as NodeId,
+                    mem: *mem,
+                    got: *width,
+                    expected: owner.data_width,
+                });
+            }
         }
     }
 

@@ -1,8 +1,36 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-2.1-split — PHASE-6-ADVANCED-MOTIFS.2.1 split on a discovered compaction-reachability dependency
+## 2026-05-18-phase6-2.1a — PHASE-6-ADVANCED-MOTIFS.2.1a: memory IR core + opaque-stateful-leaf pipeline integration
 
 **Landed as:** this commit
+
+**What changed**
+
+- **IR core** (`src/ir/types.rs`): `MemId`; `MemKind{SinglePort,SimpleDualPort}`; `Memory{id,addr_width,data_width,kind,we,waddr,wdata,raddr}`; additive `Default`-empty `Module.memories: Vec<Memory>`; new **opaque leaf** `Node::MemRead{mem,width}`; `DepAtom::MemVirtual(MemId)` + `DepSet::from_mem_virtual`; `Module::has_local_memories()` OR'd into the sequential-state predicates so a memory-only module exposes `clk` (`has_local_flops` left untouched — flop emission gates unchanged).
+- **Pipeline integration**: `MemRead` threaded through all ~21 exhaustive `Node` matches (compiler-as-completeness-oracle) mirroring `FlopQ` as an opaque, identity-by-instance leaf — `gen/cone.rs`, `gen/hierarchy.rs`, `gen/module.rs`, `ir/param.rs`, `metrics.rs` (incl. `canonical_module_signature` tag 6), `ir/compact.rs`. **Load-bearing correctness**: the `compact.rs` reachability walk gains a `Node::MemRead` arm that marks `mem.{we,waddr,wdata,raddr}` reachable (like `FlopQ` keeps its flop's D cone), so memory input cones survive dead-elimination; `StructuralNodeShape::MemRead` + `LeafEndpoint::MemRead` (+ `width()`). Memories are never dead-eliminated in 6.2.1 ⇒ stable `MemId`, no remap machinery.
+- **Emitter** (`src/emit/sv.rs`): `memrd_<id>` helper + `node_ref` arm; per-memory `logic [DW-1:0] mem_<id> [0:2^AW-1];` + `logic [DW-1:0] memrd_<id>;` declarations + a reset-less `always_ff @(posedge clk)` synchronous write/read block — the `.1`-validated Yosys-`$mem_v2` template.
+- **Validator** (`src/ir/validate.rs`): new `BadMemory`/`UndefinedMemoryNode`/`MemoryNodeWidthMismatch`/`DanglingMemRead`/`MemReadWidthMismatch` + a step-5b that checks every `Memory`'s widths + `SinglePort` shared-address invariant + every `MemRead` resolves at the right width.
+- **Proofs** (`src/ir/compact.rs` tests): `memory_leaf_roundtrips_validate_and_emit`, `memread_keeps_memory_source_cones_through_compaction` (the reachability proof — dead gate stripped, `wdata` XOR cone survives, validate+emit clean), `memread_is_structurally_distinct_and_not_cse_merged`.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.2.1a`: land the IR core + the correctness-critical opaque-stateful-leaf pipeline integration (the discovered compaction-reachability dependency) atomically, with unit proofs, *before* the knob/generator (`.2.1b`). Continuous-PNT.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `ir::compact::tests` mem 3/3; full `cargo test` (COMMIT.md gate — see Verification Log). **No generator/knob** ⇒ no `Memory` is ever constructed ⇒ default-off is *trivially* byte-identical (emit unchanged for all real generation). No `book/` change (reconciliation is `.2.4`).
+
+**Impact**
+
+- The IR can now represent inferrable memory and the pipeline handles the opaque stateful leaf correctly; nothing constructs a `Memory` yet. Phase 6 frontier → `PHASE-6-ADVANCED-MOTIFS.2.1b` (knob + rules-first `build_memory_leaf` + focused proof).
+
+**Files touched**
+
+- Updated: src/ir/types.rs, src/ir/compact.rs, src/ir/validate.rs, src/emit/sv.rs, src/gen/cone.rs, src/gen/hierarchy.rs, src/gen/module.rs, src/ir/param.rs, src/metrics.rs, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
+## 2026-05-18-phase6-2.1-split — PHASE-6-ADVANCED-MOTIFS.2.1 split on a discovered compaction-reachability dependency
+
+**Landed as:** 4ad089b
 
 **What changed**
 

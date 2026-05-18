@@ -76,7 +76,10 @@ fn is_width_generic(module: &Module, design: u32) -> bool {
         // Constant: fixed-width literal, not width-generic.
         // FlopQ / InstanceOutput: excluded by the no-flops /
         // no-instances guard above; listed for exhaustiveness.
-        Node::Constant { .. } | Node::FlopQ { .. } | Node::InstanceOutput { .. } => false,
+        Node::Constant { .. }
+        | Node::FlopQ { .. }
+        | Node::MemRead { .. }
+        | Node::InstanceOutput { .. } => false,
     })
 }
 

@@ -209,6 +209,32 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         writeln!(out).unwrap();
     }
 
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.2.1a): inferrable-memory
+    // declarations — a packed-data unpacked-depth array + its
+    // registered read-data signal. Empty `m.memories` (default)
+    // emits nothing → byte-identical.
+    for mem in &m.memories {
+        let depth = 1u128 << mem.addr_width;
+        writeln!(
+            out,
+            "    logic {} mem_{} [0:{}];",
+            width_decl(mem.data_width),
+            mem.id,
+            depth - 1
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    logic {} {};",
+            width_decl(mem.data_width),
+            memrd_name(mem.id)
+        )
+        .unwrap();
+    }
+    if !m.memories.is_empty() {
+        writeln!(out).unwrap();
+    }
+
     // Internal signal declarations for every Gate node and every
     // instance-output node. Most gates are driven by continuous assigns
     // (`wire`); structured case muxes are driven procedurally (`logic`
@@ -450,6 +476,36 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         writeln!(out).unwrap();
     }
 
+    // Phase 6: inferrable-memory synchronous write/read blocks. One
+    // `always_ff @(posedge clk)` per memory (no reset — the LRM /
+    // Yosys $mem_v2-inferred template from PHASE-6-ADVANCED-MOTIFS.1).
+    if !m.memories.is_empty() {
+        let clk = port_name(m, m.clock.expect("memory requires a clock"));
+        for mem in &m.memories {
+            let we = node_ref(mem.we, m, &names);
+            let waddr = node_ref(mem.waddr, m, &names);
+            let wdata = node_ref(mem.wdata, m, &names);
+            let raddr = node_ref(mem.raddr, m, &names);
+            writeln!(out, "    always_ff @(posedge {}) begin", clk).unwrap();
+            writeln!(
+                out,
+                "        if ({}) mem_{}[{}] <= {};",
+                we, mem.id, waddr, wdata
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "        {} <= mem_{}[{}];",
+                memrd_name(mem.id),
+                mem.id,
+                raddr
+            )
+            .unwrap();
+            writeln!(out, "    end").unwrap();
+            writeln!(out).unwrap();
+        }
+    }
+
     // Output port assigns.
     for (port_id, node_id) in &m.drives {
         let out_port = m.outputs.iter().find(|p| p.id == *port_id).unwrap();
@@ -510,6 +566,12 @@ fn gate_kind_name(op: GateOp) -> &'static str {
 
 fn flop_name(id: u32) -> String {
     format!("flop_{}", id)
+}
+
+/// Phase 6: the registered read-data signal of `Memory` `id`
+/// (the `Node::MemRead` leaf). Stable per memory.
+fn memrd_name(id: crate::ir::MemId) -> String {
+    format!("memrd_{}", id)
 }
 
 fn instance_output_name(instance: InstanceId, port: crate::ir::PortId) -> String {
@@ -658,6 +720,7 @@ fn node_ref(id: NodeId, m: &Module, names: &[Option<String>]) -> String {
             .clone(),
         Node::Constant { width, value } => const_literal(*width, *value),
         Node::FlopQ { flop, .. } => flop_name(*flop),
+        Node::MemRead { mem, .. } => memrd_name(*mem),
         Node::InstanceOutput { .. } => names[id as usize]
             .clone()
             .expect("instance-output name assigned by build_names"),
