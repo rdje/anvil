@@ -637,6 +637,155 @@ This entry is design-only and is itself task-tree owned
 consistent with the task-tree-ownership doctrine's code/not-code
 boundary.
 
+### Phase 8 frontend/elaboration accept-corpus source-IR design (2026-05-18, PHASE-8-FRONTEND-ACCEPT.1)
+
+Design-only slice. No code. Lifts ROADMAP Phase 8 ("frontend/
+elaboration accept corpora — compact elaboratable hierarchies")
+into a concrete, codebase-grounded plan: why a dedicated
+source-level IR, the surfaces it must express, the
+expected-elaboration-facts manifest schema, the parity harness, the
+relationship to Phase 7 / Phase 9, rejected alternatives, the `.2`
+proof shape + split. Mirrors the proven design-first method.
+
+**The shift (and the boundary with Phase 7).** Phases 1–6 emit
+*already-elaborated, parameter-resolved* gate-level RTL (the
+"structural, not meaningful" DUT lane). Phase 7 is a tiny
+*single-module* const-expr oracle (one module, constant facts).
+Phase 8 is the **frontend/elaboration** lane: *compact elaboratable
+hierarchies* (1–3 modules + packages) emitted with **parameters
+unresolved in the SV text**, shipped with a manifest of what
+*elaboration must resolve them to*. The pressure point is the
+downstream tool's **front-end / elaboration** (parameter override
+resolution, instance binding, generate selection, package/type
+resolution) — a surface the gate-level circuit IR cannot represent
+*at all*.
+
+**Codebase grounding.** The circuit IR (`Port`/`Node`/`Flop`/
+`Memory`/`Fsm`/`Instance` in `src/ir/types.rs`) is *post-
+elaboration*: scalar `u32` nets, resolved widths, flattened/
+instantiated modules. It has no module-declaration, parameter-port,
+`localparam`, package, `typedef`/struct/union/enum, procedural-block
+or `generate` concept. Phase 5's `ParamEnv` and Phase 7's const-expr
+DAG are *sub-models* (resolved-width annotation; single-module
+constant facts) — neither expresses a hierarchy of un-elaborated
+module declarations. Phase 8 therefore needs a first-class
+**source-level AST IR** that emits *un-elaborated* SV, distinct
+from and not threaded through the circuit IR (the roadmap decree +
+the same category-boundary discipline that kept memory/FSM as
+blocks). It **reuses Phase 7's construction-time integer/const-expr
+evaluator and JSON-manifest core** (do not reimplement) and ANVIL's
+seeding/CLI/reproducibility; it is a **separate generator path**.
+
+**Surfaces the source IR must express (per ROADMAP).** ANSI port
+lists + parameter ports; parameter/localparam flows across
+instances; instantiation variants — named/ordered parameter
+overrides, named/ordered/wildcard (`.*`) port connections, instance
+arrays; package imports + package-qualified constants/types;
+typedef-backed types — packed/unpacked structs, unions, enums,
+builtin integral atoms (`int`/`byte`/`logic`/…); the full
+`assign` / `always_comb` / `always @(*)` / `always_ff` /
+`always_latch` set; `generate if` / `for`.
+
+**Source-IR sketch.**
+
+```
+SourceUnit   = { packages: Vec<Package>, modules: Vec<Module> }   // ordered, top last
+Package      = { name, items: Vec<PkgItem /* Localparam | Typedef */> }
+Module       = { name, params: Vec<ParamDecl>,            // #(parameter ...)
+                 ports:  Vec<PortDecl /* ANSI, typed, dir */>,
+                 items:  Vec<ModuleItem> }
+ModuleItem   = Localparam(name, Expr)
+             | VarDecl(name, Type)
+             | Typedef(name, Type)
+             | ContinuousAssign(lhs, Expr)
+             | Always(kind: Comb|FfPosedge|Latch|StarAt, body)
+             | Instance{ target, params: Named|Ordered(Vec<Expr>),
+                         ports: Named|Ordered|Wildcard, array: Option<RangeExpr> }
+             | Generate(If{cond: Expr} | For{genvar, bound: Expr})
+Type         = Logic{packed_dims} | Atom(int|byte|…) | Enum{base,members}
+             | Struct{packed,fields} | Union{fields} | Named(typedef)
+             | PkgQual(pkg,name)
+Expr         = the Phase 7 const-expr node set (reused), over
+               parameters/localparams/genvars/package constants.
+```
+
+Every `ParamDecl`/`Localparam`/generate condition carries its
+**construction-time-evaluated** value (Phase 7's evaluator), so the
+manifest is exact and the SV text can stay un-elaborated.
+
+**Expected-elaboration-facts manifest (extends Phase 7's schema).**
+Per emitted top, JSON, byte-stable: resolved top parameter values;
+the **instance tree** (instance path → target module → resolved
+child parameter values → child port bindings); selected `generate`
+branches / unrolled `for` iteration counts; package constant/type
+resolutions; typedef-resolved widths. The Phase 7
+`params`/`localparams`/`widths`/`const_exprs` blocks are reused
+verbatim; Phase 8 adds `instances`, `generate`, `packages`,
+`typedefs`.
+
+**Generation strategy — oracle by construction (reuse Phase 7's
+evaluator).** Identical doctrine: the generator chooses the
+hierarchy + parameter values and *performs the elaboration itself*
+at construction time (it knows the instance tree, override
+resolution, and generate selection because it built them); it emits
+*un-elaborated* SV **and** the elaborated-facts manifest from the
+same resolved knowledge — no analysis pass, no re-parse, no bundled
+elaborator. The novelty vs Phase 7: the SV text deliberately keeps
+parameters symbolic (`foo #(.W(W*2)) u();`) and the manifest asserts
+the elaboration result (`u.W == 16`) — that gap is exactly the
+front-end behaviour under test.
+
+**Open-Question resolution (reuse of Phase 7 manifest machinery).**
+**Resolved**: Phase 8 *reuses* Phase 7's construction-time
+evaluator + JSON-manifest emitter core and *extends* the schema
+with hierarchy/instance/generate/package facts. Dependency
+direction: `PHASE-8-FRONTEND-ACCEPT.2` depends on
+`PHASE-7-ORACLE-MICRODESIGN.2`'s evaluator/manifest core landing
+first (recorded so `.2` sequences correctly). Phase 9 unifies the
+artifact-family selector; Phase 8 lands behind an explicit family
+flag, not the selector.
+
+**Parity harness.** Same shape as Phase 7 but hierarchy-aware: a
+downstream elaborator (Yosys `read_verilog -sv; hierarchy -top …;
+write_json`, and/or `slang`/Verilator hierarchy+param
+introspection) reports the elaborated hierarchy facts; the harness
+compares to the manifest — exact agreement or a **retained
+counterexample**. Repo-owned gate (cargo cannot shell
+yosys/verilator — the Phase-1 convention); a cargo-portable
+structural-consistency slice (emitted declarations vs the
+generator's own resolved values) complements it.
+
+**Rejected alternatives.** (A) **Reuse the gate-level circuit IR** —
+rejected by roadmap decree *and* structurally: it is
+post-elaboration and cannot express modules/parameters/packages/
+generate. (B) **Emit already-elaborated SV** (parameters
+pre-resolved in text) — rejected: that is the Phases 1–6 DUT lane;
+it exercises synthesis, not the front-end/elaboration path Phase 8
+exists to stress; un-resolved-text-plus-manifest *is* the contract.
+(C) **A full SV parser/elaborator inside ANVIL to derive facts** —
+rejected: oracle-by-construction makes it unnecessary and it would
+re-introduce the very elaboration bugs under test (same as Phase
+7's (B)/(C)). (D) **Extend Phase 7's single-module const-expr IR
+in place** instead of a dedicated hierarchy/package IR — rejected:
+hierarchy/instantiation/packages are a categorically larger
+surface; cramming them into the const-expr DAG repeats the
+circuit-IR category error. Phase 8 *reuses Phase 7's evaluator* but
+is its own structural source IR.
+
+**Proof shape (`.2`, expected to split).** Reproducible 1–3 module
+accept corpora (byte-stable SV + manifest, cross-platform); the
+source IR emits valid un-elaborated SV (the downstream tool
+elaborates it clean); manifest-schema validation; parity harness
+green or retained counterexamples; behind the artifact-family flag;
+no DUT-lane regression. Split candidates (independently reviewable):
+source IR + construction-time elaboration-evaluator (reusing the
+Phase 7 core) / SV emitter + manifest emitter / parity harness +
+repo-owned gate.
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-8-FRONTEND-ACCEPT.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

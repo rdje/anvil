@@ -1,8 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase7-1 — PHASE-7-ORACLE-MICRODESIGN.1: oracle-backed micro-design artifact-family design
+## 2026-05-18-phase8-1 — PHASE-8-FRONTEND-ACCEPT.1: source-level frontend/elaboration accept-corpus IR design
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Phase 8 frontend/elaboration
+  accept-corpus source-IR design (2026-05-18,
+  PHASE-8-FRONTEND-ACCEPT.1)" entry — the shift to *compact
+  elaboratable hierarchies* emitted with **parameters unresolved in
+  the SV text** + a manifest of what elaboration must resolve;
+  codebase grounding (the post-elaboration scalar circuit IR cannot
+  express modules / parameter ports / packages / typedef / generate
+  ⇒ a dedicated source-level AST IR on a separate generator path);
+  the source-IR sketch (`SourceUnit`/`Package`/`Module`/
+  `ModuleItem`/`Type`/reused Phase-7 `Expr`); the
+  expected-elaboration-facts manifest schema (extends Phase 7's with
+  the instance tree / generate selections / package + typedef
+  resolutions); oracle-by-construction generation reusing Phase 7's
+  evaluator + manifest core; the hierarchy-aware parity harness;
+  4 rejected alternatives; the `.2` proof shape + split candidates.
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: `.1` done (Verification /
+  Commit / Frontier→`.2` / Open Question resolved [reuse Phase 7
+  core; `.2` sequences after `PHASE-7-ORACLE-MICRODESIGN.2`] /
+  Verification-Log / Commit-Log / Changelog / Metadata).
+  `docs/TASK_TREE.md` Phase 8 row updated.
+
+**Why**
+
+- Continuous-PNT while Phase 6 `.2.4`/`.3.4b` are gate-blocked.
+  Design-only (no code, no CPU, no full-cargo-test) — clears a
+  third tree's `.1` with zero contention on the in-flight gate, and
+  the separate source-level IR is Phase 8's load-bearing decision
+  that must be designed before any code.
+
+**Validation**
+
+- Design-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the Phase 8 tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`). `mdbook build book` clean; `cargo fmt --all --check`
+  clean; full `cargo test` was green at this slice's base `f0cff2c`
+  and no `src/`/`tests/` were touched since.
+
+**Impact**
+
+- Phase 8 has a codebase-grounded target; `.2` (implement, expected
+  to split; sequenced after `PHASE-7-ORACLE-MICRODESIGN.2` for the
+  shared evaluator/manifest core) is unblocked. No ROADMAP advance.
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase7-1 — PHASE-7-ORACLE-MICRODESIGN.1: oracle-backed micro-design artifact-family design
+
+**Landed as:** f0cff2c
 
 **What changed**
 
