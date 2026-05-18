@@ -310,6 +310,143 @@ This entry is design-only and is itself task-tree owned
 (`PHASE-6-ADVANCED-MOTIFS.1`); it makes no code change, consistent
 with the task-tree-ownership doctrine's code/not-code boundary.
 
+### Phase 6 generated-encoding FSM motif design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.3.1)
+
+Design-only slice. No code. Lifts ROADMAP Phase 6 "FSMs with
+explicitly generated state encodings" into a concrete,
+codebase-grounded plan with an empirical downstream-tool probe, a
+chosen architecture, rejected alternatives, the `.3` proof shape and
+split, so `.3.2`+ have an unambiguous target. Mirrors the proven
+Phase 5 / 5b / `.1`-memory design-first method.
+
+**Codebase grounding.** The IR has no state-machine concept. `Flop`
+is the only stateful element; `Node` is a scalar `u32`-typed
+expression graph; the operators-vs-blocks doctrine (established by
+the `.1`/`.2.1` memory work) says a stateful, non-CSE-able motif is a
+**block**, not an operator and not a datatype. A "generated-encoding
+FSM" decomposes exactly into primitives the emitter already proves
+synthesizable: (1) a **state register** — a flop holding the
+encoded-state bits; (2) **combinational next-state decode** — a
+`case (state_q)` over the generated state constants; (3)
+**combinational output decode** — a Moore `case (state_q)`; (4)
+**generated state constants** — `localparam` values whose width and
+bit-pattern are fixed *by the chosen encoding*. The encoding choice
+(binary / one-hot / gray) is the entire novel surface; everything
+else is flop + comb logic ANVIL already emits valid-by-construction.
+
+**Empirical downstream probe (resolves the open design question:
+"is a generated-encoding FSM downstream-clean in both repo Yosys
+modes + Verilator, for every encoding?").** Hand-wrote the exact SV
+template ANVIL would emit (localparam state constants + `state_q`
+flop with async-low reset + `always_comb` next-state `case` +
+`always_comb` Moore output `case`) for a 4-state FSM in all three
+encodings:
+
+- **binary** (`state_q` width `ceil(log2 N)` = 2 bits; constants
+  `2'd0..2'd3`),
+- **one-hot** (`state_q` width `N` = 4 bits; constants `4'b0001`,
+  `4'b0010`, `4'b0100`, `4'b1000`),
+- **gray** (`state_q` width 2 bits; constants `00,01,11,10`).
+
+Result — **all three are downstream-clean**: `verilator --lint-only
+-Wall` exit 0; `yosys read_verilog -sv; synth -noabc; check -assert`
+clean; `yosys synth; abc -fast; check -assert` clean — i.e. clean in
+**both** repo-owned Yosys modes and Verilator. The state-register
+width and constants differ by encoding (`[1:0]` for binary/gray vs
+`[3:0]` for one-hot), so **"encoding selectable" is a structural
+fact, not cosmetic** — exactly the ROADMAP Phase 6 requirement. (The
+case-decode shape Yosys also recognises via its `fsm` pass, but that
+is a bonus; the inference contract here is plain clean synthesis,
+unlike memory whose contract was the `$mem_v2` template — an FSM is
+"just" flop + comb logic, so the risk is encoding correctness, not
+inferability.)
+
+**Chosen architecture — (F): first-class `Fsm` block + opaque
+`Node::FsmOut` leaf + generated-encoding emitter + opt-in knob.**
+Mirrors the landed memory motif ((M)) so it reuses the proven
+opaque-stateful-leaf pipeline integration:
+
+1. **IR.** Additive `Vec<Fsm>` on `Module` (Default-empty → trees
+   without FSMs are byte-identical). An `Fsm` carries: state count
+   `N`, the chosen `FsmEncoding { Binary, OneHot, Gray }`, the
+   per-state next-state transition table (indices into states,
+   selected by a bounded input/condition cone), and the per-state
+   Moore output value. State constants are *derived* from
+   `(encoding, N)` at emit — never stored redundantly (full
+   factorization: the encoding is the identity of the constants).
+2. **Opaque leaf.** `Node::FsmOut { fsm: FsmId }` — a sibling to
+   `FlopQ`/`MemRead`, **never CSE'd / never factorized** (the FSM is
+   a block; its output is an opaque source like a flop's Q). Same
+   `compact.rs` reachability obligation discovered in `.2.1a`: a
+   reachable `FsmOut` must transitively keep the FSM's
+   transition/condition source cones alive (sibling rule to
+   `FlopQ`/`MemRead` keeping their D/we/addr cones).
+3. **Emitter.** Renders the probed-clean template: generated
+   `localparam` state constants per the encoding, the `state_q`
+   flop on the shared `clk` with async-low reset to `S0`, the
+   next-state `always_comb` `case`, the Moore output `always_comb`
+   `case`. Single-clock invariant preserved (no new clock).
+4. **Knob.** Opt-in `Config::fsm_prob` serde-default `0.0`
+   (default-off ⇒ byte-identical), one roll in the same
+   mutually-exclusive opt-in lane as `memory_prob` /
+   `width_parameterization_prob` (rules-first `build_fsm_block`,
+   never generate-then-filter).
+
+**Rejected alternatives.** (A) **Build the FSM from existing
+primitives** (a flop + a hand-rolled mux/`Eq` tree) with *no* block —
+rejected: the state encoding is then implicit and *not selectable*,
+the motif is unrecognisable as an FSM to a reader or to Yosys's
+`fsm` pass, and it defeats the ROADMAP's *"explicitly generated
+state encodings"* requirement. (B) **Emitter-only string template**
+(no IR `Fsm`) — rejected: not valid-by-construction, can't be
+validated, breaks the operators-vs-blocks doctrine the memory work
+established. (C) **A generic `enum`/typedef datatype threaded
+through the width/IR machinery** — rejected for the same reason
+memory's (C) was: a massive invasive change to scalar IR arithmetic;
+an FSM is a *block*, not a datatype. (D) **Mealy outputs (outputs a
+function of state *and* input)** — deferred, not rejected: Moore-only
+keeps the output decode a pure `case (state_q)` (matches the probed-
+clean template and the deterministic-output contract); Mealy is a
+recorded post-`.3` extension, not a `.3` blocker.
+
+**Proof shape (`.3`, split mirrors `.2`).** `.3` becomes a container
+mirroring the proven memory `.2.1`–`.2.4`:
+
+- **`.3.1`** (this slice) — design; design-only, no code.
+- **`.3.2`** — IR + opaque `FsmOut` leaf + `compact.rs` reachability
+  + emitter + validator scaffold + `fsm_prob` knob + rules-first
+  `build_fsm_block` (default-off byte-identical; forced-on focused
+  proof). May sub-split `.3.2a`/`.3.2b` (IR-core+reachability /
+  knob+generator) **if** implementing it surfaces a lower-level
+  dependency, exactly as `.2.1` split on the compaction-reachability
+  discovery — decided when reached, not pre-emptively.
+- **`.3.3`** — cargo-portable proof (`tests/pipeline.rs`): across
+  `ConstructionStrategy × FactorizationLevel × seeds`, the emitted SV
+  is *exactly* the probed-clean per-encoding template, exactly one
+  `FsmOut` survives every factorization level (CSE/EGraph-opaque),
+  all three encodings are reachable and structurally distinct;
+  `validate_design` clean; default-off byte-identical reaffirmed.
+- **`.3.4`** — `phase6_fsm` matrix scenario + `num_fsm_modules`
+  metric + `saw_fsm_design` fact/`Phase4Hierarchy` gap (no ROADMAP
+  advance), then the **real repo-owned gate** verified downstream-
+  clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass,
+  `saw_fsm_design=true`, P4/P5/P5b/P6-memory regressions clean)
+  *before* any promotion (r87 no-aspirational-claims). FSM is the
+  **last** Phase 6 motif: when `.3.4` verifies clean it both records
+  FSM delivered **and** — memory already delivered at `.2.4` — closes
+  ROADMAP Phase 6 and the `PHASE-6-ADVANCED-MOTIFS` tree (multi-clock
+  CDC stays the explicitly-optional, separately-prioritised deferral
+  per the 2026-05-16 Decision; not a Phase 6 blocker).
+
+The cargo gate **cannot** shell Yosys/Verilator (project convention
+since Phase 1); downstream cleanliness is proved by `.1`-style probe
+(done, above) + the `.3.4` repo-owned `tool_matrix` gate, never in
+`cargo test` — identical to how memory and Phase 5/5b were proved.
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-6-ADVANCED-MOTIFS.3.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

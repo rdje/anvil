@@ -1,5 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-3.1 — PHASE-6-ADVANCED-MOTIFS.3.1: generated-encoding FSM motif design (`.3` split)
+
+**Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Phase 6 generated-encoding FSM motif
+  design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.3.1)" entry. Codebase
+  grounding (IR has no FSM concept; `Flop` is the only stateful
+  element; the operators-vs-blocks doctrine → an FSM is a **block**).
+  An empirical downstream probe of the *exact* SV ANVIL would emit for
+  a 4-state Moore FSM in **all three generated encodings** — binary
+  (2-bit `state_q`), one-hot (4-bit), gray (2-bit): every one is
+  `verilator --lint-only -Wall` exit 0, `yosys synth -noabc;
+  check -assert` clean, and `yosys synth; abc -fast; check -assert`
+  clean (**both** repo Yosys modes). State width/constants differ by
+  encoding ⇒ "encoding selectable" is a structural fact. Chosen
+  architecture **(F)**: additive `Vec<Fsm>` on `Module`
+  (Default-empty) + opaque `Node::FsmOut` leaf (sibling to
+  `FlopQ`/`MemRead`, never CSE'd, same `compact.rs` reachability
+  obligation discovered in `.2.1a`) + encoding-derived-constant
+  emitter on the shared `clk` + opt-in `Config::fsm_prob` serde-default
+  0.0. Four rejected/deferred alternatives ((A) primitives-only,
+  (B) emitter-only string, (C) generic enum/typedef datatype,
+  (D) Mealy — deferred, not a `.3` blocker).
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: `.3` split into a container
+  `.3.1`(done)/`.3.2`/`.3.3`/`.3.4` mirroring the proven memory
+  `.2.1`–`.2.4`; `.3.1` Verification/Commit/Decisions/Open-Questions/
+  Verification-Log/Commit-Log/Changelog/Frontier/Metadata updated.
+  FSM is recorded as the **last** Phase 6 motif: a verified-clean
+  `.3.4` gate closes ROADMAP Phase 6 + the tree (memory delivered at
+  `.2.4`; multi-clock CDC stays the optional separately-prioritised
+  deferral). `docs/TASK_TREE.md` Phase 6 row updated.
+
+**Why**
+
+- Continuous-PNT doctrine: the active Phase 6 tree's `.2.4` memory
+  leaf is verify-only and gate-blocked (the real `tool_matrix` gate is
+  running); `.3` (FSM) is the substantive remaining Phase 6 work and
+  is unblocked. Design-first (no code, no CPU) is exactly the right
+  work while the gate saturates the machine, and mirrors the proven
+  Phase 5 / 5b / memory-`.1` design-first method.
+
+**Validation**
+
+- Design-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the two tree docs + `CHANGES.md` + `MEMORY.md`). The empirical probe
+  used local `verilator`/`yosys` at design time (not the cargo gate —
+  project convention since Phase 1). `mdbook build book` clean;
+  `cargo fmt --all --check` clean; full `cargo test` was green at this
+  slice's base `0b799b6` and no `src/`/`tests/` were touched since.
+
+**Impact**
+
+- Phase 6 FSM motif has an unambiguous, evidence-backed target. No
+  ROADMAP advance (design-only; promotion is `.3.4` on a verified
+  artifact, r87 no-aspirational-claims). Frontier: `.2.4`
+  (gate-blocked) ‖ `.3.2` (next).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
 ## 2026-05-18-book-examples-2.2 — BOOK-EXAMPLES-RUNNABLE.2.2: book-examples harness + embedded migration + mdbook-test CI (tree CLOSED)
 
 **Landed as:** 0b799b6
