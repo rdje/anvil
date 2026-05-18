@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.3` split + `.3.1` FSM design landed; frontier: `.2.4` gate-blocked ‖ `.3.2` next)
+- Last updated: `2026-05-18` (`.3.2` split → `.3.2a`/`.3.2b`; frontier: `.2.4` gate-blocked ‖ `.3.2a` next)
 - Owner: repo-local workflow
 
 ## Goal
@@ -96,7 +96,7 @@ multi-clock handshakes.
 - ID: `PHASE-6-ADVANCED-MOTIFS.3`
   Status: `active`
   Goal: `Generated-state-encoding FSM motif. Split (mirroring the proven memory .2.1–.2.4) into .3.1 design / .3.2 IR+leaf+emitter+knob scaffold / .3.3 cargo-portable structural+opacity proof / .3.4 matrix scenario+metric+gap then real-gate verify → ROADMAP Phase 6 (FSM is the last motif → closes Phase 6 + the tree on a verified clean gate).`
-  Children: `PHASE-6-ADVANCED-MOTIFS.3.1` (done), `.3.2`, `.3.3`, `.3.4`
+  Children: `PHASE-6-ADVANCED-MOTIFS.3.1` (done), `.3.2` (container: `.3.2a`, `.3.2b`), `.3.3`, `.3.4`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.1`
   Status: `done`
@@ -106,9 +106,21 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.1 generated-encoding FSM motif design`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.2`
+  Status: `active`
+  Goal: `FSM scaffold. Split (Splitting Rules + the proven .2.1 precedent: the opaque-stateful-leaf compaction-reachability is correctness-critical pipeline code, not mechanical FlopQ-mirroring — known concretely from the landed .2.1a, not speculative) into .3.2a (IR core + opaque FsmOut leaf + load-bearing compact.rs reachability + emitter + validator + unit proofs; no generator/knob → default-off trivially byte-identical) and .3.2b (Config::fsm_prob + rules-first build_fsm_block + default-off/forced-on focused proof).`
+  Children: `PHASE-6-ADVANCED-MOTIFS.3.2a`, `.3.2b`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.3.2a`
   Status: `pending`
-  Goal: `IR (additive Vec<Fsm> on Module, Default-empty) + opaque Node::FsmOut leaf through all exhaustive Node matches + load-bearing compact.rs reachability (reachable FsmOut keeps the FSM transition/condition cones alive) + encoding-derived-constant emitter (probed-clean template) + validator step + Config::fsm_prob (serde-default 0.0) + rules-first build_fsm_block in the mutually-exclusive opt-in lane. Default-off byte-identical; forced-on focused proof. May sub-split .3.2a/.3.2b iff implementing surfaces a lower-level dependency (decided when reached, exactly as .2.1 split).`
-  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; default fsm_prob=0.0 byte-identical to pre-slice; forced fsm_prob=1.0 emits the probed-clean per-encoding template + validate_design clean; no ROADMAP advance.`
+  Goal: `FSM IR core + opaque-stateful-leaf pipeline integration (mirrors the landed memory .2.1a). types.rs: FsmId, FsmEncoding{Binary,OneHot,Gray}, Fsm struct (id, num_states, encoding, sel:NodeId condition cone + sel_width, transitions table, per-state Moore output values, out_width), additive Default-empty Module.fsms, opaque Node::FsmOut{fsm,width}, DepAtom::FsmVirtual + DepSet::from_fsm_virtual, has_local_fsms() OR'd into the sequential-state predicates, Node::width arm; FsmOut threaded through ALL exhaustive Node matches (compiler-as-oracle, mirroring MemRead). Load-bearing compact.rs: StructuralNodeShape::FsmOut, LeafEndpoint::FsmOut, reachability arm keeping fsm.sel cone alive (sibling to MemRead keeping we/waddr/wdata/raddr), byte-identical rebuild arm, DepSet derivation, canonical-signature tag. Emitter renders the .3.1-probed-clean encoding-derived template (localparam state constants per encoding, state_q flop async-low reset to state 0 on shared clk, always_comb next-state case, always_comb Moore output case driving the FsmOut wire). Validator FSM step. 3 unit proofs (roundtrip+validate+emit; compaction-reachability keeps sel cone; structural-distinctness/CSE-opacity incl. two distinct FSMs). No generator/knob ⇒ default-off trivially byte-identical.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; 3 FSM unit proofs green; no Module without an Fsm changes (no fsms ⇒ byte-identical); no book/ change (book reconciliation is .3.4).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.3.2b`
+  Status: `pending`
+  Goal: `Config::fsm_prob (f64, serde-default 0.0, probability-range validated; mirrors memory_prob/aggregate_prob) + rules-first build_fsm_block (a clk/rst_n + sel-input, fsm-out-output combinational-free FSM leaf; num_states + FsmEncoding rolled via g.rng; transitions/outputs filled by rule; opaque FsmOut drives the output; no gates/flops) + single opt-in roll in generate_leaf_module_with_interface_profile (mutually exclusive with the memory + param lanes; default-off never enters) + default-off-byte-identical / forced-on focused proof. Closes the .3.2 container.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; focused proof: default fsm_prob=0.0 byte-identical across ConstructionStrategy×seeds; forced fsm_prob=1.0 every single-module design is a 1-Fsm leaf that validates and emits the probed-clean per-encoding template (all 3 encodings reachable across seeds); no ROADMAP advance; no book/ change.`
   Verification: `pending`
   Commit: `pending`
 
@@ -131,7 +143,7 @@ multi-clock handshakes.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `PHASE-6-ADVANCED-MOTIFS.2.4` | `pending` (gate-blocked) | `.2.3` landed the `phase6_inferrable_memory` matrix scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap (bin 216→219 / 864→876; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean), then records memory **delivered** in ROADMAP Phase 6 (Phase 6 stays open for `.3` FSM — no tree closure) + reconciles the book — promotion strictly follows the verified artifact (r87 no-aspirational-claims). The real gate is **currently running** (`/tmp/anvil-tool-matrix-phase6-p1`); `.2.4` is verification/recording only — actioned when the gate completes. |
-| 2 | `PHASE-6-ADVANCED-MOTIFS.3.2` | `pending` | `.3.1` design **done** (this slice — empirical probe: all 3 generated encodings clean in Verilator + both Yosys modes; architecture (F) chosen; `.3` split). `.3.2` is the FSM scaffold (IR `Vec<Fsm>` + opaque `Node::FsmOut` + `compact.rs` reachability + encoding-derived emitter + validator + `fsm_prob` knob + rules-first `build_fsm_block`, default-off byte-identical). **Unblocked** and independent of the running `.2.4` gate — the next continuous-PNT leaf while the gate runs. May sub-split `.3.2a/.3.2b` iff a lower-level dependency surfaces (decided when reached, as `.2.1` split). |
+| 2 | `PHASE-6-ADVANCED-MOTIFS.3.2a` | `pending` | `.3.1` design done; `.3.2` split (the opaque-stateful-leaf compaction-reachability is correctness-critical pipeline code, known concretely from the landed `.2.1a`). `.3.2a` = FSM IR core + opaque `Node::FsmOut` through all exhaustive `Node` matches + load-bearing `compact.rs` reachability (keeps `fsm.sel` cone alive) + encoding-derived emitter + validator + 3 unit proofs; **no generator/knob ⇒ default-off trivially byte-identical**. **Unblocked**, independent of the running `.2.4` gate — the next continuous-PNT leaf. `.3.2b` (knob + rules-first `build_fsm_block` + focused proof) follows. |
 
 ## Decisions
 
@@ -210,6 +222,24 @@ multi-clock handshakes.
   separately-prioritised deferral, not a blocker). No renumbering.
   Frontier: `.2.4` (gate-blocked, verify-only) ‖ `.3.2` (unblocked —
   next continuous-PNT leaf while the `.2.4` gate runs).
+- `2026-05-18`: **`.3.2` split** into `.3.2a` (IR core +
+  opaque-stateful-leaf pipeline integration incl. the load-bearing
+  `compact.rs` reachability + unit proofs; no generator/knob →
+  default-off trivially byte-identical) and `.3.2b` (`fsm_prob` knob
+  + rules-first `build_fsm_block` + focused proof). Unlike `.2.1`
+  (which split *after* implementation surfaced the dependency), the
+  `.3.1` design already identified that `Node::FsmOut` carries the
+  **identical** correctness-critical compaction-reachability
+  obligation as the landed `Node::MemRead` (a reachable `FsmOut`
+  must transitively keep the FSM's `sel` condition cone alive, or it
+  is dead-stripped and emission breaks). The lower-level dependency
+  is therefore **known concretely from the landed `.2.1a`, not
+  speculative** — splitting up front is "decided when reached" with
+  the dependency in hand, satisfying the Splitting Rules ("cannot be
+  completed to signoff in one slice"; "a lower-level dependency that
+  should be solved first") and matching the proven memory
+  decomposition. `.3.2` is now a container; `.3.3`/`.3.4` unchanged;
+  no renumbering. Frontier → `.3.2a` (‖ `.2.4` gate-blocked).
 
 ## Open Questions
 
@@ -399,3 +429,15 @@ multi-clock handshakes.
   separately-prioritised deferral, not a blocker). `mdbook` clean.
   Frontier: `.2.4` (gate-blocked, verify-only) ‖ `.3.2` (unblocked —
   next continuous-PNT leaf while the `.2.4` gate runs).
+- `2026-05-18`: **`.3.2` split** into `.3.2a` (IR core +
+  opaque-`FsmOut`-leaf pipeline integration incl. the load-bearing
+  `compact.rs` reachability that keeps `fsm.sel` alive + 3 unit
+  proofs; no generator/knob → default-off trivially byte-identical)
+  and `.3.2b` (`Config::fsm_prob` + rules-first `build_fsm_block` +
+  focused proof). The lower-level dependency is **known concretely
+  from the landed memory `.2.1a`** (`FsmOut` has the identical
+  opaque-stateful-leaf reachability obligation as `MemRead`), so the
+  split is decided up front with the dependency in hand — Splitting
+  Rules + the proven `.2.1` precedent. `.3.2` is now a container;
+  `.3.3`/`.3.4` unchanged; no renumbering. Frontier → `.3.2a`
+  (‖ `.2.4` gate-blocked).

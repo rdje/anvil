@@ -1,5 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-3.2-split — PHASE-6-ADVANCED-MOTIFS.3.2 split into `.3.2a` (IR core) + `.3.2b` (knob)
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: `.3.2` becomes a container
+  with children `.3.2a` (FSM IR core + opaque `Node::FsmOut`
+  pipeline integration incl. the load-bearing `compact.rs`
+  reachability + 3 unit proofs; no generator/knob ⇒ default-off
+  trivially byte-identical) and `.3.2b` (`Config::fsm_prob` +
+  rules-first `build_fsm_block` + default-off/forced-on focused
+  proof). Decisions / Changelog / Current Frontier / Metadata
+  updated; `docs/TASK_TREE.md` Phase 6 row updated.
+
+**Why**
+
+- Tree-planning, no code. `.3.2` (IR core + reachability + emitter +
+  validator + ~21 exhaustive `Node` match sites + knob + rules-first
+  generator + focused proof + full gate) cannot reach signoff in one
+  reviewable slice — exactly why memory's `.2.1` split. Unlike `.2.1`
+  (split *after* implementation surfaced the dependency), `.3.1`'s
+  design already established that `Node::FsmOut` carries the
+  *identical* correctness-critical compaction-reachability obligation
+  as the landed `Node::MemRead` (a reachable `FsmOut` must keep the
+  FSM's `sel` condition cone alive). The lower-level dependency is
+  known concretely from the landed `.2.1a`, not speculative, so the
+  split is "decided when reached" with the dependency in hand —
+  Splitting Rules + the proven `.2.1` precedent.
+
+**Validation**
+
+- Tree/docs-only — **no code change** (diff = the two tree docs +
+  `CHANGES.md` + `MEMORY.md`). `mdbook build book` clean (no `book/`
+  touched); `cargo` untouched (unchanged-green at base `4dddf0e`).
+
+**Impact**
+
+- `.3.2a` is the next continuous-PNT leaf (unblocked, independent of
+  the running `.2.4` memory gate). No ROADMAP change.
+
+**Files touched**
+
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
 ## 2026-05-18-phase6-3.1 — PHASE-6-ADVANCED-MOTIFS.3.1: generated-encoding FSM motif design (`.3` split)
 
 **Landed as:** 4dddf0e
