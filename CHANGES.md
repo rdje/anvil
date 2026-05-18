@@ -1,5 +1,30 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-1 — PHASE-6-ADVANCED-MOTIFS.1: inferrable-memory motif design
+
+**Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new design-notes entry "Phase 6 inferrable-memory motif design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.1)". Codebase-grounded (the IR has no array/memory concept — scalar `u32` `Port`/`Node`/`Flop`; `Flop` is the only stateful element; operators-vs-blocks doctrine → a memory is a *block*). Includes an **empirical Yosys-inference probe**: single-port sync RAM and simple dual-port templates both yield exactly `1 $mem_v2` under `proc;opt;memory_collect`, Verilator `--lint-only` exit 0, and `synth -noabc` / `synth;abc -fast` both exit 0 with `check -assert` (clean in both repo Yosys modes). Chosen architecture **(M)**: a first-class `Memory` block (additive `Vec<Memory>` on `Module`, Default-empty) + an opaque `Node::MemRead` leaf (sibling to `FlopQ`, never CSE'd) + emitter renders the validated inferrable template on the shared `clk` + opt-in `Config::memory_prob` (serde-default `0.0`). Three rejected alternatives: (A) flop-array+mux (not `$mem`-inferred — defeats the purpose), (B) emitter-only string template (not valid-by-construction), (C) generic unpacked-array datatype threaded through width arithmetic (massive invasive change; memory is a block, not a datatype). Proof shape for `.2` specified (Phase 5/5b `.2.x` decomposition + r87 no-aspirational-claims).
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: `.1` `pending`→`done`, Open Question resolved (the empirical probe), frontier `.1`→`.2`, Decisions/Verification-Log/Commit-Log/Changelog/Metadata. `docs/TASK_TREE.md`: `PHASE-6-ADVANCED-MOTIFS` frontier row `.1`→`.2`.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.1` (design-only leaf): give `.2` an unambiguous, codebase-grounded, empirically-validated implementation target with the rejected-alternatives trail recorded durably. Continuous-PNT: Phase 5b closed, loop advanced to the next open tree.
+
+**Validation**
+
+- Design/docs only — **no code change** (leaf is design-only; task-tree owned by `PHASE-6-ADVANCED-MOTIFS.1`, doctrine-compliant). `mdbook build book` clean; `cargo fmt --all --check` clean; `cargo test` unchanged-green (no `src/`/`tests/` touched since Phase 5b `.2.3`'s green run).
+
+**Impact**
+
+- Phase 6 frontier advances to `PHASE-6-ADVANCED-MOTIFS.2` (implement architecture (M); expected to split `.2.x`). No behavioural change.
+
+**Files touched**
+
+- Updated: DEVELOPMENT_NOTES.md, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase5b-2.4 — PHASE-5B-AGGREGATES.2.4: real-gate verify → ROADMAP Phase 5b (not started)→(done) + tree closure
 
 **Landed as:** 957b1aa

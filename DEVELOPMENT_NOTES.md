@@ -58,6 +58,129 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Phase 6 inferrable-memory motif design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.1)
+
+Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable
+aggregates → Unpacked arrays (the memory-inference pattern)" /
+ROADMAP Phase 6 into a concrete, codebase-grounded plan with an
+empirical Yosys-inference probe, a chosen architecture, rejected
+alternatives, and a proof shape, so the implementation leaf
+(`PHASE-6-ADVANCED-MOTIFS.2`) has an unambiguous target.
+
+**Goal (from ROADMAP Phase 6 / book).** Emit inferrable memory
+motifs (single-port and simple dual-port; inferrable patterns only),
+valid by construction, downstream-clean (Verilator + both Yosys
+modes), and **recognised as memory by Yosys** (`$mem_v2` after the
+memory pass). Default-off / byte-identical; never retire existing
+behaviour; single-clock discipline preserved.
+
+**Empirical Yosys-inference probe (resolves the tree's Open
+Question).** Two LRM-synthesizable templates were probed in `/tmp`
+through Verilator and **both** repo Yosys modes:
+
+- **Single-port** — `logic [DW-1:0] mem [0:2**AW-1]`;
+  `always_ff @(posedge clk) begin if (we) mem[addr] <= wdata;
+  rdata <= mem[addr]; end`.
+- **Simple dual-port** — same array, one write port (`waddr`/`we`)
+  and one independent read port (`raddr`), synchronous read.
+
+Result: `read_verilog -sv; proc; opt; memory_collect; stat` yields
+**exactly `1 $mem_v2`** for *both* templates; `verilator
+--lint-only` exits 0; `synth -noabc; check -assert` and `synth;
+abc -fast; check -assert` both exit 0 with no `ERROR`. Conclusion:
+both shapes are reliably memory-inferred and downstream-clean across
+the repo's exact gate toolchain. (Plain `synth` then maps tiny mems
+down to FFs for the final netlist — expected with no BRAM target;
+the *inference* is what Phase 6 asserts, captured at the
+`memory_collect` stage, not the post-`memory_map` cell mix.)
+
+**Code reality that constrains the design** (audited; key anchors).
+The IR has **no array/memory concept**: `Port` (`src/ir/types.rs`),
+every `Node::*` and `Flop` carry a scalar `u32` width; the only
+stateful element is `Flop` (one shared `always_ff` per module,
+`src/emit/sv.rs`); `Node` leaves are `PrimaryInput`, `Constant`,
+`FlopQ`, `InstanceOutput`. Per the **operators-vs-blocks doctrine**
+(`DEVELOPMENT_NOTES.md` "Core design decisions"), a memory is a
+*block* (a functional unit with internal structure and its own
+state/ports), not an operator and not a datatype — exactly like
+`Flop`/`Mux`. The emitter is a dumb serialiser; blocks are
+first-class motifs it renders verbatim.
+
+**Architectural decision — chosen: (M) a first-class `Memory` block,
+sibling to `Flop`, kept out of the NodeId expression graph.** A
+memory is *state with identity by instance*, not an expression
+(re-evaluating `mem[a]` is not pure), so — exactly as `Flop` is a
+module-level element with a `FlopQ` leaf, not a `Gate` — Phase 6
+adds:
+
+1. A `Memory` element on `Module` (additive `Vec<Memory>`, `Default`
+   empty ⇒ zero churn to `..Module::default()` sites, the proven
+   Phase 5/5b additive pattern): `{ id, addr_width, data_width,
+   kind: SinglePort | SimpleDualPort, write port (we/addr/data
+   source `NodeId`s), read port(s) }`.
+2. A new gate-graph **leaf** `Node::MemRead { mem, ... }` (sibling to
+   `FlopQ`) so a memory read result can feed cones without the array
+   itself ever entering combinational factorization (a `MemRead`
+   leaf is opaque to CSE, like `FlopQ` — it is identity-by-instance,
+   never merged with anything).
+3. Emitter: render the **empirically-validated inferrable template**
+   verbatim (`logic [DW-1:0] mem_k [0:2**AW-1]` + the synchronous
+   write/read `always_ff`), wired to the existing `clk`. Validator:
+   address/data widths consistent; read leaves resolve to a declared
+   memory.
+4. Opt-in `Config::memory_prob` (`f64`, serde-default `0.0`,
+   probability-range validated — the Phase 5/5b knob pattern).
+   Default-off ⇒ no `Memory`, byte-identical for fixed seeds.
+
+This keeps **valid-by-construction** (a rules-first generator block,
+no post-hoc filter), preserves single-clock discipline (the memory
+shares the module `clk`), and keeps the full-factorization doctrine
+intact (the array is never a NodeId; `MemRead` is an opaque leaf).
+It mirrors how `Flop` was integrated, which is the lowest-risk
+precedent in the codebase.
+
+**Rejected alternatives.**
+
+- **(A) Model memory as a register file of `Flop`s + address mux.**
+  Rejected: Yosys does **not** infer a flop-array + mux as `$mem`
+  (the probe's whole point) — it would defeat Phase 6's purpose
+  (memory-inference stress) entirely, and explodes node/flop counts
+  (2^AW flops + a 2^AW-way mux per read). It is not "a memory" to
+  any downstream tool.
+- **(B) Emitter-only string template with no IR representation.**
+  Rejected: not valid-by-construction — the memory's write/read
+  data sources must be real generated cones with dependency
+  tracking and validation; a free-floating text template cannot be
+  driven, validated, or factored, and is the post-hoc-template
+  anti-pattern the project forbids (rules-first construction).
+- **(C) A generic unpacked-array *datatype* threaded through
+  `Port`/`Node` width arithmetic.** Rejected: memory is a *block*,
+  not a datatype (operators-vs-blocks doctrine); threading an
+  array type through every width check / CSE key / validator /
+  emitter is a massive invasive change for zero gain over (M),
+  and conflates two orthogonal concepts. (M) confines memory to a
+  new block + one opaque leaf, exactly as `Flop` is confined.
+
+**Proof shape (for `.2`).** (1) Default-off byte-identical for fixed
+seeds across all `ConstructionStrategy` values (no `Memory` ⇒
+identical `to_sv`). (2) Forced-on: a focused proof that a generated
+memory module emits the inferrable template, `validate_design`
+passes, and **Yosys `memory_collect` reports ≥1 `$mem_v2`** in both
+repo modes (the inference assertion — the Phase 6 contract), plus
+`verilator --lint-only` clean. (3) A `tool_matrix`
+`phase6_inferrable_memory` scenario shaped like the dedup/phase5/5b
+anchor (shape-coverage sets unperturbed) + `DesignMetrics
+.num_memory_modules` + a `saw_inferrable_memory_design` coverage
+fact/gap + non-vacuity test; **no ROADMAP promotion** until the real
+repo-owned gate is run and verified clean (r87 no-aspirational-claims
+— same `.2.x` decomposition as Phase 5/5b). (4) Full `cargo` hygiene
+gate; `mdbook` reconciled (`ir.md` memory delivered note +
+`knobs.md` `memory_prob`).
+
+This entry is design-only and is itself task-tree owned
+(`PHASE-6-ADVANCED-MOTIFS.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable
