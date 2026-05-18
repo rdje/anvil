@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-1 — PHASE-6-ADVANCED-MOTIFS.1: inferrable-memory motif design
 
-**Landed as:** this commit
+**Landed as:** ab491a8
 
 **What changed**
 
