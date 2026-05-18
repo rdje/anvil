@@ -2094,7 +2094,7 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
-- `<pending>` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf (opt-in roll after the param lane, mutually exclusive; default-off byte-identical; forced-on memory leaf validates; spot-check generated SV → 1 $mem_v2 + verilator/both-yosys clean). Closes the .2.1 container.
+- `aa9abf0` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf (opt-in roll after the param lane, mutually exclusive; default-off byte-identical; forced-on memory leaf validates; spot-check generated SV → 1 $mem_v2 + verilator/both-yosys clean). Closes the .2.1 container.
 - `244cabd` — Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration (MemId/MemKind/Memory/Node::MemRead/DepAtom::MemVirtual; ~21 match sites; load-bearing compact.rs reachability; emitter inferrable template; validator; 3 unit proofs; no generator/knob → default-off trivially byte-identical).
 - `4ad089b` — Docs: split PHASE-6-ADVANCED-MOTIFS.2.1 → `.2.1a`/`.2.1b` on a discovered compaction-reachability dependency (opaque stateful leaf ≠ mechanical FlopQ-mirroring); in-flight IR edits reverted to clean `.2`-split base; tree-planning, no code.
 - `c96b433` — Docs: PHASE-6-ADVANCED-MOTIFS.2 split into `.2.1`–`.2.4` signoff-sized leaves (Splitting Rules + r87; tree-planning, no code; `.3` FSM unchanged).

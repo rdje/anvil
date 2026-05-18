@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-2.1b — PHASE-6-ADVANCED-MOTIFS.2.1b: memory_prob knob + rules-first build_memory_leaf
 
-**Landed as:** this commit
+**Landed as:** aa9abf0
 
 **What changed**
 
