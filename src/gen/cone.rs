@@ -1540,9 +1540,10 @@ fn node_small_value_set(
     let mask = width_mask(width) as u16;
 
     let values = match &m.nodes[id as usize] {
-        Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::MemRead { .. } => {
-            (0..=mask).collect()
-        }
+        Node::PrimaryInput { .. }
+        | Node::FlopQ { .. }
+        | Node::MemRead { .. }
+        | Node::FsmOut { .. } => (0..=mask).collect(),
         Node::Constant { value, .. } => vec![(*value & u128::from(mask)) as u16],
         Node::InstanceOutput { .. } => return mark_small_value_set_unknown(ctx, id),
         Node::Gate {
@@ -1869,7 +1870,8 @@ fn node_tiny_value_set(m: &Module, id: NodeId, ctx: &mut TinyValueSetContext) ->
     let values = match &m.nodes[id as usize] {
         Node::PrimaryInput { width, .. }
         | Node::FlopQ { width, .. }
-        | Node::MemRead { width, .. } => {
+        | Node::MemRead { width, .. }
+        | Node::FsmOut { width, .. } => {
             if *width == 1 {
                 vec![0, 1]
             } else {
@@ -1939,7 +1941,10 @@ fn node_tiny_value_set(m: &Module, id: NodeId, ctx: &mut TinyValueSetContext) ->
 
 fn node_support_size(m: &Module, id: NodeId) -> usize {
     match &m.nodes[id as usize] {
-        Node::PrimaryInput { .. } | Node::FlopQ { .. } | Node::MemRead { .. } => 1,
+        Node::PrimaryInput { .. }
+        | Node::FlopQ { .. }
+        | Node::MemRead { .. }
+        | Node::FsmOut { .. } => 1,
         Node::Constant { .. } => 0,
         Node::InstanceOutput { .. } => SMALL_VALUE_SET_MAX_SUPPORT + 1,
         Node::Gate { deps, .. } => deps.len(),
@@ -1986,7 +1991,8 @@ fn node_unsigned_bounds(
     let bounds = match &m.nodes[id as usize] {
         Node::PrimaryInput { width, .. }
         | Node::FlopQ { width, .. }
-        | Node::MemRead { width, .. } => (0, width_mask(*width)),
+        | Node::MemRead { width, .. }
+        | Node::FsmOut { width, .. } => (0, width_mask(*width)),
         Node::Constant { value, .. } => (*value, *value),
         Node::InstanceOutput { width, .. } => (0, width_mask(*width)),
         Node::Gate {
@@ -4052,6 +4058,7 @@ pub(super) fn node_deps(m: &Module, id: NodeId) -> DepSet {
         Node::Constant { .. } => DepSet::new(),
         Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
         Node::MemRead { mem, .. } => DepSet::from_mem_virtual(*mem),
+        Node::FsmOut { fsm, .. } => DepSet::from_fsm_virtual(*fsm),
         Node::InstanceOutput { instance, port, .. } => {
             DepSet::from_instance_output_virtual(*instance, *port)
         }

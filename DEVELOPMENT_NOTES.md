@@ -447,6 +447,38 @@ This entry is design-only and is itself task-tree owned
 (`PHASE-6-ADVANCED-MOTIFS.3.1`); it makes no code change, consistent
 with the task-tree-ownership doctrine's code/not-code boundary.
 
+**As-built IR shape (2026-05-18, `.3.2a`).** `.3.2` was split up
+front into `.3.2a` (IR core + opaque-leaf pipeline integration) and
+`.3.2b` (knob + rules-first generator) — the opaque-stateful-leaf
+compaction-reachability is correctness-critical pipeline code, known
+concretely from the landed memory `.2.1a` (it is *not* mechanical
+`FlopQ`-mirroring). `.3.2a` landed and fixes the concrete IR shape
+the architecture-(F) sketch left open:
+
+- `FsmEncoding{Binary,OneHot,Gray}` owns the encoding maths:
+  `state_width(N)` = `ceil(log2 N)` for Binary/Gray, `N` for OneHot;
+  `state_const(s)` = `s` / `1<<s` / `s ^ (s>>1)`. The state constants
+  are **derived**, never stored (full factorization: the encoding is
+  the identity of the constants).
+- `Fsm { num_states, encoding, sel:NodeId, sel_width,
+  transitions:[N][1<<sel_width], outputs:[N], out_width }`. A single
+  generated `sel` cone drives the next-state decode
+  (`next = transitions[state][sel]`); Moore outputs are a per-state
+  value table. Reset state is index 0. This is the minimal shape
+  that is valid-by-construction and downstream-clean per the `.3.1`
+  probe; richer transition conditions are a post-`.3` extension, not
+  a `.3` blocker (recorded, like Mealy).
+- Emitter detail worth recording: state `localparam`s are emitted
+  **per-FSM-prefixed** (`FSM<id>_S<k>`), not the probe's bare `Sk`,
+  so multiple FSMs in one module never collide; they are emitted in
+  module body just before the FSM `always` blocks (LRM-legal;
+  Verilator/Yosys-accepted; the authoritative tool re-verification
+  is the `.3.4` repo gate, exactly as for memory).
+- Default-off is **trivially** byte-identical: the emitter blocks are
+  gated on `!m.fsms.is_empty()`, the predicates only OR when `fsms`
+  is non-empty, and the `FsmOut` match arms only fire when a `FsmOut`
+  node exists — none of which occur without the (`.3.2b`) generator.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

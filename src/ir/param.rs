@@ -79,6 +79,7 @@ fn is_width_generic(module: &Module, design: u32) -> bool {
         Node::Constant { .. }
         | Node::FlopQ { .. }
         | Node::MemRead { .. }
+        | Node::FsmOut { .. }
         | Node::InstanceOutput { .. } => false,
     })
 }

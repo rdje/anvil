@@ -235,6 +235,38 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         writeln!(out).unwrap();
     }
 
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.2a): generated-encoding FSM
+    // declarations — the encoded-state register, its next-state
+    // combinational signal, and the registered Moore output. Empty
+    // `m.fsms` (default) emits nothing → byte-identical.
+    for fsm in &m.fsms {
+        let sw = fsm.encoding.state_width(fsm.num_states);
+        writeln!(
+            out,
+            "    logic {} {};",
+            width_decl(sw),
+            fsm_state_name(fsm.id)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    logic {} {};",
+            width_decl(sw),
+            fsm_next_name(fsm.id)
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "    logic {} {};",
+            width_decl(fsm.out_width),
+            fsm_out_name(fsm.id)
+        )
+        .unwrap();
+    }
+    if !m.fsms.is_empty() {
+        writeln!(out).unwrap();
+    }
+
     // Internal signal declarations for every Gate node and every
     // instance-output node. Most gates are driven by continuous assigns
     // (`wire`); structured case muxes are driven procedurally (`logic`
@@ -506,6 +538,90 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         }
     }
 
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.2a): generated-encoding Moore
+    // FSM blocks — the `.3.1`-probed-clean template (encoding-derived
+    // `localparam` state constants + an async-low-reset state register
+    // + an `always_comb` next-state `case` selected by `sel` + an
+    // `always_comb` Moore output `case`). Empty `m.fsms` → nothing.
+    if !m.fsms.is_empty() {
+        let clk = port_name(m, m.clock.expect("fsm requires a clock"));
+        let rst = port_name(m, m.reset.expect("fsm requires a reset"));
+        for fsm in &m.fsms {
+            let sw = fsm.encoding.state_width(fsm.num_states);
+            let st = fsm_state_name(fsm.id);
+            let nx = fsm_next_name(fsm.id);
+            let outw = fsm_out_name(fsm.id);
+            let sel = node_ref(fsm.sel, m, &names);
+            let sname = |s: u32| format!("FSM{}_S{}", fsm.id, s);
+
+            // Encoding-derived state constants.
+            for s in 0..fsm.num_states {
+                writeln!(
+                    out,
+                    "    localparam logic {} {} = {};",
+                    width_decl(sw),
+                    sname(s),
+                    fsm_state_lit(fsm.encoding, fsm.num_states, s)
+                )
+                .unwrap();
+            }
+
+            // Next-state decode.
+            writeln!(out, "    always_comb begin").unwrap();
+            writeln!(out, "        {} = {};", nx, st).unwrap();
+            writeln!(out, "        case ({})", st).unwrap();
+            for s in 0..fsm.num_states {
+                writeln!(out, "            {}: case ({})", sname(s), sel).unwrap();
+                for (sv, &ns) in fsm.transitions[s as usize].iter().enumerate() {
+                    writeln!(
+                        out,
+                        "                {}'h{:x}: {} = {};",
+                        fsm.sel_width,
+                        sv,
+                        nx,
+                        sname(ns)
+                    )
+                    .unwrap();
+                }
+                writeln!(out, "                default: {} = {};", nx, sname(0)).unwrap();
+                writeln!(out, "            endcase").unwrap();
+            }
+            writeln!(out, "            default: {} = {};", nx, sname(0)).unwrap();
+            writeln!(out, "        endcase").unwrap();
+            writeln!(out, "    end").unwrap();
+
+            // State register (async-low reset to state 0).
+            writeln!(
+                out,
+                "    always_ff @(posedge {} or negedge {}) begin",
+                clk, rst
+            )
+            .unwrap();
+            writeln!(out, "        if (!{}) {} <= {};", rst, st, sname(0)).unwrap();
+            writeln!(out, "        else {} <= {};", st, nx).unwrap();
+            writeln!(out, "    end").unwrap();
+
+            // Moore output decode.
+            writeln!(out, "    always_comb begin").unwrap();
+            writeln!(out, "        case ({})", st).unwrap();
+            for s in 0..fsm.num_states {
+                writeln!(
+                    out,
+                    "            {}: {} = {}'h{:x};",
+                    sname(s),
+                    outw,
+                    fsm.out_width,
+                    fsm.outputs[s as usize]
+                )
+                .unwrap();
+            }
+            writeln!(out, "            default: {} = {}'h0;", outw, fsm.out_width).unwrap();
+            writeln!(out, "        endcase").unwrap();
+            writeln!(out, "    end").unwrap();
+            writeln!(out).unwrap();
+        }
+    }
+
     // Output port assigns.
     for (port_id, node_id) in &m.drives {
         let out_port = m.outputs.iter().find(|p| p.id == *port_id).unwrap();
@@ -572,6 +688,29 @@ fn flop_name(id: u32) -> String {
 /// (the `Node::MemRead` leaf). Stable per memory.
 fn memrd_name(id: crate::ir::MemId) -> String {
     format!("memrd_{}", id)
+}
+
+/// Phase 6 (`PHASE-6-ADVANCED-MOTIFS.3`): the registered Moore-output
+/// signal of `Fsm` `id` (the `Node::FsmOut` leaf). Stable per FSM.
+fn fsm_out_name(id: crate::ir::FsmId) -> String {
+    format!("fsm_{}", id)
+}
+
+/// Phase 6: the encoded-state register of `Fsm` `id`.
+fn fsm_state_name(id: crate::ir::FsmId) -> String {
+    format!("fsm_state_{}", id)
+}
+
+/// Phase 6: the next-state combinational signal of `Fsm` `id`.
+fn fsm_next_name(id: crate::ir::FsmId) -> String {
+    format!("fsm_next_{}", id)
+}
+
+/// Phase 6: SV literal for state index `s` under `enc`/`num_states`,
+/// width-sized to the state register.
+fn fsm_state_lit(enc: crate::ir::FsmEncoding, num_states: u32, s: u32) -> String {
+    let w = enc.state_width(num_states);
+    format!("{}'h{:x}", w, enc.state_const(s))
 }
 
 fn instance_output_name(instance: InstanceId, port: crate::ir::PortId) -> String {
@@ -721,6 +860,7 @@ fn node_ref(id: NodeId, m: &Module, names: &[Option<String>]) -> String {
         Node::Constant { width, value } => const_literal(*width, *value),
         Node::FlopQ { flop, .. } => flop_name(*flop),
         Node::MemRead { mem, .. } => memrd_name(*mem),
+        Node::FsmOut { fsm, .. } => fsm_out_name(*fsm),
         Node::InstanceOutput { .. } => names[id as usize]
             .clone()
             .expect("instance-output name assigned by build_names"),

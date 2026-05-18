@@ -545,6 +545,9 @@ pub fn compute(m: &Module) -> Metrics {
             Node::PrimaryInput { .. } => out.num_primary_inputs += 1,
             Node::FlopQ { .. } => out.num_flop_q_refs += 1,
             Node::MemRead { .. } => {}
+            // Phase 6 .3.2a: opaque FSM-output leaf; the
+            // `num_fsm_modules` metric is .3.4, not this slice.
+            Node::FsmOut { .. } => {}
             Node::InstanceOutput { .. } => out.num_instance_outputs += 1,
             Node::Constant { width, value } => {
                 out.num_constants += 1;
@@ -1802,6 +1805,7 @@ fn node_deps(module: &Module, node_id: NodeId) -> crate::ir::DepSet {
         Node::PrimaryInput { port, .. } => crate::ir::DepSet::from_port(*port),
         Node::FlopQ { flop, .. } => crate::ir::DepSet::from_flop_virtual(*flop),
         Node::MemRead { mem, .. } => crate::ir::DepSet::from_mem_virtual(*mem),
+        Node::FsmOut { fsm, .. } => crate::ir::DepSet::from_fsm_virtual(*fsm),
         Node::InstanceOutput { instance, port, .. } => {
             crate::ir::DepSet::from_instance_output_virtual(*instance, *port)
         }
@@ -2281,6 +2285,11 @@ pub(crate) fn canonical_module_signature(module: &Module) -> u64 {
             Node::MemRead { mem, width } => {
                 h = fnv1a_64_u32(h, 6);
                 h = fnv1a_64_u32(h, *mem);
+                h = fnv1a_64_u32(h, wsig(*width));
+            }
+            Node::FsmOut { fsm, width } => {
+                h = fnv1a_64_u32(h, 7);
+                h = fnv1a_64_u32(h, *fsm);
                 h = fnv1a_64_u32(h, wsig(*width));
             }
             Node::FlopQ { flop, width } => {

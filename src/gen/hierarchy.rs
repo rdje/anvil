@@ -1242,6 +1242,7 @@ fn adapt_parent_cone_instance_source_to_width(
         Node::PrimaryInput { width, .. } => *width,
         Node::FlopQ { width, .. } => *width,
         Node::MemRead { width, .. } => *width,
+        Node::FsmOut { width, .. } => *width,
         Node::Constant { width, .. } => *width,
     };
     let source_deps = cone::node_deps(top, required_source);

@@ -128,6 +128,10 @@ enum StructuralNodeShape {
         mem: crate::ir::MemId,
         width: u32,
     },
+    FsmOut {
+        fsm: crate::ir::FsmId,
+        width: u32,
+    },
     Gate {
         op: GateOp,
         width: u32,
@@ -172,6 +176,10 @@ enum LeafEndpoint {
         mem: crate::ir::MemId,
         width: u32,
     },
+    FsmOut {
+        fsm: crate::ir::FsmId,
+        width: u32,
+    },
 }
 
 impl LeafEndpoint {
@@ -180,7 +188,8 @@ impl LeafEndpoint {
             LeafEndpoint::PrimaryInput { width, .. }
             | LeafEndpoint::InstanceOutput { width, .. }
             | LeafEndpoint::FlopQ { width, .. }
-            | LeafEndpoint::MemRead { width, .. } => width,
+            | LeafEndpoint::MemRead { width, .. }
+            | LeafEndpoint::FsmOut { width, .. } => width,
         }
     }
 }
@@ -231,6 +240,10 @@ fn structural_node_sig_id(
         }),
         Node::MemRead { mem, width } => ctx.intern(StructuralNodeShape::MemRead {
             mem: *mem,
+            width: *width,
+        }),
+        Node::FsmOut { fsm, width } => ctx.intern(StructuralNodeShape::FsmOut {
+            fsm: *fsm,
             width: *width,
         }),
         Node::Gate {
@@ -292,6 +305,10 @@ fn collect_leaf_endpoints(
         }]),
         Node::MemRead { mem, width } => BTreeSet::from([LeafEndpoint::MemRead {
             mem: *mem,
+            width: *width,
+        }]),
+        Node::FsmOut { fsm, width } => BTreeSet::from([LeafEndpoint::FsmOut {
+            fsm: *fsm,
             width: *width,
         }]),
         Node::Constant { .. } => BTreeSet::new(),
@@ -375,6 +392,14 @@ fn evaluate_node_under_assignment(
         Node::MemRead { mem, width } => {
             let endpoint = LeafEndpoint::MemRead {
                 mem: *mem,
+                width: *width,
+            };
+            let offset = endpoint_offsets[&endpoint];
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::FsmOut { fsm, width } => {
+            let endpoint = LeafEndpoint::FsmOut {
+                fsm: *fsm,
                 width: *width,
             };
             let offset = endpoint_offsets[&endpoint];
@@ -899,7 +924,8 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
             Node::PrimaryInput { .. }
             | Node::Constant { .. }
             | Node::InstanceOutput { .. }
-            | Node::MemRead { .. } => {}
+            | Node::MemRead { .. }
+            | Node::FsmOut { .. } => {}
             Node::FlopQ { flop, .. } => {
                 *flop = old_to_new[*flop as usize];
             }
@@ -1401,6 +1427,17 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                     mark_node(src, &mut reachable, &mut stack);
                 }
             }
+            Node::FsmOut { fsm, .. } => {
+                // Load-bearing (PHASE-6-ADVANCED-MOTIFS.3.2a): a
+                // reachable FsmOut keeps the FSM's transition-select
+                // source cone alive, exactly as a reachable MemRead
+                // keeps the memory's address/data cones. FSMs are
+                // never dead-eliminated in 6.3.2a (no generator yet;
+                // and an FSM, like a memory, is never pruned), so the
+                // FsmId is stable — no remap.
+                let fsm = &m.fsms[*fsm as usize];
+                mark_node(fsm.sel, &mut reachable, &mut stack);
+            }
             Node::PrimaryInput { .. } | Node::Constant { .. } | Node::InstanceOutput { .. } => {}
         }
     }
@@ -1462,6 +1499,7 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
                 width,
             },
             Node::MemRead { mem, width } => Node::MemRead { mem, width },
+            Node::FsmOut { fsm, width } => Node::FsmOut { fsm, width },
             Node::InstanceOutput {
                 instance,
                 port,
@@ -1699,6 +1737,7 @@ fn rebuild_instance_tables(m: &mut Module) {
             Node::PrimaryInput { .. }
             | Node::FlopQ { .. }
             | Node::MemRead { .. }
+            | Node::FsmOut { .. }
             | Node::InstanceOutput { .. } => {}
             Node::Constant { width, value } => {
                 const_instances
@@ -2129,6 +2168,7 @@ mod tests {
             }
             Node::FlopQ { flop, .. } => DepSet::from_flop_virtual(*flop),
             Node::MemRead { mem, .. } => DepSet::from_mem_virtual(*mem),
+            Node::FsmOut { fsm, .. } => DepSet::from_fsm_virtual(*fsm),
             Node::Gate { deps, .. } => deps.clone(),
         }
     }
@@ -3101,6 +3141,194 @@ mod tests {
         assert_eq!(
             mem_reads, 2,
             "two distinct memories' reads must never be CSE-merged"
+        );
+    }
+
+    // ---- PHASE-6-ADVANCED-MOTIFS.3.2a: generated-encoding FSM IR core ----
+
+    /// Minimal valid FSM leaf: clk/rst_n control ports, two `sel`
+    /// inputs XOR'd into the 1-bit transition selector (a real cone
+    /// so a reachability regression visibly strips it), one `Fsm`,
+    /// and a `FsmOut` driving the `q` output.
+    fn fsm_leaf(num_states: u32, encoding: crate::ir::FsmEncoding) -> Module {
+        use crate::ir::{Direction, Fsm, Port};
+        let mut m = Module {
+            name: "fsm_leaf".into(),
+            clock: Some(0),
+            reset: Some(1),
+            ..Module::default()
+        };
+        let mk_in = |m: &mut Module, id: PortId, name: &str, w: u32| {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: w,
+                dir: Direction::In,
+            });
+        };
+        mk_in(&mut m, 0, "clk", 1);
+        mk_in(&mut m, 1, "rst_n", 1);
+        mk_in(&mut m, 2, "sel_a", 1);
+        mk_in(&mut m, 3, "sel_b", 1);
+        let out_width = 8u32;
+        m.outputs.push(Port {
+            id: 4,
+            name: "q".into(),
+            width: out_width,
+            dir: Direction::Out,
+        });
+        let sa = m.nodes.len() as NodeId;
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 });
+        let sb = m.nodes.len() as NodeId;
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 1 });
+        // sel = sel_a ^ sel_b — a real generated cone feeding the FSM.
+        let sel = push_gate(&mut m, GateOp::Xor, vec![sa, sb], 1);
+        // Ring transitions: sel==1 advances, sel==0 holds.
+        let transitions: Vec<Vec<u32>> = (0..num_states)
+            .map(|s| vec![s, (s + 1) % num_states])
+            .collect();
+        let outputs: Vec<u128> = (0..num_states).map(|s| (s as u128) * 3 + 1).collect();
+        let fsm_id = m.fsms.len() as crate::ir::FsmId;
+        m.fsms.push(Fsm {
+            id: fsm_id,
+            num_states,
+            encoding,
+            sel,
+            sel_width: 1,
+            transitions,
+            outputs,
+            out_width,
+        });
+        let fo = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FsmOut {
+            fsm: fsm_id,
+            width: out_width,
+        });
+        m.drives.push((4, fo));
+        m
+    }
+
+    #[test]
+    fn fsm_leaf_roundtrips_validate_and_emit() {
+        let m = fsm_leaf(4, crate::ir::FsmEncoding::Binary);
+        validate(&m).expect("fsm leaf must validate");
+        let sv = crate::emit::to_sv(&m);
+        // Binary, 4 states → 2-bit state register.
+        assert!(
+            sv.contains("logic [1:0] fsm_state_0;"),
+            "must declare the encoded-state register:\n{sv}"
+        );
+        assert!(
+            sv.contains("logic [7:0] fsm_0;"),
+            "must declare the registered Moore output:\n{sv}"
+        );
+        assert!(
+            sv.contains("localparam logic [1:0] FSM0_S0 = 2'h0;"),
+            "must emit encoding-derived state constants:\n{sv}"
+        );
+        assert!(
+            sv.contains("always_ff @(posedge clk or negedge rst_n) begin"),
+            "state register must use the async-low-reset block:\n{sv}"
+        );
+        assert!(
+            sv.contains("if (!rst_n) fsm_state_0 <= FSM0_S0;"),
+            "state must reset to state 0:\n{sv}"
+        );
+        assert!(
+            sv.contains("case (fsm_state_0)") && sv.contains("fsm_next_0 ="),
+            "must emit the next-state decode case:\n{sv}"
+        );
+        assert!(
+            sv.contains("fsm_0 = 8'h"),
+            "must emit the Moore output decode:\n{sv}"
+        );
+        // clk/rst_n exposed (an FSM is sequential state).
+        assert!(sv.contains("clk") && sv.contains("rst_n"));
+    }
+
+    #[test]
+    fn fsmout_keeps_sel_cone_through_compaction() {
+        let mut m = fsm_leaf(4, crate::ir::FsmEncoding::OneHot);
+        // A genuinely dead gate nothing references.
+        let sa = 0 as NodeId;
+        let _dead = push_raw_gate(&mut m, GateOp::Not, vec![sa], 1);
+        let before = m.nodes.len();
+        let removed = compact_node_ids(&mut m);
+        assert!(removed >= 1, "the dead gate must be compacted away");
+        assert!(m.nodes.len() < before);
+        validate(&m).expect("fsm module must still validate after compaction");
+        let sv = crate::emit::to_sv(&m);
+        assert!(
+            sv.contains("case (fsm_state_0)") && sv.contains("fsm_next_0 ="),
+            "FSM next-state cone must survive dead-elimination:\n{sv}"
+        );
+        // The Xor feeding `sel` must still be present.
+        assert!(
+            m.nodes.iter().any(|n| matches!(
+                n,
+                Node::Gate {
+                    op: GateOp::Xor,
+                    ..
+                }
+            )),
+            "the sel cone (Xor) must not be dead-stripped"
+        );
+    }
+
+    #[test]
+    fn fsmout_is_structurally_distinct_and_not_cse_merged() {
+        use crate::metrics::canonical_module_signature;
+        // (a) An FsmOut-driven module differs structurally from a
+        // PrimaryInput-driven twin — FsmOut carries its own identity.
+        let fsm_mod = fsm_leaf(4, crate::ir::FsmEncoding::Binary);
+        let mut plain = fsm_mod.clone();
+        plain.fsms.clear();
+        let pin = plain.nodes.len() as NodeId;
+        plain.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        plain.drives.clear();
+        plain.drives.push((4, pin));
+        assert_ne!(
+            canonical_module_signature(&fsm_mod),
+            canonical_module_signature(&plain),
+            "an FsmOut node must be structurally distinct from a PrimaryInput"
+        );
+        // (b) Two distinct FSMs' outputs are distinct leaves: never
+        // merged, both survive compaction.
+        let mut two = fsm_leaf(4, crate::ir::FsmEncoding::Gray);
+        let f1 = two.fsms.len() as crate::ir::FsmId;
+        let src = &two.fsms[0];
+        let (sel, sw, ns) = (src.sel, src.sel_width, src.num_states);
+        let transitions = src.transitions.clone();
+        let outputs = src.outputs.clone();
+        two.fsms.push(crate::ir::Fsm {
+            id: f1,
+            num_states: ns,
+            encoding: crate::ir::FsmEncoding::Gray,
+            sel,
+            sel_width: sw,
+            transitions,
+            outputs,
+            out_width: 8,
+        });
+        let fo1 = two.nodes.len() as NodeId;
+        two.nodes.push(Node::FsmOut { fsm: f1, width: 8 });
+        two.outputs.push(crate::ir::Port {
+            id: 5,
+            name: "q1".into(),
+            width: 8,
+            dir: crate::ir::Direction::Out,
+        });
+        two.drives.push((5, fo1));
+        validate(&two).expect("two-fsm module validates");
+        compact_node_ids(&mut two);
+        let fsm_outs = two
+            .nodes
+            .iter()
+            .filter(|n| matches!(n, Node::FsmOut { .. }))
+            .count();
+        assert_eq!(
+            fsm_outs, 2,
+            "two distinct FSMs' outputs must never be CSE-merged"
         );
     }
 }

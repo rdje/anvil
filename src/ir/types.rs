@@ -13,6 +13,9 @@ pub type PortId = u32;
 pub type NodeId = u32;
 pub type FlopId = u32;
 pub type MemId = u32;
+/// Phase 6 (`PHASE-6-ADVANCED-MOTIFS.3`): identity of a generated-encoding
+/// FSM block, sibling to [`MemId`]/[`FlopId`].
+pub type FsmId = u32;
 pub type InstanceId = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,6 +151,14 @@ pub struct Module {
     /// enters the gate graph only via the opaque `Node::MemRead`
     /// leaf, so the array never participates in CSE/factorization.
     pub memories: Vec<Memory>,
+    /// Phase 6 generated-encoding FSM blocks
+    /// (`PHASE-6-ADVANCED-MOTIFS.3`). Additive, `Default`-empty: a
+    /// module with no `Fsm` is byte-identical to pre-`.3` emission.
+    /// An `Fsm` is a first-class clocked block (sibling to `Flop` /
+    /// `Memory`); its registered Moore output enters the gate graph
+    /// only via the opaque `Node::FsmOut` leaf, so the state machine
+    /// never participates in CSE/factorization.
+    pub fsms: Vec<Fsm>,
     pub instances: Vec<Instance>,
     /// (output_port_id, driving_node_id)
     pub drives: Vec<(PortId, NodeId)>,
@@ -484,12 +495,22 @@ impl Module {
         !self.memories.is_empty()
     }
 
+    /// Phase 6 (`PHASE-6-ADVANCED-MOTIFS.3`): an `Fsm` is local
+    /// sequential state (its encoded-state register is a clocked,
+    /// async-reset flop), so an FSM-bearing module carries sequential
+    /// state and must expose `clk`/`rst_n`. Kept separate from
+    /// [`has_local_flops`]/[`has_local_memories`] so their decl /
+    /// `always_ff` emission gates are unaffected.
+    pub fn has_local_fsms(&self) -> bool {
+        !self.fsms.is_empty()
+    }
+
     /// Whether this module carries sequential state either locally or
     /// through instantiated descendants in the provided design view.
     /// Without design context, only local flops are visible.
     pub fn carries_sequential_state_in(&self, modules: Option<&BTreeMap<&str, &Module>>) -> bool {
         let Some(modules) = modules else {
-            return self.has_local_flops() || self.has_local_memories();
+            return self.has_local_flops() || self.has_local_memories() || self.has_local_fsms();
         };
         self.carries_sequential_state_with_visited(modules, &mut BTreeSet::new())
     }
@@ -499,7 +520,7 @@ impl Module {
         modules: &BTreeMap<&str, &Module>,
         visiting: &mut BTreeSet<String>,
     ) -> bool {
-        if self.has_local_flops() || self.has_local_memories() {
+        if self.has_local_flops() || self.has_local_memories() || self.has_local_fsms() {
             return true;
         }
         if !visiting.insert(self.name.clone()) {
@@ -1814,6 +1835,76 @@ pub struct Memory {
     pub raddr: NodeId,
 }
 
+/// Generated state encoding for an [`Fsm`] (`PHASE-6-ADVANCED-MOTIFS.3`).
+/// The choice fixes the state-register width and the `localparam`
+/// state-constant bit-patterns; all three are downstream-clean in
+/// Verilator + both repo Yosys modes (`.3.1` empirical probe).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FsmEncoding {
+    /// State register `ceil(log2 num_states)` bits wide; constants
+    /// `0,1,2,…`.
+    Binary,
+    /// State register `num_states` bits wide; constant `i` is
+    /// `1 << i` (exactly one hot bit).
+    OneHot,
+    /// State register `ceil(log2 num_states)` bits wide; constants
+    /// are the reflected binary (Gray) code (successive values differ
+    /// by one bit).
+    Gray,
+}
+
+impl FsmEncoding {
+    /// Width of the state register for this encoding and state count.
+    pub fn state_width(self, num_states: u32) -> u32 {
+        match self {
+            FsmEncoding::Binary | FsmEncoding::Gray => {
+                let n = num_states.max(2);
+                (u32::BITS - (n - 1).leading_zeros()).max(1)
+            }
+            FsmEncoding::OneHot => num_states.max(1),
+        }
+    }
+
+    /// The encoded constant for state index `s` (`s < num_states`).
+    pub fn state_const(self, s: u32) -> u128 {
+        match self {
+            FsmEncoding::Binary => s as u128,
+            FsmEncoding::OneHot => 1u128 << s,
+            // Reflected binary: gray(s) = s ^ (s >> 1).
+            FsmEncoding::Gray => (s ^ (s >> 1)) as u128,
+        }
+    }
+}
+
+/// A first-class generated-encoding Moore FSM block
+/// (`PHASE-6-ADVANCED-MOTIFS.3`). Clocked by the module's shared `clk`
+/// with the module's async-low `rst_n` (single-clock discipline);
+/// emitted as the `.3.1`-probed-clean template (encoding-derived
+/// `localparam` state constants + a `state_q` register + an
+/// `always_comb` next-state `case` selected by `sel` + an
+/// `always_comb` Moore output `case`). `sel` is a real generated cone
+/// (a `NodeId`, dependency-tracked + validated); the registered Moore
+/// output is exposed as the opaque [`Node::FsmOut`] leaf, never folded
+/// into the expression graph.
+#[derive(Debug, Clone)]
+pub struct Fsm {
+    pub id: FsmId,
+    /// Number of states (`>= 1`); reset state is index `0`.
+    pub num_states: u32,
+    pub encoding: FsmEncoding,
+    /// Transition-select source cone (width `sel_width`).
+    pub sel: NodeId,
+    pub sel_width: u32,
+    /// `transitions[state][sel_value]` = next-state index
+    /// (`< num_states`). Shape `[num_states][1 << sel_width]`.
+    pub transitions: Vec<Vec<u32>>,
+    /// `outputs[state]` = the Moore output value for that state
+    /// (masked to `out_width`). Length `num_states`.
+    pub outputs: Vec<u128>,
+    /// Width of the registered Moore output (`Node::FsmOut.width`).
+    pub out_width: u32,
+}
+
 #[derive(Debug, Clone)]
 pub enum Node {
     PrimaryInput {
@@ -1837,6 +1928,15 @@ pub enum Node {
         mem: MemId,
         width: u32,
     },
+    /// Registered Moore output of an `Fsm` block
+    /// (`PHASE-6-ADVANCED-MOTIFS.3`). An **opaque leaf**, exactly like
+    /// `FlopQ`/`MemRead`: identity-by-instance (the `FsmId`), never
+    /// merged by CSE / never an expression — the clock edge breaks
+    /// the combinational path. `width == Fsm.out_width`.
+    FsmOut {
+        fsm: FsmId,
+        width: u32,
+    },
     InstanceOutput {
         instance: InstanceId,
         port: PortId,
@@ -1857,6 +1957,7 @@ impl Node {
             | Node::Constant { width, .. }
             | Node::FlopQ { width, .. }
             | Node::MemRead { width, .. }
+            | Node::FsmOut { width, .. }
             | Node::InstanceOutput { width, .. }
             | Node::Gate { width, .. } => *width,
         }
@@ -1990,6 +2091,10 @@ enum DepAtom {
     /// (`Node::MemRead`), keyed by `MemId` so distinct memories'
     /// reads are distinct leaf endpoints — like `FlopVirtual`.
     MemVirtual(MemId),
+    /// Virtual endpoint for an `Fsm` block's registered Moore output
+    /// (`Node::FsmOut`), keyed by `FsmId` so distinct FSMs' outputs
+    /// are distinct leaf endpoints — like `FlopVirtual`/`MemVirtual`.
+    FsmVirtual(FsmId),
     InstanceOutputVirtual {
         instance: InstanceId,
         port: PortId,
@@ -2029,6 +2134,14 @@ impl DepSet {
     pub fn from_mem_virtual(mem: MemId) -> Self {
         let mut s = BTreeSet::new();
         s.insert(DepAtom::MemVirtual(mem));
+        Self { set: s }
+    }
+
+    /// Virtual dep for an `Fsm` block's registered Moore output
+    /// (`PHASE-6-ADVANCED-MOTIFS.3`); mirrors [`from_mem_virtual`].
+    pub fn from_fsm_virtual(fsm: FsmId) -> Self {
+        let mut s = BTreeSet::new();
+        s.insert(DepAtom::FsmVirtual(fsm));
         Self { set: s }
     }
 

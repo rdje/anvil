@@ -138,6 +138,29 @@ pub enum ValidateError {
         got: u32,
         expected: u32,
     },
+    #[error("fsm {fsm} is malformed: {reason}")]
+    BadFsm {
+        fsm: crate::ir::FsmId,
+        reason: &'static str,
+    },
+    #[error("fsm {fsm} `sel` references undefined node {node}")]
+    UndefinedFsmSel { fsm: crate::ir::FsmId, node: NodeId },
+    #[error("fsm {fsm} `sel` node {node} width {got} != sel_width {expected}")]
+    FsmSelWidthMismatch {
+        fsm: crate::ir::FsmId,
+        node: NodeId,
+        got: u32,
+        expected: u32,
+    },
+    #[error("FsmOut node {node} references undefined fsm {fsm}")]
+    DanglingFsmOut { node: NodeId, fsm: crate::ir::FsmId },
+    #[error("FsmOut node {node} width {got} != fsm {fsm} out_width {expected}")]
+    FsmOutWidthMismatch {
+        node: NodeId,
+        fsm: crate::ir::FsmId,
+        got: u32,
+        expected: u32,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -427,6 +450,100 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
                     mem: *mem,
                     got: *width,
                     expected: owner.data_width,
+                });
+            }
+        }
+    }
+
+    // 5c. Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.2a): every Fsm is
+    // well-formed and every FsmOut resolves to a declared fsm at the
+    // right width. Mirrors 5b for memories.
+    for (slot, fsm) in m.fsms.iter().enumerate() {
+        if fsm.id as usize != slot {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "fsm table slot id mismatch",
+            });
+        }
+        if fsm.num_states == 0 {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "num_states must be >= 1",
+            });
+        }
+        if fsm.sel_width == 0 || fsm.out_width == 0 {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "sel_width and out_width must be >= 1",
+            });
+        }
+        let Some(sel_w) = node_w(fsm.sel) else {
+            return Err(ValidateError::UndefinedFsmSel {
+                fsm: fsm.id,
+                node: fsm.sel,
+            });
+        };
+        if sel_w != fsm.sel_width {
+            return Err(ValidateError::FsmSelWidthMismatch {
+                fsm: fsm.id,
+                node: fsm.sel,
+                got: sel_w,
+                expected: fsm.sel_width,
+            });
+        }
+        if fsm.transitions.len() != fsm.num_states as usize {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "transitions table must have one row per state",
+            });
+        }
+        let fanout = 1usize << fsm.sel_width;
+        for row in &fsm.transitions {
+            if row.len() != fanout {
+                return Err(ValidateError::BadFsm {
+                    fsm: fsm.id,
+                    reason: "each transition row must have 1<<sel_width entries",
+                });
+            }
+            if row.iter().any(|&ns| ns >= fsm.num_states) {
+                return Err(ValidateError::BadFsm {
+                    fsm: fsm.id,
+                    reason: "transition target out of range",
+                });
+            }
+        }
+        if fsm.outputs.len() != fsm.num_states as usize {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "outputs must have one value per state",
+            });
+        }
+        let out_mask: u128 = if fsm.out_width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << fsm.out_width) - 1
+        };
+        if fsm.outputs.iter().any(|&v| v & !out_mask != 0) {
+            return Err(ValidateError::BadFsm {
+                fsm: fsm.id,
+                reason: "output value exceeds out_width",
+            });
+        }
+    }
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        if let Node::FsmOut { fsm, width } = node {
+            let Some(owner) = m.fsms.get(*fsm as usize) else {
+                return Err(ValidateError::DanglingFsmOut {
+                    node: node_id as NodeId,
+                    fsm: *fsm,
+                });
+            };
+            if owner.out_width != *width {
+                return Err(ValidateError::FsmOutWidthMismatch {
+                    node: node_id as NodeId,
+                    fsm: *fsm,
+                    got: *width,
+                    expected: owner.out_width,
                 });
             }
         }

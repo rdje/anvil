@@ -597,6 +597,7 @@ fn output_root_has_empty_deps(m: &Module, root: NodeId) -> bool {
         Node::PrimaryInput { .. }
         | Node::FlopQ { .. }
         | Node::MemRead { .. }
+        | Node::FsmOut { .. }
         | Node::InstanceOutput { .. } => false,
         Node::Constant { .. } => true,
         Node::Gate { deps, .. } => deps.is_empty(),

@@ -1,8 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-3.2-split — PHASE-6-ADVANCED-MOTIFS.3.2 split into `.3.2a` (IR core) + `.3.2b` (knob)
+## 2026-05-18-phase6-3.2a — PHASE-6-ADVANCED-MOTIFS.3.2a: FSM IR core + opaque `FsmOut` leaf + `compact.rs` reachability
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/ir/types.rs`: `FsmId`; `FsmEncoding{Binary,OneHot,Gray}` with
+  `state_width()` (Binary/Gray = `ceil(log2 N)`, OneHot = `N`) and
+  `state_const()` (Binary `s`, OneHot `1<<s`, Gray `s^(s>>1)`); the
+  `Fsm` struct (`num_states`, `encoding`, `sel:NodeId`, `sel_width`,
+  `transitions[N][1<<sel_width]`, `outputs[N]`, `out_width`); additive
+  `Default`-empty `Module.fsms`; opaque `Node::FsmOut{fsm,width}` +
+  the `Node::width` arm; `DepAtom::FsmVirtual` +
+  `DepSet::from_fsm_virtual`; `has_local_fsms()` OR'd into both
+  `carries_sequential_state` predicates.
+- `FsmOut` threaded — via the compiler as a completeness oracle —
+  through **every** exhaustive `Node` match: `src/ir/compact.rs`
+  (`StructuralNodeShape::FsmOut`, `LeafEndpoint::FsmOut` + `width()`,
+  intern, leaf-endpoint set, cone-eval offset, flop-remap no-op,
+  the **load-bearing reachability arm** that marks `fsm.sel` alive —
+  sibling to `MemRead` keeping its address/data cones, byte-identical
+  rebuild, instance-table no-op, `node_deps`); `src/gen/cone.rs` ×5;
+  `src/gen/hierarchy.rs`; `src/gen/module.rs`; `src/ir/param.rs`
+  (`FsmOut` ⇒ not width-generic); `src/metrics.rs` ×3 (kind-count
+  no-op, `node_deps`, structural-hash tag 7).
+- `src/ir/validate.rs`: 5 `ValidateError` variants + step 5c (slot-id,
+  `num_states>=1`, `sel_width`/`out_width>=1`, `sel` node defined +
+  width, transitions shape + range, outputs length + width mask;
+  every `FsmOut` resolves at `out_width`).
+- `src/emit/sv.rs`: `fsm_out_name`/`fsm_state_name`/`fsm_next_name`/
+  `fsm_state_lit`; per-FSM declarations; the `.3.1`-probed-clean
+  template (per-FSM `FSM<id>_S<k>` encoding-derived `localparam`s,
+  `always_comb` next-state `case` selected by `sel`, async-low-reset
+  state `always_ff` on the shared `clk`/`rst_n`, `always_comb` Moore
+  output `case`); `Node::FsmOut → fsm_out_name`.
+- `src/ir/compact.rs` tests: 3 FSM unit proofs
+  (`fsm_leaf_roundtrips_validate_and_emit`,
+  `fsmout_keeps_sel_cone_through_compaction`,
+  `fsmout_is_structurally_distinct_and_not_cse_merged`).
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.3.2a` (the FSM scaffold's IR core),
+  mirroring the proven memory `.2.1a` opaque-stateful-leaf pattern.
+  The load-bearing piece is the `compact.rs` reachability: a
+  reachable `FsmOut` must transitively keep the FSM's `sel`
+  transition cone alive, exactly as a reachable `MemRead` keeps the
+  memory's address/data cones — that is correctness-critical pipeline
+  code, which is why `.3.2` was split (`.3.2a` IR core / `.3.2b`
+  knob+generator).
+
+**Validation**
+
+- `cargo check --all-targets` clean (the additive `Module.fsms` field
+  is covered by `Module`'s `Default`, so no struct-literal breakage);
+  `cargo fmt --all --check` clean; `cargo clippy --all-targets --
+  -D warnings` clean; full `cargo test` green (COMMIT.md gate; FSM
+  proofs 3/3, no regression). **Default-off is trivially
+  byte-identical**: the emitter blocks are gated on
+  `!m.fsms.is_empty()`, the predicates only OR when `fsms` is
+  non-empty, and the `FsmOut` arms only fire when a `FsmOut` node
+  exists — none occur without the (`.3.2b`) generator. No `book/`
+  change (book reconciliation is `.3.4`). `CODEBASE_ANALYSIS.md`
+  intentionally unchanged — consistent with the immediate sibling
+  precedent (memory `.2.1a` did not amend the bootstrap-refreshed
+  snapshot per IR-core slice); the live record is the task tree +
+  `DEVELOPMENT_NOTES.md` + `CHANGES.md` + `MEMORY.md`.
+
+**Impact**
+
+- The FSM motif's IR + opaque leaf + pipeline integration are in
+  place and proven; `.3.2b` (knob + rules-first `build_fsm_block`)
+  is unblocked. No ROADMAP advance (promotion is `.3.4` on a verified
+  gate). Frontier: `.2.4` (gate-blocked) ‖ `.3.2b`.
+
+**Files touched**
+
+- `src/ir/types.rs`; `src/ir/compact.rs`; `src/ir/validate.rs`;
+  `src/ir/param.rs`; `src/gen/cone.rs`; `src/gen/hierarchy.rs`;
+  `src/gen/module.rs`; `src/metrics.rs`; `src/emit/sv.rs`;
+  `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `DEVELOPMENT_NOTES.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-3.2-split — PHASE-6-ADVANCED-MOTIFS.3.2 split into `.3.2a` (IR core) + `.3.2b` (knob)
+
+**Landed as:** f39f66b
 
 **What changed**
 
