@@ -8393,6 +8393,98 @@ fn packed_aggregate_organic_existence_is_not_inert() {
 }
 
 #[test]
+fn inferrable_memory_is_default_off_and_constructs_when_forced_on() {
+    // PHASE-6-ADVANCED-MOTIFS.2.1b deliverable.
+    //
+    //  (a) Default-off byte-identical: with the default
+    //      `memory_prob = 0.0` no module carries a `Memory` and the
+    //      emitted SV has no memory array.
+    //
+    //  (b) Forced-on (prob 1.0): the single-module lane builds a
+    //      rules-first memory leaf — it validates and emits the
+    //      `.1`-validated inferrable synchronous-write/read template.
+    use anvil::config::ConstructionStrategy;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+
+    // (a) default-off across strategies + seeds.
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let off = Config {
+                seed,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let design_off = Generator::new(off).generate_design();
+            anvil::ir::validate::validate_design(&design_off)
+                .expect("default-off design must validate");
+            assert!(
+                design_off.modules.iter().all(|m| m.memories.is_empty()),
+                "default-off (prob 0.0) must never construct a Memory (seed {seed}, {strategy:?})"
+            );
+            let sv_off = anvil::emit::to_sv_design(&design_off);
+            assert!(
+                !sv_off.contains(" mem_0 [0:") && !sv_off.contains("memrd_0"),
+                "default-off SV must contain no memory array (seed {seed}, {strategy:?})"
+            );
+        }
+    }
+
+    // (b) forced-on: every single-module design is a memory leaf.
+    let mut total_mem = 0usize;
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let on = Config {
+                seed,
+                memory_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            on.validate().expect("forced-on config valid");
+            let design_on = Generator::new(on).generate_design();
+            anvil::ir::validate::validate_design(&design_on).unwrap_or_else(|e| {
+                panic!("memory design must validate (seed {seed}, {strategy:?}): {e:?}")
+            });
+            assert_eq!(design_on.modules.len(), 1);
+            let m = &design_on.modules[0];
+            assert_eq!(
+                m.memories.len(),
+                1,
+                "forced-on single-module design must be a memory leaf (seed {seed}, {strategy:?})"
+            );
+            total_mem += 1;
+            let mem = &m.memories[0];
+            assert!(mem.addr_width >= 2 && mem.data_width >= 2);
+            // The opaque MemRead leaf drives the sole output.
+            assert!(
+                m.nodes
+                    .iter()
+                    .any(|n| matches!(n, anvil::ir::Node::MemRead { .. })),
+                "memory leaf must expose a MemRead node"
+            );
+            let sv = anvil::emit::to_sv_in_design(m, &design_on);
+            assert!(
+                sv.contains("logic ") && sv.contains(" mem_0 [0:"),
+                "must declare the inferrable memory array:\n{sv}"
+            );
+            assert!(
+                sv.contains("always_ff @(posedge clk) begin") && sv.contains("memrd_0 <= mem_0["),
+                "must emit the reset-less synchronous write/read:\n{sv}"
+            );
+        }
+    }
+    assert!(
+        total_mem >= strategies.len() * 6,
+        "every forced-on single-module design must be a memory leaf"
+    );
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

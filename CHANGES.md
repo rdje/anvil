@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-2.1b — PHASE-6-ADVANCED-MOTIFS.2.1b: memory_prob knob + rules-first build_memory_leaf
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/config.rs`: `Config::memory_prob: f64` (`#[serde(default = "default_memory_prob")]` = 0.0 + Default-impl line + probability-range validation tuple entry), mirroring `aggregate_prob` / `width_parameterization_prob`.
+- `src/gen/module.rs`: rules-first `build_memory_leaf` — a single-`Memory` leaf with shared `clk`/`rst_n`, `we`/`waddr`/`wdata` (+ independent `raddr` for `SimpleDualPort`) inputs, one `rdata` output driven by the opaque `Node::MemRead`; `MemKind`, `addr_width` (2..=4) and `data_width` (configured width band) rolled via `g.rng`; no gates/flops (the memory is the only state). A single opt-in roll in `generate_leaf_module_with_interface_profile`, placed **after** the Phase 5 parameterization lane (mutually exclusive; `interface_profile` None only; default-off never enters → byte-identical).
+- `tests/pipeline.rs`: `inferrable_memory_is_default_off_and_constructs_when_forced_on`.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.2.1b`: make the memory motif actually fire by rule (valid-by-construction, not generate-then-filter), opt-in and default-off byte-identical — completing the `.2.1` scaffold container. Continuous-PNT.
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; focused proof green (default-off byte-identical across 4 `ConstructionStrategy` × 6 seeds; forced-on every single-module design is a 1-`Memory` leaf that `validate_design`-passes, exposes a `MemRead`, and emits the inferrable array + reset-less `always_ff` write/read); full `cargo test` (COMMIT.md gate — see Verification Log). **Real generated-output spot-check** (binary, seed 3, `memory_prob = 1.0`): emitted SV `verilator --lint-only` exit 0; yosys `proc;opt;memory_collect` → **`1 $mem_v2`**; `synth -noabc` and `synth; abc -fast` both `check -assert` clean — the Phase 6 inference contract holds on real generated output (formally proven in `.2.2`). No `book/` change.
+
+**Impact**
+
+- Opt-in `memory_prob > 0` makes the single-module lane emit inferrable memory; default-off ⇒ byte-identical. `.2.1` container closed. Phase 6 frontier → `PHASE-6-ADVANCED-MOTIFS.2.2`.
+
+**Files touched**
+
+- Updated: src/config.rs, src/gen/module.rs, tests/pipeline.rs, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase6-2.1a — PHASE-6-ADVANCED-MOTIFS.2.1a: memory IR core + opaque-stateful-leaf pipeline integration
 
 **Landed as:** 244cabd

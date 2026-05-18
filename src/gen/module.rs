@@ -8,7 +8,8 @@ use super::{
 };
 use crate::config::ConstructionStrategy;
 use crate::ir::{
-    DepSet, Direction, GateOp, Module, ModuleInterfaceProfile, Node, NodeId, Port, PortId,
+    DepSet, Direction, GateOp, MemKind, Memory, Module, ModuleInterfaceProfile, Node, NodeId, Port,
+    PortId,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -109,6 +110,129 @@ fn build_parameterizable_leaf(g: &mut Generator, index: u64) -> Module {
     m
 }
 
+/// Rules-first inferrable-memory-leaf constructor
+/// (`PHASE-6-ADVANCED-MOTIFS.2.1b`).
+///
+/// Builds, by rule, a single-`Memory` leaf whose emitted SV is the
+/// `.1`-validated synchronous-write / synchronous-read template Yosys
+/// infers as `$mem_v2`: a shared `clk`, `we`/`waddr`/`wdata` write
+/// inputs (+ an independent `raddr` for `SimpleDualPort`), and one
+/// `rdata` output driven by the opaque `Node::MemRead` leaf. Valid by
+/// construction — not a post-hoc filter. All random choices go through
+/// `g.rng` (reproducible). No combinational gates, no flops; the
+/// memory is the only state.
+fn build_memory_leaf(g: &mut Generator, index: u64) -> Module {
+    let mut m = Module {
+        name: g.module_name(index),
+        max_ast_instances: g.cfg.max_ast_instances.max(1),
+        mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
+        operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
+        identity_mode: g.cfg.identity_mode,
+        factorization_level: g.cfg.factorization_level,
+        clock: Some(0),
+        reset: Some(1),
+        ..Module::default()
+    };
+    // Bounded, well-formed dimensions.
+    let addr_width: u32 = g.rng.gen_range(2..=4);
+    let dw_lo = g.cfg.min_width.max(2);
+    let dw_hi = g.cfg.max_width.max(dw_lo);
+    let data_width: u32 = g.rng.gen_range(dw_lo..=dw_hi);
+    let dual = g.rng.gen_bool(0.5);
+    let kind = if dual {
+        MemKind::SimpleDualPort
+    } else {
+        MemKind::SinglePort
+    };
+
+    // Control ports (clk/rst_n) are shared; rst_n is unused by the
+    // reset-less memory block but kept for the standard control-port
+    // surface (downstream-clean under bare `verilator --lint-only`).
+    m.inputs.push(Port {
+        id: 0,
+        name: CLK_NAME.into(),
+        width: 1,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 1,
+        name: RST_N_NAME.into(),
+        width: 1,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 2,
+        name: "we".into(),
+        width: 1,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 3,
+        name: "waddr".into(),
+        width: addr_width,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 4,
+        name: "wdata".into(),
+        width: data_width,
+        dir: Direction::In,
+    });
+    let we = m.nodes.len() as NodeId;
+    m.nodes.push(Node::PrimaryInput { port: 2, width: 1 });
+    let waddr = m.nodes.len() as NodeId;
+    m.nodes.push(Node::PrimaryInput {
+        port: 3,
+        width: addr_width,
+    });
+    let wdata = m.nodes.len() as NodeId;
+    m.nodes.push(Node::PrimaryInput {
+        port: 4,
+        width: data_width,
+    });
+    let raddr = if dual {
+        m.inputs.push(Port {
+            id: 5,
+            name: "raddr".into(),
+            width: addr_width,
+            dir: Direction::In,
+        });
+        let r = m.nodes.len() as NodeId;
+        m.nodes.push(Node::PrimaryInput {
+            port: 5,
+            width: addr_width,
+        });
+        r
+    } else {
+        // SinglePort: one shared address (raddr == waddr).
+        waddr
+    };
+    let out_id: PortId = if dual { 6 } else { 5 };
+    m.outputs.push(Port {
+        id: out_id,
+        name: "rdata".into(),
+        width: data_width,
+        dir: Direction::Out,
+    });
+    m.memories.push(Memory {
+        id: 0,
+        addr_width,
+        data_width,
+        kind,
+        we,
+        waddr,
+        wdata,
+        raddr,
+    });
+    let rd = m.nodes.len() as NodeId;
+    m.nodes.push(Node::MemRead {
+        mem: 0,
+        width: data_width,
+    });
+    m.drives.push((out_id, rd));
+    m
+}
+
 pub(super) fn generate_leaf_module_with_interface_profile(
     g: &mut Generator,
     index: u64,
@@ -132,6 +256,18 @@ pub(super) fn generate_leaf_module_with_interface_profile(
         let mut m = build_parameterizable_leaf(g, index);
         crate::ir::param::annotate_parameterized(&mut m, &g.cfg);
         return m;
+    }
+
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.2.1b): rules-first
+    // inferrable-memory lane. Mutually exclusive with the Phase 5
+    // parameterization lane above (only reached when that did not
+    // fire). Single opt-in roll; default-off (`memory_prob == 0.0`)
+    // never enters here, so emission stays byte-identical.
+    if interface_profile.is_none()
+        && g.cfg.memory_prob > 0.0
+        && g.rng.gen_bool(g.cfg.memory_prob.clamp(0.0, 1.0))
+    {
+        return build_memory_leaf(g, index);
     }
 
     let planned_profile = interface_profile

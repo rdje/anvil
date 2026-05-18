@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.2.1a` IR core + opaque-stateful-leaf pipeline integration landed; frontier → `.2.1b`)
+- Last updated: `2026-05-18` (`.2.1b` knob + rules-first `build_memory_leaf` landed; `.2.1` container closed; frontier → `.2.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,9 +54,9 @@ multi-clock handshakes.
   Children: `PHASE-6-ADVANCED-MOTIFS.2.1` (container: `.2.1a`, `.2.1b`), `.2.2`, `.2.3`, `.2.4`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1`
-  Status: `active`
+  Status: `done`
   Goal: `IR + emitter scaffold (architecture (M)). Split into .2.1a (IR core + opaque-stateful-leaf pipeline integration incl. the load-bearing compaction-reachability correctness) and .2.1b (knob + rules-first construction + default-off/forced-on focused proof) — see the 2026-05-18 Decision.`
-  Children: `PHASE-6-ADVANCED-MOTIFS.2.1a`, `PHASE-6-ADVANCED-MOTIFS.2.1b`
+  Children: `PHASE-6-ADVANCED-MOTIFS.2.1a` (done), `PHASE-6-ADVANCED-MOTIFS.2.1b` (done)
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1a`
   Status: `done`
@@ -66,11 +66,11 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1b`
-  Status: `pending`
+  Status: `done`
   Goal: `Knob + rules-first construction + focused proof. Config::memory_prob (f64, serde-default 0.0, probability-range validated); rules-first build_memory_leaf (a clk + we/waddr/wdata/raddr-input, rdata-output combinational-free memory leaf, single opt-in roll in generate_leaf_module_with_interface_profile, mutually exclusive with the param lane); default-off byte-identical + forced-on focused proof.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: default-off byte-identical for fixed seeds across all ConstructionStrategy values; forced-on every single-module design is a memory leaf that validates and whose SV declares the inferrable array + synchronous write/read. No book/ change (book reconciliation is .2.4).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/config.rs: Config::memory_prob (serde-default 0.0 via default_memory_prob + Default-impl line + probability-range validation tuple entry), mirroring aggregate_prob/width_parameterization_prob. src/gen/module.rs: rules-first build_memory_leaf (shared clk/rst_n + we/waddr/wdata[+raddr] inputs + rdata output; one Memory{kind rolled SinglePort|SimpleDualPort via g.rng, addr_width 2..=4, data_width in the configured width band}; opaque MemRead drives rdata; no gates/flops) + a single opt-in roll in generate_leaf_module_with_interface_profile placed AFTER the Phase 5 param lane (mutually exclusive; interface_profile None only; default-off never enters → byte-identical). Focused proof inferrable_memory_is_default_off_and_constructs_when_forced_on: default-off byte-identical (no Memory, no mem_0 array) across 4 ConstructionStrategy × 6 seeds; forced-on (prob 1.0) every single-module design is a 1-Memory leaf that validate_design-passes, exposes a MemRead node, and emits the inferrable array + reset-less always_ff write/read. Real spot-check (binary, seed 3, memory_prob 1.0): emitted SV verilator --lint-only exit 0; yosys memory_collect → 1 $mem_v2; synth -noabc and synth;abc -fast both check -assert clean — the Phase 6 inference contract holds on real generated output (formalised in .2.2). cargo fmt/clippy -D warnings/check --all-targets clean; focused proof green; full cargo test (COMMIT.md gate — Verification Log). No book/ change.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.2`
   Status: `pending`
@@ -104,7 +104,7 @@ multi-clock handshakes.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1b` | `pending` | `.2.1a` landed the IR core + opaque-stateful-leaf pipeline integration (incl. the load-bearing `compact.rs` reachability) + 3 unit proofs; no generator/knob (default-off trivially byte-identical). `.2.1b` adds `Config::memory_prob` + rules-first `build_memory_leaf` + the single opt-in roll + default-off/forced-on focused proof. |
+| 1 | `PHASE-6-ADVANCED-MOTIFS.2.2` | `pending` | `.2.1` complete (`.2.1a` IR core+pipeline+reachability; `.2.1b` `memory_prob` knob + rules-first `build_memory_leaf` + focused proof; spot-check: generated memory → `1 $mem_v2`, verilator+both-yosys clean). `.2.2` formalises the Yosys-`$mem_v2`-inference proof on generated output + `MemRead` CSE-opacity (no ROADMAP advance — that is `.2.4`). |
 
 ## Decisions
 
@@ -166,6 +166,7 @@ multi-clock handshakes.
 | --- | --- | --- | --- |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.1` | `DEVELOPMENT_NOTES.md` Phase 6 memory design entry landed (codebase-grounded; empirical Yosys probe → single-port + simple-dual-port both `1 $mem_v2`, clean both modes; architecture (M) `Memory` block + opaque `MemRead` leaf; 3 rejected alternatives; proof shape). Doc-only, no code; `mdbook build book` clean; `cargo fmt --check` clean; `cargo test` unchanged-green (no `src/`/`tests/` touched since Phase 5b `.2.3`). | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.1a` | IR core (`MemId`/`MemKind`/`Memory`/additive `Module.memories`/opaque `Node::MemRead`/`DepAtom::MemVirtual`/`from_mem_virtual`/`has_local_memories`) + `MemRead` threaded through all ~21 exhaustive `Node` matches (compiler-as-oracle, mirrors `FlopQ`); **load-bearing `compact.rs` reachability** (a live `MemRead` keeps `mem.{we,waddr,wdata,raddr}` cones alive; `StructuralNodeShape`/`LeafEndpoint::MemRead`); emitter inferrable template (`mem_<id>` array + `memrd_<id>` + reset-less `always_ff @(posedge clk)`); validator memory step-5b. 3 unit proofs (roundtrip+validate+emit; **compaction-reachability**; structural-distinctness/CSE-opacity) — `ir::compact::tests` mem 3/3. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No generator/knob ⇒ default-off trivially byte-identical. No `book/` change. | Done. |
+| `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.1b` | `Config::memory_prob` (serde-default 0.0 + validation, mirrors `aggregate_prob`); rules-first `build_memory_leaf` (`clk`/`rst_n`+`we`/`waddr`/`wdata`[+`raddr`] inputs, `rdata` out, one `Memory` kind rolled via `g.rng`, opaque `MemRead` drive; no gates/flops) + single opt-in roll after the Phase 5 param lane (mutually exclusive; default-off never enters). Focused proof `inferrable_memory_is_default_off_and_constructs_when_forced_on` (default-off byte-identical 4 strategies × 6 seeds; forced-on every single-module design is a 1-`Memory` leaf, validates, emits the inferrable template). Real spot-check (binary seed 3, prob 1.0): `verilator --lint-only` exit 0; yosys `memory_collect` → `1 $mem_v2`; `synth -noabc` & `synth;abc -fast` both `check -assert` clean. `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). No `book/` change. | Done (closes the `.2.1` container). |
 
 ## Commit Log
 
@@ -173,6 +174,7 @@ multi-clock handshakes.
 | --- | --- | --- |
 | `PHASE-6-ADVANCED-MOTIFS.1` | `Docs: PHASE-6-ADVANCED-MOTIFS.1 inferrable-memory motif design` | Design-only; architecture (M) `Memory` block + `MemRead` leaf; empirical Yosys probe; 3 rejected alternatives. No code. |
 | `PHASE-6-ADVANCED-MOTIFS.2.1a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1a memory IR core + opaque-stateful-leaf pipeline integration` | IR core + `MemRead` through ~21 matches + the load-bearing `compact.rs` reachability + emitter template + validator + 3 unit proofs. No generator/knob (default-off trivially byte-identical). |
+| `PHASE-6-ADVANCED-MOTIFS.2.1b` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.1b memory_prob knob + rules-first build_memory_leaf` | Knob + rules-first constructor + opt-in roll (mutually exclusive with the param lane) + focused proof; generated memory spot-checked `1 $mem_v2` + verilator/both-yosys clean. Closes the `.2.1` container. |
 
 ## Changelog
 
@@ -232,3 +234,22 @@ multi-clock handshakes.
   clean. No generator/knob ⇒ default-off trivially byte-identical; no
   `book/` change. Frontier → `.2.1b` (knob + rules-first
   `build_memory_leaf` + focused proof).
+- `2026-05-18`: **`.2.1b` landed — closes the `.2.1` container.**
+  `Config::memory_prob` (serde-default 0.0 + validation, mirrors
+  `aggregate_prob`); rules-first `build_memory_leaf` (`clk`/`rst_n` +
+  `we`/`waddr`/`wdata`[+`raddr`] inputs, `rdata` out, one `Memory`
+  with kind rolled via `g.rng`, opaque `MemRead` drive — no
+  gates/flops); a single opt-in roll in
+  `generate_leaf_module_with_interface_profile` placed after the
+  Phase 5 param lane (mutually exclusive; `interface_profile` None
+  only; default-off never enters). Focused proof
+  `inferrable_memory_is_default_off_and_constructs_when_forced_on`
+  (default-off byte-identical 4 strategies × 6 seeds; forced-on every
+  single-module design is a 1-`Memory` leaf that validates + emits the
+  inferrable template). Real spot-check (binary seed 3, prob 1.0):
+  `verilator --lint-only` exit 0, yosys `memory_collect` →
+  `1 $mem_v2`, `synth -noabc` & `synth;abc -fast` both `check -assert`
+  clean — the Phase 6 inference contract holds on real generated
+  output (formalised in `.2.2`). Full `cargo` gate clean; no `book/`
+  change. Frontier → `.2.2` (formal Yosys-inference proof + `MemRead`
+  CSE-opacity; no ROADMAP advance — that is `.2.4`).

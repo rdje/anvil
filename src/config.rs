@@ -86,6 +86,10 @@ fn default_aggregate_prob() -> f64 {
     0.0
 }
 
+fn default_memory_prob() -> f64 {
+    0.0
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -538,6 +542,17 @@ pub struct Config {
     #[serde(default = "default_aggregate_prob")]
     pub aggregate_prob: f64,
 
+    /// Phase 6 (advanced motifs). Probability that the free-standing
+    /// single-module lane builds a rules-first inferrable-memory leaf
+    /// (`crate::gen::module::build_memory_leaf`) instead of an
+    /// ordinary leaf. The leaf emits the `.1`-validated Yosys-
+    /// `$mem_v2` synchronous template. `default = 0.0` keeps every
+    /// existing output byte-identical; mutually exclusive with the
+    /// Phase 5 width-parameterization lane. First slice:
+    /// `PHASE-6-ADVANCED-MOTIFS.2.1b`.
+    #[serde(default = "default_memory_prob")]
+    pub memory_prob: f64,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -690,6 +705,7 @@ impl Default for Config {
             hierarchy_module_dedup: false,
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
+            memory_prob: default_memory_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -1029,6 +1045,7 @@ impl Config {
                 self.width_parameterization_prob,
             ),
             ("aggregate_prob", self.aggregate_prob),
+            ("memory_prob", self.memory_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });
