@@ -77,6 +77,26 @@ Mechanism:
   module standalone, the manifest records its individual seed (derived
   from the master seed by a deterministic stream-position scheme).
 
+### Snapshot guard-rails
+
+You don't have to take "byte-identical, forever" on faith — the repo
+proves it. `tests/snapshots.rs` pins the emitted SystemVerilog for a
+handful of canonical `(seed, config)` shapes (a plain leaf, recursive
+library/on-demand hierarchies, sibling- and parent-composed routes,
+and a deduplicated design) using
+[`insta`](https://insta.rs) snapshots stored under
+`tests/snapshots/`. They run as part of `cargo test`.
+
+This is purely a safety net for *contributors* — it never affects the
+tool you run. If a code change accidentally perturbs output (a stray
+`HashMap` iteration, an RNG re-seed, a planner or emit reorder), a
+snapshot test fails and the change cannot land unnoticed. Changing a
+snapshot is therefore a **deliberate** act, not an accident: you
+review the diff and, only if the new output is intended, accept it
+(with `cargo insta accept`/`cargo insta review`) in the same change
+that caused it. There is nothing to do here as a *user* — generated
+output for your `(seed, knobs)` is, and stays, stable.
+
 ## Knob taxonomy
 
 Knobs fall into four categories:

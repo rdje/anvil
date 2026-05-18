@@ -1,8 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-insta-2 — INSTA-SNAPSHOTS.2: expand snapshots to 6 shapes (on-demand / sibling / parent-composed / dedup)
+## 2026-05-18-insta-3 — INSTA-SNAPSHOTS.3: snapshot-acceptance protocol (COMMIT.md + book) — tree CLOSED
 
 **Landed as:** this commit
+
+**What changed**
+
+- `COMMIT.md`: the non-negotiable pre-commit checklist item 1
+  `cargo test` line is annotated (it already runs
+  `tests/snapshots.rs`, the `insta` guard; ≡ `cargo insta test`
+  when `cargo-insta` is installed) and a new **Snapshot-acceptance
+  protocol** sub-bullet codifies the discipline — a failing
+  snapshot is the byte-identical contract catching a real
+  generated-SV change; it is **never** silently regenerated; it is
+  either an unintended drift (fix the cause, do not touch the
+  `.snap`) or a deliberate, separately-reviewed acceptance
+  (`cargo insta accept`/`review`, or `INSTA_UPDATE=accept` after
+  hand-reviewing the diff) committed **in the same slice as, and
+  explained by, the generator change that caused it**; an
+  unexplained `.snap` change in `git status` is a workflow
+  violation.
+- `book/src/knobs.md`: a friendly, not-scary "### Snapshot
+  guard-rails" subsection under "## Reproducibility" (progressive
+  disclosure per book-doctrine) — what `tests/snapshots.rs` pins,
+  that it runs under `cargo test`, that it is a contributor-only
+  safety net never affecting the user's tool, and that changing a
+  snapshot is a deliberate reviewed act. The `cargo insta accept`
+  reference is inline code, **not** a runnable ```bash fence, so
+  the `BOOK-EXAMPLES-RUNNABLE` harness is unaffected (no
+  skip-sentinel needed).
+- `docs/tasks/INSTA-SNAPSHOTS.md`, `docs/TASK_TREE.md`: `.3` done +
+  the `INSTA-SNAPSHOTS` tree **closed**.
+
+**Why**
+
+- `INSTA-SNAPSHOTS.3` — the enforcement + documentation half of the
+  reproducibility guard-rail: `.1`/`.2` made the snapshots exist and
+  cover the axes; `.3` makes acceptance a deliberate, codified act
+  so the guard cannot be defeated by a reflexive regenerate.
+  Continuous-PNT while Phase 6 `.2.4`/`.3.4b` are gate-blocked;
+  docs/workflow only ⇒ ~zero gate contention.
+
+**Validation**
+
+- Docs/workflow only — **no `src/`/`tests/` change** (diff =
+  `COMMIT.md` + `book/src/knobs.md` + the two tree docs +
+  `CHANGES.md` + `MEMORY.md`); `cargo test` unchanged-green vs base
+  `c1acfb5` (no `.rs` touched since). `mdbook build book` clean;
+  `mdbook test book` exit 0; no new ```bash fence (verified) so the
+  book-examples harness is unaffected; `cargo fmt --all --check`
+  clean.
+
+**Impact**
+
+- The byte-identical-reproducibility contract is now both
+  *enforced* (`cargo test` runs the snapshots) and its acceptance
+  discipline *codified* (COMMIT.md + book). `INSTA-SNAPSHOTS` tree
+  CLOSED. No ROADMAP change (Quality lane).
+
+**Files touched**
+
+- `COMMIT.md`; `book/src/knobs.md`;
+  `docs/tasks/INSTA-SNAPSHOTS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-insta-2 — INSTA-SNAPSHOTS.2: expand snapshots to 6 shapes (on-demand / sibling / parent-composed / dedup)
+
+**Landed as:** c1acfb5
 
 **What changed**
 

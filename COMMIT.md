@@ -24,9 +24,27 @@ Before running `git commit`, walk through **every item** below explicitly. Do no
 
 1. **Code hygiene** — all four green?
    - [ ] `cargo check --all-targets`
-   - [ ] `cargo test`
+   - [ ] `cargo test` (this already runs `tests/snapshots.rs`, the
+     `insta` byte-identical-reproducibility guard — see the
+     **snapshot-acceptance protocol** below; equivalently
+     `cargo insta test` when `cargo-insta` is installed)
    - [ ] `cargo clippy --all-targets -- -D warnings`
    - [ ] `cargo fmt --all --check`
+   - **Snapshot-acceptance protocol (INSTA-SNAPSHOTS).** A failing
+     `tests/snapshots.rs` snapshot is the byte-identical contract
+     catching a *real* change in generated SystemVerilog for a
+     canonical `(seed, config)`. It is **never** silently
+     regenerated. Either the change is an *unintended* drift (a bug
+     — fix the cause, do not touch the `.snap`) **or** it is an
+     intended output change, in which case accepting the new
+     snapshot is a **deliberate, separately-reviewed act**: review
+     the `.snap` diff, then accept via `cargo insta accept` /
+     `cargo insta review` (or, without `cargo-insta`,
+     `INSTA_UPDATE=accept cargo test --test snapshots` after
+     hand-reviewing the diff) and commit the updated `.snap`
+     **in the same slice as, and explained by, the generator
+     change that caused it**. An unexplained `.snap` change in
+     `git status` is a workflow violation.
 2. **`CHANGES.md`** — new entry at the top, with What/Why/Validation/Impact/Files touched. Previous entry has the landed commit hash filled in.
 3. **`MEMORY.md`** — Current state refreshed. Next-up refreshed. Open questions refreshed if the slice introduced calibration assumptions or rejected alternatives with knobs. Recent-commits list updated with the *previous* commit's hash (the one being superseded by this slice).
 4. **`DEVELOPMENT_NOTES.md`** — Did the slice introduce any of: new design decision, rejected alternative, non-obvious gotcha, new invariant, or a new calibration knob? If yes, append an entry. **If the last commit touched `src/` and `DEVELOPMENT_NOTES.md` has not been updated in that same commit or since, you are likely skipping this step — audit.**
