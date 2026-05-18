@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-book-examples-runnable-1 — BOOK-EXAMPLES-RUNNABLE.1: book-examples-runnable design + tree
 
-**Landed as:** this commit
+**Landed as:** 38c49fb
 
 **What changed**
 
