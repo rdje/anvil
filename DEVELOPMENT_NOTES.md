@@ -663,6 +663,31 @@ or a re-parse. `build_constexpr_unit(seed,n)` uses the project
 ChaCha8 convention verbatim (`ChaCha8Rng::seed_from_u64`, no
 `thread_rng`).
 
+**As-built — `.2b` emitters (2026-05-19).** SV + JSON manifest
+emitters in the same module, both reading `ParamDecl.value` (the
+`.2a` oracle). Decisions worth recording: (1) `expr_to_sv` is
+**fully parenthesized** — the evaluator already fixed semantics; a
+minimal-parens printer would risk the *downstream* front-end
+parsing a different precedence than the oracle computed, so the
+printer must not be clever. The precedence-sensitive-expression
+axis is still exercised because the `.2a` builder emits genuinely
+nested `a + b*c` / ternary shapes that round-trip *as written*.
+(2) **Default-off DUT-byte-identical is structural, not a flag
+check**: `microdesign` is a separate top-level module that the DUT
+generate path never calls, so "the artifact-family flag is off" is
+the *absence of a call site* — there is nothing to gate and nothing
+that could perturb DUT output. The actual `--artifact` selector is
+Phase 9's; `.2b` deliberately does not wire a CLI flag (that would
+be premature and is Phase 9's lane-migration concern). (3) The
+manifest uses `BTreeMap` for every object so `serde_json`
+pretty-output key order is deterministic ⇒ the `.json` is a
+byte-stable part of the reproducible artifact, exactly like the
+`.sv`. (4) `widths`/`generate`/`package_constants` are derived by
+small fixed rules (`(last % 8)+1`; `P0 >= pkg_const(seed)`;
+`seed % 64 + 1`) whose *resolved* values come from the oracle —
+the SV carries the symbolic form, the manifest the resolved form,
+and `manifest_mirrors_the_oracle` pins their equality.
+
 ### Phase 8 frontend/elaboration accept-corpus source-IR design (2026-05-18, PHASE-8-FRONTEND-ACCEPT.1)
 
 Design-only slice. No code. Lifts ROADMAP Phase 8 ("frontend/

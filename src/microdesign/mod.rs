@@ -9,15 +9,23 @@
 //! "did it not error" (see `DEVELOPMENT_NOTES.md` "Phase 7 oracle-backed
 //! micro-design artifact family design").
 //!
-//! This module is `.2a` only: the **source-level constant/parameter
-//! IR** (a typed parameter+localparam dependency DAG of integer
-//! constant expressions) and the **construction-time evaluator** that
-//! resolves every node's value as the DAG is built — the *oracle*.
-//! It is a **separate generator path**: it is deliberately *not*
-//! threaded through the gate-level circuit IR (the circuit IR has no
+//! Contents:
+//! - `.2a` — the **source-level constant/parameter IR** (a typed
+//!   parameter+localparam dependency DAG of integer constant
+//!   expressions) and the **construction-time evaluator** that
+//!   resolves every node's value as the DAG is built — the *oracle*.
+//! - `.2b` — the **un-resolved SV emitter** (`rtl_const_expr` family)
+//!   and the **JSON expected-facts manifest emitter**, both emitted
+//!   *from the same evaluated IR* (the SV keeps parameters symbolic;
+//!   the manifest records what elaboration must resolve them to).
+//!
+//! It is a **separate generator path**: deliberately *not* threaded
+//! through the gate-level circuit IR (the circuit IR has no
 //! `parameter`/`localparam`/expression concept; forcing them through
-//! scalar `u32` node graphs is the category error `.1` rejected).
-//! No SV/manifest emit, no parity harness yet — those are `.2b`/`.2c`.
+//! scalar `u32` node graphs is the category error `.1` rejected) and
+//! never invoked by the DUT generate path (so the DUT lane is
+//! byte-identical by construction). The parity harness + repo-owned
+//! gate are `.2c`.
 //!
 //! Reproducibility follows the project convention: one
 //! `ChaCha8Rng::seed_from_u64(seed)`, no `thread_rng`, no system time
@@ -25,6 +33,7 @@
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// Integer constant-expression node. The bounded integer subset Phase 7
@@ -304,6 +313,272 @@ pub fn build_constexpr_unit(seed: u64, n_params: usize) -> ConstExprUnit {
     unit
 }
 
+// ===================================================================
+// PHASE-7-ORACLE-MICRODESIGN.2b — SV emitter + JSON manifest emitter.
+//
+// Both are emitted *from the same evaluated IR* (`.2a`'s resolved
+// `ParamDecl.value` oracle): the `.sv` text keeps parameters
+// **symbolic** (un-resolved) — that gap between symbolic text and the
+// manifest's resolved facts is exactly the front-end/elaboration
+// behaviour Phase 7 stresses. No analysis pass, no re-parse. Behind
+// an explicit artifact-family path: `microdesign` is a *separate
+// module never invoked by the DUT generate path*, so the DUT lane is
+// byte-identical by construction (default-off is trivial; the Phase 9
+// selector wires invocation later).
+// ===================================================================
+
+/// Minimum bit-width to hold non-negative `v` (≥ 1). Negative values
+/// are clamped to 0 (the rules-first builder keeps widths' driving
+/// values non-negative; this is a defensive floor).
+fn bits_for(v: i128) -> u32 {
+    let v = v.max(0) as u128;
+    if v < 2 {
+        1
+    } else {
+        128 - (v).leading_zeros()
+    }
+}
+
+/// Pretty-print a `ConstExpr` to SystemVerilog source. **Fully
+/// parenthesized**: the evaluator already fixed semantics; the
+/// printer must not silently change them, and explicit parens make
+/// the emitted text precedence-unambiguous for the downstream
+/// front-end (the precedence-sensitivity axis is exercised by the
+/// `.2a` builder's nested `a + b*c` / ternary shapes — round-tripped
+/// here as written).
+pub fn expr_to_sv(e: &ConstExpr) -> String {
+    match e {
+        ConstExpr::Lit(v) => v.to_string(),
+        ConstExpr::Param(n) => n.clone(),
+        ConstExpr::Unary(op, a) => {
+            let s = expr_to_sv(a);
+            let o = match op {
+                UnOp::Neg => "-",
+                UnOp::BitNot => "~",
+                UnOp::LogNot => "!",
+            };
+            format!("({o}{s})")
+        }
+        ConstExpr::Bin(op, a, b) => {
+            let o = match op {
+                BinOp::Add => "+",
+                BinOp::Sub => "-",
+                BinOp::Mul => "*",
+                BinOp::Div => "/",
+                BinOp::Mod => "%",
+                BinOp::Shl => "<<",
+                BinOp::Shr => ">>",
+                BinOp::BitAnd => "&",
+                BinOp::BitOr => "|",
+                BinOp::BitXor => "^",
+                BinOp::Eq => "==",
+                BinOp::Ne => "!=",
+                BinOp::Lt => "<",
+                BinOp::Gt => ">",
+                BinOp::Le => "<=",
+                BinOp::Ge => ">=",
+                BinOp::LogAnd => "&&",
+                BinOp::LogOr => "||",
+            };
+            format!("({} {} {})", expr_to_sv(a), o, expr_to_sv(b))
+        }
+        ConstExpr::Ternary(c, a, b) => format!(
+            "({} ? {} : {})",
+            expr_to_sv(c),
+            expr_to_sv(a),
+            expr_to_sv(b)
+        ),
+    }
+}
+
+/// The fixed package-constant for a unit (the package-qualified
+/// constant axis). Derived deterministically from the seed.
+fn pkg_const(seed: u64) -> i128 {
+    (seed % 64) as i128 + 1
+}
+
+/// The signal-width localparam expression for a unit: a symbolic expr
+/// over the last decl that always resolves to a positive width
+/// (`(<last> % 8) + 1` ⇒ 1..=8). Returns `(sv_expr, resolved_bits)`.
+fn width_expr(unit: &ConstExprUnit) -> (String, u32) {
+    let last = unit.params.last().expect("unit has >=1 decl");
+    let sv = format!("(({} % 8) + 1)", last.name);
+    let bits = (last.value.rem_euclid(8) + 1) as u32;
+    (sv, bits)
+}
+
+/// The `generate if` predicate for a unit: `<P0> >= <pkg_const>`.
+/// Returns `(sv_predicate, taken)` where `taken` is resolved from the
+/// oracle.
+fn gen_predicate(unit: &ConstExprUnit, seed: u64) -> (String, bool) {
+    let p0 = &unit.params[0];
+    let k = pkg_const(seed);
+    (format!("({} >= {})", p0.name, k), p0.value >= k)
+}
+
+/// Emit the `rtl_const_expr` micro-design as **un-resolved**
+/// SystemVerilog: a tiny package + a module whose `parameter`s carry
+/// their *symbolic* defining expressions (not the resolved values),
+/// `localparam` chains, an expr-derived-width signal, a package-
+/// qualified constant reference, and a `generate if` over a param
+/// expression. Byte-stable per `(unit, seed)`.
+pub fn emit_sv(unit: &ConstExprUnit, seed: u64) -> String {
+    let mut s = String::new();
+    let pkg = format!("mc_{seed}_pkg");
+    let top = format!("mc_{seed}");
+    s.push_str(&format!(
+        "// Generated by anvil microdesign (Phase 7). Module: {top}\n"
+    ));
+    s.push_str(&format!("package {pkg};\n"));
+    s.push_str(&format!("    localparam int K = {};\n", pkg_const(seed)));
+    s.push_str("endpackage\n\n");
+
+    let params: Vec<&ParamDecl> = unit
+        .params
+        .iter()
+        .filter(|p| p.kind == ParamKind::Parameter)
+        .collect();
+    let localparams: Vec<&ParamDecl> = unit
+        .params
+        .iter()
+        .filter(|p| p.kind == ParamKind::Localparam)
+        .collect();
+
+    s.push_str(&format!("module {top} #(\n"));
+    for (i, p) in params.iter().enumerate() {
+        let comma = if i + 1 < params.len() { "," } else { "" };
+        s.push_str(&format!(
+            "    parameter int {} = {}{}\n",
+            p.name,
+            expr_to_sv(&p.expr),
+            comma
+        ));
+    }
+    s.push_str(");\n");
+    // localparam decls in body, in declaration order (chains).
+    for p in &localparams {
+        s.push_str(&format!(
+            "    localparam int {} = {};\n",
+            p.name,
+            expr_to_sv(&p.expr)
+        ));
+    }
+    s.push_str(&format!("    localparam int PKG_REF = {pkg}::K;\n"));
+    let (wexpr, _bits) = width_expr(unit);
+    s.push_str(&format!("    localparam int W_SIG = {wexpr};\n"));
+    s.push_str("    logic [W_SIG-1:0] sig;\n");
+    s.push_str("    assign sig = '0;\n");
+    let (pred, _taken) = gen_predicate(unit, seed);
+    s.push_str("    generate\n");
+    s.push_str(&format!("        if {pred} begin : g_taken\n"));
+    s.push_str("            logic gflag;\n");
+    s.push_str("            assign gflag = 1'b1;\n");
+    s.push_str("        end else begin : g_else\n");
+    s.push_str("            logic gflag;\n");
+    s.push_str("            assign gflag = 1'b0;\n");
+    s.push_str("        end\n");
+    s.push_str("    endgenerate\n");
+    s.push_str("endmodule\n");
+    s
+}
+
+#[derive(Debug, Serialize)]
+pub struct FactEntry {
+    value: i128,
+    expr: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WidthFact {
+    msb: i64,
+    lsb: i64,
+    bits: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenFact {
+    taken: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConstExprFact {
+    expr: String,
+    value: i128,
+    width: u32,
+}
+
+/// The expected-elaboration-facts manifest (`.1`'s schema). Every
+/// value comes from `.2a`'s resolved oracle — never re-derived.
+/// `BTreeMap` everywhere ⇒ deterministic key order ⇒ byte-stable.
+#[derive(Debug, Serialize)]
+pub struct Manifest {
+    pub seed: u64,
+    pub top: String,
+    pub params: BTreeMap<String, FactEntry>,
+    pub localparams: BTreeMap<String, FactEntry>,
+    pub widths: BTreeMap<String, WidthFact>,
+    pub generate: BTreeMap<String, GenFact>,
+    pub package_constants: BTreeMap<String, i128>,
+    pub const_exprs: Vec<ConstExprFact>,
+}
+
+/// Build the manifest from the evaluated unit (the oracle). Mirrors
+/// exactly what `emit_sv` declares.
+pub fn build_manifest(unit: &ConstExprUnit, seed: u64) -> Manifest {
+    let mut params = BTreeMap::new();
+    let mut localparams = BTreeMap::new();
+    let mut const_exprs = Vec::new();
+    for p in &unit.params {
+        let entry = FactEntry {
+            value: p.value,
+            expr: expr_to_sv(&p.expr),
+        };
+        match p.kind {
+            ParamKind::Parameter => {
+                params.insert(p.name.clone(), entry);
+            }
+            ParamKind::Localparam => {
+                localparams.insert(p.name.clone(), entry);
+            }
+        }
+        const_exprs.push(ConstExprFact {
+            expr: expr_to_sv(&p.expr),
+            value: p.value,
+            width: bits_for(p.value),
+        });
+    }
+    let (_wexpr, bits) = width_expr(unit);
+    let mut widths = BTreeMap::new();
+    widths.insert(
+        "sig".to_string(),
+        WidthFact {
+            msb: bits as i64 - 1,
+            lsb: 0,
+            bits,
+        },
+    );
+    let (_pred, taken) = gen_predicate(unit, seed);
+    let mut generate = BTreeMap::new();
+    generate.insert("g_taken".to_string(), GenFact { taken });
+    let mut package_constants = BTreeMap::new();
+    package_constants.insert(format!("mc_{seed}_pkg::K"), pkg_const(seed));
+    Manifest {
+        seed,
+        top: format!("mc_{seed}"),
+        params,
+        localparams,
+        widths,
+        generate,
+        package_constants,
+        const_exprs,
+    }
+}
+
+/// Serialize the manifest as deterministic pretty JSON.
+pub fn emit_manifest(unit: &ConstExprUnit, seed: u64) -> String {
+    serde_json::to_string_pretty(&build_manifest(unit, seed)).expect("manifest serializes")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -452,5 +727,114 @@ mod tests {
             // Decl 0 is always a parameter root (override surface).
             assert_eq!(unit.params[0].kind, ParamKind::Parameter);
         }
+    }
+
+    // ---- .2b: SV + JSON manifest emitters ----
+
+    /// The emitted SV has the expected un-resolved shape: a package
+    /// with `K`, a module with `parameter`/`localparam` decls carrying
+    /// **symbolic** expressions (not the resolved integers), a
+    /// package-qualified ref, an expr-derived-width signal, and a
+    /// `generate if/else`.
+    #[test]
+    fn emit_sv_is_valid_unresolved_shape() {
+        let unit = build_constexpr_unit(7, 8);
+        let sv = emit_sv(&unit, 7);
+        assert!(sv.contains("package mc_7_pkg;"));
+        assert!(sv.contains("localparam int K = "));
+        assert!(sv.contains("module mc_7 #("));
+        assert!(sv.contains("parameter int P0 = "));
+        assert!(sv.contains("localparam int PKG_REF = mc_7_pkg::K;"));
+        assert!(sv.contains("localparam int W_SIG = ((P"));
+        assert!(sv.contains("logic [W_SIG-1:0] sig;"));
+        assert!(sv.contains("generate") && sv.contains(": g_taken") && sv.contains(": g_else"));
+        assert!(sv.trim_end().ends_with("endmodule"));
+        // P0 is a literal root — its decl is `parameter int P0 = <lit>`
+        // (symbolic-but-trivial); a *chained* decl must show an
+        // operator (un-resolved), never a bare resolved integer only.
+        let chained = unit
+            .params
+            .iter()
+            .find(|p| matches!(p.expr, ConstExpr::Bin(..) | ConstExpr::Ternary(..)));
+        if let Some(c) = chained {
+            let rendered = expr_to_sv(&c.expr);
+            assert!(
+                rendered.contains('(') && rendered.contains(' '),
+                "chained decl must render its symbolic expr, got {rendered}"
+            );
+            assert!(
+                sv.contains(&format!("{} = {}", c.name, rendered)),
+                "SV must carry the un-resolved expr for {}",
+                c.name
+            );
+        }
+    }
+
+    /// The manifest is valid JSON, schema-shaped, and **every fact
+    /// equals the `.2a` oracle** — params/localparams `value` ==
+    /// `ParamDecl.value`, `expr` == the SV-printed expr, `widths`/
+    /// `generate`/`package_constants` consistent with the emitter.
+    #[test]
+    fn manifest_mirrors_the_oracle() {
+        let unit = build_constexpr_unit(42, 9);
+        let json = emit_manifest(&unit, 42);
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
+        assert_eq!(v["seed"], 42);
+        assert_eq!(v["top"], "mc_42");
+        for p in &unit.params {
+            let bucket = match p.kind {
+                ParamKind::Parameter => "params",
+                ParamKind::Localparam => "localparams",
+            };
+            let e = &v[bucket][&p.name];
+            assert_eq!(
+                e["value"].as_i64().unwrap() as i128,
+                p.value,
+                "manifest {bucket}.{}.value must equal the oracle",
+                p.name
+            );
+            assert_eq!(e["expr"].as_str().unwrap(), expr_to_sv(&p.expr));
+        }
+        // widths.sig.bits == (last % 8) + 1 (resolved from the oracle).
+        let last = unit.params.last().unwrap();
+        let want_bits = (last.value.rem_euclid(8) + 1) as i64;
+        assert_eq!(v["widths"]["sig"]["bits"].as_i64().unwrap(), want_bits);
+        assert_eq!(v["widths"]["sig"]["msb"].as_i64().unwrap(), want_bits - 1);
+        // generate.g_taken.taken == (P0 >= pkg_const) from the oracle.
+        let k = pkg_const(42);
+        assert_eq!(
+            v["generate"]["g_taken"]["taken"].as_bool().unwrap(),
+            unit.params[0].value >= k
+        );
+        assert_eq!(
+            v["package_constants"]["mc_42_pkg::K"].as_i64().unwrap() as i128,
+            k
+        );
+        assert_eq!(
+            v["const_exprs"].as_array().unwrap().len(),
+            unit.params.len()
+        );
+    }
+
+    /// `(seed) → .sv` and `→ .json` are byte-identical across rebuilds
+    /// (the reproducibility contract; the manifest is part of the
+    /// reproducible artifact). Distinct seeds differ.
+    #[test]
+    fn sv_and_manifest_are_byte_reproducible() {
+        for seed in [0u64, 1, 7, 42, 999] {
+            let u = build_constexpr_unit(seed, 8);
+            assert_eq!(
+                emit_sv(&u, seed),
+                emit_sv(&build_constexpr_unit(seed, 8), seed)
+            );
+            assert_eq!(
+                emit_manifest(&u, seed),
+                emit_manifest(&build_constexpr_unit(seed, 8), seed)
+            );
+        }
+        assert_ne!(
+            emit_sv(&build_constexpr_unit(1, 8), 1),
+            emit_sv(&build_constexpr_unit(2, 8), 2)
+        );
     }
 }

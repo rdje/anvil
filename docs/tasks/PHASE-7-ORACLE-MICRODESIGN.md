@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 7 — Oracle-backed micro-design artifacts
 - Created: `2026-05-16`
-- Last updated: `2026-05-19` (`.2a` const-expr IR + evaluator/oracle landed; frontier → `.2b`)
+- Last updated: `2026-05-19` (`.2b` SV + JSON-manifest emitters landed; frontier → `.2c`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -61,11 +61,11 @@ checks.
   Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `Emitters: the un-resolved-where-appropriate SV emitter for the const-expr/parameter IR (rtl_const_expr family — param/localparam chains, expr-derived widths/ranges, generate if/for, package-qualified constants, precedence-sensitive expressions) + the JSON expected-facts manifest emitter (params/localparams/widths/generate/package_constants/const_exprs per .1's schema), both emitted from the same evaluated IR (.2a). Behind an explicit artifact-family flag (default off ⇒ DUT lane byte-identical). Cargo-portable structural proof: emitted declarations/manifest are consistent with the evaluator by construction; reproducible.`
   Acceptance: `cargo fmt/clippy/check/test green; forced-on emits valid SV + a schema-valid manifest, byte-reproducible; default-off byte-identical to the DUT lane; structural-consistency proof; no ROADMAP advance.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/microdesign/mod.rs extended (same separate module; serde::Serialize added). expr_to_sv() — fully-parenthesized SV pretty-printer (precedence-unambiguous; the .2a builder's nested a+b*c / ternary shapes round-trip as written → the precedence-sensitive-expression axis). emit_sv(unit,seed) emits the rtl_const_expr family as UN-RESOLVED SV: a package mc_<seed>_pkg with localparam int K; a module mc_<seed> with #(parameter int P..=<symbolic expr>) headers (NOT resolved ints), localparam chains in body, localparam int PKG_REF = mc_<seed>_pkg::K (package-qualified constant), localparam int W_SIG = ((<last> % 8)+1) + logic [W_SIG-1:0] sig (expr-derived width), and a generate if (<P0 >= K>) / else (generate if). Manifest structs (pub, serde) + build_manifest()/emit_manifest() produce the .1 schema (seed/top/params/localparams/widths/generate/package_constants/const_exprs) entirely from the .2a resolved value oracle (BTreeMap ⇒ deterministic key order ⇒ byte-stable serde_json pretty). Default-off DUT-byte-identical is trivial+structural: microdesign is a separate module never invoked by the DUT generate path (the Phase-9 selector wires invocation later). 3 new unit proofs (7 total in the module): emit_sv_is_valid_unresolved_shape (package/module/parameter-symbolic/PKG_REF/W_SIG/generate-if-else/endmodule; chained decls render their symbolic expr, not a bare int), manifest_mirrors_the_oracle (valid JSON; every params/localparams value == ParamDecl.value; expr == expr_to_sv; widths.bits/msb, generate.taken, package_constants, const_exprs len all == the oracle), sv_and_manifest_are_byte_reproducible (same seed → identical .sv & .json across rebuilds; distinct seeds differ). cargo fmt --all --check / clippy --all-targets -- -D warnings / check --all-targets clean (fixed a useless format! + a literal-modulo clippy hit by using the real pkg_const helper in the test); full cargo test green (COMMIT.md gate). No parity harness (.2c); no ROADMAP/book change.`
+  Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2b SV + JSON expected-facts manifest emitters (from the .2a oracle)`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c`
   Status: `pending`
@@ -78,7 +78,7 @@ checks.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-7-ORACLE-MICRODESIGN.2b` | `pending` | `.2a` **done** — `src/microdesign/` const-expr/parameter IR + construction-time evaluator/oracle landed (4 unit proofs green incl. the oracle-no-drift invariant; reproducible; full `cargo test` green; no emit/harness). `.2b` adds the SV emitter (`rtl_const_expr` family — param/localparam chains, expr-derived widths/ranges, generate if/for, package-qualified constants, precedence-sensitive expressions) + the JSON expected-facts manifest emitter, **both from the same evaluated IR**, behind an explicit artifact-family flag (default-off ⇒ DUT lane byte-identical). Unblocked code slice; PHASE-8.2 / Phase-9 reuse this evaluator+manifest core. |
+| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c` | `pending` | `.2a`+`.2b` **done** — `src/microdesign/` has the const-expr/parameter IR + evaluator/oracle (`.2a`) and the un-resolved SV emitter + JSON expected-facts manifest emitter from the same oracle (`.2b`), 7 unit proofs green, byte-reproducible, full `cargo test` green. `.2c` adds the parity harness: a downstream consumer (Yosys `write_json` / `slang`|Verilator param introspection) reports resolved facts → compared to the manifest (exact agreement or a retained counterexample); **tool-gated `#[ignore]`** so the portable `cargo test` stays green tool-less (Phase-1 doctrine); then a verified clean run records ROADMAP Phase 7 → done (r87). Unblocked. |
 
 ## Decisions
 
@@ -126,6 +126,7 @@ checks.
 | `2026-05-18` | `PHASE-7-ORACLE-MICRODESIGN.1` | `DEVELOPMENT_NOTES.md` Phase 7 design entry landed (conceptual shift; codebase grounding — own source-level const/param IR, separate generator path; `rtl_const_expr` family; expected-facts JSON schema; oracle-by-construction generation; reproducibility; new parity harness; Phase-8/9 boundaries; 4 rejected alternatives; `.2` split). Design-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `5db4ac9` (no `src/`/`tests/` touched). | Done. |
 | `2026-05-18` | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `.2` made a container with children `.2a` (const-expr/parameter IR + construction-time evaluator/oracle), `.2b` (SV + JSON-manifest emitters behind an artifact-family flag), `.2c` (parity harness + repo-owned gate → ROADMAP Phase 7) — the exact independently-reviewable boundaries `.1`'s design named. Tree-planning, docs-only; no `src/`/`tests/` (cargo unchanged-green vs base `e550db1`). | Done. Frontier → `.2a`. |
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2a` | New separate top-level `src/microdesign/mod.rs` (`pub mod microdesign`; not in `src/ir/`): `ConstExpr`/`UnOp`/`BinOp`/`ParamKind`/`ParamDecl`(+`value` oracle)/`ConstExprUnit` IR; `eval()` (SV-constant-expr semantics — trunc div/mod, clamped shift, cmp/logical→1/0, defensive `EvalError`); `resolve()` = the construction-time oracle (fills every value in decl order); `build_constexpr_unit(seed,n)` rules-first reproducible builder (`ChaCha8::seed_from_u64`, no `thread_rng`; literal root + earlier-decl chains/precedence/ternary; resolved in place). 4 unit proofs green: `eval_matches_known_values`, `eval_reports_div_by_zero_and_undefined_param`, `build_is_reproducible_and_seed_sensitive`, `stored_values_are_consistent_with_a_fresh_reeval` (the oracle-no-drift invariant). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No SV/manifest emit, no harness; no ROADMAP/book change. | Done. Frontier → `.2b`. |
+| `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2b` | `src/microdesign/` extended: `expr_to_sv` (fully-parenthesized precedence-unambiguous printer), `emit_sv(unit,seed)` (un-resolved `rtl_const_expr` SV — `package mc_<seed>_pkg`/`K`, module with symbolic `parameter`/`localparam` chains, `PKG_REF = mc_<seed>_pkg::K`, expr-derived `W_SIG`+`logic[W_SIG-1:0] sig`, `generate if/else`), `Manifest`+`build_manifest`/`emit_manifest` (the `.1` JSON schema, all facts from the `.2a` resolved oracle, `BTreeMap` ⇒ byte-stable `serde_json`). Default-off DUT-byte-identical is structural (separate module, never invoked by the DUT path). 3 new proofs (7 total): `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle` (valid JSON; every fact == oracle), `sv_and_manifest_are_byte_reproducible`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No parity harness (`.2c`); no ROADMAP/book change. | Done. Frontier → `.2c`. |
 
 ## Commit Log
 
@@ -134,6 +135,7 @@ checks.
 | `PHASE-7-ORACLE-MICRODESIGN.1` | `Docs: PHASE-7-ORACLE-MICRODESIGN.1 oracle-backed micro-design artifact-family design` | Design-only; expected-facts JSON schema + oracle-by-construction strategy + new parity harness + 4 rejected alternatives. No code. |
 | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2 into .2a (IR+evaluator) / .2b (emitters) / .2c (parity gate)` | Tree-planning, no code. Boundaries per `.1`'s named split candidates. |
 | `PHASE-7-ORACLE-MICRODESIGN.2a` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)` | New `src/microdesign/` IR + evaluator/oracle + reproducible rules-first builder; 4 unit proofs; no emit/harness. |
+| `PHASE-7-ORACLE-MICRODESIGN.2b` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2b SV + JSON expected-facts manifest emitters (from the .2a oracle)` | Un-resolved SV emitter + JSON manifest emitter, both from the `.2a` oracle; 3 new proofs (7 total); byte-reproducible; no harness. |
 
 ## Changelog
 
@@ -200,3 +202,31 @@ checks.
   new module (COMMIT.md gate). No SV/manifest emit, no harness
   (`.2b`/`.2c`); no ROADMAP/book change. Frontier → `.2b`
   (SV + JSON-manifest emitters from this evaluated IR).
+- `2026-05-19`: **`.2b` landed** — `src/microdesign/` extended with
+  the un-resolved SV emitter + the JSON expected-facts manifest
+  emitter, **both from the `.2a` resolved oracle**. `expr_to_sv` is
+  a fully-parenthesized printer (precedence-unambiguous; the `.2a`
+  builder's nested `a+b*c`/ternary shapes carry the
+  precedence-sensitive-expression axis). `emit_sv` produces the
+  `rtl_const_expr` family as deliberately *un-resolved*
+  SystemVerilog (`package mc_<seed>_pkg`/`K`; a module with
+  *symbolic* `parameter`/`localparam` chains, `PKG_REF =
+  mc_<seed>_pkg::K`, an expr-derived `W_SIG` + `logic[W_SIG-1:0]
+  sig`, and a `generate if/else` over a param predicate) — the gap
+  between symbolic text and the manifest's resolved facts is
+  exactly the front-end behaviour Phase 7 stresses. `Manifest` +
+  `build_manifest`/`emit_manifest` serialize the `.1` schema
+  (seed/top/params/localparams/widths/generate/package_constants/
+  const_exprs) entirely from the oracle; `BTreeMap` ordering ⇒
+  byte-stable `serde_json` pretty output. Default-off
+  DUT-byte-identical is *structural* (microdesign is a separate
+  module never invoked by the DUT generate path; the Phase-9
+  selector wires invocation later). 3 new unit proofs (7 total):
+  `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle`
+  (valid JSON; every fact equals the oracle),
+  `sv_and_manifest_are_byte_reproducible`. `cargo fmt --all
+  --check` / `clippy --all-targets -- -D warnings` /
+  `check --all-targets` clean; full `cargo test` green (COMMIT.md
+  gate). No parity harness (`.2c`); no ROADMAP/book change.
+  Frontier → `.2c` (parity harness + repo-owned gate → ROADMAP
+  Phase 7, r87).
