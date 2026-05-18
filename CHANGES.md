@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-3.1 — PHASE-6-ADVANCED-MOTIFS.3.1: generated-encoding FSM motif design (`.3` split)
 
-**Landed as:** this commit
+**Landed as:** 4dddf0e
 
 **What changed**
 
