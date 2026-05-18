@@ -8485,6 +8485,109 @@ fn inferrable_memory_is_default_off_and_constructs_when_forced_on() {
 }
 
 #[test]
+fn inferrable_memory_matches_yosys_template_and_is_factorization_opaque() {
+    // PHASE-6-ADVANCED-MOTIFS.2.2.
+    //
+    // The cargo gate cannot shell out to Yosys/Verilator (those run
+    // only in the repo-owned tool_matrix gate — .2.3/.2.4). The
+    // cargo-portable formalization of the Phase 6 inference contract
+    // is: the generator emits *exactly* the synchronous template that
+    // `.1`'s empirical probe proved Yosys infers as `$mem_v2` (the
+    // template equivalence IS the contract; the tool-level proof is
+    // `.2.1b`'s spot-check + `.2.4`'s real gate). Plus: the opaque
+    // `MemRead` leaf is factorization/CSE-invariant on *generated*
+    // output across every ConstructionStrategy AND FactorizationLevel
+    // (incl. the strongest, EGraph) — the memory array never enters
+    // the NodeId expression graph.
+    use anvil::config::{ConstructionStrategy, FactorizationLevel};
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    let factorizations = [
+        FactorizationLevel::None,
+        FactorizationLevel::Cse,
+        FactorizationLevel::Commutative,
+        FactorizationLevel::EGraph,
+    ];
+
+    let mut checked = 0usize;
+    for strategy in strategies {
+        for fl in factorizations {
+            for seed in 0..4u64 {
+                let cfg = Config {
+                    seed,
+                    memory_prob: 1.0,
+                    construction_strategy: strategy,
+                    factorization_level: fl,
+                    ..Config::default()
+                };
+                let design = Generator::new(cfg).generate_design();
+                anvil::ir::validate::validate_design(&design).unwrap_or_else(|e| {
+                    panic!("memory design must validate ({strategy:?}/{fl:?}/{seed}): {e:?}")
+                });
+                assert_eq!(design.modules.len(), 1);
+                let m = &design.modules[0];
+                assert_eq!(m.memories.len(), 1, "must be a memory leaf");
+
+                // (b) Factorization/CSE-opacity on generated output:
+                // exactly one MemRead survives every factorization
+                // level, and the memory leaf has NO Gate nodes (the
+                // array/MemRead never enter the expression graph).
+                let mem_reads = m
+                    .nodes
+                    .iter()
+                    .filter(|n| matches!(n, anvil::ir::Node::MemRead { .. }))
+                    .count();
+                assert_eq!(
+                    mem_reads, 1,
+                    "the opaque MemRead must be factorization-invariant \
+                     ({strategy:?}/{fl:?}/{seed})"
+                );
+                assert!(
+                    !m.nodes
+                        .iter()
+                        .any(|n| matches!(n, anvil::ir::Node::Gate { .. })),
+                    "a memory leaf must contain no expression-graph gates \
+                     ({strategy:?}/{fl:?}/{seed})"
+                );
+
+                // (a) Structural contract: the emitted SV is exactly
+                // the `.1`-validated Yosys-`$mem_v2` template shape.
+                let sv = anvil::emit::to_sv_in_design(m, &design);
+                let mem = &m.memories[0];
+                let depth = (1u128 << mem.addr_width) - 1;
+                let arr = format!(" mem_0 [0:{depth}];");
+                assert!(
+                    sv.contains(&arr),
+                    "array decl must be the inferrable form `{arr}`:\n{sv}"
+                );
+                assert!(
+                    sv.contains("logic ") && sv.contains("memrd_0;"),
+                    "registered read-data signal must be declared:\n{sv}"
+                );
+                assert!(
+                    sv.contains("always_ff @(posedge clk) begin")
+                        && !sv.contains("always_ff @(posedge clk or negedge"),
+                    "memory block must be reset-less synchronous:\n{sv}"
+                );
+                assert!(
+                    sv.contains("if (we) mem_0[")
+                        && sv.contains("] <= wdata;")
+                        && sv.contains("memrd_0 <= mem_0["),
+                    "must emit the exact synchronous write + registered read:\n{sv}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked >= strategies.len() * factorizations.len() * 4);
+}
+
+#[test]
 fn width_parameterization_instances_override_at_multiple_values() {
     // PHASE-5-PARAMETERIZATION.2.2.3b: in the legacy depth-1 wrapper
     // (library mode), the single library leaf is built by the

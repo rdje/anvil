@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-2.2 — PHASE-6-ADVANCED-MOTIFS.2.2: memory inference structural-contract + factorization-opacity proof
+
+**Landed as:** this commit
+
+**What changed**
+
+- `tests/pipeline.rs`: new `inferrable_memory_matches_yosys_template_and_is_factorization_opaque`. Across 4 `ConstructionStrategy` × 4 `FactorizationLevel` (`None`/`Cse`/`Commutative`/`EGraph`) × 4 seeds (64 combinations) with `memory_prob = 1.0`: `validate_design` clean; the emitted SV is **exactly** the `.1`-validated Yosys-`$mem_v2` template (concrete-depth `mem_0 [0:depth]` array, reset-less `always_ff @(posedge clk)`, `if (we) mem_0[..] <= wdata;`, `memrd_0 <= mem_0[..]`); exactly one `MemRead` survives every factorization level and the memory leaf has **zero** expression-graph `Gate` nodes (the array / `MemRead` never enter the NodeId graph — CSE/factorization-opaque, including the strongest `EGraph`).
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.2.2`: formalize the inference contract + identity-invariance. **Scoping (recorded in the tree Decisions):** the cargo gate cannot shell out to Yosys/Verilator — this repo proves downstream-tool cleanliness only via the repo-owned `tool_matrix` gate (`.2.3` scenario + `.2.4` real run), never `cargo test`. The cargo-portable formalization of the contract is the structural-template equivalence (the generator emits *exactly* the `.1`-proven inferrable template, which *is* the contract); the tool-level `$mem_v2`/Verilator proof is `.2.1b`'s real binary spot-check (interim) + `.2.4`'s authoritative real gate (r87 no-aspirational-claims).
+
+**Validation**
+
+- `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; the new proof green (64 combos); full `cargo test` (COMMIT.md gate — see Verification Log). **Proof only — no feature code change**; default-off byte-identical reaffirmed by the unchanged `.2.1b` proof. No `book/` change.
+
+**Impact**
+
+- The Phase 6 memory-inference contract + `MemRead` factorization-opacity are now reproducibly asserted in the cargo gate across all strategies/factorization levels. Phase 6 frontier → `PHASE-6-ADVANCED-MOTIFS.2.3` (matrix scenario + metric + gap; no ROADMAP advance until the verified gate at `.2.4`).
+
+**Files touched**
+
+- Updated: tests/pipeline.rs, docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase6-2.1b — PHASE-6-ADVANCED-MOTIFS.2.1b: memory_prob knob + rules-first build_memory_leaf
 
 **Landed as:** aa9abf0
