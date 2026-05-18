@@ -1,8 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-3.2a — PHASE-6-ADVANCED-MOTIFS.3.2a: FSM IR core + opaque `FsmOut` leaf + `compact.rs` reachability
+## 2026-05-18-phase6-3.2b — PHASE-6-ADVANCED-MOTIFS.3.2b: `fsm_prob` knob + rules-first `build_fsm_block` (`.3.2` container done)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/config.rs`: new calibration knob `Config::fsm_prob` (`f64`,
+  `#[serde(default = "default_fsm_prob")]` → `0.0`, Default-impl line,
+  probability-range `[0.0,1.0]` validation tuple entry) — mirrors
+  `memory_prob`/`aggregate_prob`/`width_parameterization_prob`.
+- `src/gen/module.rs`: rules-first `build_fsm_block` (clk/rst_n + one
+  `sel` input, `q` output; `num_states` `g.rng` 2..=6; `encoding`
+  `g.rng` Binary|OneHot|Gray; `sel_width` `g.rng` 1..=2; `out_width`
+  from the configured width band; `transitions[s][j]=(s+1+j)%N` by
+  rule; distinct masked per-state Moore outputs; opaque `FsmOut`
+  drives `q`; no gates/flops — all rolls via `g.rng`, reproducible)
+  + a single opt-in roll in
+  `generate_leaf_module_with_interface_profile` placed **after** the
+  Phase 5 param lane and the Phase 6 memory lane (mutually exclusive;
+  `interface_profile.is_none()` only; default-off `fsm_prob == 0.0`
+  never enters → byte-identical).
+- `tests/pipeline.rs`: focused proof
+  `fsm_block_is_default_off_and_constructs_when_forced_on`.
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.3.2b` — the FSM scaffold's knob + rules-
+  first constructor, closing the `.3.2` container. Construction-time
+  rules, never generate-then-filter; one exclusive motif per
+  free-standing single-module design (the proven Phase-5/5b/6-memory
+  opt-in-lane discipline).
+
+**Validation**
+
+- Focused proof green: (a) default-off byte-identical (no `Fsm`, no
+  `fsm_state_0`/` fsm_0;`) across 4 `ConstructionStrategy` × 6 seeds;
+  (b) forced-on (`fsm_prob = 1.0`) every single-module design is a
+  1-`Fsm` leaf that `validate_design`-passes, exposes a `FsmOut`, and
+  emits the `.3.1`-probed-clean template (`fsm_state_0` +
+  `FSM0_S0 =` constants + `always_ff @(posedge clk or negedge rst_n)`
+  with `if (!rst_n) fsm_state_0 <= FSM0_S0` + `case (fsm_state_0)`);
+  **all three generated encodings reachable** across the sweep.
+  `cargo fmt --all --check` / `cargo clippy --all-targets --
+  -D warnings` / `cargo check --all-targets` clean; full `cargo test`
+  green (COMMIT.md gate). No `book/` change (book reconciliation is
+  `.3.4`). `CODEBASE_ANALYSIS.md` intentionally unchanged — consistent
+  with the memory `.2.1b` sibling precedent (the bootstrap-refreshed
+  snapshot is not amended per knob slice; the live record is the tree
+  + `DEVELOPMENT_NOTES.md` + `CHANGES.md` + `MEMORY.md`).
+
+**Impact**
+
+- The `.3.2` FSM-scaffold container is **done**. `.3.3` (cargo-
+  portable structural + CSE/EGraph-opacity proof, mirrors memory
+  `.2.2`) is unblocked. No ROADMAP advance (promotion is `.3.4` on a
+  verified gate). Frontier: `.2.4` (gate-blocked) ‖ `.3.3`.
+
+**Files touched**
+
+- `src/config.rs`; `src/gen/module.rs`; `tests/pipeline.rs`;
+  `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `DEVELOPMENT_NOTES.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase6-3.2a — PHASE-6-ADVANCED-MOTIFS.3.2a: FSM IR core + opaque `FsmOut` leaf + `compact.rs` reachability
+
+**Landed as:** ef0eef7
 
 **What changed**
 

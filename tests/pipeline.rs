@@ -8485,6 +8485,115 @@ fn inferrable_memory_is_default_off_and_constructs_when_forced_on() {
 }
 
 #[test]
+fn fsm_block_is_default_off_and_constructs_when_forced_on() {
+    // PHASE-6-ADVANCED-MOTIFS.3.2b deliverable.
+    //
+    //  (a) Default-off byte-identical: with the default
+    //      `fsm_prob = 0.0` no module carries an `Fsm` and the
+    //      emitted SV has no FSM state register / output.
+    //
+    //  (b) Forced-on (prob 1.0): the single-module lane builds a
+    //      rules-first generated-encoding FSM block — it validates and
+    //      emits the `.3.1`-probed-clean Moore template; and all three
+    //      encodings are reachable across the seed/strategy sweep.
+    use anvil::config::ConstructionStrategy;
+    use anvil::ir::FsmEncoding;
+
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+
+    // (a) default-off across strategies + seeds.
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let off = Config {
+                seed,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            let design_off = Generator::new(off).generate_design();
+            anvil::ir::validate::validate_design(&design_off)
+                .expect("default-off design must validate");
+            assert!(
+                design_off.modules.iter().all(|m| m.fsms.is_empty()),
+                "default-off (prob 0.0) must never construct an Fsm (seed {seed}, {strategy:?})"
+            );
+            let sv_off = anvil::emit::to_sv_design(&design_off);
+            assert!(
+                !sv_off.contains("fsm_state_0") && !sv_off.contains(" fsm_0;"),
+                "default-off SV must contain no FSM signals (seed {seed}, {strategy:?})"
+            );
+        }
+    }
+
+    // (b) forced-on: every single-module design is an FSM leaf.
+    let mut total_fsm = 0usize;
+    let mut seen_binary = false;
+    let mut seen_onehot = false;
+    let mut seen_gray = false;
+    for strategy in strategies {
+        for seed in 0..6u64 {
+            let on = Config {
+                seed,
+                fsm_prob: 1.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            on.validate().expect("forced-on config valid");
+            let design_on = Generator::new(on).generate_design();
+            anvil::ir::validate::validate_design(&design_on).unwrap_or_else(|e| {
+                panic!("fsm design must validate (seed {seed}, {strategy:?}): {e:?}")
+            });
+            assert_eq!(design_on.modules.len(), 1);
+            let m = &design_on.modules[0];
+            assert_eq!(
+                m.fsms.len(),
+                1,
+                "forced-on single-module design must be an FSM leaf (seed {seed}, {strategy:?})"
+            );
+            total_fsm += 1;
+            let fsm = &m.fsms[0];
+            assert!(fsm.num_states >= 2 && fsm.out_width >= 2 && fsm.sel_width >= 1);
+            match fsm.encoding {
+                FsmEncoding::Binary => seen_binary = true,
+                FsmEncoding::OneHot => seen_onehot = true,
+                FsmEncoding::Gray => seen_gray = true,
+            }
+            // The opaque FsmOut leaf drives the sole output.
+            assert!(
+                m.nodes
+                    .iter()
+                    .any(|n| matches!(n, anvil::ir::Node::FsmOut { .. })),
+                "fsm leaf must expose an FsmOut node"
+            );
+            let sv = anvil::emit::to_sv_in_design(m, &design_on);
+            assert!(
+                sv.contains("fsm_state_0") && sv.contains("FSM0_S0 ="),
+                "must declare the encoded-state register + state constants:\n{sv}"
+            );
+            assert!(
+                sv.contains("always_ff @(posedge clk or negedge rst_n) begin")
+                    && sv.contains("if (!rst_n) fsm_state_0 <= FSM0_S0;")
+                    && sv.contains("case (fsm_state_0)"),
+                "must emit the async-reset state register + next-state/Moore cases:\n{sv}"
+            );
+        }
+    }
+    assert!(
+        total_fsm >= strategies.len() * 6,
+        "every forced-on single-module design must be an FSM leaf"
+    );
+    assert!(
+        seen_binary && seen_onehot && seen_gray,
+        "all three generated encodings must be reachable across the sweep \
+         (binary={seen_binary} onehot={seen_onehot} gray={seen_gray})"
+    );
+}
+
+#[test]
 fn inferrable_memory_matches_yosys_template_and_is_factorization_opaque() {
     // PHASE-6-ADVANCED-MOTIFS.2.2.
     //

@@ -8,8 +8,8 @@ use super::{
 };
 use crate::config::ConstructionStrategy;
 use crate::ir::{
-    DepSet, Direction, GateOp, MemKind, Memory, Module, ModuleInterfaceProfile, Node, NodeId, Port,
-    PortId,
+    DepSet, Direction, Fsm, FsmEncoding, GateOp, MemKind, Memory, Module, ModuleInterfaceProfile,
+    Node, NodeId, Port, PortId,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -233,6 +233,108 @@ fn build_memory_leaf(g: &mut Generator, index: u64) -> Module {
     m
 }
 
+/// `PHASE-6-ADVANCED-MOTIFS.3.2b`. Builds, by rule, a single-`Fsm`
+/// generated-encoding Moore-FSM leaf whose emitted SV is the
+/// `.3.1`-probed-clean template (encoding-derived `localparam` state
+/// constants + an async-reset state register on the shared
+/// `clk`/`rst_n` + `always_comb` next-state / Moore-output `case`s).
+/// Valid by construction — not a post-hoc filter. All random choices
+/// (state count, encoding, selector width, output width) go through
+/// `g.rng` (reproducible). No combinational gates, no flops; the FSM
+/// is the only state. The single `sel` input drives the next-state
+/// decode; one output is driven by the opaque `Node::FsmOut` leaf.
+fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
+    let mut m = Module {
+        name: g.module_name(index),
+        max_ast_instances: g.cfg.max_ast_instances.max(1),
+        mux_arm_duplication_rate: g.cfg.mux_arm_duplication_rate.clamp(0.0, 1.0),
+        operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
+        identity_mode: g.cfg.identity_mode,
+        factorization_level: g.cfg.factorization_level,
+        clock: Some(0),
+        reset: Some(1),
+        ..Module::default()
+    };
+    // Bounded, well-formed dimensions; all via g.rng (reproducible).
+    let num_states: u32 = g.rng.gen_range(2..=6);
+    let encoding = match g.rng.gen_range(0u8..3) {
+        0 => FsmEncoding::Binary,
+        1 => FsmEncoding::OneHot,
+        _ => FsmEncoding::Gray,
+    };
+    let sel_width: u32 = g.rng.gen_range(1..=2);
+    let ow_lo = g.cfg.min_width.max(2);
+    let ow_hi = g.cfg.max_width.max(ow_lo);
+    let out_width: u32 = g.rng.gen_range(ow_lo..=ow_hi);
+
+    m.inputs.push(Port {
+        id: 0,
+        name: CLK_NAME.into(),
+        width: 1,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 1,
+        name: RST_N_NAME.into(),
+        width: 1,
+        dir: Direction::In,
+    });
+    m.inputs.push(Port {
+        id: 2,
+        name: "sel".into(),
+        width: sel_width,
+        dir: Direction::In,
+    });
+    let sel = m.nodes.len() as NodeId;
+    m.nodes.push(Node::PrimaryInput {
+        port: 2,
+        width: sel_width,
+    });
+    m.outputs.push(Port {
+        id: 3,
+        name: "q".into(),
+        width: out_width,
+        dir: Direction::Out,
+    });
+    // Transition table by rule: every (state, sel) entry is in range
+    // `0..num_states`; the rule fans the reachable states out so the
+    // machine is not a trivial self-loop.
+    let fanout = 1usize << sel_width;
+    let transitions: Vec<Vec<u32>> = (0..num_states)
+        .map(|s| {
+            (0..fanout)
+                .map(|j| (s + 1 + j as u32) % num_states)
+                .collect()
+        })
+        .collect();
+    // Distinct per-state Moore outputs, masked to out_width.
+    let out_mask: u128 = if out_width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << out_width) - 1
+    };
+    let outputs: Vec<u128> = (0..num_states)
+        .map(|s| ((s as u128).wrapping_mul(0x9E37_79B1) ^ 0x5A5A) & out_mask)
+        .collect();
+    m.fsms.push(Fsm {
+        id: 0,
+        num_states,
+        encoding,
+        sel,
+        sel_width,
+        transitions,
+        outputs,
+        out_width,
+    });
+    let fo = m.nodes.len() as NodeId;
+    m.nodes.push(Node::FsmOut {
+        fsm: 0,
+        width: out_width,
+    });
+    m.drives.push((3, fo));
+    m
+}
+
 pub(super) fn generate_leaf_module_with_interface_profile(
     g: &mut Generator,
     index: u64,
@@ -268,6 +370,19 @@ pub(super) fn generate_leaf_module_with_interface_profile(
         && g.rng.gen_bool(g.cfg.memory_prob.clamp(0.0, 1.0))
     {
         return build_memory_leaf(g, index);
+    }
+
+    // Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.2b): rules-first
+    // generated-encoding FSM lane. Mutually exclusive with the Phase 5
+    // parameterization and Phase 6 memory lanes above (only reached
+    // when neither fired). Single opt-in roll; default-off
+    // (`fsm_prob == 0.0`) never enters here, so emission stays
+    // byte-identical.
+    if interface_profile.is_none()
+        && g.cfg.fsm_prob > 0.0
+        && g.rng.gen_bool(g.cfg.fsm_prob.clamp(0.0, 1.0))
+    {
+        return build_fsm_block(g, index);
     }
 
     let planned_profile = interface_profile

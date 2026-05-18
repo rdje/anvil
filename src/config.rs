@@ -90,6 +90,10 @@ fn default_memory_prob() -> f64 {
     0.0
 }
 
+fn default_fsm_prob() -> f64 {
+    0.0
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -553,6 +557,19 @@ pub struct Config {
     #[serde(default = "default_memory_prob")]
     pub memory_prob: f64,
 
+    /// Phase 6 (advanced motifs). Probability that the free-standing
+    /// single-module lane builds a rules-first generated-encoding FSM
+    /// block (`crate::gen::module::build_fsm_block`) instead of an
+    /// ordinary leaf. The block emits the `.3.1`-probed-clean Moore
+    /// FSM template (encoding-derived `localparam` state constants +
+    /// an async-reset state register + `always_comb` next-state /
+    /// Moore-output `case`s). `default = 0.0` keeps every existing
+    /// output byte-identical; mutually exclusive with the Phase 5
+    /// width-parameterization and Phase 6 memory lanes. Slice:
+    /// `PHASE-6-ADVANCED-MOTIFS.3.2b`.
+    #[serde(default = "default_fsm_prob")]
+    pub fsm_prob: f64,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -706,6 +723,7 @@ impl Default for Config {
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
             memory_prob: default_memory_prob(),
+            fsm_prob: default_fsm_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -1046,6 +1064,7 @@ impl Config {
             ),
             ("aggregate_prob", self.aggregate_prob),
             ("memory_prob", self.memory_prob),
+            ("fsm_prob", self.fsm_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

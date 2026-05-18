@@ -479,6 +479,23 @@ the architecture-(F) sketch left open:
   is non-empty, and the `FsmOut` match arms only fire when a `FsmOut`
   node exists — none of which occur without the (`.3.2b`) generator.
 
+`.3.2b` landed the generator/knob: new calibration knob
+`Config::fsm_prob` (`f64`, serde-default `0.0`, probability-range
+validated — the same shape as `memory_prob`/`aggregate_prob`/
+`width_parameterization_prob`). Rules-first `build_fsm_block`
+constructs the FSM leaf *by rule* (it is never a generate-then-filter
+— `num_states`/`encoding`/`sel_width`/`out_width` are rolled via
+`g.rng` for reproducibility; transitions and distinct masked Moore
+outputs are filled deterministically). The opt-in roll is a single
+`g.rng.gen_bool` in `generate_leaf_module_with_interface_profile`,
+placed **after** the Phase 5 width-parameterization lane and the
+Phase 6 memory lane and therefore **mutually exclusive** with both —
+the established Phase-5/5b/6-memory opt-in-lane discipline (one
+exclusive motif per free-standing single-module design;
+`interface_profile.is_none()` only; default-off never enters, so
+emission is byte-identical). This keeps the four opt-in motif lanes
+(param / aggregate-via-annotation / memory / FSM) from interacting.
+
 ### Phase 5b packed-aggregate emitter projection design (2026-05-17, PHASE-5B-AGGREGATES.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

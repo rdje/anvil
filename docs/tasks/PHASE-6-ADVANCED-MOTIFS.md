@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.3.2a` FSM IR core + opaque `FsmOut` + reachability landed; frontier: `.2.4` gate-blocked ‖ `.3.2b` next)
+- Last updated: `2026-05-18` (`.3.2b` `fsm_prob` knob + rules-first `build_fsm_block` landed → `.3.2` container done; frontier: `.2.4` gate-blocked ‖ `.3.3` next)
 - Owner: repo-local workflow
 
 ## Goal
@@ -106,7 +106,7 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.1 generated-encoding FSM motif design`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.2`
-  Status: `active`
+  Status: `done`
   Goal: `FSM scaffold. Split (Splitting Rules + the proven .2.1 precedent: the opaque-stateful-leaf compaction-reachability is correctness-critical pipeline code, not mechanical FlopQ-mirroring — known concretely from the landed .2.1a, not speculative) into .3.2a (IR core + opaque FsmOut leaf + load-bearing compact.rs reachability + emitter + validator + unit proofs; no generator/knob → default-off trivially byte-identical) and .3.2b (Config::fsm_prob + rules-first build_fsm_block + default-off/forced-on focused proof).`
   Children: `PHASE-6-ADVANCED-MOTIFS.3.2a`, `.3.2b`
 
@@ -118,11 +118,11 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2a FSM IR core + opaque FsmOut leaf + compact.rs reachability`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `Config::fsm_prob (f64, serde-default 0.0, probability-range validated; mirrors memory_prob/aggregate_prob) + rules-first build_fsm_block (a clk/rst_n + sel-input, fsm-out-output combinational-free FSM leaf; num_states + FsmEncoding rolled via g.rng; transitions/outputs filled by rule; opaque FsmOut drives the output; no gates/flops) + single opt-in roll in generate_leaf_module_with_interface_profile (mutually exclusive with the memory + param lanes; default-off never enters) + default-off-byte-identical / forced-on focused proof. Closes the .3.2 container.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; focused proof: default fsm_prob=0.0 byte-identical across ConstructionStrategy×seeds; forced fsm_prob=1.0 every single-module design is a 1-Fsm leaf that validates and emits the probed-clean per-encoding template (all 3 encodings reachable across seeds); no ROADMAP advance; no book/ change.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/config.rs: Config::fsm_prob (serde-default default_fsm_prob → 0.0; Default-impl line; probability-range validation tuple entry), mirroring memory_prob/aggregate_prob/width_parameterization_prob. src/gen/module.rs: rules-first build_fsm_block (clk(0)/rst_n(1) + sel(2,sel_width) inputs, q(3,out_width) output; num_states g.rng 2..=6; encoding g.rng Binary|OneHot|Gray; sel_width g.rng 1..=2; out_width from the configured width band; transitions[s][j]=(s+1+j)%num_states by rule; distinct masked per-state Moore outputs; opaque FsmOut drives q; no gates/flops — all rolls via g.rng, reproducible) + a single opt-in roll in generate_leaf_module_with_interface_profile placed AFTER the Phase 5 param lane and the Phase 6 memory lane (interface_profile None only; mutually exclusive; default-off fsm_prob==0.0 never enters → byte-identical). Focused proof tests/pipeline.rs::fsm_block_is_default_off_and_constructs_when_forced_on: (a) default-off byte-identical (no Fsm, no fsm_state_0/ fsm_0 in SV) across 4 ConstructionStrategy × 6 seeds; (b) forced-on (prob 1.0) every single-module design is a 1-Fsm leaf that validate_design-passes, exposes a FsmOut node, and emits the .3.1-probed-clean template (fsm_state_0 + FSM0_S0= state constants + async-reset always_ff @(posedge clk or negedge rst_n) with if(!rst_n) fsm_state_0<=FSM0_S0 + case(fsm_state_0)); AND all three encodings (Binary/OneHot/Gray) are reachable across the 24-design sweep. cargo fmt --all --check / clippy --all-targets -- -D warnings / check --all-targets clean; focused proof green; full cargo test green (COMMIT.md gate). No book/ change (book reconciliation is .3.4). Closes the .3.2 container.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2b fsm_prob knob + rules-first build_fsm_block`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.3`
   Status: `pending`
@@ -143,7 +143,7 @@ multi-clock handshakes.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `PHASE-6-ADVANCED-MOTIFS.2.4` | `pending` (gate-blocked) | `.2.3` landed the `phase6_inferrable_memory` matrix scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap (bin 216→219 / 864→876; scenario proven non-vacuous). `.2.4` runs the real repo-owned `Phase4Hierarchy` gate, verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean), then records memory **delivered** in ROADMAP Phase 6 (Phase 6 stays open for `.3` FSM — no tree closure) + reconciles the book — promotion strictly follows the verified artifact (r87 no-aspirational-claims). The real gate is **currently running** (`/tmp/anvil-tool-matrix-phase6-p1`); `.2.4` is verification/recording only — actioned when the gate completes. |
-| 2 | `PHASE-6-ADVANCED-MOTIFS.3.2b` | `pending` | `.3.2a` **done** — FSM IR core + opaque `Node::FsmOut` threaded through every exhaustive `Node` match + the load-bearing `compact.rs` reachability (keeps `fsm.sel` alive) + encoding-derived emitter + validator step 5c + 3 unit proofs green; full `cargo test` green, default-off byte-identical (no generator/knob). `.3.2b` = `Config::fsm_prob` (serde-default 0.0) + rules-first `build_fsm_block` in the mutually-exclusive opt-in lane + default-off/forced-on focused proof (closes the `.3.2` container). **Unblocked**, independent of the running `.2.4` gate — next continuous-PNT leaf. |
+| 2 | `PHASE-6-ADVANCED-MOTIFS.3.3` | `pending` | `.3.2` container **done** (`.3.2a` IR core + `.3.2b` `Config::fsm_prob` + rules-first `build_fsm_block` in the mutually-exclusive opt-in lane + focused proof — default-off byte-identical, forced-on every single-module design a 1-`Fsm` leaf emitting the `.3.1`-probed-clean template, all 3 encodings reachable; full `cargo test` green). `.3.3` = the cargo-portable structural + factorization/CSE-opacity proof across `ConstructionStrategy × FactorizationLevel` (incl. EGraph) × seeds (mirrors memory `.2.2`). **Unblocked**, independent of the running `.2.4` gate — next continuous-PNT leaf. |
 
 ## Decisions
 
@@ -278,6 +278,7 @@ multi-clock handshakes.
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.1` | `DEVELOPMENT_NOTES.md` "Phase 6 generated-encoding FSM motif design" entry landed. Codebase grounding (no FSM IR; Flop the only state; operators-vs-blocks → FSM is a block). Empirical downstream probe of the exact emitted SV (4-state Moore, all 3 encodings): binary (2-bit), one-hot (4-bit), gray (2-bit) — every one: `verilator --lint-only -Wall` exit 0; `yosys synth -noabc; check -assert` clean; `yosys synth; abc -fast; check -assert` clean (both repo modes); state width/constants differ by encoding ⇒ selectability structural. Architecture (F) + 4 rejected/deferred; `.3` split (`.3.1`–`.3.4`, mirrors memory `.2.1`–`.2.4`; FSM = last Phase 6 motif → `.3.4` closes Phase 6 + the tree). Doc-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `0b799b6` (no `src/`/`tests/` touched since). | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.3` | `DesignMetrics.num_memory_modules` + populate; `phase6_inferrable_memory_focus_config` (clone of the phase5b/dedup anchor — depth-1 wrapper, library, `memory_prob=1.0`, 4 leaves/4 instances → shape-coverage sets unperturbed) + `phase6_inferrable_memory` scenario tuple; `CoverageSummary.saw_inferrable_memory_design` set/merge + Phase4Hierarchy `compute_coverage_gaps` arm; bin counts 216→219 / 864→876 (observed) + exception-list entry; tool_matrix phase4 bin tests 3/3; new `phase6_inferrable_memory_scenario_is_non_vacuous` proves the scenario builds ≥1 memory module per strategy (coverage fact reachable). `cargo fmt`/`clippy -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (advance is `.2.4`). No `book/` change. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.2a` | FSM IR core (`FsmId`; `FsmEncoding{Binary,OneHot,Gray}` + `state_width`/`state_const`; `Fsm` struct; additive `Default`-empty `Module.fsms`; opaque `Node::FsmOut`; `DepAtom::FsmVirtual`/`from_fsm_virtual`; `has_local_fsms` OR'd into both `carries_sequential_state` predicates). `FsmOut` threaded by compiler-as-oracle through every exhaustive `Node` match (compact.rs incl. the **load-bearing reachability** marking `fsm.sel` alive + `StructuralNodeShape`/`LeafEndpoint`/cone-eval/rebuild/instance-table/`node_deps`; cone.rs ×5; hierarchy.rs; module.rs; param.rs; metrics.rs ×3 incl. structural-hash tag 7). `validate.rs` step 5c + 5 `ValidateError` variants. Emitter: per-FSM decls + the `.3.1`-probed-clean template (encoding-derived `FSM<id>_S<k>` localparams, `always_comb` next-state `case` on `sel`, async-low-reset state `always_ff` on shared `clk`/`rst_n`, `always_comb` Moore output `case`). 3 unit proofs green (roundtrip+validate+emit Binary 4-state; sel-cone-survives-compaction OneHot; structural-distinctness/CSE-opacity incl. two distinct FSMs). `cargo check --all-targets` (Module `Default` covers additive `fsms` → no struct-literal breakage) / `cargo fmt --all --check` / `cargo clippy --all-targets -- -D warnings` clean; full `cargo test` (COMMIT.md gate). No generator/knob ⇒ Modules without an `Fsm` byte-identical. No `book/` change. | Done. |
+| `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.2b` | `src/config.rs`: `Config::fsm_prob` (serde-default `default_fsm_prob`→0.0; Default-impl line; probability-range validation tuple), mirroring `memory_prob`/`aggregate_prob`. `src/gen/module.rs`: rules-first `build_fsm_block` (clk(0)/rst_n(1)+sel(2,sel_width) inputs, q(3,out_width) output; `num_states` g.rng 2..=6; `encoding` g.rng Binary\|OneHot\|Gray; `sel_width` g.rng 1..=2; `out_width` from the configured width band; `transitions[s][j]=(s+1+j)%num_states` by rule; distinct masked Moore outputs; opaque `FsmOut` drives q; no gates/flops; all rolls via `g.rng`) + single opt-in roll in `generate_leaf_module_with_interface_profile` AFTER the Phase 5 param + Phase 6 memory lanes (interface_profile None only; mutually exclusive; default-off `fsm_prob==0.0` never enters → byte-identical). Focused proof `tests/pipeline.rs::fsm_block_is_default_off_and_constructs_when_forced_on`: (a) default-off byte-identical (no `Fsm`, no `fsm_state_0`/` fsm_0;`) across 4 `ConstructionStrategy` × 6 seeds; (b) forced-on (1.0) every single-module design is a 1-`Fsm` leaf that `validate_design`-passes, exposes a `FsmOut`, emits the `.3.1`-probed-clean template (`fsm_state_0`+`FSM0_S0=` constants + async-reset `always_ff @(posedge clk or negedge rst_n)` with `if (!rst_n) fsm_state_0 <= FSM0_S0` + `case (fsm_state_0)`); AND all 3 encodings reachable across the 24-design sweep. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; focused proof green; full `cargo test` (COMMIT.md gate). No ROADMAP advance (that is `.3.4`). No `book/` change. Closes the `.3.2` container. | Done. |
 
 ## Commit Log
 
@@ -291,6 +292,7 @@ multi-clock handshakes.
 | `PHASE-6-ADVANCED-MOTIFS.3.1` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.1 generated-encoding FSM motif design` | Design-only; architecture (F) `Fsm` block + opaque `FsmOut` leaf; empirical probe (all 3 encodings clean Verilator + both Yosys modes); 4 rejected/deferred; `.3` split into `.3.1`–`.3.4`. No code. |
 | `PHASE-6-ADVANCED-MOTIFS.3.2` (split) | `Docs: split PHASE-6-ADVANCED-MOTIFS.3.2 into .3.2a (IR core) + .3.2b (knob)` | Tree-planning, no code. Dependency known concretely from `.2.1a`. |
 | `PHASE-6-ADVANCED-MOTIFS.3.2a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2a FSM IR core + opaque FsmOut leaf + compact.rs reachability` | IR core + `FsmOut` through every exhaustive `Node` match + load-bearing `compact.rs` reachability + emitter (.3.1 template) + validator 5c + 3 unit proofs. No generator/knob (default-off byte-identical). |
+| `PHASE-6-ADVANCED-MOTIFS.3.2b` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.2b fsm_prob knob + rules-first build_fsm_block` | `Config::fsm_prob` + rules-first `build_fsm_block` in the mutually-exclusive opt-in lane + focused proof (default-off byte-identical; forced-on 1-`Fsm` leaf, all 3 encodings reachable). Closes the `.3.2` container. |
 
 ## Changelog
 
@@ -469,3 +471,23 @@ multi-clock handshakes.
   byte-identical. Frontier → `.3.2b` (knob + rules-first
   `build_fsm_block` + focused proof, closes the `.3.2` container)
   (‖ `.2.4` gate-blocked).
+- `2026-05-18`: **`.3.2b` landed → `.3.2` container done**
+  (continuous-PNT while the `.2.4` memory gate runs). `Config::fsm_prob`
+  (serde-default 0.0, probability-range validated; mirrors
+  `memory_prob`/`aggregate_prob`). Rules-first `build_fsm_block`:
+  clk/rst_n + a single `sel` input, `num_states`/`encoding`/
+  `sel_width`/`out_width` rolled via `g.rng` (reproducible),
+  transitions + distinct masked Moore outputs filled by rule, opaque
+  `FsmOut` drives the sole output; no gates/flops. Single opt-in roll
+  in `generate_leaf_module_with_interface_profile` placed after the
+  Phase 5 param and Phase 6 memory lanes — **mutually exclusive**;
+  default-off (`fsm_prob == 0.0`) never enters, so emission is
+  byte-identical. Focused proof
+  `fsm_block_is_default_off_and_constructs_when_forced_on`: default-off
+  byte-identical (4 strategies × 6 seeds, no `Fsm`/no FSM SV);
+  forced-on every single-module design is a 1-`Fsm` leaf that
+  validates + emits the `.3.1`-probed-clean template; **all three
+  generated encodings reachable** across the sweep. Full `cargo` gate
+  green. No ROADMAP advance (promotion is `.3.4` on a verified gate).
+  Frontier → `.3.3` (cargo-portable structural + CSE/EGraph-opacity
+  proof, mirrors memory `.2.2`) (‖ `.2.4` gate-blocked).
