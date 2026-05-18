@@ -1,8 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-diffsim-1 — DIFFERENTIAL-SIMULATION.1: iverilog second-simulator compatibility note
+## 2026-05-18-diffsim-2a — DIFFERENTIAL-SIMULATION.2a: single-design differential-harness design (`.2` split)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `DEVELOPMENT_NOTES.md`: new "Single-design differential harness
+  design (2026-05-18, DIFFERENTIAL-SIMULATION.2a)" entry —
+  testbench generated **from the in-process `Design`/`Module` IR**
+  (port names/widths/dirs + sequential-state predicates, never by
+  re-parsing emitted SV); reset + single canonical **post-reset**
+  sample point that neutralises `.1`'s pre-reset 4-state divergence
+  (comb: hold+settle; seq: `rst_n=0` K cycles → deassert → warmup →
+  per-cycle sample; compare defined post-reset samples only);
+  **baked** deterministic stimulus from the seed (zero/all-ones/
+  walking-1/seeded-pseudo-random), *not* per-sim `$random`
+  (divergent streams ⇒ false mismatches); one identical testbench
+  drives both `iverilog -g2012`+`vvp` and `verilator --binary`;
+  byte-equal trace comparison with mismatches kept as retained
+  counterexamples; the **tool-gated `#[ignore]` focused-test
+  convention** so `cargo test` stays green on tool-less machines
+  (the Phase-1 portability doctrine); 5 rejected alternatives; the
+  `.2b` proof shape.
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md`: `.2` split into `.2a`
+  (design — done) + `.2b` (implement); Decisions / Verification /
+  Commit / Frontier→`.2b` / Verification-Log / Commit-Log /
+  Changelog / Metadata. `docs/TASK_TREE.md` row updated.
+
+**Why**
+
+- `.2` bundled a load-bearing design (testbench-from-IR strategy,
+  reset/sample alignment, stimulus determinism, dual-sim
+  orchestration, tool-gated-test convention) with a sizeable
+  implementation. Splitting + landing the **design** now is the
+  proven design-first method *and* a contention judgment:
+  continuous-PNT must keep advancing trees, but `.2a` is docs-only
+  (~zero contention), whereas a bundled `.2` would start a
+  sustained simulator-orchestration code+`cargo test` campaign that
+  demonstrably starves the near-complete Phase 6 priority gate
+  (`.2.4`/`.3.4b`). Same sequencing applied to Phase 7/8/9.
+
+**Validation**
+
+- Design-only; **no code change** (diff = `DEVELOPMENT_NOTES.md` +
+  the DIFFERENTIAL tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`); `cargo test` unchanged-green vs base `f0df6f5` (no
+  `src/`/`tests/` touched); `cargo fmt --all --check` clean (no
+  `.rs` change). No `book/` change.
+
+**Impact**
+
+- The differential harness has a settled, reviewed design; `.2b`
+  (implement + the `#[ignore]` byte-equal proof) is unblocked and
+  will add ~zero mandatory-`cargo test` runtime (the diff-sim test
+  is ignored by default). No ROADMAP change (Quality lane).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`; `docs/tasks/DIFFERENTIAL-SIMULATION.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-diffsim-1 — DIFFERENTIAL-SIMULATION.1: iverilog second-simulator compatibility note
+
+**Landed as:** f0df6f5
 
 **What changed**
 

@@ -961,6 +961,104 @@ This entry is research-only and is itself task-tree owned
 with the task-tree-ownership doctrine's code/not-code boundary
 (`.2`+ build the harness).
 
+### Single-design differential harness design (2026-05-18, DIFFERENTIAL-SIMULATION.2a)
+
+Design-only slice (no code; `.2b` implements). `.2` was split —
+the harness's testbench-generation strategy, reset/sample
+alignment, stimulus determinism, dual-simulator orchestration, and
+the tool-gated-test convention are load-bearing decisions that
+should be settled and reviewed before code (and the design itself
+is docs-only, ~zero contention on the near-complete Phase 6 gate,
+mirroring the Phase 7/8/9 design-first discipline).
+
+**Goal.** A single-design utility: given a canonical
+`(seed, config)`, drive the generated module through **both**
+Verilator and iverilog and return aligned output traces, so `.2b`'s
+focused test can assert they agree byte-for-byte. Builds directly
+on `.1` (iverilog is zero-config-compatible; the only divergence is
+pre-reset 4-state).
+
+**Testbench generation — from the IR, not by parsing SV.** The
+harness generates the design *in-process* via the library (exactly
+like `tests/snapshots.rs`), so it already holds the typed
+`Design`/`Module`: port names (`i_*`/`o_*`/`clk`/`rst_n`), widths,
+directions, and whether the module carries sequential state
+(`has_local_flops()/has_local_memories()/has_local_fsms()`). The
+generic SystemVerilog testbench is emitted **from that IR** — never
+by re-parsing emitted SV (brittle, a re-implementation of the
+front-end). The testbench: instantiates the DUT, drives each input
+from a baked deterministic vector sequence, and `$display`s each
+output as fixed-width hex at the canonical sample point(s) into a
+trace file. One identical testbench file feeds both simulators.
+
+**Reset + canonical sample point (neutralises `.1`'s divergence).**
+Per `.1`, the only Verilator/iverilog semantic gap on ANVIL output
+is pre-reset 4-state (`iverilog` flops `x` until async reset
+deasserts; Verilator-2-state starts `0`). The testbench therefore:
+combinational module → hold each input vector, sample the outputs
+after a settle delay (no clock); sequential module → assert
+`rst_n = 0` for a fixed K cycles, deassert, then for each of N
+cycles apply the next input vector and sample outputs **at a single
+fixed post-reset cycle offset** (a deterministic warmup then
+per-cycle sampling). Only post-reset, fully-defined samples are
+compared — the pre-reset `x`/`0` gap is never observed.
+
+**Deterministic stimulus — baked, not per-sim `$random`.** Input
+vectors are computed in Rust from the seed (a reproducible
+sequence: zero, all-ones, walking-1, then seeded pseudo-random) and
+**baked into the testbench as constants**. `$random` is *not* used:
+iverilog and Verilator have different `$random` streams, which
+would inject false mismatches. Baked identical stimulus guarantees
+both simulators see exactly the same inputs.
+
+**Dual-simulator orchestration.** (a) iverilog:
+`iverilog -g2012 -o sim.vvp dut.sv tb.sv` then `vvp sim.vvp`
+→ trace A. (b) Verilator:
+`verilator --binary -j0 -sv --top-module tb dut.sv tb.sv` (5.x
+`--binary` builds a runnable directly from the *same* testbench)
+then run the produced binary → trace B. Both `$display` the
+identical fixed-width-hex trace format; the harness byte-compares A
+vs B and returns the aligned traces (+ a structured diff on
+mismatch — never a silent pass; a mismatch is a *retained
+counterexample* with the SV + stimulus, mirroring the Phase 7
+parity-harness discipline).
+
+**Tool-gated test convention (load-bearing — Phase-1 doctrine).**
+`cargo test` must pass on machines without verilator/iverilog (the
+convention since Phase 1; reaffirmed for memory/FSM `.2.2` and the
+tool_matrix gate). So `.2b`'s focused differential test is
+`#[ignore]` by default — run explicitly (`cargo test -- --ignored
+diff_sim`) or from a repo-owned context where both simulators are
+present. The harness itself is a plain utility fn; the *gated* test
+is the only tool-requiring surface, so the portable `cargo test`
+stays green tool-less and `.2b` adds ~zero mandatory-gate runtime.
+
+**Rejected alternatives.** (A) Parse emitted SV text to discover
+ports — rejected: brittle front-end re-implementation; the IR has
+exact port info already. (B) Per-simulator `$random` stimulus —
+rejected: divergent streams ⇒ false mismatches; bake identical
+vectors. (C) Make the differential test a normal (non-`#[ignore]`)
+`cargo test` — rejected: breaks the tool-less-portability doctrine.
+(D) Verilator `--cc` + a hand-written C++ main — rejected vs
+`--binary`: more moving parts and a second harness language;
+`--binary` runs the *same* SV testbench iverilog uses, keeping one
+testbench for both. (E) Compare full cycle-by-cycle traces incl.
+pre-reset — rejected: re-introduces exactly the `.1` 4-state gap;
+post-reset canonical sampling is the correct contract.
+
+**Proof shape (`.2b`).** A `#[ignore]` focused test builds a
+hand-picked combinational and a sequential `(seed, config)` leaf,
+runs the harness (both simulators, post-reset aligned traces), and
+asserts byte-equality; `cargo fmt/clippy/check/test` green with the
+diff-sim test ignored by default. `.3` wires it into `tool_matrix
+--diff-sim` over a representative subset + the
+`saw_design_with_cross_simulator_agreement` fact; `.4` documents
+the contract (README/USER_GUIDE/book).
+
+This entry is design-only and is itself task-tree owned
+(`DIFFERENTIAL-SIMULATION.2a`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Coverage baseline triage — top-5 under-covered files (2026-05-18, COVERAGE-INSTRUMENTATION.2)
 
 Triage-only slice (no code; `.3` acts on these findings). Classifies
