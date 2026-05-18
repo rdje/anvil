@@ -469,11 +469,28 @@ sessions.
   + both Yosys). See `book/src/knobs.md` `aggregate_prob`,
   `docs/tasks/PHASE-5B-AGGREGATES.md`, and the `ROADMAP.md` Phase 5b
   exit criteria.
-- **Unpacked arrays** — `reg [W-1:0] mem [0:D-1]` — is the
-  **memory-inference pattern** and is already on the roadmap as
-  Phase 6's memory motif. Stresses memory-inference heuristics
-  in synthesizers (SRAM vs flops, single-port vs dual-port).
-  This is the "real" array work.
+- **Unpacked arrays** — `logic [W-1:0] mem [0:D-1]` — are the
+  **memory-inference pattern**. Stresses memory-inference
+  heuristics in synthesizers (SRAM vs flops, single-port vs
+  dual-port). **Delivered (Phase 6, 2026-05-18).** Implemented as a
+  first-class `Memory` block (additive, `Default`-empty
+  `Module.memories`) whose registered read enters the gate graph
+  *only* through an opaque `Node::MemRead` leaf — a sibling to
+  `FlopQ` that is never CSE'd or factorized, with load-bearing
+  `compact.rs` reachability keeping the memory's
+  `we`/`waddr`/`wdata`/`raddr` source cones alive. The emitter
+  renders the empirically-validated synchronous-write /
+  registered-read template that Yosys infers as `$mem_v2`
+  (`SinglePort` shares one address; `SimpleDualPort` adds an
+  independent read port). It is opt-in behind the `memory_prob`
+  knob (default `0.0` → byte-identical; the array never participates
+  in CSE/identity), and is proven downstream-clean against the
+  `Phase4Hierarchy` matrix gate (`phase6_inferrable_memory`
+  scenario — 219 scenarios / 876 designs, `coverage_gaps = []`,
+  876/0 Verilator + both Yosys). See `book/src/knobs.md`
+  `memory_prob`, `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`, and the
+  `ROADMAP.md` Phase 6 entry. (Generated-encoding FSMs — the other
+  Phase 6 motif — are in progress.)
 - **Unpacked `struct` / `union` for datapath** — mostly
   non-synthesizable (tool-dependent). Not pursued.
 - **Enums** — synthesizable but thin; they are typed constant

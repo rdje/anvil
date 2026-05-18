@@ -839,9 +839,21 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `saw_packed_aggregate_design = true`); `union`/`array` packing,
   parent-side aggregate connections and the param/aggregate
   cross-product are open-ended post-Phase-5b sub-slices (scope-cut,
-  not a blocker). The next numbered phase is **Phase 6 — Advanced
-  motifs**; every remaining roadmap phase is tracked as a task tree
-  under `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
+  not a blocker). **Phase 6 — Advanced motifs is in progress**: the
+  **memory motif is delivered** (2026-05-18) — a first-class
+  `Memory` block + opaque `Node::MemRead` leaf rendering the
+  Yosys-`$mem_v2`-inferrable synchronous template behind the opt-in
+  `memory_prob` (default-off byte-identical), verified
+  downstream-clean against the `Phase4Hierarchy` gate (closing
+  artifact `/tmp/anvil-tool-matrix-phase6-p1`: 219 scenarios / 876
+  designs, `coverage_gaps = []`, 876/0 Verilator + both Yosys,
+  `saw_inferrable_memory_design = true`); the **generated-encoding
+  FSM motif is in progress** (IR + opaque `Node::FsmOut` + emitter +
+  `fsm_prob` + proofs + the `phase6_fsm` scenario landed; the
+  fresh-gate verification that closes Phase 6 is pending). Multi-clock
+  CDC is the optional, separately-prioritised deferral. Every
+  remaining roadmap phase is tracked as a task tree under
+  `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

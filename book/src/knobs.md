@@ -731,6 +731,27 @@ resume/checkpoint behavior, and which external tools are invoked.
   Default-off is byte-identical for fixed seeds. Scaffold scope:
   `struct packed` only; skips Phase 5 parameterized modules. See
   `book/src/ir.md` "Synthesizable aggregates".
+- `memory_prob` (Phase 6, default `0.0`) — per-module probability
+  that the free-standing single-module lane builds a rules-first
+  **inferrable-memory** leaf instead of an ordinary leaf: a
+  first-class `Memory` block (shared `clk`, `we`/`waddr`/`wdata`
+  [+ independent `raddr` for `SimpleDualPort`]) whose registered
+  read is an opaque `Node::MemRead` leaf — never CSE'd/factorized;
+  the emitter renders the synchronous-write / registered-read
+  template Yosys infers as `$mem_v2`. Mutually exclusive with the
+  Phase 5 width-parameterization and Phase 6 FSM lanes; default-off
+  is byte-identical. **Delivered (Phase 6, 2026-05-18)**, proven
+  downstream-clean on the `Phase4Hierarchy` gate. See
+  `book/src/ir.md` "Unpacked arrays".
+- `fsm_prob` (Phase 6, default `0.0`) — per-module probability that
+  the single-module lane builds a rules-first **generated-encoding
+  Moore FSM** block (encoding-derived `localparam` state constants
+  + an async-reset state register + `always_comb` next-state /
+  Moore-output `case`s) whose output is the opaque `Node::FsmOut`
+  leaf. Encoding (binary / one-hot / gray) is rolled per module;
+  mutually exclusive with the param/memory lanes; default-off is
+  byte-identical. In progress (Phase 6 FSM motif; closes on its
+  fresh-gate verification).
 
 ## Knob serialization
 
@@ -807,6 +828,8 @@ which are bugs worth investigating.
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction`, `child_input_bindings_from_parent_cone_instances_through_parent_flops`, `top_child_input_bindings_from_parent_cone_instances_through_parent_flops`, `parent_cone_instance_flop_child_input_binding_fraction`, `top_parent_cone_instance_flop_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances_through_parent_flops`, `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`, `top_parent_cone_instance_flop_output_fraction`, `hierarchy_parent_cone_instance_flop_output_fraction` |
 | `width_parameterization_prob` | `num_width_parameterized_modules`, `num_param_override_instances` (per-design metrics); matrix `saw_width_parameterized_design` |
 | `aggregate_prob`              | `num_packed_aggregate_modules` (per-design metric); matrix `saw_packed_aggregate_design` |
+| `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design` |
+| `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design` |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future

@@ -1,8 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase7-2-split — PHASE-7-ORACLE-MICRODESIGN.2 split into `.2a`/`.2b`/`.2c`
+## 2026-05-18-phase6-2.4 — PHASE-6-ADVANCED-MOTIFS.2.4: memory delivered (verified gate + ROADMAP/book reconcile); `.2` container CLOSED
 
 **Landed as:** this commit
+
+**What changed**
+
+- The long-running real repo-owned `Phase4Hierarchy` gate (bg task
+  `bd3jdtx31`, ~10 h) completed (exit 0, 219/219). Its report
+  `/tmp/anvil-tool-matrix-phase6-p1/tool_matrix_report.json` was
+  **verified clean before any promotion** (r87 no-aspirational-
+  claims): `scenario_count=219`, `total_modules=876`,
+  `artifact_kind=design`, `coverage_gaps=[]`, `tool_summary`
+  Verilator 876/0 + yosys-without-abc 876/0 + yosys-with-abc 876/0,
+  `coverage.saw_inferrable_memory_design=true`; Phase 4/5/5b facts
+  (`saw_width_parameterized_design`, `saw_packed_aggregate_design`,
+  `saw_recursive_hierarchy_module_dedup_active`) still true in the
+  same banked artifact.
+- `ROADMAP.md`: Phase 6 `(not started)` → `(in progress)` with a
+  "Memory motif delivered (2026-05-18)" note (verified-artifact
+  citation), the FSM bullet marked in-progress, and an "Exit
+  criteria (memory met; phase closes at FSM)" block.
+- `book/src/ir.md`: the "Unpacked arrays" bullet → **Delivered
+  (Phase 6, 2026-05-18)** with the `Memory` block / opaque
+  `Node::MemRead` / `$mem_v2`-inferrable template / `memory_prob`
+  detail (mirrors the Phase 5b aggregates bullet).
+- `book/src/knobs.md`: `memory_prob` (and `fsm_prob`) added to the
+  config-only knobs list + the knob → metrics table
+  (`num_memory_modules` / `saw_inferrable_memory_design`;
+  `num_fsm_modules` / `saw_fsm_design`).
+- `README.md` phase narrative + `CODEBASE_ANALYSIS.md`
+  phase-coverage-map Phase-6 row updated (memory delivered / FSM in
+  progress / multi-clock optional-deferral).
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md` + `docs/TASK_TREE.md`:
+  `.2.4` done, the `.2` container **closed**; the
+  `PHASE-6-ADVANCED-MOTIFS` tree **stays open** (frontier → `.3.4b`,
+  the single remaining leaf).
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.2.4` — the verification + recording leaf
+  for the memory motif. The gate (the loop's blocking dependency
+  this session) finished; per r87 the verified artifact precedes
+  the ROADMAP/book promotion. Memory delivery **advances** Phase 6
+  but does **not** close it — the FSM motif (`.3`, closed by
+  `.3.4b`'s fresh 222/888 gate) does; multi-clock CDC is the
+  explicitly-optional separately-prioritised deferral.
+
+**Validation**
+
+- **No `src/`/`tests/` change** (the memory code landed in
+  `.2.1a`/`.2.1b`/`.2.2`/`.2.3`); diff = `ROADMAP.md` +
+  `book/src/{ir,knobs}.md` + `README.md` + `CODEBASE_ANALYSIS.md` +
+  the Phase 6 tree + `docs/TASK_TREE.md` + `CHANGES.md` +
+  `MEMORY.md`. `mdbook build book` clean (no new ```bash fence ⇒
+  the book-examples harness is unaffected); `cargo fmt --all
+  --check` clean; `cargo test` unchanged-green vs base `63a5a52`.
+
+**Impact**
+
+- ROADMAP Phase 6 truthfully reflects memory delivered against a
+  verified banked artifact; the `.2` container is closed; `.3.4b`
+  (fresh gate → closes Phase 6 + the tree) is the single remaining
+  Phase 6 leaf and the machine is now free to run it.
+
+**Files touched**
+
+- `ROADMAP.md`; `book/src/ir.md`; `book/src/knobs.md`;
+  `README.md`; `CODEBASE_ANALYSIS.md`;
+  `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-18-phase7-2-split — PHASE-7-ORACLE-MICRODESIGN.2 split into `.2a`/`.2b`/`.2c`
+
+**Landed as:** 63a5a52
 
 **What changed**
 
