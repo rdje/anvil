@@ -1,5 +1,29 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-book-examples-runnable-2-split — BOOK-EXAMPLES-RUNNABLE.2 split into migration + enforcement
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`: `.2` split into `.2.1` (convention migration + rust-sketch annotation — docs across 7 chapters: `anvil ` → `cargo run --release -- `, one optional `cargo install` shorthand note, 8 `rust` blocks → `rust,ignore`, skip-sentinels where genuinely illustrative) and `.2.2` (`tests/book_examples.rs` extraction harness + `mdbook test` + `ci.yml` wiring + negative control). Dependency order: `.2.1` makes the book *correct* (every example runnable from a fresh clone), `.2.2` *enforces* it. `.2` is now a container; no node renumbered. Frontier `.2` → `.2.1`. Decisions/Changelog/Metadata + `docs/TASK_TREE.md` row updated.
+
+**Why**
+
+- Splitting Rules: docs migration vs test-harness code vs CI workflow-config are independently reviewable, and the book must be correct before it is enforced (a harness landed first would fail on the 62 un-migrated blocks).
+
+**Validation**
+
+- Tree-planning doc change only — **no code change**. `cargo`/`mdbook` unaffected.
+
+**Impact**
+
+- Frontier → `BOOK-EXAMPLES-RUNNABLE.2.1` (the ~62-block `cargo run --release --` migration — highest user value: makes every published example paste-runnable now). No behavioural change.
+
+**Files touched**
+
+- Updated: docs/tasks/BOOK-EXAMPLES-RUNNABLE.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-book-examples-runnable-1 — BOOK-EXAMPLES-RUNNABLE.1: book-examples-runnable design + tree
 
 **Landed as:** 38c49fb

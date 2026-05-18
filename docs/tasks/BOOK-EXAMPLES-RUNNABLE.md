@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality — user-facing book correctness
 - Created: `2026-05-18`
-- Last updated: `2026-05-18` (`.1` design landed; frontier → `.2`)
+- Last updated: `2026-05-18` (`.1` design landed; `.2` split `.2.1`/`.2.2`; frontier → `.2.1`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -50,7 +50,7 @@ silently rot). This is now load-bearing because the repo is public
 - ID: `BOOK-EXAMPLES-RUNNABLE`
   Status: `active`
   Goal: `Make every mdBook example copy-paste runnable from a fresh clone and CI-enforced against drift.`
-  Children: `BOOK-EXAMPLES-RUNNABLE.1` (design), `BOOK-EXAMPLES-RUNNABLE.2` (implement)
+  Children: `BOOK-EXAMPLES-RUNNABLE.1` (done), `BOOK-EXAMPLES-RUNNABLE.2` (active container: `.2.1`, `.2.2`)
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.1`
   Status: `done`
@@ -60,9 +60,21 @@ silently rot). This is now load-bearing because the repo is public
   Commit: `Docs: BOOK-EXAMPLES-RUNNABLE.1 book-examples-runnable design + tree`
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.2`
+  Status: `active`
+  Goal: `Implement per .1. Split per the Splitting Rules (the convention migration is docs across 7 chapters; the harness is test code; CI wiring is workflow-config — independently reviewable). Children land in dependency order so the book is correct before it is enforced.`
+  Children: `BOOK-EXAMPLES-RUNNABLE.2.1` (convention migration + rust-sketch annotation), `BOOK-EXAMPLES-RUNNABLE.2.2` (extraction harness + mdbook-test + CI wiring)
+
+- ID: `BOOK-EXAMPLES-RUNNABLE.2.1`
   Status: `pending`
-  Goal: `Implement per .1: migrate every runnable bash block to cargo run --release -- (+ one documented optional 'cargo install --path . → anvil shorthand' note); annotate rust sketches; land the extraction+run harness as a cargo integration test (so cargo test + CI cover it) + wire mdbook test; make CI gate on both. Expected to split into signoff-sized leaves when reached (harness vs migration vs CI wiring review independently).`
-  Acceptance: `Harness runs every runnable bash block against a fresh build and passes; mdbook test green; CI gates on both; cargo fmt/clippy/test green; book unchanged in meaning, only examples normalised.`
+  Goal: `Convention migration (docs). In every runnable book/src bash block, rewrite the command head 'anvil ' → 'cargo run --release -- ' preserving \-continuations / | pipes / redirections; add ONE optional 'cargo install --path . → then use anvil' shorthand note (getting-started + knobs reference); annotate the 8 illustrative rust sketches as rust,ignore; add the HTML-comment skip sentinel only where a bash block is genuinely illustrative (with mandatory reason). No prose/meaning change; output (systemverilog/text) blocks untouched.`
+  Acceptance: `mdbook build book clean; every runnable bash block starts with cargo run --release -- (or carries the skip sentinel); the 8 rust blocks are rust,ignore; manual spot-run of 2–3 migrated commands succeeds; no code change (book/docs only).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `BOOK-EXAMPLES-RUNNABLE.2.2`
+  Status: `pending`
+  Goal: `Enforcement. Land tests/book_examples.rs (cargo integration test): build the binary once, walk book/src/*.md, parse ```bash fences, honour the skip sentinel, run each block in a fresh temp CWD offline (CARGO_NET_OFFLINE) with a per-command timeout, assert exit 0; tagged sample-output match (seed-stable→exact, else shape); a deliberate-broken negative-control unit. Add an `mdbook test book` step to .github/workflows/ci.yml (cargo test already runs the harness). Both gate main.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. the new harness over all runnable blocks; mdbook test book green; ci.yml has the mdbook-test step; negative control proves the harness actually fails on a broken example.`
   Verification: `pending`
   Commit: `pending`
 
@@ -70,10 +82,18 @@ silently rot). This is now load-bearing because the repo is public
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-EXAMPLES-RUNNABLE.2` | `pending` | `.1` design done (inventory + `cargo run --release --` convention + skip-sentinel + `tests/book_examples.rs` harness + `mdbook test` rust-sketch policy + CI wiring; 3 rejected alternatives). `.2` implements it; expected to split (harness impl / ~62-block migration / CI wiring review independently). Independent of the running Phase 6 gate. |
+| 1 | `BOOK-EXAMPLES-RUNNABLE.2.1` | `pending` | `.2` split per the Splitting Rules into `.2.1` (convention migration + rust-sketch annotation — docs) and `.2.2` (harness + mdbook-test + CI wiring — code/workflow). `.2.1` first so the book is *correct* (every example runnable from a fresh clone) before `.2.2` *enforces* it. Independent of the running Phase 6 gate. |
 
 ## Decisions
 
+- `2026-05-18`: **`.2` split** per the Splitting Rules — the
+  convention migration is docs across 7 chapters; the harness is
+  test code; CI wiring is workflow-config; independently reviewable.
+  Children land in dependency order: `.2.1` migration first (book
+  becomes *correct* — every example runnable from a fresh clone),
+  then `.2.2` harness + `mdbook test` + CI (book correctness is
+  *enforced*, can't regress). `.2` is now a container; no
+  renumbering. Frontier → `.2.1`.
 - `2026-05-18` (owner): runnable examples standardize on
   **`cargo run --release --`** (works with zero setup from a fresh
   clone); the bare-`anvil` form is shown once as an optional
@@ -132,3 +152,9 @@ silently rot). This is now load-bearing because the repo is public
   doctest-only / CI-only-`.sh` / golden-doc; `.2` proof shape +
   split candidates. `mdbook` clean. Frontier → `.2` (implement;
   expected to split harness / migration / CI wiring).
+- `2026-05-18`: **`.2` split** per the Splitting Rules into `.2.1`
+  (convention migration + rust-sketch annotation — docs across 7
+  chapters) and `.2.2` (extraction harness + `mdbook test` + CI
+  wiring — code/workflow). Dependency order: `.2.1` makes the book
+  correct, `.2.2` enforces it. `.2` became a container; no
+  renumbering. Frontier → `.2.1`.
