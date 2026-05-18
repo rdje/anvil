@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.1` memory design landed; frontier → `.2`)
+- Last updated: `2026-05-18` (`.1` memory design landed; `.2` split into `.2.1`–`.2.4`; frontier → `.2.1`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -39,7 +39,7 @@ multi-clock handshakes.
 - ID: `PHASE-6-ADVANCED-MOTIFS`
   Status: `active`
   Goal: `Land inferrable memories and generated-encoding FSMs (multi-clock optional), downstream-clean.`
-  Children: `PHASE-6-ADVANCED-MOTIFS.1` (done), `PHASE-6-ADVANCED-MOTIFS.2`, `PHASE-6-ADVANCED-MOTIFS.3`
+  Children: `PHASE-6-ADVANCED-MOTIFS.1` (done), `PHASE-6-ADVANCED-MOTIFS.2` (active container: `.2.1`–`.2.4`), `PHASE-6-ADVANCED-MOTIFS.3` (pending — FSM)
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.1`
   Status: `done`
@@ -49,9 +49,35 @@ multi-clock handshakes.
   Commit: `Docs: PHASE-6-ADVANCED-MOTIFS.1 inferrable-memory motif design`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2`
+  Status: `active`
+  Goal: `Implement the inferrable-memory motif per .1 (architecture (M)), opt-in, with a matrix scenario and a Yosys memory-inference proof. Split per the Splitting Rules + the r87 no-aspirational-claims precedent (gate scenario lands before any ROADMAP advance); mirrors the proven Phase 5/5b .2.x decomposition.`
+  Children: `PHASE-6-ADVANCED-MOTIFS.2.1`, `.2.2`, `.2.3`, `.2.4`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.1`
   Status: `pending`
-  Goal: `Implement the inferrable-memory motif per .1, opt-in, with a matrix scenario and a Yosys memory-inference proof.`
-  Acceptance: `Memory designs downstream-clean; Yosys infers memory; opt-in default preserves current output.`
+  Goal: `IR + emitter scaffold (architecture (M)). Additive Default-empty Module.memories: Vec<Memory> ({id, addr_width, data_width, kind: SinglePort|SimpleDualPort, write {we,addr,data NodeId src}, read {addr src}}); new opaque gate-graph leaf Node::MemRead{mem, addr,...} (sibling to FlopQ — never CSE'd, identity-by-instance); Config::memory_prob (f64, serde-default 0.0, probability-range validated); rules-first construction of a memory block + the emitter rendering the .1-validated inferrable template (logic [DW-1:0] mem_k [0:2**AW-1] + the synchronous write/read always_ff on the shared clk); validator: addr/data widths consistent, MemRead resolves to a declared memory. Default-off byte-identical.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: default-off byte-identical for fixed seeds across all ConstructionStrategy values; forced-on a memory module round-trips IR->validate->emit, SV declares the array + synchronous write/read; validate_design passes. No book/ change (book reconciliation is .2.4).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.2`
+  Status: `pending`
+  Goal: `Soundness + Yosys-inference proof. (a) Forced-on memory module: Yosys memory_collect reports >=1 $mem_v2 in BOTH repo modes (synth -noabc / synth;abc -fast) AND verilator --lint-only clean — the Phase 6 memory-inference contract, proven on real generated output (not a hand template). (b) Identity: a MemRead leaf is opaque to CSE / never merged; the memory array never enters the NodeId graph (regression-clean factorization).`
+  Acceptance: `cargo gates green; Yosys-inference proof reproducible in both modes on generated output; default-off still byte-identical.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.3`
+  Status: `pending`
+  Goal: `tool_matrix scenario + metrics + gap (no ROADMAP advance). New phase6_inferrable_memory scenario (dedup/phase5/5b-anchor shape so shape-coverage sets are unperturbed); DesignMetrics.num_memory_modules; CoverageSummary.saw_inferrable_memory_design set + merged + a compute_coverage_gaps arm; bin-test scenario/design counts updated (observed, not guessed) + exception-list entry; non-vacuity test (scenario projects >=1 memory).`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green incl. tool_matrix phase4 bin tests; NO ROADMAP phase label change yet.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.4`
+  Status: `pending`
+  Goal: `Run the real repo-owned gate (now including phase6_inferrable_memory) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all-pass, saw_inferrable_memory_design=true, P4/P5/P5b regressions clean) BEFORE any promotion. Then record the memory motif as delivered in ROADMAP Phase 6 (Phase 6 stays open until the .3 FSM motif also lands — memory delivery ADVANCES Phase 6, does not close it), reconcile book/src/ir.md (memory delivered) + book/src/knobs.md (memory_prob), sync README/CODEBASE_ANALYSIS/MEMORY. No PHASE-6 tree closure (only .2 container closes; .3 FSM remains).`
+  Acceptance: `A banked gate report shows coverage_gaps=[] + all-pass Verilator/Yosys + saw_inferrable_memory_design=true; ROADMAP Phase 6 notes memory delivered (not "done" — .3 pending); .2 container -> done. No aspirational claims (verified artifact precedes the ROADMAP note).`
   Verification: `pending`
   Commit: `pending`
 
@@ -66,7 +92,7 @@ multi-clock handshakes.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.2` | `pending` | `.1` design landed (architecture (M) first-class `Memory` block + opaque `MemRead` leaf; empirical Yosys probe confirms single-port + simple-dual-port templates are `$mem_v2`-inferred clean in both modes). `.2` implements it opt-in with a Yosys memory-inference proof; expected to split into `.2.x` (scaffold / soundness / matrix scenario / verified-gate promote) per the Phase 5/5b precedent + r87 no-aspirational-claims. |
+| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1` | `pending` | `.1` design done; `.2` split (Splitting Rules + r87 no-aspirational-claims) into `.2.1`–`.2.4`. `.2.1` lands the IR `Memory` block + opaque `MemRead` leaf + `memory_prob` knob + emitter inferrable-template + validator, default-off byte-identical — the reviewable scaffold before the Yosys-inference proof (`.2.2`), gate scenario (`.2.3`), and verified-gate ROADMAP advance (`.2.4`). |
 
 ## Decisions
 
@@ -74,6 +100,18 @@ multi-clock handshakes.
   sub-objective (not yet a leaf) per its roadmap "optional, expensive"
   framing; it will be added as a leaf only if/when prioritised, with the
   single-clock invariant explicitly preserved until then.
+- `2026-05-18`: **`.2` split** per the Splitting Rules (new IR element
+  + leaf + knob + emitter + validator + matrix gate cannot reach
+  signoff in one slice and review independently) and the r87
+  no-aspirational-claims precedent (gate scenario lands before any
+  ROADMAP advance). Children mirror the proven Phase 5/5b
+  `.2.1`–`.2.4`: `.2.1` IR+leaf+knob+emitter+validator scaffold
+  (default-off byte-identical), `.2.2` Yosys-inference proof on
+  generated output + CSE-opacity, `.2.3` matrix scenario+metric+gap
+  (no advance), `.2.4` real-gate verify → ROADMAP **memory delivered**
+  note (Phase 6 stays open for `.3` FSM; no tree closure). `.2` is now
+  a container; `.3` (FSM) unchanged; no renumbering. Frontier →
+  `.2.1`.
 
 ## Open Questions
 
@@ -121,3 +159,11 @@ multi-clock handshakes.
   `mdbook` clean. Frontier → `.2` (implement per (M); expected to
   split `.2.x` per the Phase 5/5b precedent + r87
   no-aspirational-claims).
+- `2026-05-18`: `.2` split per the Splitting Rules + r87
+  no-aspirational-claims into `.2.1` (IR+leaf+knob+emitter+validator
+  scaffold, default-off byte-identical), `.2.2`
+  (Yosys-inference proof on generated output + `MemRead` CSE-opacity),
+  `.2.3` (matrix scenario+metric+gap, no advance), `.2.4` (real-gate
+  verify → ROADMAP memory-delivered note; Phase 6 stays open for `.3`
+  FSM — no tree closure). `.2` became a container; `.3` unchanged; no
+  renumbering. Frontier → `.2.1`.

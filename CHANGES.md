@@ -1,5 +1,30 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-phase6-2-split — PHASE-6-ADVANCED-MOTIFS.2 split into signoff-sized leaves
+
+**Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: `.2` ("implement the memory motif per `.1`") was a single oversized leaf (new IR `Memory` block + opaque `MemRead` leaf + `memory_prob` knob + emitter inferrable-template + validator + matrix gate). Split into a container with `.2.1` (IR+leaf+knob+emitter+validator scaffold, default-off byte-identical), `.2.2` (Yosys-inference proof on *generated* output — `memory_collect` ≥1 `$mem_v2` both modes + Verilator-clean — plus `MemRead` CSE-opacity), `.2.3` (tool_matrix `phase6_inferrable_memory` scenario + `num_memory_modules` metric + `saw_inferrable_memory_design` fact/gap + non-vacuity, **no** ROADMAP advance), `.2.4` (run the real gate, verify clean, then record memory **delivered** in ROADMAP Phase 6 — Phase 6 stays open until the `.3` FSM motif lands, so no tree closure). `.2` is now a container; `.3` (FSM) unchanged; no node renumbered. Frontier `.2` → `.2.1`.
+- `docs/TASK_TREE.md`: `PHASE-6-ADVANCED-MOTIFS` frontier row `.1`→`.2.1`.
+
+**Why**
+
+- Splitting Rules: `.2` cannot reach signoff in one slice and mixes independently-reviewable concerns; r87 no-aspirational-claims requires the matrix-gate scenario (`.2.3`) before any ROADMAP advance (`.2.4` on a verified artifact). Decomposition mirrors the proven Phase 5/5b `.2.x` shape.
+
+**Validation**
+
+- Tree-planning doc change only — **no code change**. `cargo` gates unaffected/green (no `src/`/`tests/` touched); `mdbook` unaffected (no `book/` change).
+
+**Impact**
+
+- Phase 6 memory-implementation frontier is now `PHASE-6-ADVANCED-MOTIFS.2.1` (the reviewable IR scaffold). No behavioural change.
+
+**Files touched**
+
+- Updated: docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-phase6-1 — PHASE-6-ADVANCED-MOTIFS.1: inferrable-memory motif design
 
 **Landed as:** ab491a8
