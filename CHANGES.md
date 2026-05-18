@@ -2,7 +2,7 @@
 Fully detailed change history. Newest entries at the top. One entry per commit.
 ## 2026-05-18-phase6-2.2 — PHASE-6-ADVANCED-MOTIFS.2.2: memory inference structural-contract + factorization-opacity proof
 
-**Landed as:** this commit
+**Landed as:** f4ee02f
 
 **What changed**
 
