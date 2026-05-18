@@ -58,6 +58,104 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Book-examples-runnable design (2026-05-18, BOOK-EXAMPLES-RUNNABLE.1)
+
+Design-only slice. No code. The repo is now public with the mdBook
+live at `https://rdje.github.io/anvil/`; every example is a
+copy-paste contract with users. This entry inventories the
+fenced-block reality and designs the convention migration + the
+CI-gated drift-proof harness, so `.2` has an unambiguous target.
+
+**Fenced-block inventory (audited `book/src/*.md`).** 62 ```bash`` ,
+8 ```rust`` , 9 ```systemverilog`` , 4 ```text`` .
+
+- **`bash` (62) — the runnable copy-paste surface.** `recipes.md` 41,
+  `tutorial.md` 10, `getting-started.md` 6, `knobs.md` 2,
+  `factorization.md`/`faq.md`/`introduction.md` 1 each. Leading
+  tokens: ~44 lines start with bare `anvil`, ~24 with `cargo`, plus
+  `\`-continued multi-line commands and `| …` pipes. ~58 bare-`anvil`
+  occurrences total. **Defect:** bare `anvil …` is not runnable from
+  a fresh clone (no binary on PATH) — `getting-started.md` already
+  uses `cargo run --release --`, the rest don't. This is the core
+  break the owner flagged.
+- **`rust` (8) — illustrative IR/struct sketches**, not programs:
+  `ir.md` 3, `hierarchy.md` 3, `architecture.md` 1, `knobs.md` 1.
+  Partial (reference internal types, no imports/`fn main`) → would
+  fail `mdbook test` if treated as doctests.
+- **`systemverilog` (9) + `text` (4) — emitted-output samples**, not
+  commands; never executed, but some directly follow a command as
+  its shown output.
+
+**Owner decisions (2026-05-18), recorded in the tree:** (1) runnable
+blocks standardize on **`cargo run --release --`** (+ one optional
+`cargo install --path .` → `anvil` shorthand note); (2) correctness
+is **CI-gated** via an extraction harness + `mdbook test`, not a
+one-time audit.
+
+**Architecture — chosen: a `cargo test` integration harness +
+`mdbook test`, both in CI.**
+
+1. **Convention migration.** In every runnable `bash` block, the
+   command head `anvil ` → `cargo run --release -- ` (preserving
+   `\`-continuations, `| …` pipes, and redirections). One shorthand
+   note (getting-started + knobs reference): "`cargo install --path
+   .` once, then use `anvil` instead of `cargo run --release --`".
+2. **Skip marker for genuinely illustrative bash.** Default = run.
+   A block opted out with an HTML-comment sentinel on the line
+   immediately before the fence: `<!-- book-test: skip — <reason>
+   -->`. HTML comments don't render in mdBook output and aren't in
+   the copy-paste body, so users never see noise; the harness keys
+   off it. Reason string is mandatory (no silent skips).
+3. **Harness = `tests/book_examples.rs` (cargo integration test).**
+   Not a CI-only shell script (that would drift from the `cargo
+   test` gate — the project convention is *everything is
+   `cargo test`-gated*; CI already runs `cargo test`). It: walks
+   `book/src/*.md`; parses ```bash`` fences; honours the skip
+   sentinel; builds the binary once (`cargo build --release`, then
+   invokes `target/release/anvil` so per-example cost excludes
+   rebuild); runs each block in a fresh temp CWD with a per-command
+   timeout and `CARGO_NET_OFFLINE=true` (anvil examples are fully
+   local — no network); asserts exit 0. Where a ```text`` /
+   ```systemverilog`` / ```console`` block immediately follows a
+   command block and is tagged asserted, compare: seed-stable
+   commands (anvil is reproducible by `--seed`) → exact match;
+   tool-version-sensitive → shape/prefix match. Untagged output
+   blocks are documentation only (not asserted) — recorded so a
+   future contributor doesn't assume all output is checked.
+4. **`mdbook test` + rust sketches.** Annotate the 8 ```rust`` blocks
+   `rust,ignore` (still rendered in the book; not compiled), so
+   `mdbook test book` is green and *meaningful*: any future real
+   ```rust`` example is compiled, sketches are explicitly exempt.
+5. **CI.** `tests/book_examples.rs` runs under the existing `cargo
+   test` step in `.github/workflows/ci.yml`; add an `mdbook test
+   book` step. Both gate `main`.
+
+**Rejected alternatives.** (A) Rust `doctest`/`mdbook test` only —
+covers just the 8 ```rust`` sketches, **not** the 62 ```bash``
+blocks that are the actual copy-paste surface; leaves the real
+defect unenforced. (B) A standalone CI-only `.sh` extractor — works
+on GitHub but is invisible to local `cargo test`, so it drifts from
+the COMMIT.md gate and a contributor can't reproduce a failure
+locally with one command; violates the "everything is
+`cargo test`-gated" project convention. (C) Generate the book
+examples *from* tests (golden-doc) — strongest anti-drift but a
+large restructuring of authored prose, fights the book-doctrine's
+hand-written friendly voice, and is disproportionate; the
+extraction harness gets ~all the safety at a fraction of the churn.
+
+**Proof shape (`.2`, expected to split).** Harness enumerates ≥ the
+runnable-block count, builds once, runs each against the fresh
+binary, all exit 0; tagged sample outputs match; `mdbook test book`
+green; CI gates on `cargo test` (incl. `book_examples`) + `mdbook
+test`; a deliberate broken example fails the harness (negative
+control); book meaning unchanged (only invocation normalised + the
+one shorthand note). Split candidates: harness impl / the ~62-block
+migration / CI wiring (independently reviewable).
+
+This entry is design-only and is itself task-tree owned
+(`BOOK-EXAMPLES-RUNNABLE.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code boundary.
+
 ### Phase 6 inferrable-memory motif design (2026-05-18, PHASE-6-ADVANCED-MOTIFS.1)
 
 Design-only slice. No code. Lifts `book/src/ir.md` "Synthesizable

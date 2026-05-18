@@ -1,5 +1,31 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-18-book-examples-runnable-1 — BOOK-EXAMPLES-RUNNABLE.1: book-examples-runnable design + tree
+
+**Landed as:** this commit
+
+**What changed**
+
+- New quality task tree `docs/tasks/BOOK-EXAMPLES-RUNNABLE.md` (registered in `docs/TASK_TREE.md` "Active Task Trees"): every mdBook example must be copy-paste runnable from a fresh public clone and CI-enforced against drift.
+- `DEVELOPMENT_NOTES.md`: design-only entry "Book-examples-runnable design (2026-05-18, BOOK-EXAMPLES-RUNNABLE.1)" — audited fenced-block inventory (62 `bash` / 8 `rust` / 9 `systemverilog` / 4 `text`; `recipes.md` 41 + `tutorial.md` 10 dominate the runnable surface; ~58 bare-`anvil` invocations to migrate; `getting-started.md` already uses `cargo run --release --`, the rest don't — the core defect). Owner decisions recorded: standardize on `cargo run --release --` (+ one optional `cargo install` shorthand note); CI-gated extraction harness + `mdbook test`. Chosen architecture: a `tests/book_examples.rs` cargo integration test (build-once, run every non-skipped `bash` block offline against the fresh binary with timeout + tagged sample-output match) + `mdbook test` with the 8 `rust` sketches annotated `rust,ignore`, both wired into `ci.yml`; an invisible HTML-comment skip sentinel (mandatory reason; default = run). Three rejected alternatives (doctest-only; CI-only `.sh`; golden-doc generation); `.2` proof shape incl. negative control + split candidates.
+- Infra activation outcome (this session, commits `a612a5f`/`8076e25`): repo confirmed **PUBLIC** (an earlier `{owner}/{repo}`-resolved `gh` query returned a stale `PRIVATE`; explicit `gh repo view rdje/anvil` = `PUBLIC`); workflows pushed; **CI** workflow active (first run in progress — same commands as the local COMMIT.md gate); **Pages enabled** (source = GitHub Actions) and the mdBook is **live at https://rdje.github.io/anvil/** (deploy run succeeded; site returns HTTP 200).
+
+**Why**
+
+- Owner mandate: now that the repo is public and the book is the live user-facing surface, every example is a copy-paste contract; `BOOK-EXAMPLES-RUNNABLE.1` designs the convention + drift-proof enforcement. Continuous-PNT: advanced in parallel while the Phase 6 `.2.4` gate runs (fully independent).
+
+**Validation**
+
+- Design/docs only — **no code change** (leaf is design-only; task-tree owned by `BOOK-EXAMPLES-RUNNABLE.1`). `git diff` = `DEVELOPMENT_NOTES.md` + `docs/TASK_TREE.md` (+ new tree file); `mdbook build book` clean; `cargo fmt --all --check` clean; `cargo test` unchanged-green (no `src/`/`tests/` touched).
+
+**Impact**
+
+- A new tracked quality lane. Frontier → `BOOK-EXAMPLES-RUNNABLE.2` (implement: harness + ~62-block migration + CI wiring; expected to split). The mdBook is published and reachable; example-runnability enforcement lands in `.2`.
+
+**Files touched**
+
+- New: docs/tasks/BOOK-EXAMPLES-RUNNABLE.md. Updated: DEVELOPMENT_NOTES.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
 ## 2026-05-18-ci-pages-workflows — Add GitHub Actions CI + Pages workflows (repo public; none existed)
 
 **Landed as:** a612a5f
