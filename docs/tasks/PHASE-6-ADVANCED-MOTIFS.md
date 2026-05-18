@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.1` memory design landed; `.2` split into `.2.1`–`.2.4`; frontier → `.2.1`)
+- Last updated: `2026-05-18` (`.1` done; `.2` split `.2.1`–`.2.4`; `.2.1` split `.2.1a`/`.2.1b` on a discovered compaction-reachability dependency; frontier → `.2.1a`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -51,12 +51,24 @@ multi-clock handshakes.
 - ID: `PHASE-6-ADVANCED-MOTIFS.2`
   Status: `active`
   Goal: `Implement the inferrable-memory motif per .1 (architecture (M)), opt-in, with a matrix scenario and a Yosys memory-inference proof. Split per the Splitting Rules + the r87 no-aspirational-claims precedent (gate scenario lands before any ROADMAP advance); mirrors the proven Phase 5/5b .2.x decomposition.`
-  Children: `PHASE-6-ADVANCED-MOTIFS.2.1`, `.2.2`, `.2.3`, `.2.4`
+  Children: `PHASE-6-ADVANCED-MOTIFS.2.1` (container: `.2.1a`, `.2.1b`), `.2.2`, `.2.3`, `.2.4`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.2.1`
+  Status: `active`
+  Goal: `IR + emitter scaffold (architecture (M)). Split into .2.1a (IR core + opaque-stateful-leaf pipeline integration incl. the load-bearing compaction-reachability correctness) and .2.1b (knob + rules-first construction + default-off/forced-on focused proof) — see the 2026-05-18 Decision.`
+  Children: `PHASE-6-ADVANCED-MOTIFS.2.1a`, `PHASE-6-ADVANCED-MOTIFS.2.1b`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.1a`
   Status: `pending`
-  Goal: `IR + emitter scaffold (architecture (M)). Additive Default-empty Module.memories: Vec<Memory> ({id, addr_width, data_width, kind: SinglePort|SimpleDualPort, write {we,addr,data NodeId src}, read {addr src}}); new opaque gate-graph leaf Node::MemRead{mem, addr,...} (sibling to FlopQ — never CSE'd, identity-by-instance); Config::memory_prob (f64, serde-default 0.0, probability-range validated); rules-first construction of a memory block + the emitter rendering the .1-validated inferrable template (logic [DW-1:0] mem_k [0:2**AW-1] + the synchronous write/read always_ff on the shared clk); validator: addr/data widths consistent, MemRead resolves to a declared memory. Default-off byte-identical.`
-  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: default-off byte-identical for fixed seeds across all ConstructionStrategy values; forced-on a memory module round-trips IR->validate->emit, SV declares the array + synchronous write/read; validate_design passes. No book/ change (book reconciliation is .2.4).`
+  Goal: `IR core + opaque-stateful-leaf pipeline integration. Add MemId; MemKind{SinglePort,SimpleDualPort}; Memory{id,addr_width,data_width,kind,we,waddr,wdata,raddr:NodeId}; additive Default-empty Module.memories: Vec<Memory>; new opaque leaf Node::MemRead{mem,width}; DepAtom::MemVirtual(MemId) + DepSet::from_mem_virtual. Thread MemRead through ALL exhaustive Node matches (compiler-as-completeness-oracle, ~20 sites) mirroring FlopQ as an opaque identity-by-instance leaf. **Load-bearing correctness (the discovered dependency): src/ir/compact.rs reachability/dead-elimination must, like FlopQ keeps its flop's D cone, make a reachable MemRead transitively keep the memory's we/waddr/wdata/raddr source cones alive; canonical_module_signature/StructuralNodeShape/LeafEndpoint get distinct MemRead arms; MemRead is never CSE'd/merged.** Emitter renders the .1-validated inferrable template + a memrd_<id> read signal; validator: widths consistent + MemRead resolves to a declared memory + control-port logic emits clk for memory-bearing modules. NO knob, NO generator wiring (no Memory is ever constructed yet → default-off trivially byte-identical).`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; unit tests: a hand-built Memory module round-trips IR->validate->emit (SV declares the array + synchronous write/read on clk), survives compact_node_ids with we/waddr/wdata/raddr cones intact (the reachability proof), MemRead is opaque to CSE (two memories' reads never merge), and canonical signature distinguishes a MemRead node. No book/ change.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-6-ADVANCED-MOTIFS.2.1b`
+  Status: `pending`
+  Goal: `Knob + rules-first construction + focused proof. Config::memory_prob (f64, serde-default 0.0, probability-range validated); rules-first build_memory_leaf (a clk + we/waddr/wdata/raddr-input, rdata-output combinational-free memory leaf, single opt-in roll in generate_leaf_module_with_interface_profile, mutually exclusive with the param lane); default-off byte-identical + forced-on focused proof.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check/test green; focused proof: default-off byte-identical for fixed seeds across all ConstructionStrategy values; forced-on every single-module design is a memory leaf that validates and whose SV declares the inferrable array + synchronous write/read. No book/ change (book reconciliation is .2.4).`
   Verification: `pending`
   Commit: `pending`
 
@@ -92,7 +104,7 @@ multi-clock handshakes.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1` | `pending` | `.1` design done; `.2` split (Splitting Rules + r87 no-aspirational-claims) into `.2.1`–`.2.4`. `.2.1` lands the IR `Memory` block + opaque `MemRead` leaf + `memory_prob` knob + emitter inferrable-template + validator, default-off byte-identical — the reviewable scaffold before the Yosys-inference proof (`.2.2`), gate scenario (`.2.3`), and verified-gate ROADMAP advance (`.2.4`). |
+| 1 | `PHASE-6-ADVANCED-MOTIFS.2.1a` | `pending` | `.2.1` split (discovered dependency — see 2026-05-18 Decision): a new opaque **stateful** leaf is not mechanical FlopQ-mirroring; `compact.rs` reachability must transitively keep the memory's input cones alive (correctness-critical). `.2.1a` lands the IR core + that pipeline integration + unit proofs (no generator, default-off trivially byte-identical); `.2.1b` then adds the knob + rules-first construction + focused proof. |
 
 ## Decisions
 
@@ -100,6 +112,26 @@ multi-clock handshakes.
   sub-objective (not yet a leaf) per its roadmap "optional, expensive"
   framing; it will be added as a leaf only if/when prioritised, with the
   single-clock invariant explicitly preserved until then.
+- `2026-05-18` (**`.2.1` split — discovered lower-level dependency**):
+  implementing `.2.1` surfaced that a new opaque **stateful** leaf
+  (`Node::MemRead`) is *not* mechanical `FlopQ`-mirroring. Beyond the
+  ~20 exhaustive `Node` match sites, `src/ir/compact.rs`
+  reachability/dead-elimination is **load-bearing**: a reachable
+  `MemRead` must transitively keep the memory's `we`/`waddr`/`wdata`/
+  `raddr` source cones alive (exactly as a reachable `FlopQ` keeps its
+  flop's D cone), else those cones are dead-stripped and emission
+  breaks. That is correctness-critical pipeline code that must not be
+  rushed into one slice with the knob + generator + proof. Per the
+  Splitting Rules ("cannot be completed to signoff in one slice";
+  "discovers a lower-level dependency that should be solved first"),
+  `.2.1` was split into **`.2.1a`** (IR core + opaque-stateful-leaf
+  pipeline integration incl. the compaction-reachability correctness +
+  unit proofs; no generator, default-off trivially byte-identical) and
+  **`.2.1b`** (`memory_prob` knob + rules-first `build_memory_leaf` +
+  default-off/forced-on focused proof). In-flight IR-core edits were
+  reverted to the clean `.2`-split base (`c96b433`) so `.2.1a` lands
+  atomically from a clean tree. `.2.1` is now a container; `.2.2`/
+  `.2.3`/`.2.4` unchanged; no renumbering. Frontier → `.2.1a`.
 - `2026-05-18`: **`.2` split** per the Splitting Rules (new IR element
   + leaf + knob + emitter + validator + matrix gate cannot reach
   signoff in one slice and review independently) and the r87
@@ -167,3 +199,13 @@ multi-clock handshakes.
   verify → ROADMAP memory-delivered note; Phase 6 stays open for `.3`
   FSM — no tree closure). `.2` became a container; `.3` unchanged; no
   renumbering. Frontier → `.2.1`.
+- `2026-05-18`: **`.2.1` split** on a discovered lower-level
+  dependency (compaction-reachability for an opaque *stateful* leaf is
+  correctness-critical, not mechanical `FlopQ`-mirroring): `.2.1a` (IR
+  core + opaque-stateful-leaf pipeline integration incl. the
+  reachability correctness + unit proofs; no generator/knob,
+  default-off trivially byte-identical) and `.2.1b` (`memory_prob`
+  knob + rules-first `build_memory_leaf` + default-off/forced-on
+  focused proof). In-flight IR-core edits reverted to the clean
+  `.2`-split base so `.2.1a` lands atomically. `.2.1` became a
+  container; no renumbering. Frontier → `.2.1a`.

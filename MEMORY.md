@@ -2094,7 +2094,8 @@ Compact, operational continuity snapshot. Read on session bootstrap. Keep only w
   7. After the above, revisit the motif-trait refactor (the copy-paste pattern will then cover ~7-8 block motifs, enough to extract the right abstraction).
 
 ## Recent commits
-- `<pending>` — Docs: PHASE-6-ADVANCED-MOTIFS.2 split into `.2.1`–`.2.4` signoff-sized leaves (Splitting Rules + r87; tree-planning, no code; `.3` FSM unchanged).
+- `<pending>` — Docs: split PHASE-6-ADVANCED-MOTIFS.2.1 → `.2.1a`/`.2.1b` on a discovered compaction-reachability dependency (opaque stateful leaf ≠ mechanical FlopQ-mirroring); in-flight IR edits reverted to clean `.2`-split base; tree-planning, no code.
+- `c96b433` — Docs: PHASE-6-ADVANCED-MOTIFS.2 split into `.2.1`–`.2.4` signoff-sized leaves (Splitting Rules + r87; tree-planning, no code; `.3` FSM unchanged).
 - `ab491a8` — Docs: PHASE-6-ADVANCED-MOTIFS.1 inferrable-memory motif design (architecture (M) `Memory` block + `MemRead` leaf; empirical Yosys `$mem_v2` probe both modes; 3 rejected alternatives; design-only, no code; frontier → `.2`).
 - `957b1aa` — Phase 5b: PHASE-5B-AGGREGATES.2.4 real-gate verify + ROADMAP Phase 5b (not started)->(done) + tree closure (Phase 5b closed; next is Phase 6).
 - `6fabd7e` — Phase 5b: PHASE-5B-AGGREGATES.2.3 packed_aggregate matrix scenario + `num_packed_aggregate_modules` metric + `saw_packed_aggregate_design` fact/gap (bin 213→216/852→864; non-vacuity test; no ROADMAP promotion).

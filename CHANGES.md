@@ -1,8 +1,32 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-18-phase6-2-split — PHASE-6-ADVANCED-MOTIFS.2 split into signoff-sized leaves
+## 2026-05-18-phase6-2.1-split — PHASE-6-ADVANCED-MOTIFS.2.1 split on a discovered compaction-reachability dependency
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: `.2.1` (IR+leaf+knob+emitter+validator scaffold) split into `.2.1a` (IR core: `MemId`/`MemKind`/`Memory`/`Node::MemRead`/`Module.memories`/`DepAtom::MemVirtual`; thread `MemRead` through all ~20 exhaustive `Node` matches; **the load-bearing `compact.rs` reachability integration so a reachable `MemRead` transitively keeps the memory's `we`/`waddr`/`wdata`/`raddr` cones alive, like `FlopQ` keeps its flop's D cone**; emitter inferrable template + validator + control-port clk; unit proofs incl. a compaction-reachability test and CSE-opacity; no generator/knob → default-off trivially byte-identical) and `.2.1b` (`Config::memory_prob` knob + rules-first `build_memory_leaf` + opt-in roll + default-off/forced-on focused proof). `.2.1` is now a container; `.2.2`/`.2.3`/`.2.4` and `.3` unchanged; no renumbering. Frontier `.2.1` → `.2.1a`. Decisions/Changelog/Metadata + `docs/TASK_TREE.md` row updated.
+
+**Why**
+
+- Implementing `.2.1` surfaced a genuine **discovered lower-level dependency**: a new opaque *stateful* leaf is not mechanical `FlopQ`-mirroring — `src/ir/compact.rs` reachability/dead-elimination must transitively keep a memory's input cones alive, which is correctness-critical and must not be rushed into one slice alongside the knob/generator/proof. Per the Splitting Rules ("cannot be completed to signoff in one slice"; "discovers a lower-level dependency that should be solved first"). In-flight IR-core edits (`src/ir/types.rs` only) were reverted to the clean `.2`-split base (`c96b433`) so `.2.1a` lands atomically from a clean tree.
+
+**Validation**
+
+- Tree-planning doc change only — **no code change** (in-flight edits reverted; `git status` clean of `src/` before this commit). `cargo` gates unaffected/green; `mdbook` unaffected.
+
+**Impact**
+
+- Phase 6 frontier is now `PHASE-6-ADVANCED-MOTIFS.2.1a` (IR core + the correctness-critical compaction-reachability integration). No behavioural change.
+
+**Files touched**
+
+- Updated: docs/tasks/PHASE-6-ADVANCED-MOTIFS.md, docs/TASK_TREE.md, CHANGES.md, MEMORY.md.
+
+## 2026-05-18-phase6-2-split — PHASE-6-ADVANCED-MOTIFS.2 split into signoff-sized leaves
+
+**Landed as:** c96b433
 
 **What changed**
 
