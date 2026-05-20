@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 7 — Oracle-backed micro-design artifacts
 - Created: `2026-05-16`
-- Last updated: `2026-05-20` (**`.2c.2a` extractor + scoped comparator landed** — `src/microdesign/` extended with `FactCategory`/`ParityScope`/`compare_manifest_to_tool_report_in_scope`; new yosys-specific `write_json` extractor + 3 sanity proofs + 3 scoped-comparator proofs in `tests/microdesign_parity.rs`; the `#[ignore]` `parity_against_real_yosys_write_json` test is now end-to-end-runnable; 15 portable proofs green + 1 `#[ignore]`; frontier → `.2c.2b`)
+- Last updated: `2026-05-20` (**`.2c.2b` split** on a discovered ANVIL-self-consistency bug surfaced by the very first real-tool run: seed 7 produced a `widths["sig"]` divergence — oracle `bits=8`, yosys `bits=2` — root-caused to `width_expr`'s `rem_euclid` oracle disagreeing with the SV `%` it emits when `last.value < 0`; ANVIL's purpose is "valid-by-construction + downstream-acceptance-quality" so this is a fix-before-promote per r87; split into `.2c.2b.1` (semantic-alignment fix + regression proof) + `.2c.2b.2` (re-run + verify + ROADMAP Phase 7 → done); tree-planning only, no code; frontier → `.2c.2b.1`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -82,7 +82,7 @@ checks.
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2`
   Status: `active`
   Goal: `Real tool-equipped run of the .2c.1 #[ignore]-gated parity harness against a fixed deterministic corpus; VERIFY exact-agreement (or zero retained counterexamples) BEFORE any promotion (r87 no-aspirational-claims, mirroring memory .2.4 and FSM .3.4b). Then record ROADMAP Phase 7 -> done (with the explicit artifact-family lane note and the boundary to Phase 8/Phase 9 preserved); reconcile book (the Phase-7 micro-design lane in book/src/ir.md and/or a new "Micro-design lane" page in the book), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-7 row, MEMORY recent commits. Closes PHASE-7-ORACLE-MICRODESIGN.2c + the .2 container + the PHASE-7-ORACLE-MICRODESIGN tree. Split (Splitting Rules + the proven memory .2.1->.2.1a/.2.1b discovered-dependency-split precedent: implementing the yosys-specific extractor + scoped comparator is itself signoff-sized code that lands BEFORE any verified-clean banked artifact can exist, exactly as memory's compaction-reachability was a load-bearing lower-level dependency that justified the .2.1 split) into .2c.2a (FactCategory + ParityScope + scoped comparator + yosys-specific write_json extractor + end-to-end-runnable #[ignore] test; cargo stays green tool-less; no real run, no ROADMAP advance) and .2c.2b (run the #[ignore] gate against real yosys; verify exact-agreement on yosys-supported categories; bank the artifact; record ROADMAP Phase 7 -> done; book/README/CODEBASE reconcile; gate-blocked).`
-  Children: `PHASE-7-ORACLE-MICRODESIGN.2c.2a`, `PHASE-7-ORACLE-MICRODESIGN.2c.2b`
+  Children: `PHASE-7-ORACLE-MICRODESIGN.2c.2a` (done), `PHASE-7-ORACLE-MICRODESIGN.2c.2b` (active container: `.2c.2b.1`, `.2c.2b.2`)
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2a`
   Status: `done`
@@ -92,9 +92,21 @@ checks.
   Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2a scoped comparator + yosys write_json extractor + end-to-end-runnable #[ignore] harness`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2b`
+  Status: `active`
+  Goal: `Run the #[ignore]-gated parity gate against real yosys, verify exact-agreement on the yosys-supported categories (Seed/Top/Params/Widths/Generate) across the full corpus, bank a verified-clean banked artifact (under /tmp/anvil-microdesign-parity-phase7-yosys-p1/ or similar repo-local convention), then promote ROADMAP Phase 7 → done with the explicit "yosys-supported categories" caveat (localparams and package_constants are folded by yosys and remain visible only to richer-AST tools like slang/verilator-with-debug — additional categories enter Phase 7 via follow-up extractors); reconcile book (book/src/ir.md "Phase 7 micro-design lane" entry or new page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-7 row, MEMORY recent commits. Closes PHASE-7-ORACLE-MICRODESIGN.2c + .2 + the tree. Split (Splitting Rules + the proven memory .2.1→.2.1a/.2.1b discovered-dependency precedent — repeated here at one level deeper): the very first real-tool run of the .2c.2a end-to-end harness on seed 7 surfaced a single WidthMismatch{name:"sig", expected:bits=8, actual:bits=2}. Root cause (recorded in Decisions): width_expr emits the SV text "((P4 % 8) + 1)" but computes its oracle as last.value.rem_euclid(8) + 1; for seed 7 last.value = P4 = -1, so the oracle reports 7+1=8 (mathematical non-negative modulo) but SV evaluates (-1 % 8) + 1 = 0 (truncated-toward-zero modulo on signed values), and yosys interprets logic [W_SIG-1 : 0] = logic [-1:0] as 2 bits. The oracle and the SV disagree for negative last values — an ANVIL-self-consistency bug, not a yosys bug. ANVIL's "valid-by-construction + downstream-acceptance-quality" north-star (the framing user-confirmed 2026-05-18) requires fixing this before ROADMAP Phase 7 can be promoted. Split into .2c.2b.1 (fix the semantic alignment: change BOTH the SV text and the oracle to the standard SV non-negative-modulo idiom "(((x % 8) + 8) % 8) + 1" so the width is always in [1, 8] and oracle ≡ SV; add a regression proof exercising negative-value seeds; cargo gates green; no real run, no ROADMAP advance) and .2c.2b.2 (re-run the #[ignore] gate against real yosys, verify clean across the corpus, bank artifact, record ROADMAP Phase 7 → done with the explicit "yosys-supported categories" caveat, reconcile book/README/CODEBASE; gate-blocked, r87).`
+  Children: `PHASE-7-ORACLE-MICRODESIGN.2c.2b.1`, `PHASE-7-ORACLE-MICRODESIGN.2c.2b.2`
+
+- ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2b.1`
   Status: `pending`
-  Goal: `Run the #[ignore]-gated parity gate against real yosys, verify exact-agreement on the yosys-supported categories (Seed/Top/Params/Widths/Generate) across the full corpus, bank a verified-clean banked artifact (under /tmp/anvil-microdesign-parity-phase7-yosys-p1/ or similar repo-local convention), then promote ROADMAP Phase 7 → done with the explicit "yosys-supported categories" caveat (localparams and package_constants are folded by yosys and remain visible only to richer-AST tools like slang/verilator-with-debug — additional categories enter Phase 7 via follow-up extractors); reconcile book (book/src/ir.md "Phase 7 micro-design lane" entry or new page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-7 row, MEMORY recent commits. Closes PHASE-7-ORACLE-MICRODESIGN.2c + .2 + the tree.`
-  Acceptance: `Banked artifact captures the gate's exact-agreement on the corpus (zero retained counterexamples) OR a precise counterexample tuple is committed alongside the gate result; ROADMAP Phase 7 → done only after the verified run; .2c.2 + .2c + .2 container + PHASE-7-ORACLE-MICRODESIGN tree all → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
+  Goal: `Fix the oracle/SV semantic-alignment bug in width_expr surfaced by .2c.2a's first real-tool run. The .2b emitter currently has SV text "((<last> % 8) + 1)" but the oracle uses last.value.rem_euclid(8) + 1; these diverge whenever last.value is negative (Rust's rem_euclid is mathematical non-negative modulo; SV's "%" on signed values is truncated toward zero — they only agree for non-negative dividends). Change BOTH the SV text and the oracle to the standard SV non-negative-modulo idiom: SV "((((<last> %% 8) + 8) %% 8) + 1)" and Rust "((last.value %% 8 + 8) %% 8 + 1) as u32". The result is always in [1, 8] for any last.value (positive or negative; well-defined; matches yosys's literal SV evaluation). Add a regression proof in src/microdesign/mod.rs::tests that exercises the negative-value branch: build a unit whose last decl resolves to a negative value (e.g. force one of the .2a builder's seeds where this happens — seed 7 P4 = -1 from today's probe — and assert build_manifest's widths["sig"].bits matches what the SV literally evaluates to under the new idiom). No ROADMAP advance.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; width_expr's SV text and oracle BOTH use the non-negative-modulo idiom; regression proof landed and green; .2a/.2b/.2c.1/.2c.2a portable proofs still green (the change is to the width FORMULA — manifest_mirrors_the_oracle continues to hold by construction since both sides moved together; sv_and_manifest_are_byte_reproducible re-baselines under the new idiom); ROADMAP unchanged (advance is .2c.2b.2 on a verified real-tool run); no book/ change (book reconciliation is .2c.2b.2).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2b.2`
+  Status: `pending`
+  Goal: `Real tool-equipped re-run of the .2c.2a #[ignore] gate (now with .2c.2b.1's alignment fix in place); VERIFY exact-agreement on the yosys-supported categories (Seed/Top/Params/Widths["sig"]/Generate) across the full corpus, with the previously-divergent seed 7 now clean. Bank the verified-clean artifact (CARGO_TARGET_TMPDIR/microdesign-parity-phase7-yosys/{*.sv, *.json, *.yosys.json} + a recorded harness output snippet in the Verification Log). Record ROADMAP Phase 7 → done with the explicit "yosys-supported categories" scope caveat (localparams and package-constants remain visible only to richer-AST tools — slang/verilator-with-debug — and are recorded as a post-Phase-7 follow-up that does NOT block closure; ANVIL's by-construction oracle already covers all 7 categories). Reconcile book (book/src/ir.md or a new "Phase 7 micro-design lane" page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-7 row, MEMORY recent commits. Closes PHASE-7-ORACLE-MICRODESIGN.2c.2 + .2c + .2 container + PHASE-7-ORACLE-MICRODESIGN tree.`
+  Acceptance: `Banked artifact captures the gate's exact-agreement on the corpus (zero retained counterexamples after .2c.2b.1's fix); ROADMAP Phase 7 → done only after the verified clean run; .2c.2b + .2c.2 + .2c + .2 container + tree all → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -102,7 +114,7 @@ checks.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c.2b` | `pending` (gate-blocked, real-tool run) | **`.2c.2a` done** — `src/microdesign/` extended with `FactCategory`/`ParityScope`/`compare_manifest_to_tool_report_in_scope` (the strict `compare_manifest_to_tool_report` now delegates with `ParityScope::all()`, backwards-compatible by construction); new yosys-specific extractor (`parse_yosys_binary_param` sign-extends through `i32`; `yosys_write_json_to_tool_report` populates `params` from `parameter_default_values`, `generate["g_taken"]` from the netname-key prefix scan, `widths["sig"]` from `netnames.sig.bits` length; folded axes deliberately empty); the `#[ignore]` `parity_against_real_yosys_write_json` test is now **end-to-end-runnable** (no longer a scaffold-with-placeholder — drives the full corpus via `CARGO_TARGET_TMPDIR/microdesign-parity-phase7-yosys/` artifacts). 6 new cargo-portable proofs: 3 scoped-comparator (scoping itself, yosys-scope tolerates folded axes vs strict-all surfaces them, empty-scope tolerates everything) + 3 extractor (synthetic JSON for seed-0 → expected `ToolReport`, `g_else`-survives case → `g_taken=false`, `parse_yosys_binary_param` sign-extends). Full `cargo test` green: 15 portable parity proofs + 1 `#[ignore]`, 121 pipeline, 6 snapshots, 228 lib (microdesign 7/7), bin 5+29+3, doc 0. `.2c.2b` runs `cargo test -- --ignored parity_against_real_yosys_write_json` against real yosys, verifies exact-agreement on the yosys-supported categories across the corpus, banks the verified-clean artifact, then promotes ROADMAP Phase 7 → done with the explicit "yosys-supported categories" scope caveat (book/README/CODEBASE reconcile). r87 no-aspirational-claims. |
+| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c.2b.1` | `pending` (unblocked, code-bearing — small fix) | **`.2c.2a` done** (parity scoped comparator + yosys extractor + end-to-end-runnable `#[ignore]` test; 15 portable proofs + 1 `#[ignore]`). The very first real-tool run of the `#[ignore]` gate (`cargo test -- --ignored parity_against_real_yosys_write_json` against locally-installed yosys 0.64) surfaced a single counterexample: seed 7, `WidthMismatch { name: "sig", expected: bits=8, actual: bits=2 }`. **Root cause is an ANVIL-self-consistency bug** (not a yosys bug): `width_expr`'s SV text `((<last> % 8) + 1)` evaluates to `(-1 % 8) + 1 = 0` for seed 7's `P4 = -1` (SV's `%` on signed values is truncated-toward-zero) and yosys interprets `logic [-1:0] sig` as 2 bits, but the oracle uses Rust's `last.value.rem_euclid(8) + 1 = 7 + 1 = 8` (mathematical non-negative modulo). ANVIL's "valid-by-construction + downstream-acceptance-quality" north-star (user-confirmed 2026-05-18) requires fixing this BEFORE ROADMAP Phase 7 can be promoted (r87 no-aspirational-claims). **`.2c.2b` split (`2026-05-20`)** per the proven memory `.2.1`→`.2.1a`/`.2.1b` discovered-dependency-split precedent into `.2c.2b.1` (semantic-alignment fix: change BOTH oracle and SV text to the standard non-negative-modulo idiom `((x % 8) + 8) % 8 + 1`; regression proof on negative-value seeds) + `.2c.2b.2` (re-run `#[ignore]` against real yosys + verify clean + bank + ROADMAP Phase 7 → done with the explicit yosys-supported-categories scope caveat). `.2c.2b.1` is unblocked and is the next code-bearing slice. |
 
 ## Decisions
 
@@ -134,6 +146,44 @@ checks.
   one signoff-sized leaf; the gated real run + ROADMAP promotion +
   book reconcile is a separate gated step. `.2c` is now a
   container; no renumbering. Frontier → `.2c.1`.
+- `2026-05-20` (**`.2c.2b` split — first real-tool run surfaced an
+  ANVIL-self-consistency bug**): the inaugural execution of the
+  `.2c.2a` `#[ignore]` parity gate (`cargo test -- --ignored
+  parity_against_real_yosys_write_json` against locally-installed
+  yosys 0.64, immediately after `.2c.2a` landed at `900061c`)
+  retained exactly one counterexample: seed 7,
+  `WidthMismatch { name: "sig", expected: bits=8, actual: bits=2 }`.
+  Root cause: `width_expr` (in `src/microdesign/mod.rs`) emits SV
+  text `((<last> % 8) + 1)` but uses Rust's
+  `last.value.rem_euclid(8) + 1` for the oracle. Rust's
+  `rem_euclid` is the *mathematical non-negative modulo*
+  (`(-1).rem_euclid(8) = 7`) while SV's `%` on signed integers is
+  *truncated toward zero* (`-1 % 8 = -1`, identical to Rust's
+  `%`). For seed 7 `P4 = -1`: the oracle says `bits = 7 + 1 = 8`;
+  the SV evaluates `(-1 % 8) + 1 = 0` and yosys interprets
+  `logic [W_SIG-1:0]` with `W_SIG = 0` as `[-1:0]` ⇒ 2 bits.
+  Oracle ≠ SV ⇒ ANVIL-self-consistency bug (NOT a yosys bug).
+  ANVIL's "valid-by-construction + downstream-acceptance-quality"
+  north-star (the framing the user confirmed 2026-05-18) requires
+  fixing this BEFORE ROADMAP Phase 7 can be promoted (r87
+  no-aspirational-claims: a known counterexample is not a clean
+  banked artifact). Per Splitting Rules + the proven memory
+  `.2.1`→`.2.1a`/`.2.1b` discovered-dependency-split precedent
+  (the same precedent applied two levels up at the `.2c` and
+  `.2c.2` splits — repeated here one level deeper), `.2c.2b` was
+  split into `.2c.2b.1` (semantic-alignment fix: change BOTH the
+  SV text and the oracle to the standard SV non-negative-modulo
+  idiom `((x % 8) + 8) % 8 + 1` so the width is always in
+  `[1, 8]` and oracle ≡ SV; a regression proof exercising a
+  negative-value seed; cargo gates green; no real run, no ROADMAP
+  advance) and `.2c.2b.2` (re-run the `#[ignore]` gate against
+  real yosys + verify clean across the corpus + bank the artifact
+  + record **ROADMAP Phase 7 → done** with the explicit
+  yosys-supported-categories scope caveat; gate-blocked, r87).
+  `.2c.2b` is now a container; no renumbering. This is the parity
+  gate doing exactly what `.1` designed it to do — surface
+  semantic disagreement between oracle and downstream — and the
+  fix lands as the next slice. Frontier → `.2c.2b.1`.
 - `2026-05-20` (**`.2c.2` split — discovered lower-level
   dependency**): an empirical probe of yosys 0.64's `write_json`
   output for the `.2b` `mc_<seed>` corpus (seeds `{0,1,7,42,12345}`,
@@ -199,6 +249,7 @@ checks.
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2b` | `src/microdesign/` extended: `expr_to_sv` (fully-parenthesized precedence-unambiguous printer), `emit_sv(unit,seed)` (un-resolved `rtl_const_expr` SV — `package mc_<seed>_pkg`/`K`, module with symbolic `parameter`/`localparam` chains, `PKG_REF = mc_<seed>_pkg::K`, expr-derived `W_SIG`+`logic[W_SIG-1:0] sig`, `generate if/else`), `Manifest`+`build_manifest`/`emit_manifest` (the `.1` JSON schema, all facts from the `.2a` resolved oracle, `BTreeMap` ⇒ byte-stable `serde_json`). Default-off DUT-byte-identical is structural (separate module, never invoked by the DUT path). 3 new proofs (7 total): `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle` (valid JSON; every fact == oracle), `sv_and_manifest_are_byte_reproducible`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No parity harness (`.2c`); no ROADMAP/book change. | Done. Frontier → `.2c`. |
 | `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c` (split) | `.2c` made a container with children `.2c.1` (build the parity harness — cargo-portable comparator proof + tool-gated `#[ignore]` real-tool harness scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) and `.2c.2` (real tool-equipped run + verify exact-agreement + ROADMAP Phase 7 → done; gate-blocked). Mirrors the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition (the harness machinery is code that lands first; the real-tool gate + promotion is a separate gated step; r87 no-aspirational-claims). Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `13faa77`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.1`. |
 | `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c.2` (split) | `.2c.2` made a container with children `.2c.2a` (`FactCategory` + `ParityScope` + scoped comparator + yosys-specific `write_json` extractor + end-to-end-runnable `#[ignore]` harness; cargo stays green tool-less) and `.2c.2b` (real `--ignored` run + verify + bank + ROADMAP Phase 7 → done + book reconcile; gate-blocked). Discovered lower-level dependency: yosys 0.64 `write_json` exposes 4 of 7 manifest fact categories (seed/top/params/generate + partial widths["sig"]); localparams + package_constants are folded — needs the scoped comparator extension before any real run. Mirrors the proven memory `.2.1`→`.2.1a`/`.2.1b` precedent. Empirical probe across seeds `{0,1,7,42,12345}`: corpus exercises BOTH generate branches (seed 12345 takes `g_else`, others take `g_taken`). Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `c91d35e`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.2a`. |
+| `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c.2b` (split) | `.2c.2b` made a container with children `.2c.2b.1` (semantic-alignment fix: width_expr's oracle uses Rust's `rem_euclid` while the SV uses `%`; they diverge for negative `last.value` — change BOTH to the SV non-negative-modulo idiom `((x % 8) + 8) % 8 + 1`; regression proof on a negative-value seed; cargo gates green; no real run, no ROADMAP advance) and `.2c.2b.2` (real-tool re-run + verify clean + bank artifact + ROADMAP Phase 7 → done + book/README/CODEBASE reconcile; gate-blocked). Triggered by the inaugural `.2c.2a` `#[ignore]`-gate run on locally-installed yosys 0.64 retaining exactly one counterexample (seed 7, `WidthMismatch { sig, expected bits=8, actual bits=2 }`); root-caused to an ANVIL-self-consistency bug in `width_expr` (NOT a yosys bug). r87 no-aspirational-claims: the fix must precede the promoting commit's verified-clean banked artifact. Mirrors the proven memory `.2.1`→`.2.1a`/`.2.1b` discovered-dependency-split precedent (applied two levels up at `.2c` and `.2c.2`; repeated here one level deeper). Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `900061c`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.2b.1`. |
 | `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c.2a` | `src/microdesign/mod.rs`: `pub enum FactCategory` (7 variants — one per fact axis); `pub struct ParityScope { categories: BTreeSet<FactCategory> }` with `all()`/`none()`/`only(&[...])` constructors + `.contains(category)`; `pub fn compare_manifest_to_tool_report_in_scope(manifest, report, scope)` — the scoped walker that skips out-of-scope axes entirely. The existing strict `compare_manifest_to_tool_report` now delegates with `ParityScope::all()` (backwards-compatible by construction; the 9 `.2c.1` proofs unchanged-green). `tests/microdesign_parity.rs`: 3 scoped-comparator proofs (`scoped_comparator_only_enforces_scoped_categories` — the load-bearing scoping proof: params-only scope ignores width perturbation BUT surfaces param perturbation; `yosys_scope_ignores_localparams_and_package_constants` — `yosys_write_json_scope` = `only(&[Seed,Top,Params,Widths,Generate])`; empty folded axes Ok under yosys scope, surface `PackageConstantMissingInTool` under strict-all; `empty_scope_ignores_every_disagreement` — `ParityScope::none()` Ok even on maximally-disagreeing report). Yosys extractor (helper-functions in the test file): `parse_yosys_binary_param(s)` — parses yosys's binary-string parameter values as SV `int` (signed 32-bit → `i128` via `u32 → i32` cast for sign-extension; defensive on empty/non-binary/`>32-bit`); `yosys_write_json_to_tool_report(json, seed)` — populates `params` from `.parameter_default_values`, `generate["g_taken"]` from netnames-key prefix scan, `widths["sig"]` from `.netnames.sig.bits` length; folded axes (`localparams`, `package_constants`) deliberately empty. 3 extractor proofs: `yosys_extractor_reads_a_synthetic_write_json_correctly` (hand-built JSON for seed 0 matches: P0=46, g_taken=true, widths.sig.bits=6; folded empty); `yosys_extractor_reports_g_else_when_else_branch_survives` (the g_else-survives case → `g_taken=false`); `parse_yosys_binary_param_sign_extends` (1...1 → -1; 0...01 → 1; 0..101110 → 46; empty/'z'/33-bit inputs → None — load-bearing because `.2a`'s builder can produce negative resolved values e.g. seed 7 P4 = -1). `parity_against_real_yosys_write_json` rewritten end-to-end: per-seed `emit_sv`→`CARGO_TARGET_TMPDIR/microdesign-parity-phase7-yosys/mc_<seed>.sv`, `emit_manifest`→`.json`, shell `yosys -q -p "read_verilog -sv ...; hierarchy -top mc_<seed>; proc; opt; write_json ..."`, parse → `ToolReport`, call scoped comparator with `yosys_write_json_scope`, accumulate counterexamples, panic with full diagnostic on any non-empty counterexample list (or `eprintln "parity gate clean across N seeds"`); yosys-presence guard at the head keeps the harness invocable on machines without the tool. NO real cargo-test run of the `#[ignore]` (that is `.2c.2b`'s deliverable). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean. Full `cargo test` green: `tests/microdesign_parity` 15 passed + 1 ignored; `tests/pipeline` 121 passed (661s); `tests/snapshots` 6 passed; lib 228 passed (microdesign 7/7); doc-tests 0; bin tests 5+29+3 passed. Portable `cargo test` stays green tool-less. No ROADMAP advance (that is `.2c.2b` on a verified clean banked artifact, r87). No `book/` change. | Done. Frontier → `.2c.2b` (real `--ignored` run + ROADMAP Phase 7 → done). |
 | `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `src/microdesign/mod.rs`: parity comparator core appended — `ToolReport` (normalized resolved-facts view from a downstream consumer; `BTreeMap` throughout for determinism; serde Serialize+Deserialize for JSON round-trip diagnostics); `Divergence` enum (17 variants — `SeedMismatch`/`TopMismatch` + {missing-in-tool, missing-in-manifest, mismatch} × {param, localparam, width, generate, package-constant} so `.1`'s rejected-alternative "single facts-disagree bit" gap is closed); `compare_manifest_to_tool_report` (cargo-portable walker; accumulates the full divergence set rather than fail-fast; symbolic `expr` strings deliberately not compared); `synthetic_tool_report_from_manifest` (always-agreeing reference, used by the proofs and as the fallback by `.2c.2`'s real-tool path). `FactEntry`/`WidthFact`/`GenFact`/`ConstExprFact`/`Manifest` fields promoted to `pub`; derives extended to `Clone`+`PartialEq`+`Eq`+`Deserialize`. New `tests/microdesign_parity.rs`: 9 cargo-portable comparator proofs (`comparator_agrees_on_synthetic_tool_report_built_from_the_oracle` baseline + per-axis divergence proofs covering param/localparam/width/generate-branch/package-constant/param-missing-in-tool/param-missing-in-manifest/seed+top — every axis surfaces the right `Divergence` variant) + 1 tool-gated `#[ignore]` `parity_against_real_yosys_write_json` scaffold (yosys-presence guard at the head; corpus-driver loop wired against the same `SEEDS={0,1,7,42,12345}`/`N_PARAMS=5` constants the portable proofs use, with placeholder for the `.2c.2`-owned `emit_sv`→shell→extract→compare end-to-end wiring). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean. Full `cargo test` green: tests/microdesign_parity 9 passed + 1 ignored; tests/pipeline 121 passed (657s); tests/snapshots 6 passed; doc-tests unchanged; lib `microdesign` tests still 7/7 green (`.2a`+`.2b` unchanged). Portable `cargo test` stays green tool-less; the tool-gated harness is invocable only via `cargo test -- --ignored` AND when `yosys` is on `$PATH`. No ROADMAP advance (that is `.2c.2` on a verified clean banked artifact). No `book/` change. | Done. Frontier → `.2c.2` (real-tool run + ROADMAP Phase 7 → done). |
 
@@ -214,6 +265,7 @@ checks.
 | `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.1 parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold` | Parity comparator core in `src/microdesign/` (`ToolReport`/`Divergence` × 17 variants/`compare_manifest_to_tool_report`/`synthetic_tool_report_from_manifest`) + `pub`/`Clone`/`PartialEq`/`Eq`/`Deserialize` promotions on the fact records + new `tests/microdesign_parity.rs` (9 cargo-portable proofs + 1 tool-gated `#[ignore]` scaffold); portable `cargo test` stays green tool-less. No ROADMAP advance (that is `.2c.2`). |
 | `PHASE-7-ORACLE-MICRODESIGN.2c.2` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2 into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool gate + ROADMAP Phase 7)` | Tree-planning, no code. Discovered lower-level dependency: yosys `write_json` exposes 4 of 7 manifest fact categories — needs `FactCategory`+`ParityScope` extension before any real run. Mirrors memory `.2.1`→`.2.1a`/`.2.1b`. |
 | `PHASE-7-ORACLE-MICRODESIGN.2c.2a` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2a scoped comparator + yosys write_json extractor + end-to-end-runnable #[ignore] harness` | `FactCategory`+`ParityScope`+scoped comparator in `src/microdesign/` (strict comparator delegates to `ParityScope::all()`); yosys-specific extractor + 3 sanity proofs (synthetic JSON / g_else survives / sign-extension) + 3 scoped-comparator proofs (scoping itself / yosys-scope vs strict-all / empty-scope) in `tests/microdesign_parity.rs`; `#[ignore]` test now end-to-end-runnable (no real run from cargo); portable test stays green tool-less. No ROADMAP advance (that is `.2c.2b`). |
+| `PHASE-7-ORACLE-MICRODESIGN.2c.2b` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2b on a real-tool-surfaced ANVIL-self-consistency bug — split into .2c.2b.1 (semantic-alignment fix) + .2c.2b.2 (re-run + ROADMAP Phase 7)` | Tree-planning, no code. First real-tool run of the `.2c.2a` `#[ignore]` gate retained one counterexample (seed 7, `WidthMismatch sig 8→2`) — root cause: `width_expr` oracle uses Rust's `rem_euclid` but SV uses `%`; diverges for negative `last.value`. Per ANVIL's "valid-by-construction" north-star + r87, fix must land before ROADMAP Phase 7 promotion. |
 
 ## Changelog
 
@@ -469,3 +521,45 @@ checks.
   parity_against_real_yosys_write_json`; verify clean banked
   artifact; record ROADMAP Phase 7 → done with the explicit
   scope caveat; reconcile book/README/CODEBASE).
+- `2026-05-20`: **`.2c.2b` split** — the very first real-tool run
+  of the `.2c.2a` `#[ignore]` parity gate (`cargo test --
+  --ignored parity_against_real_yosys_write_json` against
+  locally-installed yosys 0.64, immediately after `.2c.2a`
+  landed at `900061c`) retained exactly one counterexample:
+  **seed 7, `WidthMismatch { name: "sig", expected: bits=8,
+  actual: bits=2 }`**. Root cause is an ANVIL-self-consistency
+  bug in `width_expr` (`src/microdesign/mod.rs`): the SV text
+  is `((<last> % 8) + 1)` but the oracle is
+  `last.value.rem_euclid(8) + 1`. Rust's `rem_euclid` is the
+  *mathematical non-negative modulo* (`(-1).rem_euclid(8) = 7`);
+  SV's `%` on signed integers is *truncated toward zero* (`-1 %
+  8 = -1`, identical to Rust's `%`). For seed 7's
+  `P4 = -1`: the oracle reports `bits = 8` while the SV
+  evaluates `(-1 % 8) + 1 = 0` and yosys interprets
+  `logic [-1:0] sig` as 2 bits. Oracle ≠ SV ⇒ NOT a yosys bug
+  but an ANVIL self-consistency defect surfaced by the parity
+  gate. ANVIL's "valid-by-construction +
+  downstream-acceptance-quality" north-star (user-confirmed
+  2026-05-18) requires fixing this BEFORE ROADMAP Phase 7 can
+  be promoted (r87 no-aspirational-claims: a counterexample is
+  not a clean banked artifact). Per the proven memory `.2.1`
+  →`.2.1a`/`.2.1b` discovered-dependency-split precedent (the
+  same precedent applied at the `.2c` and `.2c.2` splits;
+  repeated here one level deeper), `.2c.2b` was split into
+  `.2c.2b.1` (semantic-alignment fix: change BOTH the SV text
+  and the oracle to the standard SV non-negative-modulo idiom
+  `((x % 8) + 8) % 8 + 1` so the width is always in `[1, 8]`
+  and oracle ≡ SV; add a regression proof exercising a
+  negative-value seed; cargo gates green; no real run, no
+  ROADMAP advance) and `.2c.2b.2` (re-run the `#[ignore]`
+  gate against real yosys + verify clean + bank + record
+  **ROADMAP Phase 7 → done** with the explicit
+  yosys-supported-categories scope caveat;
+  book/README/CODEBASE reconcile; gate-blocked, r87).
+  `.2c.2b` is now a container; no renumbering. The parity
+  gate is doing exactly what `.1` designed it to do —
+  surface semantic disagreement between the oracle and the
+  downstream — and the next slice closes the loop. Tree-
+  planning, docs-only; no `src/`/`tests/` change (`cargo`
+  unchanged-green vs `900061c`); `mdbook build book` clean.
+  Frontier → `.2c.2b.1`.

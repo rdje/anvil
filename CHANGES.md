@@ -1,8 +1,95 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.2a — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2a scoped comparator + yosys write_json extractor + end-to-end-runnable #[ignore] harness
+## 2026-05-20-phase7-2c.2b-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2b on a real-tool-surfaced ANVIL-self-consistency bug — split into .2c.2b.1 (semantic-alignment fix) + .2c.2b.2 (re-run + ROADMAP Phase 7)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Last
+  updated `2026-05-20` ("`.2c.2b` split"); `.2c.2` container
+  Children annotation now lists `.2c.2b` as an active container;
+  `.2c.2b` itself Status `pending`→`active` with its
+  rationale-bearing Goal block recording the bug + the split +
+  Children `.2c.2b.1`+`.2c.2b.2`; new `.2c.2b.1` leaf (`pending`,
+  code-bearing — small fix) — **semantic-alignment fix in
+  `width_expr`: change BOTH oracle + SV text to the standard
+  SV non-negative-modulo idiom `((x % 8) + 8) % 8 + 1`**; new
+  `.2c.2b.2` leaf (`pending`, gate-blocked) — **re-run +
+  verify clean + bank + ROADMAP Phase 7 → done**; Frontier
+  `.2c.2b` → `.2c.2b.1`; Decisions append the 2026-05-20
+  first-real-tool-run rationale (the counterexample tuple +
+  root-cause analysis + the SV-vs-Rust modulo-semantic delta);
+  Verification Log + Commit Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row's
+  current frontier updated `.2c.2b` → `.2c.2b.1` with the
+  inline diagnosis and split.
+
+- `CHANGES.md`: this entry + backfill of the `.2c.2a` entry's
+  "Landed as: this commit" → `900061c`.
+
+- `MEMORY.md`: recent commits — `.2c.2a` `<pending>` →
+  `900061c`; new `<pending>` head for this `.2c.2b` split slice.
+
+**Why**
+
+- The first real-tool run of `.2c.2a`'s `#[ignore]` parity gate
+  (`cargo test -- --ignored parity_against_real_yosys_write_json`
+  against locally-installed yosys 0.64) immediately after
+  `.2c.2a` landed at `900061c` retained exactly one
+  counterexample: seed 7, `WidthMismatch { name: "sig",
+  expected: bits=8, actual: bits=2 }`. Root cause is an
+  ANVIL-self-consistency bug in `width_expr`
+  (`src/microdesign/mod.rs`): the SV text uses Rust's
+  `last.value.rem_euclid(8) + 1` (mathematical non-negative
+  modulo, `(-1).rem_euclid(8) = 7`) but emits SV text
+  `((<last> % 8) + 1)` which evaluates `(-1 % 8) + 1 = 0`
+  (SV's `%` on signed integers is truncated toward zero,
+  matching Rust's `%`); yosys interprets `logic [-1:0] sig`
+  as 2 bits. Oracle ≠ SV ⇒ NOT a yosys bug. The parity gate
+  did exactly what `.1` designed it for: surface an
+  oracle/downstream semantic disagreement.
+
+- ANVIL's "valid-by-construction + downstream-acceptance-quality"
+  north-star (the framing the user confirmed 2026-05-18 and
+  recorded in the `project_anvil_north_star.md` memory)
+  requires fixing this BEFORE ROADMAP Phase 7 can be promoted
+  (r87 no-aspirational-claims: a known counterexample is not a
+  clean banked artifact). The minimum fix is to change BOTH the
+  oracle and the SV text to the standard SV non-negative-modulo
+  idiom `((x % 8) + 8) % 8 + 1`, so the width is always in
+  `[1, 8]` and oracle ≡ SV. That fix is small (~2 lines + a
+  regression proof) but a code change per the
+  task-tree-mandatory doctrine — it needs its own owning leaf.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean; tree-planning,
+  docs-only ⇒ `cargo test` and `mdbook build book` unchanged
+  vs `900061c`.
+
+**Impact**
+
+- ROADMAP Phase 7 closure remains gated on `.2c.2b.2`'s
+  verified-clean real-tool re-run after `.2c.2b.1`'s fix lands.
+  Frontier on the still-open `PHASE-7-ORACLE-MICRODESIGN` tree
+  is now `.2c.2b.1` (unblocked, small fix). The parity gate's
+  ability to surface a real defect under the first real-tool
+  run is exactly the ANVIL purpose: tooling-quality validation
+  catches even our own semantic drifts.
+
+**Files touched**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.2a — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2a scoped comparator + yosys write_json extractor + end-to-end-runnable #[ignore] harness
+
+**Landed as:** 900061c
 
 **What changed**
 
