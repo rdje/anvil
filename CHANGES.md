@@ -1,8 +1,168 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2 into .2a (source IR + elaboration-evaluator) + .2b (emitters) + .2c (parity harness + gate)
+## 2026-05-20-phase8-2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2a source-level AST IR + construction-time elaboration-evaluator (oracle)
 
 **Landed as:** this commit
+
+**What changed**
+
+- New separate top-level module `src/frontend/mod.rs` registered
+  via `pub mod frontend` in `src/lib.rs` (alphabetical sort after
+  `cargo fmt --all` placed it between `emit` and `gen`).
+  Deliberately **not** in `src/ir/` — the circuit IR cannot
+  express modules/params/packages/typedef/generate; that is the
+  category error `PHASE-8-FRONTEND-ACCEPT.1` rejected.
+
+- **AST IR types** (the source-level surfaces the DUT circuit IR
+  cannot express; every type derives `Debug+Clone+PartialEq+Eq`
+  so the reproducibility proof can byte-compare two builds and
+  the manifest-mirror proof can map-compare resolved fact sets):
+  - `SourceUnit { seed, packages, children, top }` — depth-1
+    instance tree; sufficient to stress every elaboration axis
+    the parity gate checks (deeper trees are a post-`.2a` knob,
+    not a blocker).
+  - `Package { name, items }` + `PackageItem::Localparam(ParamDecl)`.
+  - `Module { name, params, body }` with `ParamDecl { name, kind,
+    expr, value }` (own type so Phase-8's package-vs-port
+    distinction is local; cross-tree reuse is at the
+    `ConstExpr`/`eval` layer).
+  - `ModuleItem::Localparam(ParamDecl) | Instance(Instance) |
+    GenerateIf(GenerateIf)`.
+  - `Instance { inst_name, child_module, param_bindings }` with
+    named bindings only in `.2a` (ordered is a `.2b` knob).
+  - `ParamBinding { name, expr, resolved }`.
+  - `GenerateIf { label, else_label, condition, taken,
+    then_branch, else_branch }`.
+
+- **Cross-tree reuse** per `.1`'s full-factorization plan: `use
+  crate::microdesign::{eval, BinOp, ConstExpr, EvalError,
+  ParamKind}` — Phase 7's `ConstExpr` and `eval` are the
+  expression layer for parameter defaults / localparam chains /
+  instance bindings / generate predicates.
+
+- **Construction-time elaboration-evaluator** `pub fn
+  elaborate(unit: &mut SourceUnit) -> Result<BTreeMap<String,
+  i128>, EvalError>` walks (1) package localparams →
+  `pkg::name` env, (2) top-module parameter ports → `name`
+  env, (3) top-module body items (Localparams extend env in
+  declaration order; Instance bindings resolve in the PARENT's
+  env and populate `ParamBinding.resolved`; `GenerateIf.taken
+  = eval(condition) != 0`; else-branch elaborates in a
+  sandboxed clone so it doesn't leak — SV's model). **The
+  builder IS the oracle**: every `.value`/`.resolved`/`.taken`
+  is set in place; downstream readers (emit, manifest,
+  comparator) read them directly without re-evaluating.
+
+- **Rules-first reproducible builder** `pub fn
+  build_acceptable_unit(seed: u64, n_params: usize,
+  n_children: usize) -> SourceUnit`: one
+  `ChaCha8Rng::seed_from_u64(seed)` drives everything (project
+  convention; no `thread_rng`); one package `acc_<seed>_pkg`
+  with one `localparam int K = (seed % 32) + 1`; one child
+  stub `child_<seed>` with `n_params` literal-default
+  parameters; one top module `acc_<seed>` with `n_params`
+  parameter ports + `n_params` chained localparams (L0 ←
+  P0, Li ← L<i-1> ± small literal) + `n_children`
+  named-binding `child_<seed>` instances (each binds every
+  `CP<i>` to `Add(<top-param-or-localparam-ref>,
+  <small-offset>)`) + one `GenerateIf` with condition `P0 >=
+  acc_<seed>_pkg::K`. Resolved in place via `elaborate()`.
+
+- **4 unit proofs (all green)** in `src/frontend/mod.rs::tests`:
+  1. `build_acceptable_unit_has_the_documented_shape` — smoke:
+     one package, one child, one top, `n_params`/`n_children`/lp
+     counts match.
+  2. `unit_is_reproducible_and_seed_sensitive` — **load-bearing
+     reproducibility invariant**: same `(seed, shape)` →
+     byte-identical `SourceUnit` across rebuilds for seeds
+     `{0, 1, 7, 42, 12345}`; distinct seeds differ.
+  3. `elaboration_evaluator_resolves_every_axis` — package K
+     positive; literal-rooted top params resolve to their
+     literal; localparams re-eval consistently in the prefix
+     env; `GenerateIf.taken` matches a fresh eval of the
+     condition.
+  4. `elaborated_facts_match_a_fresh_reeval_across_the_seed_set`
+     — **the load-bearing oracle-no-drift invariant** (the
+     Phase-8 counterpart of Phase 7's
+     `stored_values_are_consistent_with_a_fresh_reeval`):
+     every stored `ParamDecl.value`/`ParamBinding.resolved`/
+     `GenerateIf.taken` equals a fresh eval against the
+     reconstructed env, across seeds 0..=8 — covers ALL fact
+     axes the manifest will carry. If this proof passes,
+     `.2b`'s emitter can trust the stored fields and never
+     has to re-evaluate.
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20`; `.2a` Status `pending`→`done` with
+  full Verification (every type + every proof + the
+  cross-tree-reuse policy itemised) + Commit field; Frontier
+  `.2a`→`.2b`; Verification Log + Commit Log + Changelog
+  entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  current frontier updated `.2a` → `.2b` with the inline
+  summary.
+
+- `CHANGES.md`: this entry + backfill of the `phase8-2-split`
+  entry's "Landed as: this commit" → `d36020e`.
+
+- `MEMORY.md`: recent commits — `phase8-2-split`
+  `<pending>` → `d36020e`; new `<pending>` head for this
+  `.2a` slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2a` — the IR + oracle half of
+  `.2`'s three-way split, exactly mirroring Phase 7's `.2a`.
+  Lands the foundation `.2b`'s emitters and `.2c`'s parity
+  harness will read; the oracle-no-drift proof load-bears
+  every downstream slice. Cross-tree reuse of Phase 7's
+  `ConstExpr` keeps the expression layer single-source-of-truth
+  per the full-factorization plan and lets `.2c` extend
+  Phase 7's scoped comparator with hierarchy-aware variants.
+
+**Validation**
+
+- `cargo fmt --all --check` clean (after the alphabetical
+  re-sort of `pub mod` declarations).
+- `cargo clippy --all-targets -- -D warnings` clean.
+- `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - lib: **233 passed** (was 229 + 4 new `frontend::tests`
+    proofs).
+  - `frontend::tests`: **4/4** green.
+  - `microdesign::tests`: 8/8 still green (the new
+    cross-tree import is read-only on the Phase-7 surface).
+  - `tests/microdesign_parity`: 15 passed + 1 ignored
+    (every `.2c.1` + `.2c.2a` portable proof unchanged-green).
+  - `tests/pipeline`: 121 passed (647s).
+  - `tests/snapshots`: 6 passed.
+  - bin tests: 5+29+3 passed.
+  - doc-tests: unchanged.
+- DUT lane stays byte-identical by construction (`frontend`
+  is never invoked from `gen::*`; the new `pub mod` is
+  structurally additive).
+
+**Impact**
+
+- `PHASE-8-FRONTEND-ACCEPT.2b` is unblocked (un-elaborated
+  SV emitter + elaborated-facts JSON manifest emitter from
+  the same `.2a` oracle). The Phase-8 source-AST IR +
+  oracle is in-tree and ready for the emitter + parity
+  gate to layer on top, mirroring Phase 7's `.2b`/`.2c`
+  progression.
+
+**Files touched**
+
+- `src/lib.rs`; `src/frontend/mod.rs` (new);
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2 into .2a (source IR + elaboration-evaluator) + .2b (emitters) + .2c (parity harness + gate)
+
+**Landed as:** d36020e
 
 **What changed**
 

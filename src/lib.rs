@@ -7,6 +7,18 @@
 
 pub mod config;
 pub mod emit;
+/// Phase 8 frontend / elaboration accept-corpus lane
+/// (`PHASE-8-FRONTEND-ACCEPT`). A **separate generator path** from
+/// the DUT lane: a source-level **AST IR** (`SourceUnit` → `Package` →
+/// `Module` → `ModuleItem`) with a **construction-time elaboration-
+/// evaluator** that resolves every parameter, generate predicate, and
+/// instance binding as the IR is built — the *oracle*. Extends Phase
+/// 7's `ConstExpr` / `eval` core with hierarchy: packages, modules,
+/// instances, generate-if blocks. Deliberately not threaded through
+/// the gate-level circuit IR (`ir`) — the circuit IR cannot express
+/// modules/params/packages/generate, the category error `.1`
+/// rejected.
+pub mod frontend;
 pub mod gen;
 pub mod ir;
 pub mod metrics;
