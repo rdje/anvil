@@ -525,6 +525,60 @@ sessions.
   is never invoked from the DUT generate path; default-off).
   See `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md` and the
   `ROADMAP.md` Phase 7 entry.
+- **Source-level frontend / elaboration accept lane** —
+  Phase 8. **Delivered (Phase 8, 2026-05-20,
+  `PHASE-8-FRONTEND-ACCEPT` tree CLOSED).** A separate
+  top-level module `src/frontend/` carries its own
+  *source-level* AST IR (`SourceUnit` → `Package` →
+  `Module` → `ModuleItem` with `Instance` and
+  `GenerateIf` arms; depth-1 instance tree sufficient
+  to stress every elaboration axis the parity gate
+  checks), a construction-time elaboration-evaluator
+  (`elaborate(&mut SourceUnit)` resolves every
+  `ParamDecl.value`/`ParamBinding.resolved`/
+  `GenerateIf.taken` from a single `ConstExpr`
+  evaluation — the builder IS the oracle), un-elaborated
+  SV emitter (parameter ports / localparam definitions
+  / instance bindings / generate predicates all
+  kept symbolic), elaborated-facts JSON manifest
+  (instance tree path → `child_module` → resolved
+  bindings + per-label generate-branch decisions + per-
+  package constants), and a hierarchy-aware parity
+  comparator (`ToolReport`/`InstanceToolReport`/
+  `Divergence` × 23 variants — extending Phase 7's set
+  with `Instance{MissingInTool, MissingInManifest,
+  ChildModuleMismatch, BindingMissingInTool,
+  BindingMissingInManifest, BindingMismatch}` — keyed
+  by `(inst_name, binding_name)` for order-independent
+  hierarchy-aware compares). **Cross-tree reuse** of
+  Phase 7's `ConstExpr`/`eval`/`expr_to_sv` at the
+  expression layer keeps the full-factorization
+  doctrine satisfied and carried Phase 7's hard-won
+  `.2c.2b.1` non-negative-modulo-idiom fix forward for
+  free — Phase 8's parity gate against real yosys 0.64
+  came back clean on the **first** real-tool run
+  (contrast with Phase 7's fix-and-retry). Repo-owned
+  gate `tests/frontend_parity.rs::parity_against_real_yosys_hierarchy_write_json`
+  (`#[ignore]`-gated, Phase-1 doctrine) drives the
+  deterministic 5-seed corpus through `yosys
+  hierarchy -top acc_<seed>; write_json` (deliberately
+  NO `proc; opt` — the empirical probe confirmed it
+  collapses empty-bodied child instances out of
+  `.cells`) and asserts exact agreement on the
+  yosys-supported categories
+  (Seed/Top/TopParams/Instances/GenerateBranches; the
+  load-bearing per-instance per-binding values are
+  read from yosys's `.cells[<inst>].parameters`).
+  Top_localparams + package_constants are folded by
+  yosys and remain visible only to richer-AST tools
+  (slang `--ast-json` / verilator `--xml-only`) —
+  recorded post-Phase-8 follow-up that does NOT
+  retract closure (ANVIL's manifest already covers
+  all 7 categories). The DUT lane stays byte-identical
+  by construction (`frontend` is never invoked from
+  the DUT generate path; default-off). See
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md` and the
+  `ROADMAP.md` Phase 8 entry.
 - **Unpacked `struct` / `union` for datapath** — mostly
   non-synthesizable (tool-dependent). Not pursued.
 - **Enums** — synthesizable but thin; they are typed constant

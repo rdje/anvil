@@ -1,8 +1,144 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2c.2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2a yosys hierarchy write_json extractor + end-to-end-runnable #[ignore] harness
+## 2026-05-20-phase8-2c.2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2b parity gate clean against yosys (first try) — closes Phase 8 + tree
 
 **Landed as:** this commit
+
+**What changed**
+
+- `ROADMAP.md` Phase 8 `(not started)` → `(done)`. Header
+  flipped; body rewritten from a forward-looking spec to a
+  delivered-and-verified description citing the closing
+  artifact; added "Exit criteria (met)" block with the
+  corpus + per-seed verification summary; added "Scope
+  caveat (explicit)" block recording yosys's 5-of-7
+  coverage; added "Notable during closure" block recording
+  the first-try clean — contrast with Phase 7's
+  fix-and-retry, attributable to cross-tree reuse of Phase
+  7's `expr_to_sv` carrying `.2c.2b.1`'s
+  non-negative-modulo-idiom fix forward for free at the
+  expression layer (full-factorization doctrine
+  vindicated).
+
+- `book/src/ir.md`: new "Source-level frontend /
+  elaboration accept lane" bullet in the "Future
+  extensions" section, marked **Delivered (Phase 8,
+  2026-05-20, `PHASE-8-FRONTEND-ACCEPT` tree CLOSED)**
+  with the full description (`src/frontend/` AST IR +
+  `elaborate()` + `emit_sv`/`emit_manifest`, the
+  hierarchy-aware comparator with the load-bearing
+  `Instance*` divergence-variant extensions, the
+  yosys-specific extractor reading `.cells[<inst>].
+  parameters`, the `hierarchy -top`-no-`proc; opt`
+  invocation, and the scope caveat).
+
+- `README.md` phase narrative: Phase 8 entry written as
+  **Phase 8 done (2026-05-20)** with the full
+  closing-artifact citation, the cross-tree reuse story,
+  the first-try-clean note, the scope caveat, and the
+  ANVIL-now-ships-three-lanes summary. Tail updated to
+  start from Phase 9.
+
+- `CODEBASE_ANALYSIS.md` phase-coverage-map Phase-8 row
+  from "not started" to **"done (2026-05-20)"** with the
+  matching citation.
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata
+  Status `active` → `done` + Last updated 2026-05-20;
+  tree-root + `.2` + `.2c` + `.2c.2` containers all
+  `active` → `done`; `.2c.2b` leaf Status `pending` →
+  `done` with the full Verification (per-seed agreement
+  summary + stdout + banked-artifact location + the
+  first-try-clean note attributing it to cross-tree
+  reuse) + Commit field; Frontier replaced with
+  "(closed)"; Verification Log + Commit Log + Changelog
+  entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row
+  Status `active` → `done` with the closing-artifact
+  citation + scope caveat + cross-tree-reuse note.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase8-2c.2a` entry's "Landed as: this commit" →
+  `4f7867d`.
+
+- `MEMORY.md`: Phase 8 (frontend-accept) marked DONE with
+  the closing-artifact citation; tree row marked tree
+  COMPLETE; recent commits — `phase8-2c.2a` `<pending>`
+  → `4f7867d`; new `<pending>` head for this slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c.2b` — the verified-clean
+  real-tool gate run that closes Phase 8 (r87
+  no-aspirational-claims; the artifact precedes every
+  word of the promotion). Came back clean on the **first**
+  try (contrast with Phase 7's `.2c.2b.1` `width_expr`
+  fix-and-retry); the gate-clean-on-first-try is exactly
+  the kind of cross-tree-reuse payoff the user's
+  `full-factorization` doctrine targets: Phase 8 composes
+  Phase 7's `expr_to_sv`, so Phase 7's hard-won
+  non-negative-modulo-idiom fix carries forward at the
+  expression layer at zero incremental cost.
+
+**Validation**
+
+- Real `cargo test --test frontend_parity -- --ignored
+  parity_against_real_yosys_hierarchy_write_json
+  --nocapture` exits 0 with `"parity gate clean across 5
+  seeds; artifacts in
+  /Users/richarddje/.../target/tmp/frontend-parity-phase8-yosys"`
+  and `"test result: ok. 1 passed; 0 failed; 0 ignored; 0
+  measured; 13 filtered out; finished in 0.04s"`.
+- Banked artifact:
+  `/tmp/anvil-frontend-parity-phase8-yosys-p1/` (15 files
+  — 5 reproducibility seeds × `{.sv, .json,
+  .yosys.json}`).
+- Per-seed agreement verified including both generate
+  branches (seed 12345 takes `g_else`, others take
+  `g_taken`) AND the load-bearing hierarchy-aware Phase-8
+  axis (every seed has 2 instances × 4 per-instance
+  per-binding values matched against yosys's
+  `.cells[<inst>].parameters`).
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+  `cargo test` structurally unchanged-green vs `4f7867d`
+  (no `src/`/`tests/` change in this slice — the code
+  landed in `.2a`/`.2b`/`.2c.1`/`.2c.2a`).
+- `mdbook build book` clean.
+
+**Impact**
+
+- **ROADMAP Phase 8 closes.** The `PHASE-8-FRONTEND-ACCEPT`
+  tree closes. ANVIL now ships **three** complementary
+  lanes: the DUT lane (Phases 1–6: hierarchy + width
+  parameterization + packed aggregates + inferrable
+  memories + generated-encoding Moore FSMs), the
+  oracle-backed micro-design lane (Phase 7:
+  `rtl_const_expr`-family `.sv` with construction-time-
+  resolved expected-facts manifests), and the source-level
+  frontend / elaboration accept lane (Phase 8: depth-1
+  hierarchies with instances, generate-if, packages, and
+  elaborated-facts manifests). All three are verified
+  downstream-clean on their respective gates.
+  Continuous-PNT proceeds:
+  `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2` is now unblocked
+  (its `.1` design records `.2` blocked until ≥2
+  post-DUT lanes deliver — Phase 7 + Phase 8 satisfy that
+  count) + `DIFFERENTIAL-SIMULATION.2b`.
+
+**Files touched**
+
+- `ROADMAP.md`; `book/src/ir.md`; `README.md`;
+  `CODEBASE_ANALYSIS.md`;
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2c.2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2a yosys hierarchy write_json extractor + end-to-end-runnable #[ignore] harness
+
+**Landed as:** 4f7867d
 
 **What changed**
 

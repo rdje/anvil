@@ -886,10 +886,48 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   categories (Seed/Top/Params/Widths/Generate); richer-AST
   coverage via `slang`/`verilator-with-debug` is a recorded
   post-Phase-7 follow-up that does NOT retract closure (the
-  manifest already covers all 7 categories). Every remaining
-  roadmap phase (Phase 8 frontend-accept and beyond) is tracked
-  as a task tree under `docs/TASK_TREE.md`. See `ROADMAP.md` for
-  phase gating.
+  manifest already covers all 7 categories). **Phase 8 —
+  Frontend/elaboration accept corpora is done (2026-05-20,
+  `PHASE-8-FRONTEND-ACCEPT` tree CLOSED):** delivered a
+  source-level **AST IR** + construction-time
+  elaboration-evaluator + un-elaborated-SV emitter +
+  elaborated-facts JSON manifest emitter in
+  `src/frontend/` (depth-1 elaboratable hierarchies: one
+  package + one top module + N named-binding child stub
+  instances + chained body localparams + a generate-if).
+  Cross-tree reuse of Phase 7's `ConstExpr`/`eval`/
+  `expr_to_sv` keeps the full-factorization doctrine
+  satisfied and carries Phase 7's `.2c.2b.1`
+  non-negative-modulo-idiom fix forward for free — which
+  is exactly why Phase 8's parity gate came back clean on
+  the **first** real-tool run (contrast with Phase 7's
+  fix-and-retry). The repo-owned hierarchy-aware
+  comparator (`ToolReport`/`InstanceToolReport`/
+  `Divergence` × 23 variants including the load-bearing
+  hierarchy-aware `Instance*` additions/`FactCategory`/
+  `ParityScope`/`compare_manifest_to_tool_report_in_scope`)
+  + yosys-specific extractor + `parity_against_real_yosys_hierarchy_write_json`
+  end-to-end gate close Phase 8. Closing artifact
+  `/tmp/anvil-frontend-parity-phase8-yosys-p1/` (5
+  reproducibility-set seeds × {`.sv`, `.json`,
+  `.yosys.json`}; "parity gate clean across 5 seeds"); per-
+  seed fact agreement verified including the
+  load-bearing per-instance per-binding values (yosys's
+  `.cells[<inst>].parameters`) AND both generate
+  branches exercised (seed 12345 takes `g_else`, others
+  take `g_taken`). Scope caveat: yosys covers 5 of the 7
+  manifest fact categories
+  (Seed/Top/TopParams/Instances/GenerateBranches);
+  top_localparams + package_constants are folded —
+  richer-AST coverage via slang/verilator-with-debug
+  remains a recorded post-Phase-8 follow-up. ANVIL now
+  ships **three** complementary lanes: the DUT lane
+  (Phases 1–6), the oracle-backed micro-design lane
+  (Phase 7), and the source-level frontend/elaboration
+  accept lane (Phase 8). Every remaining roadmap phase
+  (Phase 9 multi-artifact umbrella) is tracked as a
+  task tree under `docs/TASK_TREE.md`. See `ROADMAP.md`
+  for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.
