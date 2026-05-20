@@ -1,8 +1,148 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2a source-level AST IR + construction-time elaboration-evaluator (oracle)
+## 2026-05-20-phase8-2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/frontend/mod.rs` extended (same separate top-level
+  module; `serde::Serialize` + `serde::Deserialize` added to
+  the `use` set):
+  - `pub fn emit_sv(unit: &SourceUnit) -> String` — emits the
+    full un-elaborated SystemVerilog: one provenance comment;
+    one `package <name>; localparam int K = <symbolic expr>;
+    endpackage` per `Package`; one
+    `module child_<seed> #(parameter int CP<i> = <symbolic
+    expr>); endmodule` per child stub; the top module with
+    symbolic `parameter int P<i>` headers + chained
+    `localparam int L<i> = <symbolic expr>;` + named-binding
+    `child_<seed> #(.CP<i>(<symbolic expr>)) u_<seed>_<idx> ();`
+    instance instantiations + `generate if (<symbolic
+    condition>) begin : g_taken logic gflag; assign gflag =
+    1'b1; end else begin : g_else logic gflag; assign gflag =
+    1'b0; end endgenerate`. All expressions render via the
+    cross-tree-reused `crate::microdesign::expr_to_sv` (the
+    fully-parenthesized SV printer); the `g_taken`/`g_else`
+    `gflag` marker matches Phase 7's convention so the
+    netname-prefix-scan trick from `.2c.2a`'s yosys extractor
+    works on Phase-8 hierarchies.
+  - Manifest types (all `pub`, serde `Serialize`+
+    `Deserialize`, `BTreeMap` throughout for deterministic
+    key order):
+    - `PackageFacts { name, constants: BTreeMap<String, i128> }`
+    - `ParamFact { value: i128, expr: String }`
+    - `InstanceFact { inst_name, child_module,
+       resolved_bindings: BTreeMap<String, i128> }`
+    - `GenerateFact { taken: bool }`
+    - `Manifest { seed, top, packages, top_params,
+       top_localparams, instances, generate_branches }`
+  - `pub fn build_manifest(unit: &SourceUnit) -> Manifest`
+    reads `.2a`'s stored oracle fields directly (no
+    re-evaluation — **load-bearing** on
+    `elaborated_facts_match_a_fresh_reeval_across_the_seed_set`
+    from `.2a`).
+  - `pub fn emit_manifest(unit) -> String` serializes via
+    `serde_json::to_string_pretty` (byte-stable thanks to
+    `BTreeMap` ordering).
+
+- **3 new lib proofs** (10 total in `frontend::tests`):
+  - `emit_sv_is_valid_unresolved_shape` — seed 7,
+    `n_params=4`, `n_children=2`: emits `package acc_7_pkg;` +
+    `endpackage`; child stub `module child_7` with
+    `parameter int CP0 = `; top `module acc_7` with
+    `parameter int P0 = `, `localparam int L0 = `; both
+    `u_7_0 ()` and `u_7_1 ()` instances; generate-if with
+    both `: g_taken` and `: g_else` labels +
+    `endgenerate`; at least one chained localparam line is
+    symbolic (contains an operator + a reference, not a bare
+    resolved integer).
+  - `manifest_mirrors_the_oracle` — across reproducibility
+    seeds `{0, 1, 7, 42, 12345}`: parsed manifest is valid
+    JSON; `seed`/`top` match; `packages[0]` matches the
+    oracle (`name` + `constants.K`); every `top_params` and
+    `top_localparams` entry's `.value` AND `.expr` match the
+    oracle (`expr_to_sv(.expr)`); every `InstanceFact`
+    matches `inst_name` + `child_module` + per-binding
+    `resolved_bindings` vs the oracle's
+    `ParamBinding.resolved`; every
+    `generate_branches[label].taken` matches the oracle's
+    `GenerateIf.taken`.
+  - `sv_and_manifest_are_byte_reproducible` — seeds
+    `{0, 1, 7, 42, 999}`: same `(seed, shape)` →
+    byte-identical `.sv` + `.json` across rebuilds; distinct
+    seeds differ.
+
+- Fixed 2 `single_char_add_str` clippy hits in `emit_sv`
+  (`push_str(")")` → `push(')')`).
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20`; `.2b` Status `pending`→`done` with
+  full Verification (every type + every proof + the
+  cross-tree-reuse policy itemised) + Commit field; Frontier
+  `.2b`→`.2c`; Verification Log + Commit Log + Changelog
+  entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  frontier updated `.2b` → `.2c` with the inline summary.
+
+- `CHANGES.md`: this entry + backfill of the `.2a` entry's
+  "Landed as: this commit" → `603aaa5`.
+
+- `MEMORY.md`: recent commits — `.2a` `<pending>` →
+  `603aaa5`; new `<pending>` head for this `.2b` slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2b` — the emitters half of `.2`'s
+  three-way split, mirroring Phase 7's `.2b`. The
+  un-elaborated SV keeps every elaborate-able surface
+  symbolic; the elaborated-facts manifest carries the
+  resolved values the oracle computed at construction. The
+  gap between them is exactly the front-end / elaboration
+  behaviour the `.2c` parity gate stresses. Cross-tree reuse
+  of Phase 7's `expr_to_sv` carries forward `.2c.2b.1`'s
+  non-negative-modulo-idiom fix for free at the expression
+  layer.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - lib: **236 passed** (was 233 + 3 new
+    `frontend::tests` proofs).
+  - `frontend::tests`: **10/10** (was 7 + 3 new).
+  - `microdesign::tests`: 8/8 still green.
+  - `tests/microdesign_parity`: 15 passed + 1 ignored.
+  - `tests/pipeline`: 121 passed (654s).
+  - `tests/snapshots`: 6 passed.
+  - bin tests: 5+29+3 passed; doc-tests unchanged.
+- DUT lane stays byte-identical-by-construction.
+
+**Impact**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c` is unblocked (the
+  hierarchy-aware parity harness + repo-owned gate; reuses
+  Phase 7's scoped comparator with hierarchy-aware variants;
+  tool-gated `#[ignore]` per the Phase-1 doctrine). The
+  Phase-8 source-AST IR + oracle + emitters are now
+  in-tree; the parity gate is the last leaf before ROADMAP
+  Phase 8 → done. Expected to split per the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2` etc.
+  decomposition.
+
+**Files touched**
+
+- `src/frontend/mod.rs`;
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2a source-level AST IR + construction-time elaboration-evaluator (oracle)
+
+**Landed as:** 603aaa5
 
 **What changed**
 
