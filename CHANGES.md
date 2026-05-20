@@ -1,8 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase6-3.4b — PHASE-6-ADVANCED-MOTIFS.3.4b: FSM delivered — verified gate, closes Phase 6 + tree
+## 2026-05-20-phase7-2c-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 7)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Status stays
+  `active`, Last updated `2026-05-20` ("`.2c` split"); `.2`
+  container Children annotation now lists `.2c` as an active
+  container; `.2c` itself Status `pending`→`active` with its
+  rationale-bearing Goal block recording the split + Children
+  `.2c.1`+`.2c.2`; new `.2c.1` leaf (Status `pending`) — **build
+  the parity harness, cargo-portable comparator proof + tool-gated
+  `#[ignore]` real-tool harness scaffold, no real run, no ROADMAP
+  advance, cargo stays green tool-less per the Phase-1 doctrine
+  recorded in this tree's Decisions**; new `.2c.2` leaf (Status
+  `pending`) — **real tool-equipped run of the harness + verify
+  exact-agreement + record ROADMAP Phase 7 → done**; Frontier
+  updated `.2c` → `.2c.1`; Decisions append the 2026-05-20 split
+  rationale citing the proven memory `.2.3`/`.2.4` + FSM
+  `.3.4a`/`.3.4b` decomposition; Verification Log adds the
+  `.2c (split)` row; Commit Log adds the `.2c (split)` row;
+  Changelog appends the 2026-05-20 split entry (continuous-PNT
+  immediately after closing Phase 6 + the
+  `PHASE-6-ADVANCED-MOTIFS` tree at `13faa77`, the 30-commit batch
+  pushed `8076e25..13faa77`).
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row's current
+  frontier updated `.2c` → `.2c.1` with the inline split note.
+- `CHANGES.md`: this entry + backfill of the `.3.4b` entry's
+  "**Landed as:** this commit" → `13faa77`.
+- `MEMORY.md`: recent commits — `.3.4b` `<pending>` → `13faa77`;
+  new `<pending>` head for this `.2c` split slice.
+
+**Why**
+
+- `PHASE-7-ORACLE-MICRODESIGN.2c` — the parity-harness leaf — is
+  three independently-signoff-able pieces (build harness, run real
+  gate, promote ROADMAP) collapsed into one. The proven memory
+  `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition pattern
+  separates the harness-machinery code that lands first
+  (cargo-portable, no advance) from the gated real run +
+  promotion. Applying the same split here keeps each leaf
+  signoff-sized, keeps r87 no-aspirational-claims clean (the gated
+  real run remains the only place ROADMAP Phase 7 can be promoted
+  from), and lets `.2c.1` land independently of any tool
+  availability.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean; tree-planning,
+  docs-only ⇒ `cargo test` and `mdbook build book` unchanged
+  vs `13faa77`.
+
+**Impact**
+
+- Frontier on the next-numbered active tree is now `.2c.1`
+  (unblocked, code-bearing). Phase 7 closure remains gated on
+  `.2c.2`'s verified run. Phase 6 closure (`.3.4b`, `13faa77`)
+  was the prior slice and is preserved.
+
+**Files touched**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase6-3.4b — PHASE-6-ADVANCED-MOTIFS.3.4b: FSM delivered — verified gate, closes Phase 6 + tree
+
+**Landed as:** 13faa77
 
 **What changed**
 

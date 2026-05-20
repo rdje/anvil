@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 7 — Oracle-backed micro-design artifacts
 - Created: `2026-05-16`
-- Last updated: `2026-05-19` (`.2b` SV + JSON-manifest emitters landed; frontier → `.2c`)
+- Last updated: `2026-05-20` (**`.2c` split** into `.2c.1` parity-harness build + `.2c.2` real-gate verify → ROADMAP Phase 7, mirroring the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition; tree-planning only, no code; frontier → `.2c.1`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -51,7 +51,7 @@ checks.
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2`
   Status: `active`
   Goal: `Implement the micro-design generator + manifest + parity harness per .1, behind an explicit artifact-family selector flag, with a matrix/parity gate. Split per the Splitting Rules along the exact independently-reviewable boundaries .1's design named (const-expr/parameter IR + construction-time evaluator / SV emitter + manifest emitter / parity harness + repo-owned gate).`
-  Children: `PHASE-7-ORACLE-MICRODESIGN.2a`, `PHASE-7-ORACLE-MICRODESIGN.2b`, `PHASE-7-ORACLE-MICRODESIGN.2c`
+  Children: `PHASE-7-ORACLE-MICRODESIGN.2a` (done), `PHASE-7-ORACLE-MICRODESIGN.2b` (done), `PHASE-7-ORACLE-MICRODESIGN.2c` (active container: `.2c.1`, `.2c.2`)
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2a`
   Status: `done`
@@ -68,9 +68,21 @@ checks.
   Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2b SV + JSON expected-facts manifest emitters (from the .2a oracle)`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c`
+  Status: `active`
+  Goal: `The parity harness + repo-owned gate: a downstream consumer (Yosys write_json / slang|Verilator param introspection) reports resolved facts; compare to the manifest — exact agreement or a retained counterexample (SV+manifest+tool output). Tool-gated (cargo test stays green tool-less — Phase-1 doctrine, like memory/FSM .2.2 + DIFFERENTIAL .2b). Then verify a clean run and record ROADMAP Phase 7 -> done (r87 no-aspirational-claims: verified artifact precedes the promotion). Split (Splitting Rules + the proven memory .2.3/.2.4 and FSM .3.4a/.3.4b decomposition: the harness machinery is code that lands before any advance; the real-tool gate run + ROADMAP promotion is a separate gated step) into .2c.1 (parity harness build: cargo-portable comparator proof + tool-gated #[ignore] real-tool harness scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) and .2c.2 (run the real tool-equipped #[ignore] gate, verify clean, record ROADMAP Phase 7 -> done — gate-blocked).`
+  Children: `PHASE-7-ORACLE-MICRODESIGN.2c.1`, `PHASE-7-ORACLE-MICRODESIGN.2c.2`
+
+- ID: `PHASE-7-ORACLE-MICRODESIGN.2c.1`
   Status: `pending`
-  Goal: `The parity harness + repo-owned gate: a downstream consumer (Yosys write_json / slang|Verilator param introspection) reports resolved facts; compare to the manifest — exact agreement or a retained counterexample (SV+manifest+tool output). Tool-gated (cargo test stays green tool-less — Phase-1 doctrine, like memory/FSM .2.2 + DIFFERENTIAL .2b). Then verify a clean run and record ROADMAP Phase 7 -> done (r87 no-aspirational-claims: verified artifact precedes the promotion).`
-  Acceptance: `Reproducible corpus + manifests; parity harness green or retains counterexamples on a real run; ROADMAP Phase 7 -> done only after a verified clean gate; cargo test green tool-less (the parity gate is tool-gated/repo-owned, not in the portable suite).`
+  Goal: `Build the parity harness — cargo-portable + tool-gated. A new top-level test file (e.g. tests/microdesign_parity.rs, mirroring tests/pipeline.rs) carrying: (a) a pure-Rust fact-extraction-and-comparison core that operates on already-collected tool output (an in-test synthetic representation, NOT a tool invocation) — testable cargo-portably without yosys/verilator/slang; (b) a tool-equipped #[ignore]-gated test that, when invoked with the tools available (cargo test -- --ignored), drives a fixed deterministic corpus through emit_sv + emit_manifest, shells the chosen downstream consumer on each .sv, parses the resolved-facts report, and feeds it to the cargo-portable comparator core to assert exact agreement (or retain a counterexample tuple of {sv, manifest, tool_output, divergence}). Tool-gated ⇒ portable cargo test stays green tool-less (Phase-1 doctrine; identical to differential-sim .2b and the convention recorded in this tree's Decisions). Cargo-portable comparator proof: deterministic seeds {0,1,7,42,12345} (matching .2a's reproducibility set) × build → manifest, then feed a hand-constructed-to-agree synthetic tool report to the comparator and prove exact-equality; AND feed a deliberately-perturbed synthetic report and prove the comparator surfaces the right divergence kind (param-mismatch / width-mismatch / generate-branch-mismatch / package-constant-mismatch). No ROADMAP advance (that is .2c.2 on verified evidence).`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; new tests/microdesign_parity.rs landed with the cargo-portable comparator + the #[ignore]-gated tool harness; cargo-portable comparator proof exact-agrees on synthetic-agree fixtures and surfaces the right divergence kind on each perturbed fixture; the #[ignore] test compiles + is invocable but is NOT run in the portable suite; ROADMAP unchanged (advance is .2c.2 on a verified gate); no book/ change (book reconciliation is .2c.2).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2`
+  Status: `pending`
+  Goal: `Real tool-equipped run of the .2c.1 #[ignore]-gated parity harness against a fixed deterministic corpus; VERIFY exact-agreement (or zero retained counterexamples) BEFORE any promotion (r87 no-aspirational-claims, mirroring memory .2.4 and FSM .3.4b). Then record ROADMAP Phase 7 -> done (with the explicit artifact-family lane note and the boundary to Phase 8/Phase 9 preserved); reconcile book (the Phase-7 micro-design lane in book/src/ir.md and/or a new "Micro-design lane" page in the book), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-7 row, MEMORY recent commits. Closes PHASE-7-ORACLE-MICRODESIGN.2c + the .2 container + the PHASE-7-ORACLE-MICRODESIGN tree.`
+  Acceptance: `A repo-owned banked artifact captures the harness's exact-agreement on the full corpus (zero retained counterexamples) or — if any divergence — the precise counterexample tuple is committed alongside; ROADMAP Phase 7 -> done only after the verified run; the .2c container + .2 container + tree all -> done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -78,7 +90,7 @@ checks.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c` | `pending` | `.2a`+`.2b` **done** — `src/microdesign/` has the const-expr/parameter IR + evaluator/oracle (`.2a`) and the un-resolved SV emitter + JSON expected-facts manifest emitter from the same oracle (`.2b`), 7 unit proofs green, byte-reproducible, full `cargo test` green. `.2c` adds the parity harness: a downstream consumer (Yosys `write_json` / `slang`|Verilator param introspection) reports resolved facts → compared to the manifest (exact agreement or a retained counterexample); **tool-gated `#[ignore]`** so the portable `cargo test` stays green tool-less (Phase-1 doctrine); then a verified clean run records ROADMAP Phase 7 → done (r87). Unblocked. |
+| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `pending` | `.2a`+`.2b` **done** — `src/microdesign/` has the const-expr/parameter IR + evaluator/oracle (`.2a`) and the un-resolved SV emitter + JSON expected-facts manifest emitter from the same oracle (`.2b`), 7 unit proofs green, byte-reproducible. `.2c` **split** today per the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition into `.2c.1` (build the parity harness — cargo-portable comparator proof + tool-gated `#[ignore]` real-tool harness; no real run, no advance, cargo stays green tool-less) and `.2c.2` (real-tool gate run + ROADMAP Phase 7 promotion; gate-blocked). `.2c.1` is unblocked and is the next slice. |
 
 ## Decisions
 
@@ -98,6 +110,18 @@ checks.
   (~zero contention on the near-complete Phase 6 priority gate —
   the same contention-aware discipline applied all session). `.2`
   is now a container; no renumbering. Frontier → `.2a`.
+- `2026-05-20`: **`.2c` split** into `.2c.1` (build the parity
+  harness — cargo-portable comparator proof + tool-gated `#[ignore]`
+  real-tool harness scaffold; no real run, no ROADMAP advance,
+  cargo stays green tool-less per the Phase-1 doctrine recorded in
+  this tree's Decisions) and `.2c.2` (real tool-equipped run of
+  the harness + verify exact-agreement + record **ROADMAP Phase 7 →
+  done**; gate-blocked, r87 no-aspirational-claims). Splitting Rules
+  + the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b`
+  decomposition: the harness code that lands BEFORE any advance is
+  one signoff-sized leaf; the gated real run + ROADMAP promotion +
+  book reconcile is a separate gated step. `.2c` is now a
+  container; no renumbering. Frontier → `.2c.1`.
 
 ## Open Questions
 
@@ -127,6 +151,7 @@ checks.
 | `2026-05-18` | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `.2` made a container with children `.2a` (const-expr/parameter IR + construction-time evaluator/oracle), `.2b` (SV + JSON-manifest emitters behind an artifact-family flag), `.2c` (parity harness + repo-owned gate → ROADMAP Phase 7) — the exact independently-reviewable boundaries `.1`'s design named. Tree-planning, docs-only; no `src/`/`tests/` (cargo unchanged-green vs base `e550db1`). | Done. Frontier → `.2a`. |
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2a` | New separate top-level `src/microdesign/mod.rs` (`pub mod microdesign`; not in `src/ir/`): `ConstExpr`/`UnOp`/`BinOp`/`ParamKind`/`ParamDecl`(+`value` oracle)/`ConstExprUnit` IR; `eval()` (SV-constant-expr semantics — trunc div/mod, clamped shift, cmp/logical→1/0, defensive `EvalError`); `resolve()` = the construction-time oracle (fills every value in decl order); `build_constexpr_unit(seed,n)` rules-first reproducible builder (`ChaCha8::seed_from_u64`, no `thread_rng`; literal root + earlier-decl chains/precedence/ternary; resolved in place). 4 unit proofs green: `eval_matches_known_values`, `eval_reports_div_by_zero_and_undefined_param`, `build_is_reproducible_and_seed_sensitive`, `stored_values_are_consistent_with_a_fresh_reeval` (the oracle-no-drift invariant). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No SV/manifest emit, no harness; no ROADMAP/book change. | Done. Frontier → `.2b`. |
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2b` | `src/microdesign/` extended: `expr_to_sv` (fully-parenthesized precedence-unambiguous printer), `emit_sv(unit,seed)` (un-resolved `rtl_const_expr` SV — `package mc_<seed>_pkg`/`K`, module with symbolic `parameter`/`localparam` chains, `PKG_REF = mc_<seed>_pkg::K`, expr-derived `W_SIG`+`logic[W_SIG-1:0] sig`, `generate if/else`), `Manifest`+`build_manifest`/`emit_manifest` (the `.1` JSON schema, all facts from the `.2a` resolved oracle, `BTreeMap` ⇒ byte-stable `serde_json`). Default-off DUT-byte-identical is structural (separate module, never invoked by the DUT path). 3 new proofs (7 total): `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle` (valid JSON; every fact == oracle), `sv_and_manifest_are_byte_reproducible`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No parity harness (`.2c`); no ROADMAP/book change. | Done. Frontier → `.2c`. |
+| `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c` (split) | `.2c` made a container with children `.2c.1` (build the parity harness — cargo-portable comparator proof + tool-gated `#[ignore]` real-tool harness scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) and `.2c.2` (real tool-equipped run + verify exact-agreement + ROADMAP Phase 7 → done; gate-blocked). Mirrors the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition (the harness machinery is code that lands first; the real-tool gate + promotion is a separate gated step; r87 no-aspirational-claims). Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `13faa77`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.1`. |
 
 ## Commit Log
 
@@ -136,6 +161,7 @@ checks.
 | `PHASE-7-ORACLE-MICRODESIGN.2` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2 into .2a (IR+evaluator) / .2b (emitters) / .2c (parity gate)` | Tree-planning, no code. Boundaries per `.1`'s named split candidates. |
 | `PHASE-7-ORACLE-MICRODESIGN.2a` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)` | New `src/microdesign/` IR + evaluator/oracle + reproducible rules-first builder; 4 unit proofs; no emit/harness. |
 | `PHASE-7-ORACLE-MICRODESIGN.2b` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2b SV + JSON expected-facts manifest emitters (from the .2a oracle)` | Un-resolved SV emitter + JSON manifest emitter, both from the `.2a` oracle; 3 new proofs (7 total); byte-reproducible; no harness. |
+| `PHASE-7-ORACLE-MICRODESIGN.2c` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 7)` | Tree-planning, no code. Mirrors memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition. |
 
 ## Changelog
 
@@ -230,3 +256,20 @@ checks.
   gate). No parity harness (`.2c`); no ROADMAP/book change.
   Frontier → `.2c` (parity harness + repo-owned gate → ROADMAP
   Phase 7, r87).
+- `2026-05-20`: **`.2c` split** into `.2c.1` (build the parity
+  harness — cargo-portable comparator proof + tool-gated `#[ignore]`
+  real-tool harness scaffold; no real run, no ROADMAP advance,
+  cargo stays green tool-less per Phase-1 doctrine) and `.2c.2`
+  (real tool-equipped run + verify exact-agreement + record
+  **ROADMAP Phase 7 → done**; gate-blocked, r87
+  no-aspirational-claims). Splitting Rules + the proven memory
+  `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition — the harness
+  machinery is code that lands first as one signoff-sized leaf;
+  the gated real run + ROADMAP promotion + book reconcile is a
+  separate gated step. `.2c` is now a container; no renumbering.
+  Continuous-PNT immediately after closing Phase 6 + the
+  `PHASE-6-ADVANCED-MOTIFS` tree at `13faa77` (the 30-commit batch
+  pushed `8076e25..13faa77`). Tree-planning, docs-only; no
+  `src/`/`tests/` change (`cargo` unchanged-green vs `13faa77`);
+  `mdbook build book` clean (no `book/` change). Frontier →
+  `.2c.1` (the parity-harness-build leaf; unblocked).
