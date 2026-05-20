@@ -28,6 +28,16 @@ pub mod metrics;
 /// oracle). Deliberately not threaded through the gate-level circuit
 /// IR (`ir`).
 pub mod microdesign;
+/// Phase 9 multi-artifact umbrella (`PHASE-9-MULTI-ARTIFACT-UMBRELLA`).
+/// Unifies the **plumbing** across the three delivered artifact lanes
+/// — DUT RTL (Phases 1–6), oracle-backed micro-design (Phase 7,
+/// `microdesign`), and frontend / elaboration accept (Phase 8,
+/// `frontend`) — via the `ArtifactLane` trait. Explicit anti-goal:
+/// never collapse the three lanes' rules-first generators into one
+/// "random SV generator"; only their plumbing (seed→artifact,
+/// byte-stable output, optional manifest, downstream check plan)
+/// unifies here.
+pub mod umbrella;
 
 pub use config::Config;
 pub use gen::{Generator, GeneratorCheckpoint};

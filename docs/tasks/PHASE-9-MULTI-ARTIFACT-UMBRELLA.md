@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 9 — Multi-artifact ANVIL umbrella
 - Created: `2026-05-16`
-- Last updated: `2026-05-20` (**`.2` split** into `.2a` (`ArtifactLane` trait + shared plumbing + L1 DUT wrap + byte-identical regression proof) + `.2b` (L2 microdesign + L3 frontend lane impls under the trait) + `.2c` (`--artifact` CLI flag + book/CI byte-identical verification + ROADMAP Phase 9 → done). **Unblocked** now that **both** post-DUT lanes are delivered (PHASE-7 closed `2026-05-20` at `20a7b4a`; PHASE-8 closed `2026-05-20` at `997b0a6`); `.1`'s blocker recorded "DUT + ≥1 of Phase 7/8" — Phase 7 AND Phase 8 BOTH satisfy. Tree-planning, no code; frontier → `.2a`)
+- Last updated: `2026-05-20` (**`.2a` `ArtifactLane` trait + L1 `DutLane` wrap + byte-identical regression proof landed** — new top-level module `src/umbrella/` registered via `pub mod umbrella` carrying `pub trait ArtifactLane` (`name`/`validate_knobs`/`generate(seed)`/`check_plan`) + `pub struct LaneArtifact{lane, seed, sv, manifest: Option<String>}` + `pub enum CheckPlan{SynthAccept, ParityVsManifest}` + `pub enum LaneError{UnknownKnob, Construction}` + `pub struct DutLane{base_config: Config}` with `impl ArtifactLane for DutLane` wrapping today's `Generator::generate_design` + `emit::to_sv_design` (zero behavioural change for the default `--artifact dut` case). 4 unit proofs (lib 240 ← 236+4): identity + check_plan; the **load-bearing byte-identical regression proof** comparing trait-dispatch vs direct-`Generator` output across reproducibility seeds; byte-identical-through-`dyn ArtifactLane` (dynamic dispatch doesn't perturb the contract); reproducibility on repeated calls. Full `cargo test` green (lib 240; tests/pipeline 121; tests/snapshots 6; tests/frontend_parity 12+2; tests/microdesign_parity 15+1; bin 5+29+3; doc 0); frontier → `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -56,11 +56,11 @@ lanes).
   Children: `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a`, `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b`, `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c`
 
 - ID: `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a`
-  Status: `pending`
+  Status: `done`
   Goal: `The umbrella trait + shared plumbing + L1 DUT wrap + byte-identical regression proof. Add a new src/umbrella/ (or src/artifact_lane/) module carrying pub trait ArtifactLane per .1's design: name() -> &'static str; validate_knobs(&self, knobs) -> Result<(), Vec<String>> (lane-scoped namespace; rejects cross-lane knob bleed by construction); generate(&self, seed, knobs) -> Result<LaneArtifact, LaneError> (byte-stable across rebuilds — the load-bearing reproducibility contract a strict superset of today's (seed, knobs) DUT contract); manifest(&self) -> Option<String> (typed Optional; L1 None is typed not a hack); check_plan(&self) -> CheckPlan (SynthAccept for L1, ParityVsManifest for L2/L3). Shared umbrella-owned plumbing: ChaCha8 seed→artifact path (already in place per the project convention; surfaced via the trait), byte-stable cross-platform output formatting (uses existing emit::emit_sv for L1; lane-specific for L2/L3 — that is .2b), JSON manifest emitter (typed Optional via the trait method; lane-specific impls in .2b), lane-scoped knob namespace (a wrapper Knobs<Lane> or a runtime check; final shape TBD when .2a lands), uniform on-disk layout (lane-named subdirectories under a single artifact output root), uniform CheckPlan enum the repo-owned gate dispatches. L1 DUT wrap: pub struct DutLane; impl ArtifactLane for DutLane where DutLane::generate IS today's gen::Generator path (zero behavioural change for the default --artifact dut case — the byte-identical hard regression gate is the load-bearing proof). Byte-identical regression proof: a new tests/lane_byte_identical.rs test (or a tests/pipeline.rs extension) that for a fixed seed set + a fixed Config exercises BOTH the trait-dispatched DutLane::generate path AND the direct legacy generate_design path and asserts emit_sv outputs are byte-identical — the proof that --artifact dut preserves every existing book example + every CI gate. No new lane impls for L2/L3 yet (that is .2b); no CLI flag yet (that is .2c); no ROADMAP advance.`
   Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; ArtifactLane trait lands + DutLane impl + byte-identical regression proof green for the reproducibility-set seeds; existing book examples + tool_matrix bin tests still green (load-bearing); no ROADMAP advance (that is .2c on the full selector + book/CI verification); no book/ change.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `New separate top-level module src/umbrella/mod.rs registered via pub mod umbrella in src/lib.rs (sits after microdesign in alphabetical-sort order). pub trait ArtifactLane carries the four methods name/validate_knobs/generate(seed)/check_plan per .1's design — slightly simpler signature than .1's draft (no separate manifest method; the manifest comes back inside LaneArtifact as a typed Option<String>, which keeps the trait surface to one Result-returning entry point while still expressing "L1 has no manifest" as typed-None rather than hack). pub struct LaneArtifact{lane, seed, sv, manifest: Option<String>} is what every lane's generate returns. pub enum CheckPlan{SynthAccept, ParityVsManifest} per .1. pub enum LaneError{UnknownKnob{lane, knobs}, Construction{lane, message}} — placeholder for .2b/.2c's richer validation; DutLane never returns Err today. pub struct DutLane{base_config: Config} (NOT Eq because Config carries f64 knobs whose equality isn't meaningful; the test suite compares LaneArtifacts not DutLanes) + impl ArtifactLane for DutLane where generate(seed) clones base_config, overrides .seed, calls Generator::new(cfg).generate_design(), and emit::to_sv_design(&design) — IDENTICAL to today's invocation pattern (zero behavioural change). Default validate_knobs() returns Ok (DUT knob validation lives in Config); name() returns "dut"; check_plan() returns SynthAccept. 4 unit proofs (all green): dut_lane_identity_and_check_plan (smoke); **dut_lane_is_byte_identical_to_direct_generator_path** — the LOAD-BEARING byte-identical regression proof: for each seed in {0,1,7,42,12345} the trait-dispatched DutLane::generate(seed) output equals the direct `Generator::new(cfg{seed}).generate_design() → to_sv_design()` path byte-for-byte (this is the proof that --artifact dut preserves every existing book example + every CI gate — BOOK-EXAMPLES-RUNNABLE depends on it); dut_lane_is_byte_identical_through_dyn_artifact_lane — dyn-dispatch through &dyn ArtifactLane / Box<dyn ArtifactLane> produces the same byte-identical output as concrete-type dispatch (important because .2c's CLI will hand around Box<dyn ArtifactLane>); dut_lane_is_reproducible_on_repeated_calls — two successive DutLane::generate(seed) calls on the same DutLane produce identical artifacts (the lane shouldn't accumulate state across calls). Fixed 2 clippy doc-lazy-continuation hits (a `+` at line-start was being parsed as a markdown list marker — reworded). Fixed 1 clippy field-reassign-with-default hit (used struct-update Config{seed, ..Config::default()}). cargo fmt --all --check / clippy --all-targets -- -D warnings / check --all-targets clean. Full cargo test green: lib **240 passed** (was 236 + 4 new umbrella::tests); tests/microdesign_parity 15+1 unchanged; tests/frontend_parity 12+2 unchanged; tests/pipeline 121 passed (656s); tests/snapshots 6 passed; bin tests 5+29+3 passed; doc-tests 0 (unchanged). DUT lane stays byte-identical by construction (the umbrella module wraps without modifying). No new lane impls (.2b); no CLI flag (.2c); no ROADMAP advance.`
+  Commit: `Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a ArtifactLane trait + L1 DutLane wrap + byte-identical regression proof`
 
 - ID: `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b`
   Status: `pending`
@@ -80,7 +80,7 @@ lanes).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a` | `pending` (unblocked, code-bearing) | **UNBLOCKED 2026-05-20**: Phase 7 closed at `20a7b4a` (oracle-backed micro-design lane delivered) + Phase 8 closed at `997b0a6` (source-level frontend / elaboration accept lane delivered) — the `.1` design's unblock condition "DUT + ≥1 of Phase 7/8" is satisfied with all 3 delivered lanes (DUT + microdesign + frontend). **`.2` split (`2026-05-20`)** per Splitting Rules + the proven Phase 7/8 `.2` → `.2a`/`.2b`/`.2c` decomposition into `.2a` (`ArtifactLane` trait + shared plumbing + L1 DUT wrap + byte-identical regression proof; no other lane impls, no CLI flag), `.2b` (L2 microdesign + L3 frontend lane impls under the trait + per-lane byte-identical regression proof), `.2c` (`--artifact` top-level CLI flag + book/CI byte-identical verification + ROADMAP Phase 9 → done). `.2a` is unblocked and is the next code-bearing slice. The load-bearing constraint throughout: `--artifact dut` (the default) MUST stay byte-identical to today — `BOOK-EXAMPLES-RUNNABLE` and every CI gate depend on it. |
+| 1 | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b` | `pending` (unblocked, code-bearing) | **`.2a` done (`2026-05-20`)** — new top-level module `src/umbrella/` registered via `pub mod umbrella`; `pub trait ArtifactLane` (`name`/`validate_knobs`/`generate(seed)`/`check_plan`) + `pub struct LaneArtifact` (with typed-Option `manifest`) + `pub enum CheckPlan{SynthAccept, ParityVsManifest}` + `pub enum LaneError` + `pub struct DutLane{base_config: Config}` with `impl ArtifactLane for DutLane` wrapping `Generator::generate_design` + `to_sv_design` (zero behavioural change). 4 unit proofs green incl. the **load-bearing byte-identical regression proof** comparing trait-dispatch vs direct-`Generator` output across the reproducibility-set seeds + a dyn-dispatch byte-identical proof. Full `cargo test` green (lib 240 ← 236+4). `.2b` adds `MicrodesignLane` + `FrontendLane` impls of the trait (wrapping `crate::microdesign` + `crate::frontend` build/emit/manifest) + cross-lane byte-identical regression proof. |
 
 ## Decisions
 
@@ -134,6 +134,8 @@ lanes).
 | `2026-05-18` | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.1` | `DEVELOPMENT_NOTES.md` Phase 9 umbrella design entry landed (anti-goal: unify plumbing not generators; `ArtifactLane` trait + shared seed/manifest/knob/output/check plumbing; default-`dut` `--artifact` flag preserving book/CI byte-identically; L1-wrap lane-migration plan; 4 rejected alternatives; Open Question resolved; `.2` proof shape + unblock condition). Design-only, no code; `mdbook build book` clean; `cargo fmt --all --check` clean; full `cargo test` green at base `5c9932c` (no `src/`/`tests/` touched). | Done. |
 
 | `2026-05-20` | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2` (split) | `.2` made a container with children `.2a` (`ArtifactLane` trait + shared plumbing + L1 DUT wrap + byte-identical regression proof) + `.2b` (L2 microdesign + L3 frontend lane impls under the trait) + `.2c` (`--artifact` CLI flag + book/CI byte-identical verification + ROADMAP Phase 9 → done). UNBLOCKED 2026-05-20 by Phase 7 closure at `20a7b4a` + Phase 8 closure at `997b0a6` — `.1`'s blocker condition satisfied. Mirrors the proven Phase 7/8 `.2` → `.2a`/`.2b`/`.2c` decomposition. Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `997b0a6`); `mdbook build book` clean. | Done. Frontier → `.2a`. |
+| `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a` | `Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a ArtifactLane trait + L1 DutLane wrap + byte-identical regression proof` | New `src/umbrella/` module + `ArtifactLane` trait + `DutLane` impl wrapping today's DUT path + 4 unit proofs (incl. the load-bearing byte-identical regression proof + dyn-dispatch byte-identical proof); lib 240 (was 236 + 4). No L2/L3 impls (`.2b`); no CLI flag (`.2c`); no ROADMAP advance. |
+| `2026-05-20` | `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a` | New separate top-level module `src/umbrella/mod.rs` registered via `pub mod umbrella` in `src/lib.rs`. `pub trait ArtifactLane` (`name`/`validate_knobs` default-Ok / `generate(seed)` byte-stable / `check_plan`); `pub struct LaneArtifact{lane, seed, sv, manifest: Option<String>}` (typed-Option manifest expresses "L1 has no semantic manifest" cleanly); `pub enum CheckPlan{SynthAccept, ParityVsManifest}`; `pub enum LaneError{UnknownKnob, Construction}` (placeholder for `.2b`/`.2c`); `pub struct DutLane{base_config: Config}` (not `Eq` because `Config` has `f64` knobs) + `impl ArtifactLane for DutLane` where `generate(seed)` clones `base_config`, overrides `.seed`, calls `Generator::new(cfg).generate_design()`, then `to_sv_design(&design)` — **identical to today's invocation pattern, zero behavioural change**. 4 unit proofs (all green): `dut_lane_identity_and_check_plan` (smoke); **`dut_lane_is_byte_identical_to_direct_generator_path`** — the LOAD-BEARING byte-identical regression proof comparing trait-dispatch vs direct-`Generator` output across `{0,1,7,42,12345}` (the proof that `--artifact dut` preserves every existing book example + CI gate — `BOOK-EXAMPLES-RUNNABLE` depends on it); `dut_lane_is_byte_identical_through_dyn_artifact_lane` (`dyn`-dispatch produces the same artifact as concrete-type dispatch — important because `.2c`'s CLI hands around `Box<dyn ArtifactLane>`); `dut_lane_is_reproducible_on_repeated_calls` (no state accumulation across calls). Fixed 2 clippy `doc-lazy-continuation` hits (a `+` at line-start was being parsed as a markdown list marker — reworded the docstring) + 1 `field-reassign-with-default` hit (used struct-update `Config{seed, ..Config::default()}`). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean. Full `cargo test` green: lib **240 passed** (was 236 + 4 new `umbrella::tests`); `tests/microdesign_parity` 15+1 unchanged; `tests/frontend_parity` 12+2 unchanged; `tests/pipeline` 121 passed (656s); `tests/snapshots` 6 passed; bin tests 5+29+3 passed; doc-tests 0 (unchanged). DUT lane stays byte-identical by construction (the umbrella module wraps without modifying). No new lane impls (`.2b`); no CLI flag (`.2c`); no ROADMAP advance. | Done. Frontier → `.2b`. |
 
 ## Commit Log
 
@@ -191,3 +193,66 @@ lanes).
   the `PHASE-8-FRONTEND-ACCEPT` tree at `997b0a6`.
   Frontier → `.2a` (the trait + DUT wrap + byte-identical
   regression proof; unblocked, code-bearing).
+
+- `2026-05-20`: **`.2a` landed — `ArtifactLane` trait + L1
+  `DutLane` wrap + byte-identical regression proof.** New
+  separate top-level module `src/umbrella/mod.rs` registered
+  via `pub mod umbrella` (sits after `microdesign` in
+  alphabetical-sort order). `pub trait ArtifactLane` carries
+  four methods: `name() -> &'static str`,
+  `validate_knobs() -> Result<(), LaneError>` (default `Ok`;
+  lane-scoped knob namespace enforced in `.2b`'s L2/L3
+  impls), `generate(seed: u64) -> Result<LaneArtifact,
+  LaneError>` (byte-stable across rebuilds — the
+  load-bearing reproducibility contract), `check_plan()
+  -> CheckPlan`. `pub struct LaneArtifact{lane, seed, sv,
+  manifest: Option<String>}` is what every lane's
+  `generate` returns — the typed-Option `manifest`
+  expresses "L1 has no semantic manifest" cleanly without
+  hack. `pub enum CheckPlan{SynthAccept,
+  ParityVsManifest}`. `pub enum
+  LaneError{UnknownKnob{lane, knobs}, Construction{lane,
+  message}}` — placeholder for `.2b`/`.2c`'s richer
+  validation; `DutLane` never returns `Err` today.
+  `pub struct DutLane{base_config: Config}` (NOT `Eq`
+  because `Config` carries `f64` knobs whose equality
+  isn't meaningful; lane-equality checks compare
+  `LaneArtifact` values which ARE `Eq`) +
+  `impl ArtifactLane for DutLane` where `generate(seed)`
+  clones `base_config`, overrides `.seed`, calls
+  `Generator::new(cfg).generate_design()`, then
+  `emit::to_sv_design(&design)` — **identical to today's
+  invocation pattern, zero behavioural change**. 4 unit
+  proofs (all green): `dut_lane_identity_and_check_plan`
+  (smoke: `name="dut"`, `check_plan=SynthAccept`); **the
+  LOAD-BEARING `dut_lane_is_byte_identical_to_direct_generator_path`**
+  comparing trait-dispatch vs direct-`Generator` output
+  across reproducibility seeds `{0, 1, 7, 42, 12345}` (if
+  this proof breaks, every book example + every CI gate
+  that depends on `--artifact dut` would regress —
+  `BOOK-EXAMPLES-RUNNABLE` depends on it);
+  `dut_lane_is_byte_identical_through_dyn_artifact_lane`
+  (`dyn` dispatch via `&dyn ArtifactLane` and
+  `Box<dyn ArtifactLane>` produces the same byte-identical
+  output as concrete-type dispatch — important because
+  `.2c`'s CLI will hand around `Box<dyn ArtifactLane>`);
+  `dut_lane_is_reproducible_on_repeated_calls` (no state
+  accumulation across calls). Fixed 2 clippy
+  `doc-lazy-continuation` hits (a `+` at line-start was
+  being parsed as a markdown list marker; reworded the
+  docstring) + 1 `field-reassign-with-default` hit (used
+  struct-update `Config{seed, ..Config::default()}`).
+  `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+  Full `cargo test` green: lib **240 passed** (was 236 + 4
+  new `umbrella::tests`); `tests/microdesign_parity` 15+1
+  unchanged; `tests/frontend_parity` 12+2 unchanged;
+  `tests/pipeline` 121 passed (656s); `tests/snapshots`
+  6 passed; bin tests 5+29+3 passed; doc-tests 0
+  (unchanged). DUT lane stays byte-identical by
+  construction (the umbrella module wraps without
+  modifying any existing call site). No new lane impls
+  (that is `.2b`); no CLI flag (that is `.2c`); no
+  ROADMAP advance. Frontier → `.2b` (`MicrodesignLane` +
+  `FrontendLane` impls of the trait + cross-lane
+  byte-identical proof).

@@ -1,8 +1,152 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase9-2-split — Docs: split PHASE-9-MULTI-ARTIFACT-UMBRELLA.2 into .2a (trait + DUT wrap) + .2b (microdesign + frontend lane impls) + .2c (--artifact CLI + ROADMAP Phase 9)
+## 2026-05-20-phase9-2a — Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a ArtifactLane trait + L1 DutLane wrap + byte-identical regression proof
 
 **Landed as:** this commit
+
+**What changed**
+
+- New separate top-level module `src/umbrella/mod.rs`
+  registered via `pub mod umbrella` in `src/lib.rs` (sits
+  after `microdesign` in alphabetical-sort order). The
+  module is **plumbing-only** per `.1`'s explicit anti-goal
+  — the three lanes' rules-first generators (`src/gen/`,
+  `src/microdesign/`, `src/frontend/`) remain decoupled in
+  their own modules; only the seed→artifact +
+  byte-stable-output + optional-manifest + check-plan
+  plumbing unifies here.
+
+- **`pub trait ArtifactLane`** (4 methods):
+  - `name() -> &'static str` — stable lane name (`"dut"` /
+    `"microdesign"` / `"frontend"`).
+  - `validate_knobs() -> Result<(), LaneError>` — default
+    `Ok` on `DutLane`; `.2b`'s L2/L3 impls enforce
+    lane-scoped knob namespaces.
+  - `generate(seed: u64) -> Result<LaneArtifact, LaneError>`
+    — **byte-stable across rebuilds** for fixed
+    `(seed, lane_knobs)`; the load-bearing reproducibility
+    contract.
+  - `check_plan() -> CheckPlan` — `SynthAccept` for L1,
+    `ParityVsManifest` for L2/L3.
+
+- **Supporting types**:
+  - `pub struct LaneArtifact { lane, seed, sv, manifest:
+    Option<String> }` — what every lane's `generate`
+    returns. The typed-Option `manifest` expresses "L1 has
+    no semantic manifest" cleanly (no hack).
+  - `pub enum CheckPlan { SynthAccept, ParityVsManifest }`.
+  - `pub enum LaneError { UnknownKnob{lane, knobs},
+    Construction{lane, message} }` — placeholder for
+    `.2b`/`.2c`'s richer validation; `DutLane` never
+    returns `Err` today.
+
+- **L1 `DutLane` impl** (`pub struct DutLane{base_config:
+  Config}` + `impl ArtifactLane for DutLane`):
+  `generate(seed)` clones `base_config`, overrides
+  `.seed`, calls `Generator::new(cfg).generate_design()`,
+  then `emit::to_sv_design(&design)` — **identical to
+  today's invocation pattern, zero behavioural change**.
+  `DutLane` is NOT `Eq` because `Config` carries `f64`
+  knobs whose equality isn't meaningful; lane-equality
+  checks in the test suite compare `LaneArtifact` values
+  (which ARE `Eq`).
+
+- **4 unit proofs (all green)** in `umbrella::tests`:
+  1. `dut_lane_identity_and_check_plan` — smoke:
+     `name="dut"`, `check_plan=SynthAccept`.
+  2. **`dut_lane_is_byte_identical_to_direct_generator_path`**
+     — the LOAD-BEARING byte-identical regression proof.
+     For each seed in `{0, 1, 7, 42, 12345}` the
+     trait-dispatched `DutLane::generate(seed)` output
+     equals the direct
+     `Generator::new(cfg{seed}).generate_design() →
+     to_sv_design()` path byte-for-byte. If this proof
+     breaks, every book example + every CI gate that
+     depends on `--artifact dut` would regress —
+     `BOOK-EXAMPLES-RUNNABLE` depends on it.
+  3. `dut_lane_is_byte_identical_through_dyn_artifact_lane`
+     — `dyn`-dispatch via `&dyn ArtifactLane` and
+     `Box<dyn ArtifactLane>` produces the same
+     byte-identical output as concrete-type dispatch
+     (important because `.2c`'s CLI will hand around
+     `Box<dyn ArtifactLane>`).
+  4. `dut_lane_is_reproducible_on_repeated_calls` — no
+     state accumulation across calls.
+
+- Fixed 2 clippy `doc-lazy-continuation` hits (a `+` at
+  line-start was being parsed as a markdown list marker;
+  reworded the docstring) + 1
+  `field-reassign-with-default` hit (used struct-update
+  `Config { seed, ..Config::default() }`).
+
+- `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`: Metadata
+  Last updated `2026-05-20`; `.2a` Status `pending`→`done`
+  with full Verification (every type + every proof + the
+  byte-identical-regression rationale + the clippy-fix
+  itemisation) + Commit field; Frontier `.2a`→`.2b`;
+  Verification Log + Commit Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-9-MULTI-ARTIFACT-UMBRELLA`
+  row's current frontier updated `.2a` → `.2b`.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase9-2-split` entry's "Landed as: this commit" →
+  `ae8f3d1`.
+
+- `MEMORY.md`: recent commits — `phase9-2-split`
+  `<pending>` → `ae8f3d1`; new `<pending>` head for this
+  `.2a` slice.
+
+**Why**
+
+- `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a` — the trait + L1
+  wrap half of `.2`'s three-way split. The
+  `ArtifactLane` trait + `DutLane` wrap land first as
+  pure-Rust code with the load-bearing byte-identical
+  regression proof; `.2b`'s L2/L3 impls and `.2c`'s CLI
+  dispatch can then layer on top with the contract
+  already proven. The load-bearing constraint —
+  `--artifact dut` (default) stays byte-identical to
+  today — is enforced from this slice forward by the
+  regression proof.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - lib: **240 passed** (was 236 + 4 new
+    `umbrella::tests`).
+  - `tests/microdesign_parity`: 15+1 unchanged.
+  - `tests/frontend_parity`: 12+2 unchanged.
+  - `tests/pipeline`: 121 passed (656s).
+  - `tests/snapshots`: 6 passed.
+  - bin tests: 5+29+3 passed.
+  - doc-tests: unchanged.
+- DUT lane stays byte-identical by construction (the
+  umbrella module wraps without modifying any existing
+  call site).
+
+**Impact**
+
+- `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b` is unblocked
+  (L2 `MicrodesignLane` + L3 `FrontendLane` impls of the
+  trait + cross-lane byte-identical proof). The trait
+  surface is set; the byte-identical-regression
+  precedent established for L1 carries over for L2/L3
+  (the proof harness can be parameterised).
+
+**Files touched**
+
+- `src/lib.rs`; `src/umbrella/mod.rs` (new);
+  `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase9-2-split — Docs: split PHASE-9-MULTI-ARTIFACT-UMBRELLA.2 into .2a (trait + DUT wrap) + .2b (microdesign + frontend lane impls) + .2c (--artifact CLI + ROADMAP Phase 9)
+
+**Landed as:** ae8f3d1
 
 **What changed**
 
