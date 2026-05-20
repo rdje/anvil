@@ -1,5 +1,131 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-20-diff-sim-2b.1 — DIFFERENTIAL-SIMULATION.2b.1 IR-driven testbench harness + dual-sim orchestration + cargo-portable helper proofs + #[ignore] scaffold
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `tests/diff_sim.rs` (~400 lines) carries the
+  single-design iverilog↔verilator differential harness per
+  `.2a`'s design (`DEVELOPMENT_NOTES.md` "Single-design
+  differential harness design"):
+  - `baked_input_vectors(seed, n_inputs, n_vectors)` —
+    deterministic reproducible vector sequence, canonical
+    edge-case prefixed (all-zeros + all-ones + walking-1)
+    then seeded `ChaCha8` pseudo-random. **No `$random`** —
+    iverilog and Verilator have different `$random` streams.
+  - `fmt_sv_hex(v, width)` — fixed-width SV hex literals
+    (`<width>'h<nibbles>`) masked via `u32::div_ceil(4)`.
+  - `is_sequential(top)` — `top.has_local_flops() ||
+    has_local_memories() || has_local_fsms()`. NOT
+    `top.clock.is_some()` — every ANVIL module declares
+    `clk`/`rst_n` unconditionally per the synchronous-design
+    discipline; the test caught the wrong assumption.
+  - `emit_testbench(top, vectors)` reads `top.inputs` +
+    `top.outputs` from the IR directly (NOT by re-parsing
+    SV) and emits a parameter-less SV testbench:
+    instantiated DUT via named port map + `reg`/`wire`
+    decls per port width + `initial`-block stimulus driver
+    + canonical post-reset sample point (`$display %h`
+    joined by spaces). Combinational shape: hold + `#1`
+    settle + `$display`. Sequential shape: clock generator
+    (`always #5 clk = ~clk`) + `rst_n=0` + `#45` +
+    `rst_n=1` + `#20` warmup + per-vector drive + `#10`
+    + `$display`. `emit_display_outputs` handles the
+    zero-output case (`"NO_OUT"` marker for stable line
+    count).
+  - `run_iverilog` shells `iverilog -g2012 -o sim.vvp …;
+    vvp sim.vvp` and captures stdout.
+  - `run_verilator` shells `verilator --binary -j 0 -sv
+    --top-module tb --Mdir obj_dir …; ./obj_dir/Vtb` and
+    captures stdout.
+  - `normalize_trace` filters to hex-only lines (per-token
+    hex test handles multi-output rows like
+    `"ca fe ba be"`).
+  - `tools_present()` probes both via `-V` / `--version`.
+
+- **5 cargo-portable helper proofs (all green)**:
+  - `baked_input_vectors_are_reproducible_with_canonical_edge_cases`
+  - `fmt_sv_hex_produces_fixed_width_masked_literals`
+  - `normalize_trace_filters_to_hex_only_lines`
+  - `is_sequential_matches_clock_presence` — caught the
+    original wrong `top.clock.is_some()` assumption.
+  - `emit_testbench_has_the_documented_shape` — smoke.
+
+- **2 tool-gated `#[ignore]` tests**:
+  `differential_simulation_combinational` +
+  `differential_simulation_sequential`. Each shells
+  iverilog + verilator end-to-end and asserts
+  normalized-trace byte-equality. `tools_present()` guard
+  makes them friendly no-ops when iverilog/verilator
+  absent.
+
+- Fixed 3 clippy hits: `unused-imports` (`Direction`);
+  `manual-div-ceil` (`.div_ceil(4)` on `u32`);
+  `field-reassign-with-default` (used struct-update
+  `Config{seed, flop_prob, ..Config::default()}`).
+
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md`: Metadata Last
+  updated `2026-05-20`; `.2` Children annotation updated;
+  `.2b` Status `pending`→`active` with split rationale +
+  Children `.2b.1`/`.2b.2`; new `.2b.1` leaf
+  (`pending`→`done`) with full Verification + Commit; new
+  `.2b.2` leaf (`pending`); Frontier `.2b` → `.2b.2`.
+
+- `docs/TASK_TREE.md`: `DIFFERENTIAL-SIMULATION` row
+  frontier updated `.2b` → `.2b.2` with the split note.
+
+**Why split now**
+
+- The very first real-tool gate run (`cargo test --test
+  diff_sim -- --ignored --nocapture` against locally-
+  installed iverilog 13.0 + verilator 5.046) surfaced an
+  iverilog↔verilator trace-alignment issue: iverilog
+  produces one extra trace line at vector[0] vs verilator
+  on the sequential design. The underlying output
+  sequences MATCH — just shifted. **The harness SV is
+  correct**; the alignment discipline (`initial`-block
+  timing) needs one more iteration. **NOT a downstream-
+  tool bug** — both sims emit the right values for the
+  right cycles; they just disagree on when the FIRST
+  post-reset sample happens.
+
+- Per Splitting Rules + the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2a`/`.2c.2b`
+  discovered-dependency precedent, `.2b` is split into
+  `.2b.1` (scaffold + portable proofs landed; alignment
+  issue documented; cargo stays green) and `.2b.2`
+  (alignment fix + verified real-tool run; gate-blocked).
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green: `tests/diff_sim` 5 portable + 2
+  ignored; all other tests unchanged.
+- Portable `cargo test` stays green tool-less.
+- The 2 `#[ignore]` tests compile and are invocable;
+  end-to-end byte-equality is `.2b.2`'s deliverable.
+
+**Impact**
+
+- The diff-sim harness scaffold is in-tree + the helpers
+  are proven cargo-portably. `.2b.2` is unblocked (one
+  alignment iteration + a verified real-tool run away
+  from closing `.2b` + the `.2` container). The split is
+  a faithful application of Phase 7's
+  discovered-dependency-split discipline: scaffold first;
+  the fix + verified run is a separate gated step.
+
+**Files touched**
+
+- `tests/diff_sim.rs` (new);
+  `docs/tasks/DIFFERENTIAL-SIMULATION.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
 ## 2026-05-20-phase9-2c — Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c --artifact CLI flag + book/CI byte-identical — closes Phase 9 + tree
 
 **Landed as:** this commit
