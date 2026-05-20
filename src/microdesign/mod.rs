@@ -18,6 +18,15 @@
 //!   and the **JSON expected-facts manifest emitter**, both emitted
 //!   *from the same evaluated IR* (the SV keeps parameters symbolic;
 //!   the manifest records what elaboration must resolve them to).
+//! - `.2c.1` — the **parity comparator core**: `ToolReport` (the
+//!   resolved-facts view a downstream consumer is expected to produce,
+//!   normalized to the same fact set the manifest carries), `Divergence`
+//!   (the comparator's per-category failure variants), and
+//!   `compare_manifest_to_tool_report` (a cargo-portable walker; no
+//!   tool invocation here), with `synthetic_tool_report_from_manifest`
+//!   as the always-agreeing reference used by `.2c.1`'s proofs and as
+//!   the structural fallback in `.2c.2`'s real-tool path. The actual
+//!   tool shelling + real-corpus end-to-end verification is `.2c.2`.
 //!
 //! It is a **separate generator path**: deliberately *not* threaded
 //! through the gate-level circuit IR (the circuit IR has no
@@ -33,7 +42,7 @@
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Integer constant-expression node. The bounded integer subset Phase 7
@@ -482,35 +491,35 @@ pub fn emit_sv(unit: &ConstExprUnit, seed: u64) -> String {
     s
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactEntry {
-    value: i128,
-    expr: String,
+    pub value: i128,
+    pub expr: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WidthFact {
-    msb: i64,
-    lsb: i64,
-    bits: u32,
+    pub msb: i64,
+    pub lsb: i64,
+    pub bits: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GenFact {
-    taken: bool,
+    pub taken: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConstExprFact {
-    expr: String,
-    value: i128,
-    width: u32,
+    pub expr: String,
+    pub value: i128,
+    pub width: u32,
 }
 
 /// The expected-elaboration-facts manifest (`.1`'s schema). Every
 /// value comes from `.2a`'s resolved oracle — never re-derived.
 /// `BTreeMap` everywhere ⇒ deterministic key order ⇒ byte-stable.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
     pub seed: u64,
     pub top: String,
@@ -577,6 +586,314 @@ pub fn build_manifest(unit: &ConstExprUnit, seed: u64) -> Manifest {
 /// Serialize the manifest as deterministic pretty JSON.
 pub fn emit_manifest(unit: &ConstExprUnit, seed: u64) -> String {
     serde_json::to_string_pretty(&build_manifest(unit, seed)).expect("manifest serializes")
+}
+
+// ===================================================================
+// PHASE-7-ORACLE-MICRODESIGN.2c.1 — parity comparator core.
+//
+// The harness wiring (which corpus, which downstream consumer, how the
+// tool's output is parsed into a `ToolReport`) lives in
+// `tests/microdesign_parity.rs` and is `#[ignore]`-gated so the
+// portable `cargo test` stays green tool-less — the Phase-1 doctrine
+// reaffirmed in this tree's Decisions (and matched by Phase 6 memory
+// `.2.2` and DIFFERENTIAL-SIMULATION `.2b`). The pure-Rust comparator
+// below operates on already-collected reports as input, so it is
+// fully proven cargo-portably (`.2c.1`) and reused as-is by the
+// real-tool gate (`.2c.2`).
+// ===================================================================
+
+/// What a downstream consumer's resolved-facts report looks like,
+/// normalized to the same fact set the manifest carries (params,
+/// localparams, widths, generate-branch taken, package constants).
+///
+/// Names match the manifest keys exactly; values are resolved integers
+/// (no symbolic SV expressions — the tool resolved them, by definition).
+/// `BTreeMap` everywhere ⇒ deterministic iteration. The
+/// `serde::{Serialize,Deserialize}` derives let a tool's
+/// post-extraction artifact round-trip through JSON next to the
+/// manifest for diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolReport {
+    pub seed: u64,
+    pub top: String,
+    /// Resolved parameter values: `name → value`.
+    pub params: BTreeMap<String, i128>,
+    /// Resolved localparam values: `name → value`.
+    pub localparams: BTreeMap<String, i128>,
+    /// Declared signal widths: `name → WidthFact`.
+    pub widths: BTreeMap<String, WidthFact>,
+    /// Generate-block decisions: `name → taken`.
+    pub generate: BTreeMap<String, bool>,
+    /// Package-qualified constant values: `qualified_name → value`.
+    pub package_constants: BTreeMap<String, i128>,
+}
+
+/// A single category of disagreement between the manifest (the oracle)
+/// and the tool report. Listed independently per fact category and per
+/// direction (missing-in-tool / missing-in-manifest / mismatch) so the
+/// comparator surfaces *which* axis broke — `.1`'s rejected-alternatives
+/// discussion noted a single "facts disagree" bit is not enough for
+/// downstream triage. The comparator accumulates the full set so the
+/// gate either reports `Ok(())` or retains the full counterexample
+/// profile in one pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Divergence {
+    SeedMismatch {
+        expected: u64,
+        actual: u64,
+    },
+    TopMismatch {
+        expected: String,
+        actual: String,
+    },
+    ParamMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    ParamMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    ParamMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+    LocalparamMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    LocalparamMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    LocalparamMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+    WidthMissingInTool {
+        name: String,
+        expected: WidthFact,
+    },
+    WidthMissingInManifest {
+        name: String,
+        actual: WidthFact,
+    },
+    WidthMismatch {
+        name: String,
+        expected: WidthFact,
+        actual: WidthFact,
+    },
+    GenerateMissingInTool {
+        name: String,
+        expected: bool,
+    },
+    GenerateMissingInManifest {
+        name: String,
+        actual: bool,
+    },
+    GenerateMismatch {
+        name: String,
+        expected: bool,
+        actual: bool,
+    },
+    PackageConstantMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    PackageConstantMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    PackageConstantMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+}
+
+/// Walk `manifest` × `report` and return every disagreement. `Ok(())`
+/// ⇔ exact agreement across every fact category present in either.
+///
+/// Symbolic `expr` strings on the manifest side are deliberately
+/// **not** compared — they are the un-resolved-SV documentation of
+/// what was given to the tool, not something the tool re-emits. Only
+/// resolved values, widths, generate-branch decisions, and
+/// package-constant values are checked.
+pub fn compare_manifest_to_tool_report(
+    manifest: &Manifest,
+    report: &ToolReport,
+) -> Result<(), Vec<Divergence>> {
+    let mut divs = Vec::new();
+
+    if manifest.seed != report.seed {
+        divs.push(Divergence::SeedMismatch {
+            expected: manifest.seed,
+            actual: report.seed,
+        });
+    }
+    if manifest.top != report.top {
+        divs.push(Divergence::TopMismatch {
+            expected: manifest.top.clone(),
+            actual: report.top.clone(),
+        });
+    }
+
+    // Parameters: each side checked against the other.
+    for (name, entry) in &manifest.params {
+        match report.params.get(name) {
+            Some(actual) if *actual == entry.value => {}
+            Some(actual) => divs.push(Divergence::ParamMismatch {
+                name: name.clone(),
+                expected: entry.value,
+                actual: *actual,
+            }),
+            None => divs.push(Divergence::ParamMissingInTool {
+                name: name.clone(),
+                expected: entry.value,
+            }),
+        }
+    }
+    for (name, actual) in &report.params {
+        if !manifest.params.contains_key(name) {
+            divs.push(Divergence::ParamMissingInManifest {
+                name: name.clone(),
+                actual: *actual,
+            });
+        }
+    }
+
+    // Localparams: same pattern.
+    for (name, entry) in &manifest.localparams {
+        match report.localparams.get(name) {
+            Some(actual) if *actual == entry.value => {}
+            Some(actual) => divs.push(Divergence::LocalparamMismatch {
+                name: name.clone(),
+                expected: entry.value,
+                actual: *actual,
+            }),
+            None => divs.push(Divergence::LocalparamMissingInTool {
+                name: name.clone(),
+                expected: entry.value,
+            }),
+        }
+    }
+    for (name, actual) in &report.localparams {
+        if !manifest.localparams.contains_key(name) {
+            divs.push(Divergence::LocalparamMissingInManifest {
+                name: name.clone(),
+                actual: *actual,
+            });
+        }
+    }
+
+    // Widths.
+    for (name, expected) in &manifest.widths {
+        match report.widths.get(name) {
+            Some(actual) if actual == expected => {}
+            Some(actual) => divs.push(Divergence::WidthMismatch {
+                name: name.clone(),
+                expected: expected.clone(),
+                actual: actual.clone(),
+            }),
+            None => divs.push(Divergence::WidthMissingInTool {
+                name: name.clone(),
+                expected: expected.clone(),
+            }),
+        }
+    }
+    for (name, actual) in &report.widths {
+        if !manifest.widths.contains_key(name) {
+            divs.push(Divergence::WidthMissingInManifest {
+                name: name.clone(),
+                actual: actual.clone(),
+            });
+        }
+    }
+
+    // Generate-branch decisions.
+    for (name, expected) in &manifest.generate {
+        match report.generate.get(name) {
+            Some(actual) if *actual == expected.taken => {}
+            Some(actual) => divs.push(Divergence::GenerateMismatch {
+                name: name.clone(),
+                expected: expected.taken,
+                actual: *actual,
+            }),
+            None => divs.push(Divergence::GenerateMissingInTool {
+                name: name.clone(),
+                expected: expected.taken,
+            }),
+        }
+    }
+    for (name, actual) in &report.generate {
+        if !manifest.generate.contains_key(name) {
+            divs.push(Divergence::GenerateMissingInManifest {
+                name: name.clone(),
+                actual: *actual,
+            });
+        }
+    }
+
+    // Package constants.
+    for (name, expected) in &manifest.package_constants {
+        match report.package_constants.get(name) {
+            Some(actual) if actual == expected => {}
+            Some(actual) => divs.push(Divergence::PackageConstantMismatch {
+                name: name.clone(),
+                expected: *expected,
+                actual: *actual,
+            }),
+            None => divs.push(Divergence::PackageConstantMissingInTool {
+                name: name.clone(),
+                expected: *expected,
+            }),
+        }
+    }
+    for (name, actual) in &report.package_constants {
+        if !manifest.package_constants.contains_key(name) {
+            divs.push(Divergence::PackageConstantMissingInManifest {
+                name: name.clone(),
+                actual: *actual,
+            });
+        }
+    }
+
+    if divs.is_empty() {
+        Ok(())
+    } else {
+        Err(divs)
+    }
+}
+
+/// Construct a `ToolReport` that agrees with `manifest` exactly — i.e.
+/// "what a perfectly-conforming downstream tool would have produced".
+/// Used by `.2c.1`'s cargo-portable proofs (agreement and
+/// perturbed-divergence fixtures) and as the structural fallback in
+/// `.2c.2`'s real-tool gate.
+pub fn synthetic_tool_report_from_manifest(manifest: &Manifest) -> ToolReport {
+    ToolReport {
+        seed: manifest.seed,
+        top: manifest.top.clone(),
+        params: manifest
+            .params
+            .iter()
+            .map(|(n, e)| (n.clone(), e.value))
+            .collect(),
+        localparams: manifest
+            .localparams
+            .iter()
+            .map(|(n, e)| (n.clone(), e.value))
+            .collect(),
+        widths: manifest.widths.clone(),
+        generate: manifest
+            .generate
+            .iter()
+            .map(|(n, g)| (n.clone(), g.taken))
+            .collect(),
+        package_constants: manifest.package_constants.clone(),
+    }
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 7 — Oracle-backed micro-design artifacts
 - Created: `2026-05-16`
-- Last updated: `2026-05-20` (**`.2c` split** into `.2c.1` parity-harness build + `.2c.2` real-gate verify → ROADMAP Phase 7, mirroring the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition; tree-planning only, no code; frontier → `.2c.1`)
+- Last updated: `2026-05-20` (**`.2c.1` parity-harness build landed** — `src/microdesign/` extended with `ToolReport`/`Divergence`/`compare_manifest_to_tool_report`/`synthetic_tool_report_from_manifest` + `pub`/`Clone`/`PartialEq`/`Eq`/`Deserialize` on the fact records; new `tests/microdesign_parity.rs` 9 cargo-portable comparator proofs green + 1 tool-gated `#[ignore]` real-tool harness scaffold; cargo stays green tool-less; frontier → `.2c.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -73,11 +73,11 @@ checks.
   Children: `PHASE-7-ORACLE-MICRODESIGN.2c.1`, `PHASE-7-ORACLE-MICRODESIGN.2c.2`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Build the parity harness — cargo-portable + tool-gated. A new top-level test file (e.g. tests/microdesign_parity.rs, mirroring tests/pipeline.rs) carrying: (a) a pure-Rust fact-extraction-and-comparison core that operates on already-collected tool output (an in-test synthetic representation, NOT a tool invocation) — testable cargo-portably without yosys/verilator/slang; (b) a tool-equipped #[ignore]-gated test that, when invoked with the tools available (cargo test -- --ignored), drives a fixed deterministic corpus through emit_sv + emit_manifest, shells the chosen downstream consumer on each .sv, parses the resolved-facts report, and feeds it to the cargo-portable comparator core to assert exact agreement (or retain a counterexample tuple of {sv, manifest, tool_output, divergence}). Tool-gated ⇒ portable cargo test stays green tool-less (Phase-1 doctrine; identical to differential-sim .2b and the convention recorded in this tree's Decisions). Cargo-portable comparator proof: deterministic seeds {0,1,7,42,12345} (matching .2a's reproducibility set) × build → manifest, then feed a hand-constructed-to-agree synthetic tool report to the comparator and prove exact-equality; AND feed a deliberately-perturbed synthetic report and prove the comparator surfaces the right divergence kind (param-mismatch / width-mismatch / generate-branch-mismatch / package-constant-mismatch). No ROADMAP advance (that is .2c.2 on verified evidence).`
   Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; new tests/microdesign_parity.rs landed with the cargo-portable comparator + the #[ignore]-gated tool harness; cargo-portable comparator proof exact-agrees on synthetic-agree fixtures and surfaces the right divergence kind on each perturbed fixture; the #[ignore] test compiles + is invocable but is NOT run in the portable suite; ROADMAP unchanged (advance is .2c.2 on a verified gate); no book/ change (book reconciliation is .2c.2).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/microdesign/mod.rs extended with the parity comparator core: ToolReport (normalized resolved-facts view a downstream consumer is expected to produce — seed/top + params/localparams as name→i128 + widths as name→WidthFact + generate as name→bool + package_constants as name→i128; BTreeMap throughout for deterministic iteration; serde Serialize+Deserialize for JSON round-trip diagnostics), Divergence enum with 17 variants (SeedMismatch/TopMismatch + {ParamMissingInTool, ParamMissingInManifest, ParamMismatch} × {param, localparam, width, generate, package-constant} categories — independently per axis + per direction so .1's rejected-alternative "single facts-disagree bit" gap is closed), compare_manifest_to_tool_report (cargo-portable walker; no tool invocation; accumulates the full divergence set rather than fail-fast so the gate can either Ok(()) or retain the full counterexample profile in one pass; symbolic manifest expr strings deliberately NOT compared — they are un-resolved-SV documentation, not a fact the tool re-emits), synthetic_tool_report_from_manifest (always-agreeing reference). Promoted FactEntry/WidthFact/GenFact/ConstExprFact/Manifest fields to pub and derived Clone+PartialEq+Eq+Deserialize on each so the comparator and the test harness can construct/compare them by value. New tests/microdesign_parity.rs (mirrors tests/pipeline.rs/snapshots.rs as a top-level integration test) carries 9 cargo-portable comparator proofs (all green): comparator_agrees_on_synthetic_tool_report_built_from_the_oracle (load-bearing baseline — synthetic ToolReport from manifest must agree exactly across the reproducibility-set seeds {0,1,7,42,12345}), comparator_surfaces_param_mismatch_when_a_param_is_perturbed, comparator_surfaces_localparam_mismatch_when_perturbed (exercised >=1 seed; reproducibility-set sanity guard), comparator_surfaces_width_mismatch_when_perturbed (on widths["sig"] which .2b always emits), comparator_surfaces_generate_branch_mismatch_when_taken_is_flipped (on generate["g_taken"]), comparator_surfaces_package_constant_mismatch_when_perturbed, comparator_surfaces_param_missing_in_tool_when_dropped, comparator_surfaces_param_missing_in_manifest_when_extra (spurious-extra-report defensive coverage), comparator_surfaces_seed_and_top_mismatch_when_perturbed (the stale-or-mis-routed-report check) + 1 tool-gated #[ignore] real-tool harness scaffold parity_against_real_yosys_write_json (yosys-presence guard at the head so the scaffold is safely invocable on machines without the tool — the iverilog-not-installed convention from DIFFERENTIAL-SIMULATION.1; instantiates the full corpus driver loop with placeholder for the .2c.2-owned emit→shell→extract→compare end-to-end wiring). cargo fmt --all --check / cargo clippy --all-targets -- -D warnings / cargo check --all-targets clean. Full cargo test green: tests/microdesign_parity 9 passed + 1 ignored; tests/pipeline 121 passed; tests/snapshots 6 passed; doc-tests 0 (unchanged); lib microdesign tests still 7/7 green (.2a + .2b unchanged). The portable cargo test stays green tool-less; the tool-gated harness is invocable only via cargo test -- --ignored AND when yosys is on $PATH. No ROADMAP advance (that is .2c.2 on a verified clean banked artifact, r87 no-aspirational-claims). No book/ change (book reconciliation is .2c.2).`
+  Commit: `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.1 parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold`
 
 - ID: `PHASE-7-ORACLE-MICRODESIGN.2c.2`
   Status: `pending`
@@ -90,7 +90,7 @@ checks.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `pending` | `.2a`+`.2b` **done** — `src/microdesign/` has the const-expr/parameter IR + evaluator/oracle (`.2a`) and the un-resolved SV emitter + JSON expected-facts manifest emitter from the same oracle (`.2b`), 7 unit proofs green, byte-reproducible. `.2c` **split** today per the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition into `.2c.1` (build the parity harness — cargo-portable comparator proof + tool-gated `#[ignore]` real-tool harness; no real run, no advance, cargo stays green tool-less) and `.2c.2` (real-tool gate run + ROADMAP Phase 7 promotion; gate-blocked). `.2c.1` is unblocked and is the next slice. |
+| 1 | `PHASE-7-ORACLE-MICRODESIGN.2c.2` | `pending` (gate-blocked, real-tool run) | **`.2c.1` done** — `src/microdesign/` extended with the parity comparator core (`ToolReport`, `Divergence` × 17 variants per fact category × direction, `compare_manifest_to_tool_report`, `synthetic_tool_report_from_manifest`) + `pub`/`Clone`/`PartialEq`/`Eq`/`Deserialize` on the fact records; new `tests/microdesign_parity.rs` with 9 cargo-portable comparator proofs green (agreement + each divergence axis: param/localparam/width/generate-branch/package-constant/missing-in-tool/missing-in-manifest/seed+top) + 1 tool-gated `#[ignore]` `parity_against_real_yosys_write_json` scaffold (yosys-presence guard, corpus-driver loop wired against the same `SEEDS`/`N_PARAMS` constants the portable proofs use). Full `cargo test` green (121 pipeline + 6 snapshots + 9+1 parity + 7 lib microdesign), `cargo fmt`/clippy/check clean. `.2c.2` runs the real tool-equipped `#[ignore]` test end-to-end (drives a fixed deterministic corpus through `emit_sv`+`emit_manifest`, shells the downstream consumer on each `.sv`, extracts a `ToolReport`, feeds the comparator, asserts exact agreement or retains a counterexample tuple), banks a verified clean artifact, then records **ROADMAP Phase 7 → done** (r87 no-aspirational-claims) + reconciles book/README/CODEBASE phase-coverage-map. |
 
 ## Decisions
 
@@ -152,6 +152,7 @@ checks.
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2a` | New separate top-level `src/microdesign/mod.rs` (`pub mod microdesign`; not in `src/ir/`): `ConstExpr`/`UnOp`/`BinOp`/`ParamKind`/`ParamDecl`(+`value` oracle)/`ConstExprUnit` IR; `eval()` (SV-constant-expr semantics — trunc div/mod, clamped shift, cmp/logical→1/0, defensive `EvalError`); `resolve()` = the construction-time oracle (fills every value in decl order); `build_constexpr_unit(seed,n)` rules-first reproducible builder (`ChaCha8::seed_from_u64`, no `thread_rng`; literal root + earlier-decl chains/precedence/ternary; resolved in place). 4 unit proofs green: `eval_matches_known_values`, `eval_reports_div_by_zero_and_undefined_param`, `build_is_reproducible_and_seed_sensitive`, `stored_values_are_consistent_with_a_fresh_reeval` (the oracle-no-drift invariant). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No SV/manifest emit, no harness; no ROADMAP/book change. | Done. Frontier → `.2b`. |
 | `2026-05-19` | `PHASE-7-ORACLE-MICRODESIGN.2b` | `src/microdesign/` extended: `expr_to_sv` (fully-parenthesized precedence-unambiguous printer), `emit_sv(unit,seed)` (un-resolved `rtl_const_expr` SV — `package mc_<seed>_pkg`/`K`, module with symbolic `parameter`/`localparam` chains, `PKG_REF = mc_<seed>_pkg::K`, expr-derived `W_SIG`+`logic[W_SIG-1:0] sig`, `generate if/else`), `Manifest`+`build_manifest`/`emit_manifest` (the `.1` JSON schema, all facts from the `.2a` resolved oracle, `BTreeMap` ⇒ byte-stable `serde_json`). Default-off DUT-byte-identical is structural (separate module, never invoked by the DUT path). 3 new proofs (7 total): `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle` (valid JSON; every fact == oracle), `sv_and_manifest_are_byte_reproducible`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` green (COMMIT.md gate). No parity harness (`.2c`); no ROADMAP/book change. | Done. Frontier → `.2c`. |
 | `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c` (split) | `.2c` made a container with children `.2c.1` (build the parity harness — cargo-portable comparator proof + tool-gated `#[ignore]` real-tool harness scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) and `.2c.2` (real tool-equipped run + verify exact-agreement + ROADMAP Phase 7 → done; gate-blocked). Mirrors the proven memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition (the harness machinery is code that lands first; the real-tool gate + promotion is a separate gated step; r87 no-aspirational-claims). Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `13faa77`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.1`. |
+| `2026-05-20` | `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `src/microdesign/mod.rs`: parity comparator core appended — `ToolReport` (normalized resolved-facts view from a downstream consumer; `BTreeMap` throughout for determinism; serde Serialize+Deserialize for JSON round-trip diagnostics); `Divergence` enum (17 variants — `SeedMismatch`/`TopMismatch` + {missing-in-tool, missing-in-manifest, mismatch} × {param, localparam, width, generate, package-constant} so `.1`'s rejected-alternative "single facts-disagree bit" gap is closed); `compare_manifest_to_tool_report` (cargo-portable walker; accumulates the full divergence set rather than fail-fast; symbolic `expr` strings deliberately not compared); `synthetic_tool_report_from_manifest` (always-agreeing reference, used by the proofs and as the fallback by `.2c.2`'s real-tool path). `FactEntry`/`WidthFact`/`GenFact`/`ConstExprFact`/`Manifest` fields promoted to `pub`; derives extended to `Clone`+`PartialEq`+`Eq`+`Deserialize`. New `tests/microdesign_parity.rs`: 9 cargo-portable comparator proofs (`comparator_agrees_on_synthetic_tool_report_built_from_the_oracle` baseline + per-axis divergence proofs covering param/localparam/width/generate-branch/package-constant/param-missing-in-tool/param-missing-in-manifest/seed+top — every axis surfaces the right `Divergence` variant) + 1 tool-gated `#[ignore]` `parity_against_real_yosys_write_json` scaffold (yosys-presence guard at the head; corpus-driver loop wired against the same `SEEDS={0,1,7,42,12345}`/`N_PARAMS=5` constants the portable proofs use, with placeholder for the `.2c.2`-owned `emit_sv`→shell→extract→compare end-to-end wiring). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean. Full `cargo test` green: tests/microdesign_parity 9 passed + 1 ignored; tests/pipeline 121 passed (657s); tests/snapshots 6 passed; doc-tests unchanged; lib `microdesign` tests still 7/7 green (`.2a`+`.2b` unchanged). Portable `cargo test` stays green tool-less; the tool-gated harness is invocable only via `cargo test -- --ignored` AND when `yosys` is on `$PATH`. No ROADMAP advance (that is `.2c.2` on a verified clean banked artifact). No `book/` change. | Done. Frontier → `.2c.2` (real-tool run + ROADMAP Phase 7 → done). |
 
 ## Commit Log
 
@@ -162,6 +163,7 @@ checks.
 | `PHASE-7-ORACLE-MICRODESIGN.2a` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2a const-expr/parameter IR + construction-time evaluator (oracle)` | New `src/microdesign/` IR + evaluator/oracle + reproducible rules-first builder; 4 unit proofs; no emit/harness. |
 | `PHASE-7-ORACLE-MICRODESIGN.2b` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2b SV + JSON expected-facts manifest emitters (from the .2a oracle)` | Un-resolved SV emitter + JSON manifest emitter, both from the `.2a` oracle; 3 new proofs (7 total); byte-reproducible; no harness. |
 | `PHASE-7-ORACLE-MICRODESIGN.2c` (split) | `Docs: split PHASE-7-ORACLE-MICRODESIGN.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 7)` | Tree-planning, no code. Mirrors memory `.2.3`/`.2.4` and FSM `.3.4a`/`.3.4b` decomposition. |
+| `PHASE-7-ORACLE-MICRODESIGN.2c.1` | `Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.1 parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold` | Parity comparator core in `src/microdesign/` (`ToolReport`/`Divergence` × 17 variants/`compare_manifest_to_tool_report`/`synthetic_tool_report_from_manifest`) + `pub`/`Clone`/`PartialEq`/`Eq`/`Deserialize` promotions on the fact records + new `tests/microdesign_parity.rs` (9 cargo-portable proofs + 1 tool-gated `#[ignore]` scaffold); portable `cargo test` stays green tool-less. No ROADMAP advance (that is `.2c.2`). |
 
 ## Changelog
 
@@ -273,3 +275,48 @@ checks.
   `src/`/`tests/` change (`cargo` unchanged-green vs `13faa77`);
   `mdbook build book` clean (no `book/` change). Frontier →
   `.2c.1` (the parity-harness-build leaf; unblocked).
+- `2026-05-20`: **`.2c.1` landed — parity harness scaffold.**
+  `src/microdesign/mod.rs` extended with the parity comparator
+  core: `ToolReport` (normalized resolved-facts view from a
+  downstream consumer; `BTreeMap` throughout for determinism;
+  serde `Serialize`+`Deserialize` for JSON round-trip
+  diagnostics), `Divergence` enum (17 variants —
+  `SeedMismatch`/`TopMismatch` + {missing-in-tool,
+  missing-in-manifest, mismatch} × {param, localparam, width,
+  generate, package-constant}; `.1`'s rejected-alternative
+  "single facts-disagree bit" gap is closed),
+  `compare_manifest_to_tool_report` (cargo-portable walker;
+  accumulates the full divergence set rather than fail-fast — so
+  `.2c.2`'s gate either reports `Ok(())` or retains the full
+  counterexample profile in one pass; symbolic `expr` strings
+  deliberately NOT compared as they are un-resolved-SV
+  documentation, not facts the tool re-emits),
+  `synthetic_tool_report_from_manifest` (always-agreeing reference
+  used by the proofs and as the fallback by `.2c.2`'s real-tool
+  path). `FactEntry`/`WidthFact`/`GenFact`/`ConstExprFact`/`Manifest`
+  fields promoted to `pub`; derives extended to
+  `Clone`+`PartialEq`+`Eq`+`Deserialize`. New
+  `tests/microdesign_parity.rs` (mirrors `tests/pipeline.rs` /
+  `tests/snapshots.rs` as a top-level integration test) carries 9
+  cargo-portable comparator proofs (all green) covering the
+  baseline agreement + each divergence axis: param /
+  localparam / width / generate-branch / package-constant /
+  param-missing-in-tool / param-missing-in-manifest / seed+top.
+  Plus 1 tool-gated `#[ignore]` `parity_against_real_yosys_write_json`
+  scaffold with a yosys-presence guard (matches the
+  `iverilog`-not-installed convention from
+  `DIFFERENTIAL-SIMULATION.1`) and the corpus-driver loop wired
+  against the same `SEEDS={0,1,7,42,12345}`/`N_PARAMS=5` constants
+  the portable proofs use, with a placeholder for the
+  `.2c.2`-owned `emit_sv`→shell→extract→compare end-to-end
+  wiring. `cargo fmt --all --check` / `clippy --all-targets -- -D
+  warnings` / `check --all-targets` clean. Full `cargo test`
+  green: `tests/microdesign_parity` 9 passed + 1 ignored;
+  `tests/pipeline` 121 passed (657s); `tests/snapshots` 6 passed;
+  doc-tests 0 (unchanged); lib `microdesign` tests still 7/7 green
+  (`.2a`+`.2b` unchanged). Portable `cargo test` stays green
+  tool-less. No ROADMAP advance (that is `.2c.2` on a verified
+  clean banked artifact, r87). No `book/` change. Frontier →
+  `.2c.2` (run the real `cargo test -- --ignored
+  parity_against_real_yosys_write_json`; verify exact-agreement
+  across the corpus; record ROADMAP Phase 7 → done).
