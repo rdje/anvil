@@ -1774,7 +1774,7 @@ and land as optional post-Phase-5b sub-slices without reopening the
 phase. Unpacked arrays remain Phase 6; unpacked datapath/enums stay
 deprioritised.
 
-## Phase 6 — Advanced motifs (in progress)
+## Phase 6 — Advanced motifs (done)
 
 - Memories (single-port, dual-port, with inferrable patterns only).
   **Memory motif delivered (2026-05-18, `PHASE-6-ADVANCED-MOTIFS.2`
@@ -1797,28 +1797,49 @@ deprioritised.
   non-instantiated library leaves are the scaffold scope (recorded,
   not blockers). Memory delivery **advances** Phase 6; it does not
   close it.
-- FSMs with explicitly generated state encodings. **In progress** —
-  the IR + opaque `Node::FsmOut` leaf + encoding-derived emitter +
-  `Config::fsm_prob` + a cargo-portable structural/CSE-opacity proof
-  + the `phase6_fsm` matrix scenario have landed
-  (`PHASE-6-ADVANCED-MOTIFS.3.1`–`.3.4a`); the real-gate
-  verification that records FSM delivered **and closes Phase 6** is
-  `PHASE-6-ADVANCED-MOTIFS.3.4b` (a fresh banked gate, expected
-  222 scenarios / 888 designs — pending).
+- FSMs with explicitly generated state encodings. **FSM motif
+  delivered (2026-05-20, `PHASE-6-ADVANCED-MOTIFS.3` container done
+  → tree CLOSED).** A first-class `Fsm` block (additive
+  `Default`-empty `Module.fsms`) + an opaque `Node::FsmOut` leaf
+  (sibling to `FlopQ`/`MemRead`, never CSE'd; identical
+  `compact.rs` reachability obligation as `MemRead`) +
+  encoding-derived `localparam` state constants + async-reset
+  state register + `always_comb` next-state / Moore-output `case`s
+  on the shared `clk`/`rst_n`, behind the opt-in `Config::fsm_prob`
+  (serde-default `0.0` → byte-identical). Verified downstream-clean
+  against the real repo-owned `Phase4Hierarchy` gate — closing
+  artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: **222 scenarios
+  / 888 designs, `coverage_gaps = []`, 888/0 Verilator + both
+  Yosys (`without_abc`/`with_abc`), `saw_fsm_design = true` and
+  `saw_inferrable_memory_design = true`**, with Phase 4/5/5b
+  regressions still proven in the same banked artifact
+  (`saw_width_parameterized_design`,
+  `saw_packed_aggregate_design`,
+  `saw_recursive_hierarchy_module_dedup_active` = true). All three
+  generated encodings (binary / one-hot / gray) are emitted by
+  rule; Moore-output only (Mealy is a recorded post-`.3`
+  extension, not a Phase-6 blocker).
 - Multi-clock with CDC-safe handshakes — optional, expensive. Until
   this lands, every module remains fully synchronous to a single clock.
 - These motifs are not just feature-count work; they are a major part of
   the legal interaction richness needed for ANVIL to help find
   downstream tool bugs without sacrificing downstream-acceptance quality.
 
-**Exit criteria (memory met; phase closes at FSM):** the memory
-sub-objective is verified delivered against the banked
-`/tmp/anvil-tool-matrix-phase6-p1` artifact above (r87
-no-aspirational-claims: the verified report precedes this note).
-Phase 6 closes when the FSM sub-objective is likewise verified
-against a fresh banked gate (`PHASE-6-ADVANCED-MOTIFS.3.4b`);
-multi-clock CDC is the explicitly-optional, separately-prioritised
-deferral and is **not** a Phase 6 closure blocker.
+**Exit criteria (met):** Phase 6 closes when both substantive
+sub-objectives — the inferrable-memory motif **and** the
+generated-encoding FSM motif — are verified delivered against the
+banked `Phase4Hierarchy` gate (`coverage_gaps = []`, all-pass
+Verilator + both Yosys, the corresponding `saw_*_design` facts
+true, P4/P5/P5b regressions clean in the same artifact). Both
+are met: the memory motif against
+`/tmp/anvil-tool-matrix-phase6-p1` (219/876, 2026-05-18) and the
+FSM motif against `/tmp/anvil-tool-matrix-phase6-fsm-p1` (222/888,
+2026-05-20). r87 no-aspirational-claims: the verified reports
+precede this promotion. Multi-clock CDC is the
+explicitly-optional, separately-prioritised deferral and was
+**not** a Phase 6 closure blocker; it remains a future,
+separately-prioritised item (every module stays fully synchronous
+to a single clock until/unless that lane is taken up).
 
 ## Phase 7 — Oracle-backed micro-design artifacts (not started)
 

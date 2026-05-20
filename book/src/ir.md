@@ -489,8 +489,16 @@ sessions.
   scenario — 219 scenarios / 876 designs, `coverage_gaps = []`,
   876/0 Verilator + both Yosys). See `book/src/knobs.md`
   `memory_prob`, `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`, and the
-  `ROADMAP.md` Phase 6 entry. (Generated-encoding FSMs — the other
-  Phase 6 motif — are in progress.)
+  `ROADMAP.md` Phase 6 entry. **Phase 6 is now done** (2026-05-20):
+  the generated-encoding FSM motif also landed (first-class `Fsm`
+  block + opaque `Node::FsmOut` + encoding-derived emitter + opt-in
+  `fsm_prob`; binary / one-hot / gray encodings; Moore outputs;
+  verified downstream-clean on the same `Phase4Hierarchy` gate —
+  closing artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: 222
+  scenarios / 888 designs, `coverage_gaps = []`, 888/0 Verilator
+  + both Yosys, `saw_fsm_design = true`). Multi-clock CDC remains a
+  separately-prioritised future option; every module is fully
+  synchronous to a single clock.
 - **Unpacked `struct` / `union` for datapath** — mostly
   non-synthesizable (tool-dependent). Not pursued.
 - **Enums** — synthesizable but thin; they are typed constant

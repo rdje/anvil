@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `PHASE-6-ADVANCED-MOTIFS`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Phase 6 — Advanced motifs
 - Created: `2026-05-16`
-- Last updated: `2026-05-18` (`.2.4` done — memory delivered, verified gate + ROADMAP/book reconcile, `.2` container closed; frontier → `.3.4b`, the single remaining Phase 6 leaf)
+- Last updated: `2026-05-20` (**`.3.4b` done — FSM delivered, verified gate `/tmp/anvil-tool-matrix-phase6-fsm-p1` (222/888, `coverage_gaps=[]`, 888/0 Verilator + both Yosys, `saw_fsm_design=true` AND `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean); ROADMAP Phase 6 closed; `.3.4` + `.3` container + this tree all CLOSED**)
 - Owner: repo-local workflow
 
 ## Goal
@@ -37,9 +37,9 @@ multi-clock handshakes.
 ## Task Tree
 
 - ID: `PHASE-6-ADVANCED-MOTIFS`
-  Status: `active`
+  Status: `done`
   Goal: `Land inferrable memories and generated-encoding FSMs (multi-clock optional), downstream-clean.`
-  Children: `PHASE-6-ADVANCED-MOTIFS.1` (done), `PHASE-6-ADVANCED-MOTIFS.2` (active container: `.2.1`–`.2.4`), `PHASE-6-ADVANCED-MOTIFS.3` (active container — FSM: `.3.1` done, `.3.2`–`.3.4`)
+  Children: `PHASE-6-ADVANCED-MOTIFS.1` (done), `PHASE-6-ADVANCED-MOTIFS.2` (done container: `.2.1`–`.2.4` — memory delivered 2026-05-18), `PHASE-6-ADVANCED-MOTIFS.3` (done container — FSM: `.3.1`–`.3.4b` — FSM delivered 2026-05-20)
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.1`
   Status: `done`
@@ -94,9 +94,9 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.4 memory delivered — verified gate + ROADMAP/book reconcile`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3`
-  Status: `active`
+  Status: `done`
   Goal: `Generated-state-encoding FSM motif. Split (mirroring the proven memory .2.1–.2.4) into .3.1 design / .3.2 IR+leaf+emitter+knob scaffold / .3.3 cargo-portable structural+opacity proof / .3.4 matrix scenario+metric+gap then real-gate verify → ROADMAP Phase 6 (FSM is the last motif → closes Phase 6 + the tree on a verified clean gate).`
-  Children: `PHASE-6-ADVANCED-MOTIFS.3.1` (done), `.3.2` (container: `.3.2a`, `.3.2b`), `.3.3`, `.3.4`
+  Children: `PHASE-6-ADVANCED-MOTIFS.3.1` (done), `.3.2` (done container: `.3.2a`, `.3.2b`), `.3.3` (done), `.3.4` (done container: `.3.4a`, `.3.4b`)
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.1`
   Status: `done`
@@ -132,9 +132,9 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.3 FSM structural-contract + factorization-opacity proof`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.4`
-  Status: `active`
+  Status: `done`
   Goal: `Scenario + real-gate verify → close Phase 6. Split (Splitting Rules + the proven memory .2.3/.2.4 decomposition + r87 no-aspirational-claims: the matrix scenario+metric+gap is code that lands before any advance; the real-gate verification + ROADMAP/tree closure + book reconcile is a separate gated step) into .3.4a (phase6_fsm scenario + num_fsm_modules metric + saw_fsm_design fact/Phase4Hierarchy gap + non-vacuity test; no advance — unblocked) and .3.4b (run the real repo-owned gate, verify downstream-clean, then close ROADMAP Phase 6 + the tree + reconcile the book — gate-blocked).`
-  Children: `PHASE-6-ADVANCED-MOTIFS.3.4a`, `.3.4b`
+  Children: `PHASE-6-ADVANCED-MOTIFS.3.4a` (done), `.3.4b` (done)
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.4a`
   Status: `done`
@@ -144,17 +144,17 @@ multi-clock handshakes.
   Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4a phase6_fsm matrix scenario + num_fsm_modules metric + gap`
 
 - ID: `PHASE-6-ADVANCED-MOTIFS.3.4b`
-  Status: `pending`
+  Status: `done`
   Goal: `Run the real repo-owned Phase4Hierarchy gate (now including phase6_fsm) and VERIFY downstream-clean (coverage_gaps=[], Verilator + both Yosys all-pass, saw_fsm_design=true, saw_inferrable_memory_design=true, P4/P5/P5b regressions clean, 222 scenarios / 888 modules) BEFORE any promotion. FSM is the LAST Phase 6 motif: record FSM delivered + (memory delivered at .2.4) close ROADMAP Phase 6 + the PHASE-6-ADVANCED-MOTIFS tree; reconcile book/src/ir.md + knobs.md (fsm_prob); sync README/CODEBASE_ANALYSIS/MEMORY. Multi-clock CDC stays the explicitly-optional separately-prioritised deferral (not a Phase 6 blocker). A single fresh gate run covers BOTH memory and fsm (supersedes the in-flight memory-only .2.4 gate as the Phase-6-closing artifact; .2.4 may still record memory delivered from its own run).`
   Acceptance: `Banked gate report: coverage_gaps=[] + all-pass Verilator/Yosys + saw_fsm_design=true + saw_inferrable_memory_design=true; ROADMAP Phase 6 → done (exit criteria met, with the multi-clock optional-deferral note); .3.4 + .3 container + PHASE-6-ADVANCED-MOTIFS tree → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Real repo-owned Phase4Hierarchy gate ran to completion (background task bqebtebwa, exit 0, ~6h on a busy machine, 222/222 scenario dirs). Authoritative report /tmp/anvil-tool-matrix-phase6-fsm-p1/tool_matrix_report.json VERIFIED CLEAN before any promotion (r87 no-aspirational-claims): scenario_count=222, total_modules=888, artifact_kind=design, coverage_gaps=[], tool_summary verilator_passed=888/failed=0, yosys_without_abc 888/0, yosys_with_abc 888/0 (ALL 888 designs pass Verilator + BOTH repo Yosys modes — without_abc and with_abc — zero failures), coverage.saw_fsm_design=true AND coverage.saw_inferrable_memory_design=true. P4/P5/P5b regressions all still proven in the SAME banked artifact: saw_width_parameterized_design=true, saw_packed_aggregate_design=true, saw_recursive_hierarchy_module_dedup_active=true. Both Phase 6 substantive motifs (memory + FSM) are now verified delivered against banked Phase4Hierarchy gates: memory at /tmp/anvil-tool-matrix-phase6-p1 (.2.4, 2026-05-18, 219/876), FSM at /tmp/anvil-tool-matrix-phase6-fsm-p1 (this leaf, 2026-05-20, 222/888). Promotion strictly followed the verified artifact: ROADMAP Phase 6 (in progress)→(done) with the FSM bullet updated from "In progress" to "FSM motif delivered (2026-05-20, .3 container done → tree CLOSED)" citing the artifact + the closing "Exit criteria (met)" block citing BOTH banked artifacts; book/src/ir.md memory bullet updated to "Phase 6 is now done (2026-05-20): the generated-encoding FSM motif also landed" (with the Fsm/FsmOut/encoding/fsm_prob detail + Moore-only note + multi-clock-optional reaffirmation); book/src/knobs.md fsm_prob flipped from "In progress" to "Delivered (Phase 6, 2026-05-20)" with the closing-artifact citation + "This closes Phase 6 (advanced motifs)"; README phase narrative Phase 6 from "in progress / memory delivered + FSM in progress" to "done (2026-05-20): both substantive motifs landed and are verified downstream-clean" with the full closing-artifact citation; CODEBASE_ANALYSIS phase-coverage-map Phase-6 row from "in progress" to "done (2026-05-20)" with the corresponding citation. Phase 6 closes. Multi-clock CDC remains the explicitly-optional, separately-prioritised deferral (every module stays fully synchronous to a single clock). No src/ change (the FSM code landed in .3.2a/.3.2b/.3.3/.3.4a); mdbook build book clean; cargo unchanged-green (no src/tests touched in this slice). Closes the .3.4 container; closes the .3 container; closes the PHASE-6-ADVANCED-MOTIFS tree.`
+  Commit: `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4b FSM delivered — verified gate, closes Phase 6 + tree`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-6-ADVANCED-MOTIFS.3.4b` | `pending` (run the fresh gate) | **`.2.4` done** — the memory gate completed & was verified clean (`/tmp/anvil-tool-matrix-phase6-p1`: 219/876, `coverage_gaps=[]`, 876/0 Verilator + both Yosys, `saw_inferrable_memory_design=true`, P4/P5/P5b regressions proven); ROADMAP/book reconciled (memory **delivered**); the `.2` container is closed. `.3.4b` (the **last** Phase 6 leaf) now runs a **fresh** real repo-owned `Phase4Hierarchy` gate with the post-`.3.4a` binary (includes `phase6_fsm`; expected **222 scenarios / 888 designs**), verifies downstream-clean (`coverage_gaps=[]`, Verilator + both Yosys all-pass, `saw_fsm_design=true` **and** `saw_inferrable_memory_design=true`, P4/P5/P5b regressions clean), then records FSM delivered + **closes ROADMAP Phase 6 + the `PHASE-6-ADVANCED-MOTIFS` tree** + reconciles the book. The machine is now free (the `.2.4` gate finished) — launch the fresh gate; this is the single remaining Phase 6 leaf. |
+| — | (closed) | (tree done) | **`PHASE-6-ADVANCED-MOTIFS` tree CLOSED (2026-05-20).** Both substantive motifs landed and were verified delivered against banked `Phase4Hierarchy` gates: memory at `/tmp/anvil-tool-matrix-phase6-p1` (`.2.4`, 219/876, `saw_inferrable_memory_design=true`) and FSM at `/tmp/anvil-tool-matrix-phase6-fsm-p1` (`.3.4b`, 222/888, `saw_fsm_design=true` AND `saw_inferrable_memory_design=true`), both with `coverage_gaps=[]`, all-pass Verilator + both Yosys, P4/P5/P5b regressions proven in the same banked reports. ROADMAP Phase 6 closed; book/README/CODEBASE_ANALYSIS reconciled (`fsm_prob` Delivered; Phase-6 row done). Multi-clock CDC remains the explicitly-optional, separately-prioritised deferral (not a Phase 6 blocker). Continuous-PNT continues on the still-open trees (`PHASE-7-ORACLE-MICRODESIGN.2c`, `DIFFERENTIAL-SIMULATION.2b`, `PHASE-8-FRONTEND-ACCEPT.2`, …). |
 
 ## Decisions
 
@@ -308,6 +308,7 @@ multi-clock handshakes.
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.3` | `tests/pipeline.rs::fsm_block_matches_probed_template_and_is_factorization_opaque` — 4 `ConstructionStrategy` × 4 `FactorizationLevel` (None/Cse/Commutative/EGraph) × 6 seeds (96 designs; cargo-portable formalization, tool-level proof is `.3.4`'s real gate). validate_design clean; 1 module / 1 `Fsm`. (b) **Opacity**: exactly one `FsmOut` survives every factorization level (incl. EGraph) + the FSM leaf has ZERO `Gate` nodes (the state machine never enters the NodeId graph). (a) **Structural correctness keyed on the exact encoding**: every state `s` ⇒ SV contains `localparam logic [sw-1:0] FSM0_S<s> = <sw>'h<FsmEncoding::state_const(s)>;` with `sw = FsmEncoding::state_width(num_states)` (Binary=`s`/OneHot=`1<<s`/Gray=`s^(s>>1)`) — proves correctness + structural distinctness where params differ (robust where Binary/Gray coincide at N=2); + exact async-low-reset state `always_ff` (`if(!rst_n) fsm_state_0<=FSM0_S0; else fsm_state_0<=fsm_next_0;`) + sel-selected next-state/Moore cases. All 3 encodings reachable across seeds 0..6 (matches `.3.2b`; encoding fixed by `(strategy,seed)`, deterministic/reproducible). Proof-only — `git diff` = `tests/pipeline.rs` (+ tree/live-docs), no `src/`. `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean; full `cargo test` (COMMIT.md gate). Default-off byte-identical reaffirmed by `.3.2b` (unchanged). No `book/` change. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.3.4a` | `src/metrics.rs`: `DesignMetrics.num_fsm_modules` (count `!Module::fsms.is_empty()`) + computed + struct-literal, mirroring `num_memory_modules`. `src/bin/tool_matrix.rs`: `CoverageSummary.saw_fsm_design`; `phase6_fsm` scenario tuple (after `phase6_inferrable_memory`, `next_seed+73`); `phase6_fsm_focus_config` (exact clone of the memory anchor — depth-1 wrapper / library / 4 leaves / 4 instances / EGraph / routing-probs 0.0, only `fsm_prob=1.0` — shape-coverage sets unperturbed); coverage set (`fsm_prob>0 && num_fsm_modules>0`); `merge_into`; `Phase4Hierarchy` gap arm; bin counts **219→222 scenarios / 876→888 modules** (verified — phase4 bin test + 222-scenario covers_wrapper test green; +3/+12 matches `phase6_inferrable_memory`); scenario-name exception list `+= phase6_fsm`; new `phase6_fsm_scenario_is_non_vacuous` (every `phase6_fsm` scenario builds ≥1 `Fsm` module ⇒ `saw_fsm_design` reachable). `cargo check --all-targets` clean (`CoverageSummary` uses `..Default::default()`); `cargo test --bin tool_matrix` 29/29; `cargo fmt --all --check`/`clippy --all-targets -- -D warnings` clean; full `cargo test` (COMMIT.md gate). ROADMAP unchanged (advance is `.3.4b`). No `book/` change. | Done. |
 | `2026-05-18` | `PHASE-6-ADVANCED-MOTIFS.2.4` | Real repo-owned `Phase4Hierarchy` gate (bg task `bd3jdtx31`, exit 0, ~10h, 219/219 dirs) → `/tmp/anvil-tool-matrix-phase6-p1/tool_matrix_report.json` **verified clean before promotion (r87)**: `scenario_count=219`, `total_modules=876`, `artifact_kind=design`, `coverage_gaps=[]`, `tool_summary` verilator 876/0 + yosys_without_abc 876/0 + yosys_with_abc 876/0, `coverage.saw_inferrable_memory_design=true`; P4/P5/P5b regressions proven in the same banked report (`saw_width_parameterized_design`/`saw_packed_aggregate_design`/`saw_recursive_hierarchy_module_dedup_active`=true). Promotion strictly followed the artifact: ROADMAP Phase 6 `(not started)`→`(in progress)` + "Memory motif delivered (2026-05-18)" + "Exit criteria (memory met; phase closes at FSM)"; `book/src/ir.md` "Unpacked arrays"→Delivered(Phase 6); `book/src/knobs.md` += `memory_prob`/`fsm_prob` (config-only list + knob→metrics table); README + CODEBASE_ANALYSIS phase-coverage-map Phase-6 row updated. **Phase 6 NOT closed** — `.3` FSM (`.3.4b`) closes it; multi-clock CDC = optional separately-prioritised deferral. No `src/`/`tests/` change (docs/ROADMAP/book only); `mdbook build book` clean; `cargo` unchanged-green. Closes the `.2` container; tree stays OPEN for `.3`. | Done. |
+| `2026-05-20` | `PHASE-6-ADVANCED-MOTIFS.3.4b` | Real repo-owned `Phase4Hierarchy` gate (bg task `bqebtebwa`, exit 0, ~6h on a busy machine, 222/222 scenario dirs) → `/tmp/anvil-tool-matrix-phase6-fsm-p1/tool_matrix_report.json` **VERIFIED CLEAN before any promotion (r87 no-aspirational-claims)**: `scenario_count=222`, `total_modules=888`, `artifact_kind=design`, `coverage_gaps=[]`, `tool_summary` verilator 888/0 + yosys_without_abc 888/0 + yosys_with_abc 888/0 (ALL 888 designs pass Verilator + BOTH repo Yosys modes — `without_abc` and `with_abc` — zero failures), `coverage.saw_fsm_design=true` AND `coverage.saw_inferrable_memory_design=true`. P4/P5/P5b regressions proven in the same banked report (`saw_width_parameterized_design`/`saw_packed_aggregate_design`/`saw_recursive_hierarchy_module_dedup_active`=true). Both Phase 6 substantive motifs now verified delivered against banked gates: memory at `/tmp/anvil-tool-matrix-phase6-p1` (`.2.4`, 2026-05-18, 219/876), FSM at `/tmp/anvil-tool-matrix-phase6-fsm-p1` (this leaf, 2026-05-20, 222/888). Promotion strictly followed the artifact: ROADMAP Phase 6 `(in progress)`→`(done)` + FSM bullet rewritten "FSM motif delivered (2026-05-20, `.3` container done → tree CLOSED)" + the closing "Exit criteria (met)" block citing BOTH banked artifacts; `book/src/ir.md` memory bullet updated to "Phase 6 is now done (2026-05-20)" (with FSM `Fsm`/`FsmOut`/encoding/`fsm_prob` detail + Moore-only note + multi-clock-optional reaffirmation); `book/src/knobs.md` `fsm_prob` flipped from "In progress" to "Delivered (Phase 6, 2026-05-20)" with the closing-artifact citation + "This closes Phase 6 (advanced motifs)"; README phase narrative Phase 6 row done; CODEBASE_ANALYSIS phase-coverage-map Phase-6 row done. Multi-clock CDC remains the explicitly-optional, separately-prioritised deferral. No `src/`/`tests/` change (the FSM code landed in `.3.2a`/`.3.2b`/`.3.3`/`.3.4a`); `mdbook build book` clean; `cargo` unchanged-green. **Closes the `.3.4` container; closes the `.3` container; closes the `PHASE-6-ADVANCED-MOTIFS` tree.** | Done — Phase 6 closed; tree closed. |
 
 ## Commit Log
 
@@ -325,6 +326,7 @@ multi-clock handshakes.
 | `PHASE-6-ADVANCED-MOTIFS.3.3` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.3 FSM structural-contract + factorization-opacity proof` | Cargo-portable proof (96 designs): exact per-encoding `state_const`/`state_width` template + 1 `FsmOut`/0 `Gate` across every FactorizationLevel incl. EGraph + all 3 encodings reachable. Proof-only (no `src/`). |
 | `PHASE-6-ADVANCED-MOTIFS.3.4a` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4a phase6_fsm matrix scenario + num_fsm_modules metric + gap` | `num_fsm_modules` metric + `phase6_fsm` scenario + `saw_fsm_design` fact/gap; bin 219→222 / 876→888; non-vacuity test. No ROADMAP advance (that is `.3.4b` on verified evidence). |
 | `PHASE-6-ADVANCED-MOTIFS.2.4` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.2.4 memory delivered — verified gate + ROADMAP/book reconcile` | Verified the real gate clean (219/876, `coverage_gaps=[]`, 876/0 Verilator+both-Yosys, `saw_inferrable_memory_design=true`); ROADMAP/book/README/CODEBASE reconciled (memory delivered, Phase 6 stays open for `.3`). Closes the `.2` container. No code. |
+| `PHASE-6-ADVANCED-MOTIFS.3.4b` | `Phase 6: PHASE-6-ADVANCED-MOTIFS.3.4b FSM delivered — verified gate, closes Phase 6 + tree` | Verified the real gate clean (222/888, `coverage_gaps=[]`, 888/0 Verilator + both Yosys, `saw_fsm_design=true` AND `saw_inferrable_memory_design=true`, P4/P5/P5b regressions proven in the same banked report); ROADMAP Phase 6 `(in progress)`→`(done)` + book/README/CODEBASE phase-coverage-map reconciled (`fsm_prob` Delivered). **Closes the `.3.4` container; closes the `.3` container; closes the `PHASE-6-ADVANCED-MOTIFS` tree; closes ROADMAP Phase 6.** Multi-clock CDC stays the explicitly-optional, separately-prioritised deferral. No `src/`/`tests/` change (docs/ROADMAP/book only). |
 
 ## Changelog
 
@@ -586,3 +588,46 @@ multi-clock handshakes.
   `.2.2`/`.2.3`); `mdbook build book` clean; `cargo`
   unchanged-green. Frontier → `.3.4b` (run the fresh gate; the
   single remaining Phase 6 leaf; machine now free).
+- `2026-05-20`: **`.3.4b` landed — Phase 6 closed; `PHASE-6-ADVANCED-MOTIFS` tree CLOSED.**
+  Real repo-owned `Phase4Hierarchy` gate (bg task `bqebtebwa`, exit
+  0, ~6h on a busy machine, 222/222 dirs) → authoritative report
+  `/tmp/anvil-tool-matrix-phase6-fsm-p1/tool_matrix_report.json`
+  **verified clean before any promotion (r87 no-aspirational-claims)**:
+  `scenario_count=222`, `total_modules=888`, `artifact_kind=design`,
+  `coverage_gaps=[]`, `tool_summary` verilator 888/0 +
+  yosys_without_abc 888/0 + yosys_with_abc 888/0 (**ALL 888 designs
+  pass Verilator + BOTH repo Yosys modes — zero failures**),
+  `coverage.saw_fsm_design=true` **AND**
+  `coverage.saw_inferrable_memory_design=true`; P4/P5/P5b regressions
+  still proven in the SAME banked artifact
+  (`saw_width_parameterized_design`,
+  `saw_packed_aggregate_design`,
+  `saw_recursive_hierarchy_module_dedup_active` = true). Both Phase 6
+  substantive motifs are now verified delivered against banked
+  Phase4Hierarchy gates: memory at
+  `/tmp/anvil-tool-matrix-phase6-p1` (`.2.4`, 2026-05-18, 219/876)
+  and FSM at `/tmp/anvil-tool-matrix-phase6-fsm-p1` (this leaf,
+  2026-05-20, 222/888). Promotion strictly followed the artifact:
+  ROADMAP Phase 6 `(in progress)`→`(done)` with the FSM bullet
+  rewritten "FSM motif delivered (2026-05-20, `.3` container done →
+  tree CLOSED)" + the closing "Exit criteria (met)" block citing
+  BOTH banked artifacts + the multi-clock optional-deferral note;
+  `book/src/ir.md` memory bullet updated to "Phase 6 is now done
+  (2026-05-20): the generated-encoding FSM motif also landed"
+  (`Fsm`/`FsmOut`/encoding/`fsm_prob` detail + Moore-only note +
+  multi-clock-optional reaffirmation); `book/src/knobs.md`
+  `fsm_prob` flipped from "In progress" to **"Delivered (Phase 6,
+  2026-05-20)"** with the closing-artifact citation + "This closes
+  Phase 6 (advanced motifs)"; `README.md` phase narrative Phase 6
+  done; `CODEBASE_ANALYSIS.md` phase-coverage-map Phase-6 row done.
+  **Phase 6 CLOSED**; **`.3.4` container CLOSED**; **`.3` container
+  CLOSED**; **`PHASE-6-ADVANCED-MOTIFS` tree CLOSED.** Multi-clock
+  CDC remains the explicitly-optional, separately-prioritised
+  deferral (every module stays fully synchronous to a single
+  clock); it is a future, separately-prioritised item, not a
+  Phase 6 leftover. No `src/`/`tests/` change (the FSM code landed
+  in `.3.2a`/`.3.2b`/`.3.3`/`.3.4a`); `mdbook build book` clean;
+  `cargo` unchanged-green. Frontier → closed (this tree). Continuous
+  PNT continues on still-open trees: `PHASE-7-ORACLE-MICRODESIGN.2c`
+  next, then `DIFFERENTIAL-SIMULATION.2b`,
+  `PHASE-8-FRONTEND-ACCEPT.2`, and the Phase-9 lane.

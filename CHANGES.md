@@ -1,8 +1,101 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-19-phase7-2b — PHASE-7-ORACLE-MICRODESIGN.2b: un-resolved SV + JSON expected-facts manifest emitters (from the .2a oracle)
+## 2026-05-20-phase6-3.4b — PHASE-6-ADVANCED-MOTIFS.3.4b: FSM delivered — verified gate, closes Phase 6 + tree
 
 **Landed as:** this commit
+
+**What changed**
+
+- `ROADMAP.md`: Phase 6 header `(in progress)`→`(done)`; FSM bullet
+  rewritten from "In progress" to "FSM motif delivered (2026-05-20,
+  `.3` container done → tree CLOSED)" with the closing-artifact
+  citation; Exit-criteria block rewritten to "(met)" citing BOTH
+  banked artifacts (memory `.2.4` + FSM `.3.4b`) + the
+  multi-clock-CDC optional-deferral reaffirmation.
+- `book/src/ir.md`: memory bullet's "FSMs in progress" parenthetical
+  flipped to "**Phase 6 is now done** (2026-05-20)" with the
+  `Fsm`/`FsmOut`/encoding/`fsm_prob` detail + Moore-only note +
+  multi-clock-optional reaffirmation.
+- `book/src/knobs.md`: `fsm_prob` flipped from "In progress (Phase 6
+  FSM motif; closes on its fresh-gate verification)" to **"Delivered
+  (Phase 6, 2026-05-20)"** with the closing-artifact citation +
+  "This closes Phase 6 (advanced motifs)" + a Mealy
+  post-closure-extension note.
+- `README.md`: phase narrative Phase 6 row from "in progress / memory
+  delivered + FSM in progress" to "done (2026-05-20): both
+  substantive motifs landed and are verified downstream-clean" with
+  the full closing-artifact citation.
+- `CODEBASE_ANALYSIS.md`: phase-coverage-map Phase-6 row from
+  "in progress" to **"done (2026-05-20)"** with the corresponding
+  artifact citation.
+- `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`: Metadata Status
+  `active`→`done` + Last updated `2026-05-20`; tree-root + `.3` + `.3.4`
+  containers all `active`→`done`; `.3.4b` leaf Status `pending`→`done`
+  with the full Verification + Commit; Frontier replaced with
+  "(closed)"; Verification Log + Commit Log + Changelog entries
+  added.
+- `docs/TASK_TREE.md`: `PHASE-6-ADVANCED-MOTIFS` row Status
+  `active`→`done` with the closing artifact citation.
+- `CHANGES.md`: this entry + backfill of the `.2b` entry's
+  "**Landed as:** this commit" → `e1b3205`.
+- `MEMORY.md`: Phase 6 marked **DONE (2026-05-20)** with the closing
+  artifact citation; `PHASE-6-ADVANCED-MOTIFS` tree row marked
+  CLOSED; recent-commits list updated (`.2b` `<pending>` → `e1b3205`;
+  `.3.4b` `<pending>`).
+
+**Why**
+
+- `PHASE-6-ADVANCED-MOTIFS.3.4b` — the gated closer leaf of Phase 6.
+  FSM is the last substantive Phase 6 motif; once it is verified
+  delivered against a banked `Phase4Hierarchy` gate, both motifs are
+  proven downstream-clean and Phase 6 closes. r87
+  no-aspirational-claims governs every byte of this promotion: the
+  verified report precedes every word of new label text.
+
+**Validation**
+
+- Authoritative banked report
+  `/tmp/anvil-tool-matrix-phase6-fsm-p1/tool_matrix_report.json`
+  VERIFIED CLEAN before any promotion: `scenario_count=222`,
+  `total_modules=888`, `artifact_kind=design`, `coverage_gaps=[]`,
+  `tool_summary` verilator 888/0 + yosys_without_abc 888/0 +
+  yosys_with_abc 888/0 (**ALL 888 designs pass Verilator + BOTH repo
+  Yosys modes — zero failures**), `coverage.saw_fsm_design=true` AND
+  `coverage.saw_inferrable_memory_design=true`. P4/P5/P5b regressions
+  all still proven in the SAME banked artifact
+  (`saw_width_parameterized_design`,
+  `saw_packed_aggregate_design`,
+  `saw_recursive_hierarchy_module_dedup_active`=true). No `src/`/
+  `tests/` change (the FSM code landed in
+  `.3.2a`/`.3.2b`/`.3.3`/`.3.4a`); `mdbook build book` clean;
+  `cargo` unchanged-green.
+
+**Impact**
+
+- **ROADMAP Phase 6 closes.** The `PHASE-6-ADVANCED-MOTIFS` tree
+  closes. Two substantive motifs banked: inferrable memories (Yosys
+  `$mem_v2`) and generated-encoding Moore FSMs (binary / one-hot /
+  gray), both opt-in, both default-off byte-identical, both
+  downstream-proven. ANVIL's by-construction motif coverage
+  advances: parameterization (Phase 5) + packed aggregates (Phase
+  5b) + memories (Phase 6) + generated-encoding FSMs (Phase 6) all
+  ride on the same `Phase4Hierarchy` gate. Multi-clock CDC remains
+  an explicitly-optional, separately-prioritised future item
+  (single-clock invariant preserved). Continuous-PNT proceeds:
+  `PHASE-7-ORACLE-MICRODESIGN.2c` next.
+
+**Files touched**
+
+- `ROADMAP.md`; `book/src/ir.md`; `book/src/knobs.md`; `README.md`;
+  `CODEBASE_ANALYSIS.md`;
+  `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-19-phase7-2b — PHASE-7-ORACLE-MICRODESIGN.2b: un-resolved SV + JSON expected-facts manifest emitters (from the .2a oracle)
+
+**Landed as:** e1b3205
 
 **What changed**
 

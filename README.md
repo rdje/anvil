@@ -839,20 +839,29 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `saw_packed_aggregate_design = true`); `union`/`array` packing,
   parent-side aggregate connections and the param/aggregate
   cross-product are open-ended post-Phase-5b sub-slices (scope-cut,
-  not a blocker). **Phase 6 — Advanced motifs is in progress**: the
-  **memory motif is delivered** (2026-05-18) — a first-class
-  `Memory` block + opaque `Node::MemRead` leaf rendering the
-  Yosys-`$mem_v2`-inferrable synchronous template behind the opt-in
-  `memory_prob` (default-off byte-identical), verified
-  downstream-clean against the `Phase4Hierarchy` gate (closing
-  artifact `/tmp/anvil-tool-matrix-phase6-p1`: 219 scenarios / 876
-  designs, `coverage_gaps = []`, 876/0 Verilator + both Yosys,
-  `saw_inferrable_memory_design = true`); the **generated-encoding
-  FSM motif is in progress** (IR + opaque `Node::FsmOut` + emitter +
-  `fsm_prob` + proofs + the `phase6_fsm` scenario landed; the
-  fresh-gate verification that closes Phase 6 is pending). Multi-clock
-  CDC is the optional, separately-prioritised deferral. Every
-  remaining roadmap phase is tracked as a task tree under
+  not a blocker). **Phase 6 — Advanced motifs is done (2026-05-20)**:
+  both substantive motifs landed and are verified downstream-clean
+  against the banked `Phase4Hierarchy` gate. The **memory motif**
+  (delivered 2026-05-18) — a first-class `Memory` block + opaque
+  `Node::MemRead` leaf rendering the Yosys-`$mem_v2`-inferrable
+  synchronous template behind the opt-in `memory_prob` (default-off
+  byte-identical) — closed against
+  `/tmp/anvil-tool-matrix-phase6-p1` (219 scenarios / 876 designs,
+  `coverage_gaps = []`, 876/0 Verilator + both Yosys,
+  `saw_inferrable_memory_design = true`). The
+  **generated-encoding FSM motif** (delivered 2026-05-20) — a
+  first-class `Fsm` block + opaque `Node::FsmOut` + encoding-derived
+  emitter (binary / one-hot / gray) behind the opt-in `fsm_prob`
+  (default-off byte-identical), Moore outputs only — closed against
+  `/tmp/anvil-tool-matrix-phase6-fsm-p1` (222 scenarios / 888
+  designs, `coverage_gaps = []`, 888/0 Verilator + both Yosys,
+  `saw_fsm_design = true` **and** `saw_inferrable_memory_design =
+  true`, with Phase 4/5/5b regressions still proven in the same
+  banked artifact). Multi-clock CDC remains the optional,
+  separately-prioritised deferral (every module stays fully
+  synchronous to a single clock). Every remaining roadmap phase
+  (Phase 7 oracle-backed micro-design and beyond) is tracked as a
+  task tree under
   `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
 
 ## Maintenance rule

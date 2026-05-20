@@ -750,8 +750,13 @@ resume/checkpoint behavior, and which external tools are invoked.
   Moore-output `case`s) whose output is the opaque `Node::FsmOut`
   leaf. Encoding (binary / one-hot / gray) is rolled per module;
   mutually exclusive with the param/memory lanes; default-off is
-  byte-identical. In progress (Phase 6 FSM motif; closes on its
-  fresh-gate verification).
+  byte-identical. **Delivered (Phase 6, 2026-05-20)**, proven
+  downstream-clean against the banked `Phase4Hierarchy` gate
+  (closing artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: 222
+  scenarios / 888 designs, `coverage_gaps = []`, 888/0 Verilator +
+  both Yosys, `saw_fsm_design = true`). **This closes Phase 6
+  (advanced motifs).** Mealy outputs are the recorded post-closure
+  extension and are not emitted today.
 
 ## Knob serialization
 
