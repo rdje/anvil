@@ -1,8 +1,166 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2c-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)
+## 2026-05-20-phase8-2c.1 — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.1 hierarchy-aware parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/frontend/mod.rs` extended with the **Phase-8-specific
+  parity comparator core** (parallel to Phase 7's microdesign
+  types, NOT derived — Phase 8 carries instances +
+  per-instance bindings the Phase 7 single-module set does
+  not):
+  - `pub struct ToolReport { seed, top, package_constants,
+    top_params, top_localparams, instances:
+    Vec<InstanceToolReport>, generate_branches }`
+  - `pub struct InstanceToolReport { inst_name,
+    child_module, resolved_bindings: BTreeMap<String, i128> }`
+  - `pub enum Divergence` — **23 variants** enumerating
+    exactly which axis + which direction broke:
+    - `SeedMismatch` / `TopMismatch`
+    - `PackageConstant{MissingInTool, MissingInManifest, Mismatch}`
+    - `TopParam{MissingInTool, MissingInManifest, Mismatch}`
+    - `TopLocalparam{MissingInTool, MissingInManifest, Mismatch}`
+    - `Generate{MissingInTool, MissingInManifest, Mismatch}`
+    - **load-bearing hierarchy-aware additions**:
+      `InstanceMissingInTool`, `InstanceMissingInManifest`,
+      `InstanceChildModuleMismatch`,
+      `InstanceBindingMissingInTool`,
+      `InstanceBindingMissingInManifest`,
+      `InstanceBindingMismatch`
+  - `pub enum FactCategory { Seed, Top, PackageConstants,
+    TopParams, TopLocalparams, Instances,
+    GenerateBranches }`
+  - `pub struct ParityScope { categories:
+    BTreeSet<FactCategory> }` with `all()`/`none()`/
+    `only(&[...])` constructors + `.contains`.
+  - `pub fn compare_manifest_to_tool_report(manifest,
+    report) -> Result<(), Vec<Divergence>>` — strict
+    delegates to `_in_scope` with `ParityScope::all()`.
+  - `pub fn compare_manifest_to_tool_report_in_scope(
+    manifest, report, scope) -> Result<(), Vec<Divergence>>`
+    — the scoped walker. The `Instances` arm builds
+    name-keyed `BTreeMap<&str, &InstanceFact|&InstanceToolReport>`
+    indices from each side for **order-independent**
+    presence checks + per-binding compares (deterministic
+    since `BTreeMap` iteration is sorted).
+  - `pub fn synthetic_tool_report_from_manifest(manifest)
+    -> ToolReport` — flattens `packages` to `pkg::name` +
+    projects the `.2a` oracle fields. The always-agreeing
+    reference used by `.2c.1`'s cargo-portable proofs and
+    as the structural fallback in `.2c.2`'s real-tool path.
+
+- New `tests/frontend_parity.rs` (mirrors
+  `tests/microdesign_parity.rs` as a top-level integration
+  test):
+  - **10 cargo-portable comparator proofs (all green):**
+    1. `comparator_agrees_on_synthetic_tool_report_built_from_the_oracle`
+       — load-bearing baseline across reproducibility
+       seeds `{0, 1, 7, 42, 12345}`.
+    2. `comparator_surfaces_top_param_mismatch_when_perturbed`
+    3. `comparator_surfaces_top_localparam_mismatch_when_perturbed`
+    4. `comparator_surfaces_package_constant_mismatch_when_perturbed`
+    5. **`comparator_surfaces_instance_binding_mismatch_when_perturbed`**
+       — the hierarchy-aware Phase-8 addition. Perturbs
+       ONE binding on ONE instance, asserts the right
+       `InstanceBindingMismatch` surfaces AND **no
+       spurious divergence on the OTHER instance** (the
+       comparator must key by `(inst_name, binding_name)`).
+    6. `comparator_surfaces_generate_branch_mismatch_when_flipped`
+    7. **`comparator_surfaces_instance_presence_divergences`**
+       — the other hierarchy-aware addition. Dropping an
+       instance from the report → `InstanceMissingInTool`
+       on that name; adding a spurious instance →
+       `InstanceMissingInManifest`.
+    8. `comparator_surfaces_seed_and_top_mismatch_when_perturbed`
+       — defensive against a stale or mis-routed tool
+       report (both top-level variants in one fixture).
+    9. `scoped_comparator_only_enforces_scoped_categories`
+       — load-bearing scoping proof: `TopParams`-only
+       scope ignores instance-binding perturbation but
+       surfaces top-param.
+    10. `empty_scope_ignores_every_disagreement` —
+        `ParityScope::none()` returns `Ok(())` even on a
+        maximally-disagreeing report.
+  - **1 tool-gated `#[ignore]` scaffold**:
+    `parity_against_real_downstream_elaborator` —
+    any-of-`yosys`/`slang`/`verilator` presence guard at
+    the head; corpus-driver loop wired against the same
+    `SEEDS`/`N_PARAMS`/`N_CHILDREN` constants the portable
+    proofs use; placeholder for the `.2c.2`-owned
+    `emit_sv` → shell → extract → compare end-to-end
+    wiring.
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20`; `.2c.1` Status `pending`→`done`
+  with full Verification (every type + every proof + the
+  Phase-8-vs-Phase-7 parallel-types rationale + the
+  hierarchy-aware additions) + Commit field; Frontier
+  `.2c.1`→`.2c.2`; Verification Log + Commit Log +
+  Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  current frontier updated `.2c.1`→`.2c.2`.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase8-2c-split` entry's "Landed as: this commit" →
+  `686afd8`.
+
+- `MEMORY.md`: recent commits — `phase8-2c-split`
+  `<pending>` → `686afd8`; new `<pending>` head for this
+  `.2c.1` slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c.1` — the harness-build half
+  of `.2c`'s split, exactly mirroring Phase 7's `.2c.1`.
+  The hierarchy-aware comparator + cargo-portable proofs
+  land first as pure-Rust code with no tool dependency,
+  so the `.2c.2` real-tool run is purely an acceptance
+  test against a fully proven oracle: every disagreement
+  the gate could surface is already a known
+  `Divergence` variant produced by code that has been
+  exercised cargo-portably. The instance-presence + per-
+  instance per-binding additions are the load-bearing
+  hierarchy-aware extensions over Phase 7's set.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - `tests/frontend_parity`: **10 passed + 1 ignored**.
+  - `tests/microdesign_parity`: 15 passed + 1 ignored
+    (every `.2c.1` + `.2c.2a` portable proof unchanged).
+  - `tests/pipeline`: 121 passed (758s).
+  - `tests/snapshots`: 6 passed.
+  - lib: **236 passed** (unchanged — new code is in
+    `src/frontend/` `pub` items + new tests in
+    `tests/frontend_parity.rs`).
+  - bin tests: 5+29+3 passed; doc-tests unchanged.
+- Portable `cargo test` stays green tool-less.
+
+**Impact**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c.2` is unblocked (the real
+  tool-equipped gate run against a downstream elaborator).
+  The Phase-8 hierarchy-aware comparator is now a public,
+  proven `frontend` API surface that `.2c.2`'s real-tool
+  gate will use directly. ROADMAP Phase 8 closure remains
+  gated on `.2c.2`'s verified-clean banked artifact (r87).
+
+**Files touched**
+
+- `src/frontend/mod.rs`; `tests/frontend_parity.rs` (new);
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2c-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)
+
+**Landed as:** 686afd8
 
 **What changed**
 

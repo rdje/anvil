@@ -763,6 +763,499 @@ pub fn emit_manifest(unit: &SourceUnit) -> String {
     serde_json::to_string_pretty(&build_manifest(unit)).expect("manifest serializes")
 }
 
+// ===================================================================
+// PHASE-8-FRONTEND-ACCEPT.2c.1 — hierarchy-aware parity comparator
+// core.
+//
+// Phase 8 has its OWN parity types (parallel to Phase 7's
+// `microdesign::{ToolReport, Divergence, FactCategory, ParityScope}`,
+// NOT derived): the artifact differs — Phase 7 emits single-module
+// `rtl_const_expr`, Phase 8 emits hierarchical packages + child
+// stubs + a top with instance bindings + generate-if, so the
+// `ToolReport` carries an `instances` vector and `Divergence` adds
+// instance-presence + instance-binding variants the Phase 7 set does
+// not need. The scope mechanism mirrors Phase 7's; the comparator's
+// fail-accumulating walk is identical in shape.
+//
+// The harness wiring (corpus + downstream consumer + extractor +
+// `#[ignore]` real-tool gate) lives in `tests/frontend_parity.rs`
+// and is `#[ignore]`-gated so the portable `cargo test` stays green
+// tool-less — the Phase-1 doctrine reaffirmed in PHASE-7's
+// Decisions, applied at PHASE-7's `.2c.1`/`.2c.2a`, and applied here.
+// `.2c.2` runs the real `--ignored` gate end-to-end against a
+// downstream elaborator and banks a verified-clean artifact before
+// ROADMAP Phase 8 → done.
+// ===================================================================
+
+/// What a downstream consumer's resolved-facts report looks like for
+/// a Phase 8 `SourceUnit`, normalized to the same fact set the
+/// manifest carries.
+///
+/// Names match the manifest keys exactly; values are resolved
+/// integers (no symbolic SV — the tool resolved them). `BTreeMap`
+/// throughout for deterministic iteration; `Vec<InstanceToolReport>`
+/// for the per-instance facts (the tool reports each instance by
+/// `inst_name`; the comparator does name-keyed lookups so order
+/// independence holds).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolReport {
+    pub seed: u64,
+    pub top: String,
+    /// `pkg::name` → resolved value (the package localparams the tool
+    /// can introspect).
+    pub package_constants: BTreeMap<String, i128>,
+    /// Top module parameter ports: `name` → resolved value.
+    pub top_params: BTreeMap<String, i128>,
+    /// Top module body localparams: `name` → resolved value.
+    pub top_localparams: BTreeMap<String, i128>,
+    /// Per-instance resolved facts.
+    pub instances: Vec<InstanceToolReport>,
+    /// `generate label` → taken.
+    pub generate_branches: BTreeMap<String, bool>,
+}
+
+/// One instance's resolved facts as the tool reports them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstanceToolReport {
+    pub inst_name: String,
+    pub child_module: String,
+    /// Per-binding resolved value (`CP<i>` → value).
+    pub resolved_bindings: BTreeMap<String, i128>,
+}
+
+/// A single category of disagreement between the manifest (the
+/// oracle) and the tool report for a Phase 8 hierarchy.
+///
+/// Extends Phase 7's per-axis × per-direction scheme with **instance
+/// presence** + **per-instance per-binding** variants — the
+/// load-bearing hierarchy-aware additions. The comparator
+/// accumulates the full divergence set rather than fail-fast so a
+/// counterexample tuple is one-shot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Divergence {
+    SeedMismatch {
+        expected: u64,
+        actual: u64,
+    },
+    TopMismatch {
+        expected: String,
+        actual: String,
+    },
+
+    // Package constants.
+    PackageConstantMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    PackageConstantMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    PackageConstantMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+
+    // Top params.
+    TopParamMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    TopParamMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    TopParamMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+
+    // Top localparams.
+    TopLocalparamMissingInTool {
+        name: String,
+        expected: i128,
+    },
+    TopLocalparamMissingInManifest {
+        name: String,
+        actual: i128,
+    },
+    TopLocalparamMismatch {
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+
+    // Instance presence.
+    InstanceMissingInTool {
+        inst_name: String,
+    },
+    InstanceMissingInManifest {
+        inst_name: String,
+    },
+    InstanceChildModuleMismatch {
+        inst_name: String,
+        expected: String,
+        actual: String,
+    },
+
+    // Per-instance per-binding values.
+    InstanceBindingMissingInTool {
+        inst_name: String,
+        name: String,
+        expected: i128,
+    },
+    InstanceBindingMissingInManifest {
+        inst_name: String,
+        name: String,
+        actual: i128,
+    },
+    InstanceBindingMismatch {
+        inst_name: String,
+        name: String,
+        expected: i128,
+        actual: i128,
+    },
+
+    // Generate branches.
+    GenerateMissingInTool {
+        label: String,
+        expected: bool,
+    },
+    GenerateMissingInManifest {
+        label: String,
+        actual: bool,
+    },
+    GenerateMismatch {
+        label: String,
+        expected: bool,
+        actual: bool,
+    },
+}
+
+/// The fact-category axes the Phase 8 comparator can enforce — one
+/// per `ToolReport` section. The scope mechanism mirrors Phase 7's
+/// `microdesign::ParityScope` (different downstream consumers expose
+/// different subsets — yosys hierarchy-elaborate may not surface
+/// per-instance bindings the way slang's `--ast-json` does, etc.).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum FactCategory {
+    Seed,
+    Top,
+    PackageConstants,
+    TopParams,
+    TopLocalparams,
+    Instances,
+    GenerateBranches,
+}
+
+/// The set of fact categories a Phase 8 parity gate enforces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParityScope {
+    pub categories: std::collections::BTreeSet<FactCategory>,
+}
+
+impl ParityScope {
+    /// Every category — the strict-all-axes comparison
+    /// `compare_manifest_to_tool_report` delegates to.
+    pub fn all() -> Self {
+        let categories = [
+            FactCategory::Seed,
+            FactCategory::Top,
+            FactCategory::PackageConstants,
+            FactCategory::TopParams,
+            FactCategory::TopLocalparams,
+            FactCategory::Instances,
+            FactCategory::GenerateBranches,
+        ]
+        .iter()
+        .copied()
+        .collect();
+        Self { categories }
+    }
+
+    /// No category — the comparator returns `Ok(())` even on a
+    /// maximally disagreeing report (used by the scoping
+    /// self-check proof).
+    pub fn none() -> Self {
+        Self {
+            categories: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// Just the listed categories.
+    pub fn only(categories: &[FactCategory]) -> Self {
+        Self {
+            categories: categories.iter().copied().collect(),
+        }
+    }
+
+    pub fn contains(&self, category: FactCategory) -> bool {
+        self.categories.contains(&category)
+    }
+}
+
+/// Strict-all-categories comparison. Delegates to
+/// `compare_manifest_to_tool_report_in_scope` with `ParityScope::all()`.
+pub fn compare_manifest_to_tool_report(
+    manifest: &Manifest,
+    report: &ToolReport,
+) -> Result<(), Vec<Divergence>> {
+    compare_manifest_to_tool_report_in_scope(manifest, report, &ParityScope::all())
+}
+
+/// Walk `manifest` × `report` over the axes in `scope` and return
+/// every disagreement. `Ok(())` ⇔ exact agreement on every scoped
+/// axis. Out-of-scope axes are skipped entirely. The strict
+/// [`compare_manifest_to_tool_report`] is this with
+/// `ParityScope::all()`.
+pub fn compare_manifest_to_tool_report_in_scope(
+    manifest: &Manifest,
+    report: &ToolReport,
+    scope: &ParityScope,
+) -> Result<(), Vec<Divergence>> {
+    let mut divs = Vec::new();
+
+    if scope.contains(FactCategory::Seed) && manifest.seed != report.seed {
+        divs.push(Divergence::SeedMismatch {
+            expected: manifest.seed,
+            actual: report.seed,
+        });
+    }
+    if scope.contains(FactCategory::Top) && manifest.top != report.top {
+        divs.push(Divergence::TopMismatch {
+            expected: manifest.top.clone(),
+            actual: report.top.clone(),
+        });
+    }
+
+    if scope.contains(FactCategory::PackageConstants) {
+        // The manifest carries `packages: Vec<PackageFacts>`; flatten
+        // to `pkg::name` form for comparison against the
+        // `report.package_constants` map.
+        let mut manifest_pkg: BTreeMap<String, i128> = BTreeMap::new();
+        for pkg in &manifest.packages {
+            for (name, value) in &pkg.constants {
+                manifest_pkg.insert(format!("{}::{}", pkg.name, name), *value);
+            }
+        }
+        for (name, expected) in &manifest_pkg {
+            match report.package_constants.get(name) {
+                Some(actual) if actual == expected => {}
+                Some(actual) => divs.push(Divergence::PackageConstantMismatch {
+                    name: name.clone(),
+                    expected: *expected,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::PackageConstantMissingInTool {
+                    name: name.clone(),
+                    expected: *expected,
+                }),
+            }
+        }
+        for (name, actual) in &report.package_constants {
+            if !manifest_pkg.contains_key(name) {
+                divs.push(Divergence::PackageConstantMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
+        }
+    }
+
+    if scope.contains(FactCategory::TopParams) {
+        for (name, fact) in &manifest.top_params {
+            match report.top_params.get(name) {
+                Some(actual) if *actual == fact.value => {}
+                Some(actual) => divs.push(Divergence::TopParamMismatch {
+                    name: name.clone(),
+                    expected: fact.value,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::TopParamMissingInTool {
+                    name: name.clone(),
+                    expected: fact.value,
+                }),
+            }
+        }
+        for (name, actual) in &report.top_params {
+            if !manifest.top_params.contains_key(name) {
+                divs.push(Divergence::TopParamMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
+        }
+    }
+
+    if scope.contains(FactCategory::TopLocalparams) {
+        for (name, fact) in &manifest.top_localparams {
+            match report.top_localparams.get(name) {
+                Some(actual) if *actual == fact.value => {}
+                Some(actual) => divs.push(Divergence::TopLocalparamMismatch {
+                    name: name.clone(),
+                    expected: fact.value,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::TopLocalparamMissingInTool {
+                    name: name.clone(),
+                    expected: fact.value,
+                }),
+            }
+        }
+        for (name, actual) in &report.top_localparams {
+            if !manifest.top_localparams.contains_key(name) {
+                divs.push(Divergence::TopLocalparamMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
+        }
+    }
+
+    if scope.contains(FactCategory::Instances) {
+        // Instance presence: index by name from each side.
+        let manifest_by_name: BTreeMap<&str, &InstanceFact> = manifest
+            .instances
+            .iter()
+            .map(|i| (i.inst_name.as_str(), i))
+            .collect();
+        let report_by_name: BTreeMap<&str, &InstanceToolReport> = report
+            .instances
+            .iter()
+            .map(|i| (i.inst_name.as_str(), i))
+            .collect();
+
+        for (name, m_inst) in &manifest_by_name {
+            match report_by_name.get(name) {
+                Some(t_inst) => {
+                    if m_inst.child_module != t_inst.child_module {
+                        divs.push(Divergence::InstanceChildModuleMismatch {
+                            inst_name: (*name).to_string(),
+                            expected: m_inst.child_module.clone(),
+                            actual: t_inst.child_module.clone(),
+                        });
+                    }
+                    // Per-binding compare.
+                    for (b_name, b_value) in &m_inst.resolved_bindings {
+                        match t_inst.resolved_bindings.get(b_name) {
+                            Some(actual) if actual == b_value => {}
+                            Some(actual) => divs.push(Divergence::InstanceBindingMismatch {
+                                inst_name: (*name).to_string(),
+                                name: b_name.clone(),
+                                expected: *b_value,
+                                actual: *actual,
+                            }),
+                            None => divs.push(Divergence::InstanceBindingMissingInTool {
+                                inst_name: (*name).to_string(),
+                                name: b_name.clone(),
+                                expected: *b_value,
+                            }),
+                        }
+                    }
+                    for (b_name, b_value) in &t_inst.resolved_bindings {
+                        if !m_inst.resolved_bindings.contains_key(b_name) {
+                            divs.push(Divergence::InstanceBindingMissingInManifest {
+                                inst_name: (*name).to_string(),
+                                name: b_name.clone(),
+                                actual: *b_value,
+                            });
+                        }
+                    }
+                }
+                None => divs.push(Divergence::InstanceMissingInTool {
+                    inst_name: (*name).to_string(),
+                }),
+            }
+        }
+        for name in report_by_name.keys() {
+            if !manifest_by_name.contains_key(name) {
+                divs.push(Divergence::InstanceMissingInManifest {
+                    inst_name: (*name).to_string(),
+                });
+            }
+        }
+    }
+
+    if scope.contains(FactCategory::GenerateBranches) {
+        for (label, fact) in &manifest.generate_branches {
+            match report.generate_branches.get(label) {
+                Some(actual) if *actual == fact.taken => {}
+                Some(actual) => divs.push(Divergence::GenerateMismatch {
+                    label: label.clone(),
+                    expected: fact.taken,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::GenerateMissingInTool {
+                    label: label.clone(),
+                    expected: fact.taken,
+                }),
+            }
+        }
+        for (label, actual) in &report.generate_branches {
+            if !manifest.generate_branches.contains_key(label) {
+                divs.push(Divergence::GenerateMissingInManifest {
+                    label: label.clone(),
+                    actual: *actual,
+                });
+            }
+        }
+    }
+
+    if divs.is_empty() {
+        Ok(())
+    } else {
+        Err(divs)
+    }
+}
+
+/// Construct a `ToolReport` that agrees with `manifest` exactly —
+/// "what a perfectly-conforming downstream tool would have produced".
+/// Used by `.2c.1`'s cargo-portable proofs and as the structural
+/// fallback in `.2c.2`'s real-tool path.
+pub fn synthetic_tool_report_from_manifest(manifest: &Manifest) -> ToolReport {
+    let mut package_constants: BTreeMap<String, i128> = BTreeMap::new();
+    for pkg in &manifest.packages {
+        for (name, value) in &pkg.constants {
+            package_constants.insert(format!("{}::{}", pkg.name, name), *value);
+        }
+    }
+    let top_params: BTreeMap<String, i128> = manifest
+        .top_params
+        .iter()
+        .map(|(n, f)| (n.clone(), f.value))
+        .collect();
+    let top_localparams: BTreeMap<String, i128> = manifest
+        .top_localparams
+        .iter()
+        .map(|(n, f)| (n.clone(), f.value))
+        .collect();
+    let instances: Vec<InstanceToolReport> = manifest
+        .instances
+        .iter()
+        .map(|i| InstanceToolReport {
+            inst_name: i.inst_name.clone(),
+            child_module: i.child_module.clone(),
+            resolved_bindings: i.resolved_bindings.clone(),
+        })
+        .collect();
+    let generate_branches: BTreeMap<String, bool> = manifest
+        .generate_branches
+        .iter()
+        .map(|(l, g)| (l.clone(), g.taken))
+        .collect();
+    ToolReport {
+        seed: manifest.seed,
+        top: manifest.top.clone(),
+        package_constants,
+        top_params,
+        top_localparams,
+        instances,
+        generate_branches,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
