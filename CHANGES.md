@@ -1,8 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.1 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.1 parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold
+## 2026-05-20-phase7-2c.2-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2 into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool gate + ROADMAP Phase 7)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Last
+  updated `2026-05-20` ("`.2c.2` split"); `.2c` container Children
+  annotation now lists `.2c.2` as an active container; `.2c.2`
+  itself Status `pending`→`active` with its rationale-bearing Goal
+  block recording the split + Children `.2c.2a`+`.2c.2b`; new
+  `.2c.2a` leaf (`pending`, code-bearing) — **`FactCategory` +
+  `ParityScope` + scoped comparator in `src/microdesign/` +
+  yosys-specific `write_json` extractor + end-to-end-runnable
+  `#[ignore]` test + cargo-portable scoped-comparator proof**;
+  new `.2c.2b` leaf (`pending`, gate-blocked) — **real `--ignored`
+  run + verify exact-agreement on yosys-supported categories +
+  bank the artifact + record ROADMAP Phase 7 → done with the
+  explicit scope caveat + book/README/CODEBASE reconcile**;
+  Frontier `.2c.2` → `.2c.2a`; Decisions append the 2026-05-20
+  empirical-probe rationale (yosys 0.64 `write_json` exposes 4 of
+  7 manifest fact categories — seed/top/params/generate +
+  widths["sig"]; localparams + package_constants folded; corpus
+  exercises BOTH generate branches — seed 12345 takes `g_else`,
+  others `g_taken`); Verification Log + Commit Log + Changelog
+  entries.
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row's current
+  frontier updated `.2c.2` → `.2c.2a` with the inline rationale.
+- `CHANGES.md`: this entry + backfill of the `.2c.1` entry's
+  "Landed as: this commit" → `c91d35e`.
+- `MEMORY.md`: recent commits — `.2c.1` `<pending>` → `c91d35e`;
+  new `<pending>` head for this `.2c.2` split slice.
+
+**Why**
+
+- The discovered lower-level dependency is concrete and verified
+  by today's empirical probe: yosys 0.64's `write_json` does not
+  surface localparams or package-constants by name (folded), so
+  the parity gate against yosys can only check 4 of the 7 manifest
+  fact categories. A `FactCategory`+`ParityScope` extension to
+  the comparator is needed BEFORE any real run can be honest
+  about what was checked (r87 no-aspirational-claims). Splitting
+  `.2c.2` along that boundary lets the extension land as one
+  signoff-sized leaf, then the gate run + ROADMAP promotion + book
+  reconcile is the second leaf. Mirrors the memory `.2.1`
+  split-on-discovered-dependency precedent exactly.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean; tree-planning,
+  docs-only ⇒ `cargo test` and `mdbook build book` unchanged
+  vs `c91d35e`.
+
+**Impact**
+
+- Frontier on the still-open `PHASE-7-ORACLE-MICRODESIGN` tree is
+  now `.2c.2a` (unblocked, code-bearing). ROADMAP Phase 7 closure
+  remains gated on `.2c.2b`'s verified-clean real-tool run with
+  the explicit scope caveat. Richer-category coverage via
+  `slang`/`verilator-with-debug` is a recorded follow-up that
+  does not block Phase 7 closure — ANVIL's by-construction oracle
+  already covers all 7 categories; the parity gate exercises
+  whatever the tool reports.
+
+**Files touched**
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.1 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.1 parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold
+
+**Landed as:** c91d35e
 
 **What changed**
 
