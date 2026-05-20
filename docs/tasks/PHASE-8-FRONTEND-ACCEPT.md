@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 8 — Frontend/elaboration accept corpora
 - Created: `2026-05-16`
-- Last updated: `2026-05-20` (**`.2c.1` hierarchy-aware parity harness landed** — `src/frontend/` extended with the Phase-8-specific `ToolReport`/`InstanceToolReport`/`Divergence` (with hierarchy-aware `InstanceMissingInTool`/`InstanceMissingInManifest`/`InstanceChildModuleMismatch`/`InstanceBindingMissingInTool`/`InstanceBindingMissingInManifest`/`InstanceBindingMismatch` variants beyond Phase 7's set)/`FactCategory`/`ParityScope`/`compare_manifest_to_tool_report`/`compare_manifest_to_tool_report_in_scope`/`synthetic_tool_report_from_manifest` parity comparator core; new `tests/frontend_parity.rs` with 10 cargo-portable comparator proofs + 1 tool-gated `#[ignore]` `parity_against_real_downstream_elaborator` scaffold; portable `cargo test` stays green tool-less; frontier → `.2c.2`)
+- Last updated: `2026-05-20` (**`.2c.2` split** into `.2c.2a` yosys extractor + end-to-end-runnable `#[ignore]` + `.2c.2b` real-tool run + ROADMAP Phase 8 → done, on a discovered tool-capability dependency: empirical probe of `yosys hierarchy -top acc_0; write_json` confirmed yosys exposes 5 of the 7 manifest fact categories — top params via `parameter_default_values`, **instances + per-instance per-binding values via `cells[<inst>].{type, parameters}`**, generate-branch via `netnames` key prefix; localparams + package-constants are folded — so a `FactCategory`-scoped extractor is needed before any real run; mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` discovered-dependency-split decomposition; tree-planning, no code; frontier → `.2c.2a`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,7 +54,7 @@ package IR** and an expected-facts manifest.
 - ID: `PHASE-8-FRONTEND-ACCEPT.2`
   Status: `active`
   Goal: `Implement the source-level IR + accept-corpus generator + manifest + parity harness per .1, behind the artifact-family selector, with a parity gate. Split per the Splitting Rules along the exact independently-reviewable boundaries .1's design named (source-level AST IR + construction-time elaboration-evaluator / un-elaborated-SV emitter + elaborated-facts manifest emitter / hierarchy-aware parity harness + repo-owned gate) — exactly mirroring the proven PHASE-7-ORACLE-MICRODESIGN.2 -> .2a/.2b/.2c decomposition that closed Phase 7 on 2026-05-20. Each child is separately reviewable and .2a's elaboration evaluator + .2b's manifest core extend the Phase 7 evaluator/manifest core (the reuse PHASE-9-MULTI-ARTIFACT-UMBRELLA's L1-wrap migration depends on).`
-  Children: `PHASE-8-FRONTEND-ACCEPT.2a` (done), `PHASE-8-FRONTEND-ACCEPT.2b` (done), `PHASE-8-FRONTEND-ACCEPT.2c` (active container: `.2c.1`, `.2c.2`)
+  Children: `PHASE-8-FRONTEND-ACCEPT.2a` (done), `PHASE-8-FRONTEND-ACCEPT.2b` (done), `PHASE-8-FRONTEND-ACCEPT.2c` (active container: `.2c.1` done, `.2c.2` active container: `.2c.2a`, `.2c.2b`)
 
 - ID: `PHASE-8-FRONTEND-ACCEPT.2a`
   Status: `done`
@@ -73,7 +73,7 @@ package IR** and an expected-facts manifest.
 - ID: `PHASE-8-FRONTEND-ACCEPT.2c`
   Status: `active`
   Goal: `The hierarchy-aware parity harness + repo-owned gate: a downstream consumer (currently planned: yosys hierarchy -top + write_json AFTER elaboration, or slang elaborate --ast-json, or verilator --xml-only) reports resolved instance-tree facts; compare to the manifest — exact agreement on the tool-supported categories or a retained counterexample tuple. Tool-gated (cargo test stays green tool-less — the convention reaffirmed in PHASE-7-ORACLE-MICRODESIGN's Decisions and applied at .2c.1/.2c.2a). Then verify a clean run and record ROADMAP Phase 8 -> done (r87 no-aspirational-claims). Reuses the scoped-comparator infrastructure (FactCategory/ParityScope/compare_manifest_to_tool_report_in_scope) that PHASE-7's .2c.2a delivered, extended with HIERARCHY-aware variants (InstancePathMismatch, PortBindingMismatch, GenerateBranchMismatch keyed by instance-tree path) — a recorded extension that PHASE-7's comparator stays unchanged. Split per the Splitting Rules + the proven PHASE-7-ORACLE-MICRODESIGN.2c -> .2c.1/.2c.2 decomposition that closed Phase 7: .2c.1 builds the harness (cargo-portable hierarchy-aware comparator + scoped per-tool capability set + tool-gated #[ignore] real-tool scaffold; no real run, cargo stays green tool-less, no ROADMAP advance) and .2c.2 runs the real #[ignore] gate + verifies exact-agreement + banks the artifact + promotes ROADMAP Phase 8 -> done (gate-blocked, r87). .2c.2 may further split on a discovered tool-capability dependency, mirroring PHASE-7-ORACLE-MICRODESIGN.2c.2's split into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool run + ROADMAP).`
-  Children: `PHASE-8-FRONTEND-ACCEPT.2c.1`, `PHASE-8-FRONTEND-ACCEPT.2c.2`
+  Children: `PHASE-8-FRONTEND-ACCEPT.2c.1` (done), `PHASE-8-FRONTEND-ACCEPT.2c.2` (active container: `.2c.2a`, `.2c.2b`)
 
 - ID: `PHASE-8-FRONTEND-ACCEPT.2c.1`
   Status: `done`
@@ -83,9 +83,21 @@ package IR** and an expected-facts manifest.
   Commit: `Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.1 hierarchy-aware parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold`
 
 - ID: `PHASE-8-FRONTEND-ACCEPT.2c.2`
+  Status: `active`
+  Goal: `Real tool-equipped run of the .2c.1 #[ignore]-gated parity harness against a fixed deterministic corpus; VERIFY exact-agreement (or zero retained counterexamples) BEFORE any promotion (r87 no-aspirational-claims, mirroring Phase 6 .2.4/.3.4b and Phase 7 .2c.2b.2). Then record ROADMAP Phase 8 → done (with the explicit "tool-supported categories" scope caveat — the same kind of caveat Phase 7 closed under, recording what richer-AST tools would additionally cover); reconcile book (book/src/ir.md or a new "Phase 8 frontend-accept lane" page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-8 row, MEMORY recent commits. Closes PHASE-8-FRONTEND-ACCEPT.2c + .2 container + the tree. Split per the proven PHASE-7-ORACLE-MICRODESIGN.2c.2 → .2c.2a/.2c.2b discovered-dependency decomposition: empirical probe of yosys hierarchy + write_json on a Phase-8 acc_<seed>.sv confirmed yosys exposes 5 of the 7 manifest fact categories (top params via .parameter_default_values; instances + per-instance per-binding values via cells[<inst>].{type, parameters} — the load-bearing hierarchy-aware axis; generate-branch via netnames key prefix; localparams + package-constants folded). The FactCategory-scoped extractor + scoped comparator wiring is itself signoff-sized code that needs its own leaf BEFORE any real-tool run can be honest about what was checked (r87).`
+  Children: `PHASE-8-FRONTEND-ACCEPT.2c.2a`, `PHASE-8-FRONTEND-ACCEPT.2c.2b`
+
+- ID: `PHASE-8-FRONTEND-ACCEPT.2c.2a`
   Status: `pending`
-  Goal: `Real tool-equipped run of the .2c.1 #[ignore]-gated parity harness against a fixed deterministic corpus; VERIFY exact-agreement (or zero retained counterexamples) BEFORE any promotion (r87 no-aspirational-claims, mirroring Phase 6 .2.4/.3.4b and Phase 7 .2c.2b.2). Then record ROADMAP Phase 8 → done (with the explicit "tool-supported categories" scope caveat — the same kind of caveat Phase 7 closed under, recording what richer-AST tools would additionally cover); reconcile book (book/src/ir.md or a new "Phase 8 frontend-accept lane" page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-8 row, MEMORY recent commits. Closes PHASE-8-FRONTEND-ACCEPT.2c + .2 container + the tree. May split per the proven PHASE-7-ORACLE-MICRODESIGN.2c.2 → .2c.2a/.2c.2b decomposition if a discovered tool-capability dependency surfaces (the same shape that closed Phase 7).`
-  Acceptance: `A repo-owned banked artifact captures the harness's exact-agreement on the corpus (zero retained counterexamples) or — if any divergence — the precise counterexample tuple is committed alongside; ROADMAP Phase 8 → done only after the verified run; the .2c container + .2 container + tree all → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
+  Goal: `Land the yosys-specific extractor + end-to-end-runnable #[ignore] harness, exactly mirroring PHASE-7-ORACLE-MICRODESIGN.2c.2a. tests/frontend_parity.rs: yosys_hierarchy_write_json_to_tool_report(json, seed) extractor that reads (a) .modules.<top>.parameter_default_values into top_params (binary-string → SV int → i128 with sign-extension, reusing the parsing pattern from PHASE-7-ORACLE-MICRODESIGN.2c.2a's parse_yosys_binary_param); (b) .modules.<top>.cells[<inst>].{type, parameters} into instances (with the cell's type = child_module + per-binding resolved values from the cells parameters map); (c) .modules.<top>.netnames key prefix scan for g_taken./g_else. into generate_branches["g_taken"]. The yosys scope is only(&[Seed, Top, TopParams, Instances, GenerateBranches]) — top_localparams + package_constants are deliberately empty (folded by yosys; richer-AST tools see them). Then rewrite parity_against_real_downstream_elaborator end-to-end-runnable: for each seed in SEEDS, write emit_sv to a tmp file, shell yosys -q -p "read_verilog -sv <sv>; hierarchy -top acc_<seed>; write_json <out.json>" (NOT proc;opt — that strips empty-bodied child instances; verified by today's probe), parse, build a ToolReport, call compare_manifest_to_tool_report_in_scope with the yosys scope, assert Ok(()) or retain the counterexample. Plus a cargo-portable proof of the extractor that exercises the parse-yosys-binary path AND validates the cells-to-instances mapping on a hand-built synthetic JSON. No real cargo-test run of the #[ignore] (that is .2c.2b); cargo stays green tool-less.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; yosys-specific extractor lands + an extractor proof green; #[ignore] test is end-to-end runnable; portable cargo test stays green tool-less; ROADMAP unchanged (advance is .2c.2b on a verified run); no book/ change.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-8-FRONTEND-ACCEPT.2c.2b`
+  Status: `pending`
+  Goal: `Run the .2c.2a #[ignore]-gated parity gate against real yosys, verify exact-agreement on the yosys-supported categories (Seed/Top/TopParams/Instances/GenerateBranches) across the full corpus, bank the verified-clean artifact (under /tmp/anvil-frontend-parity-phase8-yosys-p1/ per established convention), then promote ROADMAP Phase 8 → done with the explicit yosys-supported-categories scope caveat (top_localparams + package-constants remain visible only to richer-AST tools — slang/verilator-with-debug — and are recorded as a post-Phase-8 follow-up that does NOT block closure; ANVIL's by-construction oracle already covers all 7 categories). Reconcile book (book/src/ir.md "Phase 8 frontend-accept lane" delivered note), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-8 row, MEMORY recent commits. Closes PHASE-8-FRONTEND-ACCEPT.2c.2 + .2c + .2 container + the tree. May further split per PHASE-7-ORACLE-MICRODESIGN.2c.2b → .2c.2b.1/.2c.2b.2 precedent if a discovered ANVIL self-consistency bug surfaces during the real run (the Phase 7 pattern).`
+  Acceptance: `Banked artifact captures the gate's exact-agreement on the corpus (zero retained counterexamples); ROADMAP Phase 8 → done only after the verified clean run; .2c.2b + .2c.2 + .2c + .2 container + tree all → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -93,7 +105,7 @@ package IR** and an expected-facts manifest.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-8-FRONTEND-ACCEPT.2c.2` | `pending` (gate-blocked, real-tool run) | **`.2c.1` done (`2026-05-20`)** — `src/frontend/` extended with the Phase-8-specific parity comparator core (`ToolReport`/`InstanceToolReport`/`Divergence` with 23 variants incl. the hierarchy-aware `Instance*` additions, `FactCategory`/`ParityScope` with `all`/`none`/`only(&[…])`, `compare_manifest_to_tool_report` + `_in_scope`, `synthetic_tool_report_from_manifest`). New `tests/frontend_parity.rs` with **10 cargo-portable comparator proofs** + 1 tool-gated `#[ignore]` `parity_against_real_downstream_elaborator` scaffold (any-of-yosys/slang/verilator presence guard). Full `cargo test` green (frontend_parity 10+1; lib 236 unchanged; microdesign_parity 15+1 unchanged; pipeline 121; snapshots 6; bin 5+29+3; doc 0). Portable `cargo test` stays green tool-less. `.2c.2` runs the real `--ignored` gate against a downstream elaborator (tool choice TBD; may further split into `.2c.2a` extractor + `.2c.2b` real-tool-run + ROADMAP per the proven Phase 7 `.2c.2` precedent), verifies exact-agreement on tool-supported categories across the corpus, banks the verified-clean artifact, then promotes **ROADMAP Phase 8 → done** with the explicit scope caveat (book/README/CODEBASE reconcile). r87 no-aspirational-claims. |
+| 1 | `PHASE-8-FRONTEND-ACCEPT.2c.2a` | `pending` (unblocked, code-bearing) | **`.2c.2` split (`2026-05-20`)** on a discovered tool-capability dependency: empirical probe of `yosys hierarchy -top acc_0; write_json` (without `proc;opt`) confirmed yosys exposes **5 of the 7 manifest fact categories** — top params via `.parameter_default_values`, **instances + per-instance per-binding values via `.cells[<inst>].{type, parameters}` (the load-bearing hierarchy-aware Phase-8 axis)**, generate-branch via `.netnames` key prefix; top_localparams + package-constants are folded. Exactly mirrors `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` discovered-dependency-split (Phase 7 surfaced an analogous 4-of-7 gap on yosys `write_json` of `mc_<seed>`). `.2c.2a` (unblocked) lands the yosys-specific extractor (`yosys_hierarchy_write_json_to_tool_report` reading `.parameter_default_values` + `.cells[<inst>].{type, parameters}` + netname-prefix-scan) + rewrites `parity_against_real_downstream_elaborator` end-to-end-runnable + a cargo-portable extractor proof. `.2c.2b` (gate-blocked) runs the real `--ignored` gate, verifies clean, banks the artifact, promotes ROADMAP Phase 8 → done; may further split per Phase 7 `.2c.2b` → `.2c.2b.1`/`.2c.2b.2` on a discovered ANVIL self-consistency bug. |
 
 ## Decisions
 
@@ -132,6 +144,45 @@ package IR** and an expected-facts manifest.
   container; no renumbering. Tree-planning, docs-only; no
   `src/`/`tests/` change (`cargo` unchanged-green vs
   `d67df0c`). Frontier → `.2c.1`.
+- `2026-05-20` (**`.2c.2` split — discovered tool-capability
+  dependency**): empirical probe of `yosys hierarchy -top
+  acc_0; write_json` (locally-installed yosys 0.64) on a
+  Phase-8 `acc_<seed>.sv` immediately after `.2c.1` landed
+  at `977c632` confirmed yosys exposes **5 of the 7
+  manifest fact categories** — `.parameter_default_values`
+  carries the top parameters (binary-string → SV `int` →
+  `i128` with sign-extension); **`.cells[<inst>].{type,
+  parameters}` carries the per-instance per-binding
+  resolved values (the load-bearing hierarchy-aware Phase-8
+  axis the comparator gained `Instance*` variants for in
+  `.2c.1`)**; `.netnames` key prefix `g_taken.`/`g_else.`
+  carries the generate-branch decision. **Top_localparams
+  and package-constants are folded** by yosys's elaborator
+  and not name-introspectable from `write_json` alone —
+  richer-AST tools (`slang --ast-json`,
+  `verilator --xml-only`) see them. **Crucially**: the
+  probe also discovered that `proc; opt` (the standard
+  Phase 7 yosys pipeline) **collapses the empty-bodied
+  child instances away**, dropping them from `.cells`. The
+  fix is to invoke yosys with `hierarchy -top acc_<seed>;
+  write_json` only — no `proc; opt`. This is the
+  Phase-8-specific tool-capability dependency: the yosys
+  invocation pattern from Phase 7 doesn't carry over
+  unchanged, AND yosys covers a different (Phase-8-richer)
+  set of axes. Per Splitting Rules + the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b`
+  discovered-dependency-split precedent, `.2c.2` was split
+  into `.2c.2a` (yosys-specific extractor + the
+  `hierarchy -top` invocation + end-to-end-runnable
+  `#[ignore]` + cargo-portable extractor proof; no real
+  run, no ROADMAP advance) and `.2c.2b` (real-tool run +
+  verify exact-agreement on the yosys-supported categories
+  + bank artifact + ROADMAP Phase 8 → done with the
+  scope caveat; gate-blocked, r87 no-aspirational-claims).
+  `.2c.2` is now a container; no renumbering. Tree-
+  planning, docs-only; no `src/`/`tests/` change (`cargo`
+  unchanged-green vs `977c632`); `mdbook build book` clean
+  (no `book/` change). Frontier → `.2c.2a`.
 
 ## Open Questions
 
@@ -159,6 +210,7 @@ package IR** and an expected-facts manifest.
 | `2026-05-20` | `PHASE-8-FRONTEND-ACCEPT.2` (split) | `.2` made a container with children `.2a` (source-level AST IR + construction-time elaboration-evaluator/oracle; unit-proven; no emit/harness) + `.2b` (un-elaborated-SV emitter + elaborated-facts JSON manifest emitter; default-off DUT-byte-identical structural) + `.2c` (hierarchy-aware parity harness + repo-owned gate → ROADMAP Phase 8; r87 no-aspirational-claims). Exactly mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2`→`.2a`/`.2b`/`.2c` decomposition that closed Phase 7 on 2026-05-20. `.2a`+`.2b`'s evaluator/manifest core *extends* the Phase 7 core; Phase 7's `ConstExpr` set is cross-tree-imported as the Expr layer of Phase 8's source IR. Unblocked now that Phase 7 closed. Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `20a7b4a`). `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2a`. |
 | `2026-05-20` | `PHASE-8-FRONTEND-ACCEPT.2c` (split) | `.2c` made a container with children `.2c.1` (build the hierarchy-aware parity harness — cargo-portable comparator + tool-gated `#[ignore]` real-tool scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) + `.2c.2` (real `--ignored` run + verify + bank + **ROADMAP Phase 8 → done**; gate-blocked, r87; may further split per `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` precedent on a discovered tool-capability dependency). Exactly mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2` decomposition that closed Phase 7 on 2026-05-20. Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `d67df0c`); `mdbook build book` clean (no `book/` change). | Done. Frontier → `.2c.1`. |
 | `2026-05-20` | `PHASE-8-FRONTEND-ACCEPT.2c.1` | `src/frontend/mod.rs` extended with the Phase-8-specific parity comparator core (parallel to Phase 7's microdesign types, NOT derived — different artifact shape: Phase 8 carries instances + per-instance bindings). `pub struct ToolReport{seed, top, package_constants, top_params, top_localparams, instances: Vec<InstanceToolReport>, generate_branches}`; `pub struct InstanceToolReport{inst_name, child_module, resolved_bindings}`; `pub enum Divergence` (23 variants — `SeedMismatch`/`TopMismatch` + per-category `{MissingInTool, MissingInManifest, Mismatch}` × `{PackageConstants, TopParams, TopLocalparams, GenerateBranches}` + the **load-bearing hierarchy-aware additions** `InstanceMissingInTool`/`InstanceMissingInManifest`/`InstanceChildModuleMismatch`/`InstanceBindingMissingInTool`/`InstanceBindingMissingInManifest`/`InstanceBindingMismatch`); `pub enum FactCategory` (7 axes — `Seed`/`Top`/`PackageConstants`/`TopParams`/`TopLocalparams`/`Instances`/`GenerateBranches`); `pub struct ParityScope{categories: BTreeSet<FactCategory>}` with `all()`/`none()`/`only(&[...])` + `.contains`; `pub fn compare_manifest_to_tool_report` strict delegates to `_in_scope` with `ParityScope::all()`; `pub fn compare_manifest_to_tool_report_in_scope` walks every scoped axis (the `Instances` arm builds name-keyed `BTreeMap` indices from each side for order-independent presence + per-binding compares); `pub fn synthetic_tool_report_from_manifest` flattens `packages` to `pkg::name` + projects the oracle fields. New `tests/frontend_parity.rs` carries 10 cargo-portable comparator proofs (all green): `comparator_agrees_on_synthetic_tool_report_built_from_the_oracle` (baseline across seeds `{0,1,7,42,12345}`); per-axis perturbation tests for top-param / top-localparam / package-constant / **instance-binding (the hierarchy-aware addition — perturbs ONE binding on ONE instance, asserts the right `InstanceBindingMismatch` surfaces AND no spurious divergence on the OTHER instance)** / generate-branch / **instance-presence (drop → `InstanceMissingInTool`; add → `InstanceMissingInManifest`)** / seed+top; `scoped_comparator_only_enforces_scoped_categories` (load-bearing scoping proof — `TopParams`-only scope ignores instance-binding perturbation but surfaces top-param); `empty_scope_ignores_every_disagreement` (self-check). Plus 1 tool-gated `#[ignore]` `parity_against_real_downstream_elaborator` scaffold (any-of-`yosys`/`slang`/`verilator` presence guard at the head; corpus-driver loop wired against the same `SEEDS`/`N_PARAMS`/`N_CHILDREN`; placeholder for `.2c.2`-owned `emit_sv`→shell→extract→compare end-to-end wiring). `cargo fmt --all --check`/`clippy --all-targets -- -D warnings`/`check --all-targets` clean. Full `cargo test` green: `tests/frontend_parity` 10 passed + 1 ignored; `tests/microdesign_parity` 15 passed + 1 ignored unchanged; `tests/pipeline` 121 passed (758s); `tests/snapshots` 6 passed; lib 236 passed (unchanged — new code is in `src/frontend/` `pub` items + tests in `tests/frontend_parity.rs`); bin tests 5+29+3 passed; doc-tests 0 (unchanged). Portable `cargo test` stays green tool-less. No ROADMAP advance (`.2c.2`); no `book/` change. | Done. Frontier → `.2c.2`. |
+| `2026-05-20` | `PHASE-8-FRONTEND-ACCEPT.2c.2` (split) | `.2c.2` made a container with children `.2c.2a` (yosys-specific extractor + `hierarchy -top` invocation + end-to-end-runnable `#[ignore]` + cargo-portable extractor proof; no real run, no ROADMAP advance) + `.2c.2b` (real `--ignored` run + verify + bank + ROADMAP Phase 8 → done; gate-blocked). Triggered by today's empirical probe of `yosys hierarchy -top acc_0; write_json` confirming yosys exposes 5 of 7 manifest fact categories — top params + **instances + per-instance per-binding values via `.cells[<inst>].{type, parameters}`** + generate-branch — AND that `proc; opt` collapses the empty-bodied child instances (so the yosys invocation pattern omits `proc; opt`). Mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` discovered-dependency-split precedent. Tree-planning, docs-only; no `src/`/`tests/` change (`cargo` unchanged-green vs `977c632`); `mdbook build book` clean. | Done. Frontier → `.2c.2a`. |
 
 ## Commit Log
 
@@ -170,6 +222,7 @@ package IR** and an expected-facts manifest.
 | `PHASE-8-FRONTEND-ACCEPT.2b` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)` | `emit_sv()` + manifest types + `build_manifest()` + `emit_manifest()`; cross-tree reuse of `microdesign::expr_to_sv`; 3 new lib proofs (10 total in `frontend::tests`); byte-reproducible. No harness. |
 | `PHASE-8-FRONTEND-ACCEPT.2c` (split) | `Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)` | Tree-planning, no code. Exactly mirrors `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2`. |
 | `PHASE-8-FRONTEND-ACCEPT.2c.1` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.1 hierarchy-aware parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold` | Phase-8 parity comparator core in `src/frontend/` (`ToolReport`/`InstanceToolReport`/`Divergence` × 23 variants incl. the hierarchy-aware `Instance*` additions/`FactCategory`/`ParityScope`/`compare_manifest_to_tool_report` + `_in_scope`/`synthetic_tool_report_from_manifest`); new `tests/frontend_parity.rs` (10 cargo-portable proofs + 1 tool-gated `#[ignore]` scaffold); portable `cargo test` stays green tool-less. No ROADMAP advance (`.2c.2`). |
+| `PHASE-8-FRONTEND-ACCEPT.2c.2` (split) | `Docs: split PHASE-8-FRONTEND-ACCEPT.2c.2 into .2c.2a (yosys extractor + end-to-end-runnable #[ignore]) + .2c.2b (real-tool gate + ROADMAP Phase 8)` | Tree-planning, no code. Triggered by yosys-probe-discovered 5-of-7 coverage + the `proc; opt` cells-collapse caveat. Mirrors `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b`. |
 | `PHASE-8-FRONTEND-ACCEPT.2a` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2a source-level AST IR + construction-time elaboration-evaluator (oracle)` | New `src/frontend/` module + AST IR (`SourceUnit`/`Package`/`Module`/`ModuleItem`/`Instance`/`GenerateIf`/`ParamDecl`/`ParamBinding`) + `elaborate()` walker + rules-first reproducible `build_acceptable_unit` + 4 unit proofs (incl. the load-bearing oracle-no-drift invariant); cross-tree reuse of Phase 7's `ConstExpr`/`eval`/`ParamKind`/`BinOp`. No emit/harness. |
 | `PHASE-8-FRONTEND-ACCEPT.2b` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)` | `emit_sv()` + manifest types (`PackageFacts`/`ParamFact`/`InstanceFact`/`GenerateFact`/`Manifest`) + `build_manifest()` + `emit_manifest()`; both from the same `.2a` oracle; cross-tree reuse of `microdesign::expr_to_sv`; 3 new lib proofs (10 total in `frontend::tests`); byte-reproducible. No harness (`.2c`). |
 | `PHASE-8-FRONTEND-ACCEPT.2c` (split) | `Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)` | Tree-planning, no code. Exactly mirrors `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2`. |
@@ -405,3 +458,34 @@ package IR** and an expected-facts manifest.
   → done; may further split per the proven Phase 7 `.2c.2`
   → `.2c.2a`/`.2c.2b` precedent on a discovered
   tool-capability dependency).
+
+- `2026-05-20`: **`.2c.2` split** on a discovered
+  tool-capability dependency. Empirical probe of `yosys
+  hierarchy -top acc_0; write_json` (locally-installed
+  yosys 0.64) on a Phase-8 `acc_<seed>.sv` immediately
+  after `.2c.1` landed at `977c632` showed:
+    * yosys covers 5 of the 7 manifest fact categories —
+      top params (`.parameter_default_values`), **instances
+      + per-instance per-binding values
+      (`.cells[<inst>].{type, parameters}` — the
+      load-bearing hierarchy-aware axis)**, generate-branch
+      (netname-prefix scan);
+    * top_localparams + package-constants are folded
+      (Phase 7-style; richer-AST tools see them);
+    * `proc; opt` collapses the empty-bodied child instances
+      away from `.cells` — the fix is to invoke yosys with
+      `hierarchy -top` only.
+  Per Splitting Rules + the proven `PHASE-7-ORACLE-MICRODESIGN.2c.2`
+  → `.2c.2a`/`.2c.2b` discovered-dependency precedent,
+  `.2c.2` was split into `.2c.2a` (yosys-specific extractor
+  + end-to-end-runnable `#[ignore]` + cargo-portable
+  extractor proof; no real run, no ROADMAP advance) +
+  `.2c.2b` (real-tool run + verify + bank + **ROADMAP
+  Phase 8 → done** with explicit scope caveat;
+  gate-blocked, r87 no-aspirational-claims; may further
+  split per Phase 7 `.2c.2b` → `.2c.2b.1`/`.2c.2b.2` on a
+  discovered ANVIL self-consistency bug). `.2c.2` is now a
+  container; no renumbering. Tree-planning, docs-only; no
+  `src/`/`tests/` change (`cargo` unchanged-green vs
+  `977c632`); `mdbook build book` clean (no `book/`
+  change). Frontier → `.2c.2a`.

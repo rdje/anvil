@@ -1,8 +1,101 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2c.1 — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.1 hierarchy-aware parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold
+## 2026-05-20-phase8-2c.2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c.2 into .2c.2a (yosys extractor + end-to-end-runnable #[ignore]) + .2c.2b (real-tool gate + ROADMAP Phase 8)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20`; `.2` container Children annotation
+  now lists `.2c.2` as an active container with `.2c.2a` +
+  `.2c.2b` children; `.2c` container Children annotation
+  refreshed; `.2c.2` Status `pending`→`active` with its
+  rationale-bearing Goal block recording the empirical
+  yosys probe + Children `.2c.2a`+`.2c.2b`; two new child
+  leaves (both `pending`):
+  - `.2c.2a` — Land the yosys-specific extractor
+    (`yosys_hierarchy_write_json_to_tool_report` reading
+    `.parameter_default_values` + `.cells[<inst>].{type,
+    parameters}` + netname-prefix scan) + the
+    `hierarchy -top` invocation (NOT `proc; opt` — the
+    probe confirmed `opt` collapses empty-bodied child
+    instances) + the end-to-end-runnable `#[ignore]` test
+    + a cargo-portable extractor proof.
+  - `.2c.2b` — Real `--ignored` gate run, verify
+    exact-agreement on the yosys-supported categories
+    (Seed/Top/TopParams/Instances/GenerateBranches), bank
+    the artifact at `/tmp/anvil-frontend-parity-phase8-yosys-p1/`,
+    record **ROADMAP Phase 8 → done** with the scope
+    caveat, reconcile book/README/CODEBASE.
+- Frontier `.2c.2` → `.2c.2a`; Decisions append the
+  2026-05-20 probe + split rationale (records the 5-of-7
+  yosys coverage + the `proc; opt` cells-collapse caveat);
+  Verification Log + Commit Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  current frontier updated `.2c.2` → `.2c.2a`.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase8-2c.1` entry's "Landed as: this commit" →
+  `977c632`.
+
+- `MEMORY.md`: recent commits — `phase8-2c.1`
+  `<pending>` → `977c632`; new `<pending>` head for this
+  split slice.
+
+**Why**
+
+- An empirical probe of `yosys hierarchy -top acc_0;
+  write_json` on a Phase-8 `acc_<seed>.sv` immediately
+  after `.2c.1` landed at `977c632` discovered two
+  Phase-8-specific tool-capability dependencies:
+  - **yosys covers 5 of 7 manifest fact categories** for
+    Phase 8 (top params + instances + per-instance
+    bindings + generate-branch). The instance + binding
+    axes are exposed via `.cells[<inst>].{type,
+    parameters}` — exactly the hierarchy-aware Phase-8
+    axis the `.2c.1` comparator gained `Instance*`
+    variants for. Top_localparams and package-constants
+    are folded (Phase 7-style; richer-AST tools see them).
+  - **`proc; opt` collapses empty-bodied child instances**
+    away from `.cells`, so the yosys invocation pattern
+    from Phase 7 doesn't carry over unchanged — the fix
+    is to invoke yosys with `hierarchy -top` only (no
+    `proc; opt`).
+- Per Splitting Rules + the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2` →
+  `.2c.2a`/`.2c.2b` discovered-dependency precedent
+  (which closed Phase 7), splitting `.2c.2` here keeps
+  each leaf signoff-sized: `.2c.2a` lands the
+  yosys-specific extractor + invocation + scaffold +
+  proof as one signoff-sized leaf, and `.2c.2b` is the
+  gated real run + ROADMAP promotion.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean;
+  tree-planning, docs-only ⇒ `cargo test` and `mdbook
+  build book` unchanged vs `977c632`.
+
+**Impact**
+
+- Frontier on the still-open `PHASE-8-FRONTEND-ACCEPT`
+  tree is now `.2c.2a` (unblocked, code-bearing).
+  ROADMAP Phase 8 closure remains gated on `.2c.2b`'s
+  verified-clean real-tool run.
+
+**Files touched**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2c.1 — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.1 hierarchy-aware parity harness — comparator core + cargo-portable proofs + tool-gated #[ignore] scaffold
+
+**Landed as:** 977c632
 
 **What changed**
 
