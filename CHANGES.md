@@ -1,8 +1,103 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.2b.2 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.2 parity gate clean against yosys — closes Phase 7 + tree
+## 2026-05-20-phase8-2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2 into .2a (source IR + elaboration-evaluator) + .2b (emitters) + .2c (parity harness + gate)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last updated
+  `2026-05-20` ("`.2` split"); tree-root Children annotation now
+  lists `.2` as an active container; `.2` itself Status
+  `pending`→`active` with its rationale-bearing Goal block
+  recording the split + Children `.2a`+`.2b`+`.2c`; three new
+  child leaves (all `pending`) with full Goal + Acceptance fields:
+  - `.2a` — Source-level AST IR (`SourceUnit`/`Package`/`Module`/
+    `ModuleItem`/`Type`) + construction-time elaboration-evaluator
+    (resolves parameter values, typedef instances, generate
+    conditions, instance-path port bindings, array dimensions) +
+    reproducible rules-first builder; reuses Phase 7's `ConstExpr`
+    set for the expression layer; unit-proven; no emit/harness.
+  - `.2b` — Un-elaborated SV emitter (parameter ports symbolic,
+    instance bindings carrying expressions not resolved integers,
+    generate predicates preserved as written, typedef references
+    un-flattened) + elaborated-facts JSON manifest emitter
+    (instance tree path→target→resolved child params→port
+    bindings, selected generate branches/iterations, package +
+    typedef resolutions per `.1`'s schema extension of Phase 7's);
+    both from the same evaluated IR; default-off
+    DUT-byte-identical structural.
+  - `.2c` — Hierarchy-aware parity harness + repo-owned gate;
+    tool-gated `#[ignore]` per Phase-1 doctrine; reuses the
+    scoped-comparator infrastructure (`ToolReport`/`Divergence`/
+    `FactCategory`/`ParityScope`/
+    `compare_manifest_to_tool_report_in_scope`) that
+    `PHASE-7-ORACLE-MICRODESIGN.2c.2a` delivered, extended with
+    hierarchy-aware variants; expected to split further per the
+    Phase 7 precedent.
+  - Frontier `.2` → `.2a`; Decisions append the 2026-05-20
+    split rationale (exact mirror of the proven Phase 7
+    decomposition; unblocked now that Phase 7 closed at
+    `20a7b4a`); Verification Log + Commit Log + Changelog
+    entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's current
+  frontier updated `.2` → `.2a` with the inline rationale.
+
+- `CHANGES.md`: this entry + backfill of the `.2c.2b.2` entry's
+  "Landed as: this commit" → `20a7b4a`.
+
+- `MEMORY.md`: recent commits — `.2c.2b.2` `<pending>` →
+  `20a7b4a`; new `<pending>` head for this `.2` split slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2` was scoped to land the source IR +
+  emitters + parity harness + ROADMAP promotion in one leaf —
+  exactly the shape Phase 7 `.2` had before its three-way split,
+  and exactly the same size-class. Applying the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2` → `.2a`/`.2b`/`.2c`
+  decomposition (which closed Phase 7 on 2026-05-20) keeps each
+  leaf signoff-sized, lets `.2a`'s IR + evaluator land
+  independently of the emitters, and lets the `#[ignore]`
+  real-tool gate be the only place ROADMAP Phase 8 can be
+  promoted from (r87 no-aspirational-claims).
+
+- Phase 7's closure puts the evaluator/manifest core that
+  `PHASE-8-FRONTEND-ACCEPT.2a`/`.2b` extend in-tree, so the
+  Open Question on sequencing (recorded `.1`'s resolution:
+  `.2` sequences after `PHASE-7-ORACLE-MICRODESIGN.2`) is
+  satisfied and `.2a` is unblocked.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean; tree-planning,
+  docs-only ⇒ `cargo test` and `mdbook build book` unchanged
+  vs `20a7b4a`.
+
+**Impact**
+
+- Frontier on the still-open `PHASE-8-FRONTEND-ACCEPT` tree is
+  now `.2a` (unblocked, code-bearing). ROADMAP Phase 8 closure
+  remains gated on `.2c`'s verified-clean real-tool run after
+  `.2a`+`.2b` land. The `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2`
+  L1-wrap migration is also unblocked now that Phase 7's lane
+  is delivered + Phase 8's lane is decomposed (≥2 delivered
+  lanes is no longer a hard block; once Phase 8 lands its
+  source-IR-and-evaluator + emitters + parity gate, Phase 9
+  can unify the selector).
+
+**Files touched**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.2b.2 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.2 parity gate clean against yosys — closes Phase 7 + tree
+
+**Landed as:** 20a7b4a
 
 **What changed**
 
