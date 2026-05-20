@@ -1,8 +1,92 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)
+## 2026-05-20-phase8-2c-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20` ("`.2c` split"); `.2` container
+  Children annotation now lists `.2c` as an active container;
+  `.2c` itself Status `pending`→`active` with its
+  rationale-bearing Goal block recording the split + Children
+  `.2c.1`+`.2c.2`; two new child leaves (both `pending`) with
+  full Goal + Acceptance fields:
+  - `.2c.1` — Build the hierarchy-aware parity harness.
+    New `tests/frontend_parity.rs` carrying (a) a pure-Rust
+    hierarchy-aware fact-extraction-and-comparison core
+    (cargo-portable), (b) hierarchy-aware `Divergence`
+    variants extending Phase 7's set (`InstanceMissingInTool`,
+    `InstanceMissingInManifest`, `InstanceBindingMismatch`,
+    plus the existing per-category variants), (c) a
+    tool-equipped `#[ignore]`-gated test driving a fixed
+    deterministic corpus through `emit_sv` + `emit_manifest`
+    and the scoped comparator. Cargo-portable proofs cover
+    each axis (top-params / top-localparams / package-constants
+    / instance-bindings per instance / generate-branches /
+    instance-presence) on synthetic-agree and
+    perturbed-divergence fixtures. No real run, no ROADMAP
+    advance, cargo stays green tool-less.
+  - `.2c.2` — Real tool-equipped run of the harness; verify
+    exact-agreement (zero retained counterexamples) BEFORE
+    any promotion (r87); bank the artifact; record
+    **ROADMAP Phase 8 → done** with the explicit
+    tool-supported-categories scope caveat; reconcile
+    book/README/CODEBASE. May further split per the proven
+    `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b`
+    decomposition if a discovered tool-capability dependency
+    surfaces.
+  - Frontier `.2c` → `.2c.1`; Decisions append the
+    2026-05-20 split rationale citing the Phase 7 precedent;
+    Verification Log + Commit Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  current frontier updated `.2c` → `.2c.1` with the inline
+  rationale.
+
+- `CHANGES.md`: this entry + backfill of the `phase8-2b`
+  entry's "Landed as: this commit" → `d67df0c`.
+
+- `MEMORY.md`: recent commits — `phase8-2b` `<pending>` →
+  `d67df0c`; new `<pending>` head for this `.2c` split slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c` was scoped to land the parity
+  harness build + real-tool gate + ROADMAP promotion in one
+  leaf — exactly the same shape Phase 7's `.2c` had before
+  its three-way split. Applying the proven decomposition
+  keeps each leaf signoff-sized, lets `.2c.1`'s
+  cargo-portable comparator + scaffold land independently of
+  any tool availability, and lets the `#[ignore]` real-tool
+  gate be the only place ROADMAP Phase 8 can be promoted
+  from (r87 no-aspirational-claims).
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean;
+  tree-planning, docs-only ⇒ `cargo test` and `mdbook build
+  book` unchanged vs `d67df0c`.
+
+**Impact**
+
+- Frontier on the still-open `PHASE-8-FRONTEND-ACCEPT` tree
+  is now `.2c.1` (unblocked, code-bearing). ROADMAP Phase 8
+  closure remains gated on `.2c.2`'s verified-clean
+  real-tool run.
+
+**Files touched**
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)
+
+**Landed as:** d67df0c
 
 **What changed**
 

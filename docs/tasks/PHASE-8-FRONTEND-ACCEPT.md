@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Phase 8 — Frontend/elaboration accept corpora
 - Created: `2026-05-16`
-- Last updated: `2026-05-20` (**`.2b` un-elaborated-SV emitter + elaborated-facts JSON manifest emitter landed** — both from the same `.2a` oracle; `emit_sv()` produces the symbolic SV form (parameter ports / localparam definitions / instance bindings / generate predicates all kept symbolic) and `emit_manifest()` produces the schema-shaped JSON with resolved facts (`packages` / `top_params` / `top_localparams` / `instances` / `generate_branches`); cross-tree reuse of Phase 7's `expr_to_sv` (oracle ≡ SV at the expression layer for free, carries forward `.2c.2b.1`'s non-negative-modulo-idiom fix); 3 new lib proofs incl. `emit_sv_is_valid_unresolved_shape`, `manifest_mirrors_the_oracle`, `sv_and_manifest_are_byte_reproducible`; full `cargo test` green: lib 236 (was 233 + 3), frontend 7/7, microdesign 8/8 unchanged, microdesign_parity 15+1, pipeline 121, snapshots 6, bin 5+29+3, doc 0; frontier → `.2c`)
+- Last updated: `2026-05-20` (**`.2c` split** into `.2c.1` build the hierarchy-aware parity harness + `.2c.2` real-tool gate verify + ROADMAP Phase 8 → done, exactly mirroring the proven `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2` decomposition that closed Phase 7 on 2026-05-20; tree-planning only, no code; frontier → `.2c.1`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -54,7 +54,7 @@ package IR** and an expected-facts manifest.
 - ID: `PHASE-8-FRONTEND-ACCEPT.2`
   Status: `active`
   Goal: `Implement the source-level IR + accept-corpus generator + manifest + parity harness per .1, behind the artifact-family selector, with a parity gate. Split per the Splitting Rules along the exact independently-reviewable boundaries .1's design named (source-level AST IR + construction-time elaboration-evaluator / un-elaborated-SV emitter + elaborated-facts manifest emitter / hierarchy-aware parity harness + repo-owned gate) — exactly mirroring the proven PHASE-7-ORACLE-MICRODESIGN.2 -> .2a/.2b/.2c decomposition that closed Phase 7 on 2026-05-20. Each child is separately reviewable and .2a's elaboration evaluator + .2b's manifest core extend the Phase 7 evaluator/manifest core (the reuse PHASE-9-MULTI-ARTIFACT-UMBRELLA's L1-wrap migration depends on).`
-  Children: `PHASE-8-FRONTEND-ACCEPT.2a`, `PHASE-8-FRONTEND-ACCEPT.2b`, `PHASE-8-FRONTEND-ACCEPT.2c`
+  Children: `PHASE-8-FRONTEND-ACCEPT.2a` (done), `PHASE-8-FRONTEND-ACCEPT.2b` (done), `PHASE-8-FRONTEND-ACCEPT.2c` (active container: `.2c.1`, `.2c.2`)
 
 - ID: `PHASE-8-FRONTEND-ACCEPT.2a`
   Status: `done`
@@ -71,9 +71,21 @@ package IR** and an expected-facts manifest.
   Commit: `Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)`
 
 - ID: `PHASE-8-FRONTEND-ACCEPT.2c`
+  Status: `active`
+  Goal: `The hierarchy-aware parity harness + repo-owned gate: a downstream consumer (currently planned: yosys hierarchy -top + write_json AFTER elaboration, or slang elaborate --ast-json, or verilator --xml-only) reports resolved instance-tree facts; compare to the manifest — exact agreement on the tool-supported categories or a retained counterexample tuple. Tool-gated (cargo test stays green tool-less — the convention reaffirmed in PHASE-7-ORACLE-MICRODESIGN's Decisions and applied at .2c.1/.2c.2a). Then verify a clean run and record ROADMAP Phase 8 -> done (r87 no-aspirational-claims). Reuses the scoped-comparator infrastructure (FactCategory/ParityScope/compare_manifest_to_tool_report_in_scope) that PHASE-7's .2c.2a delivered, extended with HIERARCHY-aware variants (InstancePathMismatch, PortBindingMismatch, GenerateBranchMismatch keyed by instance-tree path) — a recorded extension that PHASE-7's comparator stays unchanged. Split per the Splitting Rules + the proven PHASE-7-ORACLE-MICRODESIGN.2c -> .2c.1/.2c.2 decomposition that closed Phase 7: .2c.1 builds the harness (cargo-portable hierarchy-aware comparator + scoped per-tool capability set + tool-gated #[ignore] real-tool scaffold; no real run, cargo stays green tool-less, no ROADMAP advance) and .2c.2 runs the real #[ignore] gate + verifies exact-agreement + banks the artifact + promotes ROADMAP Phase 8 -> done (gate-blocked, r87). .2c.2 may further split on a discovered tool-capability dependency, mirroring PHASE-7-ORACLE-MICRODESIGN.2c.2's split into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool run + ROADMAP).`
+  Children: `PHASE-8-FRONTEND-ACCEPT.2c.1`, `PHASE-8-FRONTEND-ACCEPT.2c.2`
+
+- ID: `PHASE-8-FRONTEND-ACCEPT.2c.1`
   Status: `pending`
-  Goal: `The hierarchy-aware parity harness + repo-owned gate: a downstream consumer (currently planned: yosys hierarchy -top + write_json AFTER elaboration, or slang elaborate --ast-json, or verilator --xml-only) reports resolved instance-tree facts; compare to the manifest — exact agreement on the tool-supported categories or a retained counterexample tuple. Tool-gated (cargo test stays green tool-less — the convention reaffirmed in PHASE-7-ORACLE-MICRODESIGN's Decisions and applied at .2c.1/.2c.2a). Then verify a clean run and record ROADMAP Phase 8 -> done (r87 no-aspirational-claims). Reuses the scoped-comparator infrastructure (FactCategory/ParityScope/compare_manifest_to_tool_report_in_scope) that PHASE-7's .2c.2a delivered, extended with HIERARCHY-aware variants (InstancePathMismatch, PortBindingMismatch, GenerateBranchMismatch keyed by instance-tree path) — a recorded extension that PHASE-7's comparator stays unchanged; or, simpler, the Phase-8 comparator is its own type in src/srcform/. Final shape TBD when .2c lands; expected to split further per the Phase 7 precedent.`
-  Acceptance: `Reproducible accept corpus + manifests; parity harness green or retains counterexamples on a real run; ROADMAP Phase 8 -> done only after a verified clean gate; cargo test green tool-less.`
+  Goal: `Build the hierarchy-aware parity harness — cargo-portable + tool-gated. A new top-level test file (e.g. tests/frontend_parity.rs, mirroring tests/microdesign_parity.rs) carrying: (a) a pure-Rust hierarchy-aware fact-extraction-and-comparison core operating on already-collected tool output (an in-test synthetic ToolReport representation, NOT a tool invocation) — testable cargo-portably without yosys/verilator/slang; (b) hierarchy-aware Divergence variants extending Phase 7's set (InstanceMissingInTool, InstanceMissingInManifest, InstanceBindingMismatch{inst_name, param_name, expected, actual}, plus the existing per-category MismatchInTool/InManifest/Mismatch for top params/localparams/generate-branches/package constants); (c) a tool-equipped #[ignore]-gated test that, when invoked with the tools available, drives a fixed deterministic corpus through emit_sv + emit_manifest, shells the chosen downstream consumer on each .sv, parses the resolved-facts report, and feeds it to the cargo-portable comparator. Cargo-portable proofs: deterministic seeds (matching .2a's reproducibility set) × build → manifest, then feed a hand-constructed-to-agree synthetic tool report to the comparator and prove exact-equality; AND feed a deliberately-perturbed synthetic report and prove the comparator surfaces the right divergence kind for each axis (top-param / top-localparam / package-constant / instance-binding / generate-branch / instance-presence). Tool-gated ⇒ portable cargo test stays green tool-less. No real cargo-test run of the #[ignore] (that is .2c.2); cargo stays green tool-less; ROADMAP unchanged.`
+  Acceptance: `cargo fmt/clippy(-D warnings)/check --all-targets/test green; new tests/frontend_parity.rs landed with the cargo-portable hierarchy-aware comparator + the #[ignore]-gated tool harness; cargo-portable comparator proof exact-agrees on synthetic-agree fixtures and surfaces the right divergence kind on each perturbed fixture across every axis (top-params, top-localparams, package-constants, instance-bindings per instance, generate-branches, instance presence); the #[ignore] test compiles + is invocable but is NOT run in the portable suite; ROADMAP unchanged (advance is .2c.2 on a verified gate); no book/ change (book reconciliation is .2c.2).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `PHASE-8-FRONTEND-ACCEPT.2c.2`
+  Status: `pending`
+  Goal: `Real tool-equipped run of the .2c.1 #[ignore]-gated parity harness against a fixed deterministic corpus; VERIFY exact-agreement (or zero retained counterexamples) BEFORE any promotion (r87 no-aspirational-claims, mirroring Phase 6 .2.4/.3.4b and Phase 7 .2c.2b.2). Then record ROADMAP Phase 8 → done (with the explicit "tool-supported categories" scope caveat — the same kind of caveat Phase 7 closed under, recording what richer-AST tools would additionally cover); reconcile book (book/src/ir.md or a new "Phase 8 frontend-accept lane" page), README phase narrative, CODEBASE_ANALYSIS phase-coverage-map Phase-8 row, MEMORY recent commits. Closes PHASE-8-FRONTEND-ACCEPT.2c + .2 container + the tree. May split per the proven PHASE-7-ORACLE-MICRODESIGN.2c.2 → .2c.2a/.2c.2b decomposition if a discovered tool-capability dependency surfaces (the same shape that closed Phase 7).`
+  Acceptance: `A repo-owned banked artifact captures the harness's exact-agreement on the corpus (zero retained counterexamples) or — if any divergence — the precise counterexample tuple is committed alongside; ROADMAP Phase 8 → done only after the verified run; the .2c container + .2 container + tree all → done. No aspirational claims (verified artifact precedes the ROADMAP promotion).`
   Verification: `pending`
   Commit: `pending`
 
@@ -81,7 +93,7 @@ package IR** and an expected-facts manifest.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PHASE-8-FRONTEND-ACCEPT.2c` | `pending` (unblocked; expected to split) | **`.2b` done (`2026-05-20`)** — `src/frontend/mod.rs` extended with `emit_sv()` (un-elaborated SV: package + child stubs + top with symbolic parameter ports / localparam definitions / instance bindings / generate predicates) + manifest types (`PackageFacts`/`ParamFact`/`InstanceFact`/`GenerateFact`/`Manifest`, all `pub`+`serde Serialize+Deserialize`, `BTreeMap` for deterministic ordering) + `build_manifest()` (reads `.2a`'s stored oracle fields directly; no re-evaluation) + `emit_manifest()` (byte-stable pretty JSON). Cross-tree reuse of `crate::microdesign::expr_to_sv` (oracle ≡ SV at the expression layer; carries forward `.2c.2b.1`'s non-negative-modulo-idiom fix). 3 new lib proofs (`emit_sv_is_valid_unresolved_shape` / `manifest_mirrors_the_oracle` / `sv_and_manifest_are_byte_reproducible`); fixed 2 single_char_add_str clippy hits. Full `cargo test` green: lib **236** (was 233 + 3), `frontend::tests` 10/10 (was 7), microdesign 8/8 unchanged, microdesign_parity 15+1, pipeline 121, snapshots 6, bin 5+29+3, doc 0. `.2c` adds the hierarchy-aware parity harness + repo-owned gate; reuses Phase 7's scoped comparator (`ToolReport`/`Divergence`/`FactCategory`/`ParityScope`/`compare_manifest_to_tool_report_in_scope`) with hierarchy-aware variants; tool-gated `#[ignore]` per the Phase-1 doctrine; ROADMAP Phase 8 → done on a verified clean banked artifact (r87 no-aspirational-claims). Expected to split further per the proven `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2`/`.2c.2a`/`.2c.2b` decomposition. |
+| 1 | `PHASE-8-FRONTEND-ACCEPT.2c.1` | `pending` (unblocked, code-bearing) | **`.2c` split (`2026-05-20`)** into `.2c.1` (build the hierarchy-aware parity harness — cargo-portable comparator + tool-gated `#[ignore]` real-tool scaffold; no real run, no ROADMAP advance, cargo stays green tool-less) + `.2c.2` (real `--ignored` run + verify exact-agreement + bank artifact + record ROADMAP Phase 8 → done; gate-blocked, r87 no-aspirational-claims; may further split per the proven `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` decomposition if a tool-capability dependency surfaces). Exactly mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2` decomposition that closed Phase 7 on 2026-05-20. `.2c.1` is unblocked and is the next code-bearing slice (mirrors Phase 7's `.2c.1` shape: cargo-portable comparator + per-axis divergence proofs + tool-gated `#[ignore]` scaffold). **`.2b` done (`2026-05-20`)** — `src/frontend/mod.rs` extended with `emit_sv()` (un-elaborated SV: package + child stubs + top with symbolic parameter ports / localparam definitions / instance bindings / generate predicates) + manifest types (`PackageFacts`/`ParamFact`/`InstanceFact`/`GenerateFact`/`Manifest`, all `pub`+`serde Serialize+Deserialize`, `BTreeMap` for deterministic ordering) + `build_manifest()` (reads `.2a`'s stored oracle fields directly; no re-evaluation) + `emit_manifest()` (byte-stable pretty JSON). Cross-tree reuse of `crate::microdesign::expr_to_sv` (oracle ≡ SV at the expression layer; carries forward `.2c.2b.1`'s non-negative-modulo-idiom fix). 3 new lib proofs (`emit_sv_is_valid_unresolved_shape` / `manifest_mirrors_the_oracle` / `sv_and_manifest_are_byte_reproducible`); fixed 2 single_char_add_str clippy hits. Full `cargo test` green: lib **236** (was 233 + 3), `frontend::tests` 10/10 (was 7), microdesign 8/8 unchanged, microdesign_parity 15+1, pipeline 121, snapshots 6, bin 5+29+3, doc 0. `.2c` adds the hierarchy-aware parity harness + repo-owned gate; reuses Phase 7's scoped comparator (`ToolReport`/`Divergence`/`FactCategory`/`ParityScope`/`compare_manifest_to_tool_report_in_scope`) with hierarchy-aware variants; tool-gated `#[ignore]` per the Phase-1 doctrine; ROADMAP Phase 8 → done on a verified clean banked artifact (r87 no-aspirational-claims). Expected to split further per the proven `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2`/`.2c.2a`/`.2c.2b` decomposition. |
 
 ## Decisions
 
@@ -105,6 +117,21 @@ package IR** and an expected-facts manifest.
   source IR. `.2` is now a container; no renumbering. Tree-
   planning, docs-only; no `src/`/`tests/` change (`cargo`
   unchanged-green vs `20a7b4a`). Frontier → `.2a`.
+- `2026-05-20`: **`.2c` split** into `.2c.1` (build the
+  hierarchy-aware parity harness — cargo-portable comparator
+  + tool-gated `#[ignore]` real-tool scaffold; no real run,
+  no ROADMAP advance, cargo stays green tool-less) and
+  `.2c.2` (real `--ignored` run + verify + bank +
+  **ROADMAP Phase 8 → done**; gate-blocked, r87 no-aspirational-
+  claims; may further split per the proven `PHASE-7-ORACLE-
+  MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b` decomposition if a
+  tool-capability dependency surfaces — the same shape that
+  closed Phase 7). Exactly mirrors the proven `PHASE-7-
+  ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2` decomposition
+  that closed Phase 7 on 2026-05-20. `.2c` is now a
+  container; no renumbering. Tree-planning, docs-only; no
+  `src/`/`tests/` change (`cargo` unchanged-green vs
+  `d67df0c`). Frontier → `.2c.1`.
 
 ## Open Questions
 
@@ -139,6 +166,7 @@ package IR** and an expected-facts manifest.
 | `PHASE-8-FRONTEND-ACCEPT.2` (split) | `Docs: split PHASE-8-FRONTEND-ACCEPT.2 into .2a (source IR + elaboration-evaluator) + .2b (emitters) + .2c (parity harness + gate)` | Tree-planning, no code. Exactly mirrors the proven `PHASE-7-ORACLE-MICRODESIGN.2`→`.2a`/`.2b`/`.2c` decomposition that closed Phase 7 on 2026-05-20. Unblocked now that Phase 7 closed. |
 | `PHASE-8-FRONTEND-ACCEPT.2a` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2a source-level AST IR + construction-time elaboration-evaluator (oracle)` | New `src/frontend/` module + AST IR (`SourceUnit`/`Package`/`Module`/`ModuleItem`/`Instance`/`GenerateIf`/`ParamDecl`/`ParamBinding`) + `elaborate()` walker + rules-first reproducible `build_acceptable_unit` + 4 unit proofs (incl. the load-bearing oracle-no-drift invariant); cross-tree reuse of Phase 7's `ConstExpr`/`eval`/`ParamKind`/`BinOp`. No emit/harness. |
 | `PHASE-8-FRONTEND-ACCEPT.2b` | `Phase 8: PHASE-8-FRONTEND-ACCEPT.2b un-elaborated SV emitter + elaborated-facts JSON manifest emitter (from the .2a oracle)` | `emit_sv()` + manifest types (`PackageFacts`/`ParamFact`/`InstanceFact`/`GenerateFact`/`Manifest`) + `build_manifest()` + `emit_manifest()`; both from the same `.2a` oracle; cross-tree reuse of `microdesign::expr_to_sv`; 3 new lib proofs (10 total in `frontend::tests`); byte-reproducible. No harness (`.2c`). |
+| `PHASE-8-FRONTEND-ACCEPT.2c` (split) | `Docs: split PHASE-8-FRONTEND-ACCEPT.2c into .2c.1 (build harness) + .2c.2 (real-tool gate + ROADMAP Phase 8)` | Tree-planning, no code. Exactly mirrors `PHASE-7-ORACLE-MICRODESIGN.2c` → `.2c.1`/`.2c.2`. |
 
 ## Changelog
 
@@ -303,3 +331,21 @@ package IR** and an expected-facts manifest.
   hierarchy-aware variants; tool-gated `#[ignore]`; expected
   to split further per the proven `PHASE-7-ORACLE-MICRODESIGN.2c`
   → `.2c.1`/`.2c.2`/`.2c.2a`/`.2c.2b` decomposition).
+- `2026-05-20`: **`.2c` split** into `.2c.1` (build the
+  hierarchy-aware parity harness — cargo-portable comparator
+  + tool-gated `#[ignore]` real-tool scaffold; no real run,
+  no ROADMAP advance, cargo stays green tool-less) and
+  `.2c.2` (real `--ignored` run + verify + bank +
+  **ROADMAP Phase 8 → done**; gate-blocked, r87
+  no-aspirational-claims; may further split per the proven
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2` → `.2c.2a`/`.2c.2b`
+  decomposition if a tool-capability dependency surfaces).
+  Splitting Rules along the exact independently-reviewable
+  boundaries `.1`'s design implied — exactly the same shape
+  as the proven `PHASE-7-ORACLE-MICRODESIGN.2c` →
+  `.2c.1`/`.2c.2` decomposition that closed Phase 7 on
+  2026-05-20. Tree-planning, docs-only; no `src/`/`tests/`
+  change (`cargo` unchanged-green vs `d67df0c`); `mdbook
+  build book` clean (no `book/` change). Continuous-PNT
+  immediately after `.2b` landed. Frontier → `.2c.1` (the
+  hierarchy-aware-parity-harness build leaf; unblocked).
