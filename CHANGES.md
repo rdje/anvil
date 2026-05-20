@@ -1,8 +1,124 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase9-2a — Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a ArtifactLane trait + L1 DutLane wrap + byte-identical regression proof
+## 2026-05-20-phase9-2b — Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b L2 MicrodesignLane + L3 FrontendLane impls of the ArtifactLane trait
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/umbrella/mod.rs` extended with the L2 + L3 lane
+  impls (parallel in shape to `.2a`'s L1 `DutLane` wrap):
+  - `pub struct MicrodesignLane{n_params: usize}` (full
+    standard derives — `Debug+Clone+Copy+PartialEq+Eq` —
+    since the knob is a `usize`, unlike `DutLane` which
+    holds `Config` and can't be `Eq`).
+  - `impl ArtifactLane for MicrodesignLane`: `name() →
+    "microdesign"`; `generate(seed)` calls Phase 7's
+    `microdesign::build_constexpr_unit(seed, n_params)`
+    then `emit_sv(&unit, seed)` then `emit_manifest(&unit,
+    seed)`; returns `LaneArtifact{lane="microdesign",
+    manifest=Some(...)}`; `check_plan() →
+    ParityVsManifest`.
+  - `pub struct FrontendLane{n_params, n_children}` +
+    `impl ArtifactLane for FrontendLane`: same shape,
+    wrapping Phase 8's `frontend::build_acceptable_unit` +
+    `emit_sv` + `emit_manifest`.
+
+- **4 new unit proofs (8 total in `umbrella::tests`)**:
+  1. `microdesign_and_frontend_lane_identities` — smoke
+     for both lanes (names + check plans).
+  2. **`microdesign_lane_is_byte_identical_to_direct_path`**
+     — the L2 LOAD-BEARING byte-identical regression proof.
+     For each seed in `{0, 1, 7, 42, 12345}`
+     `MicrodesignLane::new(5).generate(seed)` output
+     matches the direct
+     `build_constexpr_unit → emit_sv → emit_manifest`
+     path byte-for-byte (BOTH SV AND manifest).
+  3. **`frontend_lane_is_byte_identical_to_direct_path`**
+     — the L3 LOAD-BEARING regression proof with
+     `FrontendLane::new(4, 2)` and Phase 8's
+     reproducibility set.
+  4. `cross_lane_dispatch_through_dyn_artifact_lane` — a
+     heterogeneous `Vec<Box<dyn ArtifactLane>>` containing
+     all 3 lanes dispatches correctly: each lane's name /
+     lane-field / check-plan / manifest-presence matches
+     the expected lane identity. Important because `.2c`'s
+     CLI will hold a `Box<dyn ArtifactLane>` chosen by
+     `--artifact <name>`.
+
+- Fixed 5 clippy `doc-lazy-continuation` hits (a `--`
+  token at line-start in the L2 docstring was being parsed
+  as a markdown list marker; reworded).
+
+- `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`:
+  Metadata Last updated `2026-05-20`; `.2b` Status
+  `pending`→`done` with full Verification + Commit;
+  Frontier `.2b`→`.2c`; Verification Log + Commit Log +
+  Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-9-MULTI-ARTIFACT-UMBRELLA`
+  row's frontier updated `.2b` → `.2c`.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase9-2a` entry's "Landed as: this commit" →
+  `fb76bc6`.
+
+- `MEMORY.md`: recent commits — `phase9-2a` `<pending>`
+  → `fb76bc6`; new `<pending>` head for this `.2b` slice.
+
+**Why**
+
+- `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2b` — the L2/L3 lane
+  impls half of `.2`'s three-way split. With the trait
+  surface set in `.2a` + the byte-identical contract
+  established for L1, `.2b` simply extends the pattern to
+  the two existing post-DUT generator paths. The
+  cross-lane heterogeneous dispatch proof is the
+  important addition: it proves the CLI can hold a
+  `Box<dyn ArtifactLane>` chosen by `--artifact <name>`
+  and dispatch correctly across all 3 lanes — the
+  prerequisite for `.2c`'s CLI flag work.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - lib: **244 passed** (was 240 + 4 new
+    `umbrella::tests`).
+  - `tests/microdesign_parity`: 15+1 unchanged.
+  - `tests/frontend_parity`: 12+2 unchanged.
+  - `tests/pipeline`: 121 passed.
+  - `tests/snapshots`: 6 passed.
+  - bin tests: 5+29+3 passed.
+  - doc-tests: unchanged.
+- Existing direct-call paths still produce identical
+  output (proven by the per-lane byte-identical
+  regression tests).
+
+**Impact**
+
+- `PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c` is unblocked (the
+  `--artifact <lane>` top-level CLI flag work + book/CI
+  byte-identical verification + ROADMAP Phase 9 → done).
+  All 3 lane impls of the `ArtifactLane` trait now exist
+  + are byte-identical-verified against their direct-call
+  paths + cross-lane dispatch is proven through
+  `Box<dyn ArtifactLane>`. ROADMAP Phase 9 closure
+  remains gated on `.2c`'s verified-clean book/CI
+  byte-identical run.
+
+**Files touched**
+
+- `src/umbrella/mod.rs`;
+  `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase9-2a — Phase 9: PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a ArtifactLane trait + L1 DutLane wrap + byte-identical regression proof
+
+**Landed as:** fb76bc6
 
 **What changed**
 

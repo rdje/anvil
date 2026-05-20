@@ -14,15 +14,18 @@
 //! plan) unifies here.
 //!
 //! Contents:
-//! - `.2a` (this slice) — the `ArtifactLane` trait, the `LaneArtifact`
-//!   carrier, the `CheckPlan` enum, the `LaneError` placeholder, and
-//!   the **L1 `DutLane`** impl wrapping today's `gen::Generator` +
+//! - `.2a` — the `ArtifactLane` trait, the `LaneArtifact` carrier,
+//!   the `CheckPlan` enum, the `LaneError` placeholder, and the
+//!   **L1 `DutLane`** impl wrapping today's `gen::Generator` +
 //!   `emit::to_sv_design` path. The DUT lane wrap is *zero
-//!   behavioural change* for the default `--artifact dut` case — the
-//!   byte-identical regression test in `tests/lane_byte_identical.rs`
-//!   pins it.
-//! - `.2b` — L2 `MicrodesignLane` + L3 `FrontendLane` impls of the
-//!   trait + cross-lane byte-identical proof.
+//!   behavioural change* for the default `--artifact dut` case.
+//! - `.2b` (this slice) — **L2 `MicrodesignLane`** wrapping Phase 7's
+//!   `microdesign::build_constexpr_unit` + `emit_sv` + `emit_manifest`
+//!   and **L3 `FrontendLane`** wrapping Phase 8's
+//!   `frontend::build_acceptable_unit` + `emit_sv` + `emit_manifest`.
+//!   Cross-lane byte-identical regression proofs (one per lane)
+//!   pin each lane's trait-dispatched output to its direct-call
+//!   output across the reproducibility seeds.
 //! - `.2c` — `--artifact <lane>` top-level CLI flag (default `dut`),
 //!   book/CI byte-identical verification, **ROADMAP Phase 9 → done**.
 //!
@@ -185,6 +188,114 @@ impl ArtifactLane for DutLane {
     }
 }
 
+// ===================================================================
+// L2 — the oracle-backed micro-design lane (Phase 7). Wraps
+// `crate::microdesign::{build_constexpr_unit, emit_sv,
+// emit_manifest}` so the trait surface dispatches into the same
+// rules-first generator the `tests/microdesign_parity` gate
+// validated.
+// ===================================================================
+
+/// The oracle-backed micro-design lane (Phase 7).
+/// `MicrodesignLane::generate(seed)` IS today's
+/// `microdesign::build_constexpr_unit(seed, n_params)` followed by
+/// `emit_sv(&unit, seed)` + `emit_manifest(&unit, seed)` — zero
+/// behavioural change. Lane-scoped knobs (currently only `n_params`)
+/// live on the struct, mirroring `DutLane{base_config}`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MicrodesignLane {
+    /// Number of parameter/localparam decls in each unit. Matches
+    /// the `n_params` argument of
+    /// `microdesign::build_constexpr_unit`.
+    pub n_params: usize,
+}
+
+impl MicrodesignLane {
+    /// Construct a `MicrodesignLane` with the given `n_params`. The
+    /// reproducibility-set parity gate uses `n_params = 5`.
+    pub fn new(n_params: usize) -> Self {
+        Self { n_params }
+    }
+}
+
+impl ArtifactLane for MicrodesignLane {
+    fn name(&self) -> &'static str {
+        "microdesign"
+    }
+
+    fn generate(&self, seed: u64) -> Result<LaneArtifact, LaneError> {
+        let unit = crate::microdesign::build_constexpr_unit(seed, self.n_params);
+        let sv = crate::microdesign::emit_sv(&unit, seed);
+        let manifest = crate::microdesign::emit_manifest(&unit, seed);
+        Ok(LaneArtifact {
+            lane: "microdesign".to_string(),
+            seed,
+            sv,
+            manifest: Some(manifest),
+        })
+    }
+
+    fn check_plan(&self) -> CheckPlan {
+        CheckPlan::ParityVsManifest
+    }
+}
+
+// ===================================================================
+// L3 — the source-level frontend / elaboration accept lane (Phase 8).
+// Wraps `crate::frontend::{build_acceptable_unit, emit_sv,
+// emit_manifest}` so the trait surface dispatches into the same
+// rules-first generator the `tests/frontend_parity` gate validated.
+// ===================================================================
+
+/// The source-level frontend / elaboration accept lane (Phase 8).
+/// `FrontendLane::generate(seed)` IS today's
+/// `frontend::build_acceptable_unit(seed, n_params, n_children)`
+/// followed by `emit_sv(&unit)` + `emit_manifest(&unit)` — zero
+/// behavioural change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrontendLane {
+    /// Number of parameter ports per module. Matches the
+    /// `n_params` argument of `frontend::build_acceptable_unit`.
+    pub n_params: usize,
+    /// Number of child instances in the top module. Matches the
+    /// `n_children` argument of
+    /// `frontend::build_acceptable_unit`.
+    pub n_children: usize,
+}
+
+impl FrontendLane {
+    /// Construct a `FrontendLane`. The reproducibility-set parity
+    /// gate uses `n_params = 4`, `n_children = 2`.
+    pub fn new(n_params: usize, n_children: usize) -> Self {
+        Self {
+            n_params,
+            n_children,
+        }
+    }
+}
+
+impl ArtifactLane for FrontendLane {
+    fn name(&self) -> &'static str {
+        "frontend"
+    }
+
+    fn generate(&self, seed: u64) -> Result<LaneArtifact, LaneError> {
+        let unit = crate::frontend::build_acceptable_unit(seed, self.n_params, self.n_children);
+        let sv = crate::frontend::emit_sv(&unit);
+        let manifest = crate::frontend::emit_manifest(&unit);
+        Ok(LaneArtifact {
+            lane: "frontend".to_string(),
+            seed,
+            sv,
+            manifest: Some(manifest),
+        })
+    }
+
+    fn check_plan(&self) -> CheckPlan {
+        CheckPlan::ParityVsManifest
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,6 +381,137 @@ mod tests {
                 a, b,
                 "repeated DutLane::generate({seed}) must be byte-identical"
             );
+        }
+    }
+
+    // ===============================================================
+    // .2b proofs — L2 (microdesign) + L3 (frontend) lane impls.
+    // ===============================================================
+
+    /// Lane-identity smoke for L2 + L3.
+    #[test]
+    fn microdesign_and_frontend_lane_identities() {
+        let m = MicrodesignLane::new(5);
+        assert_eq!(m.name(), "microdesign");
+        assert_eq!(m.check_plan(), CheckPlan::ParityVsManifest);
+        let f = FrontendLane::new(4, 2);
+        assert_eq!(f.name(), "frontend");
+        assert_eq!(f.check_plan(), CheckPlan::ParityVsManifest);
+    }
+
+    /// **Load-bearing byte-identical regression proof for L2.**
+    ///
+    /// `MicrodesignLane::generate(seed)` produces byte-identical SV
+    /// and manifest to the direct
+    /// `microdesign::{build_constexpr_unit, emit_sv, emit_manifest}`
+    /// path across the reproducibility-set seeds (matching Phase 7's
+    /// `.2a` test). The proof guards the contract before `.2c`'s
+    /// CLI lands the `--artifact microdesign` invocation.
+    #[test]
+    fn microdesign_lane_is_byte_identical_to_direct_path() {
+        let lane = MicrodesignLane::new(5);
+        for &seed in &[0u64, 1, 7, 42, 12345] {
+            // Direct path (matches Phase 7's reproducibility-set
+            // contract).
+            let unit = crate::microdesign::build_constexpr_unit(seed, 5);
+            let direct_sv = crate::microdesign::emit_sv(&unit, seed);
+            let direct_manifest = crate::microdesign::emit_manifest(&unit, seed);
+
+            // Trait-dispatched path.
+            let artifact = lane
+                .generate(seed)
+                .expect("MicrodesignLane::generate must succeed");
+            assert_eq!(artifact.lane, "microdesign");
+            assert_eq!(artifact.seed, seed);
+            assert_eq!(
+                artifact.sv, direct_sv,
+                "MicrodesignLane SV byte-identical drift (seed={seed})"
+            );
+            assert_eq!(
+                artifact.manifest.as_deref(),
+                Some(direct_manifest.as_str()),
+                "MicrodesignLane manifest byte-identical drift (seed={seed})"
+            );
+        }
+    }
+
+    /// **Load-bearing byte-identical regression proof for L3.**
+    ///
+    /// `FrontendLane::generate(seed)` produces byte-identical SV +
+    /// manifest to the direct
+    /// `frontend::{build_acceptable_unit, emit_sv, emit_manifest}`
+    /// path across the reproducibility-set seeds (matching Phase 8's
+    /// `.2a` test). Mirror of the L2 proof.
+    #[test]
+    fn frontend_lane_is_byte_identical_to_direct_path() {
+        let lane = FrontendLane::new(4, 2);
+        for &seed in &[0u64, 1, 7, 42, 12345] {
+            // Direct path (matches Phase 8's reproducibility-set
+            // contract).
+            let unit = crate::frontend::build_acceptable_unit(seed, 4, 2);
+            let direct_sv = crate::frontend::emit_sv(&unit);
+            let direct_manifest = crate::frontend::emit_manifest(&unit);
+
+            // Trait-dispatched path.
+            let artifact = lane
+                .generate(seed)
+                .expect("FrontendLane::generate must succeed");
+            assert_eq!(artifact.lane, "frontend");
+            assert_eq!(artifact.seed, seed);
+            assert_eq!(
+                artifact.sv, direct_sv,
+                "FrontendLane SV byte-identical drift (seed={seed})"
+            );
+            assert_eq!(
+                artifact.manifest.as_deref(),
+                Some(direct_manifest.as_str()),
+                "FrontendLane manifest byte-identical drift (seed={seed})"
+            );
+        }
+    }
+
+    /// **Cross-lane dispatch proof.**
+    ///
+    /// A heterogeneous `Vec<Box<dyn ArtifactLane>>` containing all
+    /// three lane impls dispatches correctly: each lane's
+    /// `name()` returns the expected string, each lane's `generate`
+    /// returns a `LaneArtifact` whose `lane` matches `name()`, and
+    /// each lane's `check_plan()` returns the expected variant.
+    /// Important because `.2c`'s CLI will hold a
+    /// `Box<dyn ArtifactLane>` chosen by `--artifact <name>`.
+    #[test]
+    fn cross_lane_dispatch_through_dyn_artifact_lane() {
+        let lanes: Vec<Box<dyn ArtifactLane>> = vec![
+            Box::new(DutLane::new(Config::default())),
+            Box::new(MicrodesignLane::new(5)),
+            Box::new(FrontendLane::new(4, 2)),
+        ];
+        let expected_names = ["dut", "microdesign", "frontend"];
+        let expected_plans = [
+            CheckPlan::SynthAccept,
+            CheckPlan::ParityVsManifest,
+            CheckPlan::ParityVsManifest,
+        ];
+        for (i, lane) in lanes.iter().enumerate() {
+            assert_eq!(lane.name(), expected_names[i]);
+            assert_eq!(lane.check_plan(), expected_plans[i]);
+            let artifact = lane.generate(7).expect("generate ok");
+            assert_eq!(artifact.lane, expected_names[i]);
+            assert_eq!(artifact.seed, 7);
+            assert!(
+                !artifact.sv.is_empty(),
+                "lane {} must produce non-empty SV",
+                expected_names[i]
+            );
+            // L1 has no manifest; L2/L3 carry one.
+            match expected_names[i] {
+                "dut" => assert_eq!(artifact.manifest, None),
+                _ => assert!(
+                    artifact.manifest.is_some(),
+                    "lane {} must carry a manifest",
+                    expected_names[i]
+                ),
+            }
         }
     }
 }
