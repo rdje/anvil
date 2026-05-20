@@ -1,8 +1,147 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2c.2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c.2 into .2c.2a (yosys extractor + end-to-end-runnable #[ignore]) + .2c.2b (real-tool gate + ROADMAP Phase 8)
+## 2026-05-20-phase8-2c.2a — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2a yosys hierarchy write_json extractor + end-to-end-runnable #[ignore] harness
 
 **Landed as:** this commit
+
+**What changed**
+
+- `tests/frontend_parity.rs` extended with the Phase-8-
+  specific yosys extractor + end-to-end-runnable
+  `#[ignore]` test:
+  - `parse_yosys_binary_param(s) -> Option<i128>` —
+    signed-32-bit sign-extension via `u32::from_str_radix`
+    then `as i32 as i128`. Symmetric to Phase 7's
+    `parse_yosys_binary_param` even though Phase 8's `.2a`
+    builder doesn't currently emit negative values
+    (forward-compatible for future builder variants).
+  - `yosys_hierarchy_write_json_to_tool_report(json, seed)
+    -> ToolReport`:
+    * reads `.modules.<top>.parameter_default_values` →
+      `top_params` (binary-string parsed via
+      `parse_yosys_binary_param`).
+    * reads `.modules.<top>.cells[<inst>].{type,
+      parameters}` → `instances` with `child_module = type`
+      and `resolved_bindings` (each binding value parsed
+      via `parse_yosys_binary_param`). **This is the
+      load-bearing hierarchy-aware Phase-8 axis** — the
+      one the `.2c.1` comparator gained `Instance*`
+      variants for.
+    * reads `.modules.<top>.netnames` keys for prefix
+      `g_taken.`/`g_else.` → `generate_branches["g_taken"]`
+      (true iff g_taken-prefixed AND no g_else-prefixed).
+    * leaves the folded axes (`package_constants`,
+      `top_localparams`) deliberately empty.
+  - `yosys_hierarchy_scope() -> ParityScope` returns
+    `only(&[Seed, Top, TopParams, Instances,
+    GenerateBranches])` — the 5 categories yosys's
+    `hierarchy + write_json` covers per today's empirical
+    probe.
+  - `parity_against_real_yosys_hierarchy_write_json`
+    rewritten end-to-end:
+    * per-seed `emit_sv` →
+      `CARGO_TARGET_TMPDIR/frontend-parity-phase8-yosys/
+      acc_<seed>.sv`
+    * `emit_manifest` → `.json`
+    * shell `yosys -q -p "read_verilog -sv <sv>;
+      hierarchy -top acc_<seed>; write_json <out.json>"`
+      (**deliberately NO `proc; opt`** — the `.2c.2`
+      Decisions probe confirmed it collapses empty-bodied
+      child instances out of `.cells`).
+    * parse → `ToolReport` via the new extractor.
+    * scoped compare with `yosys_hierarchy_scope`.
+    * accumulate counterexamples; panic with full
+      diagnostic on non-empty list (else `eprintln
+      "parity gate clean across N seeds"`).
+    * yosys-presence guard at the head matches the
+      `iverilog`-not-installed convention from
+      `DIFFERENTIAL-SIMULATION.1`.
+  - The `.2c.1` `parity_against_real_downstream_elaborator`
+    is preserved as a friendly no-op pointing at the named
+    yosys test (the scaffold's intent stays documented).
+
+- 2 new cargo-portable extractor proofs (12 portable + 2
+  ignored total in `tests/frontend_parity.rs`; was 10 + 1):
+  - `yosys_extractor_reads_a_synthetic_hierarchy_write_json_correctly`
+    — hand-built JSON for seed 0 with 2 instances × 2
+    bindings each (P0=57, P1=38; u_0_0 → child_0 with
+    CP0=57, CP1=40; u_0_1 → child_0 with CP0=60, CP1=59;
+    g_taken alive; folded axes empty). Exercises every
+    branch of the extractor.
+  - `yosys_extractor_reports_g_else_when_else_branch_survives`
+    — the g_else-survives case → `generate.g_taken=false`.
+
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`: Metadata Last
+  updated `2026-05-20`; `.2c.2a` Status `pending`→`done`
+  with full Verification (every helper + every proof + the
+  `hierarchy -top`-no-`proc; opt` rationale) + Commit field;
+  Frontier `.2c.2a`→`.2c.2b`; Verification Log + Commit
+  Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-8-FRONTEND-ACCEPT` row's
+  frontier updated `.2c.2a`→`.2c.2b`.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase8-2c.2-split` entry's "Landed as: this commit" →
+  `c86906e`.
+
+- `MEMORY.md`: recent commits — `phase8-2c.2-split`
+  `<pending>` → `c86906e`; new `<pending>` head for this
+  `.2c.2a` slice.
+
+**Why**
+
+- `PHASE-8-FRONTEND-ACCEPT.2c.2a` — the discovered-
+  lower-level dependency leaf, mirroring Phase 7's
+  `.2c.2a`. The yosys-specific extractor + `hierarchy
+  -top`-no-`proc; opt` invocation are the code that must
+  land BEFORE any real-tool run can honestly report what
+  was checked. Lands cargo-portably with 2 fresh
+  extractor proofs; the `#[ignore]` is end-to-end-
+  runnable but is not executed in the portable suite.
+  `.2c.2b` is the gated commit that actually runs it
+  against real yosys and banks a verified-clean artifact
+  before promoting ROADMAP Phase 8.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - `tests/frontend_parity`: **12 passed + 2 ignored**
+    (`.2c.1`'s 10 portable proofs + `.2c.2a`'s 2 new
+    extractor proofs + the named real-yosys `#[ignore]`
+    + the preserved any-of-elaborator no-op).
+  - `tests/microdesign_parity`: 15 passed + 1 ignored.
+  - `tests/pipeline`: 121 passed.
+  - `tests/snapshots`: 6 passed.
+  - lib: 236 passed unchanged.
+  - bin tests: 5+29+3 passed; doc-tests unchanged.
+- Portable `cargo test` stays green tool-less.
+
+**Impact**
+
+- The yosys-scope Phase-8 parity gate is now end-to-end-
+  runnable; `.2c.2b` is unblocked (a single `cargo test
+  -- --ignored parity_against_real_yosys_hierarchy_write_json`
+  against real yosys, then bank the verified-clean
+  artifact + promote ROADMAP Phase 8 → done with the
+  yosys-supported-categories scope caveat, r87). Richer
+  fact-category coverage via slang or
+  verilator-with-debug remains a recorded post-Phase-8
+  follow-up.
+
+**Files touched**
+
+- `tests/frontend_parity.rs`;
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2c.2-split — Docs: split PHASE-8-FRONTEND-ACCEPT.2c.2 into .2c.2a (yosys extractor + end-to-end-runnable #[ignore]) + .2c.2b (real-tool gate + ROADMAP Phase 8)
+
+**Landed as:** c86906e
 
 **What changed**
 

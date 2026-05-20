@@ -31,8 +31,9 @@
 
 use anvil::frontend::{
     build_acceptable_unit, build_manifest, compare_manifest_to_tool_report,
-    compare_manifest_to_tool_report_in_scope, synthetic_tool_report_from_manifest, Divergence,
-    FactCategory, Manifest, ParityScope,
+    compare_manifest_to_tool_report_in_scope, emit_manifest, emit_sv,
+    synthetic_tool_report_from_manifest, Divergence, FactCategory, InstanceToolReport, Manifest,
+    ParityScope, ToolReport,
 };
 use std::collections::BTreeMap;
 
@@ -384,67 +385,375 @@ fn empty_scope_ignores_every_disagreement() {
 }
 
 // ===================================================================
-// PHASE-8-FRONTEND-ACCEPT.2c.1 — tool-equipped `#[ignore]` scaffold.
+// PHASE-8-FRONTEND-ACCEPT.2c.2a — yosys-specific `write_json` extractor.
 //
-// `#[ignore]` so the portable `cargo test` stays green tool-less.
-// `.2c.2` is the gated step that wires it end-to-end and banks a
-// verified-clean artifact before ROADMAP Phase 8 → done.
+// Empirical probe (recorded in the tree's Decisions, 2026-05-20):
+// `yosys hierarchy -top acc_<seed>; write_json <out>` on a Phase-8
+// `acc_<seed>.sv` exposes 5 of the 7 manifest fact categories:
+//
+//   .modules.<top>.parameter_default_values
+//     - binary-string form, identical to Phase 7's
+//       parameter_default_values; parsed as SV `int` (signed 32-bit)
+//       → `i128` via the same sign-extend-through-i32 pattern.
+//
+//   .modules.<top>.cells[<inst>].{type, parameters}
+//     - the LOAD-BEARING hierarchy-aware Phase-8 axis. Each cell has:
+//       * `type`: the child module name (must match the manifest's
+//         `child_module`);
+//       * `parameters`: a `name → binary-string` map of the resolved
+//         per-binding values (`CP0` → "00...111001" = 57, etc.).
+//
+//   .modules.<top>.netnames keys
+//     - prefix `g_taken.` (the if-branch was elaborated) or `g_else.`
+//       (the else-branch). Identical convention to Phase 7's emit.
+//
+// Folded by yosys (and therefore NOT extracted into the ToolReport):
+//   - top_localparams (the `localparam int L<i> = …` chains —
+//     resolved into the elaborated netlist but not exposed by name);
+//   - package_constants (the `acc_<seed>_pkg::K` reference — folded
+//     into the W-derived expressions but not exposed by name).
+//
+// Crucially: the probe also discovered that `proc; opt` (the Phase
+// 7 yosys invocation pipeline) collapses the empty-bodied child
+// instances away from `.cells`. The fix is to invoke yosys with
+// `hierarchy -top` only — NOT `proc; opt`.
 // ===================================================================
 
-/// Real-tool parity gate scaffold, invocable with
-/// `cargo test -- --ignored parity_against_real_downstream_elaborator`.
+/// Parse a yosys `parameter_default_values` (or per-cell
+/// `parameters`) binary string as a signed 32-bit SV `int`. Returns
+/// `None` on malformed inputs. Mirrors
+/// `PHASE-7-ORACLE-MICRODESIGN.2c.2a`'s `parse_yosys_binary_param`
+/// (Phase 8 doesn't currently emit negative values via the `.2a`
+/// builder, but the sign-extension is kept for symmetry + so the
+/// extractor remains correct if future Phase 8 builder variants do).
+fn parse_yosys_binary_param(s: &str) -> Option<i128> {
+    if s.is_empty() || s.len() > 32 || !s.chars().all(|c| c == '0' || c == '1') {
+        return None;
+    }
+    let u = u32::from_str_radix(s, 2).ok()?;
+    Some(u as i32 as i128) // sign-extend through i32
+}
+
+/// Build a `ToolReport` from yosys 0.64's `write_json` output for a
+/// single elaborated `acc_<seed>` top module.
 ///
-/// If no downstream elaborator is on `$PATH` (`yosys`, `slang`, or
-/// `verilator`), the test is a friendly no-op (the harness must
-/// remain invocable on machines without the tool — the Phase-1
-/// doctrine reaffirmed in `PHASE-7-ORACLE-MICRODESIGN`'s
-/// `Decisions`).
+/// Populates only what yosys actually carries (per today's
+/// empirical probe; see `.2c.2`'s Decisions entry):
+///   * `seed` — supplied by the caller (corpus key, not a yosys fact)
+///   * `top` — `acc_<seed>` (also tied to the corpus key)
+///   * `package_constants` — EMPTY (folded by yosys; the yosys
+///     scope skips this axis)
+///   * `top_params` — from `.modules.<top>.parameter_default_values`
+///     (binary-string → signed-32-bit → `i128`)
+///   * `top_localparams` — EMPTY (folded by yosys)
+///   * `instances` — from `.modules.<top>.cells`: each cell's `type`
+///     becomes the `child_module` and `parameters` becomes the
+///     `resolved_bindings` map (also parsed via
+///     `parse_yosys_binary_param`)
+///   * `generate_branches["g_taken"]` — `true` iff any netname key
+///     is prefixed `g_taken.` (and not `g_else.`)
+fn yosys_hierarchy_write_json_to_tool_report(json: &serde_json::Value, seed: u64) -> ToolReport {
+    let top = format!("acc_{seed}");
+    let module = &json["modules"][&top];
+
+    let mut top_params: BTreeMap<String, i128> = BTreeMap::new();
+    if let Some(pdv) = module["parameter_default_values"].as_object() {
+        for (name, value) in pdv {
+            if let Some(s) = value.as_str() {
+                if let Some(v) = parse_yosys_binary_param(s) {
+                    top_params.insert(name.clone(), v);
+                }
+            }
+        }
+    }
+
+    let mut instances: Vec<InstanceToolReport> = Vec::new();
+    if let Some(cells) = module["cells"].as_object() {
+        for (inst_name, cell) in cells {
+            let child_module = cell["type"].as_str().unwrap_or("").to_string();
+            let mut resolved_bindings: BTreeMap<String, i128> = BTreeMap::new();
+            if let Some(params) = cell["parameters"].as_object() {
+                for (b_name, b_value) in params {
+                    if let Some(s) = b_value.as_str() {
+                        if let Some(v) = parse_yosys_binary_param(s) {
+                            resolved_bindings.insert(b_name.clone(), v);
+                        }
+                    }
+                }
+            }
+            instances.push(InstanceToolReport {
+                inst_name: inst_name.clone(),
+                child_module,
+                resolved_bindings,
+            });
+        }
+    }
+
+    let mut g_taken_alive = false;
+    let mut g_else_alive = false;
+    if let Some(netnames) = module["netnames"].as_object() {
+        for name in netnames.keys() {
+            if name.starts_with("g_taken.") {
+                g_taken_alive = true;
+            }
+            if name.starts_with("g_else.") {
+                g_else_alive = true;
+            }
+        }
+    }
+    let mut generate_branches: BTreeMap<String, bool> = BTreeMap::new();
+    generate_branches.insert("g_taken".to_string(), g_taken_alive && !g_else_alive);
+
+    ToolReport {
+        seed,
+        top,
+        package_constants: BTreeMap::new(), // folded by yosys
+        top_params,
+        top_localparams: BTreeMap::new(), // folded by yosys
+        instances,
+        generate_branches,
+    }
+}
+
+/// The yosys parity scope: only the categories yosys's
+/// `hierarchy -top; write_json` actually exposes
+/// (Seed/Top/TopParams/Instances/GenerateBranches). The folded
+/// `TopLocalparams` + `PackageConstants` axes are deliberately
+/// skipped — they're recorded post-Phase-8 follow-up via richer-AST
+/// tools (slang/verilator-with-debug).
+fn yosys_hierarchy_scope() -> ParityScope {
+    ParityScope::only(&[
+        FactCategory::Seed,
+        FactCategory::Top,
+        FactCategory::TopParams,
+        FactCategory::Instances,
+        FactCategory::GenerateBranches,
+    ])
+}
+
+/// Cargo-portable extractor proof: a hand-built yosys-like JSON for
+/// seed 0 produces the expected `ToolReport`. Exercises every
+/// branch of `yosys_hierarchy_write_json_to_tool_report` — the
+/// `parameter_default_values` parser, the `.cells[<inst>].{type,
+/// parameters}` mapping for two instances with two bindings each,
+/// the netname-prefix scan, and the folded-axes-stay-empty
+/// invariant.
+#[test]
+fn yosys_extractor_reads_a_synthetic_hierarchy_write_json_correctly() {
+    let synthetic = serde_json::json!({
+        "modules": {
+            "acc_0": {
+                "parameter_default_values": {
+                    "P0": "00000000000000000000000000111001", // 57
+                    "P1": "00000000000000000000000000100110"  // 38
+                },
+                "cells": {
+                    "u_0_0": {
+                        "type": "child_0",
+                        "parameters": {
+                            "CP0": "00000000000000000000000000111001", // 57
+                            "CP1": "00000000000000000000000000101000"  // 40
+                        }
+                    },
+                    "u_0_1": {
+                        "type": "child_0",
+                        "parameters": {
+                            "CP0": "00000000000000000000000000111100", // 60
+                            "CP1": "00000000000000000000000000111011"  // 59
+                        }
+                    }
+                },
+                "netnames": {
+                    "g_taken.gflag": { "hide_name": 0, "bits": ["0"] }
+                }
+            }
+        }
+    });
+    let report = yosys_hierarchy_write_json_to_tool_report(&synthetic, 0);
+    assert_eq!(report.seed, 0);
+    assert_eq!(report.top, "acc_0");
+    // Top params
+    assert_eq!(report.top_params.get("P0").copied(), Some(57));
+    assert_eq!(report.top_params.get("P1").copied(), Some(38));
+    // Generate branch
+    assert_eq!(report.generate_branches.get("g_taken").copied(), Some(true));
+    // Instances (BTreeMap iteration order for parameters lets us
+    // assert exact values name-by-name)
+    assert_eq!(report.instances.len(), 2);
+    let u00 = report
+        .instances
+        .iter()
+        .find(|i| i.inst_name == "u_0_0")
+        .expect("u_0_0");
+    assert_eq!(u00.child_module, "child_0");
+    assert_eq!(u00.resolved_bindings.get("CP0").copied(), Some(57));
+    assert_eq!(u00.resolved_bindings.get("CP1").copied(), Some(40));
+    let u01 = report
+        .instances
+        .iter()
+        .find(|i| i.inst_name == "u_0_1")
+        .expect("u_0_1");
+    assert_eq!(u01.child_module, "child_0");
+    assert_eq!(u01.resolved_bindings.get("CP0").copied(), Some(60));
+    assert_eq!(u01.resolved_bindings.get("CP1").copied(), Some(59));
+    // Folded axes deliberately empty.
+    assert!(report.package_constants.is_empty());
+    assert!(report.top_localparams.is_empty());
+}
+
+/// Negative-side proof: an `else`-surviving netnames map produces
+/// `generate_branches["g_taken"] = false`. Same convention as
+/// Phase 7's `yosys_extractor_reports_g_else_when_else_branch_survives`.
+#[test]
+fn yosys_extractor_reports_g_else_when_else_branch_survives() {
+    let synthetic = serde_json::json!({
+        "modules": {
+            "acc_99": {
+                "parameter_default_values": {
+                    "P0": "00000000000000000000000000000000"
+                },
+                "cells": {},
+                "netnames": {
+                    "g_else.gflag": { "hide_name": 0, "bits": ["0"] }
+                }
+            }
+        }
+    });
+    let report = yosys_hierarchy_write_json_to_tool_report(&synthetic, 99);
+    assert_eq!(
+        report.generate_branches.get("g_taken").copied(),
+        Some(false)
+    );
+}
+
+// ===================================================================
+// PHASE-8-FRONTEND-ACCEPT.2c.2a — end-to-end-runnable `#[ignore]`.
+//
+// `#[ignore]` so the portable `cargo test` stays green tool-less
+// (Phase-1 doctrine reaffirmed in PHASE-7-ORACLE-MICRODESIGN's
+// `Decisions`, applied at `.2c.1`/`.2c.2a` in Phase 7 + this slice
+// in Phase 8). `.2c.2b` runs this end-to-end against real yosys
+// and banks a verified-clean artifact before ROADMAP Phase 8 → done.
+// ===================================================================
+
+/// Real-tool parity gate, invocable with
+/// `cargo test --test frontend_parity -- --ignored
+///  parity_against_real_yosys_hierarchy_write_json`.
 ///
-/// The actual fact extraction + downstream-tool integration is
-/// `.2c.2`'s responsibility (mirrors how `PHASE-7-ORACLE-MICRODESIGN.2c.2a`
-/// landed the yosys-specific extractor after `.2c.1` landed the
-/// comparator + scaffold). `.2c.1` here lands the scaffold + the
-/// corpus driver loop so the harness compiles + is invocable today,
-/// with the comparator already proven cargo-portably above.
+/// For each seed in the reproducibility set:
+/// 1. Build `unit` via `build_acceptable_unit(seed, N_PARAMS, N_CHILDREN)`.
+/// 2. Write `emit_sv(&unit)` to `CARGO_TARGET_TMPDIR/
+///    frontend-parity-phase8-yosys/acc_<seed>.sv`.
+/// 3. Write `emit_manifest(&unit)` to
+///    `…/acc_<seed>.json`.
+/// 4. Shell `yosys -q -p "read_verilog -sv <sv>; hierarchy -top
+///    acc_<seed>; write_json <out>.json"` (deliberately NO
+///    `proc; opt` — the probe in `.2c.2`'s Decisions confirmed it
+///    collapses the empty-bodied child instances away from
+///    `.cells`).
+/// 5. Parse the yosys output → `ToolReport` via
+///    `yosys_hierarchy_write_json_to_tool_report`.
+/// 6. Call `compare_manifest_to_tool_report_in_scope(manifest,
+///    report, &yosys_hierarchy_scope())` and assert `Ok(())` (or
+///    retain a counterexample tuple).
+///
+/// On `yosys` absent: friendly no-op (matches the
+/// `iverilog`-not-installed convention from
+/// `DIFFERENTIAL-SIMULATION.1`).
 #[test]
 #[ignore]
-fn parity_against_real_downstream_elaborator() {
-    // Tool presence guard — any of yosys / slang / verilator is
-    // sufficient; `.2c.2` picks which one and wires the extractor.
-    let any_present = ["yosys", "slang", "verilator"].iter().any(|name| {
-        std::process::Command::new(name)
-            .arg("-V")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    });
-    if !any_present {
+fn parity_against_real_yosys_hierarchy_write_json() {
+    // Tool presence guard.
+    let probe = std::process::Command::new("yosys").arg("-V").output();
+    if probe.is_err() || !probe.as_ref().map(|o| o.status.success()).unwrap_or(false) {
         eprintln!(
-            "parity_against_real_downstream_elaborator: no elaborator on $PATH \
-             (scaffold-only at .2c.1; .2c.2 wires the extractor + banks the real run)"
+            "parity_against_real_yosys_hierarchy_write_json: yosys not on $PATH \
+             (skipping; rerun with yosys installed for the real-tool gate)"
         );
         return;
     }
 
-    // Corpus driver scaffold — `.2c.2` wires the per-seed
-    // emit-then-shell-then-extract-then-compare loop. Instantiating
-    // here so the scaffold has a real reference point and compiles
-    // against the same SEEDS / N_PARAMS / N_CHILDREN constants the
-    // cargo-portable proofs use.
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("frontend-parity-phase8-yosys");
+    std::fs::create_dir_all(&dir).expect("can create the harness output dir");
+
+    let scope = yosys_hierarchy_scope();
+    let mut counterexamples: Vec<(u64, Vec<Divergence>)> = Vec::new();
+
     for &seed in SEEDS {
         let unit = build_acceptable_unit(seed, N_PARAMS, N_CHILDREN);
-        let _manifest = build_manifest(&unit);
-        // `.2c.2` adds, here:
-        //   1. write `emit_sv(&unit)`     -> tmpdir/acc_<seed>.sv
-        //   2. write `emit_manifest(&unit)` -> tmpdir/acc_<seed>.json
-        //   3. shell the chosen consumer on the .sv ->
-        //      tmpdir/acc_<seed>.tool.json (or .xml/.ast.json)
-        //   4. extract a `ToolReport` from (3)        -> in-memory
-        //   5. compare_manifest_to_tool_report_in_scope(...) ->
-        //      Ok(()) or retain the counterexample tuple.
-        //
-        // `.2c.1`'s commitment is the comparator + scaffold; the
-        // missing pieces are the deterministic file dance + the
-        // chosen-elaborator-specific extractor.
+        let manifest = build_manifest(&unit);
+
+        let sv_path = dir.join(format!("acc_{seed}.sv"));
+        let manifest_path = dir.join(format!("acc_{seed}.json"));
+        let yosys_path = dir.join(format!("acc_{seed}.yosys.json"));
+        std::fs::write(&sv_path, emit_sv(&unit)).expect("write .sv");
+        std::fs::write(&manifest_path, emit_manifest(&unit)).expect("write manifest .json");
+
+        // NB: deliberately NO `proc; opt` — see the .2c.2 Decisions
+        // entry. `proc; opt` collapses the empty-bodied child
+        // instances out of `.cells`, dropping the hierarchy-aware
+        // facts the Phase-8 comparator needs.
+        let script = format!(
+            "read_verilog -sv {sv}; hierarchy -top acc_{seed}; write_json {out}",
+            sv = sv_path.display(),
+            out = yosys_path.display(),
+        );
+        let status = std::process::Command::new("yosys")
+            .arg("-q")
+            .arg("-p")
+            .arg(&script)
+            .output()
+            .expect("run yosys");
+        assert!(
+            status.status.success(),
+            "yosys exited non-zero on seed {seed}: stderr=\n{}",
+            String::from_utf8_lossy(&status.stderr)
+        );
+
+        let yosys_json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&yosys_path).expect("read yosys json"))
+                .expect("parse yosys json");
+        let report = yosys_hierarchy_write_json_to_tool_report(&yosys_json, seed);
+
+        match compare_manifest_to_tool_report_in_scope(&manifest, &report, &scope) {
+            Ok(()) => {}
+            Err(divergences) => {
+                counterexamples.push((seed, divergences));
+            }
+        }
     }
+
+    if !counterexamples.is_empty() {
+        for (seed, divs) in &counterexamples {
+            eprintln!(
+                "parity counterexample at seed={seed} (artifacts in {}/): divergences={divs:?}",
+                dir.display()
+            );
+        }
+        panic!(
+            "parity gate retained {} counterexample(s); artifact dir: {}",
+            counterexamples.len(),
+            dir.display()
+        );
+    }
+
+    eprintln!(
+        "parity gate clean across {} seeds; artifacts in {}",
+        SEEDS.len(),
+        dir.display()
+    );
+}
+
+/// `.2c.1`'s any-of-`yosys`/`slang`/`verilator` scaffold preserved
+/// as a friendly no-op (since `.2c.2a` picks yosys; `.2c.2b` runs
+/// against real yosys via the named test above). Kept so the
+/// scaffold's intent remains documented in-tree.
+#[test]
+#[ignore]
+fn parity_against_real_downstream_elaborator() {
+    eprintln!(
+        "parity_against_real_downstream_elaborator: .2c.2a picked yosys; \
+         see parity_against_real_yosys_hierarchy_write_json for the live gate"
+    );
 }
