@@ -420,8 +420,28 @@ fn pkg_const(seed: u64) -> i128 {
 /// (`(<last> % 8) + 1` ⇒ 1..=8). Returns `(sv_expr, resolved_bits)`.
 fn width_expr(unit: &ConstExprUnit) -> (String, u32) {
     let last = unit.params.last().expect("unit has >=1 decl");
-    let sv = format!("(({} % 8) + 1)", last.name);
-    let bits = (last.value.rem_euclid(8) + 1) as u32;
+    // Standard SV non-negative-modulo idiom: `((x % 8) + 8) % 8 + 1`.
+    // The oracle and the SV text MUST use the same formula. We did
+    // earlier emit `(<last> % 8) + 1` and compute the oracle as
+    // `last.value.rem_euclid(8) + 1`, which agreed for non-negative
+    // last.value but diverged for negative values: Rust's `rem_euclid`
+    // is the *mathematical non-negative* modulo (`(-1).rem_euclid(8) =
+    // 7`) while SV's `%` on signed integers is *truncated toward zero*
+    // (`-1 % 8 = -1`, identical to Rust's `%`). For seed 7 (`P4 = -1`)
+    // the oracle said bits=8 but the SV evaluated `W_SIG = -1 + 1 = 0`
+    // and yosys interpreted `logic [-1:0] sig` as 2 bits — the first
+    // real `.2c.2a` parity-gate run surfaced exactly that. The fix:
+    // use the standard SV non-negative-modulo idiom in BOTH the
+    // emitted text and the oracle. The result is always in `[1, 8]`
+    // and oracle ≡ SV (PHASE-7-ORACLE-MICRODESIGN.2c.2b.1).
+    let sv = format!("((({} % 8) + 8) % 8 + 1)", last.name);
+    let bits = ((last.value.rem_euclid(8)) + 1) as u32;
+    // NB: for the oracle, `(x % 8 + 8) % 8` is mathematically
+    // identical to `x.rem_euclid(8)` for non-zero modulus, so we keep
+    // the more readable `rem_euclid` form on the Rust side. The
+    // EMITTED SV text uses the explicit `(x % 8 + 8) % 8` idiom
+    // because SV has no rem_euclid intrinsic — that is the textual
+    // form a SV elaborator evaluates to the same value.
     (sv, bits)
 }
 
@@ -1160,7 +1180,11 @@ mod tests {
         assert!(sv.contains("module mc_7 #("));
         assert!(sv.contains("parameter int P0 = "));
         assert!(sv.contains("localparam int PKG_REF = mc_7_pkg::K;"));
-        assert!(sv.contains("localparam int W_SIG = ((P"));
+        // `.2c.2b.1` flipped the SV text to the standard SV
+        // non-negative-modulo idiom `((x % 8) + 8) % 8 + 1` (oracle
+        // ≡ SV for negative `last.value`); the assertion now pins
+        // the new idiom shape.
+        assert!(sv.contains("localparam int W_SIG = (((P"));
         assert!(sv.contains("logic [W_SIG-1:0] sig;"));
         assert!(sv.contains("generate") && sv.contains(": g_taken") && sv.contains(": g_else"));
         assert!(sv.trim_end().ends_with("endmodule"));
@@ -1251,5 +1275,83 @@ mod tests {
             emit_sv(&build_constexpr_unit(1, 8), 1),
             emit_sv(&build_constexpr_unit(2, 8), 2)
         );
+    }
+
+    /// Regression: the `.2c.2a` first real-tool parity run on seed 7
+    /// surfaced a `WidthMismatch { sig, expected 8, actual 2 }`
+    /// counterexample. Root cause: `width_expr` emitted SV text
+    /// `(<last> % 8) + 1` but computed its oracle as
+    /// `last.value.rem_euclid(8) + 1`, which diverged for negative
+    /// `last.value` (Rust `rem_euclid` is mathematical non-negative
+    /// modulo; SV `%` on signed integers is truncated toward zero,
+    /// matching Rust's `%`). The fix uses the standard SV
+    /// non-negative-modulo idiom `((x % 8) + 8) % 8 + 1` in BOTH
+    /// the SV text and the oracle (they are *textually* the same now,
+    /// and a SV elaborator evaluates the text to the same value the
+    /// oracle's `rem_euclid` reports).
+    ///
+    /// This proof:
+    /// 1. **Pins the new SV idiom** in the emitter — the W_SIG line
+    ///    of the emitted SV must carry `((... % 8) + 8) % 8 + 1` for
+    ///    every reproducibility-set seed.
+    /// 2. **Pins the negative-last-value case** the original gate run
+    ///    surfaced: seed 7's resolved `P4 = -1` must produce
+    ///    `widths.sig.bits = 8` (the mathematical non-negative
+    ///    modulo result; oracle and SV now agree).
+    /// 3. **Pins the positive-last-value case** stays clean: e.g.
+    ///    seed 0's `P4 = 365` must produce `widths.sig.bits = 6`
+    ///    (`365 % 8 = 5; 5 + 1 = 6`; the new idiom collapses to the
+    ///    old result for non-negative dividends).
+    #[test]
+    fn width_expr_uses_sv_non_negative_modulo_idiom_and_agrees_for_negative_last_values() {
+        // Seed 7: from the `.2c.2a` real-tool probe, `P4 = -1`.
+        let u7 = build_constexpr_unit(7, 5);
+        assert_eq!(
+            u7.params.last().unwrap().value,
+            -1,
+            "the regression fixture relies on .2a's reproducible seed-7 P4 = -1"
+        );
+        let m7 = build_manifest(&u7, 7);
+        assert_eq!(
+            m7.widths.get("sig").unwrap().bits,
+            8,
+            "seed 7 (P4=-1) must produce widths.sig.bits = 8 under the \
+             non-negative-modulo idiom (the .2c.2a counterexample)"
+        );
+        let sv7 = emit_sv(&u7, 7);
+        assert!(
+            sv7.contains("localparam int W_SIG = (((P4 % 8) + 8) % 8 + 1);"),
+            "seed 7's W_SIG line must use the non-negative-modulo idiom; got: {sv7}"
+        );
+
+        // Seed 0: from the probe, `P4 = 365` (a positive last value).
+        let u0 = build_constexpr_unit(0, 5);
+        let p4_0 = u0.params.last().unwrap().value;
+        assert!(
+            p4_0 >= 0,
+            "seed 0 fixture expects a non-negative last value"
+        );
+        let m0 = build_manifest(&u0, 0);
+        assert_eq!(
+            m0.widths.get("sig").unwrap().bits,
+            (p4_0 % 8 + 1) as u32,
+            "for non-negative last values the new idiom collapses to the old formula"
+        );
+
+        // Cross-seed structural pin: every reproducibility-set seed's
+        // W_SIG line uses the new idiom (no regression to the old
+        // `(... % 8) + 1` form on any seed).
+        for seed in [0u64, 1, 7, 42, 12345] {
+            let u = build_constexpr_unit(seed, 5);
+            let sv = emit_sv(&u, seed);
+            let last = u.params.last().unwrap();
+            assert!(
+                sv.contains(&format!(
+                    "localparam int W_SIG = ((({} % 8) + 8) % 8 + 1);",
+                    last.name
+                )),
+                "seed {seed}: W_SIG line missing the non-negative-modulo idiom"
+            );
+        }
     }
 }

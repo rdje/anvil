@@ -1,8 +1,122 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.2b-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2b on a real-tool-surfaced ANVIL-self-consistency bug — split into .2c.2b.1 (semantic-alignment fix) + .2c.2b.2 (re-run + ROADMAP Phase 7)
+## 2026-05-20-phase7-2c.2b.1 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.1 width_expr oracle/SV semantic alignment — non-negative-modulo idiom + regression proof
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/microdesign/mod.rs::width_expr`: SV text changed from
+  `"(({} % 8) + 1)"` to `"((({} % 8) + 8) % 8 + 1)"` — the
+  standard SV non-negative-modulo idiom. A SV elaborator
+  evaluates the new text to exactly the same value Rust's
+  `rem_euclid` produces for the oracle, for *any* `last.value`
+  (positive or negative). The oracle's bits formula
+  (`last.value.rem_euclid(8) + 1`) was left **unchanged**
+  because it was already correct — only the SV text needed to
+  catch up. A comment block at the call site records the root
+  cause + the fix rationale + the SV-vs-Rust modulo-semantic
+  delta for future readers.
+
+- New lib regression test in `src/microdesign/mod.rs::tests`:
+  `width_expr_uses_sv_non_negative_modulo_idiom_and_agrees_for_negative_last_values`
+  exercises three axes:
+  1. **The `.2c.2a` counterexample fixture** — `.2a`'s
+     reproducible seed 7 (`P4 = -1`) must produce
+     `widths["sig"].bits = 8`. Before the fix the SV would
+     evaluate `W_SIG = (-1 % 8) + 1 = 0` and yosys would
+     interpret `logic [-1:0] sig` as 2 bits — the very
+     counterexample the parity gate retained.
+  2. **A non-negative-collapse case** — seed 0's `P4 = 365`
+     produces `widths["sig"].bits = (365 % 8) + 1 = 6` under
+     the new idiom (same value the old formula gave; the
+     new idiom is identity-on-the-non-negative-dividend
+     domain).
+  3. **Cross-seed structural pin** — every reproducibility-set
+     seed's W_SIG line uses the new idiom textually.
+
+- Existing `emit_sv_is_valid_unresolved_shape` substring pin
+  updated from `"localparam int W_SIG = ((P"` to
+  `"localparam int W_SIG = (((P"` to match the new emit (three
+  open parens before the param name).
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Last
+  updated `2026-05-20` ("`.2c.2b.1` landed"); `.2c.2b.1`
+  Status `pending`→`done` with the full Verification
+  (every test axis + the formula change + the comment-block
+  rationale itemised) + Commit field; Frontier
+  `.2c.2b.1`→`.2c.2b.2`; Verification Log + Commit Log +
+  Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row's
+  current frontier updated `.2c.2b.1` → `.2c.2b.2` with the
+  inline summary.
+
+- `CHANGES.md`: this entry + backfill of the `.2c.2b-split`
+  entry's "Landed as: this commit" → `ae7b592`.
+
+- `MEMORY.md`: recent commits — `.2c.2b-split` `<pending>` →
+  `ae7b592`; new `<pending>` head for this `.2c.2b.1` slice.
+
+**Why**
+
+- `PHASE-7-ORACLE-MICRODESIGN.2c.2b.1` — the fix half of
+  `.2c.2b`'s discovered-dependency split. The very first
+  real-tool run of `.2c.2a`'s `#[ignore]` parity gate
+  surfaced an ANVIL-self-consistency bug in `width_expr`:
+  the oracle and the SV diverged for negative `last.value`.
+  ANVIL's purpose is "valid-by-construction +
+  downstream-acceptance-quality" — the manifest the oracle
+  produces *must* equal what a SV elaborator computes from
+  the emitted text. The fix is the standard SV
+  non-negative-modulo idiom applied in BOTH locations (the
+  oracle was already correct; only the SV text changes). The
+  regression proof pins the fix on the very seed that
+  surfaced the bug, plus a non-negative collapse case and a
+  cross-seed structural assertion so this can never recur.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - lib: **229 passed** (was 228 + 1 new regression proof).
+  - `microdesign` lib tests: **8/8** (was 7/7 + regression).
+  - `tests/microdesign_parity`: **15 passed + 1 ignored**
+    (every `.2c.1` + `.2c.2a` portable proof still green —
+    `manifest_mirrors_the_oracle` continues to hold because
+    both sides of its equality moved in lockstep;
+    `sv_and_manifest_are_byte_reproducible` re-baselines
+    without code change because the formula is rebuilt
+    deterministically).
+  - `tests/pipeline`: 121 passed (658s).
+  - `tests/snapshots`: 6 passed.
+  - bin tests: 5+29+3 passed.
+  - doc-tests: unchanged.
+- Portable `cargo test` stays green tool-less.
+
+**Impact**
+
+- The `#[ignore]` real-tool parity gate is now unblocked: the
+  seed-7 `WidthMismatch` counterexample is structurally
+  impossible to surface after this fix. `.2c.2b.2` is the
+  gated commit that runs `cargo test -- --ignored
+  parity_against_real_yosys_write_json` against real yosys,
+  banks the verified-clean artifact, and promotes ROADMAP
+  Phase 7 → done with the explicit yosys-supported-categories
+  scope caveat (r87 no-aspirational-claims).
+
+**Files touched**
+
+- `src/microdesign/mod.rs`;
+  `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.2b-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2b on a real-tool-surfaced ANVIL-self-consistency bug — split into .2c.2b.1 (semantic-alignment fix) + .2c.2b.2 (re-run + ROADMAP Phase 7)
+
+**Landed as:** ae7b592
 
 **What changed**
 
