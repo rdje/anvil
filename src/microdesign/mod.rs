@@ -25,8 +25,17 @@
 //!   `compare_manifest_to_tool_report` (a cargo-portable walker; no
 //!   tool invocation here), with `synthetic_tool_report_from_manifest`
 //!   as the always-agreeing reference used by `.2c.1`'s proofs and as
-//!   the structural fallback in `.2c.2`'s real-tool path. The actual
-//!   tool shelling + real-corpus end-to-end verification is `.2c.2`.
+//!   the structural fallback in `.2c.2`'s real-tool path.
+//! - `.2c.2a` — the **scoped comparator + tool-capability scope**:
+//!   `FactCategory` (one per fact axis), `ParityScope` (which axes
+//!   to enforce — different downstream tools expose different
+//!   subsets of the manifest's facts; yosys 0.64 `write_json` folds
+//!   localparams + package_constants), and
+//!   `compare_manifest_to_tool_report_in_scope` (the scoped walker;
+//!   the strict comparator delegates to this with `ParityScope::all()`).
+//!   The yosys-specific extractor and the actual tool-equipped
+//!   real-corpus end-to-end run are `tests/microdesign_parity.rs`
+//!   (`.2c.2a`'s harness) and `.2c.2b`'s gated `--ignored` run.
 //!
 //! It is a **separate generator path**: deliberately *not* threaded
 //! through the gate-level circuit IR (the circuit IR has no
@@ -725,138 +734,227 @@ pub fn compare_manifest_to_tool_report(
     manifest: &Manifest,
     report: &ToolReport,
 ) -> Result<(), Vec<Divergence>> {
+    compare_manifest_to_tool_report_in_scope(manifest, report, &ParityScope::all())
+}
+
+/// The fact-category axes the comparator can enforce — one per manifest
+/// section. The granularity matches `Divergence`'s per-axis variants.
+///
+/// Different downstream tools expose different subsets: yosys 0.64's
+/// `write_json` carries top-level parameters and elaborated-generate
+/// branches and wire widths but **folds** localparams and
+/// package-qualified constants; richer-AST consumers
+/// (`slang --ast-json`, `verilator --xml-only`) carry them all. The
+/// parity gate scopes the comparator to the categories the chosen
+/// consumer actually introspects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum FactCategory {
+    Seed,
+    Top,
+    Params,
+    Localparams,
+    Widths,
+    Generate,
+    PackageConstants,
+}
+
+/// The set of fact categories a particular parity gate enforces. Built
+/// from the downstream consumer's capabilities (`.2c.2a`'s
+/// `yosys_write_json_to_tool_report` enumerates yosys 0.64's scope).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParityScope {
+    pub categories: std::collections::BTreeSet<FactCategory>,
+}
+
+impl ParityScope {
+    /// Every category — the strict-all-axes comparison
+    /// `compare_manifest_to_tool_report` delegates to.
+    pub fn all() -> Self {
+        let categories = [
+            FactCategory::Seed,
+            FactCategory::Top,
+            FactCategory::Params,
+            FactCategory::Localparams,
+            FactCategory::Widths,
+            FactCategory::Generate,
+            FactCategory::PackageConstants,
+        ]
+        .iter()
+        .copied()
+        .collect();
+        Self { categories }
+    }
+
+    /// No category — the comparator returns `Ok(())` even on a maximally
+    /// disagreeing report. Useful for unit-testing the scoping itself.
+    pub fn none() -> Self {
+        Self {
+            categories: std::collections::BTreeSet::new(),
+        }
+    }
+
+    /// Just the listed categories.
+    pub fn only(categories: &[FactCategory]) -> Self {
+        Self {
+            categories: categories.iter().copied().collect(),
+        }
+    }
+
+    /// Whether `category` is in this scope.
+    pub fn contains(&self, category: FactCategory) -> bool {
+        self.categories.contains(&category)
+    }
+}
+
+/// Walk `manifest` × `report` over the axes in `scope` and return every
+/// disagreement. `Ok(())` ⇔ exact agreement on every scoped axis.
+/// Out-of-scope axes are skipped entirely — they do not contribute
+/// `MissingIn*`/`Mismatch` variants. The strict
+/// [`compare_manifest_to_tool_report`] is exactly this with
+/// `ParityScope::all()`.
+pub fn compare_manifest_to_tool_report_in_scope(
+    manifest: &Manifest,
+    report: &ToolReport,
+    scope: &ParityScope,
+) -> Result<(), Vec<Divergence>> {
     let mut divs = Vec::new();
 
-    if manifest.seed != report.seed {
+    if scope.contains(FactCategory::Seed) && manifest.seed != report.seed {
         divs.push(Divergence::SeedMismatch {
             expected: manifest.seed,
             actual: report.seed,
         });
     }
-    if manifest.top != report.top {
+    if scope.contains(FactCategory::Top) && manifest.top != report.top {
         divs.push(Divergence::TopMismatch {
             expected: manifest.top.clone(),
             actual: report.top.clone(),
         });
     }
 
-    // Parameters: each side checked against the other.
-    for (name, entry) in &manifest.params {
-        match report.params.get(name) {
-            Some(actual) if *actual == entry.value => {}
-            Some(actual) => divs.push(Divergence::ParamMismatch {
-                name: name.clone(),
-                expected: entry.value,
-                actual: *actual,
-            }),
-            None => divs.push(Divergence::ParamMissingInTool {
-                name: name.clone(),
-                expected: entry.value,
-            }),
+    if scope.contains(FactCategory::Params) {
+        // Each side checked against the other.
+        for (name, entry) in &manifest.params {
+            match report.params.get(name) {
+                Some(actual) if *actual == entry.value => {}
+                Some(actual) => divs.push(Divergence::ParamMismatch {
+                    name: name.clone(),
+                    expected: entry.value,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::ParamMissingInTool {
+                    name: name.clone(),
+                    expected: entry.value,
+                }),
+            }
         }
-    }
-    for (name, actual) in &report.params {
-        if !manifest.params.contains_key(name) {
-            divs.push(Divergence::ParamMissingInManifest {
-                name: name.clone(),
-                actual: *actual,
-            });
-        }
-    }
-
-    // Localparams: same pattern.
-    for (name, entry) in &manifest.localparams {
-        match report.localparams.get(name) {
-            Some(actual) if *actual == entry.value => {}
-            Some(actual) => divs.push(Divergence::LocalparamMismatch {
-                name: name.clone(),
-                expected: entry.value,
-                actual: *actual,
-            }),
-            None => divs.push(Divergence::LocalparamMissingInTool {
-                name: name.clone(),
-                expected: entry.value,
-            }),
-        }
-    }
-    for (name, actual) in &report.localparams {
-        if !manifest.localparams.contains_key(name) {
-            divs.push(Divergence::LocalparamMissingInManifest {
-                name: name.clone(),
-                actual: *actual,
-            });
+        for (name, actual) in &report.params {
+            if !manifest.params.contains_key(name) {
+                divs.push(Divergence::ParamMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
         }
     }
 
-    // Widths.
-    for (name, expected) in &manifest.widths {
-        match report.widths.get(name) {
-            Some(actual) if actual == expected => {}
-            Some(actual) => divs.push(Divergence::WidthMismatch {
-                name: name.clone(),
-                expected: expected.clone(),
-                actual: actual.clone(),
-            }),
-            None => divs.push(Divergence::WidthMissingInTool {
-                name: name.clone(),
-                expected: expected.clone(),
-            }),
+    if scope.contains(FactCategory::Localparams) {
+        for (name, entry) in &manifest.localparams {
+            match report.localparams.get(name) {
+                Some(actual) if *actual == entry.value => {}
+                Some(actual) => divs.push(Divergence::LocalparamMismatch {
+                    name: name.clone(),
+                    expected: entry.value,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::LocalparamMissingInTool {
+                    name: name.clone(),
+                    expected: entry.value,
+                }),
+            }
         }
-    }
-    for (name, actual) in &report.widths {
-        if !manifest.widths.contains_key(name) {
-            divs.push(Divergence::WidthMissingInManifest {
-                name: name.clone(),
-                actual: actual.clone(),
-            });
-        }
-    }
-
-    // Generate-branch decisions.
-    for (name, expected) in &manifest.generate {
-        match report.generate.get(name) {
-            Some(actual) if *actual == expected.taken => {}
-            Some(actual) => divs.push(Divergence::GenerateMismatch {
-                name: name.clone(),
-                expected: expected.taken,
-                actual: *actual,
-            }),
-            None => divs.push(Divergence::GenerateMissingInTool {
-                name: name.clone(),
-                expected: expected.taken,
-            }),
-        }
-    }
-    for (name, actual) in &report.generate {
-        if !manifest.generate.contains_key(name) {
-            divs.push(Divergence::GenerateMissingInManifest {
-                name: name.clone(),
-                actual: *actual,
-            });
+        for (name, actual) in &report.localparams {
+            if !manifest.localparams.contains_key(name) {
+                divs.push(Divergence::LocalparamMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
         }
     }
 
-    // Package constants.
-    for (name, expected) in &manifest.package_constants {
-        match report.package_constants.get(name) {
-            Some(actual) if actual == expected => {}
-            Some(actual) => divs.push(Divergence::PackageConstantMismatch {
-                name: name.clone(),
-                expected: *expected,
-                actual: *actual,
-            }),
-            None => divs.push(Divergence::PackageConstantMissingInTool {
-                name: name.clone(),
-                expected: *expected,
-            }),
+    if scope.contains(FactCategory::Widths) {
+        for (name, expected) in &manifest.widths {
+            match report.widths.get(name) {
+                Some(actual) if actual == expected => {}
+                Some(actual) => divs.push(Divergence::WidthMismatch {
+                    name: name.clone(),
+                    expected: expected.clone(),
+                    actual: actual.clone(),
+                }),
+                None => divs.push(Divergence::WidthMissingInTool {
+                    name: name.clone(),
+                    expected: expected.clone(),
+                }),
+            }
+        }
+        for (name, actual) in &report.widths {
+            if !manifest.widths.contains_key(name) {
+                divs.push(Divergence::WidthMissingInManifest {
+                    name: name.clone(),
+                    actual: actual.clone(),
+                });
+            }
         }
     }
-    for (name, actual) in &report.package_constants {
-        if !manifest.package_constants.contains_key(name) {
-            divs.push(Divergence::PackageConstantMissingInManifest {
-                name: name.clone(),
-                actual: *actual,
-            });
+
+    if scope.contains(FactCategory::Generate) {
+        for (name, expected) in &manifest.generate {
+            match report.generate.get(name) {
+                Some(actual) if *actual == expected.taken => {}
+                Some(actual) => divs.push(Divergence::GenerateMismatch {
+                    name: name.clone(),
+                    expected: expected.taken,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::GenerateMissingInTool {
+                    name: name.clone(),
+                    expected: expected.taken,
+                }),
+            }
+        }
+        for (name, actual) in &report.generate {
+            if !manifest.generate.contains_key(name) {
+                divs.push(Divergence::GenerateMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
+        }
+    }
+
+    if scope.contains(FactCategory::PackageConstants) {
+        for (name, expected) in &manifest.package_constants {
+            match report.package_constants.get(name) {
+                Some(actual) if actual == expected => {}
+                Some(actual) => divs.push(Divergence::PackageConstantMismatch {
+                    name: name.clone(),
+                    expected: *expected,
+                    actual: *actual,
+                }),
+                None => divs.push(Divergence::PackageConstantMissingInTool {
+                    name: name.clone(),
+                    expected: *expected,
+                }),
+            }
+        }
+        for (name, actual) in &report.package_constants {
+            if !manifest.package_constants.contains_key(name) {
+                divs.push(Divergence::PackageConstantMissingInManifest {
+                    name: name.clone(),
+                    actual: *actual,
+                });
+            }
         }
     }
 

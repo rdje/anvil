@@ -1,8 +1,158 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.2-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2 into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool gate + ROADMAP Phase 7)
+## 2026-05-20-phase7-2c.2a — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2a scoped comparator + yosys write_json extractor + end-to-end-runnable #[ignore] harness
 
 **Landed as:** this commit
+
+**What changed**
+
+- `src/microdesign/mod.rs` extended with the **scoped comparator
+  + tool-capability scope**:
+  - `pub enum FactCategory` — one variant per fact axis the
+    comparator can enforce: `Seed`/`Top`/`Params`/`Localparams`/
+    `Widths`/`Generate`/`PackageConstants`.
+  - `pub struct ParityScope { categories: BTreeSet<FactCategory> }`
+    with `all()`/`none()`/`only(&[...])` constructors and
+    `.contains(category)`. Different downstream tools expose
+    different subsets; the gate scopes the comparator
+    accordingly.
+  - `pub fn compare_manifest_to_tool_report_in_scope(manifest,
+    report, scope)` — the scoped walker. Out-of-scope axes are
+    skipped entirely (no `MissingIn*`/`Mismatch` variants surface
+    for skipped categories). The existing strict
+    `compare_manifest_to_tool_report` now delegates to this with
+    `ParityScope::all()` — backwards-compatible by construction;
+    every previously-passing call still passes (the 9 `.2c.1`
+    proofs unchanged-green).
+
+- `tests/microdesign_parity.rs` extended with:
+  - **3 scoped-comparator proofs**:
+    - `scoped_comparator_only_enforces_scoped_categories` (the
+      load-bearing scoping proof): a params-only scope ignores a
+      width perturbation BUT surfaces a param perturbation.
+    - `yosys_scope_ignores_localparams_and_package_constants`:
+      `yosys_write_json_scope` = `only(&[Seed, Top, Params,
+      Widths, Generate])`; empty `localparams`/`package_constants`
+      in the report compare `Ok(())` under the yosys scope but
+      surface `PackageConstantMissingInTool` under strict-all —
+      the strict-vs-scoped delta is explicitly tested.
+    - `empty_scope_ignores_every_disagreement`:
+      `ParityScope::none()` `Ok(())` even on a maximally-
+      disagreeing report — self-check on the scoping itself.
+  - **3 yosys-extractor proofs**:
+    - `yosys_extractor_reads_a_synthetic_write_json_correctly`:
+      a hand-built JSON for seed 0 matches the manifest's
+      `P0=46`, `g_taken=true`, `widths.sig.bits=6`; folded axes
+      empty.
+    - `yosys_extractor_reports_g_else_when_else_branch_survives`:
+      the `g_else`-survives case → `generate["g_taken"] = false`.
+      The `.2b` corpus exercises BOTH branches (seed 12345 takes
+      `g_else`; the others take `g_taken` — confirmed by today's
+      probe).
+    - `parse_yosys_binary_param_sign_extends`: `"11..1"` → `-1`;
+      `"0..01"` → `1`; `"0..101110"` → `46`; empty/`'z'`/33-bit
+      inputs → `None`. The `-1` case is **load-bearing** because
+      `.2a`'s builder can produce negative resolved values
+      (e.g. seed 7 P4 = -1) and the gate must preserve the sign.
+  - **Yosys-specific extractor**:
+    - `parse_yosys_binary_param(s) -> Option<i128>` — parses the
+      yosys binary-string parameter value as SV `int` (signed
+      32-bit). The string is read as `u32::from_str_radix(s, 2)`,
+      cast `as i32 as i128` for sign-extension. Defensive on
+      empty / non-binary / `>32-bit` inputs.
+    - `yosys_write_json_to_tool_report(json, seed) -> ToolReport`
+      — populates `params` from
+      `.modules.mc_<seed>.parameter_default_values`,
+      `generate["g_taken"]` from a netnames-key prefix scan
+      (`g_taken.` vs `g_else.` — the surviving prefix names the
+      kept branch), `widths["sig"]` from
+      `.netnames.sig.bits.len()`. The folded axes
+      (`localparams`, `package_constants`) are deliberately
+      empty; the yosys scope skips them.
+  - **End-to-end-runnable `#[ignore]` test**:
+    `parity_against_real_yosys_write_json` rewritten: per-seed
+    `emit_sv` → `CARGO_TARGET_TMPDIR/microdesign-parity-phase7-
+    yosys/mc_<seed>.sv`; `emit_manifest` → `.json`; shell
+    `yosys -q -p "read_verilog -sv ...; hierarchy -top
+    mc_<seed>; proc; opt; write_json ..."`; parse output →
+    `ToolReport`; `compare_manifest_to_tool_report_in_scope` with
+    `yosys_write_json_scope`; accumulate counterexamples; panic
+    with full diagnostic on any non-empty counterexample list
+    (else `eprintln "parity gate clean across N seeds"`).
+    Yosys-presence guard at the head matches the
+    `iverilog`-not-installed convention from
+    `DIFFERENTIAL-SIMULATION.1`. **NOT run in the portable suite**;
+    `.2c.2b` is the gated step that actually executes it
+    end-to-end.
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Last
+  updated `2026-05-20` ("`.2c.2a` landed"); `.2c.2a` Status
+  `pending`→`done` with the full Verification (every variant +
+  every proof + the extractor wiring itemised) + Commit field;
+  Frontier `.2c.2a`→`.2c.2b`; Verification Log + Commit Log +
+  Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row's current
+  frontier updated `.2c.2a`→`.2c.2b` with the inline summary.
+
+- `CHANGES.md`: this entry + backfill of the `.2c.2-split` entry's
+  "Landed as: this commit" → `78a35ef`.
+
+- `MEMORY.md`: recent commits — `.2c.2-split` `<pending>` →
+  `78a35ef`; new `<pending>` head for this `.2c.2a` slice.
+
+**Why**
+
+- `PHASE-7-ORACLE-MICRODESIGN.2c.2a` — the discovered-lower-level
+  dependency leaf. The yosys `write_json` extractor + the scoped
+  comparator are the code that must land BEFORE any real-tool
+  run can honestly report what was checked. Lands cargo-portably
+  with 6 fresh proofs covering both the scope mechanism itself and
+  the yosys-specific parsing/extraction; the `#[ignore]` is
+  end-to-end-runnable but is not executed in the portable suite
+  (Phase-1 doctrine). `.2c.2b` is the gated commit that
+  actually runs it against real yosys and bank a verified-clean
+  artifact before promoting ROADMAP Phase 7.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean.
+- Full `cargo test` green:
+  - `tests/microdesign_parity`: **15 passed + 1 ignored**
+    (`.2c.1`'s 9 portable proofs + `.2c.2a`'s 6 new proofs;
+    the `#[ignore]` real-tool test compiles and is invocable).
+  - `tests/pipeline`: 121 passed (661s).
+  - `tests/snapshots`: 6 passed.
+  - lib: 228 passed; `microdesign::tests` 7/7 still green
+    (`.2a`+`.2b` unchanged; the strict-comparator-delegates-to-
+    scoped refactor is backwards-compatible by construction).
+  - bin tests 5+29+3 passed; doc-tests 0 (unchanged).
+- Portable `cargo test` stays green tool-less.
+
+**Impact**
+
+- The yosys-scope parity gate is now end-to-end-runnable; `.2c.2b`
+  is unblocked (a single `cargo test -- --ignored
+  parity_against_real_yosys_write_json` against real yosys, then
+  bank the verified-clean artifact + promote ROADMAP Phase 7 →
+  done). Richer fact-category coverage via slang or
+  verilator-with-debug remains a recorded post-Phase-7 follow-up
+  (ANVIL's by-construction oracle already covers all 7
+  categories; the parity gate exercises whatever the tool
+  reports).
+
+**Files touched**
+
+- `src/microdesign/mod.rs`; `tests/microdesign_parity.rs`;
+  `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.2-split — Docs: split PHASE-7-ORACLE-MICRODESIGN.2c.2 into .2c.2a (extractor + scoped comparator) + .2c.2b (real-tool gate + ROADMAP Phase 7)
+
+**Landed as:** 78a35ef
 
 **What changed**
 
