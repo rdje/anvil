@@ -1,8 +1,123 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase7-2c.2b.1 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.1 width_expr oracle/SV semantic alignment — non-negative-modulo idiom + regression proof
+## 2026-05-20-phase7-2c.2b.2 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.2 parity gate clean against yosys — closes Phase 7 + tree
 
 **Landed as:** this commit
+
+**What changed**
+
+- `ROADMAP.md` Phase 7 `(not started)` → `(done)`. Header
+  flipped; body re-written from a forward-looking spec to a
+  delivered-and-verified description citing the closing artifact;
+  added "Exit criteria (met)" block with the corpus and per-seed
+  verification summary; added "Scope caveat (explicit)" block
+  recording yosys's 4-of-7-category coverage + the recorded
+  post-closure follow-up for richer-AST tools; added "Notable
+  surfacing during closure" block recording the
+  oracle-vs-SV-modulo-semantic bug the parity gate found and the
+  `.2c.2b.1` fix that resolved it.
+
+- `book/src/ir.md`: new "Oracle-backed micro-design lane" bullet
+  in the "Future extensions" section, marked **Delivered (Phase
+  7, 2026-05-20, `PHASE-7-ORACLE-MICRODESIGN` tree CLOSED)** with
+  the full description (separate top-level module
+  `src/microdesign/`, IR + evaluator + emitters + comparator
+  core, repo-owned parity gate against yosys 0.64, the
+  yosys-supported-categories scope caveat, DUT-lane
+  byte-identical-by-construction).
+
+- `README.md` phase narrative: Phase 7 entry rewritten from
+  "every remaining roadmap phase (Phase 7 oracle-backed
+  micro-design and beyond)" to **Phase 7 done (2026-05-20,
+  `PHASE-7-ORACLE-MICRODESIGN` tree CLOSED)** with the full
+  closing-artifact citation and scope caveat; the
+  "every remaining roadmap phase" tail updated to start from
+  Phase 8.
+
+- `CODEBASE_ANALYSIS.md` phase-coverage-map Phase-7 row from
+  "not started" to **"done (2026-05-20)"** with the matching
+  citation.
+
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`: Metadata Status
+  `active` → `done` + Last updated 2026-05-20; tree-root +
+  `.2` + `.2c` + `.2c.2` + `.2c.2b` containers all
+  `active` → `done`; `.2c.2b.2` leaf Status `pending` → `done`
+  with the full Verification (per-seed agreement summary +
+  stdout + the banked-artifact location) + Commit field;
+  Frontier replaced with "(closed)"; Verification Log + Commit
+  Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-7-ORACLE-MICRODESIGN` row Status
+  `active` → `done` with the closing-artifact citation and
+  scope caveat.
+
+- `CHANGES.md`: this entry + backfill of the `.2c.2b.1` entry's
+  "Landed as: this commit" → `590be2d`.
+
+- `MEMORY.md`: Phase 7 (oracle-backed micro-design) marked DONE
+  with the closing-artifact citation; `PHASE-7-ORACLE-MICRODESIGN`
+  tree row marked tree COMPLETE; recent commits — `.2c.2b.1`
+  `<pending>` → `590be2d`; new `<pending>` head for this slice.
+
+**Why**
+
+- `PHASE-7-ORACLE-MICRODESIGN.2c.2b.2` — the verified-clean
+  real-tool gate run that closes Phase 7 (r87 no-aspirational-
+  claims; the artifact precedes every word of the promotion).
+  The parity gate against yosys 0.64 came back clean across all
+  5 reproducibility-set seeds (including the previously-divergent
+  seed 7, where `.2c.2b.1`'s non-negative-modulo-idiom fix
+  realigned the oracle with the SV emit). Per-seed fact
+  agreement verified including negative-parameter sign-extension
+  (seed 7 P4 = -1 from yosys's binary string "11..1" decodes
+  back to -1 matching the manifest) and both generate branches
+  (seed 12345 takes `g_else`; the others take `g_taken`).
+
+**Validation**
+
+- Real `cargo test --test microdesign_parity -- --ignored
+  parity_against_real_yosys_write_json --nocapture` exits 0
+  with `"parity gate clean across 5 seeds; artifacts in
+  .../target/tmp/microdesign-parity-phase7-yosys"` and
+  `"test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured;
+  15 filtered out; finished in 0.04s"`.
+- Banked artifact: `/tmp/anvil-microdesign-parity-phase7-yosys-p1/`
+  (15 files — 5 reproducibility seeds × `{.sv, .json, .yosys.json}`).
+- `cargo fmt --all --check` / `cargo clippy --all-targets -- -D
+  warnings` / `cargo check --all-targets` clean. `cargo test`
+  structurally unchanged-green vs `590be2d` (no `src/`/`tests/`
+  change in this slice — the code landed in
+  `.2a`/`.2b`/`.2c.1`/`.2c.2a`/`.2c.2b.1`).
+- `mdbook build book` clean.
+
+**Impact**
+
+- **ROADMAP Phase 7 closes.** The `PHASE-7-ORACLE-MICRODESIGN`
+  tree closes. ANVIL now ships TWO complementary lanes: the
+  DUT lane (Phases 1–6: hierarchy + width parameterization +
+  packed aggregates + inferrable memories + generated-encoding
+  FSMs, all verified downstream-clean on `Phase4Hierarchy`) and
+  the **oracle-backed micro-design lane** (Phase 7:
+  `rtl_const_expr`-family `.sv` files with construction-time-
+  resolved expected-facts manifests, parity-checked against
+  real tools). Continuous-PNT proceeds: `PHASE-8-FRONTEND-ACCEPT.2`
+  next (the source-level frontend/elaboration accept corpora
+  lane, designed to reuse Phase 7's evaluator + manifest core),
+  then `DIFFERENTIAL-SIMULATION.2b` and the Phase-9 multi-
+  artifact umbrella.
+
+**Files touched**
+
+- `ROADMAP.md`; `book/src/ir.md`; `README.md`;
+  `CODEBASE_ANALYSIS.md`;
+  `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`; `docs/TASK_TREE.md`;
+  `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase7-2c.2b.1 — Phase 7: PHASE-7-ORACLE-MICRODESIGN.2c.2b.1 width_expr oracle/SV semantic alignment — non-negative-modulo idiom + regression proof
+
+**Landed as:** 590be2d
 
 **What changed**
 

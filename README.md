@@ -859,10 +859,37 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   true`, with Phase 4/5/5b regressions still proven in the same
   banked artifact). Multi-clock CDC remains the optional,
   separately-prioritised deferral (every module stays fully
-  synchronous to a single clock). Every remaining roadmap phase
-  (Phase 7 oracle-backed micro-design and beyond) is tracked as a
-  task tree under
-  `docs/TASK_TREE.md`. See `ROADMAP.md` for phase gating.
+  synchronous to a single clock). **Phase 7 — Oracle-backed
+  micro-design artifacts is done (2026-05-20,
+  `PHASE-7-ORACLE-MICRODESIGN` tree CLOSED):** delivered the
+  `rtl_const_expr`-family micro-design lane (`src/microdesign/`,
+  a separate generator path that never touches the DUT lane —
+  default-off byte-identical) where the generator IS the
+  oracle: every const-expr/parameter value is resolved at
+  construction time and the same resolved value is shipped in a
+  JSON manifest while held *symbolic* in the emitted `.sv`. The
+  gap between symbolic text and resolved manifest is exactly the
+  front-end-elaboration behaviour Phase 7 stresses. A parity
+  harness (`tests/microdesign_parity.rs`) drives a fixed
+  deterministic corpus through the consumer (currently yosys 0.64
+  `write_json`) and a scoped comparator
+  (`ToolReport`/`Divergence`/`FactCategory`/`ParityScope`/
+  `compare_manifest_to_tool_report_in_scope`) reports exact
+  agreement or retains a counterexample per axis. Closing
+  artifact `/tmp/anvil-microdesign-parity-phase7-yosys-p1/`
+  (5 reproducibility-set seeds × {`.sv`, `.json`, `.yosys.json`};
+  `parity gate clean across 5 seeds`); the closing run found and
+  fixed an ANVIL-self-consistency bug in `width_expr` (oracle
+  used `rem_euclid`, SV used `%`; diverged for negative
+  `last.value`) — exactly what `.1` designed the gate to do.
+  Scope caveat: yosys 0.64 covers 4 of the 7 manifest fact
+  categories (Seed/Top/Params/Widths/Generate); richer-AST
+  coverage via `slang`/`verilator-with-debug` is a recorded
+  post-Phase-7 follow-up that does NOT retract closure (the
+  manifest already covers all 7 categories). Every remaining
+  roadmap phase (Phase 8 frontend-accept and beyond) is tracked
+  as a task tree under `docs/TASK_TREE.md`. See `ROADMAP.md` for
+  phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

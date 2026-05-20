@@ -499,6 +499,32 @@ sessions.
   + both Yosys, `saw_fsm_design = true`). Multi-clock CDC remains a
   separately-prioritised future option; every module is fully
   synchronous to a single clock.
+- **Oracle-backed micro-design lane** — Phase 7. **Delivered
+  (Phase 7, 2026-05-20, `PHASE-7-ORACLE-MICRODESIGN` tree
+  CLOSED).** A separate top-level module `src/microdesign/`
+  carries its own *source-level* IR (const-expr / parameter
+  dependency DAG with a construction-time evaluator), `.sv`
+  emitter (parameters held symbolic), JSON manifest emitter
+  (resolved values + widths + generate-branch decisions +
+  package constants), and parity comparator core
+  (`ToolReport`/`Divergence` × 17 variants per axis ×
+  direction / `FactCategory`/`ParityScope` /
+  `compare_manifest_to_tool_report_in_scope`). The generator
+  IS the oracle: every value is resolved once at construction
+  time (one `ChaCha8` stream per seed) and shipped in the
+  manifest while held symbolic in the `.sv`. A repo-owned
+  parity gate (`tests/microdesign_parity.rs::parity_against_real_yosys_write_json`,
+  `#[ignore]`-gated to keep the portable suite tool-less) drives
+  the deterministic 5-seed corpus through yosys 0.64 `write_json`
+  and asserts exact agreement on the yosys-supported categories
+  (Seed/Top/Params/Widths/Generate; localparams + package
+  constants are folded by yosys and remain visible only to
+  richer-AST tools — slang / verilator-with-debug — recorded as
+  a post-Phase-7 follow-up that does NOT retract closure). The
+  DUT lane stays byte-identical by construction (microdesign
+  is never invoked from the DUT generate path; default-off).
+  See `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md` and the
+  `ROADMAP.md` Phase 7 entry.
 - **Unpacked `struct` / `union` for datapath** — mostly
   non-synthesizable (tool-dependent). Not pursued.
 - **Enums** — synthesizable but thin; they are typed constant

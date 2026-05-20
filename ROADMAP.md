@@ -1841,11 +1841,13 @@ explicitly-optional, separately-prioritised deferral and was
 separately-prioritised item (every module stays fully synchronous
 to a single clock until/unless that lane is taken up).
 
-## Phase 7 — Oracle-backed micro-design artifacts (not started)
+## Phase 7 — Oracle-backed micro-design artifacts (done)
 
-- Add a new artifact family for **small, self-contained `.sv` files
+- A new artifact family for **small, self-contained `.sv` files
   with known expected facts** rather than broad cone complexity.
-- Initial target: `rtl_const_expr`-style corpora:
+  **Delivered (2026-05-20, `PHASE-7-ORACLE-MICRODESIGN` tree
+  CLOSED.)**
+- Initial target landed (`rtl_const_expr`-style corpora):
   - parameter / localparam dependency chains;
   - widths and ranges derived from expressions (`[DEPTH-1:0]`, etc.);
   - generate conditions and loop bounds driven by expressions;
@@ -1855,12 +1857,57 @@ to a single clock until/unless that lane is taken up).
 - Typical artifact size: one module, or a tiny cluster of modules when
   the pressure point needs local hierarchy.
 - Every emitted file gets an **expected-facts manifest** capturing
-  things like parameter values, resolved ranges, generate decisions, and
-  other obviously-checkable elaboration facts.
+  parameter values, resolved ranges, generate decisions, and other
+  obviously-checkable elaboration facts. The generator IS the
+  oracle: every const-expr/parameter value is resolved at
+  construction time (one `ChaCha8` stream per seed) and the same
+  resolved value is shipped in the manifest + held symbolic in the
+  emitted `.sv` (the gap is exactly what front-end elaboration is
+  supposed to close). A separate top-level module `src/microdesign/`
+  carries the IR + evaluator + emitters; the DUT lane stays
+  byte-identical by construction (default-off; never invoked from
+  the DUT generate path).
 
-**Exit criteria:** reproducible micro-design corpus, explicit
-expected-facts contract, and parity checks showing downstream consumers
-either agree with the manifest or produce a retained counterexample.
+**Exit criteria (met):** Phase 7 closes when a parity gate against
+a real downstream consumer reports exact agreement on the
+tool-supported fact categories across a reproducible corpus, with
+a verified-clean banked artifact (r87 no-aspirational-claims). The
+gate is the repo-owned `parity_against_real_yosys_write_json`
+`#[ignore]` test in `tests/microdesign_parity.rs`; the cargo-
+portable comparator core (`ToolReport`/`Divergence` ×
+17 variants/`compare_manifest_to_tool_report_in_scope`) +
+`FactCategory`+`ParityScope` live in `src/microdesign/`. Closing
+artifact `/tmp/anvil-microdesign-parity-phase7-yosys-p1/` (15
+files: 5 × {`mc_<seed>.sv`, `mc_<seed>.json`, `mc_<seed>.yosys.json`}
+for the reproducibility seeds `{0, 1, 7, 42, 12345}`): `cargo
+test --test microdesign_parity -- --ignored
+parity_against_real_yosys_write_json --nocapture` against yosys
+0.64 exits 0 with "parity gate clean across 5 seeds" and zero
+retained counterexamples. Per-seed fact agreement verified
+including the previously-divergent seed 7 (P4 = -1; both sides
+report `widths.sig.bits = 8` post-`.2c.2b.1`'s
+non-negative-modulo-idiom fix) and both generate branches
+(seed 12345 takes `g_else`, the others take `g_taken`).
+
+**Scope caveat (explicit):** yosys 0.64 `write_json` exposes 4 of
+the 7 manifest fact categories — Seed/Top/Params/Widths/Generate.
+Localparams and package-qualified constants are folded by the
+elaborator and not name-introspectable from `write_json` alone;
+the parity comparator scopes accordingly. Richer-AST coverage via
+`slang --ast-json` or `verilator --xml-only` would surface the
+folded categories and is a recorded post-Phase-7 follow-up that
+**does NOT** retract Phase 7 closure — ANVIL's by-construction
+oracle already covers all 7 categories in the manifest; the parity
+gate exercises whatever the tool reports.
+
+**Notable surfacing during closure:** the very first real-tool
+run of the parity gate found an ANVIL-self-consistency bug in the
+`width_expr` emitter (oracle used `rem_euclid`, SV used `%`;
+diverged for negative `last.value`). This is exactly what `.1`
+designed the gate to do — surface oracle/downstream semantic
+disagreement at the fact-by-fact level, not a single "tool exit
+non-zero" bit. The bug was fixed in `.2c.2b.1`, re-run was clean,
+ROADMAP promotion strictly followed the verified artifact.
 
 ## Phase 8 — Frontend/elaboration accept corpora (not started)
 
