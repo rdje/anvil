@@ -1,8 +1,103 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-05-20-phase8-2c.2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2b parity gate clean against yosys (first try) — closes Phase 8 + tree
+## 2026-05-20-phase9-2-split — Docs: split PHASE-9-MULTI-ARTIFACT-UMBRELLA.2 into .2a (trait + DUT wrap) + .2b (microdesign + frontend lane impls) + .2c (--artifact CLI + ROADMAP Phase 9)
 
 **Landed as:** this commit
+
+**What changed**
+
+- `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`: Metadata
+  Last updated `2026-05-20`; tree-root Children annotation
+  now lists `.2` as an active container; `.2` itself Status
+  `pending`→`active` with the unblock note (Phase 7 +
+  Phase 8 closure on 2026-05-20 satisfies the `.1` blocker)
+  + the rationale-bearing Goal block + Children
+  `.2a`+`.2b`+`.2c`; three new child leaves (all
+  `pending`) with full Goal + Acceptance:
+  - `.2a` — `ArtifactLane` trait (name / validate_knobs /
+    generate / manifest / check_plan) in a new
+    `src/umbrella/` module + shared umbrella-owned
+    plumbing (ChaCha8 seed→artifact; byte-stable
+    cross-platform output; lane-scoped knob namespace;
+    uniform on-disk layout; uniform `CheckPlan` enum);
+    L1 `DutLane` impl where `DutLane::generate` IS
+    today's `gen::Generator` path; **byte-identical
+    regression proof** comparing trait-dispatched vs
+    direct-call outputs (load-bearing vs
+    `BOOK-EXAMPLES-RUNNABLE` + every CI gate).
+  - `.2b` — `MicrodesignLane` + `FrontendLane` impls of
+    the trait + cross-lane byte-identical regression
+    proof (trait-dispatched per-lane output equals
+    direct-call output across the reproducibility set).
+  - `.2c` — `--artifact <lane>` top-level CLI flag with
+    default `dut` on the existing `anvil` binary + book/
+    CI byte-identical verification + record **ROADMAP
+    Phase 9 → done** + reconcile book (a new lanes page or
+    `book/src/ir.md` update) + README + CODEBASE. May
+    further split per the proven Phase 7/8 `.2c` →
+    `.2c.1`/`.2c.2` precedent if a discovered regression
+    surfaces during book/CI verification.
+- Frontier `.2` → `.2a`; Decisions append the 2026-05-20
+  unblock + split rationale; Verification Log + Commit
+  Log + Changelog entries.
+
+- `docs/TASK_TREE.md`: `PHASE-9-MULTI-ARTIFACT-UMBRELLA`
+  row's current frontier updated `.2` → `.2a` with the
+  unblock + split summary.
+
+- `CHANGES.md`: this entry + backfill of the
+  `phase8-2c.2b` entry's "Landed as: this commit" →
+  `997b0a6`.
+
+- `MEMORY.md`: recent commits — `phase8-2c.2b`
+  `<pending>` → `997b0a6`; new `<pending>` head for this
+  Phase 9 split slice.
+
+**Why**
+
+- Phase 7 closed at `20a7b4a` and Phase 8 closed at
+  `997b0a6` on 2026-05-20, satisfying `.1`'s blocker
+  condition "DUT + ≥1 of Phase 7/8" — all 3 delivered
+  lanes now exist (DUT + microdesign + frontend). Per
+  Splitting Rules + the proven Phase 7/8 `.2` →
+  `.2a`/`.2b`/`.2c` decomposition (which closed both
+  phases cleanly), splitting `.2` keeps each leaf
+  signoff-sized while preserving the load-bearing
+  byte-identical default-`dut` contract. The
+  `.1`-recorded resolution of the CLI form
+  (`--artifact <lane>` flag with default `dut` on the
+  existing `anvil` binary, NOT subcommand-only and NOT
+  separate binaries) is what makes the
+  `BOOK-EXAMPLES-RUNNABLE`-coupled byte-identical
+  preservation tractable; the split keeps that
+  preservation as the load-bearing constraint
+  throughout.
+
+**Validation**
+
+- `cargo fmt --all --check` / `cargo clippy --all-targets
+  -- -D warnings` / `cargo check --all-targets` clean;
+  tree-planning, docs-only ⇒ `cargo test` and `mdbook
+  build book` unchanged vs `997b0a6`.
+
+**Impact**
+
+- Frontier on the still-open `PHASE-9-MULTI-ARTIFACT-UMBRELLA`
+  tree is now `.2a` (unblocked, code-bearing — the trait +
+  DUT wrap + byte-identical regression proof). ROADMAP
+  Phase 9 closure remains gated on `.2c`'s verified-clean
+  book/CI byte-identical run.
+
+**Files touched**
+
+- `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md`;
+  `docs/TASK_TREE.md`; `CHANGES.md`; `MEMORY.md`.
+
+---
+
+## 2026-05-20-phase8-2c.2b — Phase 8: PHASE-8-FRONTEND-ACCEPT.2c.2b parity gate clean against yosys (first try) — closes Phase 8 + tree
+
+**Landed as:** 997b0a6
 
 **What changed**
 
