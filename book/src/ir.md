@@ -579,6 +579,37 @@ sessions.
   the DUT generate path; default-off). See
   `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md` and the
   `ROADMAP.md` Phase 8 entry.
+- **Multi-artifact umbrella selector** — Phase 9.
+  **Delivered (Phase 9, 2026-05-20,
+  `PHASE-9-MULTI-ARTIFACT-UMBRELLA` tree CLOSED).** A new
+  top-level module `src/umbrella/` carries the
+  `ArtifactLane` trait (`name`/`validate_knobs`/
+  `generate(seed)`/`check_plan`) + the `LaneArtifact`
+  carrier (with typed-`Option` manifest expressing "L1
+  has no semantic manifest" cleanly) + the `CheckPlan`
+  enum (`SynthAccept` for L1; `ParityVsManifest` for
+  L2/L3). Three lane impls — `DutLane`,
+  `MicrodesignLane`, `FrontendLane` — wrap the existing
+  three rules-first generators
+  (`src/gen/`/`src/microdesign/`/`src/frontend/`)
+  without modifying them; the explicit anti-goal from
+  `.1` is preserved (the three lanes' generators stay
+  decoupled; only their plumbing unifies). The `anvil`
+  CLI gained a `--artifact <lane>` top-level flag with
+  default `dut`; non-`dut` invocations dispatch via
+  `Box<dyn ArtifactLane>` through the umbrella, while
+  the default `--artifact dut` falls through to the
+  historical code path UNCHANGED via an early-return
+  guard at the top of `fn main`. The load-bearing
+  byte-identical default-`dut` contract is enforced from
+  `.2a` forward by
+  `dut_lane_is_byte_identical_to_direct_generator_path`
+  AND verified end-to-end at `.2c` by
+  `tests/book_examples::every_runnable_book_bash_block_succeeds`
+  passing 3/3 in 80s AFTER the CLI change. See
+  `docs/tasks/PHASE-9-MULTI-ARTIFACT-UMBRELLA.md` and the
+  `ROADMAP.md` Phase 9 entry. **All 9 numbered roadmap
+  phases now delivered.**
 - **Unpacked `struct` / `union` for datapath** — mostly
   non-synthesizable (tool-dependent). Not pursued.
 - **Enums** — synthesizable but thin; they are typed constant

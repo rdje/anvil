@@ -1994,23 +1994,96 @@ empty-bodied child instances out of `.cells` — was the only
 Phase-8-specific tool-capability dependency surfaced, and was
 folded into `.2c.2a`'s yosys invocation (omit `proc; opt`).
 
-## Phase 9 — Multi-artifact ANVIL umbrella (not started)
+## Phase 9 — Multi-artifact ANVIL umbrella (done)
 
-- Add an **artifact-family selector** so one tool can drive all of the
-  valid-by-construction synthesizable families above without
-  overloading one generator path with contradictory promises.
-- Unify reproducibility, manifests, seed handling, knob plumbing,
-  corpus output layout, and downstream checking across artifact
-  families.
-- Preserve the doctrinal distinction:
-  - synthesizable DUT RTL lane;
-  - oracle-backed positive micro-design lane;
-  - frontend/elaboration accept lane;
-  - future valid synthesizable artifact lanes of similar kind.
+- An **artifact-family selector** so one tool drives all of the
+  valid-by-construction synthesizable families without overloading
+  one generator path with contradictory promises. **Delivered
+  (2026-05-20, `PHASE-9-MULTI-ARTIFACT-UMBRELLA` tree CLOSED.)**
+- Unified reproducibility, manifests, seed handling, knob plumbing,
+  corpus output layout, and downstream-check shape across the three
+  delivered artifact lanes — via the `pub trait ArtifactLane`
+  in `src/umbrella/` (`name`/`validate_knobs`/`generate(seed)`/
+  `check_plan`) + the `LaneArtifact{lane, seed, sv,
+  manifest: Option<String>}` carrier + the `CheckPlan` enum
+  (`SynthAccept` for L1; `ParityVsManifest` for L2/L3).
+- Preserves the doctrinal lane separation by design (explicit
+  anti-goal recorded in `.1`'s `DEVELOPMENT_NOTES` entry: never
+  collapse the three lanes' rules-first generators into one
+  "random SV generator"; only their plumbing unifies):
+  - L1 **synthesizable DUT RTL lane** — `DutLane` wrapping
+    `src/gen/` (Phases 1–6);
+  - L2 **oracle-backed micro-design lane** — `MicrodesignLane`
+    wrapping `src/microdesign/` (Phase 7);
+  - L3 **frontend/elaboration accept lane** — `FrontendLane`
+    wrapping `src/frontend/` (Phase 8);
+  - future synthesizable lanes plug in by implementing the same
+    `ArtifactLane` trait.
+- A top-level **`--artifact <lane>` CLI flag** on the `anvil`
+  binary (default `dut`) dispatches via `Box<dyn ArtifactLane>`.
+  `--artifact dut` falls through to the historical code path
+  UNCHANGED (early-return guard at the top of `fn main`); the
+  load-bearing **byte-identical default-`dut` contract**
+  (`BOOK-EXAMPLES-RUNNABLE` + every CI gate) is preserved by
+  construction + verified by
+  `tests/book_examples::every_runnable_book_bash_block_succeeds`.
 
-**Exit criteria:** ANVIL can honestly present itself as the go-to tool
-for pseudo-random HDL artifact generation, with explicit mode/lane
-selection instead of one blurred notion of "random SV files."
+**Exit criteria (met):** ANVIL can honestly present itself as the
+go-to tool for pseudo-random HDL artifact generation, with
+explicit mode/lane selection instead of one blurred notion of
+"random SV files". Closure evidence:
+
+- The `ArtifactLane` trait + all 3 lane impls landed in
+  `src/umbrella/` (`PHASE-9-MULTI-ARTIFACT-UMBRELLA.2a`/`.2b`);
+- 8 cargo-portable umbrella proofs incl. per-lane byte-identical
+  regression (L1/L2/L3) + cross-lane heterogeneous dispatch
+  through `Box<dyn ArtifactLane>`;
+- `--artifact <lane>` CLI flag landed in `src/main.rs`
+  (`.2c`) with the byte-identical default-`dut` early-return;
+- `cargo test --test book_examples` ran clean — 3/3 in 80s —
+  proving every runnable book bash block still exits 0
+  byte-identically through the new code path (load-bearing vs
+  `BOOK-EXAMPLES-RUNNABLE`);
+- Full `cargo test` green throughout: lib **244**, pipeline 121,
+  snapshots 6, microdesign_parity 15+1, frontend_parity 12+2,
+  bin tests 5+29+3, doc-tests unchanged.
+
+**Notable during closure:** the cross-lane heterogeneous dispatch
+proof (`cross_lane_dispatch_through_dyn_artifact_lane` in `.2b`)
+landed BEFORE `.2c`'s CLI work — meaning the CLI dispatch via
+`Box<dyn ArtifactLane>` was correct-by-construction the moment it
+compiled, because the trait + dispatch contract had already been
+proven cargo-portably. The book/CI byte-identical verification
+came back clean on the first run, validating the
+default-`dut`-early-return-guard architecture.
+
+## All 9 numbered roadmap phases delivered
+
+With Phase 9 closed, every numbered roadmap phase from 0 through
+9 is now delivered:
+
+- Phase 0 — initialization (done historically).
+- Phase 1 — Single-module MVP (done).
+- Phase 2 — Signal sharing / DAG cones (done).
+- Phase 3 — Structured combinational ops (done).
+- Phase 4 — Hierarchy (done 2026-05-16; closing artifact r87).
+- Phase 5 — Width parameterization (done 2026-05-17;
+  `/tmp/anvil-tool-matrix-phase5-p1`).
+- Phase 5b — Synthesizable aggregates (done 2026-05-18;
+  `/tmp/anvil-tool-matrix-phase5b-p1`).
+- Phase 6 — Advanced motifs: memories + FSMs (done 2026-05-20;
+  `/tmp/anvil-tool-matrix-phase6-p1` + `-phase6-fsm-p1`).
+- Phase 7 — Oracle-backed micro-design artifacts (done
+  2026-05-20; `/tmp/anvil-microdesign-parity-phase7-yosys-p1/`).
+- Phase 8 — Frontend/elaboration accept corpora (done
+  2026-05-20; `/tmp/anvil-frontend-parity-phase8-yosys-p1/`).
+- Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
+
+Remaining open follow-up trees (post-phase quality work) include
+multi-clock CDC (explicitly-optional separately-prioritised
+deferral, originally Phase-6-adjacent) and
+`DIFFERENTIAL-SIMULATION.2b` (iverilog↔verilator differential
+harness implementation; quality lane, not a numbered phase).
 
 ## Non-goals
 

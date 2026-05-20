@@ -1,11 +1,33 @@
 use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
 };
+use anvil::umbrella::{ArtifactLane, FrontendLane, MicrodesignLane};
 use anvil::{Config, Generator};
 use clap::{Parser, ValueEnum};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::info;
+
+/// Artifact lane selector (`PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c`).
+///
+/// `dut` (the default) is the L1 DUT RTL lane; the entire historical
+/// CLI surface + every book example + every CI gate depend on
+/// `--artifact dut` being byte-identical to today. `microdesign`
+/// (Phase 7) and `frontend` (Phase 8) are the oracle-backed lanes;
+/// each emits its `.sv` to stdout (or to `<out>/<top>.sv`) and its
+/// expected-facts JSON manifest to stderr (or to `<out>/<top>.json`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+enum ArtifactKind {
+    /// L1 — DUT RTL lane (Phases 1–6). Default. Byte-identical to
+    /// the historical no-flag invocation.
+    #[default]
+    Dut,
+    /// L2 — oracle-backed micro-design lane (Phase 7).
+    Microdesign,
+    /// L3 — source-level frontend / elaboration accept lane
+    /// (Phase 8).
+    Frontend,
+}
 
 /// Trace verbosity (UVM-style). `none` disables tracing entirely.
 ///
@@ -75,6 +97,23 @@ fn parse_child_instances_per_depth_arg(s: &str) -> Result<ChildInstancesPerDepth
 #[derive(Parser, Debug)]
 #[command(name = "anvil", version, about = "Random synthesizable RTL generator")]
 struct Cli {
+    /// Artifact lane to generate
+    /// (`PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c`). The default `dut`
+    /// preserves byte-identical behaviour with every historical
+    /// invocation + the entire CI-gated book.
+    #[arg(long, value_enum, default_value_t = ArtifactKind::Dut)]
+    artifact: ArtifactKind,
+
+    /// Number of parameter/localparam decls for the microdesign /
+    /// frontend lanes. Ignored by `--artifact dut`.
+    #[arg(long, default_value_t = 5)]
+    lane_n_params: usize,
+
+    /// Number of child instances in the frontend lane's top module.
+    /// Ignored by `--artifact dut` and `--artifact microdesign`.
+    #[arg(long, default_value_t = 2)]
+    lane_n_children: usize,
+
     /// RNG seed (deterministic output in seed + knobs).
     #[arg(long, default_value_t = 0)]
     seed: u64,
@@ -411,6 +450,17 @@ fn main() -> anyhow::Result<()> {
 
     init_tracing(&cli)?;
 
+    // PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c — lane dispatch.
+    //
+    // `--artifact dut` (the default) falls through to the historical
+    // DUT lane path below, BYTE-IDENTICAL to today's behaviour
+    // (`BOOK-EXAMPLES-RUNNABLE` + every CI gate depend on this).
+    // `--artifact microdesign` and `--artifact frontend` short-circuit
+    // here into the umbrella's trait-dispatched path.
+    if cli.artifact != ArtifactKind::Dut {
+        return run_non_dut_lane(&cli);
+    }
+
     let mut cfg = if let Some(path) = &cli.config {
         let text = std::fs::read_to_string(path)?;
         serde_json::from_str::<Config>(&text)?
@@ -537,6 +587,84 @@ fn main() -> anyhow::Result<()> {
 /// no thread IDs, no ANSI colours — just `LEVEL module::path message`
 /// (plus any structured fields). This keeps trace output diffable
 /// across runs with the same `(seed, knobs)`.
+/// PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c — dispatch to the
+/// microdesign / frontend lanes via the `ArtifactLane` trait.
+///
+/// Called only when `cli.artifact != Dut`. The DUT path stays
+/// byte-identical to today's invocation pattern (the load-bearing
+/// `BOOK-EXAMPLES-RUNNABLE` + CI-gate contract).
+///
+/// Emits the lane's `.sv` to stdout (or to `<out>/<top>.sv` if
+/// `--out` is set) and the lane's elaborated-facts JSON manifest to
+/// stderr (or to `<out>/<top>.json` if `--out` is set). Lane-scoped
+/// knobs come from `--lane-n-params` (default 5) and
+/// `--lane-n-children` (default 2; frontend only).
+fn run_non_dut_lane(cli: &Cli) -> anyhow::Result<()> {
+    let lane: Box<dyn ArtifactLane> = match cli.artifact {
+        ArtifactKind::Dut => unreachable!("dispatched only when !Dut"),
+        ArtifactKind::Microdesign => Box::new(MicrodesignLane::new(cli.lane_n_params)),
+        ArtifactKind::Frontend => {
+            Box::new(FrontendLane::new(cli.lane_n_params, cli.lane_n_children))
+        }
+    };
+    info!(
+        seed = cli.seed,
+        artifact = ?cli.artifact,
+        lane = lane.name(),
+        "🚀 anvil start (non-DUT lane)"
+    );
+    let artifact = lane
+        .generate(cli.seed)
+        .map_err(|e| anyhow::anyhow!("lane {} generate failed: {:?}", lane.name(), e))?;
+    match &cli.out {
+        None => {
+            // SV → stdout (matches the historical DUT default
+            // behaviour for `count == 1` and no `--out`).
+            print!("{}", artifact.sv);
+            // Manifest → stderr so it doesn't contaminate stdout
+            // pipelines.
+            if let Some(manifest) = &artifact.manifest {
+                eprintln!("{}", manifest);
+            }
+        }
+        Some(dir) => {
+            std::fs::create_dir_all(dir)?;
+            // Derive the artifact's top-level name from the
+            // emitted SV's first non-empty non-comment line that
+            // starts with `module ` (or `package ` for
+            // microdesign's package-first SV). Fallback to
+            // `<lane>_<seed>` if the parse fails.
+            let top = parse_top_name(&artifact.sv)
+                .unwrap_or_else(|| format!("{}_{}", artifact.lane, artifact.seed));
+            std::fs::write(dir.join(format!("{top}.sv")), &artifact.sv)?;
+            if let Some(manifest) = &artifact.manifest {
+                std::fs::write(dir.join(format!("{top}.json")), manifest)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Best-effort extraction of the "top" name from an emitted lane SV
+/// for `<out>/<top>.sv` filenames. Reads the first `module <name>`
+/// declaration (skipping leading comments, package headers, etc.).
+/// Returns `None` if no `module ` line is found — the caller falls
+/// back to a `<lane>_<seed>` filename.
+fn parse_top_name(sv: &str) -> Option<String> {
+    for line in sv.lines() {
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("module ") {
+            // The name is the next whitespace- or `#`- or `(`- or
+            // `;`-delimited token.
+            let end = rest
+                .find(|c: char| c.is_whitespace() || c == '#' || c == '(' || c == ';')
+                .unwrap_or(rest.len());
+            return Some(rest[..end].to_string());
+        }
+    }
+    None
+}
+
 fn init_tracing(cli: &Cli) -> anyhow::Result<()> {
     use tracing_subscriber::fmt;
     // Enable super-verbose `trace_verbose!` events at --trace debug.

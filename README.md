@@ -924,10 +924,34 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   ships **three** complementary lanes: the DUT lane
   (Phases 1–6), the oracle-backed micro-design lane
   (Phase 7), and the source-level frontend/elaboration
-  accept lane (Phase 8). Every remaining roadmap phase
-  (Phase 9 multi-artifact umbrella) is tracked as a
-  task tree under `docs/TASK_TREE.md`. See `ROADMAP.md`
-  for phase gating.
+  accept lane (Phase 8). **Phase 9 — Multi-artifact ANVIL
+  umbrella is done (2026-05-20,
+  `PHASE-9-MULTI-ARTIFACT-UMBRELLA` tree CLOSED):** the
+  artifact-family selector + shared plumbing landed in
+  `src/umbrella/` — `pub trait ArtifactLane` + the
+  `LaneArtifact` carrier + the `CheckPlan` enum + the
+  `DutLane`/`MicrodesignLane`/`FrontendLane` impls + the
+  `--artifact <lane>` top-level CLI flag on the `anvil`
+  binary (default `dut`). The explicit anti-goal from
+  `.1` is preserved: only the plumbing
+  (seed→artifact, byte-stable output, optional manifest,
+  downstream check plan) unifies; the three lanes'
+  rules-first generators stay decoupled in their own
+  modules. The default `--artifact dut` invocation is
+  byte-identical to today's no-flag invocation —
+  load-bearing for `BOOK-EXAMPLES-RUNNABLE` + every CI
+  gate, enforced from `.2a` by
+  `dut_lane_is_byte_identical_to_direct_generator_path`
+  AND verified end-to-end at `.2c` by
+  `every_runnable_book_bash_block_succeeds`.
+  **All 9 numbered roadmap phases now delivered.**
+  Remaining open follow-up trees (multi-clock CDC —
+  explicitly-optional separately-prioritised deferral
+  from Phase 6 closure; `DIFFERENTIAL-SIMULATION.2b`
+  harness implementation — quality lane, not a numbered
+  phase) carry on as post-phase work. See
+  `docs/TASK_TREE.md` for the active-tree index and
+  `ROADMAP.md` for phase gating.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.
