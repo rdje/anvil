@@ -1,5 +1,110 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-diff-sim-2b.2 — DIFFERENTIAL-SIMULATION.2b.2 cycle-accurate testbench timing + clk/rst_n inclusion fix — closes .2b + .2 container
+
+**Landed as:** this commit
+
+**What changed**
+
+- `tests/diff_sim.rs::emit_testbench` reworked (~70 lines)
+  with the combined fix for the two issues `.2b.1`'s first
+  real-tool gate run surfaced:
+
+  1. **Clock/reset port inclusion bug.** iverilog refused to
+     compile the combinational case with "port 'clk' is not a
+     port of dut". Root cause: the testbench unconditionally
+     declared/drove `clk` + `rst_n` based on
+     `Module.clock.is_some()` / `Module.reset.is_some()`, but
+     those IR fields are reserved-slot `Some` even on
+     pure-combinational modules — and `emit::to_sv` only
+     renders the `clk`/`rst_n` ports when the module has
+     sequential state (`has_local_flops()` / memories /
+     fsms). The testbench port-map MUST match `emit::to_sv`'s
+     port set, not the IR's reserved-slot set. Fix: filter
+     `testbench_inputs` to drop `clk`/`rst_n` when
+     `is_sequential(top)` is false.
+
+  2. **Off-by-one trace alignment on the sequential case.**
+     `.2b.1`'s `#10`-based per-vector loop raced with the
+     posedge event ordering across iverilog vs verilator:
+     iverilog emitted 8 lines `[A, A, B, C, D, E, F, G]`
+     (duplicate first sample) vs verilator 8 lines `[A, B,
+     C, D, E, F, G, H]` (extra trailing sample). Underlying
+     sequences match — they just disagreed on when the FIRST
+     post-reset sample happens. Chose candidate (c) from the
+     `.2b.2` plan: restructure the initial-block timing.
+     Replaced the `#N`-based loop with the standard
+     cycle-accurate SV idiom — drive at `@(negedge clk)` (a
+     quiet point where no flops fire), let the next
+     `@(posedge clk)` latch them, then sample at the
+     FOLLOWING `@(negedge clk)` when outputs have settled.
+     Both sims agree on edge ordering with this idiom.
+     Combinational branch unchanged (hold + `#1` settle +
+     `$display` — already correct).
+
+- Reset sequence kept explicit: 4 `@(posedge clk)` with
+  `rst_n=0`, then `@(negedge clk)` + `rst_n=1`, then 2
+  warmup `@(posedge clk)` before the per-vector loop.
+
+**Why it matters**
+
+- **First gate to assert downstream-tool *semantic* agreement
+  on ANVIL output** (vs the existing parse/synth gates). Per
+  `project_anvil_north_star.md`: ANVIL's purpose is to
+  surface downstream-tool bugs via valid-by-construction +
+  downstream-acceptance-quality output — the cross-simulator
+  agreement gate raises the contract from "all tools we test
+  against PARSE+SYNTHESISE our output" to "all SIMULATORS
+  we test against AGREE on the semantics of our output". That
+  is the signoff-quality bar.
+
+- **Passed first try after the targeted alignment fix**,
+  validating the IR-driven testbench (no SV re-parse) +
+  canonical sample-point design from `.2a` —
+  `differential_simulation_combinational clean across 8
+  samples (seed=7)` + `differential_simulation_sequential
+  clean across 8 post-reset samples (seed=42)`; 2 passed; 0
+  failed (49.07 s wall against locally-installed iverilog
+  13.0 + verilator 5.046).
+
+**Tests**
+
+- `cargo fmt --all` clean. `cargo clippy --all-targets -- -D
+  warnings` clean. `cargo check --all-targets` clean.
+- `cargo test --test diff_sim` portable suite still green:
+  5 helper proofs (`baked_input_vectors_are_reproducible…` /
+  `fmt_sv_hex_produces_fixed_width…` /
+  `normalize_trace_filters_to_hex_only…` /
+  `is_sequential_matches_clock_presence` /
+  `emit_testbench_has_the_documented_shape`) + 2 `#[ignore]`.
+- `cargo test --test diff_sim -- --ignored --test-threads=1
+  --nocapture` against locally-installed iverilog 13.0 +
+  verilator 5.046: **2 passed; 0 failed** (49.07 s wall).
+
+**Doctrine / scope**
+
+- Closes `DIFFERENTIAL-SIMULATION.2b.2`, `.2b`, `.2`
+  container. Frontier → `.3` (wire the harness into
+  `tool_matrix` as opt-in `--diff-sim` mode +
+  `saw_design_with_cross_simulator_agreement` coverage
+  fact). Validates the proven Phase-7-style discovered-
+  dependency split (`.2c.2a`/`.2c.2b`) once again — the
+  scaffold + portable proofs landed in `.2b.1`, the
+  real-tool dependency was discovered + filed as `.2b.2`,
+  then fixed + verified clean in one targeted slice.
+
+**Files**
+
+- `tests/diff_sim.rs` (combined fix to `emit_testbench`,
+  rest unchanged).
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md` (`.2b.2` →
+  `done`; `.2b` + `.2` → `done`; Verification Log +
+  Commit Log + Changelog entries; frontier → `.3`).
+- `docs/TASK_TREE.md` (frontier row updated to point at
+  `.3`; Phase 9 row's "remaining follow-up trees"
+  parenthetical now reads `DIFFERENTIAL-SIMULATION.3`/`.4`
+  with `.2b` closed `2026-05-24`).
+
 ## 2026-05-20-diff-sim-2b.1 — DIFFERENTIAL-SIMULATION.2b.1 IR-driven testbench harness + dual-sim orchestration + cargo-portable helper proofs + #[ignore] scaffold
 
 **Landed as:** this commit

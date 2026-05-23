@@ -94,14 +94,47 @@ fn is_sequential(top: &Module) -> bool {
 /// Emit a generic SystemVerilog testbench for `top`. Returns the SV
 /// text. The testbench is parameter-less and language-portable
 /// between iverilog -g2012 and verilator --binary.
+///
+/// `.2b.2` fixes from `.2b.1`'s first real-tool run:
+///
+/// 1. **Clock/reset port inclusion bug** — `Module.clock` /
+///    `Module.reset` are reserved-slot IR fields that may be
+///    `Some` even for pure-combinational modules, but `emit::to_sv`
+///    only emits the `clk`/`rst_n` ports when the module has
+///    sequential state. The testbench port-map must match the
+///    SV-emit's port set, not the IR's reserved-slot set — so we
+///    filter `clk`/`rst_n` out of the testbench when
+///    `is_sequential(top)` is false.
+///
+/// 2. **Off-by-one trace-alignment** — `.2b.1`'s `#N`-based
+///    sequential timing raced with the posedge event ordering
+///    across iverilog vs verilator (iverilog emitted one extra
+///    leading sample). Fixed by switching to the standard
+///    cycle-accurate idiom: drive inputs at `@(negedge clk)`
+///    (a quiet point — no flops fire), let the next `@(posedge
+///    clk)` latch them, then sample at the FOLLOWING `@(negedge
+///    clk)` when outputs have settled. Both sims agree on edge
+///    ordering with this idiom.
 fn emit_testbench(top: &Module, vectors: &[Vec<u128>]) -> String {
     let seq = is_sequential(top);
     let mut s = String::new();
     s.push_str("// DIFFERENTIAL-SIMULATION.2b — generic Verilator↔iverilog testbench\n");
     s.push_str("module tb;\n");
 
-    // Declare reg/wire for every port (inputs + outputs).
-    for p in &top.inputs {
+    // `.2b.2` fix #1: declare `clk`/`rst_n` only when the DUT
+    // actually has them. The IR may carry reserved-slot
+    // `Module.clock`/`Module.reset` even for combinational
+    // modules, but `emit::to_sv` only renders them with sequential
+    // state — the testbench port map MUST match the SV-emit's
+    // port set.
+    let testbench_inputs: Vec<&Port> = top
+        .inputs
+        .iter()
+        .filter(|p| seq || (p.name != "clk" && p.name != "rst_n"))
+        .collect();
+
+    // Declare reg/wire for every port the testbench connects.
+    for p in &testbench_inputs {
         if p.width == 1 {
             s.push_str(&format!("    reg {};\n", p.name));
         } else {
@@ -116,9 +149,14 @@ fn emit_testbench(top: &Module, vectors: &[Vec<u128>]) -> String {
         }
     }
 
-    // Instantiate the DUT by named port map.
+    // Instantiate the DUT by named port map — matches the testbench's
+    // filtered port set.
     s.push_str(&format!("    {} dut (\n", top.name));
-    let all_ports: Vec<&Port> = top.inputs.iter().chain(top.outputs.iter()).collect();
+    let all_ports: Vec<&Port> = testbench_inputs
+        .iter()
+        .copied()
+        .chain(top.outputs.iter())
+        .collect();
     for (i, p) in all_ports.iter().enumerate() {
         let comma = if i + 1 < all_ports.len() { "," } else { "" };
         s.push_str(&format!("        .{}({}){}\n", p.name, p.name, comma));
@@ -126,13 +164,15 @@ fn emit_testbench(top: &Module, vectors: &[Vec<u128>]) -> String {
     s.push_str("    );\n");
 
     // Data inputs are the non-clock/non-reset input ports.
-    let data_inputs: Vec<&Port> = top
-        .inputs
+    let data_inputs: Vec<&Port> = testbench_inputs
         .iter()
+        .copied()
         .filter(|p| p.name != "clk" && p.name != "rst_n")
         .collect();
 
     if seq {
+        // Clock generator: clk toggles every #5, so a full period
+        // is 10 time units (posedge at t=5, 15, 25, ...).
         s.push_str("    initial clk = 1'b0;\n");
         s.push_str("    always #5 clk = ~clk;\n");
         s.push_str("    initial begin\n");
@@ -144,11 +184,25 @@ fn emit_testbench(top: &Module, vectors: &[Vec<u128>]) -> String {
                 fmt_sv_hex(0, p.width)
             ));
         }
-        // Hold rst_n=0 across several cycles, then deassert + warmup.
-        s.push_str("        #45;\n");
+        // Hold rst_n=0 for 4 full clock cycles, then deassert at
+        // a known negedge so subsequent timing is sim-agnostic.
+        for _ in 0..4 {
+            s.push_str("        @(posedge clk);\n");
+        }
+        s.push_str("        @(negedge clk);\n");
         s.push_str("        rst_n = 1'b1;\n");
-        s.push_str("        #20;\n");
+        // 2-cycle warmup with rst_n deasserted.
+        for _ in 0..2 {
+            s.push_str("        @(posedge clk);\n");
+        }
+        // Cycle-accurate per-vector loop: drive at negedge (quiet
+        // point — no flops fire), let the next posedge latch, then
+        // sample at the FOLLOWING negedge when outputs have
+        // settled. Both sims agree on edge ordering with this
+        // idiom (`.2b.1`'s `#10` raced with the posedge across
+        // iverilog vs verilator).
         for v in vectors {
+            s.push_str("        @(negedge clk);\n");
             for (i, p) in data_inputs.iter().enumerate() {
                 let val = v.get(i).copied().unwrap_or(0);
                 s.push_str(&format!(
@@ -157,12 +211,14 @@ fn emit_testbench(top: &Module, vectors: &[Vec<u128>]) -> String {
                     fmt_sv_hex(val, p.width)
                 ));
             }
-            s.push_str("        #10;\n");
+            s.push_str("        @(posedge clk);\n");
+            s.push_str("        @(negedge clk);\n");
             emit_display_outputs(&mut s, &top.outputs);
         }
         s.push_str("        $finish;\n");
         s.push_str("    end\n");
     } else {
+        // Pure combinational: hold + settle + sample.
         s.push_str("    initial begin\n");
         for v in vectors {
             for (i, p) in data_inputs.iter().enumerate() {
