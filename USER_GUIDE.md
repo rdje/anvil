@@ -575,6 +575,35 @@ Useful options:
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
   validation tool.
+- `--diff-sim` to add an opt-in **cross-simulator semantic-agreement**
+  column (`DIFFERENTIAL-SIMULATION`,
+  `docs/tasks/DIFFERENTIAL-SIMULATION.md`). The matrix's existing
+  Verilator+Yosys columns prove every generated artifact is *accepted*
+  (parses + synthesises); this column proves it is *semantically
+  equivalent* across two independent simulators (iverilog 13.0 +
+  verilator 5.046). A per-axis subset selector picks the first
+  scenario per major axis (combinational / sequential-flop /
+  hierarchy / memory / fsm), capped at K=5, deterministic; the
+  chosen names land in the report under `diff_sim_subset` and are
+  persisted to `<out>/.diff-sim-subset` for `--resume`. The harness
+  shells `iverilog -g2012 + vvp` and `verilator --binary`, normalizes
+  the fixed-width-hex traces, byte-compares, and records each
+  module's outcome under `diff_sim`
+  (`ran`/`success`/`n_samples`/`skip_reason`/`mismatch_excerpt` —
+  the excerpt is a retained counterexample per the Phase-7
+  doctrine, never a silent pass). The
+  `saw_design_with_cross_simulator_agreement` coverage fact fires
+  when at least one DUT in the subset achieves byte-equal post-reset
+  traces. The column is a **friendly no-op when either simulator is
+  absent** (`tools_present()` probe — the matrix still exits clean;
+  use `--fail-on-coverage-gap` together with `--diff-sim` if you
+  want the fact gated). It runs only AFTER Verilator and Yosys are
+  both clean on the module — no point asking simulators to agree on
+  output a parse/synth tool already rejected. Trade-off rationale:
+  the diff-sim column is opt-in (not a gate-elevation flag) because
+  the full matrix is computationally infeasible to gate
+  mandatorily; the per-axis subset gives signoff-quality coverage
+  without 2h+ CI runtime.
 
 Current local smoke status after the full current-code Phase 1 closure:
 the built-in matrix is 15/15 clean in Verilator and 15/15 clean in

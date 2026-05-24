@@ -237,6 +237,40 @@ cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode with-abc
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
 ```
 
+#### `--diff-sim`: cross-simulator semantic agreement
+
+The matrix gains an opt-in column that asserts **semantic
+agreement** across two independent simulators (iverilog + verilator),
+not just that each tool accepts the SV. Per
+`DIFFERENTIAL-SIMULATION` (`docs/tasks/DIFFERENTIAL-SIMULATION.md`):
+the existing parse/synth columns prove ANVIL output is *accepted*;
+this column proves it is *semantically equivalent*. That is the
+signoff-quality bar — and the first gate in the repo to test it.
+
+```bash
+# Add the diff-sim column on top of the default scenario sweep
+cargo run --bin tool_matrix -- --diff-sim --out ./tool-matrix
+```
+
+A per-axis subset selector picks the first scenario per major axis
+(combinational / sequential-flop / hierarchy / memory / fsm),
+capped at 5, deterministic. The selected names land in the report
+under `diff_sim_subset` and are persisted to
+`<out>/.diff-sim-subset` for `--resume`. The harness shells
+`iverilog -g2012 + vvp` and `verilator --binary`, normalizes the
+fixed-width-hex traces, byte-compares, and records the outcome
+under each module's `diff_sim` field
+(`ran`/`success`/`n_samples`/`skip_reason`/`mismatch_excerpt`).
+Any DUT with `ran=true && success=true` lights the
+`saw_design_with_cross_simulator_agreement` coverage fact.
+
+The column is a friendly no-op when either simulator is absent
+(`tools_present()` probe → `ran: false` with a clear skip
+reason); the matrix still exits clean unless you also pass
+`--fail-on-coverage-gap`. It runs AFTER Verilator and Yosys are
+both clean on the module — there is no point asking simulators to
+agree on output a parse/synth tool already rejected.
+
 `without-abc` remains the default because it is the current stable
 baseline. `with-abc` now means the repo-owned warning-clean ABC path
 (`synth -noabc; abc -fast; opt -fast; stat; check`) rather than the

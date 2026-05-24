@@ -95,3 +95,82 @@ evidence plan for that claim:
 > and treat every failure as a generator bug.
 
 Any failure is a generator bug, filed with the seed for reproduction.
+
+## Cross-simulator semantic agreement
+
+The `tool_matrix` parse/synth columns prove every emitted artifact
+is *accepted* by Verilator and Yosys. The `--diff-sim` column raises
+the bar to **semantic equivalence** across two independent
+simulators — iverilog (interpreted, 4-state, event-driven) and
+verilator (compiled, 2-state-default, cycle-driven). The two engines
+are deliberately chosen for engine independence; agreement between
+them is strong evidence that the emitted SV has a single intended
+meaning rather than tool-specific behavior.
+
+<!-- book-test: skip — opt-in column requires iverilog + verilator on PATH; runtime is multi-minute even on the per-axis subset; documented in the verification log of DIFFERENTIAL-SIMULATION.3b.2 -->
+```bash
+# Add the diff-sim column to a tool_matrix run
+cargo run --bin tool_matrix -- --diff-sim --out ./tool-matrix
+```
+
+A per-axis subset selector picks the first scenario per major axis
+(combinational, sequential-flop, hierarchy, memory, fsm), capped at
+K=5, deterministic. The matrix selects the subset once at startup,
+persists the names to `<out>/.diff-sim-subset`, and runs the
+column on each selected scenario AFTER Verilator and Yosys are
+both clean on the module — there is no point asking simulators to
+agree on output a parse/synth tool already rejected.
+
+For each module in the subset the harness:
+
+1. Emits a generic SystemVerilog testbench from the parsed port
+   section of the already-emitted DUT (whitespace-robust strict
+   subset — handles aggregate ports as "skip diff-sim for this
+   module").
+2. Drives a deterministic baked stimulus (canonical edge cases —
+   all-zeros, all-ones, walking-1 — then seeded `ChaCha8`
+   pseudo-random). `$random` is intentionally *not* used:
+   iverilog and verilator have different `$random` streams, which
+   would inject false mismatches.
+3. Holds reset, deasserts at a known negedge, runs a fixed
+   warmup, then samples outputs at a single canonical post-reset
+   cycle offset (combinational: `#1` settle + sample; sequential:
+   `@(negedge clk)` drive → `@(posedge clk)` latch →
+   `@(negedge clk)` sample). The post-reset canonical sample
+   neutralises iverilog's pre-reset 4-state (`x`) vs Verilator's
+   2-state-default (`0`) divergence.
+4. Shells `iverilog -g2012 + vvp` and `verilator --binary` on
+   the *same* testbench file, normalizes the fixed-width-hex
+   traces, and byte-compares.
+
+The per-module outcome is recorded under
+`ModuleReport.diff_sim`:
+
+```json
+{
+  "ran": true,
+  "success": true,
+  "n_samples": 8,
+  "skip_reason": "",
+  "mismatch_excerpt": null
+}
+```
+
+On mismatch, `mismatch_excerpt` retains the first 10 lines from
+each side side-by-side — a **retained counterexample** per the
+Phase-7 doctrine; never a silent pass.
+
+The `saw_design_with_cross_simulator_agreement` coverage fact
+fires when at least one DUT in the subset achieves byte-equal
+post-reset traces. The column is a **friendly no-op when either
+simulator is absent** (`tools_present()` probe → `ran: false`
+with a clear skip reason); the matrix still exits clean. To gate
+on the fact, combine `--diff-sim` with `--fail-on-coverage-gap`.
+
+The contract: `cargo run --bin tool_matrix -- --diff-sim` on a
+machine with iverilog and verilator installed should record at
+least one DUT with `diff_sim = { ran: true, success: true }`.
+Any disagreement is either a generator bug (file with seed) or a
+real downstream-tool bug — both are valuable signal per the
+project's north star (surface downstream-tool bugs via
+valid-by-construction + downstream-acceptance-quality output).

@@ -1,5 +1,109 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-diff-sim-4 — Docs: DIFFERENTIAL-SIMULATION.4 README + USER_GUIDE + book/src/synthesizability.md describe --diff-sim contract — closes the tree
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs-only slice (no code). Closes
+`DIFFERENTIAL-SIMULATION.4` and the entire
+`DIFFERENTIAL-SIMULATION` tree — all four `.1`/`.2`/`.3`/`.4`
+leaves now done.
+
+- **README.md** gains a "`--diff-sim`: cross-simulator semantic
+  agreement" subsection under the existing `tool_matrix`
+  narrative (right after the `--yosys-mode` discussion). Explains
+  the engine-independence rationale, the per-axis K=5 subset
+  selector, the per-module `DiffSimReport` shape, the
+  `saw_design_with_cross_simulator_agreement` coverage fact, the
+  AFTER-Verilator+Yosys gating discipline, and the friendly
+  no-op when simulators are absent.
+
+- **USER_GUIDE.md** gains a `--diff-sim` bullet in the
+  `tool_matrix` "useful options" list with the full contract:
+  opt-in (not gate-elevation), per-axis K=5 subset, deterministic
+  selection, persisted `<out>/.diff-sim-subset` sentinel for
+  `--resume`, `DiffSimReport`
+  (`ran`/`success`/`n_samples`/`skip_reason`/`mismatch_excerpt` —
+  retained counterexample per Phase-7 doctrine), AFTER-clean
+  gating, `tools_present()` no-op, opt-in-vs-gate-elevation
+  trade-off rationale.
+
+- **book/src/synthesizability.md** gains a "Cross-simulator
+  semantic agreement" section. Describes:
+  - The two-engine independence rationale (iverilog event-driven
+    4-state vs verilator compiled 2-state-default cycle-driven).
+  - The per-axis subset selector (combinational, sequential-flop,
+    hierarchy, memory, fsm; K=5; deterministic).
+  - The 4-step harness flow (testbench-from-parsed-ports →
+    baked-stimulus → reset+canonical-sample → dual-shell+byte-
+    compare).
+  - The `DiffSimReport` JSON shape with a concrete example.
+  - The `mismatch_excerpt` retained-counterexample doctrine.
+  - The `saw_design_with_cross_simulator_agreement` coverage
+    fact and how to gate on it
+    (`--diff-sim --fail-on-coverage-gap`).
+  - Contract statement: a clean run records at least one DUT
+    with `diff_sim = { ran: true, success: true }`.
+
+- The new book bash block (`cargo run --bin tool_matrix --
+  --diff-sim --out ./tool-matrix`) carries an explicit
+  `<!-- book-test: skip — opt-in column requires iverilog +
+  verilator on PATH; runtime is multi-minute even on the
+  per-axis subset; documented in the verification log of
+  DIFFERENTIAL-SIMULATION.3b.2 -->` sentinel so the byte-identical
+  book-runnable contract is preserved. `cargo test --test
+  book_examples` 3/3 still green AFTER the docs land.
+
+**Why it matters**
+
+- Closes the `DIFFERENTIAL-SIMULATION` tree (`.1` iverilog
+  compatibility note → `.2` single-design harness +
+  `tests/diff_sim.rs` `#[ignore]` proofs → `.3` `tool_matrix`
+  wiring → `.4` docs). The quality lane is now end-to-end:
+  users can discover the contract (README), invoke it
+  (USER_GUIDE), and understand its semantics (book).
+
+- The book chapter is the durable user-facing description; the
+  task tree's Verification Log is the durable contributor-facing
+  evidence. Both anchor on `project_anvil_north_star.md`'s
+  signoff-quality bar.
+
+**Tests**
+
+- `mdbook build book` clean.
+- `cargo test --test book_examples` 3 passed; 0 failed (the new
+  bash block was caught by the harness as needing a skip
+  sentinel — the harness DID its job — and the sentinel was
+  added; on the retry, 3/3 green in 83s).
+- `cargo` unchanged-green vs base `18b0842` (no `src/` or
+  `tests/` touched; diff = `README.md` + `USER_GUIDE.md` +
+  `book/src/synthesizability.md` + `docs/tasks/DIFFERENTIAL-SIMULATION.md`
+  + `docs/TASK_TREE.md` + `CHANGES.md` only).
+
+**Doctrine / scope**
+
+- **Closes `DIFFERENTIAL-SIMULATION.4` and the entire
+  `DIFFERENTIAL-SIMULATION` tree.** All four `.1`/`.2`/`.3`/`.4`
+  leaves done.
+- Remaining open follow-up trees on the repo: multi-clock CDC
+  (optional deferral from Phase 6).
+- Docs-only, no code change; `cargo` unchanged-green.
+
+**Files**
+
+- `README.md` (`--diff-sim` subsection under `tool_matrix`).
+- `USER_GUIDE.md` (`--diff-sim` bullet in `tool_matrix` options).
+- `book/src/synthesizability.md` ("Cross-simulator semantic
+  agreement" section appended).
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md` (`.4` → `done`;
+  parent tree → `done`; Verification Log + Commit Log +
+  Changelog entries).
+- `docs/TASK_TREE.md` (`DIFFERENTIAL-SIMULATION` row → `done`;
+  Phase 9 row's "remaining follow-up trees" parenthetical
+  updated).
+
 ## 2026-05-24-diff-sim-3b.2 — DIFFERENTIAL-SIMULATION.3b.2 tool_matrix --diff-sim CLI + per-axis subset + DiffSimReport + coverage fact — closes .3b + .3 container
 
 **Landed as:** this commit
