@@ -1,5 +1,171 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-3b.2 — MULTI-CLOCK-CDC.3b.2 metrics + coverage facts + multi-clock scenario + tool_matrix wiring — closes .3b + .3 container; end-to-end matrix gate clean
+
+**Landed as:** this commit
+
+**What changed**
+
+Per `MULTI-CLOCK-CDC.1`'s design, the multi-clock capability is
+wired into `tool_matrix` as a default-scenario column +
+coverage facts. The `.3b.2` slice closes `.3b` + the `.3`
+container — the multi-clock capability is now exercised
+end-to-end by the matrix on every default run.
+
+- **`src/metrics.rs`**: new `Metrics.num_clock_domains: usize`
+  + `Metrics.num_cdc_2_flop_synchronizers: usize` fields (both
+  `#[serde(default)]` for backward compat). `compute(m)`
+  populates them — `num_clock_domains = m.clock_domains.len()`
+  and `num_cdc_2_flop_synchronizers =
+  count_2flop_synchronizer_chains(m)` via a new helper that
+  structurally scans `Module.flop_domains` for the
+  by-construction synchronizer template: pairs of flops in the
+  same non-zero domain where `second.D == first.Q` (the chain
+  shape `.3a`'s primitive produces).
+
+- **`src/bin/tool_matrix.rs`**: new
+  `CoverageSummary.saw_multi_clock_design: bool` +
+  `saw_cdc_2_flop_synchronizer: bool` fields. `merge_coverage`
+  unions both. `summarize_coverage` iterates modules and
+  lights the facts when `metrics.num_clock_domains >= 2` /
+  `metrics.num_cdc_2_flop_synchronizers >= 1` — surfacing the
+  `.3a`/`.3b.1` Module-level work through the existing
+  per-module Metrics ⇒ per-scenario Coverage ⇒ aggregate
+  Coverage chain without needing the typed Module IR in scope
+  for the matrix coverage pass.
+
+- **New default scenario**: `int_multi_clock_2flop_sync` via
+  `multi_clock_focus_config`. Interleaved + `multi_clock_prob =
+  1.0` + `flop_prob = 1.0` + `min_width = max_width = 1`. The
+  sequential-favoring + narrow-output profile matches the
+  `promote_to_multi_clock` pass's 1-bit-flop-driven-output
+  eligibility predicate so the pass actually fires.
+
+- **`Generator::generate_module` rewired** to apply the
+  multi-clock promotion pass. **This is the load-bearing fix
+  for `.3b.2`**: `tool_matrix`'s per-scenario flow uses
+  `generate_module` (NOT `generate_design`); the `.3b.1`
+  promotion pass was wired only into `generate_design`, so the
+  initial end-to-end run surfaced `num_clock_domains=0`
+  despite `multi_clock_prob=1.0`. Fix: apply the pass inline at
+  the end of both `generate_module` and
+  `generate_module_with_interface_profile`. The pass uses the
+  same Bernoulli roll on the seeded generator RNG, preserving
+  reproducibility.
+
+- **`promote_to_multi_clock` made idempotent**: early return on
+  `clock_domains.len() >= 2`. This is the parity guard that
+  lets both the single-module and design-level paths invoke
+  the pass without double-promoting modules that flow through
+  both — the design-level pass becomes a no-op when the
+  single-module path already promoted. Without this guard, the
+  design-level pass would pick the synced Q as the next source
+  and add a redundant chain, breaking byte-identicality of
+  scenarios that happen to fire both paths.
+
+- **4 new bin tool_matrix cargo-portable proofs**:
+  - `merge_coverage_unions_saw_multi_clock_design` — fact
+    propagates through aggregation; re-merge with zero source
+    doesn't clear.
+  - `merge_coverage_unions_saw_cdc_2_flop_synchronizer` — same
+    for the chain fact (orthogonal to multi-clock-design fact).
+  - `summarize_coverage_lights_multi_clock_facts_from_module_metrics`
+    — per-module → per-scenario lighting via the new Metrics
+    fields (3-stage transition: baseline → `num_clock_domains=2`
+    lights design fact only → `num_cdc_2_flop_synchronizers=1`
+    lights chain fact too).
+  - `build_default_scenarios_includes_multi_clock_scenario`
+    — the new scenario is in the Default set and carries the
+    expected config (`multi_clock_prob > 0`, `flop_prob=1.0`,
+    `min/max-width=1`).
+
+**Why it matters**
+
+- **The capability is now wired through the matrix and
+  exercised by every default run.** Users who run
+  `cargo run --bin tool_matrix -- --out ./tool-matrix` see the
+  multi-clock scenario in the default sweep + the coverage
+  facts in `tool_matrix_report.json`. No opt-in flag needed
+  for the default coverage.
+
+- **First ANVIL multi-clock SV passed both downstream tools.**
+  End-to-end matrix run (`cargo run --release --bin tool_matrix
+  -- --base-seed 0 --modules-per-scenario 1 --out
+  /tmp/anvil-multi-clock-p2`) exits 0 with:
+  - 16 scenarios / 16 modules
+  - Verilator pass/fail = 16/0
+  - Yosys without-abc pass/fail = 16/0
+  - Aggregate `saw_multi_clock_design: true`
+  - Aggregate `saw_cdc_2_flop_synchronizer: true`
+  - Multi-clock module `mod_15_0000`: `num_clock_domains=2`
+    + `num_cdc_2_flop_synchronizers=1`
+  - Verilator success + Yosys success on that module.
+
+  **This validates the entire `.2` + `.3a` + `.3b.1` + `.3b.2`
+  chain end-to-end** — IR extension → emitter per-domain
+  `always_ff` → synchronizer construction primitive → Generator
+  integration → metrics → coverage facts → tool_matrix scenario
+  → downstream-tool acceptance. No CDC bugs surfaced. Per
+  `project_anvil_north_star.md`: the by-construction synchronizer
+  template produces SV that's accepted out-of-the-box by both
+  Verilator and Yosys; the multi-clock capability successfully
+  expanded ANVIL's generator coverage without breaking the
+  valid-by-construction contract.
+
+**Tests**
+
+- `cargo fmt --all`/`clippy --all-targets -- -D warnings`/
+  `check --all-targets` all clean (1 `unused-assignments`
+  clippy hit fixed by removing trailing `next_seed += 1`
+  after the multi-clock scenario push).
+- `cargo test --bin tool_matrix` 41 passed (was 37 + 4 new).
+- `cargo test --lib` 264 (unchanged from `.3b.1`).
+- `cargo test --test snapshots` 6/6 — **byte-identical**.
+- `cargo test --test book_examples` 3/3 in 84.10s —
+  **byte-identical** default-`dut` contract from Phase 9
+  preserved end-to-end through the metrics + scenario +
+  `Generator::generate_module` rewire.
+- Other suites unchanged: `microdesign_parity` 15 + 1 ignored,
+  `frontend_parity` 12 + 2 ignored, `diff_sim` 2 portable + 2
+  ignored.
+- **End-to-end matrix gate clean** (banked artifact:
+  `/tmp/anvil-multi-clock-p2/tool_matrix_report.json`).
+
+**Doctrine / scope**
+
+- Closes `MULTI-CLOCK-CDC.3b.2`, `.3b`, `.3` container.
+  Frontier → `.4` (README + USER_GUIDE + book/src describe the
+  multi-clock contract; remove the "Multi-clock deferred"
+  caveat from `book/src/sequential.md`).
+- The initial end-to-end run **surfaced an integration bug**
+  (`generate_module` didn't apply the pass; only
+  `generate_design` did, but the matrix uses `generate_module`)
+  which the closing-slice work caught and fixed. The
+  idempotency guard on `promote_to_multi_clock` is the
+  load-bearing follow-up that lets both call paths invoke the
+  pass safely.
+
+**Files**
+
+- `src/metrics.rs` (new `num_clock_domains` +
+  `num_cdc_2_flop_synchronizers` Metrics fields; new
+  `count_2flop_synchronizer_chains` helper; populate in
+  `compute(m)`).
+- `src/bin/tool_matrix.rs` (new `saw_multi_clock_design` +
+  `saw_cdc_2_flop_synchronizer` CoverageSummary fields +
+  `merge_coverage` union + `summarize_coverage` lighting; new
+  `int_multi_clock_2flop_sync` scenario + `multi_clock_focus_config`;
+  4 new cargo-portable proofs).
+- `src/gen/mod.rs` (rewired `generate_module` +
+  `generate_module_with_interface_profile` to apply the
+  multi-clock promotion pass inline).
+- `src/gen/multi_clock.rs` (`promote_to_multi_clock` made
+  idempotent via `clock_domains.len() >= 2` early return).
+- `docs/tasks/MULTI-CLOCK-CDC.md` (`.3b.2` → `done`; `.3b` +
+  `.3` → `done`; Verification Log + Commit Log + Changelog
+  entries; frontier → `.4`).
+- `docs/TASK_TREE.md` (`MULTI-CLOCK-CDC` row points at `.4`).
+
 ## 2026-05-24-multi-clock-cdc-3b.1 — MULTI-CLOCK-CDC.3b.1 multi_clock_prob knob + promote_to_multi_clock pass wired into Generator::generate_design — backward-compatible (0.0 default)
 
 **Landed as:** this commit

@@ -36,6 +36,23 @@ pub struct Metrics {
     pub num_instance_outputs: usize,
     pub num_flops: usize,
     pub num_instances: usize,
+    /// `MULTI-CLOCK-CDC.3b.2` — declared clock domains
+    /// (`Module.clock_domains.len()`). `0` for K=1 single-clock
+    /// (the empty-default backward-compatible state) — see
+    /// `Module::effective_clock_domains` for the synthesised
+    /// K=1 fallback. `>= 2` once the `multi_clock_prob`
+    /// promotion pass has fired on this module.
+    #[serde(default)]
+    pub num_clock_domains: usize,
+    /// `MULTI-CLOCK-CDC.3b.2` — number of 2-flop synchronizer
+    /// chains in this module (a "chain" is ≥2 flops mapped to
+    /// the same non-zero domain via `Module.flop_domains`,
+    /// chained D-to-Q). Surfaces the by-construction
+    /// synchronizer rule's actual execution. `0` for any
+    /// module without a domain-1 chain; `>= 1` after a
+    /// successful `promote_to_multi_clock` call.
+    #[serde(default)]
+    pub num_cdc_2_flop_synchronizers: usize,
 
     // --- Per-gate-kind distribution -----------------------------
     /// Count of `Node::Gate` per `GateOp` kind (`"and"`, `"mux"`,
@@ -531,6 +548,51 @@ pub struct DesignMetrics {
 
 /// Compute metrics from a generated `Module`. Pure function — does
 /// not modify the module.
+/// `MULTI-CLOCK-CDC.3b.2` — count 2-flop synchronizer chains in
+/// `m`. A "chain" is ≥2 flops mapped to the same non-zero domain
+/// via `Module.flop_domains`, with the second flop's D
+/// referencing the first flop's Q (the by-construction
+/// `construct_2flop_synchronizer` pattern from `.3a`). For the
+/// first-cut MVP, the `promote_to_multi_clock` pass produces
+/// exactly one chain per fired module, so this counts as
+/// expected. The check is structural — it traverses
+/// `Module.flop_domains` and confirms the chain shape.
+fn count_2flop_synchronizer_chains(m: &Module) -> usize {
+    use std::collections::BTreeMap;
+    // Group flops by their (non-zero) domain index.
+    let mut by_domain: BTreeMap<u32, Vec<crate::ir::FlopId>> = BTreeMap::new();
+    for (flop_id, domain) in &m.flop_domains {
+        if *domain == 0 {
+            continue; // domain 0 is the default — not a sync chain.
+        }
+        by_domain.entry(*domain).or_default().push(*flop_id);
+    }
+    // Count chains: for each non-zero domain, look for pairs of
+    // flops (first, second) where second.D references first.Q.
+    let mut chains = 0;
+    for flops_in_domain in by_domain.values() {
+        if flops_in_domain.len() < 2 {
+            continue;
+        }
+        // For each pair, check if second.D points at first.Q.
+        // The first-cut MVP allocates the pair consecutively, so
+        // this O(N^2) scan is cheap.
+        for &first_id in flops_in_domain {
+            for &second_id in flops_in_domain {
+                if first_id == second_id {
+                    continue;
+                }
+                let first_q = m.flops[first_id as usize].q;
+                let second_d = m.flops[second_id as usize].d;
+                if second_d == Some(first_q) {
+                    chains += 1;
+                }
+            }
+        }
+    }
+    chains
+}
+
 pub fn compute(m: &Module) -> Metrics {
     let mut out = Metrics {
         module: m.name.clone(),
@@ -539,6 +601,12 @@ pub fn compute(m: &Module) -> Metrics {
         num_nodes: m.nodes.len(),
         num_flops: m.flops.len(),
         num_instances: m.instances.len(),
+        // `MULTI-CLOCK-CDC.3b.2` — surface multi-clock + CDC
+        // facts into the per-module Metrics so `tool_matrix`'s
+        // `summarize_coverage` can light the new coverage facts
+        // without needing the typed Module IR in scope.
+        num_clock_domains: m.clock_domains.len(),
+        num_cdc_2_flop_synchronizers: count_2flop_synchronizer_chains(m),
         ..Default::default()
     };
 

@@ -66,7 +66,21 @@ impl Generator {
 
     pub fn generate_module(&mut self) -> Module {
         let idx = self.reserve_module_index();
-        module::generate_leaf_module(self, idx)
+        let mut m = module::generate_leaf_module(self, idx);
+        // `MULTI-CLOCK-CDC.3b.2` — the single-module path
+        // (`tool_matrix`'s per-scenario flow) also needs the
+        // multi-clock promotion pass. `generate_design` applies
+        // it after dedup + the parameterization / aggregate
+        // passes; here we apply it inline since the single-module
+        // flow has no design-level passes to interleave with.
+        // Default `multi_clock_prob = 0.0` ⇒ skip ⇒ byte-identical.
+        if self.cfg.multi_clock_prob > 0.0 {
+            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
+            if self.rng.gen_bool(p) {
+                let _ = multi_clock::promote_to_multi_clock(&mut m);
+            }
+        }
+        m
     }
 
     pub fn generate_module_with_interface_profile(
@@ -74,7 +88,17 @@ impl Generator {
         interface_profile: Option<&ModuleInterfaceProfile>,
     ) -> Module {
         let idx = self.reserve_module_index();
-        module::generate_leaf_module_with_interface_profile(self, idx, interface_profile)
+        let mut m =
+            module::generate_leaf_module_with_interface_profile(self, idx, interface_profile);
+        // Same single-module-path promotion as `generate_module`
+        // — keep parity per `MULTI-CLOCK-CDC.3b.2`.
+        if self.cfg.multi_clock_prob > 0.0 {
+            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
+            if self.rng.gen_bool(p) {
+                let _ = multi_clock::promote_to_multi_clock(&mut m);
+            }
+        }
+        m
     }
 
     pub(crate) fn reserve_module_index(&mut self) -> u64 {

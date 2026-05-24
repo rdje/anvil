@@ -212,6 +212,18 @@ pub struct PromotionOutcome {
 /// `promoted: false` and leaves the module untouched — also
 /// backward-compatible for downstream consumers.
 pub fn promote_to_multi_clock(module: &mut Module) -> PromotionOutcome {
+    // Idempotency: already-promoted modules
+    // (`clock_domains.len() >= 2`) are returned untouched. This
+    // is the load-bearing guard that lets `Generator::generate_module`
+    // and `Generator::generate_design` both invoke the pass
+    // without double-promoting modules that flow through both
+    // paths (the design-level pass would otherwise pick the
+    // synced Q as the next source and add a redundant chain,
+    // breaking byte-identicality of the second-pass result).
+    if module.clock_domains.len() >= 2 {
+        return PromotionOutcome::default();
+    }
+
     // Precondition: must have an existing single-clock domain.
     // Modules with no flops at all have no `clk`/`rst_n` and
     // can't be multi-clock-promoted.
