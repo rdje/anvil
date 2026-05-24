@@ -58,6 +58,176 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Multi-clock + CDC primitives design (2026-05-24, MULTI-CLOCK-CDC.1)
+
+Research-only slice (no code; `.2`+ implement). `MULTI-CLOCK-CDC.1`
+opens the only remaining named follow-up tree on the repo after
+`DIFFERENTIAL-SIMULATION` closed `2026-05-24`. Per the proven
+Phase-7/8/9 + `DIFFERENTIAL-SIMULATION.2a`/`.3a` design-first
+discipline: the IR extension (per-flop clock + per-flop reset),
+the CDC primitive catalogue, the by-construction rule, and the
+downstream-tool gate are all load-bearing structural decisions to
+settle before code. Multi-clock CDC touches the most load-bearing
+ANVIL invariant (`book/src/sequential.md` "Synchronous-design
+discipline": "Every module is fully synchronous to a single clock
+domain"), so the design-first slice is mandatory.
+
+**Goal.** Generate modules with N≥2 declared clock domains whose
+inter-domain signals are wrapped by-construction in a CDC
+primitive (2-flop synchronizer at minimum); every emitted
+multi-clock module passes the chosen downstream-tool CDC check
+(Verilator `--cdc=metastable` is the first-cut candidate) and
+shows cross-simulator agreement under
+`tool_matrix --diff-sim` on a synchronised stimulus.
+
+**CDC primitive catalogue — first-cut scope.** The IEEE CDC
+literature names ~7 patterns; ANVIL adopts them in priority order:
+
+| Tier | Primitive | First cut? | Notes |
+| --- | --- | --- | --- |
+| 1 | **2-flop synchronizer** (1-bit) | **Yes** | The minimum-viable CDC building block. Every 1-bit signal crossing domain A → domain B is two flops registered in B's domain; the metastability is captured + resolved by the second flop. Covers ~80% of real CDC paths. |
+| 2 | N-flop synchronizer (1-bit) | Deferred (`.5` or follow-up) | Same as tier-1 with N≥3 flops; needed for very-high-speed paths where 2 flops is insufficient. Adds a knob, not a structural change. |
+| 3 | Async FIFO (multi-bit) | Deferred (own tree) | Major structural change: depth, gray-code pointers, empty/full handshake, separate read/write domains. Phase-sized. |
+| 4 | Gray-code pointer transfer | Deferred (own tree) | Foundation for async FIFO; gray code's single-bit transition prevents pointer corruption mid-flight. |
+| 5 | Req/ack handshake (multi-bit) | Deferred (`.6` or follow-up) | 4-phase or 2-phase handshake for word transfer; smaller than FIFO but still structural. |
+| 6 | Pulse synchronizer | Deferred (`.7` or follow-up) | Toggle + 2-flop sync + XOR; transfers an event across domains. |
+| 7 | Reset synchronizer | Deferred (`.4` or follow-up) | Async-assert + sync-deassert; each domain gets its own. |
+
+**Tier 1 (2-flop synchronizer)** is the minimum viable cut.
+The deferred tiers either reuse tier-1 mechanically (N-flop)
+or are large enough to warrant their own task tree (FIFO,
+handshake, gray code). Per `feedback_full_factorization.md`
+and `feedback_rules_first_generation.md`: when the generator
+makes a domain-crossing decision, the synchronizer wrap is
+issued by-construction — there is never a "generate the path
+then check for synchronizer" filter pass.
+
+**Minimum-viable IR extension.** The single-clock invariant lives
+in `Module.clock: Option<Port>` and `Module.reset: Option<Port>`
+(single reserved slots) plus the `always_ff @(posedge clk or
+negedge rst_n)` template in `src/emit/sv.rs`. Two surface IR
+changes:
+
+- **Multi-domain Module shape.** `Module.clock_domains:
+  Vec<ClockDomain>` where each `ClockDomain` carries
+  `{ clk_port, rst_n_port, name }`. The existing single-domain
+  Module continues to exist as the K=1 special case
+  (`clock_domains.len() == 1` with `name = "default"`); this
+  keeps the by-construction default behavior byte-identical
+  unless a multi-clock knob fires. The existing `Module.clock`
+  / `Module.reset` accessors stay (delegate to
+  `clock_domains[0]`) so callers that don't care about
+  multi-clock see no change.
+- **Per-flop domain tag.** `Flop.domain: usize` (index into
+  `Module.clock_domains`) — every flop knows which domain it
+  belongs to. The emitter groups flops by domain and produces
+  one `always_ff` block per (domain, polarity) tuple. The
+  Phase-1 doctrine "one `always_ff` per module" is preserved
+  for K=1; for K=N it generalises to "one `always_ff` per
+  domain", which is the standard SV idiom.
+
+The IR extension is backward-compatible. Existing modules with
+no multi-clock knob fire stay K=1 with `domain = 0` for every
+flop, and the emit is byte-identical.
+
+**By-construction rule** (`book/src/structural-rules.md`, new
+Rule for multi-clock). When the generator emits a flop in
+domain B whose D-cone references a flop output in domain A,
+the cone is rewritten to dereference a **2-flop synchronizer**
+in domain B instead — that is, the flop sees `Synchronizer{
+src_flop_q, dst_domain }` as its operand, never the bare
+cross-domain flop output. The synchronizer is two newly-minted
+flops, both in dst_domain. The rule fires at *construction
+time*; there is no post-pass filter. The bookkeeping that
+discovers domain-crossing operands is `Flop.domain` + the
+cone-recursion that ANVIL already does.
+
+This is exactly the rules-first generation pattern
+(`feedback_rules_first_generation.md`): we never generate an
+unsynchronised cross-domain path then filter it out; the rule
+**constructs** the synchronizer in place.
+
+**Downstream-tool gate.** Two candidates, evaluated:
+
+- (a) **`verilator --cdc=metastable`** — a Verilator linter
+  flag that flags cross-clock-domain paths without registered
+  synchronizers. Pros: already integrated with the
+  `tool_matrix` Verilator column; one flag toggle. Cons:
+  experimental Verilator feature, may have false positives /
+  miss real bugs. First-cut choice.
+- (b) **`yosys read_verilog -cdc`** — explored: Yosys doesn't
+  have a built-in CDC check in stable 0.64; the `-cdc` flag
+  is project-folklore that doesn't exist. Rejected.
+- (c) **Custom oracle.** ANVIL is a generator; we can record
+  every constructed synchronizer in a manifest and emit a
+  matching `cdc_manifest.json`, then assert the manifest
+  matches what Verilator's linter reports. Defers to `.4`
+  once `.3` lands. This mirrors the Phase-7 parity oracle
+  pattern.
+
+**Cross-simulator agreement (`tool_matrix --diff-sim`).** The
+just-landed `.3b.2` `--diff-sim` column trivially extends to
+multi-clock: the testbench drives multiple clocks (independent
+periods) and stimulates inputs in each source domain;
+outputs are sampled in their declared domain. For the *first
+real-tool gate* on multi-clock, we sample only domain-B
+outputs at domain-B sample points (a "synchronised stimulus"
+flow) — this avoids the metastability-glass-jaw problem
+where a transition mid-sync-flop produces different
+trace-line values in iverilog (4-state) vs verilator
+(2-state). Sequential domain-A→B paths with proper
+synchronizers will produce byte-equal traces in both sims by
+the cycle-accurate `@(negedge clk_B)` sample.
+
+**Rejected alternatives.**
+
+- (A) **Single-flop synchronizer.** Rejected — even 1-bit
+  cross-domain paths need ≥2 flops to resolve metastability
+  per standard CDC literature. A single flop is not a
+  synchronizer.
+- (B) **Clock-gating-instead-of-multi-clock.** Rejected — ICG
+  is a power-optimisation concern, orthogonal to CDC. ANVIL's
+  stance is "emit always-on flops; let downstream insert ICG".
+- (C) **Latches for level-sensitive crossing.** Rejected —
+  ANVIL's synchronous-design discipline forbids latches
+  (`book/src/sequential.md`).
+- (D) **Async-FIFO as the minimum viable cut.** Rejected —
+  too large for the first multi-clock slice. FIFO requires
+  gray-code pointer + handshake + depth; pushes outside the
+  by-construction `.2`/`.3` envelope. Lands in its own
+  follow-up tree.
+- (E) **Generate-then-filter** (synchronizer-or-bust
+  post-pass). Rejected — violates
+  `feedback_rules_first_generation.md`. The synchronizer
+  must be constructed in place.
+- (F) **Dynamic frequency / dynamic clock ratios.** Rejected
+  — the IR records a fixed declared frequency per port (or
+  just a domain-name tag); runtime-dynamic frequency is a
+  testbench concern, not a generator concern.
+
+**Leaf shape.** `.2` implements the IR extension (multi-domain
+`Module`, per-flop `domain`, 2-flop synchronizer construction
+rule, emitter); `.3` adds the downstream-tool gate (Verilator
+`--cdc=metastable`) and the matrix wiring (`--multi-clock-prob`
+knob, `saw_multi_clock_design` + `saw_cdc_2_flop_synchronizer`
+coverage facts); `.4` documents the contract (README +
+USER_GUIDE + `book/src/sequential.md` updates removing the
+"Multi-clock deferred" caveat).
+
+**Knob shape.** Single `--multi-clock-prob: f64` per-module
+roll (defaults to `0.0` for byte-identical backward
+compatibility). When fired, the generator picks `N` from
+`--num-clock-domains-min`/`--num-clock-domains-max` range
+(defaults `2..=2` — start simple). Per-module roll because
+hierarchy is orthogonal: a multi-clock parent may have
+single-clock children or vice versa; the generator handles
+this generically via `Flop.domain`.
+
+This entry is design-only and is itself task-tree owned
+(`MULTI-CLOCK-CDC.1`); it makes no code change, consistent
+with the task-tree-ownership doctrine's code/not-code
+boundary.
+
 ### Tool-matrix `--diff-sim` wiring + representative-subset selector + coverage fact design (2026-05-24, DIFFERENTIAL-SIMULATION.3a)
 
 Design-only slice (no code; `.3b` implements). `.3` split mirrors

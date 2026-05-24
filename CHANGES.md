@@ -1,5 +1,206 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-1 — Docs: MULTI-CLOCK-CDC.1 multi-clock + CDC primitives design — opens the only remaining named follow-up tree
+
+**Landed as:** this commit
+
+**What changed**
+
+Research-only slice (no code). Opens the
+`MULTI-CLOCK-CDC` task tree — the only remaining named
+follow-up after `DIFFERENTIAL-SIMULATION` closed `2026-05-24`.
+Per `feedback_no_self_pause_until_trees_closed.md` continuous
+PNT and the user's "PNT into the next activity until full and
+complete exhaustion" directive. The single-clock-domain
+invariant was explicitly deferred from Phase 6
+(`PHASE-6-ADVANCED-MOTIFS` closing notes) and from
+`book/src/sequential.md` ("Multi-clock and CDC-safe handshakes
+are deferred to a much later phase"); this tree opens that
+deferral.
+
+- **New `docs/tasks/MULTI-CLOCK-CDC.md`** (full task tree
+  skeleton): Goal (relax the single-clock-domain invariant
+  while preserving the by-construction discipline);
+  Non-Goals (async logic, clock-gating, dynamic frequency,
+  physical layout, commercial CDC checkers); Acceptance
+  Criteria (N≥2 declared domains, by-construction
+  synchronizer wrap, Verilator `--cdc=metastable` clean,
+  `--diff-sim` agreement, coverage facts, docs);
+  `.1`-`.4` leaf shape; Current Frontier; Decisions;
+  Open Questions; Blockers; Verification + Commit + Changelog
+  scaffolds.
+
+- **New `DEVELOPMENT_NOTES.md` "Multi-clock + CDC primitives
+  design (2026-05-24, MULTI-CLOCK-CDC.1)" entry** records:
+
+  1. **7-tier CDC primitive catalogue.** Tier 1 (2-flop
+     synchronizer for 1-bit signals) is the first-cut scope —
+     covers ~80% of real CDC paths. Tiers 2-7 (N-flop /
+     async FIFO / gray-code pointer / req-ack handshake /
+     pulse synchronizer / reset synchronizer) are explicitly
+     deferred either to follow-up leaves (.5/.6/.7/.4) or to
+     their own task trees (FIFO, gray code — phase-sized).
+
+  2. **Minimum-viable IR extension.** `Module.clock_domains:
+     Vec<ClockDomain>` (each `ClockDomain { clk_port,
+     rst_n_port, name }`) — single-domain K=1 special case
+     keeps `Module.clock`/`Module.reset` accessors delegating
+     to `clock_domains[0]`, so backward compatibility is
+     trivial. Per-flop `Flop.domain: usize` tag; emitter
+     generates one `always_ff @(posedge clk_X or negedge
+     rst_n_X)` block per (domain, polarity) tuple. The
+     Phase-1 doctrine "one `always_ff` per module"
+     generalises to "one `always_ff` per domain" for K≥2.
+
+  3. **By-construction synchronizer rule** (new structural
+     rule for multi-clock, slated for
+     `book/src/structural-rules.md`). When the generator
+     emits a flop in domain B whose D-cone references a
+     domain-A flop output, the cone is rewritten to
+     dereference a **2-flop synchronizer in domain B at
+     construction time**; the synchronizer is two
+     newly-minted flops, both in dst_domain. Per
+     `feedback_rules_first_generation.md` — we never
+     generate-then-filter; the rule constructs the
+     synchronizer in place.
+
+  4. **Downstream-tool gate.** Verilator
+     `--cdc=metastable` is the first-cut choice (one flag
+     toggle, already integrated with the matrix's existing
+     Verilator column). Yosys `read_verilog -cdc` was
+     evaluated and **rejected** — the `-cdc` flag is
+     project-folklore that doesn't exist in stable Yosys 0.64.
+     A custom oracle (record every constructed synchronizer
+     in a manifest, assert Verilator's linter agrees) is
+     deferred to `.4` and mirrors the Phase-7 parity oracle
+     pattern.
+
+  5. **Cross-simulator agreement.** The just-landed
+     `DIFFERENTIAL-SIMULATION.3b.2` `--diff-sim` column
+     trivially extends to multi-clock by sampling only
+     synchronised post-handshake outputs at their declared
+     domain's `@(negedge clk_X)` — avoids the
+     metastability-trace-divergence glass-jaw (mid-transition
+     sync-flop captures differ between iverilog's 4-state and
+     verilator's 2-state-default).
+
+  6. **6 rejected alternatives.** Single-flop synchronizer
+     (rejected — not a synchronizer); clock-gating instead
+     of multi-clock (rejected — orthogonal power concern);
+     latches for level-sensitive crossing (rejected —
+     forbidden by synchronous-design discipline); async-FIFO
+     as minimum-viable (rejected — too large for first
+     slice; own tree); generate-then-filter (rejected —
+     violates `feedback_rules_first_generation.md`);
+     dynamic frequency (rejected — testbench concern).
+
+  7. **`.2`-`.4` leaf shape.** `.2` implements the IR
+     extension + 2-flop synchronizer construction rule +
+     emitter; `.3` wires the Verilator `--cdc=metastable`
+     gate + `--multi-clock-prob` scenarios in `tool_matrix`
+     + `saw_multi_clock_design` / `saw_cdc_2_flop_synchronizer`
+     coverage facts + `--diff-sim` agreement on synchronised
+     trace; `.4` documents the new contract (removes the
+     "Multi-clock deferred" caveat from
+     `book/src/sequential.md`).
+
+  8. **Knob shape.** Single `--multi-clock-prob: f64`
+     per-module roll (defaults to `0.0` for byte-identical
+     backward compatibility). When fired, the generator picks
+     `N` from `--num-clock-domains-min`/`--num-clock-domains-max`
+     range (defaults `2..=2` — start simple).
+
+- **Supporting evidence: `.3b.2` validated broadly at scale.**
+  Same-day after `.3b.2` + `.4` landed (closing the
+  `DIFFERENTIAL-SIMULATION` tree), ran the matrix with
+  `--diff-sim` against the default scenario set as an
+  operational verification: `cargo run --release --bin
+  tool_matrix -- --diff-sim --base-seed 0
+  --modules-per-scenario 1 --out /tmp/anvil-diff-sim-broad-p1`
+  exits 0 with **15 scenarios / 15 modules**, **Verilator
+  15/0**, **Yosys-without-abc 15/0**, **`--diff-sim` subset
+  2/2 passing** (`int_relaxed_none_default` +
+  `seq_nodeid_egraph_share_heavy_comb_only` — the per-axis
+  selector picked exactly the two axes the Default set
+  exercises: integer/combinational and sequential). Aggregate
+  `saw_design_with_cross_simulator_agreement: true`. Both
+  selected modules recorded `DiffSimReport { ran: true,
+  success: true, n_samples: 8, skip_reason: "",
+  mismatch_excerpt: None }`. **No downstream-tool bugs
+  surfaced** — the matrix's existing default scenario set
+  semantically agrees across iverilog 13.0 + verilator 5.046.
+  Banked artifact: `/tmp/anvil-diff-sim-broad-p1/tool_matrix_report.json`.
+
+**Why it matters**
+
+- Opens the `MULTI-CLOCK-CDC` tree, which was the only
+  remaining named follow-up on the repo. The user's
+  continuous-PNT directive cannot reach exhaustion without
+  taking this on; the design-first `.1` slice is the right
+  starting point (mirrors Phase 7/8/9 + `.2a`/`.3a` of
+  `DIFFERENTIAL-SIMULATION`).
+
+- The IR extension is deliberately **backward-compatible**:
+  K=1 with `Flop.domain = 0` produces byte-identical output
+  to today. The book-runnable contract, snapshot tests, and
+  every existing scenario stay green when
+  `--multi-clock-prob` is at its default `0.0`. This
+  preserves the byte-identical default-`dut` contract from
+  Phase 9.
+
+- The 2-flop synchronizer is the right first cut because it
+  covers ~80% of real CDC paths and is the smallest
+  structural change that still requires the new IR
+  extension (per-flop `domain` tag, multi-domain `Module`,
+  per-(domain, polarity) `always_ff` blocks). Deferring
+  FIFO / handshake / gray code to their own trees keeps `.2`
+  focused.
+
+- Per `project_anvil_north_star.md`: ANVIL's purpose is to
+  surface downstream-tool bugs via valid-by-construction +
+  downstream-acceptance-quality output. Multi-clock CDC is
+  where downstream-tool divergence is *most* common
+  (real-world CDC tooling is famously inconsistent across
+  vendors); the new capability will both expand ANVIL's
+  generator coverage AND give the existing `--diff-sim`
+  gate a new axis to find disagreements on.
+
+**Tests**
+
+- `cargo` unchanged-green vs base `cfd5a72` (no `src/` or
+  `tests/` touched; diff = `DEVELOPMENT_NOTES.md` +
+  `docs/tasks/MULTI-CLOCK-CDC.md` + `docs/TASK_TREE.md` +
+  `CHANGES.md` only).
+- Broad `--diff-sim` operational verification recorded in
+  `/tmp/anvil-diff-sim-broad-p1/tool_matrix_report.json`
+  (15/15 Verilator clean; 2/2 diff-sim subset passing;
+  aggregate coverage fact lit; no downstream-tool bugs
+  surfaced).
+
+**Doctrine / scope**
+
+- Closes `MULTI-CLOCK-CDC.1`; frontier → `.2` (implement IR
+  extension + 2-flop synchronizer rule + emitter).
+- Design-first per the proven Phase 7/8/9 +
+  `DIFFERENTIAL-SIMULATION.2a`/`.3a` precedent. Docs-only,
+  zero contention on any open work surface (no other open
+  trees).
+- The supporting evidence run is operational verification of
+  the already-closed `DIFFERENTIAL-SIMULATION` tree, not a
+  re-opening. Banked artifact lives at
+  `/tmp/anvil-diff-sim-broad-p1` (matrix conventional path).
+
+**Files**
+
+- `docs/tasks/MULTI-CLOCK-CDC.md` (new, full task tree
+  skeleton).
+- `DEVELOPMENT_NOTES.md` (new "Multi-clock + CDC primitives
+  design (2026-05-24, MULTI-CLOCK-CDC.1)" entry at top of
+  "Design notes" section).
+- `docs/TASK_TREE.md` (new `MULTI-CLOCK-CDC` row; Phase 9
+  row's "remaining follow-up tree" parenthetical updated to
+  point at `MULTI-CLOCK-CDC` with `.1` done).
+
 ## 2026-05-24-diff-sim-4 — Docs: DIFFERENTIAL-SIMULATION.4 README + USER_GUIDE + book/src/synthesizability.md describe --diff-sim contract — closes the tree
 
 **Landed as:** this commit
