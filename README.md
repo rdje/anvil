@@ -979,13 +979,23 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   AND verified end-to-end at `.2c` by
   `every_runnable_book_bash_block_succeeds`.
   **All 9 numbered roadmap phases now delivered.**
-  Remaining open follow-up trees (multi-clock CDC —
-  explicitly-optional separately-prioritised deferral
-  from Phase 6 closure; `DIFFERENTIAL-SIMULATION.2b`
-  harness implementation — quality lane, not a numbered
-  phase) carry on as post-phase work. See
-  `docs/TASK_TREE.md` for the active-tree index and
-  `ROADMAP.md` for phase gating.
+  The post-phase quality + capability lanes are closed
+  end-to-end: **`DIFFERENTIAL-SIMULATION` closed
+  (`2026-05-24`)** — `--diff-sim` opt-in cross-simulator
+  semantic-agreement column in `tool_matrix` (per-axis K=5
+  subset; iverilog 13.0 ↔ verilator 5.046 byte-equal
+  post-reset trace check; `saw_design_with_cross_simulator_agreement`
+  coverage fact). **`MULTI-CLOCK-CDC` `.3` container closed
+  (`2026-05-24`)** — `Config.multi_clock_prob` knob +
+  per-module promotion pass + 2-flop synchronizer
+  construction primitive + `int_multi_clock_2flop_sync`
+  default-set scenario + `saw_multi_clock_design` /
+  `saw_cdc_2_flop_synchronizer` coverage facts; the first
+  ANVIL multi-clock SV passed Verilator + Yosys first try.
+  See `docs/TASK_TREE.md` for the active-tree index,
+  `ROADMAP.md` for phase gating, and
+  `book/src/sequential.md` "Multi-clock and CDC" for the
+  user-facing contract.
 
 ## Maintenance rule
 `README.md` is updated whenever project entry-point information changes materially (objective, ramp-up flow, key paths, or CLI surface). It does not need updates for every commit.

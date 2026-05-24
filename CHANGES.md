@@ -1,5 +1,123 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-4 — Docs: MULTI-CLOCK-CDC.4 sequential.md + README describe the multi-clock contract — closes the tree
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs-only slice (no code). Closes `MULTI-CLOCK-CDC.4` and the
+entire `MULTI-CLOCK-CDC` tree — all four `.1`/`.2`/`.3`/`.4`
+leaves now done. The multi-clock capability is now end-to-end:
+the contract is described in the book, the matrix exercises it,
+and the user-facing narrative in README points at both the
+contract chapter + the tree's closure status.
+
+- **`book/src/sequential.md`** rewritten in three places:
+  1. **"Synchronous-design discipline"** — was "fully synchronous
+     to a single clock domain"; now describes both the K=1
+     default (one `clk`/`rst_n` + one `always_ff` block) and the
+     K=N multi-clock case (declared `clock_domains` + per-flop
+     domain tags via `Module.flop_domains` + per-(domain,
+     polarity) `always_ff` + by-construction 2-flop
+     synchronizer wrap). Explicitly calls out that the IR has no
+     per-flop clock-source field (only the domain tag) and no
+     per-flop reset-polarity field.
+  2. **"Why this discipline"** — extended to describe the
+     multi-clock rule's rules-first-generation property
+     (`feedback_rules_first_generation.md`): the generator
+     never emits a flop in domain B whose D-cone references a
+     domain-A flop output directly; the synchronizer wrap is
+     constructed in place via `construct_2flop_synchronizer`,
+     not via a post-pass filter.
+  3. **"Multi-clock and CDC" subsection** (replaces the two
+     pre-`.4` "Multi-clock deferred to a much later phase"
+     caveats):
+     - Opt-in via `Config.multi_clock_prob > 0.0`
+       (configuration-only — same convention as `memory_prob`
+       / `fsm_prob`).
+     - 4-step `promote_to_multi_clock` pass flow (allocate
+       `clk_b`/`rst_n_b` ports + push `ClockDomain` entries →
+       pick a 1-bit flop-driven output → construct 2-flop
+       synchronizer in domain 1 → rewire the output's drive
+       to the synced Q).
+     - `int_multi_clock_2flop_sync` default-set scenario.
+     - `saw_multi_clock_design` +
+       `saw_cdc_2_flop_synchronizer` coverage facts.
+     - First-cut MVP scope (1-bit flop-driven output);
+       multi-bit / handshake / async FIFO / pulse / reset
+       sync are explicit follow-up tiers per `.1`'s catalogue.
+
+- **`README.md`** "All 9 numbered roadmap phases now delivered"
+  paragraph updated: the "Remaining open follow-up trees
+  (multi-clock CDC ...)" caveat is replaced with a closure
+  status recording both `DIFFERENTIAL-SIMULATION` (closed
+  `2026-05-24` with `--diff-sim` wiring + iverilog↔verilator
+  byte-equal trace gate) and `MULTI-CLOCK-CDC.3` container
+  (closed `2026-05-24` with the `multi_clock_prob` knob +
+  2-flop synchronizer primitive + matrix scenario + coverage
+  facts; first ANVIL multi-clock SV passed Verilator + Yosys
+  first try). Points readers at `book/src/sequential.md`
+  "Multi-clock and CDC" for the user-facing contract.
+
+- **`USER_GUIDE.md` not touched.** `memory_prob` / `fsm_prob` /
+  `aggregate_prob` / `multi_clock_prob` are Config-only, never
+  CLI-exposed. This is the established Phase 6/5b precedent;
+  consumers use these via `Config { multi_clock_prob: 1.0, ..
+  }` programmatically or via the matrix scenarios.
+
+**Why it matters**
+
+- Closes the `MULTI-CLOCK-CDC` tree end-to-end: research-only
+  design (`.1`) → IR + emit shell (`.2`) → synchronizer
+  construction primitive (`.3a`) → Generator integration
+  (`.3b.1`) → tool_matrix wiring + coverage facts (`.3b.2`) →
+  user-facing docs (`.4`). The multi-clock capability is now
+  discoverable (README + book), invokable (Config knob +
+  matrix scenario), and validated (matrix gate clean on
+  Verilator + Yosys, coverage facts lit).
+
+- The book chapter is the durable user-facing description; the
+  task tree's Verification Log + the end-to-end matrix run
+  banked at `/tmp/anvil-multi-clock-p2/` are the durable
+  contributor-facing evidence. Both anchor on
+  `project_anvil_north_star.md`: the by-construction synchronizer
+  template produces SV that's accepted out-of-the-box by both
+  Verilator and Yosys.
+
+**Tests**
+
+- `mdbook build book` clean.
+- `cargo test --test book_examples` 3/3 in 69.60s —
+  **byte-identical** default-`dut` contract preserved (no new
+  bash blocks added; narrative-only prose changes).
+- `cargo` unchanged-green vs base `42a93c6` (no `src/` or
+  `tests/` touched; diff = `book/src/sequential.md` +
+  `README.md` + `docs/tasks/MULTI-CLOCK-CDC.md` +
+  `docs/TASK_TREE.md` + `CHANGES.md` only).
+
+**Doctrine / scope**
+
+- **Closes `MULTI-CLOCK-CDC.4` and the entire
+  `MULTI-CLOCK-CDC` tree.** All four `.1`/`.2`/`.3`/`.4`
+  leaves done.
+- Repo task-tree state after this commit: 13 trees done, 0
+  open. The optional deferral from Phase 6 is now delivered.
+- Docs-only, no code change; `cargo` unchanged-green.
+
+**Files**
+
+- `book/src/sequential.md` ("Synchronous-design discipline" +
+  "Why this discipline" rewritten; new "Multi-clock and CDC"
+  subsection replaces the two pre-`.4` deferred-caveat
+  paragraphs).
+- `README.md` (closure status paragraph updated; points at
+  the new book subsection).
+- `docs/tasks/MULTI-CLOCK-CDC.md` (`.4` → `done`; parent tree
+  → `done`; Verification Log + Commit Log + Changelog
+  entries).
+- `docs/TASK_TREE.md` (`MULTI-CLOCK-CDC` row → `done`).
+
 ## 2026-05-24-multi-clock-cdc-3b.2 — MULTI-CLOCK-CDC.3b.2 metrics + coverage facts + multi-clock scenario + tool_matrix wiring — closes .3b + .3 container; end-to-end matrix gate clean
 
 **Landed as:** this commit

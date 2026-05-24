@@ -20,30 +20,53 @@ same recursion with one extra choice in the node-kind picker.
 
 ## Synchronous-design discipline
 
-Every module is **fully synchronous to a single clock domain**:
+Every module is **synchronous, with one or more declared clock
+domains**:
 
-- One `clk` input port (1 bit, posedge).
-- One `rst_n` input port (1 bit, async, active-low).
-- *Every* flop in the module uses these two ports — no per-flop clock
-  selection, no per-flop reset polarity choice, no mixed sync/async.
-- All flops emit into a single `always_ff @(posedge clk or negedge rst_n)`
-  block per module.
+- The K=1 default ("single clock domain") uses one `clk` input
+  port (1 bit, posedge) + one `rst_n` input port (1 bit, async,
+  active-low). Every flop uses these two ports; all flops emit
+  into a single `always_ff @(posedge clk or negedge rst_n)`
+  block.
 
-Multi-clock and CDC-safe handshakes are deferred to a much later phase
-(Phase 6) and are optional even then.
+- The K=N multi-clock case (`MULTI-CLOCK-CDC`) declares N pairs
+  of `clk_X`/`rst_n_X` input ports + N `ClockDomain` entries on
+  `Module.clock_domains`; every flop carries a `domain` tag in
+  `Module.flop_domains` (defaulting to 0 — the K=1 special
+  case); the emitter generates one `always_ff @(posedge clk_X
+  or negedge rst_n_X)` block per (domain, polarity) tuple.
+  Every cross-domain signal is wrapped by-construction in a
+  2-flop synchronizer (`src/gen/multi_clock.rs::construct_2flop_synchronizer`)
+  — there is no generate-then-filter step (rules-first
+  generation, `feedback_rules_first_generation.md`).
+
+- *No* per-flop *clock-source* choice, per-flop *reset polarity*
+  choice, or mixed sync/async semantics. The IR has no field
+  for per-flop clock or per-flop reset polarity; the only
+  per-flop axis is the **domain tag**, which selects which
+  declared `(clk, rst_n)` pair the flop is clocked by.
+
+The K=1 default is byte-identical to pre-`MULTI-CLOCK-CDC` ANVIL
+(`Module.clock_domains.len() == 0` triggers the synthesised
+single-domain default in `Module::effective_clock_domains`);
+K≥2 is opt-in via `Config.multi_clock_prob > 0.0`.
 
 ## Why this discipline
 
 A real synchronous digital design — the kind that ships in silicon —
-has exactly this shape: one clock, one reset, all sequential elements
-clocked together. Generating anything else risks producing modules
-that are technically synthesizable but structurally unrealistic, and
-that exercise tooling paths (CDC checks, mixed-edge timing) that are
-out of scope for `anvil`'s mission.
+has exactly this shape: one or more clocks, one or more resets, all
+sequential elements within a domain clocked together, every
+domain-crossing signal properly synchronized.
 
 Forcing the discipline by construction — there is no IR field for
-per-flop clock or per-flop reset polarity — guarantees that no random
-choice can violate it.
+per-flop clock-source choice (only the domain tag) or per-flop
+reset polarity — guarantees that no random choice can violate it.
+For the multi-clock case, the by-construction rule extends to
+domain-crossing signals: the generator never emits a flop in
+domain B whose D-cone references a domain-A flop output directly;
+instead, the synchronizer wrap is constructed in place via
+`construct_2flop_synchronizer` (rules-first generation per
+`feedback_rules_first_generation.md`).
 
 ## Cone boundaries
 
@@ -155,8 +178,47 @@ For hierarchy, the rule is inductive:
 - a wrapper emits `clk` / `rst_n` iff it carries sequential
   descendants through instantiated children.
 
-Multi-clock and CDC are explicitly out of scope until Phase 6 (and
-optional even then).
+### Multi-clock and CDC
+
+Multi-clock support landed via `MULTI-CLOCK-CDC`. Opt-in via
+`Config.multi_clock_prob > 0.0` (`Cli.multi_clock_prob` is
+configuration-only — same convention as `memory_prob` /
+`fsm_prob`). When the per-module Bernoulli roll fires, the
+`Generator::generate_module` /
+`Generator::generate_design` paths apply the
+`multi_clock::promote_to_multi_clock` post-construction pass:
+
+1. Allocates two new ports (`clk_b` + `rst_n_b`) + pushes two
+   `ClockDomain` entries (named `"a"` and `"b"`) onto
+   `Module.clock_domains`.
+2. Picks the first 1-bit output port directly driven by a
+   flop's Q (declines cleanly on multi-bit outputs — those need
+   handshake or async FIFO, deferred to a follow-up tree per
+   `MULTI-CLOCK-CDC.1`'s catalogue tier 3-5).
+3. Constructs a 2-flop synchronizer chain in domain 1 via the
+   `src/gen/multi_clock.rs::construct_2flop_synchronizer`
+   primitive — two new flops, both in domain 1, chained
+   D=src_q → first → second → synced_q.
+4. Rewires the chosen output's drive to the synced Q.
+
+The result is a K=2 module whose B-domain output is properly
+2-flop-synchronized from the A-domain source flop. Both
+Verilator and Yosys accept the emitted SV without configuration
+(`int_multi_clock_2flop_sync` scenario in the default
+`tool_matrix` sweep is part of the gate). The
+`saw_multi_clock_design` + `saw_cdc_2_flop_synchronizer`
+coverage facts surface in `tool_matrix_report.json`.
+
+The pass is **rules-first** (`feedback_rules_first_generation.md`):
+the synchronizer is constructed in place at the moment of the
+domain-crossing decision; there is no post-pass filter.
+
+**First-cut MVP scope.** The current pass promotes one 1-bit
+flop-driven output per fired module. Multi-bit signal transfer
+(async FIFO, gray-code pointer, handshake), N-flop synchronizers,
+pulse synchronizers, and reset synchronizers are explicit
+follow-up tiers per `MULTI-CLOCK-CDC.1`'s catalogue — each is a
+separate task tree.
 
 ## Combinational cycles
 
