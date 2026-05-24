@@ -1,5 +1,183 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-diff-sim-3b.2 — DIFFERENTIAL-SIMULATION.3b.2 tool_matrix --diff-sim CLI + per-axis subset + DiffSimReport + coverage fact — closes .3b + .3 container
+
+**Landed as:** this commit
+
+**What changed**
+
+`src/bin/tool_matrix.rs` (~600 lines added) wires
+`anvil::diff_sim::{…}` (extracted in `.3b.1`) into the matrix as an
+opt-in cross-simulator agreement column per `.3a`'s design. Closes
+`DIFFERENTIAL-SIMULATION.3` container — the third `tool_matrix`
+gate to assert downstream-tool quality on ANVIL output, after the
+existing Verilator parse/synth/lint and Yosys synth columns.
+
+- **`--diff-sim` opt-in CLI flag.** Orthogonal to
+  `--phase4-hierarchy-gate` and the other gate-elevation flags.
+  Defaults to `false`. When set, every scenario in the per-axis
+  subset runs the iverilog↔verilator differential check after
+  Verilator and Yosys are both clean on that module.
+
+- **`DiffSimReport` per-module struct.** Records
+  `ran`/`success`/`n_samples`/`skip_reason`/`mismatch_excerpt`. The
+  excerpt retains the first 10 lines from each side side-by-side
+  on mismatch — Phase-7 counterexample doctrine, never a silent
+  pass. Stored as `ModuleReport.diff_sim:
+  Option<DiffSimReport>` (`#[serde(default,
+  skip_serializing_if = "Option::is_none")]` so existing reports
+  stay clean).
+
+- **`saw_design_with_cross_simulator_agreement: bool` coverage
+  fact.** New field on `CoverageSummary`, merged in
+  `merge_coverage`, lit in `summarize_coverage` when any DUT has
+  `DiffSimReport { ran: true, success: true }`. Alongside Phase
+  6's `saw_inferrable_memory_design`/`saw_fsm_design`.
+
+- **Per-axis subset selector.** `select_diff_sim_subset(scenarios)`
+  picks the first scenario per major axis (memory > fsm >
+  hierarchy > sequential-flop > combinational), capped K=5,
+  deterministic. `classify_diff_sim_axis(&Config)` is the
+  most-specific-first classifier. Rejected in `.3a`: random-N
+  sampler (loses curated coverage), hand-curated list (brittle).
+  Selected subset persisted to `<out>/.diff-sim-subset` sentinel
+  file so `materialize_prepared_module` can check without
+  changing its signature; also recorded in
+  `MatrixReport.diff_sim_subset` for self-describing reports.
+
+- **Wiring point.** `materialize_prepared_module` calls
+  `run_diff_sim_for_module` AFTER Verilator+Yosys (existing tools)
+  and BEFORE checkpoint write — so `--resume` replays the
+  diff-sim column from checkpoint without re-invoking simulators.
+  Gated by `cli.diff_sim` AND `tool_invocation_ok(verilator) &&
+  all_yosys_invocations_ok(yosys)` AND
+  `scenario_in_diff_sim_subset(scenario_dir)` (the sentinel
+  lookup). Friendly no-op when simulators absent
+  (`tools_present()` probe → `ran: false` with skip reason; the
+  matrix still exits clean).
+
+- **`parse_dut_ports` + `emit_testbench_for_ports` helpers.** The
+  matrix doesn't keep the typed `Module` in scope past prepare;
+  the diff-sim path therefore parses the port section from the
+  already-emitted SV file and builds a testbench from the parsed
+  ports. The parser is whitespace-normalising via
+  `split_whitespace` (NOT fixed-prefix matching) — robust to
+  ANVIL's actual emit format (`"input  logic"` with two spaces —
+  see `src/emit/sv.rs:124`). The matrix-side testbench emitter
+  mirrors `anvil::diff_sim::emit_testbench`'s shape exactly
+  (cycle-accurate `@(negedge clk)`/`@(posedge clk)` idiom for
+  sequential; `#1` settle + `$display` for combinational); the
+  IR-driven version remains canonical and is what
+  `tests/diff_sim.rs`'s `#[ignore]` proofs exercise.
+
+- **Self-describing reports.** `MatrixReport` gains
+  `diff_sim_enabled: bool` + `diff_sim_subset: Vec<String>` —
+  readers see which scenarios were actually gated. The fields are
+  `#[serde(default)]` so the JSON schema stays backward-compatible.
+
+- **Test scaffold.** `test_cli()` updated with `diff_sim: false`
+  default; 3 `ModuleReport`-construction sites in tests patched to
+  `diff_sim: None`. 8 new cargo-portable proofs:
+  `diff_sim_cli_flag_defaults_to_false_and_parses_when_set` /
+  `classify_diff_sim_axis_buckets_each_axis_correctly` /
+  `select_diff_sim_subset_picks_first_per_axis_and_caps_at_five` /
+  `diff_sim_subset_against_default_scenarios_is_nonempty_and_capped` /
+  `merge_coverage_unions_saw_design_with_cross_simulator_agreement` /
+  `summarize_coverage_lights_cross_simulator_agreement_from_any_passing_diff_sim` /
+  `parse_dut_ports_recognises_anvil_emitter_shape` /
+  `emit_testbench_for_ports_renders_combinational_and_sequential_shapes`.
+  1 tool-gated `#[ignore]` end-to-end gate:
+  `run_diff_sim_for_module_end_to_end_gate` — generates a seed=7
+  combinational `Module`, calls `run_diff_sim_for_module` on the
+  emitted SV, asserts `DiffSimReport { ran: true, success: true,
+  n_samples > 0 }`.
+
+**Why it matters**
+
+- **First gate to wire downstream-tool *semantic* agreement into
+  the repo-owned `tool_matrix` flow.** Per
+  `project_anvil_north_star.md`: ANVIL's purpose is to surface
+  downstream-tool bugs via valid-by-construction +
+  downstream-acceptance-quality output. The existing matrix
+  columns prove output is *accepted* (parses + synthesises); the
+  `--diff-sim` column proves it is *semantically equivalent*
+  across independent simulators. That is the signoff-quality bar
+  this tree was created to deliver (`docs/tasks/DIFFERENTIAL-SIMULATION.md`
+  Goal).
+
+- **Validates the proven Phase 7/8/9 design-first discipline at
+  one finer granularity.** `.3a` settled the structural choices
+  in docs; `.3b.1` made the clean refactor that gave `.3b.2` a
+  stable library surface; `.3b.2` was a focused implementation
+  pass with no back-pressure on architectural questions.
+
+- **Found-and-fixed bug during the e2e gate** that the
+  cargo-portable parse test missed (ANVIL emits `"input  logic"`
+  with TWO spaces — the synthetic-SV unit test had a single
+  space, so the spec-vs-reality divergence was invisible until
+  the real generator output hit the parser). This is the
+  textbook value of the tool-gated `#[ignore]` doctrine — a
+  cheap real-tool round-trip catches what synthetic tests
+  cannot. Useful citation for the next `.3a`-style design entry.
+
+**Tests**
+
+- `cargo fmt --all`/`clippy --all-targets -- -D warnings`/`check
+  --all-targets` all clean. 3 `field-reassign-with-default`
+  clippy hits fixed via struct-update syntax in the new tests.
+- `cargo test --bin tool_matrix` 37 passed (was 29 + 8 new) +
+  1 ignored.
+- `cargo test --bin tool_matrix -- --ignored
+  run_diff_sim_for_module_end_to_end_gate --nocapture`:
+  `DiffSimReport { ran: true, success: true, n_samples: 8,
+  skip_reason: "", mismatch_excerpt: None }`; test passed in
+  24.15s against locally-installed iverilog 13.0 + verilator
+  5.046.
+- `cargo test --lib` 247 unchanged from `.3b.1`.
+- Other suites unchanged: microdesign_parity 15 + 1 ignored,
+  snapshots 6, diff_sim 2 portable + 2 ignored,
+  frontend_parity 12 + 2 ignored, book_examples 3 (**the
+  byte-identical default-`dut` contract from Phase 9 is
+  preserved**), pipeline 121.
+
+**Doctrine / scope**
+
+- Closes `DIFFERENTIAL-SIMULATION.3b.2`, `.3b`, `.3` container.
+  Frontier → `.4` (docs — README + USER_GUIDE + book/src
+  describe the new contract).
+- The `--diff-sim` flag is intentionally OPT-IN — not a
+  gate-elevation flag. Per `.3a`'s rejected-alternatives entry:
+  the simulator runtime would push CI gates over 2h if mandatory.
+  Users who want the fact gated can combine
+  `--diff-sim --fail-on-coverage-gap`.
+- Backward-compatibility preserved: new `MatrixReport` /
+  `ModuleReport` fields are `#[serde(default,
+  skip_serializing_if = "Option::is_none")]` (for `Option`s) or
+  `#[serde(default)]` (for `bool`/`Vec`); legacy checkpoints +
+  reports round-trip.
+
+**Files**
+
+- `src/bin/tool_matrix.rs` (~600 lines added: `Cli.diff_sim`,
+  `DiffSimReport`, `ModuleReport.diff_sim`,
+  `CoverageSummary.saw_design_with_cross_simulator_agreement`,
+  `MatrixReport.diff_sim_enabled`/`diff_sim_subset`,
+  `materialize_prepared_module` wiring, `tool_invocation_ok` +
+  `all_yosys_invocations_ok` preconditions,
+  `scenario_in_diff_sim_subset` sentinel reader,
+  `run_diff_sim_for_module`, `DutPort`, `parse_dut_ports`,
+  `emit_testbench_for_ports`, `push_display_for_ports`,
+  `select_diff_sim_subset`, `classify_diff_sim_axis`,
+  `merge_coverage` + `summarize_coverage` + `test_cli()`
+  updates, 3 `ModuleReport`-construction patches in tests, 8
+  cargo-portable proofs + 1 `#[ignore]` end-to-end gate, sentinel
+  file write in `main()`).
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md` (`.3b.2` → `done`;
+  `.3b` + `.3` → `done`; Verification Log + Commit Log +
+  Changelog entries; frontier → `.4`).
+- `docs/TASK_TREE.md` (`DIFFERENTIAL-SIMULATION` row points at
+  `.4`).
+
 ## 2026-05-24-diff-sim-3b.1 — DIFFERENTIAL-SIMULATION.3b.1 extract harness helpers to src/diff_sim/mod.rs (pure refactor)
 
 **Landed as:** this commit

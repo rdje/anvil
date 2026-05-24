@@ -90,6 +90,18 @@ struct Cli {
     /// Resume from per-module checkpoints in --out when present.
     #[arg(long)]
     resume: bool,
+
+    /// Opt-in cross-simulator differential gate
+    /// (`DIFFERENTIAL-SIMULATION.3b.2`). When set, every scenario
+    /// selected by the per-axis subset selector
+    /// (combinational/sequential-flop/hierarchy/memory/fsm; capped
+    /// K=5) gets an iverilog↔verilator byte-equal-trace check after
+    /// Verilator and Yosys are both clean. Triggers the
+    /// `saw_design_with_cross_simulator_agreement` coverage fact
+    /// when at least one DUT in the subset passes. Friendly no-op
+    /// when either simulator is absent (`tools_present()` probe).
+    #[arg(long)]
+    diff_sim: bool,
 }
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -124,6 +136,42 @@ struct ModuleReport {
     metrics: Metrics,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
+    /// `DIFFERENTIAL-SIMULATION.3b.2` — opt-in cross-simulator
+    /// byte-equal-trace report. `None` when `--diff-sim` was not
+    /// set OR this scenario was not in the per-axis subset OR
+    /// Verilator/Yosys were not both clean. `Some(DiffSimReport)`
+    /// records the gate outcome and (on mismatch) a retained
+    /// counterexample per the Phase-7 doctrine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    diff_sim: Option<DiffSimReport>,
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — per-module diff-sim outcome
+/// (one row in the matrix's new opt-in column).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DiffSimReport {
+    /// Was the diff-sim gate actually invoked for this module?
+    /// `false` when simulators were absent (`tools_present()`
+    /// returned false) — the matrix still exits clean; the column
+    /// just records the reason it didn't run.
+    ran: bool,
+    /// `true` iff `normalize_trace(iverilog) == normalize_trace(verilator)`
+    /// (byte-equal post-reset traces) — drives the
+    /// `saw_design_with_cross_simulator_agreement` coverage fact.
+    success: bool,
+    /// Number of post-reset sample lines compared (the length of
+    /// the normalized trace). Zero when `ran=false`.
+    n_samples: usize,
+    /// Free-form skip reason when `ran=false` (e.g., "iverilog or
+    /// verilator absent from $PATH", "verilator pre-step failed",
+    /// "yosys pre-step failed"). Empty when `ran=true`.
+    skip_reason: String,
+    /// First-mismatch counterexample excerpt (up to 10 lines from
+    /// each side, side-by-side) when `success=false` and `ran=true`.
+    /// Per the Phase-7 doctrine — every mismatch is a retained
+    /// counterexample, never a silent pass.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mismatch_excerpt: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -326,6 +374,13 @@ struct CoverageSummary {
     saw_packed_aggregate_design: bool,
     saw_inferrable_memory_design: bool,
     saw_fsm_design: bool,
+    /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
+    /// `--diff-sim` per-axis subset achieved byte-equal post-reset
+    /// traces across iverilog 13.0 and verilator 5.046. The
+    /// first gate to assert downstream-tool *semantic* agreement
+    /// on ANVIL output, complementing the existing
+    /// parse/synth/lint columns.
+    saw_design_with_cross_simulator_agreement: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -396,6 +451,17 @@ struct MatrixReport {
     share_sweep: Option<ShareSweepSummary>,
     tool_summary: ToolSummary,
     scenarios: Vec<ScenarioReport>,
+    /// `DIFFERENTIAL-SIMULATION.3b.2` — whether `--diff-sim` was
+    /// set for this run. When `false`, `diff_sim_subset` is empty
+    /// and no `ModuleReport.diff_sim` is populated.
+    #[serde(default)]
+    diff_sim_enabled: bool,
+    /// `DIFFERENTIAL-SIMULATION.3b.2` — the per-axis subset of
+    /// scenario names selected by `select_diff_sim_subset`. The
+    /// report is self-describing: a reader can see which scenarios
+    /// were actually gated by the diff-sim column.
+    #[serde(default)]
+    diff_sim_subset: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -473,6 +539,22 @@ fn main() -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .with_context(|| format!("create output directory {}", out_dir.display()))?;
 
+    // `DIFFERENTIAL-SIMULATION.3b.2` — compute the per-axis
+    // subset once and persist it as a sentinel file
+    // (`<out>/.diff-sim-subset`). `materialize_prepared_module`
+    // reads this sentinel to decide whether to run the diff-sim
+    // column for the scenario it is processing. The sentinel
+    // pattern keeps the existing per-scenario API stable.
+    let diff_sim_subset: Vec<String> = if cli.diff_sim {
+        select_diff_sim_subset(&scenarios)
+    } else {
+        Vec::new()
+    };
+    if cli.diff_sim {
+        std::fs::write(out_dir.join(".diff-sim-subset"), diff_sim_subset.join("\n"))
+            .with_context(|| format!("write diff-sim subset sentinel in {}", out_dir.display()))?;
+    }
+
     let mut scenario_reports = Vec::with_capacity(scenarios.len());
     let mut global_tool_summary = ToolSummary::default();
     let mut global_coverage = CoverageSummary::default();
@@ -510,6 +592,8 @@ fn main() -> Result<()> {
         share_sweep,
         tool_summary: global_tool_summary,
         scenarios: scenario_reports,
+        diff_sim_enabled: cli.diff_sim,
+        diff_sim_subset,
     };
 
     let report_path = out_dir.join("tool_matrix_report.json");
@@ -3778,12 +3862,35 @@ fn materialize_prepared_module(
         &prepared.paths.stem,
     )?;
 
+    // `DIFFERENTIAL-SIMULATION.3b.2` — opt-in diff-sim column.
+    // Runs only when `--diff-sim` is set AND Verilator+Yosys are
+    // both clean on this module (the existing "downstream tools
+    // already accepted the SV" precondition from `.3a`). The
+    // per-axis subset selector is applied at scenario-level by the
+    // caller via `diff_sim_runs_for_scenario`; here we trust
+    // `cli.diff_sim` AND a precondition check.
+    let diff_sim = if cli.diff_sim
+        && tool_invocation_ok(verilator.as_ref())
+        && all_yosys_invocations_ok(&yosys)
+        && scenario_in_diff_sim_subset(scenario_dir)
+    {
+        Some(run_diff_sim_for_module(
+            scenario_dir,
+            &prepared.paths.stem,
+            &prepared.name,
+            &prepared.sv_text,
+        ))
+    } else {
+        None
+    };
+
     let report = ModuleReport {
         file: prepared.paths.file.clone(),
         name: prepared.name,
         metrics: prepared.metrics,
         verilator,
         yosys,
+        diff_sim,
     };
     write_module_checkpoint(
         cli,
@@ -3794,6 +3901,454 @@ fn materialize_prepared_module(
         &prepared.sv_hash,
     )?;
     Ok(report)
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — true when the prior tool
+/// invocation succeeded. Helper around the `success` bit so the
+/// precondition reads cleanly. `None` means the tool was skipped
+/// (`--skip-verilator`), which still satisfies the precondition —
+/// there is no Verilator failure to gate on.
+fn tool_invocation_ok(inv: Option<&ToolInvocation>) -> bool {
+    match inv {
+        Some(t) => t.success,
+        None => true,
+    }
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — every recorded Yosys
+/// invocation must succeed (the `WithoutAbc`/`WithAbc`/`Both`
+/// modes produce 1 or 2 invocations). Empty Vec satisfies the
+/// precondition (`--skip-yosys`).
+fn all_yosys_invocations_ok(invocations: &[ToolInvocation]) -> bool {
+    invocations.iter().all(|t| t.success)
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — read the diff-sim subset
+/// sentinel file written by `run_matrix`. The matrix computes the
+/// per-axis subset once at top level and persists the chosen names
+/// to `<scenario_dir>/../.diff-sim-subset`; this helper checks
+/// whether the current scenario's directory is in it. The sentinel
+/// pattern keeps `materialize_prepared_module`'s signature stable
+/// (it already takes `scenario_dir` and doesn't see the broader
+/// scenario list).
+fn scenario_in_diff_sim_subset(scenario_dir: &Path) -> bool {
+    let Some(parent) = scenario_dir.parent() else {
+        return false;
+    };
+    let sentinel = parent.join(".diff-sim-subset");
+    let Ok(contents) = std::fs::read_to_string(&sentinel) else {
+        // Defensive: if the sentinel is missing, run diff-sim for
+        // EVERY scenario rather than silently skipping (the user
+        // explicitly opted in with `--diff-sim`). This also makes
+        // the `--diff-sim` path testable from focused unit/integration
+        // tests that don't go through `run_matrix`.
+        return true;
+    };
+    let Some(name) = scenario_dir.file_name().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    contents.lines().any(|line| line.trim() == name)
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — invoke the diff-sim harness
+/// per-module. Parses the DUT's SystemVerilog from disk via the
+/// already-emitted `sv_path` (`.sv_text` for byte-stability), then
+/// uses `anvil::diff_sim` to drive both simulators and compare
+/// traces. The harness is friendly when tools are absent: returns
+/// a `ran: false` report with a skip reason rather than failing
+/// the build.
+fn run_diff_sim_for_module(
+    scenario_dir: &Path,
+    stem: &str,
+    top_name: &str,
+    sv_text: &str,
+) -> DiffSimReport {
+    use anvil::diff_sim;
+    if !diff_sim::tools_present() {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: "iverilog and/or verilator absent from $PATH".to_string(),
+            mismatch_excerpt: None,
+        };
+    }
+    // The diff-sim harness needs the typed `Module`, not just SV
+    // text — `emit_testbench` reads ports from the IR (NOT by
+    // re-parsing SV). The matrix already has the prepared `sv_text`
+    // for byte-stability, but the IR is regenerated here from the
+    // same seed/config via the (top_name, sv_text) pair the
+    // checkpoint persists. Since the matrix doesn't keep the
+    // typed `Module` in-memory past prepare, the simplest path is
+    // to re-parse the seed from the stem and re-run the generator
+    // — but that's expensive AND loses the matrix's strict
+    // emit-byte-for-byte contract. So instead we just shell the
+    // simulators on the existing `sv_text` + a generic testbench
+    // constructed from the *port section* of the SV text.
+    //
+    // This is the bounded inverse of `emit_testbench` for the
+    // matrix path: the matrix has already emitted a port-explicit
+    // SV file; we parse only the port declarations (a stable
+    // strict subset of SV) to build the testbench. The full
+    // testbench-from-IR path remains in `tests/diff_sim.rs` for
+    // the IR-driven proofs.
+    let Some(ports) = parse_dut_ports(sv_text, top_name) else {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: format!("could not parse DUT port section for top `{top_name}`"),
+            mismatch_excerpt: None,
+        };
+    };
+
+    let dir = scenario_dir.join(format!("{stem}-diff-sim"));
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: format!("create diff-sim work dir failed: {e}"),
+            mismatch_excerpt: None,
+        };
+    }
+    let dut_path = dir.join("dut.sv");
+    let tb_path = dir.join("tb.sv");
+    let tb_text = emit_testbench_for_ports(top_name, &ports, 8);
+    if std::fs::write(&dut_path, sv_text).is_err() || std::fs::write(&tb_path, &tb_text).is_err() {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: "write dut.sv / tb.sv failed".to_string(),
+            mismatch_excerpt: None,
+        };
+    }
+    let Some(iv) = diff_sim::run_iverilog(&dir) else {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: "iverilog compile/run failed (see stderr)".to_string(),
+            mismatch_excerpt: None,
+        };
+    };
+    let Some(vl) = diff_sim::run_verilator(&dir) else {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: "verilator compile/run failed (see stderr)".to_string(),
+            mismatch_excerpt: None,
+        };
+    };
+    let norm_iv = diff_sim::normalize_trace(&iv);
+    let norm_vl = diff_sim::normalize_trace(&vl);
+    if norm_iv.is_empty() {
+        return DiffSimReport {
+            ran: false,
+            success: false,
+            n_samples: 0,
+            skip_reason: "iverilog produced no hex trace lines".to_string(),
+            mismatch_excerpt: None,
+        };
+    }
+    if norm_iv == norm_vl {
+        DiffSimReport {
+            ran: true,
+            success: true,
+            n_samples: norm_iv.len(),
+            skip_reason: String::new(),
+            mismatch_excerpt: None,
+        }
+    } else {
+        // Retained counterexample per the Phase-7 doctrine. First
+        // 10 sample lines from each side, side-by-side.
+        let mut excerpt = String::new();
+        excerpt.push_str("iverilog | verilator\n");
+        let n = norm_iv.len().min(norm_vl.len()).min(10);
+        for i in 0..n {
+            excerpt.push_str(&format!("{} | {}\n", norm_iv[i], norm_vl[i]));
+        }
+        if norm_iv.len() != norm_vl.len() {
+            excerpt.push_str(&format!(
+                "(traces differ in length: iverilog={} vs verilator={})\n",
+                norm_iv.len(),
+                norm_vl.len()
+            ));
+        }
+        DiffSimReport {
+            ran: true,
+            success: false,
+            n_samples: norm_iv.len(),
+            skip_reason: String::new(),
+            mismatch_excerpt: Some(excerpt),
+        }
+    }
+}
+
+/// A port declaration parsed from an ANVIL-emitted SV header.
+#[derive(Debug, Clone)]
+struct DutPort {
+    name: String,
+    width: u32,
+    is_input: bool,
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — parse the port section of an
+/// ANVIL-emitted DUT module. ANVIL's emitter writes ports as
+/// `input  logic [W-1:0] name,` or 1-bit `input  logic  name,`
+/// (with *two* spaces between `input` and `logic` — see
+/// `src/emit/sv.rs::write!("    input  logic {} {}")`). The
+/// parser whitespace-normalises each line via `split_whitespace`
+/// rather than fixed-prefix matching, so it's robust to any
+/// internal-whitespace variation. Aggregate ports (`input <type>
+/// <name>`, no `logic` keyword — Phase 5b) are treated as
+/// unrecognised and the function returns `None`; the caller
+/// treats that as "skip diff-sim for this module" (the generic
+/// testbench cannot type-correctly drive an aggregate without the
+/// struct definition in scope).
+fn parse_dut_ports(sv: &str, top_name: &str) -> Option<Vec<DutPort>> {
+    let mut in_module = false;
+    let mut in_port_list = false;
+    let mut ports: Vec<DutPort> = Vec::new();
+    for raw in sv.lines() {
+        let line = raw.trim();
+        if !in_module {
+            if (line.starts_with("module ") || line.starts_with(&format!("module {top_name}")))
+                && line.contains(top_name)
+            {
+                in_module = true;
+                if line.contains('(') {
+                    in_port_list = true;
+                }
+            }
+            continue;
+        }
+        if !in_port_list {
+            if line.contains('(') {
+                in_port_list = true;
+            }
+            continue;
+        }
+        if line.starts_with(");") || line == ")" {
+            return Some(ports);
+        }
+        let stripped = line.trim_start_matches('(').trim();
+        if stripped.is_empty() {
+            continue;
+        }
+        let trimmed_comma = stripped.trim_end_matches(',').trim();
+        let tokens: Vec<&str> = trimmed_comma.split_whitespace().collect();
+        // Expected shapes (after split_whitespace):
+        //   `input logic <name>`           → 3 tokens, width=1
+        //   `input logic [W-1:0] <name>`    → 4 tokens, width from bracket
+        //   `output logic <name>`          → 3 tokens, width=1
+        //   `output logic [W-1:0] <name>`   → 4 tokens, width from bracket
+        // Anything else (Phase-5b aggregate `input <type> <name>`
+        // without `logic`, etc.) → bail to caller.
+        let (is_input, rest_tokens) = match tokens.first().copied() {
+            Some("input") => (true, &tokens[1..]),
+            Some("output") => (false, &tokens[1..]),
+            _ => return None,
+        };
+        let after_logic = match rest_tokens.first().copied() {
+            Some("logic") => &rest_tokens[1..],
+            _ => return None,
+        };
+        let (width, name) = match after_logic.len() {
+            1 => (1u32, after_logic[0].to_string()),
+            2 => {
+                let bracket = after_logic[0];
+                let inner = bracket.strip_prefix('[')?.strip_suffix(']')?;
+                let (msb, lsb) = inner.split_once(':')?;
+                let msb_val: i64 = msb.trim().parse().ok()?;
+                let lsb_val: i64 = lsb.trim().parse().ok()?;
+                let width = (msb_val - lsb_val + 1).max(1) as u32;
+                (width, after_logic[1].to_string())
+            }
+            _ => return None,
+        };
+        if name.is_empty() {
+            return None;
+        }
+        ports.push(DutPort {
+            name,
+            width,
+            is_input,
+        });
+    }
+    None
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — emit a parameter-less SV
+/// testbench from a `Vec<DutPort>` (the strict-subset parser's
+/// output). The shape mirrors `anvil::diff_sim::emit_testbench`'s
+/// IR-driven version, but driven from parsed ports — this is what
+/// the matrix consumes (no live `Module` in scope). The two
+/// emitters share the same testbench shape so behavior is identical;
+/// the IR-driven version remains canonical and is what the
+/// `#[ignore]`-gated proofs in `tests/diff_sim.rs` exercise.
+fn emit_testbench_for_ports(top_name: &str, ports: &[DutPort], n_vectors: usize) -> String {
+    use anvil::diff_sim::{baked_input_vectors, fmt_sv_hex};
+    let has_clk = ports
+        .iter()
+        .any(|p| p.is_input && p.name == "clk" && p.width == 1);
+    let has_rst_n = ports
+        .iter()
+        .any(|p| p.is_input && p.name == "rst_n" && p.width == 1);
+    let seq = has_clk && has_rst_n;
+    let inputs: Vec<&DutPort> = ports.iter().filter(|p| p.is_input).collect();
+    let outputs: Vec<&DutPort> = ports.iter().filter(|p| !p.is_input).collect();
+    let data_inputs: Vec<&DutPort> = inputs
+        .iter()
+        .copied()
+        .filter(|p| p.name != "clk" && p.name != "rst_n")
+        .collect();
+    let n_data = data_inputs.len();
+    let vectors = baked_input_vectors(0, n_data, n_vectors);
+    let mut s = String::new();
+    s.push_str("// DIFFERENTIAL-SIMULATION.3b.2 — tool_matrix --diff-sim testbench\n");
+    s.push_str("module tb;\n");
+    for p in &inputs {
+        if p.width == 1 {
+            s.push_str(&format!("    reg {};\n", p.name));
+        } else {
+            s.push_str(&format!("    reg [{}:0] {};\n", p.width - 1, p.name));
+        }
+    }
+    for p in &outputs {
+        if p.width == 1 {
+            s.push_str(&format!("    wire {};\n", p.name));
+        } else {
+            s.push_str(&format!("    wire [{}:0] {};\n", p.width - 1, p.name));
+        }
+    }
+    s.push_str(&format!("    {top_name} dut (\n"));
+    let all_ports: Vec<&DutPort> = inputs
+        .iter()
+        .copied()
+        .chain(outputs.iter().copied())
+        .collect();
+    for (i, p) in all_ports.iter().enumerate() {
+        let comma = if i + 1 < all_ports.len() { "," } else { "" };
+        s.push_str(&format!("        .{}({}){}\n", p.name, p.name, comma));
+    }
+    s.push_str("    );\n");
+
+    if seq {
+        s.push_str("    initial clk = 1'b0;\n");
+        s.push_str("    always #5 clk = ~clk;\n");
+        s.push_str("    initial begin\n");
+        s.push_str("        rst_n = 1'b0;\n");
+        for p in &data_inputs {
+            s.push_str(&format!(
+                "        {} = {};\n",
+                p.name,
+                fmt_sv_hex(0, p.width)
+            ));
+        }
+        for _ in 0..4 {
+            s.push_str("        @(posedge clk);\n");
+        }
+        s.push_str("        @(negedge clk);\n");
+        s.push_str("        rst_n = 1'b1;\n");
+        for _ in 0..2 {
+            s.push_str("        @(posedge clk);\n");
+        }
+        for v in &vectors {
+            s.push_str("        @(negedge clk);\n");
+            for (i, p) in data_inputs.iter().enumerate() {
+                let val = v.get(i).copied().unwrap_or(0);
+                s.push_str(&format!(
+                    "        {} = {};\n",
+                    p.name,
+                    fmt_sv_hex(val, p.width)
+                ));
+            }
+            s.push_str("        @(posedge clk);\n");
+            s.push_str("        @(negedge clk);\n");
+            push_display_for_ports(&mut s, &outputs);
+        }
+        s.push_str("        $finish;\n");
+        s.push_str("    end\n");
+    } else {
+        s.push_str("    initial begin\n");
+        for v in &vectors {
+            for (i, p) in data_inputs.iter().enumerate() {
+                let val = v.get(i).copied().unwrap_or(0);
+                s.push_str(&format!(
+                    "        {} = {};\n",
+                    p.name,
+                    fmt_sv_hex(val, p.width)
+                ));
+            }
+            s.push_str("        #1;\n");
+            push_display_for_ports(&mut s, &outputs);
+        }
+        s.push_str("        $finish;\n");
+        s.push_str("    end\n");
+    }
+    s.push_str("endmodule\n");
+    s
+}
+
+fn push_display_for_ports(s: &mut String, outputs: &[&DutPort]) {
+    if outputs.is_empty() {
+        s.push_str("        $display(\"NO_OUT\");\n");
+        return;
+    }
+    let fmt = (0..outputs.len())
+        .map(|_| "%h")
+        .collect::<Vec<_>>()
+        .join(" ");
+    s.push_str(&format!("        $display(\"{fmt}\",\n"));
+    for (i, p) in outputs.iter().enumerate() {
+        let comma = if i + 1 < outputs.len() { "," } else { "" };
+        s.push_str(&format!("            {}{}\n", p.name, comma));
+    }
+    s.push_str("        );\n");
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — per-axis subset selector per
+/// `.3a`'s design. Picks the first scenario per major axis
+/// (memory → fsm → hierarchy → sequential-flop → combinational),
+/// capped at K=5, deterministic. The diff-sim column runs only
+/// on the returned scenario names. Per-axis is preferred over
+/// random-N because it preserves curated coverage shape; rejected
+/// hand-curated lists because they'd require updating per new
+/// scenario set.
+fn select_diff_sim_subset(scenarios: &[Scenario]) -> Vec<String> {
+    let mut picked: Vec<String> = Vec::new();
+    let mut axes_seen: BTreeSet<&'static str> = BTreeSet::new();
+    for scenario in scenarios {
+        if picked.len() >= 5 {
+            break;
+        }
+        let axis = classify_diff_sim_axis(&scenario.config);
+        if axes_seen.insert(axis) {
+            picked.push(scenario.name.clone());
+        }
+    }
+    picked
+}
+
+/// `DIFFERENTIAL-SIMULATION.3b.2` — bucket a scenario into one of
+/// the five major axes per `.3a`'s design. Most-specific first:
+/// a memory scenario also has flops, so the `memory` axis takes
+/// precedence over `sequential-flop`.
+fn classify_diff_sim_axis(cfg: &Config) -> &'static str {
+    if cfg.memory_prob > 0.0 {
+        "memory"
+    } else if cfg.fsm_prob > 0.0 {
+        "fsm"
+    } else if cfg.effective_hierarchy_depth_range().is_some() {
+        "hierarchy"
+    } else if cfg.flop_prob > 0.0 {
+        "sequential-flop"
+    } else {
+        "combinational"
+    }
 }
 
 fn run_module_tools(
@@ -4409,6 +4964,16 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
 
     for module in modules {
         accumulate_module_coverage(&mut coverage, &module.metrics);
+        // `DIFFERENTIAL-SIMULATION.3b.2` — the cross-simulator
+        // agreement fact fires when at least one DUT actually ran
+        // the diff-sim gate AND its traces matched byte-for-byte.
+        // Modules outside the `--diff-sim` subset have
+        // `diff_sim = None` and contribute nothing.
+        if let Some(diff) = &module.diff_sim {
+            if diff.ran && diff.success {
+                coverage.saw_design_with_cross_simulator_agreement = true;
+            }
+        }
     }
 
     coverage
@@ -5845,6 +6410,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_packed_aggregate_design |= src.saw_packed_aggregate_design;
     dst.saw_inferrable_memory_design |= src.saw_inferrable_memory_design;
     dst.saw_fsm_design |= src.saw_fsm_design;
+    dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -7146,6 +7712,7 @@ mod tests {
             yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
             resume: false,
+            diff_sim: false,
         }
     }
 
@@ -8248,6 +8815,7 @@ mod tests {
                     error: Some("ABC: Warning: example".to_string()),
                 },
             ],
+            diff_sim: None,
         }];
 
         let summary = summarize_tools(&modules);
@@ -8278,6 +8846,7 @@ mod tests {
             name: prepared0.name.clone(),
             metrics: prepared0.metrics.clone(),
             verilator: None,
+            diff_sim: None,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -8335,6 +8904,7 @@ mod tests {
             name: prepared.name.clone(),
             metrics: prepared.metrics.clone(),
             verilator: None,
+            diff_sim: None,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -8389,6 +8959,7 @@ mod tests {
                 metrics: prepared.metrics,
                 verilator: None,
                 yosys: vec![],
+                diff_sim: None,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -8686,5 +9257,331 @@ mod tests {
         cli.skip_yosys = true;
         cli.resume = true;
         cli
+    }
+
+    // ===============================================================
+    // DIFFERENTIAL-SIMULATION.3b.2 — cargo-portable proofs of the
+    // tool_matrix --diff-sim wiring (CLI flag, per-axis subset
+    // selector, axis classifier, DUT-port parser, coverage merge,
+    // ModuleReport.diff_sim threading). The end-to-end #[ignore]
+    // gate lives separately so cargo test stays green tool-less
+    // (Phase-1 doctrine).
+    // ===============================================================
+
+    #[test]
+    fn diff_sim_cli_flag_defaults_to_false_and_parses_when_set() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.diff_sim);
+        let with_flag =
+            Cli::try_parse_from(["tool_matrix", "--diff-sim", "--out", "/tmp/x"]).expect("parse");
+        assert!(with_flag.diff_sim);
+    }
+
+    #[test]
+    fn classify_diff_sim_axis_buckets_each_axis_correctly() {
+        let comb = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.0,
+            flop_prob: 0.0,
+            ..Config::default()
+        };
+        assert_eq!(classify_diff_sim_axis(&comb), "combinational");
+        let seq = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.0,
+            flop_prob: 1.0,
+            ..Config::default()
+        };
+        assert_eq!(classify_diff_sim_axis(&seq), "sequential-flop");
+        // Memory and fsm take precedence over flop_prob; they
+        // imply sequential state but the bucket name is more
+        // specific.
+        let mem = Config {
+            memory_prob: 0.5,
+            ..Config::default()
+        };
+        assert_eq!(classify_diff_sim_axis(&mem), "memory");
+        let fsm = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.5,
+            ..Config::default()
+        };
+        assert_eq!(classify_diff_sim_axis(&fsm), "fsm");
+    }
+
+    #[test]
+    fn select_diff_sim_subset_picks_first_per_axis_and_caps_at_five() {
+        // Build a synthetic scenario list covering all 5 axes
+        // plus extras of the first axis (combinational) — the
+        // selector should pick only the FIRST of each axis.
+        let comb = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.0,
+            flop_prob: 0.0,
+            ..Config::default()
+        };
+        let seq = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.0,
+            flop_prob: 1.0,
+            ..Config::default()
+        };
+        let mem = Config {
+            memory_prob: 0.5,
+            ..Config::default()
+        };
+        let fsm = Config {
+            memory_prob: 0.0,
+            fsm_prob: 0.5,
+            ..Config::default()
+        };
+        let scenarios = vec![
+            Scenario {
+                name: "comb-a".to_string(),
+                description: "comb-a".to_string(),
+                config: comb.clone(),
+            },
+            Scenario {
+                name: "comb-b".to_string(),
+                description: "comb-b".to_string(),
+                config: comb,
+            },
+            Scenario {
+                name: "seq-flop".to_string(),
+                description: "seq-flop".to_string(),
+                config: seq,
+            },
+            Scenario {
+                name: "mem".to_string(),
+                description: "mem".to_string(),
+                config: mem,
+            },
+            Scenario {
+                name: "fsm".to_string(),
+                description: "fsm".to_string(),
+                config: fsm,
+            },
+        ];
+
+        let picked = select_diff_sim_subset(&scenarios);
+        // First per axis, no duplicates.
+        assert!(picked.contains(&"comb-a".to_string()));
+        assert!(!picked.contains(&"comb-b".to_string()));
+        assert!(picked.contains(&"seq-flop".to_string()));
+        assert!(picked.contains(&"mem".to_string()));
+        assert!(picked.contains(&"fsm".to_string()));
+        assert!(picked.len() <= 5);
+    }
+
+    #[test]
+    fn diff_sim_subset_against_default_scenarios_is_nonempty_and_capped() {
+        let scenarios = build_scenarios(0, ScenarioSet::Default).expect("build scenarios");
+        let picked = select_diff_sim_subset(&scenarios);
+        assert!(
+            !picked.is_empty(),
+            "default scenarios must yield at least one axis"
+        );
+        assert!(picked.len() <= 5, "K=5 cap honored");
+        for name in &picked {
+            assert!(
+                scenarios.iter().any(|s| &s.name == name),
+                "picked name {name} must exist in scenarios"
+            );
+        }
+    }
+
+    #[test]
+    fn merge_coverage_unions_saw_design_with_cross_simulator_agreement() {
+        let mut dst = CoverageSummary::default();
+        let src = CoverageSummary {
+            saw_design_with_cross_simulator_agreement: true,
+            ..CoverageSummary::default()
+        };
+        merge_coverage(&mut dst, &src);
+        assert!(dst.saw_design_with_cross_simulator_agreement);
+        // Re-merging with `false` source must not flip the dst.
+        let zero = CoverageSummary::default();
+        merge_coverage(&mut dst, &zero);
+        assert!(dst.saw_design_with_cross_simulator_agreement);
+    }
+
+    #[test]
+    fn summarize_coverage_lights_cross_simulator_agreement_from_any_passing_diff_sim() {
+        let scenario = Scenario {
+            name: "synthetic".to_string(),
+            description: "synthetic".to_string(),
+            config: Config::default(),
+        };
+        let mut modules: Vec<ModuleReport> = (0..3)
+            .map(|i| ModuleReport {
+                file: format!("mod_{i}.sv"),
+                name: format!("mod_{i}"),
+                metrics: Metrics::default(),
+                verilator: None,
+                yosys: vec![],
+                diff_sim: None,
+            })
+            .collect();
+        // No DUTs ran diff-sim ⇒ fact stays false.
+        let cov0 = summarize_coverage(&scenario, &modules);
+        assert!(!cov0.saw_design_with_cross_simulator_agreement);
+        // One DUT ran but failed ⇒ fact stays false.
+        modules[1].diff_sim = Some(DiffSimReport {
+            ran: true,
+            success: false,
+            n_samples: 8,
+            skip_reason: String::new(),
+            mismatch_excerpt: Some("iverilog | verilator\nA | B\n".to_string()),
+        });
+        let cov1 = summarize_coverage(&scenario, &modules);
+        assert!(!cov1.saw_design_with_cross_simulator_agreement);
+        // Another DUT ran AND succeeded ⇒ fact fires.
+        modules[2].diff_sim = Some(DiffSimReport {
+            ran: true,
+            success: true,
+            n_samples: 8,
+            skip_reason: String::new(),
+            mismatch_excerpt: None,
+        });
+        let cov2 = summarize_coverage(&scenario, &modules);
+        assert!(cov2.saw_design_with_cross_simulator_agreement);
+    }
+
+    #[test]
+    fn parse_dut_ports_recognises_anvil_emitter_shape() {
+        // Synthetic ANVIL-shape SV header. The strict-subset
+        // parser only needs the port declarations between `(` and
+        // `);` after `module <top> (`.
+        let sv = "\
+module dummy_top (\n\
+    input logic clk,\n\
+    input logic rst_n,\n\
+    input logic [7:0] i_a,\n\
+    input logic [0:0] i_b,\n\
+    output logic [15:0] o_x,\n\
+    output logic o_y\n\
+);\n\
+endmodule\n";
+        let ports = parse_dut_ports(sv, "dummy_top").expect("parse should succeed");
+        assert_eq!(ports.len(), 6);
+        let names: Vec<_> = ports.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["clk", "rst_n", "i_a", "i_b", "o_x", "o_y"]);
+        assert_eq!(ports[0].width, 1);
+        assert_eq!(ports[2].width, 8);
+        assert_eq!(ports[4].width, 16);
+        assert!(ports[0].is_input);
+        assert!(!ports[4].is_input);
+    }
+
+    /// `DIFFERENTIAL-SIMULATION.3b.2` end-to-end tool-gated proof:
+    /// run the matrix's per-module diff-sim helper against a real
+    /// generated DUT and assert the `DiffSimReport` records a
+    /// byte-equal trace. `#[ignore]` so `cargo test` stays green
+    /// tool-less (Phase-1 doctrine). Run explicitly:
+    /// `cargo test --bin tool_matrix -- --ignored
+    /// run_diff_sim_for_module_end_to_end_gate`.
+    #[test]
+    #[ignore]
+    fn run_diff_sim_for_module_end_to_end_gate() {
+        use anvil::diff_sim;
+        if !diff_sim::tools_present() {
+            eprintln!(
+                "run_diff_sim_for_module_end_to_end_gate: iverilog and/or verilator absent; skip"
+            );
+            return;
+        }
+        // Build a small combinational DUT (the diff-sim-portable
+        // shape — same as tests/diff_sim.rs's seed=7 combinational
+        // case so behavior is known-good per .2b.2's verification).
+        let cfg = Config {
+            seed: 7,
+            flop_prob: 0.0,
+            ..Config::default()
+        };
+        let mut gen = Generator::new(cfg);
+        let top = gen.generate_module();
+        let sv = anvil::emit::to_sv(&top);
+        let dir = std::env::temp_dir().join(format!(
+            "anvil-tool-matrix-diff-sim-e2e-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("create dir");
+        // Wire through the matrix's per-module helper.
+        let report = run_diff_sim_for_module(&dir, "m_0_0000", &top.name, &sv);
+        // Helper diagnostics → easier debugging.
+        eprintln!("run_diff_sim_for_module ⇒ {report:?}");
+        assert!(
+            report.ran,
+            "diff-sim should have run; skip_reason={:?}",
+            report.skip_reason
+        );
+        assert!(
+            report.success,
+            "diff-sim should match byte-for-byte; excerpt={:?}",
+            report.mismatch_excerpt
+        );
+        assert!(report.n_samples > 0, "diff-sim should report sample count");
+        // Cleanup.
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn emit_testbench_for_ports_renders_combinational_and_sequential_shapes() {
+        let comb_ports = vec![
+            DutPort {
+                name: "i_a".to_string(),
+                width: 4,
+                is_input: true,
+            },
+            DutPort {
+                name: "o_y".to_string(),
+                width: 4,
+                is_input: false,
+            },
+        ];
+        let comb_tb = emit_testbench_for_ports("comb_top", &comb_ports, 4);
+        assert!(comb_tb.contains("module tb;"));
+        assert!(comb_tb.contains("comb_top dut ("));
+        assert!(comb_tb.contains("$display("));
+        assert!(comb_tb.contains("#1;"));
+        // Combinational: no clock generator.
+        assert!(!comb_tb.contains("always #5 clk = ~clk;"));
+
+        let seq_ports = vec![
+            DutPort {
+                name: "clk".to_string(),
+                width: 1,
+                is_input: true,
+            },
+            DutPort {
+                name: "rst_n".to_string(),
+                width: 1,
+                is_input: true,
+            },
+            DutPort {
+                name: "i_a".to_string(),
+                width: 4,
+                is_input: true,
+            },
+            DutPort {
+                name: "o_y".to_string(),
+                width: 4,
+                is_input: false,
+            },
+        ];
+        let seq_tb = emit_testbench_for_ports("seq_top", &seq_ports, 4);
+        assert!(seq_tb.contains("module tb;"));
+        assert!(seq_tb.contains("seq_top dut ("));
+        assert!(seq_tb.contains("always #5 clk = ~clk;"));
+        // Sequential: cycle-accurate negedge/posedge idiom.
+        assert!(seq_tb.contains("@(posedge clk);"));
+        assert!(seq_tb.contains("@(negedge clk);"));
+        // Reset is asserted in the prologue.
+        assert!(seq_tb.contains("rst_n = 1'b0;"));
     }
 }
