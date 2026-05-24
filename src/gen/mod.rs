@@ -3,6 +3,15 @@
 pub mod cone;
 pub mod hierarchy;
 pub mod module;
+/// `MULTI-CLOCK-CDC.3a` — 2-flop synchronizer construction
+/// primitive for cross-clock-domain signals. Per
+/// `MULTI-CLOCK-CDC.1`'s design + the rules-first generation
+/// doctrine (`feedback_rules_first_generation.md`), the
+/// synchronizer is constructed in place when the generator
+/// makes a domain-crossing decision; never via a post-pass
+/// filter. `.3b` wires this primitive into the per-module
+/// generator's domain-crossing decision path.
+pub mod multi_clock;
 pub mod pool;
 
 use crate::config::Config;

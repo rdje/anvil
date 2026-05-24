@@ -1,5 +1,154 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-3a — MULTI-CLOCK-CDC.3a 2-flop synchronizer construction primitive in src/gen/multi_clock.rs — landed in isolation with 5 cargo-portable proofs
+
+**Landed as:** this commit
+
+**What changed**
+
+Per `MULTI-CLOCK-CDC.1`'s design, the 2-flop synchronizer is the
+first-cut CDC primitive (covers ~80% of real cross-clock-domain
+paths). `.3a` lands the construction primitive in isolation —
+the Generator-side integration + `--multi-clock-prob` knob + the
+`tool_matrix` wiring + coverage facts + downstream-tool gate
+move to `.3b`. `.3` split per the proven Phase-7
+`.2c.2a`/`.2c.2b` + `DIFFERENTIAL-SIMULATION.3b.1`/`.3b.2`
+discipline — the Generator-side integration is sensitive (it
+risks breaking the byte-identical default-`dut` book-runnable
+contract from Phase 9), so the primitive lands in isolation
+first to give `.3b` a stable library surface.
+
+- **New `src/gen/multi_clock.rs`** (~250 lines including 5
+  proofs). Exports:
+
+  ```rust
+  pub struct SynchronizerChain {
+      pub first_flop: FlopId,   // D = src_q
+      pub second_flop: FlopId,  // D = first_flop.Q
+      pub synced_q: NodeId,     // = second_flop.Q
+  }
+
+  pub fn construct_2flop_synchronizer(
+      module: &mut Module,
+      src_q: NodeId,
+      dst_domain: u32,
+  ) -> Option<SynchronizerChain>;
+  ```
+
+  Allocates two new `Flop` entries (both registered in
+  `Module.flop_domains` under `dst_domain`), two new
+  `Node::FlopQ` entries, chains D=src_q → first_flop →
+  second_flop → synced_q, inherits width from src_q via the
+  existing `Node::width()` exhaustive accessor. Both flops
+  carry the standard flop-synchronizer template
+  (`ResetKind::Async` + `FlopKind::ZeroDefault` +
+  `FlopMux::None` + `reset_val=0`). Returns `None` for an
+  out-of-bounds src_q (defensive).
+
+- **`src/gen/mod.rs` declares `pub mod multi_clock`** with the
+  rules-first-generation doctrine docstring
+  (`feedback_rules_first_generation.md` — we never generate
+  cross-domain paths then filter; the primitive is called by
+  `.3b`'s decision logic, constructs in place).
+
+- **5 cargo-portable proofs** in
+  `src/gen/multi_clock::tests`:
+
+  1. `construct_2flop_synchronizer_allocates_two_flops_in_target_domain`
+     — both new flops land in `dst_domain=1`; source stays in
+     domain 0.
+  2. `construct_2flop_synchronizer_chains_d_to_q` — asserts
+     `first_flop.D = src_q` and `second_flop.D = first_flop.Q`
+     (the chain rather than two independent flops).
+  3. `construct_2flop_synchronizer_inherits_source_width` —
+     width=4 src → both sync flops width=4 + the synced_q
+     `Node::FlopQ` carries width=4.
+  4. `construct_2flop_synchronizer_returns_none_for_invalid_src_q`
+     — defensive handling.
+  5. `synchronizer_emit_shape_in_two_domain_module` — the
+     **end-to-end `.2`-emitter-meets-`.3a`-primitive integration
+     check**: hand-built K=2 module + sync chain + output drive;
+     asserts exactly 2 `always_ff` blocks emitted (one per
+     domain), domain A has only the source flop, domain B has
+     both sync flops, output is driven by the second-stage
+     synced Q. Validates that the IR + emit shell from `.2` and
+     the construction primitive from `.3a` compose correctly.
+
+**Why it matters**
+
+- The 2-flop synchronizer is the **canonical first-cut CDC
+  primitive** per `.1`'s catalogue tier 1. Landing the
+  construction primitive in isolation establishes the
+  by-construction discipline (the synchronizer is two flops
+  registered in `dst_domain`, chained D-to-Q) and proves it
+  composes with the `.2` IR + emit shell to produce
+  syntactically correct per-domain `always_ff` SystemVerilog.
+
+- Future-`.3b` callers can now write:
+
+  ```rust
+  // Generator decides flop B in domain 1 wants src_q from
+  // domain 0 as a D-cone operand. The synchronizer wrap is
+  // constructed in place (rules-first generation):
+  let chain = construct_2flop_synchronizer(module, src_q, 1)
+      .expect("valid src_q");
+  // B's flop's D-cone now references chain.synced_q instead of
+  // src_q directly.
+  ```
+
+  This is the by-construction shape; the primitive's API
+  matches exactly the decision-time signature `.3b`'s
+  integration will use.
+
+- **Preserves the byte-identical default-`dut` contract from
+  Phase 9.** The primitive is library-only — no Generator
+  integration, no knob, no scenario wiring. Without
+  `--multi-clock-prob` (`.3b`), nothing in ANVIL's runtime
+  calls `construct_2flop_synchronizer`. The lib unit suite
+  grows by 5; the snapshot/book_examples/tool_matrix/
+  microdesign_parity/frontend_parity/diff_sim suites are
+  byte-identical.
+
+**Tests**
+
+- `cargo fmt --all`/`clippy --all-targets -- -D warnings`/
+  `check --all-targets` all clean.
+- `cargo test --lib` 256 passed (was 251 + 5 new MULTI-CLOCK-CDC.3a
+  proofs).
+- `cargo test --test snapshots` 6/6 — **byte-identical**
+  (proves the `.2` K=1 emit path is still unchanged).
+- `cargo test --test book_examples` 3/3 in 72.71s —
+  **byte-identical** default-`dut` contract from Phase 9
+  preserved.
+- Other suites unchanged: `tool_matrix` 37 + 1 ignored,
+  `microdesign_parity` 15 + 1 ignored, `frontend_parity` 12 + 2
+  ignored, `diff_sim` 2 portable + 2 ignored.
+
+**Doctrine / scope**
+
+- Closes `MULTI-CLOCK-CDC.3a`; frontier → `.3b` (Generator
+  integration + `--multi-clock-prob` knob + `tool_matrix`
+  scenario + coverage facts + `#[ignore]` end-to-end gate).
+- `.3` split per the proven Phase-7 `.2c.2a`/`.2c.2b` +
+  `DIFFERENTIAL-SIMULATION.3b.1`/`.3b.2` discipline — primitive
+  in isolation first; runtime integration follows.
+- Per `feedback_rules_first_generation.md`: the primitive
+  constructs the synchronizer in place. There is no
+  generate-then-filter post-pass anywhere in the design.
+- Per `feedback_full_factorization.md`: the synchronizer is
+  two distinct flops with real `NodeId` Q nodes participating
+  in the existing identity discipline.
+
+**Files**
+
+- `src/gen/multi_clock.rs` (new, ~250 lines).
+- `src/gen/mod.rs` (declares `pub mod multi_clock` with
+  rules-first-generation doctrine docstring).
+- `docs/tasks/MULTI-CLOCK-CDC.md` (`.3` split into `.3a` done
+  + `.3b` pending; Verification Log + Commit Log + Changelog
+  entries; frontier → `.3b`).
+- `docs/TASK_TREE.md` (`MULTI-CLOCK-CDC` row points at `.3b`).
+
 ## 2026-05-24-multi-clock-cdc-2 — MULTI-CLOCK-CDC.2 IR extension + emitter per-(domain, polarity) always_ff — backward-compatible K=1 byte-identical
 
 **Landed as:** this commit
