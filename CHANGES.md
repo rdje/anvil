@@ -1,5 +1,115 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-diff-sim-3b.1 — DIFFERENTIAL-SIMULATION.3b.1 extract harness helpers to src/diff_sim/mod.rs (pure refactor)
+
+**Landed as:** this commit
+
+**What changed**
+
+- New `src/diff_sim/mod.rs` (~325 lines) is the library home for the
+  iverilog↔verilator differential harness. Per `.3a`'s design,
+  extracting the helpers out of `tests/diff_sim.rs` is the
+  full-factorization-doctrine-compelled choice (`feedback_full_
+  factorization.md`): without it `.3b.2` would have to duplicate
+  the helpers in `src/bin/tool_matrix.rs`, which is forbidden. The
+  module exports as `pub`:
+  - `baked_input_vectors(seed, n_inputs, n_vectors)`
+  - `mask_to_width(v, width)`
+  - `fmt_sv_hex(v, width)`
+  - `is_sequential(top)` — `top.has_local_flops() ||
+    has_local_memories() || has_local_fsms()`
+  - `emit_testbench(top, vectors)` — the IR-driven generic SV
+    testbench with `.2b.2`'s combined clk/rst_n + cycle-accurate
+    fixes (unchanged from `.2b.2`'s final shape)
+  - `run_iverilog(dir)` / `run_verilator(dir)` — dual-simulator
+    orchestration
+  - `normalize_trace(s)` — hex-only-lines filter
+  - `tools_present()` — `iverilog -V` + `verilator --version`
+    probe
+
+  Plus private `emit_display_outputs` (used only by
+  `emit_testbench`) and a `#[cfg(test)] mod tests` carrying the 3
+  pure-input proofs migrated from `tests/diff_sim.rs`
+  (`baked_input_vectors_are_reproducible_with_canonical_edge_cases`
+  / `fmt_sv_hex_produces_fixed_width_masked_literals` /
+  `normalize_trace_filters_to_hex_only_lines`) so they run under
+  `cargo test --lib`.
+
+- `src/lib.rs` declares `pub mod diff_sim` with a docstring citing
+  `.3a`'s full-factorization-doctrine choice and pointing
+  `tests/diff_sim.rs` at the same surface.
+
+- `tests/diff_sim.rs` reduced from ~556 to ~175 lines:
+  `use anvil::diff_sim::{baked_input_vectors, emit_testbench,
+  is_sequential, normalize_trace, run_iverilog, run_verilator,
+  tools_present}` + `build_one_module` test helper + the 2
+  `#[ignore]`-gated focused proofs
+  (`differential_simulation_combinational` +
+  `differential_simulation_sequential`) + 2 cargo-portable smoke
+  proofs that round-trip through a real generated `Module`
+  (`is_sequential_matches_clock_presence` +
+  `emit_testbench_has_the_documented_shape`). The
+  generator-coupled smokes are kept in `tests/` (not in the lib
+  unit module) because they pull in the live `Generator`, which
+  the lib unit tests deliberately don't depend on.
+
+**Why it matters**
+
+- Unblocks `.3b.2` (`tool_matrix --diff-sim` wiring): the matrix
+  binary can now `use anvil::diff_sim::{…}` instead of needing a
+  parallel copy of the harness code. Full-factorization doctrine
+  preserved; one home for the testbench emitter.
+
+- Pure refactor — no behavioral change. The harness emits
+  byte-identical SV, runs byte-identical commands, normalizes
+  byte-identical traces. Verified end-to-end by the real-tool
+  gate passing with the same per-seed sample counts as `.2b.2`'s
+  closure verification.
+
+- Lib unit-test count goes from 244 to 247 (the 3 migrated
+  pure-input proofs become lib unit tests, since they don't need
+  the generator). Integration count for `tests/diff_sim.rs` goes
+  from 5 portable + 2 ignored to 2 portable + 2 ignored; the
+  net portable count is preserved (3 lib + 2 integration).
+
+**Tests**
+
+- `cargo fmt --all` clean. `cargo clippy --all-targets -- -D
+  warnings` clean. `cargo check --all-targets` clean.
+- `cargo test --lib` 247 passed; 0 failed (was 244; +3 from
+  migration).
+- `cargo test --tests` 121 (pipeline) + 6 (snapshots) + 2
+  portable diff_sim, all passed.
+- Real-tool gate `cargo test --test diff_sim -- --ignored
+  --test-threads=1 --nocapture` against locally-installed
+  iverilog 13.0 + verilator 5.046:
+  `differential_simulation_combinational clean across 8 samples
+  (seed=7)` + `differential_simulation_sequential clean across 8
+  post-reset samples (seed=42)`; **2 passed; 0 failed**. Same
+  per-seed sample counts as `.2b.2`'s verification — byte-identical
+  harness behavior confirmed end-to-end.
+
+**Doctrine / scope**
+
+- Closes `DIFFERENTIAL-SIMULATION.3b.1`; frontier → `.3b.2`.
+  `.3b` further split per the proven Phase-7 `.2c.2a`/`.2c.2b`
+  discipline (preemptive — no surfaced dependency, but `.3b.1`
+  is a clean atomic refactor that gives `.3b.2` a stable
+  library surface to build against).
+- Pure refactor only — NO functional change. The new library
+  module is an exact byte-for-byte port of the existing harness
+  helpers; verified by the real-tool gate.
+
+**Files**
+
+- `src/diff_sim/mod.rs` (new, ~325 lines).
+- `src/lib.rs` (added `pub mod diff_sim` with docstring).
+- `tests/diff_sim.rs` (reduced from ~556 to ~175 lines).
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md` (`.3b` split into
+  `.3b.1` done + `.3b.2` pending; Verification Log + Commit Log
+  + Changelog entries; frontier → `.3b.2`).
+- `docs/TASK_TREE.md` (row points at `.3b.2`).
+
 ## 2026-05-24-diff-sim-3a — Docs: DIFFERENTIAL-SIMULATION.3 split + .3a tool_matrix --diff-sim wiring design
 
 **Landed as:** this commit

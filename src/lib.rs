@@ -6,6 +6,16 @@
 //! SystemVerilog (`emit`).
 
 pub mod config;
+/// `DIFFERENTIAL-SIMULATION` — iverilog↔verilator differential
+/// harness. Per `.3a`'s design, the helpers live in this library
+/// module so `src/bin/tool_matrix.rs` can `use anvil::diff_sim::{…}`
+/// (full-factorization doctrine, `feedback_full_factorization.md`)
+/// — the alternative of duplicating them in the binary is forbidden.
+/// `tests/diff_sim.rs` consumes the same surface and owns the
+/// `#[ignore]`-gated focused tests (`differential_simulation_combinational`
+/// + `differential_simulation_sequential`). The upcoming `.3b.2`
+/// adds a `tool_matrix --diff-sim` opt-in column.
+pub mod diff_sim;
 pub mod emit;
 /// Phase 8 frontend / elaboration accept-corpus lane
 /// (`PHASE-8-FRONTEND-ACCEPT`). A **separate generator path** from
