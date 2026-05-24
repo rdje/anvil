@@ -58,6 +58,176 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Tool-matrix `--diff-sim` wiring + representative-subset selector + coverage fact design (2026-05-24, DIFFERENTIAL-SIMULATION.3a)
+
+Design-only slice (no code; `.3b` implements). `.3` split mirrors
+the proven Phase 7/8/9 design-first discipline + the
+`PHASE-7-ORACLE-MICRODESIGN.2c.2a`/`.2c.2b` precedent: the
+module-extraction decision, the CLI shape, the subset selector,
+and the coverage-fact wiring are load-bearing choices to settle
+before code; the design itself is docs-only.
+
+**Goal.** Wire the `tests/diff_sim.rs::emit_testbench` +
+`run_iverilog` + `run_verilator` + `normalize_trace` machinery
+landed in `.2b.2` into `src/bin/tool_matrix.rs` as an opt-in
+`--diff-sim` mode, so the matrix records cross-simulator semantic
+agreement per scenario alongside its existing parse/synth/lint
+columns. A new `saw_design_with_cross_simulator_agreement`
+coverage fact fires when at least one DUT in the run achieves
+byte-equal post-reset traces.
+
+**Module-extraction decision (the structural choice that justified
+splitting `.3`).** The harness helpers currently live in
+`tests/diff_sim.rs` and are NOT exported from the `anvil` library
+crate — `src/bin/tool_matrix.rs` cannot reach them today. Two
+options:
+
+- (A) **Extract to `src/diff_sim/mod.rs`** (library module).
+  `tests/diff_sim.rs` switches to `use anvil::diff_sim::{…}`;
+  `src/bin/tool_matrix.rs` does likewise. Full-factorization
+  doctrine satisfied (one home for the testbench emitter +
+  orchestration). Cost: one module move + two `use` updates.
+
+- (B) **Duplicate the helpers in `tool_matrix.rs`** (or copy
+  paste). Violates the full-factorization doctrine
+  (`feedback_full_factorization.md`) — two homes for the
+  testbench-emitter code, divergence inevitable. Rejected.
+
+`.3b` takes (A). The new `src/diff_sim/mod.rs` exports
+`baked_input_vectors`, `mask_to_width`, `fmt_sv_hex`,
+`is_sequential`, `emit_testbench`, `run_iverilog`, `run_verilator`,
+`normalize_trace`, `tools_present`, plus a thin façade
+`run_differential(top: &Module, vectors: &[Vec<u128>], work_dir:
+&Path) -> Result<DiffOutcome, DiffError>` that orchestrates the
+whole flow (emit testbench → emit DUT SV → invoke iverilog →
+invoke verilator → normalize + compare → return aligned
+traces/diff). The façade is what `tool_matrix.rs` calls per
+scenario.
+
+**CLI flag shape.** New `--diff-sim` opt-in flag on `Cli` (mirrors
+the existing `--skip-verilator`/`--skip-yosys` opt-out flags and
+the `--phase4-hierarchy-gate` opt-in elevation flag). Default:
+`false`. When set: every scenario in the selected scenario set
+runs the differential harness AFTER the existing parse/synth/lint
+columns succeed (gated on Verilator AND Yosys both clean — no
+point asking simulators to agree on output that one tool already
+rejected). The flag is orthogonal to `--phase4-hierarchy-gate` /
+the other gate-elevation flags; it adds a new column, it does not
+change which scenarios run.
+
+**Representative-subset selector.** The full 204-scenario matrix
+is computationally infeasible for the differential harness
+(per-design wall-clock cost: ~5-10 s for iverilog +
+~10-20 s for verilator compile+run = ~20 s/scenario × 204 ≈
+68 min just for diff-sim). Three options for subset selection:
+
+- (1) **`--diff-sim-subset <integer>`** — randomly sample N
+  scenarios (seeded). Simple; reproducible; representative of
+  the distribution. Default `N=5`. Rejected: random sampling
+  loses the curated coverage structure (e.g., always picking 5
+  combinational misses sequential coverage).
+
+- (2) **Hand-curated subset** — a fixed list of scenario names
+  (e.g., `["minimal-comb", "minimal-seq", "phase4-hier-comb",
+  "phase4-hier-seq", "phase6-fsm-leaf"]`). Coverage-aware
+  (one per major axis). Rejected: brittle — every new
+  scenario-set requires updating the list; doesn't scale with
+  `Phase4Hierarchy`/`Phase3Structured` etc.
+
+- (3) **Per-axis sampling** — for the selected scenario set,
+  pick the first scenario that satisfies each major coverage
+  axis (combinational, sequential-flop, hierarchy, memory,
+  fsm), capped at K=5. Coverage-aware AND self-maintaining.
+  **Chosen for `.3b`.** Selection is deterministic (first match
+  per axis in scenario-set declaration order), reproducible,
+  and naturally adapts as new scenarios land.
+
+The selected subset is recorded in the matrix report under
+`diff_sim_subset: Vec<String>` (scenario names) so the report
+itself is self-describing.
+
+**Coverage-fact wiring.** New `saw_design_with_cross_simulator_
+agreement: bool` field on `CoverageSummary` (alongside the
+existing `saw_inferrable_memory_design`/`saw_fsm_design` from
+Phase 6). Fires when at least one DUT in the subset achieves
+byte-equal post-reset traces. Merged into the aggregate `dst |=
+src` per the existing pattern at `tool_matrix.rs:5847`.
+`--diff-sim` is NOT a gate-elevation flag by default (the matrix
+will not exit non-zero if the fact is false unless
+`--fail-on-coverage-gap` is set AND `--diff-sim` is set — the
+existing opt-in coverage-gap semantics, no new flag needed).
+
+**Per-scenario report shape.** New optional field on
+`ModuleReport`: `diff_sim: Option<DiffSimReport>`. `DiffSimReport`
+records: `ran: bool` (was this scenario in the subset?),
+`success: bool` (byte-equal post-reset traces?), `n_samples:
+u32` (sample count), `iverilog: Option<ToolInvocation>`,
+`verilator: Option<ToolInvocation>`, `mismatch_excerpt:
+Option<String>` (first 10 lines of the diff, retained per the
+Phase-7 counterexample doctrine — never a silent pass).
+`tools_present()` guard makes the column a friendly no-op when
+either simulator is absent (the column reports `ran: false`
+with a clear reason; matrix exits clean).
+
+**Wiring point in `tool_matrix.rs`.** Inserted as a new
+per-module step in the existing per-module pipeline, AFTER
+Verilator + Yosys (the existing tools) and BEFORE checkpoint
+write (so a `--resume` re-run replays the diff-sim column from
+checkpoint without re-invoking the simulators). Gated by
+`cli.diff_sim` AND scenario presence in the subset AND
+Verilator+Yosys both clean — the existing "downstream tools
+already accepted the SV" precondition.
+
+**Rejected alternatives.**
+
+- (i) **`--diff-sim` as a gate-elevation flag** (always
+  required to pass) — rejected: the simulator runtime is too
+  large to gate-mandatorily in CI; the existing `--phase4-
+  hierarchy-gate` already takes ~75 min, and a mandatory
+  diff-sim column on top would push the gate over 2 h. Opt-in
+  with explicit `--fail-on-coverage-gap` is the right
+  trade-off.
+
+- (ii) **Duplicate the helpers in `src/bin/tool_matrix.rs`** —
+  rejected per the module-extraction discussion above
+  (full-factorization doctrine).
+
+- (iii) **Random subset sampler** — rejected per the
+  per-axis-sampling discussion above (loses curated coverage
+  structure).
+
+- (iv) **Hand-curated subset** — rejected per the
+  per-axis-sampling discussion above (brittle, doesn't scale).
+
+- (v) **Move `tests/diff_sim.rs` entirely** (delete the file,
+  put the gated tests inside `src/diff_sim/mod.rs` as
+  `#[cfg(test)]`) — rejected: separation of library API surface
+  from the gated integration tests is the established convention
+  (cf. `tests/microdesign_parity.rs` consumes
+  `src::microdesign::*`, `tests/frontend_parity.rs` consumes
+  `src::frontend::*`). Library exports the API; the integration
+  test owns the `#[ignore]` gates.
+
+**Proof shape (`.3b`).** `cargo fmt`/clippy(-D warnings)/check/
+test all clean. New `src/diff_sim/mod.rs` carries the extracted
+helpers + the `run_differential` façade. `tests/diff_sim.rs`
+updated to `use anvil::diff_sim::{…}` (no logic change). New
+`src/bin/tool_matrix.rs` `--diff-sim` flag + per-module wiring
++ subset selector + `saw_design_with_cross_simulator_agreement`
+coverage fact + `DiffSimReport` per-module field + merge into
+aggregate. Cargo-portable proofs: subset selector picks one per
+axis deterministically; coverage fact merges correctly; CLI
+parse smoke. Tool-gated `#[ignore]` proof: end-to-end
+`tool_matrix --diff-sim --base-seed 0 --modules-per-scenario 1
+--out /tmp/anvil-diff-sim-p1` exits 0 with
+`saw_design_with_cross_simulator_agreement=true` on a machine
+with both simulators installed. `.4` documents the contract.
+
+This entry is design-only and is itself task-tree owned
+(`DIFFERENTIAL-SIMULATION.3a`); it makes no code change,
+consistent with the task-tree-ownership doctrine's code/not-code
+boundary.
+
 ### Book-examples-runnable design (2026-05-18, BOOK-EXAMPLES-RUNNABLE.1)
 
 Design-only slice. No code. The repo is now public with the mdBook

@@ -1,5 +1,125 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-diff-sim-3a — Docs: DIFFERENTIAL-SIMULATION.3 split + .3a tool_matrix --diff-sim wiring design
+
+**Landed as:** this commit
+
+**What changed**
+
+- Design-only slice (no code). `.3` split per the proven Phase
+  7/8/9 design-first discipline and the
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2a`/`.2c.2b` decomposition —
+  the module-extraction decision, the CLI shape, the
+  representative-subset selector, and the coverage-fact wiring
+  are load-bearing choices to settle before code.
+
+- New `DEVELOPMENT_NOTES.md` "Tool-matrix `--diff-sim` wiring +
+  representative-subset selector + coverage fact design
+  (2026-05-24, DIFFERENTIAL-SIMULATION.3a)" entry records:
+
+  1. **Module-extraction decision** — `tests/diff_sim.rs`
+     helpers (currently invisible to `src/bin/tool_matrix.rs`
+     because they live in `tests/`) extracted to a new
+     `src/diff_sim/mod.rs` library module so the matrix can
+     `use anvil::diff_sim::{…}` (full-factorization doctrine,
+     `feedback_full_factorization.md`). Rejected duplication
+     (two homes for the testbench emitter ⇒ divergence
+     inevitable). The module-extraction is the structural
+     choice that justified the split.
+
+  2. **CLI flag shape** — `--diff-sim` opt-in flag, orthogonal
+     to `--phase4-hierarchy-gate`/other gate-elevation flags;
+     gated per scenario on Verilator+Yosys both clean (the
+     existing "downstream tools already accepted the SV"
+     precondition).
+
+  3. **Representative-subset selector** — per-axis sampling
+     (first scenario per major axis: combinational,
+     sequential-flop, hierarchy, memory, fsm), capped K=5,
+     deterministic + self-maintaining. Selected subset
+     recorded in the matrix report under `diff_sim_subset:
+     Vec<String>`. Rejected random-N (loses curated coverage)
+     and hand-curated lists (brittle, doesn't scale).
+
+  4. **Coverage-fact wiring** — new
+     `saw_design_with_cross_simulator_agreement: bool` on
+     `CoverageSummary` (alongside the existing Phase-6
+     `saw_inferrable_memory_design`/`saw_fsm_design`). Merged
+     into aggregate per the existing
+     `tool_matrix.rs:5847` pattern.
+
+  5. **Per-scenario `DiffSimReport`** — `ran`/`success`/
+     `n_samples`/`iverilog`/`verilator`/`mismatch_excerpt`
+     (first 10 lines of diff, retained per the Phase-7
+     counterexample doctrine — never a silent pass).
+
+  6. **`tools_present()`-friendly no-op** — column reports
+     `ran: false` with a clear reason when either simulator is
+     absent; matrix still exits clean.
+
+  7. **Wiring point** — new per-module step inserted AFTER
+     Verilator+Yosys (existing tools) and BEFORE checkpoint
+     write, so `--resume` replays the column from checkpoint
+     without re-invoking the simulators.
+
+- 5 rejected alternatives recorded: (i) `--diff-sim` as a
+  gate-elevation flag (CI runtime); (ii) duplicate helpers in
+  `tool_matrix.rs` (full-factorization doctrine); (iii)
+  random-N subset sampler (loses curated coverage); (iv)
+  hand-curated subset (brittle, doesn't scale); (v) delete
+  `tests/diff_sim.rs` and move tests into the library module
+  (breaks the library-API-vs-integration-test separation
+  established by `tests/microdesign_parity.rs` /
+  `tests/frontend_parity.rs`).
+
+- `.3b` proof shape specified: `cargo fmt`/clippy(-D
+  warnings)/check/test green; new `src/diff_sim/mod.rs` with
+  extracted helpers + `run_differential` façade;
+  `tests/diff_sim.rs` switches to `use
+  anvil::diff_sim::{…}` (no logic change); new `--diff-sim`
+  flag + per-axis subset selector + `DiffSimReport` field +
+  `saw_design_with_cross_simulator_agreement` fact on
+  `tool_matrix.rs`; cargo-portable proofs of selector +
+  merge + CLI parse; tool-gated `#[ignore]` end-to-end proof.
+
+**Why it matters**
+
+- Mirrors the proven design-first discipline that closed Phase
+  7, Phase 8, Phase 9, and `.2b.2`: settling load-bearing
+  structural choices in docs first lets `.3b` be a focused
+  implementation pass without back-pressure on architectural
+  questions.
+
+- The module-extraction decision in particular is
+  full-factorization-doctrine-compelled: keeping the helpers
+  in `tests/` would force `tool_matrix.rs` to duplicate them,
+  which the doctrine forbids.
+
+**Tests**
+
+- `cargo` unchanged-green vs base `79f5659` (no `src/`,
+  `tests/`, or `Cargo.toml` touched; diff = `DEVELOPMENT_NOTES.md` +
+  `docs/tasks/DIFFERENTIAL-SIMULATION.md` +
+  `docs/TASK_TREE.md` + `CHANGES.md` only).
+
+**Doctrine / scope**
+
+- Closes `DIFFERENTIAL-SIMULATION.3a` (design-only); frontier
+  → `.3b` (implement). `.3` is now a container.
+- Continuous PNT per `feedback_no_self_pause_until_trees_closed.md`.
+- Design-first per the proven Phase 7/8/9 +
+  `PHASE-7-ORACLE-MICRODESIGN.2c.2a`/`.2c.2b` precedent.
+
+**Files**
+
+- `DEVELOPMENT_NOTES.md` (new `.3a` design entry, inserted at
+  top of "Design notes" section).
+- `docs/tasks/DIFFERENTIAL-SIMULATION.md` (`.3` split into
+  `.3a` done + `.3b` pending; Verification Log + Commit Log +
+  Changelog entries; frontier → `.3b`).
+- `docs/TASK_TREE.md` (`DIFFERENTIAL-SIMULATION` row updated
+  to point at `.3b`).
+
 ## 2026-05-24-diff-sim-2b.2 — DIFFERENTIAL-SIMULATION.2b.2 cycle-accurate testbench timing + clk/rst_n inclusion fix — closes .2b + .2 container
 
 **Landed as:** this commit
