@@ -5,8 +5,8 @@
 //! RST_N (async, active-low) drive every flop in the module.
 
 use crate::ir::{
-    AggregateGroup, Design, Direction, ForFoldKind, GateOp, InstanceId, Module, Node, NodeId, Port,
-    PortId,
+    AggregateGroup, Design, Direction, Flop, ForFoldKind, GateOp, InstanceId, Module, Node, NodeId,
+    Port, PortId,
 };
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -476,36 +476,55 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         }
     }
 
-    // Sequential always_ff blocks. Single CLK (posedge), single RST_N (async).
+    // Sequential always_ff blocks. Per `MULTI-CLOCK-CDC.2`, one
+    // `always_ff @(posedge clk_X or negedge rst_n_X) begin` per
+    // declared clock domain (synthesised single-domain default
+    // when `Module.clock_domains` is empty — the K=1 path is
+    // byte-identical to pre-`.2` ANVIL). Flops are grouped by
+    // `Module::flop_domain(id)`; the K=1 default leaves
+    // `Module.flop_domains` empty and every flop lands in domain
+    // 0, so the K=1 output is byte-identical (verified by
+    // `tests/snapshots.rs` + `tests/book_examples.rs`).
     if m.has_local_flops() {
-        let clk = port_name(m, m.clock.expect("flops require a clock"));
-        let rst = port_name(m, m.reset.expect("flops require a reset"));
-        writeln!(
-            out,
-            "    always_ff @(posedge {} or negedge {}) begin",
-            clk, rst
-        )
-        .unwrap();
-        writeln!(out, "        if (!{}) begin", rst).unwrap();
-        for flop in &m.flops {
+        let domains = m.effective_clock_domains();
+        for (domain_idx, domain) in domains.iter().enumerate() {
+            let clk = port_name(m, domain.clk);
+            let rst = port_name(m, domain.rst_n);
+            let flops_in_domain: Vec<&Flop> = m
+                .flops
+                .iter()
+                .filter(|flop| m.flop_domain(flop.id) as usize == domain_idx)
+                .collect();
+            if flops_in_domain.is_empty() {
+                continue;
+            }
             writeln!(
                 out,
-                "            {} <= {}'h{:x};",
-                flop_name(flop.id),
-                flop.width,
-                flop.reset_val
+                "    always_ff @(posedge {} or negedge {}) begin",
+                clk, rst
             )
             .unwrap();
+            writeln!(out, "        if (!{}) begin", rst).unwrap();
+            for flop in &flops_in_domain {
+                writeln!(
+                    out,
+                    "            {} <= {}'h{:x};",
+                    flop_name(flop.id),
+                    flop.width,
+                    flop.reset_val
+                )
+                .unwrap();
+            }
+            writeln!(out, "        end else begin").unwrap();
+            for flop in &flops_in_domain {
+                let d_id = flop.d.expect("flop D must be set before emission");
+                let d_ref = node_ref(d_id, m, &names);
+                writeln!(out, "            {} <= {};", flop_name(flop.id), d_ref).unwrap();
+            }
+            writeln!(out, "        end").unwrap();
+            writeln!(out, "    end").unwrap();
+            writeln!(out).unwrap();
         }
-        writeln!(out, "        end else begin").unwrap();
-        for flop in &m.flops {
-            let d_id = flop.d.expect("flop D must be set before emission");
-            let d_ref = node_ref(d_id, m, &names);
-            writeln!(out, "            {} <= {};", flop_name(flop.id), d_ref).unwrap();
-        }
-        writeln!(out, "        end").unwrap();
-        writeln!(out, "    end").unwrap();
-        writeln!(out).unwrap();
     }
 
     // Phase 6: inferrable-memory synchronous write/read blocks. One
@@ -1755,5 +1774,174 @@ mod tests {
             sv.contains("child u_1 ("),
             "instance with empty param_bindings must be byte-identical (no `#(`):\n{sv}"
         );
+    }
+
+    // ===================================================================
+    // MULTI-CLOCK-CDC.2 — cargo-portable proofs of the IR-level
+    // clock-domain extension + emitter's per-domain `always_ff` shape.
+    // The K=1 default (empty `clock_domains`, empty `flop_domains`) is
+    // byte-identical to pre-`.2` ANVIL — verified by the existing
+    // `emits_always_ff_with_single_clk_and_async_rst_n` test above
+    // continuing to pass, plus the `tests/snapshots.rs` golden-file
+    // regression. The `effective_clock_domains` accessor and the K=2
+    // multi-clock emit shape are the new behavior exercised here.
+    // ===================================================================
+
+    #[test]
+    fn effective_clock_domains_synthesises_single_default_from_k1_module() {
+        // K=1 default: empty `clock_domains`, but `clock`+`reset` are
+        // set — should synthesise a single `ClockDomain { clk, rst_n,
+        // name: "default" }`.
+        let seq = seq_child("dummy");
+        let domains = seq.effective_clock_domains();
+        assert_eq!(domains.len(), 1);
+        assert_eq!(domains[0].clk, 0);
+        assert_eq!(domains[0].rst_n, 1);
+        assert_eq!(domains[0].name, "default");
+
+        // Pure-comb module (no clock at all) — effective is empty.
+        let comb = comb_child("comb");
+        assert!(comb.effective_clock_domains().is_empty());
+    }
+
+    #[test]
+    fn flop_domain_defaults_to_zero_when_flop_domains_empty() {
+        let seq = seq_child("dummy");
+        // Empty `flop_domains` — every flop should default to domain 0.
+        for flop in &seq.flops {
+            assert_eq!(seq.flop_domain(flop.id), 0);
+        }
+    }
+
+    #[test]
+    fn emits_one_always_ff_block_per_clock_domain_when_k_equals_two() {
+        // Build a hand-built K=2 module with two flops, one per
+        // domain. The emit must produce TWO `always_ff` headers, each
+        // with its own clk/rst_n.
+        use crate::ir::ClockDomain;
+        let mut m = Module {
+            name: "two_domain".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk_a", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n_a", 1, Direction::In));
+        m.inputs.push(port(2, "clk_b", 1, Direction::In));
+        m.inputs.push(port(3, "rst_n_b", 1, Direction::In));
+        m.inputs.push(port(4, "i_a", 4, Direction::In));
+        m.inputs.push(port(5, "i_b", 4, Direction::In));
+        m.outputs.push(port(6, "o_a", 4, Direction::Out));
+        m.outputs.push(port(7, "o_b", 4, Direction::Out));
+        // Two domains, no implicit fallback (clock/reset stay None).
+        m.clock_domains.push(ClockDomain {
+            clk: 0,
+            rst_n: 1,
+            name: "a".into(),
+        });
+        m.clock_domains.push(ClockDomain {
+            clk: 2,
+            rst_n: 3,
+            name: "b".into(),
+        });
+        // The hierarchy-wrapper-emits-clk path expects `Module.clock`
+        // to be `Some` for the port-decl gate; set it to the first
+        // domain's clk to keep the port-emit happy. The
+        // `effective_clock_domains` accessor still uses the
+        // populated `clock_domains` (which takes precedence).
+        m.clock = Some(0);
+        m.reset = Some(1);
+        // Two PrimaryInputs (i_a, i_b) + two FlopQ leaves.
+        m.nodes.push(Node::PrimaryInput { port: 4, width: 4 }); // node 0
+        m.nodes.push(Node::PrimaryInput { port: 5, width: 4 }); // node 1
+        m.nodes.push(Node::FlopQ { flop: 0, width: 4 }); // node 2
+        m.nodes.push(Node::FlopQ { flop: 1, width: 4 }); // node 3
+        m.flops.push(Flop {
+            id: 0,
+            width: 4,
+            d: Some(0),
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 4,
+            d: Some(1),
+            q: 3,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flop_domains.insert(0, 0); // flop 0 → domain 0 (a)
+        m.flop_domains.insert(1, 1); // flop 1 → domain 1 (b)
+        m.drives.push((6, 2));
+        m.drives.push((7, 3));
+
+        let sv = to_sv(&m);
+        // Domain A: clk_a/rst_n_a, flop 0.
+        assert!(
+            sv.contains("always_ff @(posedge clk_a or negedge rst_n_a)"),
+            "domain A always_ff header missing:\n{sv}"
+        );
+        // Domain B: clk_b/rst_n_b, flop 1.
+        assert!(
+            sv.contains("always_ff @(posedge clk_b or negedge rst_n_b)"),
+            "domain B always_ff header missing:\n{sv}"
+        );
+        // Each domain has its own reset guard.
+        assert!(sv.contains("if (!rst_n_a)"), "domain A reset guard missing");
+        assert!(sv.contains("if (!rst_n_b)"), "domain B reset guard missing");
+        // Two distinct `end else begin` halves (one per domain).
+        let n_blocks = sv.matches("always_ff @(").count();
+        assert_eq!(
+            n_blocks, 2,
+            "expected exactly 2 always_ff blocks (one per domain); got {n_blocks}:\n{sv}"
+        );
+        // Domain A's flop is assigned in domain A's block; domain B's
+        // flop is assigned in domain B's block (verified by the
+        // grouping logic — both `flop_0 <=` and `flop_1 <=` must
+        // appear, but in their respective blocks).
+        assert!(
+            sv.contains("flop_0 <= 4'h0;"),
+            "flop 0 reset assignment missing"
+        );
+        assert!(
+            sv.contains("flop_1 <= 4'h0;"),
+            "flop 1 reset assignment missing"
+        );
+        assert!(
+            sv.contains("flop_0 <= i_a;"),
+            "flop 0 active-clock assignment missing"
+        );
+        assert!(
+            sv.contains("flop_1 <= i_b;"),
+            "flop 1 active-clock assignment missing"
+        );
+    }
+
+    #[test]
+    fn flop_domain_lookup_honors_populated_flop_domains_map() {
+        use crate::ir::ClockDomain;
+        let mut m = Module::default();
+        m.clock_domains.push(ClockDomain {
+            clk: 0,
+            rst_n: 1,
+            name: "a".into(),
+        });
+        m.clock_domains.push(ClockDomain {
+            clk: 2,
+            rst_n: 3,
+            name: "b".into(),
+        });
+        m.flop_domains.insert(0, 0);
+        m.flop_domains.insert(1, 1);
+        m.flop_domains.insert(2, 1);
+        assert_eq!(m.flop_domain(0), 0);
+        assert_eq!(m.flop_domain(1), 1);
+        assert_eq!(m.flop_domain(2), 1);
+        // Absent flop → defaults to 0.
+        assert_eq!(m.flop_domain(99), 0);
     }
 }

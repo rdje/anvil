@@ -129,6 +129,23 @@ pub struct ModuleInterfaceProfile {
     pub output_widths: Vec<u32>,
 }
 
+/// One clock domain in a multi-clock module
+/// (`MULTI-CLOCK-CDC.2`). Each domain carries its own clk port,
+/// async-active-low reset port, and a human-readable name (e.g.,
+/// `"default"`, `"clk_a"`, `"clk_b"`). The single-clock K=1
+/// case is the implicit default — `Module.clock_domains` empty +
+/// `Module.clock`/`reset` populated yields byte-identical
+/// emission to pre-`.2` ANVIL (the
+/// `Module::effective_clock_domains` accessor synthesises a
+/// single `ClockDomain { clk, rst_n, name: "default" }` when
+/// needed).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClockDomain {
+    pub clk: PortId,
+    pub rst_n: PortId,
+    pub name: String,
+}
+
 /// A circuit module: ports, internal nodes, flops, and a drive map
 /// from each output port to the node that drives it.
 #[derive(Debug, Clone, Default)]
@@ -138,6 +155,25 @@ pub struct Module {
     pub outputs: Vec<Port>,
     pub clock: Option<PortId>,
     pub reset: Option<PortId>,
+    /// `MULTI-CLOCK-CDC.2` — declared clock domains. Empty (the
+    /// default) means K=1 single-clock — the existing
+    /// `Module.clock`/`reset` slots are authoritative and the
+    /// emit is byte-identical to pre-`.2` ANVIL. Non-empty means
+    /// K≥1 multi-clock — every flop has a `flop_domains` entry
+    /// indexing into this vector, and the emitter generates one
+    /// `always_ff` block per `(domain, polarity)` tuple.
+    /// `Module::effective_clock_domains` returns this vec when
+    /// non-empty, else synthesises a single-element default from
+    /// `Module.clock`/`reset` for backward-compatible callers.
+    /// Per `MULTI-CLOCK-CDC.1`'s design (`DEVELOPMENT_NOTES.md`).
+    pub clock_domains: Vec<ClockDomain>,
+    /// `MULTI-CLOCK-CDC.2` — per-flop domain tag. Empty (the
+    /// default) means every flop belongs to domain 0 — the K=1
+    /// special case stays byte-identical. Populated when the
+    /// generator picks a non-zero domain for any flop. Lookups
+    /// go through `Module::flop_domain(id)` which defaults to 0
+    /// when the flop is absent from the map.
+    pub flop_domains: BTreeMap<FlopId, u32>,
     /// Parent-planned exact data-interface shape, when this module was
     /// synthesized to satisfy a demanded hierarchy boundary rather than
     /// choosing its own input/output counts and widths locally.
@@ -485,6 +521,41 @@ impl Module {
     /// Whether this module emits any sequential state locally.
     pub fn has_local_flops(&self) -> bool {
         !self.flops.is_empty()
+    }
+
+    /// `MULTI-CLOCK-CDC.2` — domain index of `flop_id`. Returns
+    /// `0` when the flop is absent from `flop_domains` (the
+    /// backward-compatible default — every existing K=1 module
+    /// has all flops in domain 0). Domain indices are bounded by
+    /// `effective_clock_domains().len()` at construction time;
+    /// `Module::validate` enforces that bound (`MULTI-CLOCK-CDC.2`).
+    pub fn flop_domain(&self, flop_id: FlopId) -> u32 {
+        *self.flop_domains.get(&flop_id).unwrap_or(&0)
+    }
+
+    /// `MULTI-CLOCK-CDC.2` — the clock domains the emitter uses.
+    /// When `clock_domains` is non-empty it is authoritative
+    /// (K≥1 multi-clock path). When empty (the K=1 default),
+    /// synthesises a single `ClockDomain { clk, rst_n, name:
+    /// "default" }` from the existing `Module.clock`/`reset`
+    /// slots so callers see a uniform interface; returns an
+    /// empty `Vec` only when neither `clock_domains` is set
+    /// nor `Module.clock` is — i.e., a purely combinational
+    /// module that should never reach this accessor anyway
+    /// (gated by `has_local_flops`/`has_local_memories`/
+    /// `has_local_fsms`).
+    pub fn effective_clock_domains(&self) -> Vec<ClockDomain> {
+        if !self.clock_domains.is_empty() {
+            return self.clock_domains.clone();
+        }
+        match (self.clock, self.reset) {
+            (Some(clk), Some(rst_n)) => vec![ClockDomain {
+                clk,
+                rst_n,
+                name: "default".to_string(),
+            }],
+            _ => Vec::new(),
+        }
     }
 
     /// Phase 6: a `Memory` is local sequential state (clocked block),

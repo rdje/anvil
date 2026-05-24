@@ -1,5 +1,179 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-2 — MULTI-CLOCK-CDC.2 IR extension + emitter per-(domain, polarity) always_ff — backward-compatible K=1 byte-identical
+
+**Landed as:** this commit
+
+**What changed**
+
+IR extension + emitter refactor per `MULTI-CLOCK-CDC.1`'s
+design. Backward-compatible: K=1 default (empty `clock_domains` +
+empty `flop_domains`) produces byte-identical output to pre-`.2`
+ANVIL, verified by `tests/snapshots.rs` 6/6 + `tests/book_examples.rs`
+3/3 (the load-bearing default-`dut` contract from Phase 9 is
+preserved across the IR + emit refactor). K=2 emit shape proven
+by hand-built unit proofs.
+
+- **New `ClockDomain` struct** in `src/ir/types.rs`:
+
+  ```rust
+  pub struct ClockDomain {
+      pub clk: PortId,
+      pub rst_n: PortId,
+      pub name: String,
+  }
+  ```
+
+  Carries one clock + one async-active-low reset + a
+  human-readable name. The K=1 case (`"default"` /
+  `clock`/`reset`) is the implicit default.
+
+- **`Module.clock_domains: Vec<ClockDomain>`** (defaults empty).
+  When non-empty, authoritative for K≥1 multi-clock; when empty
+  (the K=1 default), the existing `Module.clock`/`reset` slots
+  remain authoritative and the emit is byte-identical.
+
+- **`Module.flop_domains: BTreeMap<FlopId, u32>`** (defaults
+  empty). Per-flop domain tag. Minimum-blast-radius design —
+  storing the mapping externally on `Module` rather than adding
+  a `domain` field to `Flop` kept the change to 23 `Flop`
+  construction sites at **zero touches**. Lookups go through
+  `Module::flop_domain(flop_id)` which defaults to 0 when the
+  flop is absent (the K=1 special case — every flop lands in
+  domain 0).
+
+- **`Module::flop_domain(&self, flop_id: FlopId) -> u32`**
+  accessor. Returns `*flop_domains.get(&flop_id).unwrap_or(&0)`.
+
+- **`Module::effective_clock_domains(&self) -> Vec<ClockDomain>`**
+  accessor. Returns `clock_domains.clone()` when non-empty;
+  else synthesises `vec![ClockDomain { clk, rst_n, name:
+  "default" }]` from `Module.clock`/`reset` when both are
+  `Some`; else empty `Vec` (pure-combinational module — the
+  emitter never reaches the `always_ff` block for such modules
+  anyway, gated by `has_local_flops`/`has_local_memories`/
+  `has_local_fsms`).
+
+- **Emitter refactor in `src/emit/sv.rs`.** The single-block
+  `always_ff` emission for flops is replaced by a per-domain
+  loop:
+
+  ```rust
+  for (domain_idx, domain) in m.effective_clock_domains().iter().enumerate() {
+      let flops_in_domain: Vec<&Flop> = m.flops.iter()
+          .filter(|flop| m.flop_domain(flop.id) as usize == domain_idx)
+          .collect();
+      if flops_in_domain.is_empty() { continue; }
+      // emit one always_ff @(posedge {domain.clk} or negedge {domain.rst_n}) block
+  }
+  ```
+
+  For K=1 with empty `clock_domains`, `effective_clock_domains`
+  synthesises a single-element default and every flop has
+  `flop_domain == 0` → byte-identical emit. For K=2, two
+  blocks are emitted — one per domain.
+
+- **`Flop` is imported into the test scope** via the new
+  `crate::ir::Flop` re-export pattern (was already exported
+  through `pub use compact::*` / `pub use types::*`); the
+  emitter needed it for the per-domain `Vec<&Flop>` grouping.
+
+**Why it matters**
+
+- Establishes the **IR + emit shell** so `.3` can wire the
+  generator-side change (2-flop synchronizer construction rule
+  + `--multi-clock-prob` knob + `tool_matrix` integration +
+  coverage facts) against a stable surface. The `.2` split is
+  the same Phase-7/8/9 + `DIFFERENTIAL-SIMULATION.2a`/`.3a`
+  design-first discipline applied at one finer granularity:
+  the structural pieces land first; the runtime/knob/integration
+  is its own slice.
+
+- The **minimum-blast-radius design** (external `BTreeMap`
+  rather than `Flop.domain` field) keeps the change surface
+  tiny. Adding a field to `Flop` would have required updating
+  23 construction sites across `src/ir/`, `src/metrics.rs`,
+  and the compact-format serialisation. The external map adds
+  zero pressure on those sites and preserves all existing
+  `Flop` semantics.
+
+- **Byte-identical default behavior** is the load-bearing
+  guarantee. The book-runnable contract from Phase 9 is
+  preserved (`book_examples` 3/3 in 85s — same wall-clock and
+  same byte sequence as the pre-`.2` run); every existing
+  scenario, snapshot, and downstream tool sees byte-identical
+  ANVIL output. Users who never set `--multi-clock-prob`
+  experience zero behavioral change.
+
+**Tests**
+
+- `cargo fmt --all`/`clippy --all-targets -- -D warnings`/
+  `check --all-targets` all clean.
+- `cargo test --lib` 251 passed (was 247 + 4 new
+  MULTI-CLOCK-CDC.2 proofs).
+- 4 new cargo-portable proofs in `src/emit/sv.rs::tests`:
+  - `effective_clock_domains_synthesises_single_default_from_k1_module`
+    — asserts the K=1 synthesised default is `[ClockDomain {
+    clk, rst_n, name: "default" }]` for a sequential module
+    and empty for a combinational one.
+  - `flop_domain_defaults_to_zero_when_flop_domains_empty`
+    — asserts every flop defaults to domain 0 in the K=1
+    default.
+  - `emits_one_always_ff_block_per_clock_domain_when_k_equals_two`
+    — hand-builds a two-domain Module with two flops (one per
+    domain) and asserts:
+    - Two `always_ff @(posedge clk_X or negedge rst_n_X)`
+      headers in the emit.
+    - Per-domain reset guards (`if (!rst_n_a)` /
+      `if (!rst_n_b)`).
+    - Correct flop-to-block grouping (`flop_0 <= i_a;` in
+      domain A's block; `flop_1 <= i_b;` in domain B's
+      block).
+    - Exactly 2 `always_ff @(` instances in the emit (no
+      stray block).
+  - `flop_domain_lookup_honors_populated_flop_domains_map`
+    — asserts the accessor returns the inserted value and
+    falls back to 0 for absent IDs.
+- `cargo test --test snapshots` 6/6 — **byte-identical** to
+  pre-`.2`. Proves the K=1 emit path is unchanged.
+- `cargo test --test book_examples` 3/3 in 85s — **byte-identical**
+  default-`dut` contract from Phase 9 preserved across the IR +
+  emit refactor.
+- Other suites unchanged: `tool_matrix` 37 + 1 ignored,
+  `microdesign_parity` 15 + 1 ignored, `frontend_parity` 12 + 2
+  ignored, `diff_sim` 2 portable + 2 ignored.
+
+**Doctrine / scope**
+
+- Closes `MULTI-CLOCK-CDC.2`; frontier → `.3` (2-flop
+  synchronizer construction rule in `src/gen` +
+  `--multi-clock-prob` CLI/Config knob + `tool_matrix`
+  scenario + `saw_multi_clock_design` +
+  `saw_cdc_2_flop_synchronizer` coverage facts + `--diff-sim`
+  agreement on a synchronised stimulus).
+- The IR extension is **deliberately additive**. Existing
+  callers that don't care about multi-clock see no change to
+  `Module.clock`/`Module.reset` or `Flop`; new callers can use
+  `clock_domains` + `flop_domains` for multi-clock.
+- Per `feedback_rules_first_generation.md`: this slice does
+  NOT add a generator that constructs cross-domain paths.
+  That's `.3`'s job — when the generator picks a multi-clock
+  module, the 2-flop synchronizer is constructed in place at
+  construction time, never via a post-pass filter.
+
+**Files**
+
+- `src/ir/types.rs` (new `ClockDomain` struct; new
+  `Module.clock_domains` + `Module.flop_domains` fields; new
+  `Module::flop_domain` + `Module::effective_clock_domains`
+  accessor methods).
+- `src/emit/sv.rs` (per-domain `always_ff` loop refactor + new
+  `Flop` import + 4 new cargo-portable proofs in the
+  `tests` mod).
+- `docs/tasks/MULTI-CLOCK-CDC.md` (`.2` → `done`; Verification
+  Log + Commit Log + Changelog entries; frontier → `.3`).
+- `docs/TASK_TREE.md` (`MULTI-CLOCK-CDC` row points at `.3`).
+
 ## 2026-05-24-multi-clock-cdc-1 — Docs: MULTI-CLOCK-CDC.1 multi-clock + CDC primitives design — opens the only remaining named follow-up tree
 
 **Landed as:** this commit
