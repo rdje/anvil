@@ -40,7 +40,10 @@
 //!   structural CSE, so today's identity discipline already
 //!   gives the right answer).
 
-use crate::ir::{Flop, FlopId, FlopKind, FlopMux, Module, Node, NodeId, ResetKind};
+use crate::ir::{
+    ClockDomain, Direction, Flop, FlopId, FlopKind, FlopMux, Module, Node, NodeId, Port, PortId,
+    ResetKind,
+};
 
 /// Result of constructing a 2-flop synchronizer chain.
 #[derive(Debug, Clone, Copy)]
@@ -141,6 +144,169 @@ pub fn construct_2flop_synchronizer(
 /// `node_id` is out of bounds.
 fn node_width(module: &Module, node_id: NodeId) -> Option<u32> {
     module.nodes.get(node_id as usize).map(Node::width)
+}
+
+/// `MULTI-CLOCK-CDC.3b` — outcome of the per-module
+/// `promote_to_multi_clock` pass. Reports what was added so the
+/// caller can light coverage facts (`.3b.2`).
+#[derive(Debug, Clone, Default)]
+pub struct PromotionOutcome {
+    /// `true` iff the pass actually transformed the module into
+    /// K≥2 (a second domain was added + at least one flop-driven
+    /// output was wrapped). `false` when the module had no
+    /// eligible promotion target (no flops, no 1-bit outputs
+    /// directly driven by a flop).
+    pub promoted: bool,
+    /// Number of clock domains in the module after the pass.
+    /// `0` when the pass declined; `2` after a successful
+    /// first-cut promotion.
+    pub num_domains: u32,
+    /// Number of 2-flop synchronizer chains constructed by this
+    /// pass (`0` or `1` in the first-cut MVP — exactly one
+    /// flop-driven output is promoted per call).
+    pub num_synchronizers: u32,
+}
+
+/// `MULTI-CLOCK-CDC.3b` — promote a single-clock module to K=2
+/// multi-clock by:
+///
+/// 1. **Allocating two new ports** for the secondary domain
+///    (`clk_b` + `rst_n_b`), registered as
+///    `Direction::In` in the IR.
+/// 2. **Pushing two `ClockDomain` entries** into
+///    `Module.clock_domains`: domain 0 = the existing
+///    `Module.clock`/`reset` (named `"a"`); domain 1 = the new
+///    `clk_b`/`rst_n_b` (named `"b"`). Index 0 still maps to
+///    the original single-domain semantics — every existing
+///    flop stays in domain 0 by default
+///    (`Module.flop_domains` is empty initially; the
+///    `flop_domain` accessor returns 0 by default).
+/// 3. **Picking the first 1-bit output port directly driven by
+///    a flop's Q**. If none exists, the pass declines and
+///    returns `PromotionOutcome { promoted: false, .. }` (no
+///    transformation; module remains K=1 — backward-compatible
+///    decline).
+/// 4. **Constructing a 2-flop synchronizer chain in domain 1**
+///    driven by that source flop's Q (via the
+///    `construct_2flop_synchronizer` primitive from `.3a`).
+/// 5. **Rewiring the chosen output's drive** to dereference the
+///    synced Q instead of the source Q. The output is now
+///    semantically a domain-1 signal — synchronised in B and
+///    sampled at B's clock.
+///
+/// This is the first-cut MVP per `.1`'s design: one synchronizer
+/// per call, on a 1-bit flop-driven output. Wider promotion
+/// (multiple synchronizers per module, arbitrary cross-domain
+/// data paths, fsm/memory in non-default domains) are
+/// follow-up leaves. The pass is **rules-first**: the
+/// synchronizer is constructed in place at the moment of the
+/// rewrite decision; there is no post-pass filter
+/// (`feedback_rules_first_generation.md`).
+///
+/// **Backward-compatible.** Callers must gate this on a
+/// per-module `Bernoulli(multi_clock_prob)` roll;
+/// `Generator::generate_design` already does so when
+/// `cfg.multi_clock_prob > 0.0` (default `0.0` ⇒ pass never
+/// runs ⇒ byte-identical emit). When the pass DOES run on a
+/// module with no eligible promotion target, it returns
+/// `promoted: false` and leaves the module untouched — also
+/// backward-compatible for downstream consumers.
+pub fn promote_to_multi_clock(module: &mut Module) -> PromotionOutcome {
+    // Precondition: must have an existing single-clock domain.
+    // Modules with no flops at all have no `clk`/`rst_n` and
+    // can't be multi-clock-promoted.
+    let (clk_a, rst_n_a) = match (module.clock, module.reset) {
+        (Some(c), Some(r)) => (c, r),
+        _ => return PromotionOutcome::default(),
+    };
+
+    // Find a 1-bit output port directly driven by a flop's Q.
+    // (Multi-bit synchronization is out of scope per `.1`'s
+    // tier-3-5 deferral — handshake / async FIFO / gray-code
+    // pointer; the first-cut MVP only supports 1-bit signals.)
+    let promotion_target = module.outputs.iter().find_map(|port| {
+        if port.width != 1 {
+            return None;
+        }
+        let (drive_idx, drive_node) =
+            module.drives.iter().enumerate().find_map(|(idx, (p, n))| {
+                if *p == port.id {
+                    Some((idx, *n))
+                } else {
+                    None
+                }
+            })?;
+        // The drive node must be a `Node::FlopQ` (the source
+        // flop's output) — the first-cut MVP requires a
+        // direct flop-driven output so the rewire is a
+        // simple `drives[i].1 = synced_q`. Comb-driven
+        // outputs would need cone rewriting which is a
+        // follow-up.
+        match &module.nodes[drive_node as usize] {
+            Node::FlopQ { .. } => Some((port.id, drive_idx, drive_node)),
+            _ => None,
+        }
+    });
+
+    let (_output_port_id, drive_idx, src_q) = match promotion_target {
+        Some(t) => t,
+        None => return PromotionOutcome::default(),
+    };
+
+    // Allocate two new ports for domain B. PortId ids must be
+    // unique — pick the next two unused ids by scanning.
+    let next_port_id: PortId = module
+        .inputs
+        .iter()
+        .chain(module.outputs.iter())
+        .map(|p| p.id)
+        .max()
+        .map(|m| m + 1)
+        .unwrap_or(0);
+    let clk_b_id = next_port_id;
+    let rst_n_b_id = next_port_id + 1;
+    module.inputs.push(Port {
+        id: clk_b_id,
+        name: "clk_b".to_string(),
+        width: 1,
+        dir: Direction::In,
+    });
+    module.inputs.push(Port {
+        id: rst_n_b_id,
+        name: "rst_n_b".to_string(),
+        width: 1,
+        dir: Direction::In,
+    });
+
+    // Push the two ClockDomain entries. Domain 0 = the existing
+    // single-clock (named "a"); domain 1 = the new (named "b").
+    // Existing flops stay in domain 0 by default
+    // (`flop_domains` empty ⇒ `flop_domain` returns 0).
+    module.clock_domains.push(ClockDomain {
+        clk: clk_a,
+        rst_n: rst_n_a,
+        name: "a".to_string(),
+    });
+    module.clock_domains.push(ClockDomain {
+        clk: clk_b_id,
+        rst_n: rst_n_b_id,
+        name: "b".to_string(),
+    });
+
+    // Construct the 2-flop synchronizer chain in domain 1.
+    let chain = match construct_2flop_synchronizer(module, src_q, 1) {
+        Some(c) => c,
+        None => return PromotionOutcome::default(),
+    };
+
+    // Rewire the chosen output's drive to the synced Q.
+    module.drives[drive_idx].1 = chain.synced_q;
+
+    PromotionOutcome {
+        promoted: true,
+        num_domains: 2,
+        num_synchronizers: 1,
+    }
 }
 
 #[cfg(test)]
@@ -316,6 +482,176 @@ mod tests {
         assert!(
             sv.contains(&format!("assign o = {flop_name_synced};")),
             "output should be driven by the second-stage synced Q:\n{sv}"
+        );
+    }
+
+    // ===========================================================
+    // MULTI-CLOCK-CDC.3b — cargo-portable proofs of the
+    // `promote_to_multi_clock` pass.
+    // ===========================================================
+
+    /// Build a minimal single-clock module suitable for the
+    /// promotion pass: one 1-bit input + one 1-bit output, one
+    /// flop driving the output. K=1, clock_domains empty.
+    fn single_clock_module_with_flop_driven_1bit_output() -> Module {
+        let mut m = Module {
+            name: "promo_target".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "i_a", 1, Direction::In));
+        m.outputs.push(port(3, "o", 1, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // node 0
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 }); // node 1
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, 1)); // o := flop_0.Q
+        m
+    }
+
+    #[test]
+    fn promote_to_multi_clock_adds_two_domains_one_synchronizer() {
+        let mut m = single_clock_module_with_flop_driven_1bit_output();
+        let outcome = promote_to_multi_clock(&mut m);
+        assert!(
+            outcome.promoted,
+            "promotion should succeed on a flop-driven 1-bit output"
+        );
+        assert_eq!(outcome.num_domains, 2);
+        assert_eq!(outcome.num_synchronizers, 1);
+        // Two ClockDomain entries, named "a" and "b".
+        assert_eq!(m.clock_domains.len(), 2);
+        assert_eq!(m.clock_domains[0].name, "a");
+        assert_eq!(m.clock_domains[1].name, "b");
+        // Two new input ports: clk_b + rst_n_b.
+        assert!(m.inputs.iter().any(|p| p.name == "clk_b"));
+        assert!(m.inputs.iter().any(|p| p.name == "rst_n_b"));
+        // Three flops total: source (id=0) + first sync (id=1) +
+        // second sync (id=2).
+        assert_eq!(m.flops.len(), 3);
+        // Source flop stays in domain 0; sync flops in domain 1.
+        assert_eq!(m.flop_domain(0), 0);
+        assert_eq!(m.flop_domain(1), 1);
+        assert_eq!(m.flop_domain(2), 1);
+    }
+
+    #[test]
+    fn promote_to_multi_clock_rewires_output_to_synced_q() {
+        let mut m = single_clock_module_with_flop_driven_1bit_output();
+        let _ = promote_to_multi_clock(&mut m);
+        // The output `o` (port id 3) should now be driven by
+        // flop_2.Q (the second-stage sync flop) — not flop_0.Q
+        // any more.
+        let (_, drive_node) = m.drives.iter().find(|(p, _)| *p == 3).expect("o drive");
+        match &m.nodes[*drive_node as usize] {
+            Node::FlopQ { flop, .. } => {
+                assert_eq!(*flop, 2, "drive should be flop_2.Q (second sync stage)")
+            }
+            other => panic!("expected FlopQ drive after promotion; got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn promote_to_multi_clock_emit_shape_has_two_always_ff_blocks() {
+        let mut m = single_clock_module_with_flop_driven_1bit_output();
+        let _ = promote_to_multi_clock(&mut m);
+        let sv = crate::emit::to_sv(&m);
+        let n_blocks = sv.matches("always_ff @(").count();
+        assert_eq!(
+            n_blocks, 2,
+            "expected 2 always_ff blocks after promotion:\n{sv}"
+        );
+        assert!(
+            sv.contains("always_ff @(posedge clk or negedge rst_n)"),
+            "domain A block missing"
+        );
+        assert!(
+            sv.contains("always_ff @(posedge clk_b or negedge rst_n_b)"),
+            "domain B block missing"
+        );
+        // Output driven by the synced (second-stage) Q.
+        assert!(
+            sv.contains("assign o = flop_2;"),
+            "output should be rewired to flop_2:\n{sv}"
+        );
+    }
+
+    #[test]
+    fn promote_to_multi_clock_declines_on_module_with_no_outputs() {
+        // Module with a flop but no output → no promotion target.
+        let mut m = single_clock_module_with_flop_driven_1bit_output();
+        m.outputs.clear();
+        m.drives.clear();
+        let outcome = promote_to_multi_clock(&mut m);
+        assert!(!outcome.promoted);
+        assert_eq!(outcome.num_domains, 0);
+        assert_eq!(outcome.num_synchronizers, 0);
+        // Module is unchanged.
+        assert!(m.clock_domains.is_empty());
+        assert!(m.flop_domains.is_empty());
+        assert_eq!(m.flops.len(), 1);
+    }
+
+    #[test]
+    fn promote_to_multi_clock_declines_on_module_with_no_clock() {
+        // Pure-combinational module — no clock/reset to promote
+        // from.
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "i", 1, Direction::In));
+        m.outputs.push(port(1, "o", 1, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        m.drives.push((1, 0));
+        let outcome = promote_to_multi_clock(&mut m);
+        assert!(!outcome.promoted, "comb module has no clock to promote");
+        assert!(m.clock_domains.is_empty());
+    }
+
+    #[test]
+    fn promote_to_multi_clock_declines_on_wide_output() {
+        // Width=8 output driven by flop — the first-cut MVP
+        // only supports 1-bit signals (multi-bit needs handshake
+        // or async-FIFO per `.1`'s tier 3-5 deferral).
+        let mut m = Module {
+            name: "wide_out".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "i_a", 8, Direction::In));
+        m.outputs.push(port(3, "o", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 });
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 });
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, 1));
+        let outcome = promote_to_multi_clock(&mut m);
+        assert!(
+            !outcome.promoted,
+            "wide outputs should be declined per .1's tier-3-5 deferral"
         );
     }
 }

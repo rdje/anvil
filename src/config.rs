@@ -94,6 +94,13 @@ fn default_fsm_prob() -> f64 {
     0.0
 }
 
+/// `MULTI-CLOCK-CDC.3b` — per-module roll for the multi-clock
+/// promotion pass. Defaults to `0.0` so every existing run is
+/// byte-identical to pre-`.3b` ANVIL.
+fn default_multi_clock_prob() -> f64 {
+    0.0
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -570,6 +577,18 @@ pub struct Config {
     #[serde(default = "default_fsm_prob")]
     pub fsm_prob: f64,
 
+    /// `MULTI-CLOCK-CDC.3b` — per-module roll for the multi-clock
+    /// promotion pass. When fired, a second clock domain is added
+    /// to the generated module + one flop-driven output is wrapped
+    /// in a 2-flop synchronizer chain in the new domain (the
+    /// `src/gen/multi_clock.rs::construct_2flop_synchronizer`
+    /// primitive landed in `MULTI-CLOCK-CDC.3a`). `default = 0.0`
+    /// keeps every existing output byte-identical to pre-`.3b`
+    /// ANVIL — the load-bearing default-`dut` book-runnable
+    /// contract from Phase 9 is preserved.
+    #[serde(default = "default_multi_clock_prob")]
+    pub multi_clock_prob: f64,
+
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
 
@@ -724,6 +743,7 @@ impl Default for Config {
             aggregate_prob: default_aggregate_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
+            multi_clock_prob: default_multi_clock_prob(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -1065,6 +1085,7 @@ impl Config {
             ("aggregate_prob", self.aggregate_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
+            ("multi_clock_prob", self.multi_clock_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
                 return Err(ConfigError::Probability { name, value });

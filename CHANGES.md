@@ -1,5 +1,189 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-05-24-multi-clock-cdc-3b.1 — MULTI-CLOCK-CDC.3b.1 multi_clock_prob knob + promote_to_multi_clock pass wired into Generator::generate_design — backward-compatible (0.0 default)
+
+**Landed as:** this commit
+
+**What changed**
+
+Per `MULTI-CLOCK-CDC.1`'s design, the multi-clock promotion is
+gated by a per-module Bernoulli roll on a new
+`Config.multi_clock_prob` knob; when fired, the post-construction
+`promote_to_multi_clock` pass adds a second clock domain + wraps
+one 1-bit flop-driven output in a 2-flop synchronizer via the
+`.3a` primitive. `.3b` further split per the proven Phase-7
+`.2c.2a`/`.2c.2b` discipline: `.3b.1` is the knob + Generator
+integration; `.3b.2` adds the tool_matrix scenario + coverage
+facts + downstream-tool gate + `#[ignore]` end-to-end proof.
+
+- **`Config.multi_clock_prob: f64`** field (`src/config.rs`):
+  - `#[serde(default = "default_multi_clock_prob")]` — defaults
+    to `0.0` so every existing run is byte-identical.
+  - Validated as a probability via the existing
+    `validate_probability` slice (`0.0..=1.0`).
+  - Added to `Config::default()` + the `serializable_pairs`
+    validation table.
+
+- **`promote_to_multi_clock(module: &mut Module) -> PromotionOutcome`**
+  in `src/gen/multi_clock.rs` (~120 lines):
+  1. Allocates two new ports — `clk_b` + `rst_n_b` —  with
+     unique PortIds picked by scanning the existing inputs +
+     outputs.
+  2. Pushes two `ClockDomain` entries into
+     `Module.clock_domains`: domain 0 = the existing
+     `Module.clock`/`reset` (named `"a"`); domain 1 = the new
+     (named `"b"`).
+  3. Picks the **first 1-bit output port directly driven by a
+     flop's Q**. If none exists, declines (`PromotionOutcome {
+     promoted: false, .. }`) — backward-compatible decline path
+     for any module without a clean 1-bit flop-driven target.
+     Multi-bit outputs are explicitly rejected per `.1`'s
+     tier-3-5 deferral (multi-bit signals need handshake or
+     async FIFO, not a 2-flop synchronizer). Comb-driven
+     outputs are also rejected (the first-cut MVP requires a
+     direct flop-driven target so the rewire is a simple
+     `drives[i].1 = synced_q` — cone rewriting is a follow-up).
+  4. Constructs the 2-flop synchronizer chain in domain 1 via
+     the `.3a` `construct_2flop_synchronizer` primitive.
+  5. Rewires the chosen output's drive to the synced Q. The
+     output is now semantically a domain-1 signal —
+     synchronised in B and sampled at B's clock.
+
+- **`PromotionOutcome { promoted, num_domains, num_synchronizers }`**
+  struct reports what the pass added so `.3b.2` can light the
+  forthcoming `saw_multi_clock_design` and
+  `saw_cdc_2_flop_synchronizer` coverage facts.
+
+- **`Generator::generate_design` wiring** in `src/gen/mod.rs`
+  (mirrors the existing `aggregate_prob` post-construction
+  pattern):
+
+  ```rust
+  if self.cfg.multi_clock_prob > 0.0 {
+      let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
+      for module in &mut design.modules {
+          if self.rng.gen_bool(p) {
+              let _ = multi_clock::promote_to_multi_clock(module);
+          }
+      }
+  }
+  ```
+
+  Uses the seeded generator RNG (reproducible; never
+  `thread_rng`). Default `multi_clock_prob = 0.0` skips the
+  entire block — every existing module byte-identical.
+
+- **6 new cargo-portable proofs** for the pass in
+  `src/gen/multi_clock::tests`:
+  1. `promote_to_multi_clock_adds_two_domains_one_synchronizer`
+     — happy path: K=2, 1 synchronizer, source in domain 0,
+     sync flops in domain 1.
+  2. `promote_to_multi_clock_rewires_output_to_synced_q` —
+     the chosen output's drive is now `flop_2.Q` (the second
+     sync stage), not the original source flop's Q.
+  3. `promote_to_multi_clock_emit_shape_has_two_always_ff_blocks`
+     — end-to-end emit: 2 `always_ff` blocks (one per domain),
+     output rewired in SV.
+  4. `promote_to_multi_clock_declines_on_module_with_no_outputs`
+     — clean decline, module unchanged.
+  5. `promote_to_multi_clock_declines_on_module_with_no_clock`
+     — pure-combinational module → clean decline.
+  6. `promote_to_multi_clock_declines_on_wide_output` —
+     width=8 output → clean decline per `.1`'s tier-3-5
+     deferral.
+
+- **2 new end-to-end Generator integration tests** in
+  `src/gen::tests`:
+  1. `generate_design_with_multi_clock_prob_one_promotes_at_least_one_module`
+     — `multi_clock_prob = 1.0` + a sequential-favoring config
+     produces at least one promoted module; emit has the
+     domain-B `always_ff` block.
+  2. `default_multi_clock_prob_zero_skips_promotion_entirely`
+     — explicit byte-identical regression guard: default
+     `multi_clock_prob = 0.0` produces zero promotions, and
+     two separate generator runs with the same seed produce
+     byte-identical SV (covers the promotion pass's
+     idempotent-skip behavior at the integration level).
+
+**Why it matters**
+
+- Wires the multi-clock capability through the full Generator
+  pipeline. Users can now opt in via `Config.multi_clock_prob`
+  (the `tool_matrix` scenario + the eventual book-example
+  invocation land in `.3b.2` and `.4`).
+
+- **Preserves the byte-identical default-`dut` contract from
+  Phase 9.** Default `multi_clock_prob = 0.0` is the load-bearing
+  invariant; the `default_multi_clock_prob_zero_skips_promotion_entirely`
+  test is an explicit guard, and the broader `book_examples` +
+  `snapshots` + `microdesign_parity` + `frontend_parity` +
+  `diff_sim` suites are byte-identical (lib +8, every other
+  suite unchanged).
+
+- **Validates the entire `.2`+`.3a`+`.3b.1` chain end-to-end.**
+  The `generate_design_with_multi_clock_prob_one_promotes_at_least_one_module`
+  test exercises: IR extension (`Module.clock_domains` +
+  `Flop.domain` via `Module.flop_domains`) → Generator
+  integration (Bernoulli roll + per-module pass) → synchronizer
+  construction primitive (`.3a`) → emitter per-domain
+  `always_ff` (`.2`). All three layers compose correctly to
+  produce K=2 multi-clock SystemVerilog from a single seed.
+
+**Tests**
+
+- `cargo fmt --all`/`clippy --all-targets -- -D warnings`/
+  `check --all-targets` all clean (one
+  `doc-lazy-continuation` clippy hit fixed by rewording the
+  test docstring; one `unused_enumerate_index` clippy hit
+  fixed by replacing `.enumerate().find_map(|(_, port)| ...)`
+  with `.find_map(|port| ...)`).
+- `cargo test --lib` 264 passed (was 256 + 8 new MULTI-CLOCK-CDC.3b.1
+  proofs).
+- `cargo test --test snapshots` 6/6 — **byte-identical** (the
+  K=1 default emit path is unchanged through `.2` + `.3b.1`).
+- `cargo test --test book_examples` 3/3 in 84.28s —
+  **byte-identical** default-`dut` contract from Phase 9
+  preserved end-to-end through the `.3b.1` Generator
+  integration.
+- Other suites unchanged: `tool_matrix` 37 + 1 ignored,
+  `microdesign_parity` 15 + 1 ignored, `frontend_parity` 12 + 2
+  ignored, `diff_sim` 2 portable + 2 ignored.
+
+**Doctrine / scope**
+
+- Closes `MULTI-CLOCK-CDC.3b.1`; frontier → `.3b.2`
+  (`tool_matrix` multi-clock scenario + `saw_multi_clock_design`
+  + `saw_cdc_2_flop_synchronizer` coverage facts +
+  `merge_coverage`/`summarize_coverage` updates + Verilator
+  downstream-tool gate + `#[ignore]` end-to-end proof).
+- Per `feedback_rules_first_generation.md`: the pass constructs
+  the synchronizer in place via the `.3a` primitive — no
+  generate-then-filter step anywhere in the design.
+- The `.3b` split is preemptive (no surfaced dependency yet) —
+  done because `.3b.1` is a clean atomic IR + Generator
+  integration that gives `.3b.2` a stable runtime surface to
+  add the matrix scenario + coverage facts + downstream-tool
+  gate against, mirroring the Phase-7-style discipline at one
+  finer granularity.
+
+**Files**
+
+- `src/config.rs` (new `default_multi_clock_prob()` fn + new
+  `pub multi_clock_prob: f64` field on `Config` + entry in
+  `Config::default()` + entry in the `serializable_pairs`
+  validation table).
+- `src/gen/multi_clock.rs` (new `PromotionOutcome` struct + new
+  `pub fn promote_to_multi_clock` + 6 new cargo-portable proofs
+  in `tests` mod; new imports for `ClockDomain`/`Direction`/`Port`/
+  `PortId`).
+- `src/gen/mod.rs` (new Generator integration block in
+  `generate_design` per the `aggregate_prob` pattern + 2 new
+  end-to-end Generator integration tests in `tests` mod).
+- `docs/tasks/MULTI-CLOCK-CDC.md` (`.3b` split into `.3b.1` done
+  + `.3b.2` pending; Verification Log + Commit Log + Changelog
+  entries; frontier → `.3b.2`).
+- `docs/TASK_TREE.md` (`MULTI-CLOCK-CDC` row points at `.3b.2`).
+
 ## 2026-05-24-multi-clock-cdc-3a — MULTI-CLOCK-CDC.3a 2-flop synchronizer construction primitive in src/gen/multi_clock.rs — landed in isolation with 5 cargo-portable proofs
 
 **Landed as:** this commit

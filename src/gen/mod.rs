@@ -140,6 +140,27 @@ impl Generator {
         // parameterized modules (`.2.1` scoping) and modules with no
         // eligible same-direction data-port group. Default-off (prob
         // 0.0) skips entirely → every module byte-identical.
+        // `MULTI-CLOCK-CDC.3b` — opt-in post-construction
+        // multi-clock promotion pass. Per `.1`'s design + the
+        // rules-first-generation doctrine
+        // (`feedback_rules_first_generation.md`), the
+        // synchronizer is constructed in place by
+        // `multi_clock::promote_to_multi_clock` (which calls the
+        // `.3a` primitive); there is no post-pass filter.
+        // Default-off (`multi_clock_prob == 0.0`) skips entirely
+        // ⇒ every module byte-identical to pre-`.3b` ANVIL —
+        // verified by the load-bearing book/snapshot/lib tests.
+        // The per-module Bernoulli roll uses the seeded
+        // generator RNG (reproducible; never `thread_rng`),
+        // mirroring the `aggregate_prob` pattern below.
+        if self.cfg.multi_clock_prob > 0.0 {
+            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
+            for module in &mut design.modules {
+                if self.rng.gen_bool(p) {
+                    let _ = multi_clock::promote_to_multi_clock(module);
+                }
+            }
+        }
         if self.cfg.aggregate_prob > 0.0 {
             let p = self.cfg.aggregate_prob.clamp(0.0, 1.0);
             // `.2.1` scaffold scoping: only project modules that are
@@ -187,5 +208,98 @@ mod tests {
         let actual = emit::to_sv(&restored.generate_module());
 
         assert_eq!(actual, expected);
+    }
+
+    /// `MULTI-CLOCK-CDC.3b` — end-to-end: `multi_clock_prob = 1.0`
+    /// plus a sequential-favoring config produces a design whose
+    /// modules (at least one) carry K=2 clock domains and a 2-flop
+    /// synchronizer, emitting two `always_ff` blocks in SV.
+    /// Defaults (`multi_clock_prob = 0.0`) skip the pass; this
+    /// test explicitly opts in.
+    #[test]
+    fn generate_design_with_multi_clock_prob_one_promotes_at_least_one_module() {
+        // Sequential-favoring config so the generated module
+        // has at least one flop driving a 1-bit output (the
+        // promotion pass's eligibility predicate).
+        let cfg = Config {
+            seed: 42,
+            multi_clock_prob: 1.0,
+            flop_prob: 1.0,
+            // Force narrow outputs so the 1-bit-only first-cut
+            // promotion has a target.
+            min_width: 1,
+            max_width: 1,
+            ..Config::default()
+        };
+        let mut gen = Generator::new(cfg);
+        let design = gen.generate_design();
+        // At least one module should have been promoted: K=2
+        // clock domains + at least one flop in domain 1.
+        let promoted_count = design
+            .modules
+            .iter()
+            .filter(|m| {
+                m.clock_domains.len() >= 2 && m.flops.iter().any(|f| m.flop_domain(f.id) == 1)
+            })
+            .count();
+        assert!(
+            promoted_count >= 1,
+            "expected at least one promoted module; got {promoted_count} \
+             (modules={})",
+            design.modules.len()
+        );
+        // Emit must produce two `always_ff` blocks for the
+        // promoted module.
+        for m in &design.modules {
+            if m.clock_domains.len() < 2 {
+                continue;
+            }
+            let sv = emit::to_sv(m);
+            let n_blocks = sv.matches("always_ff @(").count();
+            assert!(
+                n_blocks >= 2,
+                "promoted module emit should have ≥2 always_ff blocks; got {n_blocks}:\n{sv}"
+            );
+            assert!(
+                sv.contains("always_ff @(posedge clk_b or negedge rst_n_b)"),
+                "promoted module emit missing domain B always_ff:\n{sv}"
+            );
+        }
+    }
+
+    /// `MULTI-CLOCK-CDC.3b` — backward-compat: default
+    /// `multi_clock_prob = 0.0` produces zero promotions, and
+    /// the generated design is byte-identical to a separate
+    /// generator run with the same seed (a regression guard on
+    /// the promotion pass's idempotent skip).
+    #[test]
+    fn default_multi_clock_prob_zero_skips_promotion_entirely() {
+        let cfg = Config {
+            seed: 7,
+            ..Config::default()
+        };
+        assert_eq!(cfg.multi_clock_prob, 0.0);
+        let mut gen = Generator::new(cfg.clone());
+        let design = gen.generate_design();
+        for m in &design.modules {
+            assert!(
+                m.clock_domains.is_empty(),
+                "default multi_clock_prob should produce no clock_domains entries; \
+                 got {} for module {}",
+                m.clock_domains.len(),
+                m.name
+            );
+            assert!(
+                m.flop_domains.is_empty(),
+                "default multi_clock_prob should produce no flop_domains entries"
+            );
+        }
+        // Same seed, same config → byte-identical SV.
+        let mut gen2 = Generator::new(cfg);
+        let design2 = gen2.generate_design();
+        assert_eq!(design.modules.len(), design2.modules.len());
+        for (a, b) in design.modules.iter().zip(design2.modules.iter()) {
+            assert_eq!(emit::to_sv(a), emit::to_sv(b));
+        }
     }
 }
