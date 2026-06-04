@@ -50,11 +50,11 @@ of re-derived from source, runtime, or chat history.
   Commit: `KNOWLEDGE-MAP-DOC.1 — add Knowledge Map bundle`
 
 - ID: `KNOWLEDGE-MAP-DOC.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Install functional generation/enforcement: create docs/knowledge, generate KNOWLEDGE_MAP.md, wire pre-commit and CI gates.`
   Acceptance: `knowledge-map/install.sh or equivalent setup has produced the fact dir and map; pre-commit regenerates/stages/checks the map; CI runs check_knowledge_map.sh; focused validation proves drift checks work.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `bash knowledge-map/install.sh created docs/knowledge/ and generated KNOWLEDGE_MAP.md; knowledge-map/scripts/check_knowledge_map.sh clean; .githooks/pre-commit runs memory architecture check then regenerates/stages/checks KNOWLEDGE_MAP.md; .github/workflows/ci.yml runs knowledge-map/scripts/check_knowledge_map.sh after the memory architecture check; scripts/check_memory_architecture.sh clean; git diff --check clean; mdbook build book clean; cargo check --all-targets clean. Full cargo test intentionally skipped per resource-safe workflow-doc policy.`
+  Commit: `KNOWLEDGE-MAP-DOC.2 — install Knowledge Map enforcement`
 
 - ID: `KNOWLEDGE-MAP-DOC.3`
   Status: `pending`
@@ -67,7 +67,7 @@ of re-derived from source, runtime, or chat history.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `KNOWLEDGE-MAP-DOC.2` | `pending` | Install generation/enforcement after the bundle is discoverable. |
+| 1 | `KNOWLEDGE-MAP-DOC.3` | `pending` | Seed ANVIL-specific retrieval keys now that generation/enforcement exists. |
 
 ## Decisions
 
@@ -90,16 +90,18 @@ of re-derived from source, runtime, or chat history.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-05` | `KNOWLEDGE-MAP-DOC.1` | donor-project residue `rg`; `scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per resource-safe workflow-doc policy. |
+| `2026-06-05` | `KNOWLEDGE-MAP-DOC.2` | `bash knowledge-map/install.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `.githooks/pre-commit`; CI wiring review; `scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — functional generation/enforcement clean; full cargo test intentionally skipped per resource-safe workflow-doc policy. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `KNOWLEDGE-MAP-DOC.1` | `KNOWLEDGE-MAP-DOC.1 — add Knowledge Map bundle` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `KNOWLEDGE-MAP-DOC.2` | `pending` | `pending` |
+| `KNOWLEDGE-MAP-DOC.1` | `cf16846` — `KNOWLEDGE-MAP-DOC.1 — add Knowledge Map bundle` | Bundle and discovery pointers landed. |
+| `KNOWLEDGE-MAP-DOC.2` | `KNOWLEDGE-MAP-DOC.2 — install Knowledge Map enforcement` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `KNOWLEDGE-MAP-DOC.3` | `pending` | `pending` |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened `KNOWLEDGE-MAP-DOC.1`.
 - `2026-06-05`: Completed `KNOWLEDGE-MAP-DOC.1`; frontier moves to `.2`.
+- `2026-06-05`: Completed `KNOWLEDGE-MAP-DOC.2`; frontier moves to `.3`.

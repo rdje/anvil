@@ -58,6 +58,18 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Knowledge Map enforcement (2026-06-05, KNOWLEDGE-MAP-DOC.2)
+
+`KNOWLEDGE_MAP.md` is a derived retrieval index, not an authored live
+doc. Its source of truth is YAML front-matter in fact-bearing markdown
+files under the configured scan directories. The local pre-commit hook
+therefore regenerates and stages the map before checking it, while CI
+runs the same check as the server-side backstop.
+
+Facts are added lazily when a durable conclusion is established or
+archaeology is caught. Existing task trees, live docs, and mdBook prose
+are not converted into cards as a migration project.
+
 ### Live-doc path portability (2026-06-04, LIVE-DOC-PATH-HYGIENE.1)
 
 Live docs and the mdBook must describe project files with paths relative to the

@@ -30,6 +30,9 @@ jobs:
       - name: memory architecture check
         run: bash scripts/check_memory_architecture.sh
 
+      - name: knowledge map check
+        run: bash knowledge-map/scripts/check_knowledge_map.sh
+
       - name: Install Rust (stable) + components
         uses: dtolnay/rust-toolchain@stable
         with:

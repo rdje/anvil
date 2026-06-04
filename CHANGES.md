@@ -1,8 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-knowledge-map-1 — KNOWLEDGE-MAP-DOC.1 add Knowledge Map bundle
+## 2026-06-05-knowledge-map-2 — KNOWLEDGE-MAP-DOC.2 install Knowledge Map enforcement
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `KNOWLEDGE-MAP-DOC.2`.
+
+- Ran `knowledge-map/install.sh` to create `docs/knowledge/` and the
+  first derived `KNOWLEDGE_MAP.md`.
+- Reworked `.githooks/pre-commit` so it runs the memory-architecture
+  check, regenerates/stages `KNOWLEDGE_MAP.md`, and then runs the
+  Knowledge Map validation gate.
+- Added the Knowledge Map validation gate to CI immediately after the
+  memory-architecture check.
+- Added `KNOWLEDGE_MAP.md` to README/bootstrap resume paths so the
+  generated map is the retrieval entrypoint and the architecture doc is
+  the rulebook.
+- Added a `DEVELOPMENT_NOTES.md` entry for the generated-map invariant
+  and the no-conversion-sweep boundary.
+- Moved the `KNOWLEDGE-MAP-DOC` frontier from `.2` to `.3`.
+
+**Why it matters**
+
+The Knowledge Map is now functional and enforced locally and in CI. The
+derived map is never hand-edited; it is regenerated from fact
+front-matter and checked for drift.
+
+**Tests**
+
+- `bash knowledge-map/install.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per resource-safe workflow-doc
+  policy.
+
+**Doctrine / scope**
+
+- Completes `KNOWLEDGE-MAP-DOC.2`; tree remains open with `.3` next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+- No donor-project facts or provider-specific artifacts were imported.
+
+**Files**
+
+- `KNOWLEDGE_MAP.md`
+- `docs/knowledge/README.md`
+- `.githooks/pre-commit`
+- `.github/workflows/ci.yml`
+- `README.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.cursorrules`
+- `.github/copilot-instructions.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/KNOWLEDGE-MAP-DOC.md`
+- `CHANGES.md`
+
+## 2026-06-05-knowledge-map-1 — KNOWLEDGE-MAP-DOC.1 add Knowledge Map bundle
+
+**Landed as:** `cf16846`
 
 **What changed**
 
