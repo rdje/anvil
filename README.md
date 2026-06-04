@@ -53,7 +53,8 @@ the broader future artifact families.
 10. `COMMIT.md`: canonical commit workflow.
 11. `docs/TASK_TREE.md`: repo-local task-tree workflow and active-tree index. **Doctrine (2026-05-17, non-negotiable): no code change may be made without a task-tree leaf owning it first** (pure-docs/mdBook/workflow edits exempt; see its "ANVIL Adoption Scope" for the code/not-code boundary and `docs/TASK_TREE_README.md` for the portable setup guide).
 12. `docs/tasks/*.md`: one file per active top-level task tree, with stable leaf IDs, current frontier, blockers, decisions, and verification log.
-13. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
+13. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
+14. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
 

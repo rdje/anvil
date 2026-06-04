@@ -49,11 +49,11 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
   Commit: `MEMORY-ARCHITECTURE-DOC.1 — add portable memory standard`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Create docs/decisions/ as layer C and migrate durable decisions/facts out of harness-only or bloated live memory into tracked decision records.`
   Acceptance: `docs/decisions/INDEX.md indexes the records; initial records use Context/Decision/Consequences; live docs reference layer C.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `docs/decisions/INDEX.md indexes ANVIL-specific 0001/0002/0003 records; each record has Context/Decision/Consequences/Links; README points at docs/decisions/*.md; rg focused decision-link check clean; rg donor-residue check clean; git diff --check clean; mdbook build book clean; cargo check --all-targets clean. Full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf.`
+  Commit: `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.3`
   Status: `pending`
@@ -80,11 +80,11 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-ARCHITECTURE-DOC.2` | `pending` | Add layer-C decision records after the standard and README pointer are established. |
+| 1 | `MEMORY-ARCHITECTURE-DOC.3` | `pending` | Demote `MEMORY.md` after the layer-C decision store exists. |
 
 ## Decisions
 
-- `2026-06-04`: Adopt the portable specforge memory architecture in five
+- `2026-06-04`: Adopt the portable memory architecture standard in five
   independently committable leaves matching the owner-provided breakdown.
 
 ## Open Questions
@@ -100,13 +100,14 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.1` | `rg` focused pointer check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
+| `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.2` | `rg` focused decision-link check; `rg` donor-residue check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `MEMORY-ARCHITECTURE-DOC.1` | `MEMORY-ARCHITECTURE-DOC.1 — add portable memory standard` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `MEMORY-ARCHITECTURE-DOC.2` | `pending` | `pending` |
+| `MEMORY-ARCHITECTURE-DOC.2` | `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.3` | `pending` | `pending` |
 | `MEMORY-ARCHITECTURE-DOC.4` | `pending` | `pending` |
 | `MEMORY-ARCHITECTURE-DOC.5` | `pending` | `pending` |
@@ -115,3 +116,4 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 
 - `2026-06-04`: Created task tree and opened `MEMORY-ARCHITECTURE-DOC.1`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.1`; frontier moves to `.2`.
+- `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.2`; frontier moves to `.3`.

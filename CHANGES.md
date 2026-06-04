@@ -1,5 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-memory-architecture-2 — MEMORY-ARCHITECTURE-DOC.2 add layer-C decision records
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `MEMORY-ARCHITECTURE-DOC.2` by adding
+the layer-C decision-record store recommended by `MEMORY_ARCHITECTURE.md`.
+
+- Added `docs/decisions/INDEX.md` with the layer-C convention and
+  sequential record index.
+- Added three ANVIL-relevant durable decision/fact records:
+  - `0001-task-tree-and-commit-doctrine.md` — task-tree ownership,
+    strict commit workflow, live-doc/mdBook sync, and artifact cleanup.
+  - `0002-live-doc-path-portability.md` — repo-root-relative project
+    paths in live docs/book, with `/tmp` validation evidence preserved.
+  - `0003-resource-safe-validation.md` — focused workflow-doc checks and
+    RAM-monitored full-suite policy.
+- Updated `README.md` ramp-up order to include `docs/decisions/*.md`.
+- Removed the copied standard's optional retrieval-map paragraph because
+  ANVIL does not have that infrastructure in this adoption scope.
+- Moved the `MEMORY-ARCHITECTURE-DOC` frontier from `.2` to `.3`.
+
+**Why it matters**
+
+Durable cross-cutting facts no longer need to live in chat history,
+harness-local memory, or the oversized resume pointer. They now have
+small, addressable, tracked records under `docs/decisions/`.
+
+**Tests**
+
+- Focused `rg` decision-link check over `docs/decisions`, `README.md`,
+  and `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- Focused donor-residue check in the memory-architecture integration files
+  — no matches.
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per owner instruction/resource
+  policy for this workflow-doc leaf.
+
+**Doctrine / scope**
+
+- Completes `MEMORY-ARCHITECTURE-DOC.2`; tree remains open with `.3`
+  next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `docs/decisions/INDEX.md`
+- `docs/decisions/0001-task-tree-and-commit-doctrine.md`
+- `docs/decisions/0002-live-doc-path-portability.md`
+- `docs/decisions/0003-resource-safe-validation.md`
+- `MEMORY_ARCHITECTURE.md`
+- `README.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
 ## 2026-06-04-memory-architecture-1 — MEMORY-ARCHITECTURE-DOC.1 add portable memory standard
 
 **Landed as:** this commit
