@@ -1,5 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-memory-architecture-1 — MEMORY-ARCHITECTURE-DOC.1 add portable memory standard
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Opened `MEMORY-ARCHITECTURE-DOC` and completed
+`.1`, the first adoption leaf for the durable agent-memory architecture.
+
+- Added `MEMORY_ARCHITECTURE.md` at the repository root as the
+  project-agnostic memory standard.
+- Updated `README.md` "Fast ramp-up" so fresh agents read
+  `MEMORY_ARCHITECTURE.md` immediately after `README.md`.
+- Registered the five-leaf `MEMORY-ARCHITECTURE-DOC` task tree and moved
+  its frontier from `.1` to `.2`.
+
+**Why it matters**
+
+The memory architecture now has a repo-local system-of-record document and
+is discoverable from the canonical project entrypoint before later leaves
+add layer-C decision records, demote `MEMORY.md`, and install enforcement.
+
+**Tests**
+
+- Focused `rg` pointer check over `README.md`,
+  `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`, and `docs/TASK_TREE.md`
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per owner instruction/resource
+  policy for this workflow-doc leaf.
+
+**Doctrine / scope**
+
+- Completes `MEMORY-ARCHITECTURE-DOC.1`; tree remains open with `.2`
+  next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `MEMORY_ARCHITECTURE.md`
+- `README.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
 ## 2026-06-04-live-doc-path-hygiene — Docs: LIVE-DOC-PATH-HYGIENE.1 repo-relative live-doc paths
 
 **Landed as:** this commit
