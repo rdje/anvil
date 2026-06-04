@@ -7,10 +7,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `5d683ff` - `MEMORY-ARCHITECTURE-DOC.2 - add layer-C decisions`
-- active_work_unit: `MEMORY-ARCHITECTURE-DOC` -> frontier leaf `MEMORY-ARCHITECTURE-DOC.4` (`pending`)
-- next_action: install the memory-architecture enforcement kit: self-check script, hooks, CI step, and bootstrap pointers.
-- in_flight_uncommitted: `MEMORY-ARCHITECTURE-DOC.3` commit in progress.
+- latest_commit: `d5d3c04` - `MEMORY-ARCHITECTURE-DOC.3 - demote MEMORY.md`
+- active_work_unit: `MEMORY-ARCHITECTURE-DOC` -> frontier leaf `MEMORY-ARCHITECTURE-DOC.5` (`pending`)
+- next_action: run final focused validation, sync live docs, close the tree, and commit `.5`.
+- in_flight_uncommitted: `MEMORY-ARCHITECTURE-DOC.4` commit in progress.
 - blockers: none.
 
 ## Validation policy

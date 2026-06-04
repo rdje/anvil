@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+subject="$(head -1 "$1")"
+unit_id='^[A-Z][A-Z0-9-]+(\.[0-9A-Za-z]+)+[[:space:]]+[—:-]'
+
+if [[ "${subject}" =~ ${unit_id} ]]; then
+  exit 0
+fi
+
+cat >&2 <<MSG
+[commit-msg] rejected: subject must start with a task-tree leaf id.
+  got:      ${subject}
+  expected: MEMORY-ARCHITECTURE-DOC.4 — install enforcement
+See MEMORY_ARCHITECTURE.md and COMMIT.md.
+MSG
+exit 1

@@ -63,11 +63,11 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
   Commit: `MEMORY-ARCHITECTURE-DOC.3 — demote MEMORY.md to resume pointer`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Install enforcement: self-check script, local git hooks, CI wiring, hooksPath, and bootstrap pointer files.`
   Acceptance: `scripts/check_memory_architecture.sh checks the memory invariants; .githooks/pre-commit and commit-msg call/enforce them; CI runs the check first; bootstrap files point at README and MEMORY_ARCHITECTURE.md; hooks are active locally.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `scripts/check_memory_architecture.sh clean; git config --get core.hooksPath => .githooks; .githooks/commit-msg rejects a bad subject and accepts MEMORY-ARCHITECTURE-DOC.4; MEMORY_POINTER_LINE_CAP=1 scripts/check_memory_architecture.sh fails as expected; git diff --check clean; mdbook build book clean; cargo check --all-targets clean. Full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf.`
+  Commit: `MEMORY-ARCHITECTURE-DOC.4 — install enforcement`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.5`
   Status: `pending`
@@ -80,7 +80,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-ARCHITECTURE-DOC.4` | `pending` | Install enforcement after the layer-A resume pointer exists. |
+| 1 | `MEMORY-ARCHITECTURE-DOC.5` | `pending` | Run final focused validation and close the tree after enforcement is installed. |
 
 ## Decisions
 
@@ -102,6 +102,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.1` | `rg` focused pointer check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.2` | `rg` focused decision-link check; `rg` donor-residue check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.3` | `wc -l MEMORY.md`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — `MEMORY.md` is 18 lines; focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
+| `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.4` | `scripts/check_memory_architecture.sh`; `git config --get core.hooksPath`; `.githooks/commit-msg` bad/good subject probes; `MEMORY_POINTER_LINE_CAP=1 scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — enforcement passes normally; commit-msg and cap probes fail/pass as expected; hooksPath is `.githooks`; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 
 ## Commit Log
 
@@ -110,7 +111,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | `MEMORY-ARCHITECTURE-DOC.1` | `MEMORY-ARCHITECTURE-DOC.1 — add portable memory standard` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.2` | `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.3` | `MEMORY-ARCHITECTURE-DOC.3 — demote MEMORY.md to resume pointer` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `MEMORY-ARCHITECTURE-DOC.4` | `pending` | `pending` |
+| `MEMORY-ARCHITECTURE-DOC.4` | `MEMORY-ARCHITECTURE-DOC.4 — install enforcement` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.5` | `pending` | `pending` |
 
 ## Changelog
@@ -119,3 +120,4 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.1`; frontier moves to `.2`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.2`; frontier moves to `.3`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.3`; frontier moves to `.4`.
+- `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.4`; frontier moves to `.5`.

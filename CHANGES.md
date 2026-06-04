@@ -1,5 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-memory-architecture-4 — MEMORY-ARCHITECTURE-DOC.4 install enforcement
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `MEMORY-ARCHITECTURE-DOC.4` by adding
+the memory-architecture enforcement kit.
+
+- Added `scripts/check_memory_architecture.sh`, the single source of
+  truth for layer-A/B/C/bootstrap invariants.
+- Added tracked local hooks:
+  - `.githooks/pre-commit` runs the memory-architecture self-check.
+  - `.githooks/commit-msg` rejects subjects that do not start with a
+    task-tree leaf id.
+- Activated the hooks locally with `git config core.hooksPath .githooks`.
+- Added bootstrap pointer files: `AGENTS.md`, `CLAUDE.md`,
+  `.cursorrules`, and `.github/copilot-instructions.md`.
+- Added the CI `memory architecture check` step before Rust setup/tests.
+- Moved the `MEMORY-ARCHITECTURE-DOC` frontier from `.4` to `.5`.
+
+**Why it matters**
+
+The memory architecture is now mechanically enforced locally and in CI.
+The compliant path is the easy path: fresh agents are routed to the same
+entrypoints, local commits run the self-check, commit subjects must carry
+leaf ids, and CI runs the same self-check.
+
+**Tests**
+
+- `scripts/check_memory_architecture.sh`
+- `git config --get core.hooksPath` -> `.githooks`
+- `.githooks/commit-msg /tmp/anvil-bad-commit-msg` rejected a bad
+  subject.
+- `.githooks/commit-msg /tmp/anvil-good-commit-msg` accepted
+  `MEMORY-ARCHITECTURE-DOC.4`.
+- `MEMORY_POINTER_LINE_CAP=1 scripts/check_memory_architecture.sh`
+  failed as expected.
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per owner instruction/resource
+  policy for this workflow-doc leaf.
+
+**Doctrine / scope**
+
+- Completes `MEMORY-ARCHITECTURE-DOC.4`; tree remains open with `.5`
+  next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `scripts/check_memory_architecture.sh`
+- `.githooks/pre-commit`
+- `.githooks/commit-msg`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.cursorrules`
+- `.github/copilot-instructions.md`
+- `.github/workflows/ci.yml`
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- `CHANGES.md`
+
 ## 2026-06-04-memory-architecture-3 — MEMORY-ARCHITECTURE-DOC.3 demote MEMORY.md to resume pointer
 
 **Landed as:** this commit
