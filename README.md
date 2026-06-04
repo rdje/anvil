@@ -43,18 +43,20 @@ the broader future artifact families.
 ## Fast ramp-up (recommended reading order)
 1. `README.md` (this file): canonical entry point and project map.
 2. `MEMORY_ARCHITECTURE.md`: durable agent-memory standard; defines the resume pointer, task-tree layer, decision-record layer, git-history layer, and enforcement.
-3. `SESSION_BOOTSTRAP.md`: what a fresh session should read first to regain full context.
-4. `USER_GUIDE.md`: live CLI, knobs, and downstream verification workflow.
-5. `ROADMAP.md`: current priorities and phased milestones.
-6. `CODEBASE_ANALYSIS.md`: live Rust-workspace analysis aligned to the roadmap and active code reality.
-7. `DEVELOPMENT_NOTES.md`: engineering rationale behind design decisions.
-8. `MEMORY.md`: compact, operational continuity/handoff snapshot with git hashes.
-9. `CHANGES.md`: fully detailed description of completed changes.
-10. `COMMIT.md`: canonical commit workflow.
-11. `docs/TASK_TREE.md`: repo-local task-tree workflow and active-tree index. **Doctrine (2026-05-17, non-negotiable): no code change may be made without a task-tree leaf owning it first** (pure-docs/mdBook/workflow edits exempt; see its "ANVIL Adoption Scope" for the code/not-code boundary and `docs/TASK_TREE_README.md` for the portable setup guide).
-12. `docs/tasks/*.md`: one file per active top-level task tree, with stable leaf IDs, current frontier, blockers, decisions, and verification log.
-13. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
-14. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
+3. `knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md`: additive retrieval-layer standard; durable facts get question keys so future agents do not re-derive already-logged facts.
+4. `knowledge-map/FAQ.md`: plain-language Knowledge Map boundaries, including no conversion sweeps and diagnostics-vs-archaeology.
+5. `SESSION_BOOTSTRAP.md`: what a fresh session should read first to regain full context.
+6. `USER_GUIDE.md`: live CLI, knobs, and downstream verification workflow.
+7. `ROADMAP.md`: current priorities and phased milestones.
+8. `CODEBASE_ANALYSIS.md`: live Rust-workspace analysis aligned to the roadmap and active code reality.
+9. `DEVELOPMENT_NOTES.md`: engineering rationale behind design decisions.
+10. `MEMORY.md`: compact, operational continuity/handoff snapshot with git hashes.
+11. `CHANGES.md`: fully detailed description of completed changes.
+12. `COMMIT.md`: canonical commit workflow.
+13. `docs/TASK_TREE.md`: repo-local task-tree workflow and active-tree index. **Doctrine (2026-05-17, non-negotiable): no code change may be made without a task-tree leaf owning it first** (pure-docs/mdBook/workflow edits exempt; see its "ANVIL Adoption Scope" for the code/not-code boundary and `docs/TASK_TREE_README.md` for the portable setup guide).
+14. `docs/tasks/*.md`: one file per active top-level task tree, with stable leaf IDs, current frontier, blockers, decisions, and verification log.
+15. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
+16. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
 

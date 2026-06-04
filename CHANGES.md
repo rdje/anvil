@@ -1,5 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-05-knowledge-map-1 — KNOWLEDGE-MAP-DOC.1 add Knowledge Map bundle
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Opened `KNOWLEDGE-MAP-DOC` and completed `.1`.
+
+- Copied the project-agnostic `knowledge-map/` bundle into ANVIL:
+  standard, FAQ, README, installer, generation/check scripts, config,
+  template, hook snippet, and CI snippet.
+- Updated `README.md` ramp-up order to include
+  `knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md` and `knowledge-map/FAQ.md`.
+- Updated bootstrap pointers (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`,
+  `.github/copilot-instructions.md`) so fresh agents discover the
+  retrieval layer.
+- Registered the `KNOWLEDGE-MAP-DOC` task tree and moved its frontier
+  from `.1` to `.2`.
+
+**Why it matters**
+
+ANVIL now carries the project-agnostic retrieval-layer standard that
+composes with `MEMORY_ARCHITECTURE.md`. Later leaves will generate the
+map, wire enforcement, and seed ANVIL-specific query keys without
+converting docs or importing donor-project facts.
+
+**Tests**
+
+- Donor-project residue `rg` over `knowledge-map/`, README, bootstrap
+  pointers, and the task tree — no matches.
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per resource-safe workflow-doc
+  policy.
+
+**Doctrine / scope**
+
+- Completes `KNOWLEDGE-MAP-DOC.1`; tree remains open with `.2` next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `knowledge-map/`
+- `README.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.cursorrules`
+- `.github/copilot-instructions.md`
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/KNOWLEDGE-MAP-DOC.md`
+- `CHANGES.md`
+
 ## 2026-06-04-memory-architecture-5 — MEMORY-ARCHITECTURE-DOC.5 validate and close memory architecture
 
 **Landed as:** this commit

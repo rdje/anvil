@@ -7,10 +7,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `2d01e8e` - `MEMORY-ARCHITECTURE-DOC.4 - install enforcement`
-- active_work_unit: none
-- next_action: pick the next task-tree-owned roadmap/workflow task.
-- in_flight_uncommitted: none.
+- latest_commit: `e5234e5` - `MEMORY-ARCHITECTURE-DOC.5 - validate and close`
+- active_work_unit: `KNOWLEDGE-MAP-DOC` -> frontier leaf `KNOWLEDGE-MAP-DOC.2` (`pending`)
+- next_action: install Knowledge Map generation/enforcement, generate the first map, validate, and commit `.2`.
+- in_flight_uncommitted: `KNOWLEDGE-MAP-DOC.1` commit in progress.
 - blockers: none.
 
 ## Validation policy

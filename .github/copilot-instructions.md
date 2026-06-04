@@ -1,3 +1,3 @@
 # Copilot Bootstrap
 
-Read `README.md`, then `MEMORY_ARCHITECTURE.md`, then resume from `MEMORY.md`. Track work in `docs/tasks/`, durable decisions in `docs/decisions/`, and commit per `COMMIT.md`.
+Read `README.md`, `MEMORY_ARCHITECTURE.md`, and `knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md`; then resume from `MEMORY.md`. Track work in `docs/tasks/`, durable decisions in `docs/decisions/`, durable retrieval facts through the Knowledge Map, and commit per `COMMIT.md`.
