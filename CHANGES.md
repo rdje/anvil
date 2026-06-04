@@ -1,5 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-memory-architecture-5 — MEMORY-ARCHITECTURE-DOC.5 validate and close memory architecture
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `MEMORY-ARCHITECTURE-DOC.5` and closed
+the memory-architecture adoption tree.
+
+- Closed the top-level `MEMORY-ARCHITECTURE-DOC` tree as `done`.
+- Updated `docs/TASK_TREE.md` to record the completed five-leaf adoption:
+  `.1` standard + README pointer, `.2` ANVIL layer-C decisions, `.3`
+  bounded `MEMORY.md`, `.4` enforcement, `.5` final focused validation.
+- Updated `MEMORY.md` to the post-tree resume state: no active work unit,
+  no in-flight uncommitted work, and next action is to pick the next
+  task-tree-owned roadmap/workflow task.
+
+**Why it matters**
+
+ANVIL now has the full durable memory architecture in place: a bounded
+resume pointer, task-tree work memory, decision records, git history,
+tool-neutral bootstrap pointers, local hooks, and CI enforcement.
+
+**Tests**
+
+- `scripts/check_memory_architecture.sh`
+- Focused donor-residue `rg` search — no matches.
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- `cargo fmt --all --check`
+- Full `cargo test` intentionally skipped per owner instruction/resource
+  policy for this workflow-doc integration.
+
+**Doctrine / scope**
+
+- Closes `MEMORY-ARCHITECTURE-DOC.5` and the entire
+  `MEMORY-ARCHITECTURE-DOC` tree.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- `CHANGES.md`
+
 ## 2026-06-04-memory-architecture-4 — MEMORY-ARCHITECTURE-DOC.4 install enforcement
 
 **Landed as:** this commit

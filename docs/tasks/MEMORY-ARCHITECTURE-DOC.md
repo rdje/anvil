@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `MEMORY-ARCHITECTURE-DOC`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Workflow / memory architecture`
 - Created: `2026-06-04`
 - Last updated: `2026-06-04`
@@ -37,7 +37,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 ## Task Tree
 
 - ID: `MEMORY-ARCHITECTURE-DOC`
-  Status: `active`
+  Status: `done`
   Goal: `Adopt the full durable memory architecture recommended by the portable standard.`
   Children: `MEMORY-ARCHITECTURE-DOC.1`, `MEMORY-ARCHITECTURE-DOC.2`, `MEMORY-ARCHITECTURE-DOC.3`, `MEMORY-ARCHITECTURE-DOC.4`, `MEMORY-ARCHITECTURE-DOC.5`
 
@@ -70,17 +70,17 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
   Commit: `MEMORY-ARCHITECTURE-DOC.4 — install enforcement`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.5`
-  Status: `pending`
-  Goal: `Run full end-to-end validation, sync live docs/status, and close the tree.`
-  Acceptance: `memory-architecture check, mdBook, cargo checks, and full tests pass; live docs reflect the adopted architecture; tree and registry close.`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `Run final focused validation, sync live docs/status, and close the tree.`
+  Acceptance: `memory-architecture check, donor-residue check, mdBook, cargo check, and format check pass; live docs reflect the adopted architecture; tree and registry close. Full cargo test is intentionally out of scope per owner instruction/resource policy for this workflow-doc integration.`
+  Verification: `scripts/check_memory_architecture.sh clean; donor-residue rg search clean; git diff --check clean; mdbook build book clean; cargo check --all-targets clean; cargo fmt --all --check clean. Full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc integration.`
+  Commit: `MEMORY-ARCHITECTURE-DOC.5 — validate and close memory architecture`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-ARCHITECTURE-DOC.5` | `pending` | Run final focused validation and close the tree after enforcement is installed. |
+| 1 | `MEMORY-ARCHITECTURE-DOC.5` | `done` | Completed: final focused validation clean; tree closed. |
 
 ## Decisions
 
@@ -103,6 +103,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.2` | `rg` focused decision-link check; `rg` donor-residue check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.3` | `wc -l MEMORY.md`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — `MEMORY.md` is 18 lines; focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.4` | `scripts/check_memory_architecture.sh`; `git config --get core.hooksPath`; `.githooks/commit-msg` bad/good subject probes; `MEMORY_POINTER_LINE_CAP=1 scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — enforcement passes normally; commit-msg and cap probes fail/pass as expected; hooksPath is `.githooks`; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
+| `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.5` | `scripts/check_memory_architecture.sh`; donor-residue `rg`; `git diff --check`; `mdbook build book`; `cargo check --all-targets`; `cargo fmt --all --check` | Done — final focused validation clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc integration. |
 
 ## Commit Log
 
@@ -112,7 +113,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | `MEMORY-ARCHITECTURE-DOC.2` | `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.3` | `MEMORY-ARCHITECTURE-DOC.3 — demote MEMORY.md to resume pointer` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.4` | `MEMORY-ARCHITECTURE-DOC.4 — install enforcement` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `MEMORY-ARCHITECTURE-DOC.5` | `pending` | `pending` |
+| `MEMORY-ARCHITECTURE-DOC.5` | `MEMORY-ARCHITECTURE-DOC.5 — validate and close memory architecture` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 
 ## Changelog
 
@@ -121,3 +122,4 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.2`; frontier moves to `.3`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.3`; frontier moves to `.4`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.4`; frontier moves to `.5`.
+- `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.5`; tree closed.

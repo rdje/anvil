@@ -7,10 +7,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `d5d3c04` - `MEMORY-ARCHITECTURE-DOC.3 - demote MEMORY.md`
-- active_work_unit: `MEMORY-ARCHITECTURE-DOC` -> frontier leaf `MEMORY-ARCHITECTURE-DOC.5` (`pending`)
-- next_action: run final focused validation, sync live docs, close the tree, and commit `.5`.
-- in_flight_uncommitted: `MEMORY-ARCHITECTURE-DOC.4` commit in progress.
+- latest_commit: `2d01e8e` - `MEMORY-ARCHITECTURE-DOC.4 - install enforcement`
+- active_work_unit: none
+- next_action: pick the next task-tree-owned roadmap/workflow task.
+- in_flight_uncommitted: none.
 - blockers: none.
 
 ## Validation policy
