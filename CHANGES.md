@@ -1,8 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-knowledge-map-2 — KNOWLEDGE-MAP-DOC.2 install Knowledge Map enforcement
+## 2026-06-05-knowledge-map-3 — KNOWLEDGE-MAP-DOC.3 seed ANVIL facts and close
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `KNOWLEDGE-MAP-DOC.3` and closed the
+Knowledge Map adoption tree.
+
+- Added Knowledge Map front matter to the three existing ANVIL layer-C
+  decision records:
+  - task-tree / commit doctrine
+  - repo-root-relative live-doc path portability
+  - resource-safe validation policy
+- Regenerated `KNOWLEDGE_MAP.md`; it now contains 3 facts and 12
+  question keys, all pointing back to ANVIL-owned decision records.
+- Updated `docs/decisions/INDEX.md` to document that records with
+  `answers:` front matter feed the generated retrieval map.
+- Broadened the resource-safe validation decision to explicitly cover
+  Knowledge Map workflow-doc leaves as retrieval architecture work.
+- Closed `KNOWLEDGE-MAP-DOC` in the task tree and registry.
+
+**Why it matters**
+
+Future sessions can now answer common process, portability, and
+resource-safety questions by opening `KNOWLEDGE_MAP.md` first and
+following one pointer to the canonical decision record.
+
+**Tests**
+
+- `knowledge-map/scripts/gen_knowledge_map.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- Donor/provider residue `rg` search — no matches.
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per resource-safe workflow-doc
+  policy.
+
+**Doctrine / scope**
+
+- Completes `KNOWLEDGE-MAP-DOC.3` and closes the entire
+  `KNOWLEDGE-MAP-DOC` tree.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+- No donor-project facts or provider-specific artifacts were imported.
+
+**Files**
+
+- `KNOWLEDGE_MAP.md`
+- `docs/decisions/0001-task-tree-and-commit-doctrine.md`
+- `docs/decisions/0002-live-doc-path-portability.md`
+- `docs/decisions/0003-resource-safe-validation.md`
+- `docs/decisions/INDEX.md`
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/KNOWLEDGE-MAP-DOC.md`
+- `CHANGES.md`
+
+## 2026-06-05-knowledge-map-2 — KNOWLEDGE-MAP-DOC.2 install Knowledge Map enforcement
+
+**Landed as:** `5a019bc`
 
 **What changed**
 

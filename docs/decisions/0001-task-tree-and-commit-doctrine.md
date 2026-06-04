@@ -1,3 +1,17 @@
+---
+id: task-tree-and-commit-doctrine
+title: Task-tree ownership before work and strict commit workflow
+answers:
+  - "what is ANVIL's task-tree doctrine"
+  - "do I need a task tree before changing code"
+  - "what is the commit workflow"
+  - "when should git_message_brief.txt be cleared"
+date: 2026-06-04
+status: current
+tags: [process, doctrine, continuity]
+evidence: docs/decisions/0001-task-tree-and-commit-doctrine.md; docs/TASK_TREE.md; COMMIT.md; MEMORY_ARCHITECTURE.md
+---
+
 # 0001 - Task-tree ownership before work; strict commit workflow
 
 - Date: 2026-06-04

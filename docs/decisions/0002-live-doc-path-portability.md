@@ -1,3 +1,17 @@
+---
+id: live-doc-path-portability
+title: Live docs and book use repo-root-relative project paths
+answers:
+  - "should ANVIL docs use absolute paths"
+  - "how should project file paths be written in live docs"
+  - "repo-root-relative paths in ANVIL docs"
+  - "are local checkout paths allowed in the book"
+date: 2026-06-04
+status: current
+tags: [docs, portability, continuity]
+evidence: docs/decisions/0002-live-doc-path-portability.md; DEVELOPMENT_NOTES.md; CHANGES.md
+---
+
 # 0002 - Live docs and book use repo-root-relative project paths
 
 - Date: 2026-06-04

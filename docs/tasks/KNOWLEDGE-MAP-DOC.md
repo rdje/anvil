@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `KNOWLEDGE-MAP-DOC`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Workflow / retrieval architecture`
 - Created: `2026-06-05`
 - Last updated: `2026-06-05`
@@ -38,7 +38,7 @@ of re-derived from source, runtime, or chat history.
 ## Task Tree
 
 - ID: `KNOWLEDGE-MAP-DOC`
-  Status: `active`
+  Status: `done`
   Goal: `Install the Knowledge Map retrieval layer as an additive memory-architecture extension.`
   Children: `KNOWLEDGE-MAP-DOC.1`, `KNOWLEDGE-MAP-DOC.2`, `KNOWLEDGE-MAP-DOC.3`
 
@@ -57,17 +57,17 @@ of re-derived from source, runtime, or chat history.
   Commit: `KNOWLEDGE-MAP-DOC.2 — install Knowledge Map enforcement`
 
 - ID: `KNOWLEDGE-MAP-DOC.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Seed ANVIL-specific retrieval keys for existing layer-C decisions and close the tree.`
   Acceptance: `Only ANVIL decision records are folded into the map by adding front-matter answers; generated KNOWLEDGE_MAP.md has question keys; final focused validation passes; tree closes.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Added Knowledge Map front-matter answers to docs/decisions/0001-task-tree-and-commit-doctrine.md, docs/decisions/0002-live-doc-path-portability.md, and docs/decisions/0003-resource-safe-validation.md; updated docs/decisions/INDEX.md; regenerated KNOWLEDGE_MAP.md to 3 facts / 12 question keys; knowledge-map/scripts/check_knowledge_map.sh clean; scripts/check_memory_architecture.sh clean; donor/provider residue rg search clean; git diff --check clean; mdbook build book clean; cargo check --all-targets clean. Full cargo test intentionally skipped per resource-safe workflow-doc policy.`
+  Commit: `KNOWLEDGE-MAP-DOC.3 — seed ANVIL facts and close`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `KNOWLEDGE-MAP-DOC.3` | `pending` | Seed ANVIL-specific retrieval keys now that generation/enforcement exists. |
+| - | - | - | Tree complete; pick the next task-tree-owned roadmap/workflow task. |
 
 ## Decisions
 
@@ -91,17 +91,19 @@ of re-derived from source, runtime, or chat history.
 | --- | --- | --- | --- |
 | `2026-06-05` | `KNOWLEDGE-MAP-DOC.1` | donor-project residue `rg`; `scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per resource-safe workflow-doc policy. |
 | `2026-06-05` | `KNOWLEDGE-MAP-DOC.2` | `bash knowledge-map/install.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `.githooks/pre-commit`; CI wiring review; `scripts/check_memory_architecture.sh`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — functional generation/enforcement clean; full cargo test intentionally skipped per resource-safe workflow-doc policy. |
+| `2026-06-05` | `KNOWLEDGE-MAP-DOC.3` | `knowledge-map/scripts/gen_knowledge_map.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; donor/provider residue `rg`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — generated map has 3 ANVIL facts / 12 question keys; full cargo test intentionally skipped per resource-safe workflow-doc policy. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `KNOWLEDGE-MAP-DOC.1` | `cf16846` — `KNOWLEDGE-MAP-DOC.1 — add Knowledge Map bundle` | Bundle and discovery pointers landed. |
-| `KNOWLEDGE-MAP-DOC.2` | `KNOWLEDGE-MAP-DOC.2 — install Knowledge Map enforcement` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `KNOWLEDGE-MAP-DOC.3` | `pending` | `pending` |
+| `KNOWLEDGE-MAP-DOC.2` | `5a019bc` — `KNOWLEDGE-MAP-DOC.2 — install Knowledge Map enforcement` | Generated map, fact directory, hook, and CI gate landed. |
+| `KNOWLEDGE-MAP-DOC.3` | `KNOWLEDGE-MAP-DOC.3 — seed ANVIL facts and close` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened `KNOWLEDGE-MAP-DOC.1`.
 - `2026-06-05`: Completed `KNOWLEDGE-MAP-DOC.1`; frontier moves to `.2`.
 - `2026-06-05`: Completed `KNOWLEDGE-MAP-DOC.2`; frontier moves to `.3`.
+- `2026-06-05`: Completed `KNOWLEDGE-MAP-DOC.3`; tree closed.

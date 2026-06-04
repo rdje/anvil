@@ -8,12 +8,12 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `cf16846` - `KNOWLEDGE-MAP-DOC.1 - add Knowledge Map bundle`
-- active_work_unit: `KNOWLEDGE-MAP-DOC` -> frontier leaf `KNOWLEDGE-MAP-DOC.3` (`pending`)
-- next_action: seed ANVIL-specific retrieval keys on existing decision records, regenerate the map, validate, and close the tree.
-- in_flight_uncommitted: `KNOWLEDGE-MAP-DOC.2` commit in progress.
+- latest_commit: `5a019bc` - `KNOWLEDGE-MAP-DOC.2 - install Knowledge Map enforcement`
+- active_work_unit: none.
+- next_action: pick the next task-tree-owned roadmap/workflow task.
+- in_flight_uncommitted: `KNOWLEDGE-MAP-DOC.3` commit in progress.
 - blockers: none.
 
 ## Validation policy
-- For workflow-doc memory-architecture leaves, use focused functional checks; full `cargo test` is not required per owner instruction.
+- For workflow-doc memory/retrieval architecture leaves, use focused functional checks; full `cargo test` is not required per owner instruction.
 - If a future full suite is run, monitor RAM; stop immediately above 90% RAM and record it as an environment/resource stop.
