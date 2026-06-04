@@ -54,7 +54,7 @@ gate proves the dedup is downstream-clean.
 ## Task Tree
 
 - ID: `HIERARCHY-AWARE-IDENTITY`
-  Status: `active`
+  Status: `done`
   Goal: `Extend NodeId-style identity doctrine to module-level structural identity, with dedup live under an opt-in knob and proven downstream-clean.`
   Children: `HIERARCHY-AWARE-IDENTITY.1`, `HIERARCHY-AWARE-IDENTITY.2`, `HIERARCHY-AWARE-IDENTITY.3`, `HIERARCHY-AWARE-IDENTITY.4`, `HIERARCHY-AWARE-IDENTITY.5`
 

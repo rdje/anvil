@@ -64,7 +64,7 @@ equivalent).
   Commit: `Phase 5: PHASE-5-PARAMETERIZATION.2.1 width-parameterization scaffold`
 
 - ID: `PHASE-5-PARAMETERIZATION.2.2`
-  Status: `active`
+  Status: `done`
   Goal: `Sound, *actually-firing* width parameterization. Split because the soundness primitives, the rules-first constructor that makes the feature non-inert, and instantiation substitution are independently reviewable.`
   Children: `PHASE-5-PARAMETERIZATION.2.2.1`, `.2.2.2`, `.2.2.3`
 

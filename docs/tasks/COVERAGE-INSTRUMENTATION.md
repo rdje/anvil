@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `COVERAGE-INSTRUMENTATION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality — test-discipline visibility
 - Created: `2026-05-14`
 - Last updated: `2026-05-18` (`.3` landed — cone retry-exhaustion proof + orphan-knob audit + baseline refresh; tree CLOSED)

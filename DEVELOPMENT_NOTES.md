@@ -58,6 +58,16 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Live-doc path portability (2026-06-04, LIVE-DOC-PATH-HYGIENE.1)
+
+Live docs and the mdBook must describe project files with paths relative to the
+repository root. Local checkout prefixes are not portable and must not be
+recorded in user-facing docs, contributor live docs, or task-tree files.
+
+External validation evidence is different: banked artifacts under `/tmp` keep
+their absolute paths because those paths identify evidence outside the repo, not
+project files inside the checkout.
+
 ### Multi-clock + CDC primitives design (2026-05-24, MULTI-CLOCK-CDC.1)
 
 Research-only slice (no code; `.2`+ implement). `MULTI-CLOCK-CDC.1`

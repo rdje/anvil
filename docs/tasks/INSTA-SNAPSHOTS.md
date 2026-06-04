@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `INSTA-SNAPSHOTS`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality — reproducibility regressions
 - Created: `2026-05-14`
 - Last updated: `2026-05-18` (`.3` landed — snapshot-acceptance protocol in COMMIT.md + book; tree CLOSED)

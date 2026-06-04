@@ -1,5 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-live-doc-path-hygiene — Docs: LIVE-DOC-PATH-HYGIENE.1 repo-relative live-doc paths
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs-only/workflow slice. Opened and closed
+`LIVE-DOC-PATH-HYGIENE.1` to make local checkout paths portable across
+live docs, task trees, and the mdBook-facing surface.
+
+- Rewrote maintainer-local checkout prefixes in historical live-doc entries
+  to repo-root-relative references. Examples now read as `Cargo.toml`,
+  `src/bin/tool_matrix.rs`, `book/src/...`, or `target/tmp/...` instead of
+  carrying the local checkout root.
+- Kept `/tmp` banked validation artifacts as absolute paths because those are
+  external evidence locations, not project-file references inside the repo.
+- Replaced the task-tree workflow provenance path with a portable
+  `docs/TASK_TREE.md` reference.
+- Corrected stale closed-tree `active` metadata in task files whose own
+  closure notes and the central registry already said `done`:
+  `COVERAGE-INSTRUMENTATION`, `HIERARCHY-AWARE-IDENTITY`,
+  `INSTA-SNAPSHOTS`, `PHASE-5-PARAMETERIZATION`,
+  `PHASE-5B-AGGREGATES`, and `PHASE-8-FRONTEND-ACCEPT`.
+- Added `DEVELOPMENT_NOTES.md` guidance: repo project-file references in
+  live docs/book should be repo-root-relative; external evidence paths remain
+  absolute when they name artifacts outside the repository.
+
+**Why it matters**
+
+The live docs and book are no longer tied to one maintainer's filesystem
+layout. Task-tree status metadata also agrees with the central registry, so
+session recovery sees the same closed-tree state from both surfaces.
+
+**Tests**
+
+- Focused `rg` drift search for maintainer-local checkout prefixes and
+  absolute editor/file URIs over README, roadmap, memory, changelog,
+  development notes, codebase analysis, user guide, commit/bootstrap docs,
+  task trees, and `book/src` — no matches.
+- `rg -n 'Status: \`active\`' docs/tasks/*.md` — only the template and
+  then-open `LIVE-DOC-PATH-HYGIENE` entries before closure.
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- `cargo test` (full suite clean; pipeline suite 121/121 in 634.05s)
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+
+**Doctrine / scope**
+
+- Closes `LIVE-DOC-PATH-HYGIENE.1` and the
+  `LIVE-DOC-PATH-HYGIENE` tree.
+- Docs-only; no `src/`, `tests/`, or generated RTL behavior change.
+- `LIVE_ACHIEVEMENT_STATUS.md` is not present in this checkout.
+
+**Files**
+
+- `CHANGES.md`
+- `DEVELOPMENT_NOTES.md`
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/LIVE-DOC-PATH-HYGIENE.md`
+- `docs/tasks/COVERAGE-INSTRUMENTATION.md`
+- `docs/tasks/HIERARCHY-AWARE-IDENTITY.md`
+- `docs/tasks/INSTA-SNAPSHOTS.md`
+- `docs/tasks/PHASE-5-PARAMETERIZATION.md`
+- `docs/tasks/PHASE-5B-AGGREGATES.md`
+- `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`
+- `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`
+
 ## 2026-05-24-multi-clock-cdc-4 — Docs: MULTI-CLOCK-CDC.4 sequential.md + README describe the multi-clock contract — closes the tree
 
 **Landed as:** this commit
@@ -2345,7 +2415,7 @@ existing Verilator parse/synth/lint and Yosys synth columns.
   parity_against_real_yosys_hierarchy_write_json
   --nocapture` exits 0 with `"parity gate clean across 5
   seeds; artifacts in
-  /Users/richarddje/.../target/tmp/frontend-parity-phase8-yosys"`
+  target/tmp/frontend-parity-phase8-yosys"`
   and `"test result: ok. 1 passed; 0 failed; 0 ignored; 0
   measured; 13 filtered out; finished in 0.04s"`.
 - Banked artifact:
@@ -8116,9 +8186,9 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r52`
+- `cargo test --manifest-path Cargo.toml recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r52`
   - `105` scenarios
   - `4` designs/scenario
   - `420` total designs
@@ -8194,11 +8264,11 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml registered_sibling_mixed_support`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml hierarchy_registered_sibling_routes_can_mix_parent_port_support`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r51`
+- `cargo fmt --all --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml registered_sibling_mixed_support`
+- `cargo test --manifest-path Cargo.toml hierarchy_registered_sibling_routes_can_mix_parent_port_support`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r51`
   - `102` scenarios
   - `4` designs/scenario
   - `408` total designs
@@ -8208,10 +8278,10 @@ This right-sizes `.3`.
   - `Yosys without-abc pass/fail = 408/0`
   - `Yosys with-abc pass/fail = 408/0`
   - `saw_hierarchy_registered_sibling_mixed_support_routing = true`
-- `cargo check --all-targets --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo check --all-targets --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml`
   - `197` lib tests, `5` main tests, `26` tool-matrix tests, and `76` integration tests passed.
-- `mdbook build /Users/richarddje/Documents/github/anvil/book`
+- `mdbook build book`
 - `git --no-pager diff --check`
 
 **Impact**
@@ -8274,7 +8344,7 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r50`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --yosys-mode both --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-hierarchy-r50`
   - `99` scenarios
   - `4` designs/scenario
   - `396` total designs
@@ -8348,10 +8418,10 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_parent_composed_parent_cone_instance_flop_routes -- --nocapture`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check`
+- `cargo fmt --all --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml metrics::tests::design_metrics_capture_parent_composed_parent_cone_instance_flop_routes -- --nocapture`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check`
   - `99` scenarios
   - `4` designs/scenario
   - `396` total designs
@@ -8418,10 +8488,10 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_multiple_parent_cone_instance_budget -- --nocapture`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check`
+- `cargo fmt --all --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml metrics::tests::design_metrics_capture_multiple_parent_cone_instance_budget -- --nocapture`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap --out /tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check`
   - `99` scenarios
   - `4` designs/scenario
   - `396` total designs
@@ -8486,16 +8556,16 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml metrics::tests::design_metrics_capture_stateful_parent_cone_instance_mixed_output_support -- --nocapture`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --out /tmp/anvil-tool-matrix-phase4-mixed-helper-check`
+- `cargo fmt --all --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml metrics::tests::design_metrics_capture_stateful_parent_cone_instance_mixed_output_support -- --nocapture`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --phase4-hierarchy-gate --skip-verilator --skip-yosys --out /tmp/anvil-tool-matrix-phase4-mixed-helper-check`
   - `99` scenarios
   - `4` designs/scenario
   - `396` total designs
   - no coverage gaps reported
-- `cargo check --all-targets --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
+- `cargo check --all-targets --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml`
   - 227 unit-target tests + 75 integration tests = 302 passing tests
 
 **Impact**
@@ -9795,17 +9865,17 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-recursive-direct-registered-helper-policy — Bank recursive registered direct-helper routing below the top parent
 
@@ -9883,17 +9953,17 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-recursive-direct-helper-policy — Bank recursive direct-helper routing below the top parent
 
@@ -9991,19 +10061,19 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
-- [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [src/gen/cone.rs](src/gen/cone.rs)
+- [src/ir/compact.rs](src/ir/compact.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-recursive-helper-state-policy — Prove and bank helper-state routing below the top parent
 
@@ -10075,17 +10145,17 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-parent-composed-helper-state — Route helper child inputs through parent state
 
@@ -10177,22 +10247,22 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/ir.md](book/src/ir.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/recipes.md](book/src/recipes.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-parent-composed-helper-multistage — Prove parent-composed helper chains through parent state
 
@@ -10283,20 +10353,20 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/recipes.md](book/src/recipes.md)
+- [src/metrics.rs](src/metrics.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-registered-helper-multistage — Chain registered helper routes through parent state
 
@@ -10387,20 +10457,20 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/recipes.md](book/src/recipes.md)
+- [src/metrics.rs](src/metrics.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-parent-output-helper-state — Route parent-output helpers through parent state
 
@@ -10492,21 +10562,21 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/recipes.md](book/src/recipes.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-registered-sibling-multistage — Chain registered sibling routes through parent state
 
@@ -10600,22 +10670,22 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/recipes.md](book/src/recipes.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [src/config.rs](src/config.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-29-phase4-hierarchy-r25-full-bank — Bank the current Phase 4 hierarchy matrix
 
@@ -10677,15 +10747,15 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [CHANGES.md](CHANGES.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [ROADMAP.md](ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/architecture.md](book/src/architecture.md)
 
 ## 2026-04-28-readme-bootstrap-default-run — Restore the README cargo-run entrypoint
 
@@ -10763,17 +10833,17 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/getting-started.md](/Users/richarddje/Documents/github/anvil/book/src/getting-started.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+- [Cargo.toml](Cargo.toml)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/getting-started.md](book/src/getting-started.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [book/src/structural-rules.md](book/src/structural-rules.md)
 
 ## 2026-04-27-phase4-matrix-direct-helper-routes — Bank direct sibling helper routes in Phase 4 matrix
 
@@ -10781,7 +10851,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now expands the repo-owned Phase 4 hierarchy scenario set from `42`
   to `48` scenarios by adding two focused helper-instance routes for
   each construction strategy:
@@ -10815,15 +10885,15 @@ This right-sizes `.3`.
 
 **Validation**
 
-- `cargo fmt --all --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix phase4_hierarchy`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --test pipeline hierarchy_sibling_routes_can_use_helper_instances`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --test pipeline hierarchy_registered_sibling_routes_can_use_helper_instances`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml design_metrics_capture_direct`
-- `cargo run --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-direct-helper-r24 --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
-- `cargo check --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --all-targets`
-- `cargo test --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml`
-- `cargo clippy --manifest-path /Users/richarddje/Documents/github/anvil/Cargo.toml --all-targets -- -D warnings`
+- `cargo fmt --all --manifest-path Cargo.toml`
+- `cargo test --manifest-path Cargo.toml --bin tool_matrix phase4_hierarchy`
+- `cargo test --manifest-path Cargo.toml --test pipeline hierarchy_sibling_routes_can_use_helper_instances`
+- `cargo test --manifest-path Cargo.toml --test pipeline hierarchy_registered_sibling_routes_can_use_helper_instances`
+- `cargo test --manifest-path Cargo.toml design_metrics_capture_direct`
+- `cargo run --manifest-path Cargo.toml --bin tool_matrix -- --out /tmp/anvil-tool-matrix-phase4-direct-helper-r24 --phase4-hierarchy-gate --skip-verilator --skip-yosys --fail-on-coverage-gap`
+- `cargo check --manifest-path Cargo.toml --all-targets`
+- `cargo test --manifest-path Cargo.toml`
+- `cargo clippy --manifest-path Cargo.toml --all-targets -- -D warnings`
 - `cargo fmt --all --check`
 - `mdbook build book`
 - `git diff --check`
@@ -10850,15 +10920,15 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
 
 ## 2026-04-27-phase4-direct-sibling-helper-route — Route direct sibling inputs from helper instances
 
@@ -10866,7 +10936,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets the `hierarchy_sibling_route_prob` branch request a
   parent-cone helper instance source when
   `hierarchy_parent_cone_instance_prob` fires. The direct child-input
@@ -10878,12 +10948,12 @@ This right-sizes `.3`.
 - The parent-cone helper width adapter was renamed to describe its
   generic role because both unregistered and registered routes now use
   it.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   adds focused design-metrics coverage for direct sibling helper
   bindings. The existing parent-cone helper child-input metrics already
   count this route by dependency, while the registered helper counters
   stay zero for the unregistered path.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds `hierarchy_sibling_routes_can_use_helper_instances`, which
   forces direct sibling routing and helper placement on while forcing
   registered sibling routing, registered parent-composed routing, and
@@ -10930,20 +11000,20 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/ir.md](book/src/ir.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-27-phase4-registered-sibling-helper-route — Route registered sibling flops from helper instances
 
@@ -10951,7 +11021,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets the `hierarchy_registered_sibling_route_prob` branch request
   a parent-cone helper instance source when
   `hierarchy_parent_cone_instance_prob` fires. The registered sibling
@@ -10960,13 +11030,13 @@ This right-sizes `.3`.
 - The old registered sibling behavior is preserved when no helper source
   is requested: the route still falls back to a dep-bearing sibling /
   parent-source terminal and then inserts one local parent flop.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now counts registered parent-cone helper bindings by checking whether
   the registered flop D dependencies include a parent-cone helper
   instance output. The metric no longer requires the D node itself to be
   registered parent-composed logic, which keeps direct registered sibling
   helper routes measurable.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds `hierarchy_registered_sibling_routes_can_use_helper_instances`,
   which forces registered sibling routing and helper placement on while
   forcing the registered parent-composed D-cone route off.
@@ -11012,26 +11082,26 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-27-phase4-parent-output-helper-budget — Spend parent-output helper budget directly
 **Landed as:** `c348884`
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now pre-allocates a vector of parent-cone helper instance outputs for
   parent-output composition instead of choosing one optional helper
   source for the whole parent-output set. Parent-output promotion picks
@@ -11044,7 +11114,7 @@ This right-sizes `.3`.
   own child inputs from non-helper parent sources, so the focused proof
   does not accidentally satisfy itself through helper-to-helper
   child-input routing.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds `hierarchy_parent_outputs_can_spend_helper_budget`, which forces
   `hierarchy_child_input_cone_prob = 0.0`,
   `hierarchy_registered_child_input_cone_prob = 0.0`,
@@ -11088,30 +11158,30 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 ## 2026-04-27-package-description-terminology — Align package metadata with ANVIL terminology
 
 **Landed as:** `785a143`
 
 **What changed**
 
-- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+- [Cargo.toml](Cargo.toml)
   now describes ANVIL as a random by-construction generator of
   synthesizable SystemVerilog RTL instead of using the stale
   `constrained-random` package description.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  and [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  and [MEMORY.md](MEMORY.md)
   now record that package metadata is part of the terminology surface,
   not just README/book prose.
 
@@ -11144,17 +11214,17 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [Cargo.toml](Cargo.toml)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
 ## 2026-04-27-phase4-hierarchy-gate-budget — Refresh Phase 4 hierarchy gate at full per-scenario depth
 **Landed as:** `f9f0288`
 
 **What changed**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now treats the Phase 4 hierarchy gate budget as a per-scenario floor:
   `PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO = 4`. Adding new hierarchy
   scenarios can no longer silently reduce each scenario from four
@@ -11209,16 +11279,16 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
 
 ## 2026-04-26-doc-continuity-and-purpose — Align docs with live source and ANVIL terminology
 
@@ -11226,32 +11296,32 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now describes live probability-roll telemetry as sourced from
   `Module::knob_rolls` and surfaced through `knob_roll_attempts` /
   `knob_roll_fires`, rather than calling knob-attempt signals a future
   extension.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
   now records the hierarchy probability knobs that flow into
   `m.knob_rolls`, corrects the current per-file unit-test counts for
   `src/gen/module.rs` and `src/metrics.rs`, and updates the current
   `cargo test` evidence date.
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/architecture.md](book/src/architecture.md)
   now includes the live `ConstantProb`, `TerminalReuseProb`, and
   `HierarchyParentConeInstanceProb` variants in its `KnobId` overview
   and reflects the current `src/metrics.rs` test count.
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [book/src/introduction.md](/Users/richarddje/Documents/github/anvil/book/src/introduction.md),
-  [book/src/faq.md](/Users/richarddje/Documents/github/anvil/book/src/faq.md),
-  and [src/lib.rs](/Users/richarddje/Documents/github/anvil/src/lib.rs)
+- [README.md](README.md),
+  [book/src/introduction.md](book/src/introduction.md),
+  [book/src/faq.md](book/src/faq.md),
+  and [src/lib.rs](src/lib.rs)
   now describe ANVIL as a random by-construction generator of
   synthesizable SystemVerilog RTL rather than as constrained-random
   generation.
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md), and
+- [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [USER_GUIDE.md](USER_GUIDE.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md), and
   mdBook purpose/non-goal chapters now state the distinction between
   ANVIL's target outputs and its validation tools: Verilator and Yosys
   check generated HDL acceptance, while the generated artifacts target
@@ -11297,41 +11367,41 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/core-idea.md](/Users/richarddje/Documents/github/anvil/book/src/core-idea.md)
-- [book/src/faq.md](/Users/richarddje/Documents/github/anvil/book/src/faq.md)
-- [book/src/introduction.md](/Users/richarddje/Documents/github/anvil/book/src/introduction.md)
-- [book/src/non-goals.md](/Users/richarddje/Documents/github/anvil/book/src/non-goals.md)
-- [src/lib.rs](/Users/richarddje/Documents/github/anvil/src/lib.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [CHANGES.md](CHANGES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [MEMORY.md](MEMORY.md)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/core-idea.md](book/src/core-idea.md)
+- [book/src/faq.md](book/src/faq.md)
+- [book/src/introduction.md](book/src/introduction.md)
+- [book/src/non-goals.md](book/src/non-goals.md)
+- [src/lib.rs](src/lib.rs)
+- [src/metrics.rs](src/metrics.rs)
 
 ## 2026-04-24-boot17 — Route registered child-input cones through helper instances
 **Landed as:** `1f8364e`
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets registered parent-composed child-input D cones request a
   parent-cone helper instance when
   `hierarchy_registered_child_input_cone_prob` and
   `hierarchy_parent_cone_instance_prob` are both active.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports registered helper-sourced child-input bindings through
   `child_input_bindings_from_registered_parent_cone_instances`,
   `top_child_input_bindings_from_registered_parent_cone_instances`,
   `registered_parent_cone_instance_child_input_binding_fraction`, and
   `top_registered_parent_cone_instance_child_input_binding_fraction`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds `hierarchy_registered_child_input_cones_can_use_helper_instances`,
   proving the route across all construction strategies.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds the Phase 4
   `phase4_hier2_inst4_registered_parent_cone_instance_state` scenario
   and a coverage gap for registered parent-composed child inputs sourced
@@ -11366,25 +11436,25 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-  and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/config.rs](src/config.rs)
+  and [src/main.rs](src/main.rs)
   add `max_parent_cone_instances_per_module`, exposed on the CLI as
   `--max-parent-cone-instances-per-module`. The default is `1`, so old
   configs keep the first helper-instance behavior; `0` disables helper
   allocation; higher values let one hierarchy parent instantiate
   multiple helper children when
   `hierarchy_parent_cone_instance_prob` fires.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   replaces the old per-parent boolean helper guard with a per-parent
   helper count checked against the configured budget.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports `max_parent_cone_instances_per_internal_module`, so
   manifests and matrix reports can prove that a local helper budget was
   actually used.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds `hierarchy_parent_cone_helper_budget_allows_multiple_helpers`,
   proving a budget of `3` across all construction strategies.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds the Phase 4
   `phase4_hier2_inst4_parent_cone_instance_budget3` scenario and a
   coverage gap for multiple parent-cone helper instances in one
@@ -11419,23 +11489,23 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets `hierarchy_parent_cone_instance_prob` instantiate one
   parent-cone helper child for parent-output composition, not only for
   parent-composed child-input bindings.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports helper-instance support on parent outputs through
   `top_outputs_reaching_parent_cone_instances`,
   `hierarchy_outputs_reaching_parent_cone_instances`,
   `top_parent_cone_instance_output_fraction`, and
   `hierarchy_parent_cone_instance_output_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds a dedicated Phase 4 scenario,
   `phase4_hier2_inst4_parent_output_cone_instance`, and a coverage gap
   for parent outputs sourced from parent-cone helper instances. The
   then-current scenario plan was 36 scenarios / 144 designs; the latest
   full downstream-clean bank remained the earlier `r21` report.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   proves the route across all construction strategies while keeping
   child-input helper bindings off, so the new surface is independent of
   the earlier child-input helper slice.
@@ -11468,25 +11538,25 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
   now points the Phase 4 closure evidence at the current `r21` bank
   with 33 scenarios / 132 designs and 132/0 pass-fail in Verilator plus
   both repo-owned Yosys modes.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-  and [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+  and [ROADMAP.md](ROADMAP.md)
   now describe hierarchy as a landed Phase 4 surface while
   distinguishing it from still-open parameterization, aggregate,
   memory, FSM, artifact-family, and hierarchy-aware identity work.
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [README.md](README.md)
   now summarizes the hierarchy generator path with the current child
   sourcing, parent-composition, registered-routing, helper-instance,
   and parent-state surfaces.
-- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/ir.md](book/src/ir.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  and [book/src/architecture.md](book/src/architecture.md)
   now avoid current-wrapper-only wording and describe hierarchy as a
   live planner above the leaf kernel.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
   also recorded the then-current executed test count: 262 passing
   tests.
 
@@ -11516,19 +11586,19 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [book/src/knobs.md](book/src/knobs.md)
   now lists every current `anvil --help` flag and every current
   `tool_matrix --help` flag in the CLI coverage section.
-- [book/src/recipes.md](/Users/richarddje/Documents/github/anvil/book/src/recipes.md)
+- [book/src/recipes.md](book/src/recipes.md)
   now has hierarchy recipes for depth-1 multi-file output,
   child-definition reuse, under-instantiated libraries, bounded
   recursive hierarchy, per-depth branching overrides, on-demand child
   synthesis, sibling routes, parent-composed child-input cones,
   parent-cone helper instances, and registered hierarchy routes.
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
   now lists the parent-cone helper-instance counters with the other
   design metrics exposed through hierarchy manifests.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   fixes the `--max-child-instances-per-module` help text so it points
   users at the required minimum-pair flag.
 
@@ -11556,14 +11626,14 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+- [src/gen/mod.rs](src/gen/mod.rs)
   now owns module-index reservation through `reserve_module_index()`
   and module-name formatting through `module_name()`.
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
-  and [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/module.rs](src/gen/module.rs)
+  and [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now use that allocator for leaf modules and hierarchy parent modules
   instead of hand-rolling parent-name reservation.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves recursive/helper-heavy hierarchy generation keeps module
   names unique both within each design and across multiple hierarchical
   designs emitted by one generator run.
@@ -11596,25 +11666,25 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets parent-composed child-input cones instantiate one helper
   child as an internal parent-cone source under
   `hierarchy_parent_cone_instance_prob`.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   now distinguishes planned child instances from parent-cone helper
   instances through `InstanceRole`, and dependency sets can expose
   referenced instance-output virtuals directly.
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-  and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/config.rs](src/config.rs)
+  and [src/main.rs](src/main.rs)
   expose the new config/CLI knob with a default of `0.0`.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports parent-cone helper instances and child-input bindings
   sourced through them with top-level and hierarchy-wide counters plus
   fractions.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now includes a Phase 4 parent-cone helper-instance scenario per
   strategy and rejects Phase 4 matrices that never prove the route.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now has a strategy sweep proving helper child instantiation can feed
   parent-composed child-input bindings.
 - README, roadmap, development notes, memory, codebase analysis, and
@@ -11703,16 +11773,16 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now promotes registered parent-composed child-input D cones with an
   earlier parent-flop companion when one is available, so later
   registered routes can form a real multi-stage parent-local chain.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports multi-stage registered parent-composed child-input
   bindings through
   `child_input_bindings_from_registered_multistage_parent_composed_logic`,
   the matching top-level counter, and matching hierarchy/top fractions.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now tracks `saw_hierarchy_registered_multistage_routing`, and the
   Phase 4 hierarchy coverage gate rejects representative matrices that
   never prove the multi-stage registered route.
@@ -11760,15 +11830,15 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
   now has a reader-facing hierarchy routing section that maps common
   goals to the right hierarchy knobs, produced structure, and metrics
   to inspect.
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
+- [book/src/knobs.md](book/src/knobs.md)
   now describes `hierarchy_registered_child_input_cone_prob` as a full
   parent-source route that can mix parent data inputs with sibling
   outputs when both supports are live.
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/architecture.md](book/src/architecture.md)
   now lists the focused mixed parent-output and registered
   mixed-support hierarchy proof artifacts with the rest of the targeted
   Phase 4 evidence.
@@ -11791,18 +11861,18 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now builds registered parent-composed child-input D cones from the
   full parent source pool, then repairs them so they keep sibling
   child-output support and add parent-port support when live parent
   data inputs are available.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports registered mixed-support child-input bindings:
   `child_input_bindings_from_registered_mixed_support`,
   `top_child_input_bindings_from_registered_mixed_support`,
   `registered_mixed_support_child_input_binding_fraction`, and
   `top_registered_mixed_support_child_input_binding_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now tracks `saw_hierarchy_registered_mixed_support_routing` and the
   Phase 4 hierarchy coverage gate rejects matrices that never prove a
   registered child-input route mixing parent ports with child outputs.
@@ -11850,7 +11920,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now tracks `saw_hierarchy_parent_port_composed_outputs` in
   `CoverageSummary`.
 - The Phase 4 hierarchy coverage gate now fails if the representative
@@ -11859,12 +11929,12 @@ This right-sizes `.3`.
 - The existing Phase 4 tool-matrix coverage unit test now asserts that
   missing this fact produces a coverage gap.
 - Live docs were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -11894,30 +11964,30 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now builds hierarchy parent output cones from the full parent source
   pool rather than only child instance outputs. After finalization, it
   rebuilds live parent-source pools and repairs parent outputs so they
   retain child-output support and, when live parent data inputs exist,
   can also carry parent-port support.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports mixed parent-output composition through
   `top_parent_port_composed_outputs`,
   `hierarchy_parent_port_composed_outputs`,
   `top_parent_port_composed_output_fraction`, and
   `hierarchy_parent_port_composed_output_fraction`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   adds an integration regression proving mixed parent-port /
   child-output parent outputs across the live construction strategies.
 - Live docs and the mdBook were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  [book/src/knobs.md](book/src/knobs.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -11957,46 +12027,46 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now carries `hierarchy_registered_child_input_cone_prob`,
   defaulting to `0.0`, as an explicit hierarchy routing knob.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   exposes the knob as
   `--hierarchy-registered-child-input-cone-prob <float>`.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   adds `KnobId::HierarchyRegisteredChildInputConeProb` for
   telemetry and matrix coverage.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets a later child data input bind from earlier
   sibling-output-derived parent sources through parent-local
   combinational logic and then one local parent flop. The generated
   route is structurally:
   child output / parent route gate -> parent logic -> parent flop ->
   later child input.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports registered parent-composed child-input provenance:
   `child_input_bindings_from_registered_parent_composed_logic`,
   `top_child_input_bindings_from_registered_parent_composed_logic`,
   `registered_parent_composed_child_input_binding_fraction`, and
   `top_registered_parent_composed_child_input_binding_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds a Phase 4 registered child-input-cone scenario per construction
   strategy, raises the Phase 4 hierarchy gate to 30 scenarios / 120
   designs, and requires
   `saw_hierarchy_registered_parent_composed_routing = true`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves registered parent-composed child-input binding across the
   live construction strategies.
 - Live docs and the mdBook were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [USER_GUIDE.md](USER_GUIDE.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  [book/src/knobs.md](book/src/knobs.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -12060,47 +12130,47 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now carries `hierarchy_registered_sibling_route_prob`, defaulting to
   `0.0`, as an explicit hierarchy routing knob.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   exposes the knob as `--hierarchy-registered-sibling-route-prob <float>`.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   adds `KnobId::HierarchyRegisteredSiblingRouteProb` and a `DepSet`
   iterator for local flop virtual endpoints.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets a later child data input bind from an earlier sibling
   instance output through one local parent flop. The route is
   deliberately separate from direct combinational sibling routing and
   from generic parent-composed child-input cones.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports registered sibling-route provenance:
   `child_input_bindings_from_registered_instance_outputs`,
   `top_child_input_bindings_from_registered_instance_outputs`,
   `registered_instance_output_child_input_binding_fraction`, and
   `top_registered_instance_output_child_input_binding_fraction`.
-- [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+- [src/ir/compact.rs](src/ir/compact.rs)
   now rewrites child instance input bindings during partial NodeId
   remaps. This fixes the root cause exposed by registered hierarchy
   routing: instance inputs are live NodeId consumers just like output
   drives and flop fields.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds a Phase 4 registered-sibling-state scenario per construction
   strategy, raises the Phase 4 gate to 27 scenarios / 108 designs, and
   requires `saw_hierarchy_registered_sibling_routing = true`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves registered sibling-routed child-input binding across the
   live construction strategies.
 - Live docs and the mdBook were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [USER_GUIDE.md](USER_GUIDE.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  [book/src/knobs.md](book/src/knobs.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -12163,21 +12233,21 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
+- [README.md](README.md)
   now describes hierarchy parent outputs as parent-side cones over
   child instance outputs, combinational by default and optionally
   stateful when parent-local state is requested.
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
   now says the same thing in the hierarchy metrics/trust-surface
   section instead of implying top outputs are only combinational cones.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
   now uses "hierarchy parents" instead of "wrappers" for the
   control-port boundary doctrine, matching both wrapper and bounded
   recursive parent modules.
-- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+- [book/src/structural-rules.md](book/src/structural-rules.md)
   now phrases Rule 5's boundary rule in hierarchy-parent terms instead
   of wrapper-only terms.
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [MEMORY.md](MEMORY.md)
   was refreshed with this bootstrap result and the previous commit hash.
 
 **Why**
@@ -12212,50 +12282,50 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now carries `hierarchy_parent_flop_prob`, defaulting to `0.0`, as a
   hierarchy-specific state knob.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   exposes the knob as `--hierarchy-parent-flop-prob <float>`.
-- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+- [src/gen/mod.rs](src/gen/mod.rs)
   now tracks the active flop-roll telemetry key, so parent-side flops
   can be measured separately from ordinary leaf `flop_prob`.
-- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+- [src/gen/cone.rs](src/gen/cone.rs)
   records flop-roll attempts through that active key instead of always
   charging them to `flop_prob`.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets parent output cones and parent-composed child-input cones
   emit local parent flops when `hierarchy_parent_flop_prob` is nonzero.
   Parent flop worklists are drained before finalization, and control
   ports are reserved only when local parent state is possible or a
   sequential child requires them.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   adds `KnobId::HierarchyParentFlopProb` and a `DepSet` helper for
   detecting local flop endpoints.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports local parent-state facts:
   `hierarchy_parent_local_flops`,
   `internal_module_occurrences_with_local_flops`, `top_local_flops`,
   `child_input_bindings_from_parent_flops`,
   `parent_flop_child_input_binding_fraction`, and
   `top_parent_flop_child_input_binding_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   adds a Phase 4 parent-state scenario per construction strategy,
   raises the Phase 4 gate to 24 scenarios / 96 designs, and requires
   `saw_hierarchy_parent_local_flops = true`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves local parent flops across the live construction strategies.
 - Live docs and the mdBook were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md),
-  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [USER_GUIDE.md](USER_GUIDE.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  [book/src/ir.md](book/src/ir.md),
+  [book/src/knobs.md](book/src/knobs.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -12317,15 +12387,15 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now carries `hierarchy_child_input_cone_prob`, defaulting to `0.35`,
   as a first-class hierarchy routing knob.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   exposes that knob as `--hierarchy-child-input-cone-prob <float>`.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   records `KnobId::HierarchyChildInputConeProb`, so the new surface is
   visible in knob telemetry instead of being an undocumented branch.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now lets both wrapper and recursive hierarchy parents bind child data
   inputs through parent-local combinational cones over already-available
   parent sources: parent data inputs, earlier sibling instance outputs,
@@ -12333,35 +12403,35 @@ This right-sizes `.3`.
   with local flops disabled, keeping the current Phase 4 surface purely
   combinational while still mirroring the leaf generator's "drive this
   sink from the live source pool" discipline.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports parent-composed child-input provenance through
   `child_input_bindings_from_parent_composed_logic`,
   `parent_composed_child_input_binding_fraction`, and their top-level
   counterparts.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now treats parent-composed child-input bindings as required Phase 4
   coverage, forces the knob in representative hierarchy scenarios, and
   rejects a hierarchy gate that never proves the surface.
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+- [src/gen/module.rs](src/gen/module.rs)
   fixes a real width-finalization bug exposed by the broadened Phase 4
   matrix: `Instance.inputs` are now treated as live consumers when
   shrinking primary input widths and counting orphan gates, so a parent
   primary input directly bound to a child port cannot be narrowed based
   only on unrelated low-bit slice uses.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves parent-composed child-input bindings across the live
   construction strategies and keeps the direct sibling-routing
   regression isolated by disabling the new preempting cone knob.
 - Live docs and the mdBook were refreshed:
-  [README.md](/Users/richarddje/Documents/github/anvil/README.md),
-  [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md),
-  [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md),
-  [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md),
-  [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md),
-  [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md),
-  and [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md).
+  [README.md](README.md),
+  [USER_GUIDE.md](USER_GUIDE.md),
+  [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md),
+  [MEMORY.md](MEMORY.md),
+  [book/src/hierarchy.md](book/src/hierarchy.md),
+  [book/src/knobs.md](book/src/knobs.md),
+  and [book/src/architecture.md](book/src/architecture.md).
 
 **Why**
 
@@ -12432,41 +12502,41 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [book/src/ir.md](/Users/richarddje/Documents/github/anvil/book/src/ir.md)
+- [book/src/ir.md](book/src/ir.md)
   now matches the live IR: `GateOp::CaseMux`, `GateOp::CasezMux`,
   `GateOp::ForFold`, `ForFoldKind`, the structured block counters, and
   the current hierarchy status are documented instead of the older
   wrapper-only/future-parent-composition wording.
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
+- [book/src/architecture.md](book/src/architecture.md)
   refreshed the key-type snippets for `Node::InstanceOutput`,
   procedural structured gates, the newer knob telemetry variants, and
   the current emitter/metrics test counts.
-- [book/src/algorithm.md](/Users/richarddje/Documents/github/anvil/book/src/algorithm.md)
+- [book/src/algorithm.md](book/src/algorithm.md)
   now describes flop-Q endpoints and anti-collapse gating the way the
   generator actually enforces them: lower factorization rungs relax the
   operand-uniqueness checks, while base `Sub` / `Eq` / `Neq` and
   mux-arm cleanup still guard obvious degeneracies.
-- [book/src/non-triviality.md](/Users/richarddje/Documents/github/anvil/book/src/non-triviality.md)
+- [book/src/non-triviality.md](book/src/non-triviality.md)
   now states the endpoint rule accurately: a cone may be a function of
   primary inputs and/or flop Q endpoints, including a flop's own Q under
   Rule 2, but not a pure constant.
-- [book/src/sequential.md](/Users/richarddje/Documents/github/anvil/book/src/sequential.md)
+- [book/src/sequential.md](book/src/sequential.md)
   now explains worklist termination via finite recursion and
   `max_flops_per_module`, not the stale assumption that `flop_prob < 1`.
-- [book/src/factorization.md](/Users/richarddje/Documents/github/anvil/book/src/factorization.md)
+- [book/src/factorization.md](book/src/factorization.md)
   now warns that per-seed gate counts are not a strict monotonic proof
   of factorization strength because enabling rungs can change retry
   paths and legal shapes.
-- [book/src/structural-rules.md](/Users/richarddje/Documents/github/anvil/book/src/structural-rules.md)
+- [book/src/structural-rules.md](book/src/structural-rules.md)
   now says every current factorization rung is implemented and that the
   `e-graph` rung is the bounded semantic fragment plus lower layers,
   while still leaving room for future stronger semantic engines.
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
+- [ROADMAP.md](ROADMAP.md)
   now consistently identifies `r13` as the current fully banked Phase 4
   hierarchy closure artifact instead of leaving an older `r10`
   reference in the wrapper-planning paragraph.
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-  and [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+- [src/config.rs](src/config.rs)
+  and [src/gen/cone.rs](src/gen/cone.rs)
   had stale comments corrected for the implemented factorization
   ladder, `effective()` behavior, `GraphFirst` aliasing, and the
   deliberate `exclude = None` Q-feedback doctrine for flop D-cones.
@@ -12499,15 +12569,15 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now carries `hierarchy_sibling_route_prob`, a real Phase 4 knob for
   whether later sibling child inputs may bind from earlier sibling
   instance outputs instead of always coming from parent-boundary
   inputs.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   now exposes that knob directly as
   `--hierarchy-sibling-route-prob <float>`.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now gives both the wrapper and recursive hierarchy lanes a genuine
   sibling-routing composition surface: later child instances may now
   bind data inputs from dep-bearing earlier sibling outputs through the
@@ -12515,12 +12585,12 @@ This right-sizes `.3`.
   while staying acyclic by construction. This slice stays intentionally
   combinational at the parent level; local parent flops remain future
   work.
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   now records `KnobId::HierarchySiblingRouteProb`, and `DepSet`
   exposes `has_ports()` so hierarchy metrics can distinguish pure
   parent-port support from sibling-instance-output support and mixed
   support.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports trustworthy child-input provenance metrics:
   `child_input_bindings_from_parent_ports`,
   `child_input_bindings_from_instance_outputs`,
@@ -12528,11 +12598,11 @@ This right-sizes `.3`.
   `child_input_bindings_from_constants`,
   `instance_output_child_input_binding_fraction`,
   plus the corresponding top-level variants.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now treats sibling-routed hierarchy child inputs as a required Phase 4
   coverage fact, and the banked Phase 4 matrix explicitly exercises the
   new knob.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves the sibling-routing surface across all live construction
   strategies via a seed sweep, while the existing metrics unit tests pin
   the direct counts.
@@ -12603,13 +12673,13 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [src/config.rs](src/config.rs)
+- [src/main.rs](src/main.rs)
+- [src/ir/types.rs](src/ir/types.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-23-boot6 — Land exact profiled on-demand child synthesis
 
@@ -12617,26 +12687,26 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   now carries `ModuleInterfaceProfile` plus
   `Module::planned_interface_profile`, so exact data-interface demand
   is part of the live IR contract rather than an implicit planner
   side-channel.
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+- [src/gen/module.rs](src/gen/module.rs)
   now supports exact interface-profiled leaf synthesis, reusable
   interface sampling, and a final exact-profile enforcement pass so a
   planned data boundary survives compaction / shrink / pruning cleanly.
-- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
+- [src/gen/mod.rs](src/gen/mod.rs)
   now exposes `generate_module_with_interface_profile(...)`.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now plans exact data-interface profiles for `on-demand` child slots
   and threads those profiles through both wrapper and recursive
   hierarchy generation. Internal parent roots can now honor an exact
   demanded external data interface too.
-- [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+- [src/ir/validate.rs](src/ir/validate.rs)
   now rejects any profiled module whose emitted data-input or output
   widths drift from its planned profile.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports profile-quality facts directly:
   `num_profiled_module_definitions`,
   `num_profiled_instantiated_modules`,
@@ -12645,7 +12715,7 @@ This right-sizes `.3`.
   `profiled_instance_fraction`,
   `dep_bearing_child_input_bindings`, and
   `dep_bearing_child_input_binding_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now requires the Phase 4 hierarchy gate to prove not only structural
   on-demand sourcing, but exact profiled child-interface synthesis too
   via `saw_profiled_child_interface_synthesis`.
@@ -12719,15 +12789,15 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
-- [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
-- [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [src/ir/types.rs](src/ir/types.rs)
+- [src/gen/module.rs](src/gen/module.rs)
+- [src/gen/mod.rs](src/gen/mod.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/gen/cone.rs](src/gen/cone.rs)
+- [src/ir/validate.rs](src/ir/validate.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
 
 ## 2026-04-23-boot5 — Land explicit hierarchy child sourcing
 
@@ -12735,24 +12805,24 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now makes hierarchy child sourcing a first-class, typed Phase 4 axis:
   `hierarchy_child_source_mode = library | on-demand`.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   now exposes that axis directly on the CLI as
   `--hierarchy-child-source-mode <library|on-demand>`.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now keeps the old reusable-library planner as the `library` path and
   adds the first live `on-demand` path, where each planned instance
   slot gets a fresh child definition instead of picking from a reusable
   child pool.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports explicit single-use vs reused child-definition facts:
   `avg_instances_per_unique_instantiated_module`,
   `num_single_use_instantiated_modules`,
   `num_multiuse_instantiated_modules`, and
   `single_use_instantiated_module_fraction`.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now folds the child-sourcing axis into the repo-owned Phase 4 gate,
   requiring both `library` and `on-demand` scenarios plus structural
   proof that on-demand really emitted one fresh child definition per
@@ -12840,22 +12910,22 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [src/config.rs](src/config.rs)
+- [src/main.rs](src/main.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [CHANGES.md](CHANGES.md)
+- [MEMORY.md](MEMORY.md)
 
 ## 2026-04-23-boot4 — Close mixed-depth Phase 4 hierarchy gate cleanly
 
@@ -12863,7 +12933,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now folds the mixed-depth recursive hierarchy axis into the
   repo-owned `--phase4-hierarchy-gate` matrix instead of leaving it as
   focused-smoke-only evidence.
@@ -12940,16 +13010,16 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [CHANGES.md](CHANGES.md)
+- [MEMORY.md](MEMORY.md)
 
 ## 2026-04-23-boot3 — Land mixed-depth recursive hierarchy planning
 
@@ -12957,7 +13027,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   no longer collapses bounded recursive hierarchy depth to one exact
   scalar for the whole design. The recursive planner now carries
   subtree-local `[min_depth, max_depth]` intervals and can realize both
@@ -12969,11 +13039,11 @@ This right-sizes `.3`.
   realize the shallowest still-legal descendant depth and another can
   realize the deepest still-legal descendant depth, while all leaves
   still stay inside the requested global bounds.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports `leaf_module_occurrences_by_depth`, so mixed shallow/deep
   recursion can be trusted numerically from the manifest rather than by
   reading emitted `.sv`.
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   and the new hierarchy unit tests now prove the mixed-depth contract
   directly: realized leaf depths stay inside the requested interval, and
   the depth histogram reflects the intended shallow/deep split.
@@ -13033,19 +13103,19 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md)
-- [USER_GUIDE.md](/Users/richarddje/Documents/github/anvil/USER_GUIDE.md)
-- [DEVELOPMENT_NOTES.md](/Users/richarddje/Documents/github/anvil/DEVELOPMENT_NOTES.md)
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
-- [book/src/hierarchy.md](/Users/richarddje/Documents/github/anvil/book/src/hierarchy.md)
-- [book/src/architecture.md](/Users/richarddje/Documents/github/anvil/book/src/architecture.md)
-- [book/src/knobs.md](/Users/richarddje/Documents/github/anvil/book/src/knobs.md)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
+- [src/metrics.rs](src/metrics.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
+- [README.md](README.md)
+- [ROADMAP.md](ROADMAP.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
+- [book/src/hierarchy.md](book/src/hierarchy.md)
+- [book/src/architecture.md](book/src/architecture.md)
+- [book/src/knobs.md](book/src/knobs.md)
+- [CHANGES.md](CHANGES.md)
+- [MEMORY.md](MEMORY.md)
 
 ## 2026-04-23-boot2 — Complete literal bootstrap pass and fix stale README closure note
 
@@ -13053,14 +13123,14 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md) no
+- [README.md](README.md) no
   longer says the refreshed recursive Phase 4 hierarchy matrix closure
   is "the next honest closure step". That wording was stale after the
   banked `r9` report landed. The README now says what the repo already
   proves elsewhere: the recursive Phase 4 matrix is fully banked, and
   the next honest work is deeper hierarchy capability rather than
   another closure refresh.
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md) now
+- [MEMORY.md](MEMORY.md) now
   records that a literal `SESSION_BOOTSTRAP.md` pass was rerun against
   current HEAD and that the only live-doc drift found was the stale
   README sentence above.
@@ -13093,9 +13163,9 @@ This right-sizes `.3`.
 
 **Files touched**
 
-- [README.md](/Users/richarddje/Documents/github/anvil/README.md)
-- [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
-- [CHANGES.md](/Users/richarddje/Documents/github/anvil/CHANGES.md)
+- [README.md](README.md)
+- [MEMORY.md](MEMORY.md)
+- [CHANGES.md](CHANGES.md)
 
 ## 2026-04-23-1913 — Close refreshed recursive Phase 4 hierarchy gate cleanly
 
@@ -13103,7 +13173,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now treats the repo-owned Phase 4 gate as a real hierarchy gate, not
   only a depth-1 wrapper baseline. The Phase 4 scenario matrix now
   covers:
@@ -13126,7 +13196,7 @@ This right-sizes `.3`.
   than top-wrapper-only heuristics, so reuse / under-instantiation facts
   stay truthful in recursive designs too.
 - The recursive focused regression in
-  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now uses a deliberately tiny recursive profile. It still proves that
   hierarchy facts mirror design metrics, but it no longer burns time in
   a heavyweight sequential leaf shape that the assertion did not need.
@@ -13216,7 +13286,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+- [src/config.rs](src/config.rs)
   now exposes two separate recursive-hierarchy control layers:
   - the existing global fallback bounds
     `min_hierarchy_depth..=max_hierarchy_depth` and
@@ -13229,22 +13299,22 @@ This right-sizes `.3`.
   global child-instance fallback range to be present; and they may only
   target realized internal parent depths inside
   `[0, max_hierarchy_depth - 1]`.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   now exposes the new CLI surface:
   `--child-instances-per-depth DEPTH=MIN:MAX`
   (repeatable, depth `0` = top, depth `1` = the top's direct children,
   and so on). CLI parsing now lifts that into the config override map.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now consults the effective child-instance range **per parent depth**
   while recursively planning the hierarchy tree. The old global range is
   still the fallback; the new per-depth overrides win where present.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now reports the realized branching profile per parent depth, not just
   global branching summaries. New design metrics:
   - `avg_child_instances_by_parent_depth`
   - `min_child_instances_by_parent_depth`
   - `max_child_instances_by_parent_depth`
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now proves the new surface end to end across multiple seeds: a
   recursive design with fallback range `[1:3]`, top override `0=4:4`,
   and depth-1 override `1=2:2` validates and lands the requested
@@ -13325,7 +13395,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+- [src/ir/types.rs](src/ir/types.rs)
   upgrades `DepSet` from a flat tagged-integer trick to a typed leaf-set
   that now distinguishes:
   - primary-input leaves,
@@ -13334,16 +13404,16 @@ This right-sizes `.3`.
   That makes `Node::InstanceOutput` a real dep-bearing leaf variable for
   generator-side cone construction instead of looking like an empty-dep
   pseudo-constant.
-- [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+- [src/gen/cone.rs](src/gen/cone.rs)
   now propagates that identity in `node_deps`, so parent-side cone
   construction can reuse the existing leaf-kernel builder without
   misclassifying child outputs as trivial roots.
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+- [src/gen/module.rs](src/gen/module.rs)
   now exposes a shared `finalize_generated_module` path. That means the
   new hierarchy top goes through the same settled-graph cleanup,
   bounded merge, constant-root repair, compaction, shrink/prune, and
   liveness discipline as ordinary generated modules.
-- [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+- [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   is the real Phase 4 step: the depth-1 top is no longer only a
   pass-through wrapper. It now:
   - pre-generates the leaf library as before,
@@ -13357,22 +13427,22 @@ This right-sizes `.3`.
   so this is a first **combinational** parent-composition layer, not the
   full recursive hierarchy destination yet.
 - The first real hierarchy-regression bug shaken loose by that work was
-  in [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs):
+  in [src/ir/compact.rs](src/ir/compact.rs):
   `compact_node_ids` was not treating instance input bindings as live
   holders and was not remapping them through the compacted `NodeId`
   space. That is now fixed and pinned by a regression.
 - The second old wrapper-era assumption was in
-  [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs):
+  [src/ir/validate.rs](src/ir/validate.rs):
   design validation no longer requires every child output to be exposed
   exactly once. The right rule is narrower: any referenced child output
   node must name a real child output port with the right width, while
   genuinely unused child outputs are allowed.
 - The third old wrapper-era assumption was in
-  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  [src/emit/sv.rs](src/emit/sv.rs):
   unused child outputs are now emitted as explicit unconnected ports
   (`.port()`) instead of panicking on the assumption that every child
   output must have a corresponding `Node::InstanceOutput` wire.
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now quantifies hierarchy composition directly, without requiring any
   `.sv` inspection:
   - `top_direct_instance_output_drives`
@@ -13549,7 +13619,7 @@ This right-sizes `.3`.
 
 **What changed**
 
-- [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+- [src/metrics.rs](src/metrics.rs)
   now exposes a real `DesignMetrics` walker alongside the existing
   per-module `Metrics` walker. For the current Phase 4 wrapper slice it
   records exact composition facts instead of forcing anyone to inspect
@@ -13565,13 +13635,13 @@ This right-sizes `.3`.
   - control fanout to child instances;
   - weighted child-interface load and weighted child complexity; and
   - a per-definition instantiation histogram.
-- [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+- [src/main.rs](src/main.rs)
   now threads those design metrics through the user-facing hierarchy
   output path:
   - `--metrics` prints a design-level JSON block in hierarchy mode; and
   - hierarchy `manifest.json` entries now embed `metrics` per design,
     not only per module.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now carries `DesignMetrics` in design reports, design checkpoints,
   resume upgrades, and hierarchy scenario manifests. Old hierarchy
   checkpoints stay readable via `#[serde(default)]`, and resume now
@@ -13579,15 +13649,15 @@ This right-sizes `.3`.
   emitted `.sv` is still byte-stable.
 - The proof run exposed two real Phase 4 source-of-truth bugs that
   would have made the new metrics untrustworthy if left alone:
-  - [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  - [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
     now tags the wrapper's shared `clk` / `rst_n` ports as
     `Module.clock` / `Module.reset`;
-  - [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs),
-    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs),
-    and [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+  - [src/ir/validate.rs](src/ir/validate.rs),
+    [src/metrics.rs](src/metrics.rs),
+    and [src/emit/sv.rs](src/emit/sv.rs)
     now all resolve control-port visibility from the same design-aware
     rule instead of each relying on a looser local proxy; and
-  - [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  - [src/ir/types.rs](src/ir/types.rs)
     now makes the control-port rule explicit: a module emits `clk` /
     `rst_n` iff it carries sequential state locally or through
     instantiated descendants. Pure comb-only modules stay control-free;
@@ -13685,16 +13755,16 @@ This right-sizes `.3`.
 
 - The Phase 4 wrapper slice now separates **leaf-library size** from
   **instantiated child count**:
-  - [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
+  - [src/config.rs](src/config.rs)
     now has `num_child_instances`,
     `Config::effective_num_child_instances()`, and a validation error
     for `num_child_instances > 0` in leaf-only mode;
-  - [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+  - [src/main.rs](src/main.rs)
     exposes the new `--num-child-instances` CLI flag;
   - `num_child_instances = 0` preserves the legacy wrapper behavior:
     instantiate every generated leaf definition exactly once.
 - The hierarchy generator in
-  [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   now plans child instances separately from the pre-generated leaf
   library:
   - if the requested child count is smaller than the library, the top
@@ -13707,7 +13777,7 @@ This right-sizes `.3`.
   children need them, every child data input still becomes a top input,
   every instantiated child output still becomes a top output, and
   parent-side cone construction from instance outputs is still not live.
-- [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+- [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   now records hierarchy-specific design facts for the Phase 4 slice:
   child-instance counts, unique-instantiated-module counts, and boolean
   flags for both repeated child-definition reuse and
@@ -13716,7 +13786,7 @@ This right-sizes `.3`.
   `phase4_hier2_inst2_comb`, `phase4_hier2_inst4_seq`,
   `phase4_hier4_inst2_comb`, and `phase4_hier4_inst4_seq`.
 - Focused hierarchy proof exposed a second real emitter bug in
-  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  [src/emit/sv.rs](src/emit/sv.rs):
   constant-backed slices were being rendered as illegal literal
   indexing, e.g. `20'h0[18:1]`. The emitter now folds constant slices
   directly to narrower legal literals instead.
@@ -13820,7 +13890,7 @@ This right-sizes `.3`.
 **What changed**
 
 - `tool_matrix` now has a first-class Phase 4 hierarchy gate in
-  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs):
+  [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs):
   `--phase4-hierarchy-gate`, a dedicated hierarchy scenario set,
   design-aware execution/reporting/checkpointing, and hierarchy-specific
   coverage facts.
@@ -13844,7 +13914,7 @@ This right-sizes `.3`.
   - with ABC:
     `read_verilog -sv <files>; synth -top <top> -noabc; abc -fast; opt -fast; stat; check`
 - The real emitter root-cause fix that made the gate close is in
-  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs):
+  [src/emit/sv.rs](src/emit/sv.rs):
   literal-backed procedural `for`-fold sources are now materialized
   through a packed temporary before indexed part-select use inside
   `always_comb`. This replaces both invalid forms that the hierarchy
@@ -13853,9 +13923,9 @@ This right-sizes `.3`.
   (`(signal)[(i * 12) +: 12]`).
 - Regression coverage now proves both parts of the new surface:
   hierarchy-gate planning / coverage / resume tests in
-  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+  [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
   and a literal-backed `for`-fold emission regression in
-  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs).
+  [src/emit/sv.rs](src/emit/sv.rs).
 
 **Why**
 
@@ -13928,9 +13998,9 @@ This right-sizes `.3`.
 **What changed**
 
 - ANVIL now has a real hierarchy entry point in
-  [src/gen/hierarchy.rs](/Users/richarddje/Documents/github/anvil/src/gen/hierarchy.rs)
+  [src/gen/hierarchy.rs](src/gen/hierarchy.rs)
   and a real `Generator::generate_design()` path wired from
-  [src/gen/mod.rs](/Users/richarddje/Documents/github/anvil/src/gen/mod.rs).
+  [src/gen/mod.rs](src/gen/mod.rs).
   When `hierarchy_depth = 1`, generation now produces a `Design`
   containing:
   - a pre-generated library of leaf modules,
@@ -13943,12 +14013,12 @@ This right-sizes `.3`.
   top-level output. Parent-side cone construction from instance outputs
   is deliberately not live yet.
 - The IR is now hierarchy-capable:
-  [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+  [src/ir/types.rs](src/ir/types.rs)
   adds `InstanceId`, `Module.instances`, `Instance`, and
   `Node::InstanceOutput`, plus helper methods that distinguish the
   emitted input surface from internal clock/reset bookkeeping.
 - Validation now exists at both levels:
-  [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+  [src/ir/validate.rs](src/ir/validate.rs)
   still validates one module locally, and now also exposes
   `validate_design(&Design)`, which checks:
   - unique module names,
@@ -13959,13 +14029,13 @@ This right-sizes `.3`.
   - exact output-exposure coverage and width matches, and
   - acyclic hierarchy.
 - Emission is now design-aware:
-  [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+  [src/emit/sv.rs](src/emit/sv.rs)
   adds `to_sv_in_design()` and `to_sv_design()`, emits real child
   instances with named connections, and treats `Node::InstanceOutput`
   as a first-class emitted wire.
 - The CLI now exposes the slice directly through
-  [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
-  and [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs):
+  [src/main.rs](src/main.rs)
+  and [src/config.rs](src/config.rs):
   - `--hierarchy-depth`
   - `--num-leaf-modules`
   Config validation currently accepts only depth `0` or `1`, and
@@ -13974,16 +14044,16 @@ This right-sizes `.3`.
   module in each generated design and records a `designs` array in
   `manifest.json` instead of the old flat `modules` list.
 - Metrics now count hierarchy artifacts too:
-  [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  [src/metrics.rs](src/metrics.rs)
   records `num_instances` and `num_instance_outputs`.
 - Regression coverage now proves the new surface from code, not just
   from a smoke log:
   - depth-1 design generation / validation / emission in
-    [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+    [tests/pipeline.rs](tests/pipeline.rs)
   - design-level validator acceptance/rejection in
-    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+    [src/ir/validate.rs](src/ir/validate.rs)
   - hierarchical emitter instance wiring in
-    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    [src/emit/sv.rs](src/emit/sv.rs)
 
 **Why**
 
@@ -14004,7 +14074,7 @@ This right-sizes `.3`.
 
 - New integration proof:
   `generates_valid_depth1_wrapper_designs` in
-  [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+  [tests/pipeline.rs](tests/pipeline.rs)
   sweeps seeds, validates the full design, checks instance count, and
   proves emitted SV contains multiple module declarations plus real
   instantiation syntax.
@@ -14074,7 +14144,7 @@ This right-sizes `.3`.
 **What changed**
 
 - `tool_matrix` now has a repo-owned `--phase3-structured-gate` mode in
-  [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs).
+  [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs).
   It runs a dedicated 21-scenario structured-surface matrix across the
   three live construction strategies (`sequential`, `shuffled`,
   `interleaved`) under `identity_mode = node-id` and
@@ -14090,13 +14160,13 @@ This right-sizes `.3`.
   - selectable `Slice` and `Concat`
   - variable shifts
 - `Metrics` in
-  [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
+  [src/metrics.rs](src/metrics.rs)
   now distinguish constant-rhs and variable-rhs shifts, so the gate can
   prove the variable-shift surface from emitted IR facts instead of from
   knob intent alone.
 - The first real Phase 3 gate attempt surfaced the actual runtime
   hotspot in
-  [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs):
+  [src/ir/compact.rs](src/ir/compact.rs):
   `merge_equivalent_gates` was still willing to run a full semantic
   truth-table proof on very large settled cones as long as their leaf
   support stayed small. That made compaction spend minutes in
@@ -14147,9 +14217,9 @@ This right-sizes `.3`.
 
 - `Slice` and `Concat` are no longer helper-only shapes. The generic
   structured gate picker in
-  [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+  [src/gen/cone.rs](src/gen/cone.rs)
   now selects real `Slice` and variadic `Concat` gates alongside `Mux`.
-- [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+- [src/gen/module.rs](src/gen/module.rs)
   now repairs any settled-graph output drive that has collapsed to an
   empty-dep constant by swapping in a dep-bearing exact-width source (or
   width-adapter) before final compaction. That keeps the generated
@@ -14190,25 +14260,25 @@ This right-sizes `.3`.
 - The leaf kernel now has a real structured statically bounded
   unrolled-logic surface:
   - new knob `for_fold_prob` in
-    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+    [src/config.rs](src/config.rs)
+    and [src/main.rs](src/main.rs)
   - new gate kind `GateOp::ForFold { kind, trip_count, chunk_width }`
     plus module / knob counters in
-    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+    [src/ir/types.rs](src/ir/types.rs)
   - generator builders in
-    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+    [src/gen/cone.rs](src/gen/cone.rs)
     that emit bounded `always_comb` for-loop folds over packed chunks
   - emitter support in
-    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    [src/emit/sv.rs](src/emit/sv.rs)
     that declares the target as `logic` and emits a procedural
     `for (int i = 0; i < N; i++)` block
   - validator support in
-    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+    [src/ir/validate.rs](src/ir/validate.rs)
   - exact evaluator support in
-    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+    [src/ir/compact.rs](src/ir/compact.rs)
   - metrics + matrix coverage plumbing in
-    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+    [src/metrics.rs](src/metrics.rs)
+    and [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
 
 - A latent width-domain bug surfaced while landing the new surface:
   `pick_priority_encoder_n` could shift past the `u32` domain when a
@@ -14249,24 +14319,24 @@ This right-sizes `.3`.
 
 - The leaf kernel now has a real structured `casez` surface:
   - new knob `casez_mux_prob` in
-    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+    [src/config.rs](src/config.rs)
+    and [src/main.rs](src/main.rs)
   - new gate kind `GateOp::CasezMux` plus module / knob counters in
-    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+    [src/ir/types.rs](src/ir/types.rs)
   - generator builders in
-    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+    [src/gen/cone.rs](src/gen/cone.rs)
     that emit non-overlapping wildcard patterns by construction
   - emitter support in
-    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    [src/emit/sv.rs](src/emit/sv.rs)
     that declares the target as `logic` and emits an
     `always_comb casez (sel)` block with explicit `default`
   - validator support in
-    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+    [src/ir/validate.rs](src/ir/validate.rs)
   - exact evaluator support in
-    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+    [src/ir/compact.rs](src/ir/compact.rs)
   - metrics + matrix coverage plumbing in
-    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+    [src/metrics.rs](src/metrics.rs)
+    and [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
 
 - New proof tests:
   - emitter unit test for `CasezMux`
@@ -14297,21 +14367,21 @@ This right-sizes `.3`.
 
 - The leaf kernel now has a real structured `case` surface:
   - new knob `case_mux_prob` in
-    [src/config.rs](/Users/richarddje/Documents/github/anvil/src/config.rs)
-    and [src/main.rs](/Users/richarddje/Documents/github/anvil/src/main.rs)
+    [src/config.rs](src/config.rs)
+    and [src/main.rs](src/main.rs)
   - new gate kind `GateOp::CaseMux` plus module / knob counters in
-    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
+    [src/ir/types.rs](src/ir/types.rs)
   - generator builders in
-    [src/gen/cone.rs](/Users/richarddje/Documents/github/anvil/src/gen/cone.rs)
+    [src/gen/cone.rs](src/gen/cone.rs)
   - emitter support in
-    [src/emit/sv.rs](/Users/richarddje/Documents/github/anvil/src/emit/sv.rs)
+    [src/emit/sv.rs](src/emit/sv.rs)
     that declares the target as `logic` and emits an
     `always_comb case (sel)` block with explicit `default`
   - validator support in
-    [src/ir/validate.rs](/Users/richarddje/Documents/github/anvil/src/ir/validate.rs)
+    [src/ir/validate.rs](src/ir/validate.rs)
   - metrics + matrix coverage plumbing in
-    [src/metrics.rs](/Users/richarddje/Documents/github/anvil/src/metrics.rs)
-    and [src/bin/tool_matrix.rs](/Users/richarddje/Documents/github/anvil/src/bin/tool_matrix.rs)
+    [src/metrics.rs](src/metrics.rs)
+    and [src/bin/tool_matrix.rs](src/bin/tool_matrix.rs)
 
 - New proof tests:
   - emitter unit test for `CaseMux`
@@ -14326,14 +14396,14 @@ This right-sizes `.3`.
   after remap-heavy passes:
   - new post-construction pass
     `fold_mixed_associative_constants` in
-    [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+    [src/ir/compact.rs](src/ir/compact.rs)
   - wired after the posthoc associative-normalisation points in
-    [src/gen/module.rs](/Users/richarddje/Documents/github/anvil/src/gen/module.rs)
+    [src/gen/module.rs](src/gen/module.rs)
   - keeps strict duplicate-free `Add` / `Mul` output intact when later
     remaps expose shapes like `1 + x + 1`
   - pinned with new unit tests in
-    [src/ir/types.rs](/Users/richarddje/Documents/github/anvil/src/ir/types.rs)
-    and [src/ir/compact.rs](/Users/richarddje/Documents/github/anvil/src/ir/compact.rs)
+    [src/ir/types.rs](src/ir/types.rs)
+    and [src/ir/compact.rs](src/ir/compact.rs)
 
 - Live docs and book now say the narrower truth:
   - `case` is landed
@@ -14366,7 +14436,7 @@ construction.
 
 **What changed**
 
-- [tests/pipeline.rs](/Users/richarddje/Documents/github/anvil/tests/pipeline.rs)
+- [tests/pipeline.rs](tests/pipeline.rs)
   now has `variable_shift_amount_appears_in_output`, a deterministic
   regression that forces a shift-only module with:
   - `const_shift_amount_prob = 0.0`
@@ -14382,9 +14452,9 @@ construction.
   - the emitted SV really does contain a variable shift
     (`value << signal` / `value >> signal`)
 
-- [ROADMAP.md](/Users/richarddje/Documents/github/anvil/ROADMAP.md),
-  [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md),
-  and [MEMORY.md](/Users/richarddje/Documents/github/anvil/MEMORY.md)
+- [ROADMAP.md](ROADMAP.md),
+  [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md),
+  and [MEMORY.md](MEMORY.md)
   no longer describe variable shifts as "not started". The remaining
   obvious Phase 3 breadth gaps are now `case` / `casez` and
   statically bounded unrolled logic.
@@ -14412,9 +14482,9 @@ proof test and brings the steering docs back to the narrower truth.
 
 **What changed**
 
-- [Cargo.toml](/Users/richarddje/Documents/github/anvil/Cargo.toml)
+- [Cargo.toml](Cargo.toml)
   now declares `rust-version = "1.95"`.
-- [CODEBASE_ANALYSIS.md](/Users/richarddje/Documents/github/anvil/CODEBASE_ANALYSIS.md)
+- [CODEBASE_ANALYSIS.md](CODEBASE_ANALYSIS.md)
   no longer says the MSRV is unpinned; it now reflects the explicit
   Rust 1.95 baseline.
 

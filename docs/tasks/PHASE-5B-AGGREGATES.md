@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `PHASE-5B-AGGREGATES`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Phase 5b — Synthesizable aggregates
 - Created: `2026-05-16`
 - Last updated: `2026-05-18` (`.2.4` real-gate verified clean → ROADMAP Phase 5b `done`; tree closed; frontier none — Phase 5b complete)
