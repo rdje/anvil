@@ -1,5 +1,52 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
+## 2026-06-04-memory-architecture-3 — MEMORY-ARCHITECTURE-DOC.3 demote MEMORY.md to resume pointer
+
+**Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `MEMORY-ARCHITECTURE-DOC.3` by demoting
+`MEMORY.md` from the historical live-memory monolith to the bounded
+layer-A resume pointer defined by `MEMORY_ARCHITECTURE.md`.
+
+- Replaced the 2406-line `MEMORY.md` with an 18-line overwrite-only
+  resume pointer.
+- The pointer now names the read path (`README.md`,
+  `MEMORY_ARCHITECTURE.md`, task-tree index, `docs/decisions/`,
+  `COMMIT.md`), the active work unit/frontier, next action, in-flight
+  state, blockers, and the RAM-safe validation policy.
+- Moved the `MEMORY-ARCHITECTURE-DOC` frontier from `.3` to `.4`.
+
+**Why it matters**
+
+`MEMORY.md` is now bounded and cheap to read on resume. Historical detail
+stays where it belongs: task trees, decision records, `CHANGES.md`, and
+git history.
+
+**Tests**
+
+- `wc -l MEMORY.md` -> 18 lines
+- `git diff --check`
+- `mdbook build book`
+- `cargo check --all-targets`
+- Full `cargo test` intentionally skipped per owner instruction/resource
+  policy for this workflow-doc leaf.
+
+**Doctrine / scope**
+
+- Completes `MEMORY-ARCHITECTURE-DOC.3`; tree remains open with `.4`
+  next.
+- Docs/workflow only; no `src/`, `tests/`, or generated RTL behavior
+  change.
+
+**Files**
+
+- `MEMORY.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/MEMORY-ARCHITECTURE-DOC.md`
+- `CHANGES.md`
+
 ## 2026-06-04-memory-architecture-2 — MEMORY-ARCHITECTURE-DOC.2 add layer-C decision records
 
 **Landed as:** this commit

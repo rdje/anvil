@@ -56,11 +56,11 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
   Commit: `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Demote MEMORY.md from append-only operational history to a bounded layer-A resume pointer.`
   Acceptance: `MEMORY.md is short, overwrite-only, points to the active work unit/frontier, and retains no historical monolith content beyond what git/task trees/decisions own.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `MEMORY.md reduced to 18 lines; points at README/MEMORY_ARCHITECTURE.md, docs/tasks, docs/TASK_TREE.md, docs/decisions, COMMIT.md, active work unit, next action, in-flight state, blockers, and RAM-safe validation policy; git diff --check clean; mdbook build book clean; cargo check --all-targets clean. Full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf.`
+  Commit: `MEMORY-ARCHITECTURE-DOC.3 — demote MEMORY.md to resume pointer`
 
 - ID: `MEMORY-ARCHITECTURE-DOC.4`
   Status: `pending`
@@ -80,7 +80,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-ARCHITECTURE-DOC.3` | `pending` | Demote `MEMORY.md` after the layer-C decision store exists. |
+| 1 | `MEMORY-ARCHITECTURE-DOC.4` | `pending` | Install enforcement after the layer-A resume pointer exists. |
 
 ## Decisions
 
@@ -101,6 +101,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | --- | --- | --- | --- |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.1` | `rg` focused pointer check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 | `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.2` | `rg` focused decision-link check; `rg` donor-residue check; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
+| `2026-06-04` | `MEMORY-ARCHITECTURE-DOC.3` | `wc -l MEMORY.md`; `git diff --check`; `mdbook build book`; `cargo check --all-targets` | Done — `MEMORY.md` is 18 lines; focused checks clean; full cargo test intentionally skipped per owner instruction/resource policy for this workflow-doc leaf. |
 
 ## Commit Log
 
@@ -108,7 +109,7 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 | --- | --- | --- |
 | `MEMORY-ARCHITECTURE-DOC.1` | `MEMORY-ARCHITECTURE-DOC.1 — add portable memory standard` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.2` | `MEMORY-ARCHITECTURE-DOC.2 — add layer-C decision records` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
-| `MEMORY-ARCHITECTURE-DOC.3` | `pending` | `pending` |
+| `MEMORY-ARCHITECTURE-DOC.3` | `MEMORY-ARCHITECTURE-DOC.3 — demote MEMORY.md to resume pointer` | Hash can be backfilled in a later live-doc update per `COMMIT.md`. |
 | `MEMORY-ARCHITECTURE-DOC.4` | `pending` | `pending` |
 | `MEMORY-ARCHITECTURE-DOC.5` | `pending` | `pending` |
 
@@ -117,3 +118,4 @@ lifecycle, reachable from tool-neutral entrypoints, and mechanically enforced.
 - `2026-06-04`: Created task tree and opened `MEMORY-ARCHITECTURE-DOC.1`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.1`; frontier moves to `.2`.
 - `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.2`; frontier moves to `.3`.
+- `2026-06-04`: Completed `MEMORY-ARCHITECTURE-DOC.3`; frontier moves to `.4`.
