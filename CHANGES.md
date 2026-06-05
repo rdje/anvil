@@ -1,8 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-sequential-identity-1 — SEQUENTIAL-IDENTITY.1 merge equivalent FSM blocks
+## 2026-06-05-live-doc-identity-alignment-1 — LIVE-DOC-IDENTITY-ALIGNMENT.1 align identity live docs
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/live-doc slice. Completed and closed
+`LIVE-DOC-IDENTITY-ALIGNMENT.1`.
+
+- Updated stale `CODEBASE_ANALYSIS.md` identity-status prose that still
+  described state identity as flop-only.
+- Aligned the phase coverage rows with the current state: bounded
+  semantic gate merge, endpoint-preserving flop merge, deterministic
+  generated-FSM merge, and opt-in hierarchy module-dedup identity are
+  all live, while broader sequential, memory-state, and deeper
+  hierarchical equivalence remain open.
+- Registered and closed a tiny task tree for this documentation
+  alignment activity.
+- Refreshed `MEMORY.md` with the previous `SEQUENTIAL-IDENTITY.1`
+  commit hash.
+
+**Why it matters**
+
+The roadmap, codebase analysis, and mdBook must not drift. The previous
+code slice updated the primary identity sections, but a lower live-doc
+status bullet still carried stale wording. This commit removes that
+ambiguity without changing code or phase labels.
+
+**Tests**
+
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+- `mdbook build book`
+
+**Impact**
+
+- Documentation only.
+- No `src/`, tests, CLI, generator output, metrics, or roadmap phase
+  status changed.
+
+**Files**
+
+- `CODEBASE_ANALYSIS.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/LIVE-DOC-IDENTITY-ALIGNMENT.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-sequential-identity-1 — SEQUENTIAL-IDENTITY.1 merge equivalent FSM blocks
+
+**Landed as:** `5043547`
 
 **What changed**
 

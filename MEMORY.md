@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `ed061e5` - `KNOWLEDGE-MAP-DOC.3 - seed ANVIL facts and close`
-- active_work_unit: none; `SEQUENTIAL-IDENTITY.1` is implemented, verified, and closes with the next commit.
-- next_action: commit `SEQUENTIAL-IDENTITY.1`, clear `git_message_brief.txt`, then pick the next task-tree-owned roadmap slice.
-- in_flight_uncommitted: `SEQUENTIAL-IDENTITY.1` code/docs/Knowledge Map updates verified; commit workflow in progress.
+- latest_commit: `5043547` - `SEQUENTIAL-IDENTITY.1 - merge equivalent FSM blocks`
+- active_work_unit: none; `LIVE-DOC-IDENTITY-ALIGNMENT.1` is docs-only and closes with the next commit.
+- next_action: commit `LIVE-DOC-IDENTITY-ALIGNMENT.1`, clear `git_message_brief.txt`, then pick the next task-tree-owned roadmap slice.
+- in_flight_uncommitted: docs-alignment edits for `CODEBASE_ANALYSIS.md`, task-tree registry, `MEMORY.md`, and `CHANGES.md`.
 - blockers: none.
 
 ## Validation policy

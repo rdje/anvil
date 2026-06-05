@@ -81,6 +81,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `MEMORY-ARCHITECTURE-DOC` | `done` | Workflow / memory architecture | (complete — `.1` standard + README pointer; `.2` ANVIL layer-C decisions; `.3` bounded `MEMORY.md`; `.4` self-check/hooks/CI/bootstrap enforcement; `.5` final focused validation clean; full cargo test intentionally out of scope per owner resource policy) | [docs/tasks/MEMORY-ARCHITECTURE-DOC.md](tasks/MEMORY-ARCHITECTURE-DOC.md) |
 | `KNOWLEDGE-MAP-DOC` | `done` | Workflow / retrieval architecture | complete — `.1` project-agnostic bundle + discovery pointers; `.2` generated map + hook/CI enforcement; `.3` ANVIL decision-record retrieval keys + close. | [docs/tasks/KNOWLEDGE-MAP-DOC.md](tasks/KNOWLEDGE-MAP-DOC.md) |
 | `SEQUENTIAL-IDENTITY` | `done` | NodeId as identity / full-factorization mode | complete — `.1` merges equivalent generated FSM blocks under node-id identity, surfaces `fsms_merged`, and documents the FSM-vs-memory proof boundary. | [docs/tasks/SEQUENTIAL-IDENTITY.md](tasks/SEQUENTIAL-IDENTITY.md) |
+| `LIVE-DOC-IDENTITY-ALIGNMENT` | `done` | Live docs / NodeId identity status | complete — `.1` aligned stale CODEBASE identity-status prose after the FSM merge and existing hierarchy module-dedup layer. | [docs/tasks/LIVE-DOC-IDENTITY-ALIGNMENT.md](tasks/LIVE-DOC-IDENTITY-ALIGNMENT.md) |
 
 ## Directory Layout
 
