@@ -182,7 +182,7 @@ fn reachable_module_names(design: &Design) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{Direction, Instance, InstanceRole, Node, Port};
+    use crate::ir::{DepSet, Direction, GateOp, Instance, InstanceRole, Node, Port};
 
     fn make_port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
         Port {
@@ -202,6 +202,30 @@ mod tests {
         m.outputs.push(make_port(1, "out", 1, Direction::Out));
         m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
         m.drives.push((1, 0));
+        m
+    }
+
+    fn double_not_leaf(name: &str) -> Module {
+        let mut m = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        m.inputs.push(make_port(0, "in", 1, Direction::In));
+        m.outputs.push(make_port(1, "out", 1, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![0],
+            width: 1,
+            deps: DepSet::from_port(0),
+        });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![1],
+            width: 1,
+            deps: DepSet::from_port(0),
+        });
+        m.drives.push((1, 2));
         m
     }
 
@@ -294,6 +318,65 @@ mod tests {
         let removed = dedup_modules(&mut design);
         assert_eq!(removed, 0);
         assert_eq!(design.modules.len(), before);
+    }
+
+    #[test]
+    fn dedup_keeps_semantic_equivalent_structurally_distinct_modules_separate() {
+        let leaf_a = trivial_leaf("leaf_a");
+        let leaf_b = double_not_leaf("leaf_b");
+        assert_ne!(
+            canonical_module_signature(&leaf_a),
+            canonical_module_signature(&leaf_b),
+            "module dedup is structural-only, even when two modules are semantically equivalent"
+        );
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "i", 1, Direction::In));
+        top.outputs.push(make_port(1, "o", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_a".into(),
+            module: "leaf_a".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.instances.push(Instance {
+            id: 1,
+            name: "u_b".into(),
+            module: "leaf_b".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.drives.push((1, 0));
+
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![leaf_a, leaf_b, top],
+        };
+
+        let removed = dedup_modules(&mut design);
+        assert_eq!(
+            removed, 0,
+            "structurally distinct modules must not merge without a module-level semantic proof"
+        );
+        assert_eq!(design.modules.len(), 3);
+        let top_after = design
+            .modules
+            .iter()
+            .find(|module| module.name == "top")
+            .expect("top survived");
+        let instance_modules: Vec<_> = top_after
+            .instances
+            .iter()
+            .map(|instance| instance.module.as_str())
+            .collect();
+        assert_eq!(instance_modules, vec!["leaf_a", "leaf_b"]);
     }
 
     #[test]

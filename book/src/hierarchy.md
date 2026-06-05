@@ -678,6 +678,13 @@ those modules can still be merged only if they have duplicate structural
 signatures. The cleanup removes definitions made dead by the merge
 itself.
 
+The proof boundary is structural. `hierarchy_module_dedup` does not try
+to prove arbitrary whole-module semantic equivalence: two modules that
+compute the same function through different IR shapes remain distinct
+unless their canonical structural signatures match. That boundary is
+regression-protected with a pass-through module versus a
+`Not(Not(input))` module.
+
 The earlier `r86` bank closed `HIERARCHY-AWARE-IDENTITY.2` by proving the
 planner can emit structurally-duplicate Module definitions under
 tight 1-in / 1-out / width-1 / max_depth-1 / terminal_reuse_prob=1.0

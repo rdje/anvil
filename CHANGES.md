@@ -1,8 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-memory-identity-boundary-1 — MEMORY-IDENTITY-BOUNDARY.1 keep memories instance-local
+## 2026-06-05-hierarchy-identity-boundary-1 — HIERARCHY-IDENTITY-BOUNDARY.1 keep module dedup structural
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `HIERARCHY-IDENTITY-BOUNDARY.1` and
+closed the `HIERARCHY-IDENTITY-BOUNDARY` task tree.
+
+- Added a focused `src/ir/dedup.rs` regression proving that two
+  semantically equivalent but structurally different module definitions
+  do not merge under `dedup_modules`.
+- The proof uses a one-bit pass-through module and a one-bit
+  `Not(Not(input))` module: same function, different canonical module
+  signatures, zero modules removed, and the top-level instances keep
+  their original module names.
+- Synced the mdBook hierarchy/factorization/architecture chapters,
+  roadmap identity wording, codebase analysis, development notes,
+  task-tree records, and Knowledge Map fact card.
+
+**Why it matters**
+
+`hierarchy_module_dedup` is intentionally a structural module-template
+dedup pass, not a whole-module semantic-equivalence engine. This slice
+keeps the hierarchy identity gap honest and prevents accidental overreach
+from the current signature hash.
+
+**Tests**
+
+- `cargo test -q dedup_keeps_semantic_equivalent_structurally_distinct_modules_separate`
+- `cargo test -q ir::dedup::tests::dedup_`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No emitted SV, CLI, config default, generator distribution, roadmap
+  phase label, or snapshot baseline changed.
+- No full suite was run for this narrow regression/docs slice; focused
+  dedup coverage plus check/clippy/doc gates passed.
+
+**Files**
+
+- `src/ir/dedup.rs`
+- `book/src/hierarchy.md`
+- `book/src/factorization.md`
+- `book/src/architecture.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `docs/knowledge/hierarchy-identity-boundary.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/HIERARCHY-IDENTITY-BOUNDARY.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-memory-identity-boundary-1 — MEMORY-IDENTITY-BOUNDARY.1 keep memories instance-local
+
+**Landed as:** `72a05dc`
 
 **What changed**
 

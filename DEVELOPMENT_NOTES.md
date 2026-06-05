@@ -58,6 +58,21 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Hierarchy module dedup remains structural-only (2026-06-05, HIERARCHY-IDENTITY-BOUNDARY.1)
+
+The hierarchy module-dedup pass now has an explicit boundary regression:
+two one-bit modules that compute the same function (`input` versus
+`Not(Not(input))`) but have different IR structure must not merge under
+`dedup_modules`. Their canonical module signatures differ, the pass
+removes zero modules, and the top-level instances keep their original
+module names.
+
+This protects the current proof contract. `hierarchy_module_dedup`
+deduplicates canonical structural module templates; it is not a
+whole-module semantic-equivalence engine. A future deeper hierarchy
+identity task would need a module-level proof, not just a stronger
+claim attached to the current signature hash.
+
 ### Memory identity remains instance-local (2026-06-05, MEMORY-IDENTITY-BOUNDARY.1)
 
 The roadmap's memory-state identity gap is now protected by a focused

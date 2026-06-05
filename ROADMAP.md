@@ -83,9 +83,12 @@ instead of leaving them implicit.
    conservative post-drain flop merging and deterministic generated-FSM
    merging over the same endpoint-preserving proof discipline; broader
    sequential equivalence, memory-state merging beyond the current
-   instance-local proof boundary, and hierarchical equivalence are still
-   open work. Current inferrable memories deliberately remain
-   state-by-instance because their stored contents are not reset-defined.
+   instance-local proof boundary, and hierarchy equivalence beyond
+   canonical structural module signatures are still open work. Current
+   inferrable memories deliberately remain state-by-instance because
+   their stored contents are not reset-defined, and current module dedup
+   deliberately does not merge semantically-equivalent-but-structurally
+   different module bodies.
    This mode must remain
    user-controllable from the CLI:
    `--identity-mode relaxed` is the real semantic off-switch.

@@ -173,7 +173,8 @@ than accidental:
    and table/encoding/output signatures match. Broader state
    equivalence is still incomplete; current memories deliberately stay
    instance-local because their array contents are not reset-defined,
-   and future hierarchical identity is not finished.
+   and hierarchy identity remains structural-only beyond the current
+   canonical module-signature dedup pass.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
    now exists, and its current stable smoke matrix is green: 15/15

@@ -362,8 +362,8 @@ Today, ANVIL is **part-way there**:
 - deterministic duplicate FSM blocks merge when their selector proof and
   table/encoding/output signatures match; but
 - broader sequential equivalence, memory-state merging beyond the
-  current instance-local boundary, and future parameter-aware
-  hierarchical identity are still open work.
+  current instance-local boundary, and hierarchy identity beyond
+  canonical structural module signatures are still open work.
 
 This remains deliberately user-controllable:
 

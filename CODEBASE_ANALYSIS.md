@@ -821,9 +821,10 @@ In `ir::validate::validate_design`:
   discipline. Opt-in module-dedup identity exists for hierarchy
   templates; current memories remain state-by-instance under a focused
   full-factorization regression because their stored contents are not
-  reset-defined; broader sequential equivalence, memory-state merging
-  beyond that boundary, and deeper hierarchical equivalence remain open
-  work.
+  reset-defined; opt-in hierarchy module dedup remains structural-only
+  under a focused regression; broader sequential equivalence,
+  memory-state merging beyond that boundary, and deeper hierarchical
+  equivalence remain open work.
 - Phase 4 is no longer only the first depth-1 slice. The legacy exact
   wrapper lane is still real, and the repo-owned Phase 4 gate now also
   banks the current representative bounded-recursive hierarchy surface,
