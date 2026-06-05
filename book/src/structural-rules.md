@@ -983,13 +983,22 @@ So when `sel` is out of range (for non-power-of-two M), the output is
 This is intentionally a syntax-surface motif distinct from the
 expression-level encoded comb mux. The downstream logic function is the
 same kind of indexed mux, but the emitted RTL goes through a different
-frontend/elaboration path because it uses `always_comb case`.
+frontend/elaboration path because dynamic selectors use
+`always_comb case`.
+
+If the selector is already constant by emission time, the emitter
+lowers the block to a continuous assignment of the selected arm (or
+default zero for an out-of-range selector). That preserves the same
+logic value while avoiding empty-sensitivity `always_comb` warnings in
+strict downstream frontends.
 
 **Where enforced:** `src/gen/cone.rs` —
 `build_case_mux_recursive`, `build_case_mux_pool_only`,
 `make_case_mux`. Validator: `check_gate_shape`'s `CaseMux` arm.
-Emitter: `src/emit/sv.rs` declares the target as `logic` and emits one
-`always_comb begin ... case (...) ... endcase end` block per case mux.
+Emitter: `src/emit/sv.rs` declares the target as `logic` and emits
+either one `always_comb begin ... case (...) ... endcase end` block per
+dynamic case mux or one continuous `assign` for a constant-selector
+case mux.
 
 ---
 
@@ -1016,16 +1025,21 @@ accidental priority chain.
 This is intentionally a syntax-surface motif distinct from both the
 expression-level encoded comb mux and the plain indexed `case` block.
 The downstream logic family is still "indexed mux with a default", but
-the emitted RTL goes through the `casez` frontend/elaboration path and
-therefore exercises a different parser / elaborator surface.
+dynamic selectors go through the `casez` frontend/elaboration path and
+therefore exercise a different parser / elaborator surface.
+
+If the selector is already constant by emission time, the emitter
+lowers the block to a continuous assignment of the first matching arm
+or default zero. The wildcard match uses the same generated
+non-overlapping pattern set as the dynamic `casez` block.
 
 **Where enforced:** `src/gen/cone.rs` —
 `build_casez_mux_recursive`, `build_casez_mux_pool_only`,
 `make_casez_mux`, `build_casez_patterns`. Validator:
 `check_gate_shape`'s `CasezMux` arm. Emitter:
-`src/emit/sv.rs` declares the target as `logic` and emits one
-`always_comb begin ... casez (...) ... endcase end` block per casez
-mux.
+`src/emit/sv.rs` declares the target as `logic` and emits either one
+`always_comb begin ... casez (...) ... endcase end` block per dynamic
+casez mux or one continuous `assign` for a constant-selector casez mux.
 
 ---
 
@@ -1042,6 +1056,11 @@ The block is intentionally procedural. The goal is to exercise the
 frontend/elaboration surface for statically bounded loops, not merely to
 construct an equivalent expression tree and hope the emitter happens to
 print it that way.
+
+If the packed source is already constant by emission time, the emitter
+lowers the fold to a continuous assignment of the folded literal. That
+is still the same bounded fold result; it avoids an empty-sensitivity
+procedural block for strict frontends.
 
 - **Fold kind** today is one of `xor`, `or`, `and`, `add`.
 - **Trip count N** is drawn from `[max(2, min_gate_arity), max_gate_arity]`.
@@ -1060,8 +1079,9 @@ expression-level operator family and the case/casez surfaces.
 Validator: `check_gate_shape`'s `ForFold` arm. Emitter:
 `src/emit/sv.rs` declares the target as `logic` and emits one
 `always_comb begin ... for (int i = 0; i < N; i++) ... end end` block
-per for-fold node. Exact evaluator: `src/ir/compact.rs` evaluates the
-same packed-chunk fold semantics under assignment.
+per dynamic for-fold node, or one continuous `assign` for a
+constant-source for-fold node. Exact evaluator: `src/ir/compact.rs`
+evaluates the same packed-chunk fold semantics under assignment.
 
 ---
 

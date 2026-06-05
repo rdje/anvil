@@ -105,7 +105,13 @@ instead of leaving them implicit.
    Seed-level cleanliness is not enough. The project needs automated
    Verilator/Yosys validation evidence across seeds, construction
    strategies, identity modes, factorization levels, category mixes,
-   flop/no-flop cases, and deeper hierarchy/memory/FSM features.
+   flop/no-flop cases, and deeper hierarchy/memory/FSM features, plus
+   broader optional simulator/frontend acceptance columns where they
+   are available. `tool_matrix --iverilog-compile` now adds Icarus
+   Verilog compile/elaboration acceptance (`iverilog -g2012`) as an
+   opt-in warning-clean column; the focused `SIGNOFF-SURFACE-EXPANSION.3`
+   smoke is clean at 17/0 across Verilator, both repo-owned Yosys
+   modes, and Icarus compile.
    Counterexamples must be retained with exact seed+config evidence and
    fed back into IR invariants or rewrites, not hidden behind warning
    suppressions. The intended steady-state remains: generated RTL is
@@ -233,8 +239,9 @@ node-count collapse.
 ## Phase 3 — Structured combinational ops (done)
 
 - `case`/`casez` expressions. **Both landed as structured
-  combinational case-style blocks (`always_comb case` and
-  `always_comb casez`).**
+  combinational case-style blocks: dynamic selectors emit
+  `always_comb case` / `always_comb casez`, while constant selectors
+  lower to continuous `assign` statements.**
 - Priority encoders, one-hot decoders. **Priority encoder landed
   (Rule 17).**
 - Reduction operators (`&`, `|`, `^` unary). **Selectable gate
@@ -249,7 +256,8 @@ node-count collapse.
   variadic `Concat` gates directly.
 - `for`-loop unrolled logic (statically bounded). **Landed.** The leaf
   kernel now has a structured bounded `always_comb` for-loop fold over
-  packed chunks via `for_fold_prob` and `GateOp::ForFold`.
+  packed chunks via `for_fold_prob` and `GateOp::ForFold`; constant
+  packed sources lower to a continuous `assign` of the folded literal.
 - Linear-combination compound motif (`Σ sᵢ·cᵢ`, etc.) **landed.**
 
 Phase 3 is now **done**. The previously explicit breadth gaps are

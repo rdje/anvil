@@ -259,9 +259,9 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--min-comparand`       | 0        | Min constant comparand value                          |
 | `--max-comparand`       | 255      | Max constant comparand (clamped to 2^K - 1)           |
 | `--priority-encoder-prob`| 0.05    | Per-emission probability of a priority-encoder block (N 1-bit reqs → log2(N)-bit index)|
-| `--case-mux-prob`      | 0.05     | Per-emission probability of a combinational `always_comb case` block |
-| `--casez-mux-prob`     | 0.05     | Per-emission probability of a combinational `always_comb casez` block |
-| `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational `always_comb` `for`-fold block over packed chunks |
+| `--case-mux-prob`      | 0.05     | Per-emission probability of a combinational case block; dynamic selectors emit `always_comb case`, constant selectors lower to `assign` |
+| `--casez-mux-prob`     | 0.05     | Per-emission probability of a combinational casez block; dynamic selectors emit `always_comb casez`, constant selectors lower to `assign` |
+| `--for-fold-prob`      | 0.05     | Per-emission probability of a bounded combinational fold; dynamic sources emit `always_comb for`, constant sources lower to `assign` |
 | `--hierarchy-depth`    | 0        | Legacy exact hierarchy depth. `1` = depth-1 wrapper slice |
 | `--num-leaf-modules`   | 0        | Number of leaf modules pre-generated for the legacy exact depth-1 wrapper slice |
 | `--num-child-instances`| 0        | Child-instance count for the legacy exact depth-1 wrapper slice. `0` preserves exact-once instantiation of every generated leaf |
@@ -600,7 +600,7 @@ What it does:
   (share-heavy comb-only, motif-heavy sequential);
 - generates a per-scenario corpus under `./tool-matrix/<scenario>/`;
 - runs Verilator and Yosys as validation tools on every generated
-  artifact;
+  artifact, with an opt-in Icarus compile/elaboration column;
 - writes `./tool-matrix/tool_matrix_report.json` with per-artifact tool
   results, aggregated metrics, and coverage facts; and
 - exits non-zero if either validation tool fails on any generated
@@ -640,6 +640,11 @@ Useful options:
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
+- `--iverilog-compile` to add an Icarus Verilog compile/elaboration
+  column. The harness shells `iverilog -g2012` for each emitted module
+  or design and records the result under `iverilog_compile` in the
+  report. This is warning-clean acceptance evidence only; it does not
+  run a testbench or compare traces.
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
@@ -674,15 +679,16 @@ Useful options:
   mandatorily; the per-axis subset gives signoff-quality coverage
   without 2h+ CI runtime.
 
-Current focused smoke status after `SIGNOFF-SURFACE-EXPANSION.1`: the
-built-in matrix is 17/17 clean in Verilator and 17/17 clean in Yosys
-under `--yosys-mode without-abc`, with `coverage_gaps = []` and both
-CDC coverage facts lit (`saw_cdc_2_flop_synchronizer` and
-`saw_cdc_nflop_synchronizer`). `tool_matrix` treats warnings as
-failures, so a green run means "no errors, no warnings", not merely
-zero non-zero exits. A previous small `--yosys-mode both` probe was
-clean in both Yosys sub-modes too: `without-abc = 15/15 pass`,
-`with-abc = 15/15 pass`. The completed current-code
+Current focused smoke status after `SIGNOFF-SURFACE-EXPANSION.3`: the
+built-in matrix is clean across Verilator, both repo-owned Yosys modes,
+and the opt-in Icarus compile column:
+`Verilator 17/0`, `Yosys without-abc 17/0`, `Yosys with-abc 17/0`,
+`Icarus compile 17/0`. `tool_matrix` treats warnings as failures, so a
+green run means "no errors, no warnings", not merely zero non-zero
+exits. Focused evidence:
+`/tmp/anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`.
+
+The completed current-code
 `--phase1-gate --yosys-mode both`
 report at `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
 records:
@@ -1412,10 +1418,16 @@ verilator --lint-only generated/mod_42_0000.sv
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
 ```
 
+**Icarus compile/elaboration (leaf module):**
+```bash
+iverilog -g2012 -o generated/mod_42_0000.vvp generated/mod_42_0000.sv
+```
+
 **Hierarchy elaboration / synthesis (directory output):**
 ```bash
 verilator --lint-only generated-hier/*.sv
 yosys -p "read_verilog -sv generated-hier/*.sv; synth -top <top-module> -noabc; stat; check"
+iverilog -g2012 -s <top-module> -o generated-hier/design.vvp generated-hier/*.sv
 ```
 
 To probe the ABC-enabled path explicitly:
@@ -1424,8 +1436,9 @@ To probe the ABC-enabled path explicitly:
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; abc -fast; opt -fast; stat; check"
 ```
 
-Both should succeed on every generated file. If one fails, that's a bug
-in `anvil` — file an issue with the seed and knobs from `manifest.json`.
+All enabled smoke tools should succeed on every generated file. If one
+fails, that's a bug in `anvil` — file an issue with the seed and knobs
+from `manifest.json`.
 
 **Frontend expected-facts parity gates (optional, require external tools):**
 

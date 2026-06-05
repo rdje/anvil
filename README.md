@@ -85,7 +85,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 ### Tests and examples
 - `tests/pipeline.rs`       end-to-end: generate → validate → emit
 - `examples/generate_one.rs` minimal library usage
-- `src/bin/tool_matrix.rs`  curated Verilator/Yosys scenario-matrix harness
+- `src/bin/tool_matrix.rs`  curated Verilator/Yosys/Icarus scenario-matrix harness
 
 ### Design docs (mdBook, live)
 - `book/book.toml`
@@ -210,12 +210,16 @@ verilator --lint-only generated/mod_42_0000.sv
 
 # Synthesis sanity check (requires Yosys)
 yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; stat"
+
+# Compile/elaboration sanity check (requires Icarus Verilog)
+iverilog -g2012 -o generated/mod_42_0000.vvp generated/mod_42_0000.sv
 ```
 
-Both should succeed on every generated file. In this repository,
-Verilator and Yosys are validation tools: they check syntax,
-elaboration/lint, and synthesis acceptability of the emitted HDL. They
-are not the only intended consumers of ANVIL output, and a failure is a
+All enabled smoke tools should succeed on every generated file. In this
+repository, Verilator, Yosys, and the optional Icarus compile column are
+validation tools: they check syntax, elaboration/lint, compile
+acceptance, and synthesis acceptability of the emitted HDL. They are not
+the only intended consumers of ANVIL output, and a failure is a
 generator bug; file it with the seed and the effective knobs from
 `manifest.json`.
 
@@ -227,14 +231,14 @@ cargo run --bin tool_matrix -- --out ./tool-matrix
 ```
 
 That writes per-scenario generated corpora plus
-`tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
-fails on any generated file or emits any warning. Current focused
-smoke status after `SIGNOFF-SURFACE-EXPANSION.1`: the built-in matrix
-is 17/17 clean in Verilator and 17/17 clean in Yosys under the current
-default `--yosys-mode without-abc`, with `coverage_gaps = []` and the
-multi-clock CDC facts `saw_cdc_2_flop_synchronizer = true` and
-`saw_cdc_nflop_synchronizer = true`
-(`/tmp/anvil-signoff-surface-nflop-r1/tool_matrix_report.json`).
+`tool_matrix_report.json`, and exits non-zero if any enabled
+downstream tool fails on any generated file or emits any warning.
+Current focused smoke status after `SIGNOFF-SURFACE-EXPANSION.3`: the
+built-in matrix is clean across Verilator, both repo-owned Yosys modes,
+and the opt-in Icarus compile column:
+`Verilator 17/0`, `Yosys without-abc 17/0`, `Yosys with-abc 17/0`,
+`Icarus compile 17/0`
+(`/tmp/anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`).
 
 The harness now has an explicit Yosys mode axis too:
 
@@ -243,6 +247,21 @@ cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode without-abc
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode with-abc
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
 ```
+
+The harness also has an optional Icarus Verilog compile/elaboration
+column:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix --iverilog-compile
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both --iverilog-compile
+```
+
+`--iverilog-compile` shells `iverilog -g2012` for each emitted module
+or design and records the result in `ModuleReport.iverilog_compile` or
+`DesignReport.iverilog_compile`. This is an acceptance gate, not a
+behavioral testbench: it proves an additional simulator frontend can
+compile/elaborate the emitted SV. For trace agreement, use
+`--diff-sim`.
 
 #### `--diff-sim`: cross-simulator semantic agreement
 
@@ -577,6 +596,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
 - `tool_matrix --yosys-mode <without-abc|with-abc|both>` controls
   whether the repo-owned Yosys harness runs the current `synth -noabc`
   path, the explicit ABC-enabled `abc -fast` path, or both.
+- `tool_matrix --iverilog-compile` adds an opt-in Icarus Verilog
+  compile/elaboration column (`iverilog -g2012`) to each generated
+  artifact. It is warning-clean acceptance evidence only; it does not
+  run a testbench or compare traces.
 - `tool_matrix --resume` reuses per-module checkpoints from an existing
   `--out` tree when the saved tool surface matches the current run. New
   same-binary checkpoints also carry a generator checkpoint, an `sv`

@@ -19,7 +19,7 @@ Knobs to tune:
 - `--max-width 16` keeps data widths moderate → SV stays readable.
 - `--flop-prob 0.2` gives a mix of combinational and sequential blocks.
 
-## "I want an executable Verilator/Yosys axis matrix"
+## "I want an executable Verilator/Yosys/Icarus axis matrix"
 
 Use the repo-owned matrix harness instead of hand-running one seed at a
 time:
@@ -34,9 +34,11 @@ This does more than emit files:
 - sweeps a curated matrix over construction strategy, identity mode,
   factorization level, and two stress profiles;
 - runs Verilator and Yosys on every generated file;
+- optionally runs Icarus Verilog compile/elaboration with
+  `--iverilog-compile`;
 - writes per-scenario corpora plus `tool_matrix_report.json`; and
-- fails the command if either downstream tool fails anywhere in the
-  matrix.
+- fails the command if any enabled downstream tool fails anywhere in
+  the matrix.
 
 Useful variants:
 
@@ -56,6 +58,12 @@ cargo run --bin tool_matrix -- --out ./tool-matrix-phase1 --phase1-gate
 
 # Compare Yosys with and without ABC on the same corpus.
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both
+
+# Add Icarus Verilog compile/elaboration acceptance.
+cargo run --bin tool_matrix -- --out ./tool-matrix --iverilog-compile
+
+# Run Verilator, both Yosys modes, and Icarus together.
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both --iverilog-compile
 ```
 
 ## "I want a real hierarchy, not just one leaf module"

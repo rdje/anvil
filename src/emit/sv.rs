@@ -269,9 +269,12 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
 
     // Internal signal declarations for every Gate node and every
     // instance-output node. Most gates are driven by continuous assigns
-    // (`wire`); structured case muxes are driven procedurally (`logic`
-    // + `always_comb`). Instance outputs are plain wires driven by
-    // child-module port connections.
+    // (`wire`); structured case/casez/for-fold gates are declared as
+    // `logic` because their dynamic form is procedural. A structured
+    // gate whose controlling inputs are already constant is still
+    // declared `logic` but emitted as a continuous assignment below.
+    // Instance outputs are plain wires driven by child-module port
+    // connections.
     for (idx, node) in m.nodes.iter().enumerate() {
         match node {
             Node::Gate { op, width, .. } => {
@@ -308,13 +311,30 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
     }
     writeln!(out).unwrap();
 
-    // Combinational assigns for every gate.
+    // Combinational assigns for every gate. Fully static structured
+    // gates are lowered here too; keeping them out of `always_comb`
+    // avoids empty-sensitivity warnings in strict downstream tools.
     for (idx, node) in m.nodes.iter().enumerate() {
-        if let Node::Gate { op, operands, .. } = node {
+        if let Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } = node
+        {
             if matches!(
                 op,
                 GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
             ) {
+                if let Some(rhs) = render_static_structured_gate(*op, operands, *width, m, &names) {
+                    writeln!(
+                        out,
+                        "    assign {} = {};",
+                        names[idx].as_ref().unwrap(),
+                        rhs
+                    )
+                    .unwrap();
+                }
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -349,6 +369,9 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
             continue;
         }
         let name = names[idx].as_ref().expect("gate name assigned");
+        if render_static_structured_gate(*op, operands, *width, m, &names).is_some() {
+            continue;
+        }
         writeln!(out, "    always_comb begin").unwrap();
         match op {
             GateOp::CaseMux => {
@@ -957,6 +980,84 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
     }
 }
 
+fn render_static_structured_gate(
+    op: GateOp,
+    operands: &[NodeId],
+    width: u32,
+    m: &Module,
+    names: &[Option<String>],
+) -> Option<String> {
+    match op {
+        GateOp::CaseMux => {
+            let sel = constant_value(m, operands[0])?;
+            Some(
+                usize::try_from(sel)
+                    .ok()
+                    .and_then(|idx| operands[1..].get(idx))
+                    .map(|arm| node_ref(*arm, m, names))
+                    .unwrap_or_else(|| const_literal(width, 0)),
+            )
+        }
+        GateOp::CasezMux => {
+            let sel_width = m.nodes[operands[0] as usize].width();
+            let sel = constant_value(m, operands[0])?;
+            for arm in operands[1..].chunks_exact(3) {
+                let pattern_value = constant_value(m, arm[0])?;
+                let wildcard_mask = constant_value(m, arm[1])?;
+                if casez_pattern_matches(sel, pattern_value, wildcard_mask, sel_width) {
+                    return Some(node_ref(arm[2], m, names));
+                }
+            }
+            Some(const_literal(width, 0))
+        }
+        GateOp::ForFold {
+            kind,
+            trip_count,
+            chunk_width,
+        } => {
+            let src = constant_value(m, operands[0])?;
+            let value = eval_static_for_fold(kind, trip_count, chunk_width, src);
+            Some(const_literal(chunk_width, value))
+        }
+        _ => None,
+    }
+}
+
+fn constant_value(m: &Module, id: NodeId) -> Option<u128> {
+    match m.nodes.get(id as usize) {
+        Some(Node::Constant { value, width }) => Some(value & bitmask(*width)),
+        _ => None,
+    }
+}
+
+fn casez_pattern_matches(sel: u128, pattern_value: u128, wildcard_mask: u128, width: u32) -> bool {
+    let care_mask = bitmask(width) & !wildcard_mask;
+    (sel & care_mask) == (pattern_value & care_mask)
+}
+
+fn eval_static_for_fold(kind: ForFoldKind, trip_count: u32, chunk_width: u32, src: u128) -> u128 {
+    let mask = bitmask(chunk_width);
+    let mut acc = match kind {
+        ForFoldKind::And => mask,
+        ForFoldKind::Xor | ForFoldKind::Or | ForFoldKind::Add => 0,
+    };
+    for i in 0..trip_count {
+        let shift = i.saturating_mul(chunk_width);
+        let chunk = if shift >= 128 {
+            0
+        } else {
+            (src >> shift) & mask
+        };
+        acc = match kind {
+            ForFoldKind::Xor => acc ^ chunk,
+            ForFoldKind::Or => acc | chunk,
+            ForFoldKind::And => acc & chunk,
+            ForFoldKind::Add => acc.wrapping_add(chunk) & mask,
+        };
+    }
+    acc & mask
+}
+
 fn render_casez_pattern(value_id: NodeId, wild_mask_id: NodeId, m: &Module) -> String {
     let Node::Constant {
         width,
@@ -1554,6 +1655,40 @@ mod tests {
     }
 
     #[test]
+    fn case_mux_constant_selector_emits_continuous_assign() {
+        let mut m = Module {
+            name: "m_case_const_sel".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "o", 8, Direction::Out));
+        m.nodes.push(Node::Constant { width: 2, value: 2 });
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0x11,
+        });
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0x22,
+        });
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0x55,
+        });
+        m.nodes.push(Node::Gate {
+            op: GateOp::CaseMux,
+            operands: vec![0, 1, 2, 3],
+            width: 8,
+            deps: DepSet::new(),
+        });
+        m.drives.push((0, 4));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("logic [7:0] case_mux_0;"));
+        assert!(sv.contains("assign case_mux_0 = 8'h55;"));
+        assert!(!sv.contains("always_comb begin"));
+    }
+
+    #[test]
     fn casez_mux_emits_logic_and_always_comb_casez() {
         let mut m = Module {
             name: "m_casez".into(),
@@ -1600,6 +1735,55 @@ mod tests {
     }
 
     #[test]
+    fn casez_mux_constant_selector_emits_continuous_assign() {
+        let mut m = Module {
+            name: "m_casez_const_sel".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "o", 8, Direction::Out));
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b011,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b000,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0xaa,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b010,
+        });
+        m.nodes.push(Node::Constant {
+            width: 3,
+            value: 0b001,
+        });
+        m.nodes.push(Node::Constant {
+            width: 8,
+            value: 0xbb,
+        });
+        m.nodes.push(Node::Gate {
+            op: GateOp::CasezMux,
+            operands: vec![0, 1, 2, 3, 4, 5, 6],
+            width: 8,
+            deps: DepSet::new(),
+        });
+        m.drives.push((0, 7));
+
+        let sv = to_sv(&m);
+        assert!(sv.contains("logic [7:0] casez_mux_0;"));
+        assert!(sv.contains("assign casez_mux_0 = 8'hbb;"));
+        assert!(!sv.contains("always_comb begin"));
+    }
+
+    #[test]
     fn for_fold_emits_logic_and_always_comb_for_loop() {
         let mut m = Module {
             name: "m_for_fold".into(),
@@ -1629,7 +1813,7 @@ mod tests {
     }
 
     #[test]
-    fn for_fold_materializes_literal_sources_before_part_select() {
+    fn for_fold_constant_source_emits_continuous_assign() {
         let mut m = Module {
             name: "m_for_fold_const".into(),
             ..Module::default()
@@ -1652,9 +1836,9 @@ mod tests {
         m.drives.push((0, 1));
 
         let sv = to_sv(&m);
-        assert!(sv.contains("logic [7:0] for_fold_src_1;"));
-        assert!(sv.contains("for_fold_src_1 = 8'ha5;"));
-        assert!(sv.contains("for_fold_and_0 = for_fold_and_0 & for_fold_src_1[(i * 4) +: 4];"));
+        assert!(sv.contains("logic [3:0] for_fold_and_0;"));
+        assert!(sv.contains("assign for_fold_and_0 = 4'h0;"));
+        assert!(!sv.contains("always_comb begin"));
     }
 
     #[test]

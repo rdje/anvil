@@ -130,11 +130,13 @@ main  ->  lib  ->  gen  ->  ir
 - `main` wires it all together.
 - `src/bin/tool_matrix.rs` is a repo-owned auxiliary binary: it uses
   the public crate API to generate a curated scenario matrix, run
-  Verilator/Yosys, and write an aggregated report. Yosys is now an
-  explicit harness axis too: the binary can run the current stable
-  `synth -noabc` path, the explicit ABC-enabled
+  Verilator/Yosys/Icarus acceptance checks, and write an aggregated
+  report. Yosys is an explicit harness axis: the binary can run the
+  current stable `synth -noabc` path, the explicit ABC-enabled
   `synth -noabc; abc -fast; opt -fast; check` path, or both as
-  separate sub-runs per generated file.
+  separate sub-runs per generated file. Icarus is opt-in through
+  `--iverilog-compile`, which shells `iverilog -g2012` and records a
+  warning-clean compile/elaboration result without running a testbench.
 
 This means `ir` can be tested in isolation, `emit` can be tested with
 hand-constructed IRs (no need to invoke the generator), and `gen` can
@@ -178,21 +180,23 @@ than accidental:
    canonical module-signature dedup pass.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
-   now exists, and its current stable smoke matrix is green: 15/15
-   clean in Verilator and 15/15 clean in Yosys under the explicit
-   `without-abc` Yosys mode. The harness now treats warnings as
-   failures, so "green" means no errors and no warnings. It also has a
-   distinct `with-abc` mode (or `both`) so the ABC-enabled Yosys path
-   can be measured separately too. The harness now uses an explicit
-   `abc -fast` path there rather than Yosys's raw default `synth`
-   script because the latter was emitting a non-actionable ABC warning
-   bucket on extracted combinational subnetworks. The path to the
-   current green state needed both construction-time comparison proofs,
+   now exists. Its current focused smoke matrix is green across four
+   enabled columns: 17/0 in Verilator, 17/0 in Yosys without ABC, 17/0
+   in Yosys with ABC, and 17/0 in the opt-in Icarus Verilog
+   compile/elaboration column. The harness treats warnings as failures,
+   so "green" means no errors and no warnings. It has explicit Yosys
+   mode selection (`without-abc`, `with-abc`, or `both`) and an
+   explicit `--iverilog-compile` acceptance column. The Yosys
+   ABC-enabled path uses `abc -fast` rather than Yosys's raw default
+   `synth` script because the latter was emitting a non-actionable ABC
+   warning bucket on extracted combinational subnetworks. The path to
+   the current green state needed construction-time comparison proofs,
    a post-construction exact-value cleanup pass on the settled graph,
-   and a repo-owned ABC script choice that stays warning-clean on the
-   generated corpus. That evidence layer must keep growing with each
-   new motif family until the larger phase-exit sweeps are equally
-   boring.
+   a repo-owned ABC script choice, and static structured-gate lowering
+   in the emitter so constant-controlled case/casez/for-fold blocks do
+   not produce empty-sensitivity `always_comb` warnings. That evidence
+   layer must keep growing with each new motif family until the larger
+   phase-exit sweeps are equally boring.
 4. **Structure-first doctrine**
    The codebase is intentionally optimized for structural legitimacy and
    synthesizability, not for proving whole-module intended behavior.
@@ -457,8 +461,10 @@ finalisation.
 curated adversarial matrix and treats warnings as failures. The harness
 now has an explicit Yosys mode axis too (`without-abc`, `with-abc`, or
 `both`), so the stable no-ABC baseline and the explicit ABC-enabled
-harness path can be tracked separately. The full current-code Phase 1
-gate is now closed via
+harness path can be tracked separately. It also has an optional
+`--iverilog-compile` column that compiles each emitted artifact with
+Icarus Verilog (`iverilog -g2012`) and treats warnings as failures. The
+full current-code Phase 1 gate is now closed via
 `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
 (1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
 Verilator plus both repo-owned Yosys modes). The explicit

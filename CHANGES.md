@@ -1,6 +1,91 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-05-signoff-surface-expansion-3 — SIGNOFF-SURFACE-EXPANSION.3 add Icarus compile matrix axis
+
+**Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `SIGNOFF-SURFACE-EXPANSION.3`.
+
+- Added `tool_matrix --iverilog-compile` plus
+  `--iverilog-bin <PATH>`.
+- The new column shells `iverilog -g2012` for each emitted module or
+  multifile design and records the result under `iverilog_compile`.
+- Extended matrix summaries and CLI output with Icarus compile
+  pass/fail counts, and made any Icarus compile failure contribute to
+  the harness exit status.
+- Made module/design checkpoints include the `iverilog_compile` setting
+  so `--resume` does not reuse a checkpoint from a different tool
+  surface.
+- Kept the column acceptance-only: it compiles/elaborates emitted SV but
+  does not run `vvp` or compare traces. The existing `--diff-sim`
+  column remains the semantic agreement gate.
+- Changed the SV emitter so constant-selector case/casez muxes and
+  constant-source for-folds lower to continuous `assign` statements.
+  Dynamic selectors/sources still emit the intended `always_comb`
+  structured surfaces.
+- Updated snapshots for the intentional emitted-SV shape change.
+- Added Knowledge Map fact
+  `docs/knowledge/iverilog-compile-matrix-axis.md` and regenerated
+  `KNOWLEDGE_MAP.md`.
+- Synced `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+  `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `docs/TASK_TREE.md`,
+  `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`, and mdBook chapters
+  `book/src/synthesizability.md`, `book/src/recipes.md`,
+  `book/src/knobs.md`, `book/src/structural-rules.md`,
+  `book/src/architecture.md`, and `book/src/faq.md`.
+
+**Why it matters**
+
+The matrix now checks an additional open-source simulator/frontend
+without changing the default run. The first Icarus sweep found a real
+warning class: constant-controlled `always_comb` blocks can have no
+effective sensitivity. The emitter fix preserves the generated value
+and keeps dynamic structured motifs procedural while making static
+structured motifs warning-clean in Icarus.
+
+**Validation**
+
+- `cargo test --bin tool_matrix iverilog -- --nocapture` — 3/3.
+- `cargo test --bin tool_matrix -- --nocapture` — 45 passed / 1 ignored.
+- `cargo test emit::sv::tests -- --nocapture` — 24/24.
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-iverilog-compile-smoke-r2 --modules-per-scenario 1 --skip-verilator --skip-yosys --iverilog-compile`
+  — Icarus compile 17/0.
+- `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-iverilog-r1 --modules-per-scenario 1 --yosys-mode both --iverilog-compile`
+  — Verilator 17/0, Yosys without-abc 17/0, Yosys with-abc 17/0,
+  Icarus compile 17/0.
+- `cargo test --test snapshots -- --nocapture` — 6/6 after accepting
+  the intentional static structured-gate snapshot updates.
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo test --test book_examples -- --nocapture` — 3/3 passed,
+  54 runnable bash blocks and 12 skip-sentineled blocks.
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+
+**Resource note**
+
+Full `cargo test` was not rerun for this leaf. The prior monitored
+full-suite attempt was stopped at 90.7% RAM per the owner's resource
+safety rule, and this slice is covered by focused matrix, emitter,
+snapshot, doc, Knowledge Map, clippy/check, and memory-architecture
+gates.
+
+**Impact**
+
+- Users can now add an Icarus compile/elaboration acceptance column to
+  `tool_matrix` with `--iverilog-compile`.
+- Dynamic case/casez/for-fold motifs remain procedural. Static
+  structured gates may emit as continuous assignments instead of
+  warning-prone empty-sensitivity `always_comb` blocks.
+- The mdBook and user guide now document the new tool boundary and
+  exact static/dynamic emission behavior.
+
 ## 2026-06-05-signoff-surface-expansion-2 — SIGNOFF-SURFACE-EXPANSION.2 add Verilator JSON frontend parity
 
 **Landed as:** this commit

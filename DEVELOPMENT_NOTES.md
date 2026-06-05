@@ -65,6 +65,37 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Icarus compile axis and static structured-gate lowering (2026-06-05, SIGNOFF-SURFACE-EXPANSION.3)
+
+`tool_matrix --iverilog-compile` is an acceptance column, not a
+semantic agreement column. It shells `iverilog -g2012` over each
+emitted module/design, records the result under `iverilog_compile`,
+and treats warnings as failures. It deliberately does not run `vvp` or
+compare traces; that remains the job of `--diff-sim`, whose harness has
+a testbench and normalizes Icarus/Verilator traces.
+
+The first Icarus sweep exposed a real warning class rather than a
+syntax failure: constant-controlled structured blocks can leave
+Icarus with an `always_comb` block that has no effective sensitivity.
+The fix is emitter-local and semantics-preserving: dynamic case/casez
+selectors and dynamic for-fold sources still emit the intended
+procedural surfaces, while constant selectors/sources lower to a
+continuous `assign` of the selected arm, default zero, or folded
+literal. This keeps the user-visible structured surfaces for dynamic
+cases and removes empty-sensitivity warnings in strict frontends.
+
+Rejected alternatives:
+
+- Reclassify Icarus warnings as acceptable. The matrix convention is
+  "warning-clean means no warnings", and weakening only one column
+  would hide useful signal.
+- Switch all structured blocks from `always_comb` to `always @*`.
+  Icarus still warns when `@*` has no sensitivity, so the change would
+  not solve the issue.
+- Run full diff-sim for every matrix artifact. That remains too
+  expensive; the existing per-axis `--diff-sim` subset is the semantic
+  agreement gate.
+
 ### Verilator JSON frontend parity extractor (2026-06-05, SIGNOFF-SURFACE-EXPANSION.2)
 
 The richer Phase-8 AST/source parity follow-up landed through

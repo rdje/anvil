@@ -266,8 +266,9 @@ random synthesizable RTL generator** whose outputs are accepted by
 downstream HDL consumers by default, while still being rich enough to
 expose real bugs in parsers, elaborators, RTL compilers, linters,
 simulators, synthesizers, and similar consumers. Verilator and Yosys are
-the repository's current validation tools for that promise; they are not
-the only intended consumers.
+the repository's primary validation tools for that promise, and the
+matrix also has optional Icarus Verilog compile/elaboration acceptance;
+they are not the only intended consumers.
 
 Those two goals are not in tension. The point is **not** to find bugs
 by emitting malformed junk. The point is to find bugs with legal,
@@ -299,17 +300,18 @@ consumption pattern and produces different output for the same
 seed. Record the `anvil` version alongside the seed and knobs when
 you need to replay a specific module across a version boundary.
 
-## Anything I should know about generated modules being fed back to Verilator / Yosys?
+## Anything I should know about generated modules being fed back to Verilator / Yosys / Icarus?
 
 Nothing beyond the usual tool invocation. `anvil` output is
 directly consumable:
 
-<!-- book-test: skip — needs Verilator/Yosys (external tools) + a prior-generated anvil_output.sv -->
+<!-- book-test: skip — needs Verilator/Yosys/Icarus (external tools) + a prior-generated anvil_output.sv -->
 ```bash
 verilator --lint-only anvil_output.sv
 yosys -p "read_verilog -sv anvil_output.sv; synth -noabc; stat"
+iverilog -g2012 -o anvil_output.vvp anvil_output.sv
 ```
 
-Both should succeed on every generated module. If one fails, it is
+All enabled tools should succeed on every generated module. If one fails, it is
 a generator bug — file an issue with the seed, effective knobs,
 and the failing output.

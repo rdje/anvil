@@ -194,6 +194,10 @@ instead of creating fresh logic.
   `always_comb case (sel)` block. Default `0.05`. The block uses one
   encoded select bus, M data arms, and an explicit default-to-zero
   assignment.
+- If the select expression is already constant by emission time, the
+  emitter lowers the case mux to a continuous `assign` of the selected
+  arm or default zero. Dynamic selectors still emit the procedural
+  `always_comb case` surface.
 - M (arm count) range reuses the block-level `min_mux_arms` /
   `max_mux_arms` knobs; select width is `ceil(log2(M))`.
 
@@ -206,6 +210,10 @@ instead of creating fresh logic.
 - Generation keeps the wildcard patterns non-overlapping by
   construction, so the surface stays a wildcarded mux motif rather than
   becoming an accidental priority chain.
+- If the select expression is already constant by emission time, the
+  emitter lowers the casez mux to a continuous `assign` of the first
+  matching arm or default zero. Dynamic selectors still emit the
+  procedural `always_comb casez` surface.
 
 ### Bounded for-fold block
 
@@ -216,6 +224,10 @@ instead of creating fresh logic.
 - The fold kind today is one of `xor`, `or`, `and`, or `add`.
 - The trip-count range reuses `min_gate_arity` / `max_gate_arity`; the
   generated packed source width is `trip_count * chunk_width`.
+- If the packed source is already a constant by emission time, the
+  emitter lowers the fold to a continuous `assign` of the folded
+  literal. Dynamic sources still emit the procedural bounded-loop
+  surface.
 
 ### Combinational mux block
 
@@ -789,12 +801,18 @@ is accurate as of this commit.
 --skip-verilator, --skip-yosys
 --verilator-bin, --yosys-bin
 --yosys-mode <without-abc|with-abc|both>
+--iverilog-compile
+--iverilog-bin
 --help, --version
 ```
 
 `tool_matrix` is not the generator itself; it is the repo-owned corpus
 and downstream-tool harness. Its flags control scenario selection,
 resume/checkpoint behavior, and which external tools are invoked.
+`--iverilog-compile` is an optional Icarus Verilog acceptance column:
+it shells `iverilog -g2012` for each emitted artifact and treats
+warnings as failures. It does not run a testbench; use `--diff-sim`
+for cross-simulator trace agreement.
 
 ### Not yet exposed via CLI (reachable via `--config FILE`)
 - `use_async_reset` — unused (flops are always async-reset by discipline).

@@ -78,6 +78,19 @@ struct Cli {
     #[arg(long, default_value = "yosys")]
     yosys_bin: String,
 
+    /// Opt-in Icarus Verilog compile/elaboration acceptance column.
+    /// When enabled, each generated artifact is compiled with
+    /// `iverilog -g2012` after the normal Verilator/Yosys checks.
+    /// This is lighter than `--diff-sim`: it proves an additional
+    /// open-source simulator/frontend can compile the emitted SV, but
+    /// it does not run a testbench or compare traces.
+    #[arg(long)]
+    iverilog_compile: bool,
+
+    /// Icarus Verilog executable to run when `--iverilog-compile` is set.
+    #[arg(long, default_value = "iverilog")]
+    iverilog_bin: String,
+
     /// Yosys synthesis mode: keep the current no-ABC path, run the
     /// warning-clean ABC-enabled harness path, or run both.
     #[arg(long, value_enum, default_value_t = YosysMode::WithoutAbc)]
@@ -136,6 +149,11 @@ struct ModuleReport {
     metrics: Metrics,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
+    /// `SIGNOFF-SURFACE-EXPANSION.3` — opt-in Icarus Verilog
+    /// compile/elaboration acceptance column. `None` unless
+    /// `--iverilog-compile` was set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    iverilog_compile: Option<ToolInvocation>,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — opt-in cross-simulator
     /// byte-equal-trace report. `None` when `--diff-sim` was not
     /// set OR this scenario was not in the per-axis subset OR
@@ -192,8 +210,12 @@ struct HierarchyFacts {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModuleCheckpoint {
+    #[serde(default)]
     skip_verilator: bool,
+    #[serde(default)]
     skip_yosys: bool,
+    #[serde(default)]
+    iverilog_compile: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     sv_hash: Option<String>,
@@ -213,6 +235,8 @@ struct DesignReport {
     metrics: DesignMetrics,
     verilator: Option<ToolInvocation>,
     yosys: Vec<ToolInvocation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    iverilog_compile: Option<ToolInvocation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,8 +247,12 @@ struct DesignFileHash {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DesignCheckpoint {
+    #[serde(default)]
     skip_verilator: bool,
+    #[serde(default)]
     skip_yosys: bool,
+    #[serde(default)]
+    iverilog_compile: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     files: Vec<DesignFileHash>,
@@ -240,6 +268,8 @@ struct ToolSummary {
     yosys_without_abc_failed: usize,
     yosys_with_abc_passed: usize,
     yosys_with_abc_failed: usize,
+    iverilog_compile_passed: usize,
+    iverilog_compile_failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -471,6 +501,11 @@ struct MatrixReport {
     share_sweep: Option<ShareSweepSummary>,
     tool_summary: ToolSummary,
     scenarios: Vec<ScenarioReport>,
+    /// `SIGNOFF-SURFACE-EXPANSION.3` — whether
+    /// `--iverilog-compile` was set for this run. When `false`, no
+    /// module/design report carries an `iverilog_compile` invocation.
+    #[serde(default)]
+    iverilog_compile_enabled: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — whether `--diff-sim` was
     /// set for this run. When `false`, `diff_sim_subset` is empty
     /// and no `ModuleReport.diff_sim` is populated.
@@ -612,6 +647,7 @@ fn main() -> Result<()> {
         share_sweep,
         tool_summary: global_tool_summary,
         scenarios: scenario_reports,
+        iverilog_compile_enabled: cli.iverilog_compile,
         diff_sim_enabled: cli.diff_sim,
         diff_sim_subset,
     };
@@ -629,13 +665,15 @@ fn main() -> Result<()> {
     );
     println!("tool_matrix: total modules = {}", report.total_modules);
     println!(
-        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}",
+        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}, Icarus compile pass/fail = {}/{}",
         report.tool_summary.verilator_passed,
         report.tool_summary.verilator_failed,
         report.tool_summary.yosys_without_abc_passed,
         report.tool_summary.yosys_without_abc_failed,
         report.tool_summary.yosys_with_abc_passed,
-        report.tool_summary.yosys_with_abc_failed
+        report.tool_summary.yosys_with_abc_failed,
+        report.tool_summary.iverilog_compile_passed,
+        report.tool_summary.iverilog_compile_failed
     );
     if let Some(share_sweep) = &report.share_sweep {
         for (share_prob, bucket) in &share_sweep.buckets {
@@ -659,7 +697,7 @@ fn main() -> Result<()> {
         );
     }
 
-    if report.tool_summary.verilator_failed > 0 || report.tool_summary.yosys_failed() > 0 {
+    if report.tool_summary.any_failed() {
         bail!(
             "tool_matrix detected downstream-tool failures; see {}",
             report_path.display()
@@ -3918,7 +3956,7 @@ fn materialize_prepared_module(
             .with_context(|| format!("write {}", prepared.paths.sv_path.display()))?;
     }
 
-    let (verilator, yosys) = run_module_tools(
+    let (verilator, yosys, iverilog_compile) = run_module_tools(
         cli,
         scenario_dir,
         &prepared.paths.sv_path,
@@ -3953,6 +3991,7 @@ fn materialize_prepared_module(
         metrics: prepared.metrics,
         verilator,
         yosys,
+        iverilog_compile,
         diff_sim,
     };
     write_module_checkpoint(
@@ -4419,7 +4458,11 @@ fn run_module_tools(
     scenario_dir: &Path,
     sv_path: &Path,
     stem: &str,
-) -> Result<(Option<ToolInvocation>, Vec<ToolInvocation>)> {
+) -> Result<(
+    Option<ToolInvocation>,
+    Vec<ToolInvocation>,
+    Option<ToolInvocation>,
+)> {
     let verilator = if cli.skip_verilator {
         None
     } else {
@@ -4437,7 +4480,18 @@ fn run_module_tools(
         run_yosys(cli.yosys_mode, &cli.yosys_bin, scenario_dir, sv_path, stem)?
     };
 
-    Ok((verilator, yosys))
+    let iverilog_compile = if cli.iverilog_compile {
+        Some(run_iverilog_compile(
+            &cli.iverilog_bin,
+            scenario_dir,
+            sv_path,
+            stem,
+        )?)
+    } else {
+        None
+    };
+
+    Ok((verilator, yosys, iverilog_compile))
 }
 
 fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport> {
@@ -4489,6 +4543,17 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
         )?
     };
 
+    let iverilog_compile = if cli.iverilog_compile {
+        Some(run_iverilog_compile_design(
+            &cli.iverilog_bin,
+            scenario_dir,
+            &sv_paths,
+            &prepared.top,
+        )?)
+    } else {
+        None
+    };
+
     Ok(DesignReport {
         index: prepared.index,
         top: prepared.top.clone(),
@@ -4498,6 +4563,7 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
         metrics: prepared.metrics.clone(),
         verilator,
         yosys,
+        iverilog_compile,
     })
 }
 
@@ -4512,6 +4578,7 @@ fn write_module_checkpoint(
     let checkpoint = ModuleCheckpoint {
         skip_verilator: cli.skip_verilator,
         skip_yosys: cli.skip_yosys,
+        iverilog_compile: cli.iverilog_compile,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         sv_hash: Some(sv_hash.to_string()),
@@ -4541,6 +4608,7 @@ fn write_design_checkpoint(
     let checkpoint = DesignCheckpoint {
         skip_verilator: cli.skip_verilator,
         skip_yosys: cli.skip_yosys,
+        iverilog_compile: cli.iverilog_compile,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         files,
@@ -4579,12 +4647,14 @@ fn load_design_checkpoint(path: &Path) -> Result<Option<DesignCheckpoint>> {
 fn checkpoint_matches_cli(checkpoint: &ModuleCheckpoint, cli: &Cli) -> bool {
     checkpoint.skip_verilator == cli.skip_verilator
         && checkpoint.skip_yosys == cli.skip_yosys
+        && checkpoint.iverilog_compile == cli.iverilog_compile
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
 fn checkpoint_matches_design_cli(checkpoint: &DesignCheckpoint, cli: &Cli) -> bool {
     checkpoint.skip_verilator == cli.skip_verilator
         && checkpoint.skip_yosys == cli.skip_yosys
+        && checkpoint.iverilog_compile == cli.iverilog_compile
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
@@ -4794,6 +4864,60 @@ fn run_verilator_design(
     run_tool("verilator", bin, argv, out_dir, top)
 }
 
+fn run_iverilog_compile(
+    bin: &str,
+    out_dir: &Path,
+    sv_path: &Path,
+    stem: &str,
+) -> Result<ToolInvocation> {
+    let (argv, output) = iverilog_module_argv(out_dir, sv_path, stem);
+    let invocation = run_tool("iverilog-compile", bin, argv, out_dir, stem)?;
+    if invocation.success {
+        let _ = std::fs::remove_file(output);
+    }
+    Ok(invocation)
+}
+
+fn run_iverilog_compile_design(
+    bin: &str,
+    out_dir: &Path,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Result<ToolInvocation> {
+    let (argv, output) = iverilog_design_argv(out_dir, sv_paths, top);
+    let invocation = run_tool("iverilog-compile", bin, argv, out_dir, top)?;
+    if invocation.success {
+        let _ = std::fs::remove_file(output);
+    }
+    Ok(invocation)
+}
+
+fn iverilog_module_argv(out_dir: &Path, sv_path: &Path, stem: &str) -> (Vec<String>, PathBuf) {
+    let output = out_dir.join(format!("{stem}.iverilog.vvp"));
+    (
+        vec![
+            "-g2012".to_string(),
+            "-o".to_string(),
+            output.display().to_string(),
+            sv_path.display().to_string(),
+        ],
+        output,
+    )
+}
+
+fn iverilog_design_argv(out_dir: &Path, sv_paths: &[PathBuf], top: &str) -> (Vec<String>, PathBuf) {
+    let output = out_dir.join(format!("{top}.iverilog.vvp"));
+    let mut argv = vec![
+        "-g2012".to_string(),
+        "-s".to_string(),
+        top.to_string(),
+        "-o".to_string(),
+        output.display().to_string(),
+    ];
+    argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
+    (argv, output)
+}
+
 fn run_yosys(
     mode: YosysMode,
     bin: &str,
@@ -4966,6 +5090,12 @@ fn first_tool_warning(tool_name: &str, stdout: &str, stderr: &str) -> Option<Str
             .map(str::trim_start)
             .find(|line| line.starts_with("Warning:") || line.contains(": Warning:"))
             .map(ToOwned::to_owned),
+        "iverilog-compile" => stdout
+            .lines()
+            .chain(stderr.lines())
+            .map(str::trim_start)
+            .find(|line| line.to_ascii_lowercase().contains("warning:"))
+            .map(ToOwned::to_owned),
         _ => None,
     }
 }
@@ -5008,7 +5138,12 @@ fn aggregate_design_metrics(designs: &[DesignReport]) -> AggregateMetrics {
 fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
     let mut summary = ToolSummary::default();
     for module in modules {
-        accumulate_tool_summary(&mut summary, module.verilator.as_ref(), &module.yosys);
+        accumulate_tool_summary(
+            &mut summary,
+            module.verilator.as_ref(),
+            &module.yosys,
+            module.iverilog_compile.as_ref(),
+        );
     }
     summary
 }
@@ -5016,7 +5151,12 @@ fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
 fn summarize_design_tools(designs: &[DesignReport]) -> ToolSummary {
     let mut summary = ToolSummary::default();
     for design in designs {
-        accumulate_tool_summary(&mut summary, design.verilator.as_ref(), &design.yosys);
+        accumulate_tool_summary(
+            &mut summary,
+            design.verilator.as_ref(),
+            &design.yosys,
+            design.iverilog_compile.as_ref(),
+        );
     }
     summary
 }
@@ -6285,6 +6425,8 @@ fn merge_tool_summary(dst: &mut ToolSummary, src: &ToolSummary) {
     dst.yosys_without_abc_failed += src.yosys_without_abc_failed;
     dst.yosys_with_abc_passed += src.yosys_with_abc_passed;
     dst.yosys_with_abc_failed += src.yosys_with_abc_failed;
+    dst.iverilog_compile_passed += src.iverilog_compile_passed;
+    dst.iverilog_compile_failed += src.iverilog_compile_failed;
 }
 
 fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
@@ -6602,6 +6744,7 @@ fn accumulate_tool_summary(
     summary: &mut ToolSummary,
     verilator: Option<&ToolInvocation>,
     yosys: &[ToolInvocation],
+    iverilog_compile: Option<&ToolInvocation>,
 ) {
     if let Some(verilator) = verilator {
         if verilator.success {
@@ -6627,6 +6770,13 @@ fn accumulate_tool_summary(
                 }
             }
             _ => {}
+        }
+    }
+    if let Some(iverilog_compile) = iverilog_compile {
+        if iverilog_compile.success {
+            summary.iverilog_compile_passed += 1;
+        } else {
+            summary.iverilog_compile_failed += 1;
         }
     }
 }
@@ -7760,6 +7910,14 @@ impl ToolSummary {
     fn yosys_failed(&self) -> usize {
         self.yosys_without_abc_failed + self.yosys_with_abc_failed
     }
+
+    fn iverilog_failed(&self) -> usize {
+        self.iverilog_compile_failed
+    }
+
+    fn any_failed(&self) -> bool {
+        self.verilator_failed > 0 || self.yosys_failed() > 0 || self.iverilog_failed() > 0
+    }
 }
 
 fn escape_for_double_quotes(path: &Path) -> String {
@@ -7799,6 +7957,8 @@ mod tests {
             skip_yosys: false,
             verilator_bin: "verilator".to_string(),
             yosys_bin: "yosys".to_string(),
+            iverilog_compile: false,
+            iverilog_bin: "iverilog".to_string(),
             yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
             resume: false,
@@ -8883,6 +9043,83 @@ mod tests {
     }
 
     #[test]
+    fn iverilog_compile_cli_flag_defaults_to_false_and_parses_when_set() {
+        use clap::Parser;
+
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.iverilog_compile);
+        assert_eq!(no_flag.iverilog_bin, "iverilog");
+
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--iverilog-compile",
+            "--iverilog-bin",
+            "/opt/homebrew/bin/iverilog",
+            "--out",
+            "/tmp/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.iverilog_compile);
+        assert_eq!(with_flag.iverilog_bin, "/opt/homebrew/bin/iverilog");
+    }
+
+    #[test]
+    fn iverilog_compile_invocations_use_sv2012_and_design_top() {
+        let out_dir = PathBuf::from("/tmp/anvil-iverilog-argv");
+        let sv_path = PathBuf::from("/tmp/anvil-iverilog-argv/mod.sv");
+
+        let (module_argv, module_output) = iverilog_module_argv(&out_dir, &sv_path, "mod");
+        assert_eq!(
+            module_argv,
+            vec![
+                "-g2012",
+                "-o",
+                "/tmp/anvil-iverilog-argv/mod.iverilog.vvp",
+                "/tmp/anvil-iverilog-argv/mod.sv"
+            ]
+        );
+        assert_eq!(
+            module_output,
+            PathBuf::from("/tmp/anvil-iverilog-argv/mod.iverilog.vvp")
+        );
+
+        let paths = vec![
+            PathBuf::from("/tmp/anvil-iverilog-argv/leaf.sv"),
+            PathBuf::from("/tmp/anvil-iverilog-argv/top.sv"),
+        ];
+        let (design_argv, design_output) = iverilog_design_argv(&out_dir, &paths, "top_mod");
+        assert_eq!(
+            design_argv,
+            vec![
+                "-g2012",
+                "-s",
+                "top_mod",
+                "-o",
+                "/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp",
+                "/tmp/anvil-iverilog-argv/leaf.sv",
+                "/tmp/anvil-iverilog-argv/top.sv"
+            ]
+        );
+        assert_eq!(
+            design_output,
+            PathBuf::from("/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp")
+        );
+    }
+
+    #[test]
+    fn iverilog_compile_warning_detection_is_case_insensitive() {
+        assert_eq!(
+            first_tool_warning("iverilog-compile", "", "/tmp/m.sv:2: warning: example").as_deref(),
+            Some("/tmp/m.sv:2: warning: example")
+        );
+        assert_eq!(
+            first_tool_warning("iverilog-compile", "WARNING: noisy stdout", "").as_deref(),
+            Some("WARNING: noisy stdout")
+        );
+        assert!(first_tool_warning("iverilog-compile", "clean", "clean").is_none());
+    }
+
+    #[test]
     fn summarize_tools_counts_yosys_modes_separately() {
         let modules = vec![ModuleReport {
             file: "mod.sv".to_string(),
@@ -8917,6 +9154,15 @@ mod tests {
                     error: Some("ABC: Warning: example".to_string()),
                 },
             ],
+            iverilog_compile: Some(ToolInvocation {
+                tool: "iverilog-compile".to_string(),
+                argv: vec![],
+                success: true,
+                exit_code: Some(0),
+                stdout_log: None,
+                stderr_log: None,
+                error: None,
+            }),
             diff_sim: None,
         }];
 
@@ -8924,7 +9170,10 @@ mod tests {
         assert_eq!(summary.verilator_passed, 1);
         assert_eq!(summary.yosys_without_abc_passed, 1);
         assert_eq!(summary.yosys_with_abc_failed, 1);
+        assert_eq!(summary.iverilog_compile_passed, 1);
         assert_eq!(summary.yosys_failed(), 1);
+        assert_eq!(summary.iverilog_failed(), 0);
+        assert!(summary.any_failed());
     }
 
     #[test]
@@ -8948,6 +9197,7 @@ mod tests {
             name: prepared0.name.clone(),
             metrics: prepared0.metrics.clone(),
             verilator: None,
+            iverilog_compile: None,
             diff_sim: None,
             yosys: vec![],
         };
@@ -9006,6 +9256,7 @@ mod tests {
             name: prepared.name.clone(),
             metrics: prepared.metrics.clone(),
             verilator: None,
+            iverilog_compile: None,
             diff_sim: None,
             yosys: vec![],
         };
@@ -9060,6 +9311,7 @@ mod tests {
                 name: prepared.name,
                 metrics: prepared.metrics,
                 verilator: None,
+                iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
             };
@@ -9521,6 +9773,7 @@ mod tests {
                 name: format!("mod_{i}"),
                 metrics: Metrics::default(),
                 verilator: None,
+                iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
             })
@@ -9691,6 +9944,7 @@ endmodule\n";
             name: "m".into(),
             metrics: Metrics::default(),
             verilator: None,
+            iverilog_compile: None,
             yosys: vec![],
             diff_sim: None,
         }];
