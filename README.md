@@ -638,8 +638,10 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   through registered parent state.
 - Current scope: single-module combinational **and sequential**
   generation is mature, DAG sharing is default-on, the bounded semantic
-  `e-graph` fragment is live under `--identity-mode node-id`, and
-  Phase 4 hierarchy now has two real lanes:
+  `e-graph` fragment is live under `--identity-mode node-id` (including
+  small-support gate-to-gate merges and gate-to-existing-endpoint /
+  constant folds when helper endpoints cancel out), and Phase 4
+  hierarchy now has two real lanes:
   - legacy exact depth-1 wrapper mode via `--hierarchy-depth 1`
     plus `--num-leaf-modules` / `--num-child-instances`
   - bounded recursive hierarchy via

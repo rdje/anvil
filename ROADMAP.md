@@ -80,7 +80,8 @@ instead of leaving them implicit.
    leaf endpoints. Today's implementation covers normalized
    combinational identity plus a live bounded semantic fragment at the
    `e-graph` rung for small-support gate cones over the same canonical
-   endpoints, together with
+   endpoints, including gate-to-existing-endpoint / constant folds when
+   helper endpoints cancel out, together with
    conservative post-drain flop merging and deterministic generated-FSM
    merging over the same endpoint-preserving proof discipline; broader
    sequential equivalence, memory-state merging beyond the current

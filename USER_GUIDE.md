@@ -154,8 +154,10 @@ shift. Examples:
 - `identity_mode=relaxed` → gate count and AST multiplicity jump because
   the NodeId-identity ladder is disabled entirely.
 - Under `identity_mode=node-id`, the live bounded `e-graph` fragment can
-  collapse small-support combinational cones too; `semantic_gates_merged`
-  tells you how much post-construction semantic gate sharing it found.
+  collapse small-support combinational cones too, including gates proven
+  equal to an existing endpoint or constant after helper endpoints cancel
+  out; `semantic_gates_merged` tells you how much post-construction
+  semantic gate sharing it found.
 - Under `identity_mode=node-id`, equivalent state cones can collapse too;
   `flops_merged` tells you how much sequential sharing the post-drain
   pass found.
@@ -250,7 +252,10 @@ same canonical leaf endpoints, their Qs are unified before reachability
 compaction. At effective level `e-graph`, finalisation also runs a
 bounded semantic combinational-sharing pass that can merge
 different-shape small-support cones proven equivalent over the same leaf
-variables.
+variables. If the proof shows a helper variable does not affect the
+function, that helper endpoint is minimized out; for example,
+`a & (b | ~b)` rewires to `a`, while the same shape rooted on `c`
+rewires to `c`.
 
 Interpretation note: doctrinally, `identity_mode=node-id` means
 `NodeId` is the identity of an expression, which implies full

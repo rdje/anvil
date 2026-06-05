@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `8dc0e6d` - `ENDPOINT-IDENTITY-BOUNDARY.1 - preserve semantic endpoints`
-- active_work_unit: `ROADMAP-FOLLOWUP-OWNERSHIP.1` is the docs/workflow registration leaf; first implementation frontier after commit is `COMBINATIONAL-SEMANTIC-IDENTITY.1`.
-- next_action: commit `ROADMAP-FOLLOWUP-OWNERSHIP.1`, clear `git_message_brief.txt`, then implement `COMBINATIONAL-SEMANTIC-IDENTITY.1` before any source edit.
-- in_flight_uncommitted: registered ownership for combinational semantic identity, sequential/coinductive identity, memory-state identity, hierarchy semantic identity, and signoff-surface expansion; synced `ROADMAP.md`, `docs/TASK_TREE.md`, `CODEBASE_ANALYSIS.md`, and mdBook architecture status.
+- latest_commit: `3d93043` - `ROADMAP-FOLLOWUP-OWNERSHIP.1 - register follow-up trees`
+- active_work_unit: `COMBINATIONAL-SEMANTIC-IDENTITY.1` is implemented/validated; this commit advances the frontier to `COMBINATIONAL-SEMANTIC-IDENTITY.2`.
+- next_action: commit `COMBINATIONAL-SEMANTIC-IDENTITY.1`, clear `git_message_brief.txt`, then continue at `COMBINATIONAL-SEMANTIC-IDENTITY.2`.
+- in_flight_uncommitted: bounded semantic gate proofs now minimize functionally-unused endpoints and can rewire proven gates to earlier endpoint/constant nodes; mdBook/user docs, Knowledge Map, and snapshots are synced.
 - blockers: none.
 
 ## Validation policy

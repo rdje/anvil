@@ -46,11 +46,11 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
   Children: `COMBINATIONAL-SEMANTIC-IDENTITY.1`, `COMBINATIONAL-SEMANTIC-IDENTITY.2`, `COMBINATIONAL-SEMANTIC-IDENTITY.3`
 
 - ID: `COMBINATIONAL-SEMANTIC-IDENTITY.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Land the first safe same-endpoint semantic fold beyond gate-to-gate merging.`
   Acceptance: `A gate whose bounded semantic proof equals an existing endpoint or constant is rewired to that existing node at the e-graph rung; endpoint-distinct no-merge tests still pass; docs describe the new fold boundary.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test -q merge_equivalent_gates`; compact semantic/flop/FSM focused tests; `cargo test -q --test snapshots` after deliberate snapshot review/acceptance; focused Verilator/Yosys smoke; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `cargo test -q --test book_examples`; `mdbook build book`; `mdbook test book`; memory/Knowledge Map checks; `git diff --check`.
+  Commit: `COMBINATIONAL-SEMANTIC-IDENTITY.1 - fold gates to endpoints`
 
 - ID: `COMBINATIONAL-SEMANTIC-IDENTITY.2`
   Status: `pending`
@@ -70,7 +70,7 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `pending` | It is the narrowest next capability: fold a proven gate to an already-existing same-endpoint value without expanding endpoint cardinality. |
+| 1 | `COMBINATIONAL-SEMANTIC-IDENTITY.2` | `pending` | With gate-to-existing-node folds landed, audit the remaining hard proof limits before widening budgets. |
 
 ## Decisions
 
@@ -91,15 +91,19 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-05` | `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `pending` | `pending` |
+| `2026-06-05` | `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `cargo test -q merge_equivalent_gates`; `cargo test -q ir::compact::tests::semantic`; `cargo test -q ir::compact::tests::merge_equivalent_flops`; `cargo test -q ir::compact::tests::merge_equivalent_fsms`; `cargo test -q --test snapshots` after deliberate snapshot review/acceptance; generated seed-42 node-id/e-graph smoke through Verilator and Yosys; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `cargo test -q --test book_examples`; `mdbook build book`; `mdbook test book`; `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed; full `cargo test` not run because focused gates and snapshot/book/downstream checks covered this slice without invoking the resource-sensitive full suite |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `pending` | `pending` |
+| `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `COMBINATIONAL-SEMANTIC-IDENTITY.1 - fold gates to endpoints` | `pending hash`; advances frontier to `.2`. |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened
   `COMBINATIONAL-SEMANTIC-IDENTITY.1`.
+- `2026-06-05`: Marked `COMBINATIONAL-SEMANTIC-IDENTITY.1` in
+  progress for the gate-to-existing-node semantic fold.
+- `2026-06-05`: Completed `COMBINATIONAL-SEMANTIC-IDENTITY.1` and
+  advanced the frontier to `COMBINATIONAL-SEMANTIC-IDENTITY.2`.

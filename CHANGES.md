@@ -1,8 +1,99 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-roadmap-followup-task-tree-registration — ROADMAP-FOLLOWUP-OWNERSHIP.1 register the five remaining roadmap follow-up trees
+## 2026-06-05-combinational-semantic-identity-1 — COMBINATIONAL-SEMANTIC-IDENTITY.1 fold gates to endpoints
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `COMBINATIONAL-SEMANTIC-IDENTITY.1` and
+advanced the `COMBINATIONAL-SEMANTIC-IDENTITY` task-tree frontier to
+`.2`.
+
+- Extended `src/ir/compact.rs` bounded semantic cone proofs so
+  functionally-unused helper endpoints are minimized out after
+  truth-table enumeration.
+- Extended `merge_equivalent_gates` so an e-graph-rung semantic match
+  can rewire a gate to an earlier non-gate canonical node, such as an
+  existing primary-input endpoint or constant, not only to another gate.
+- Added a focused regression proving `a & (b | !b)` rewires to the
+  existing `a` endpoint under `identity_mode = node-id` /
+  `factorization_level = e-graph`.
+- Added a focused regression proving `b | !b` rewires to an already
+  existing constant node when that canonical constant is present.
+- Updated the endpoint-boundary regression so same-shaped cones over
+  `a` and `c` may each fold to their own endpoint, but never collapse to
+  the same canonical node.
+- Deliberately accepted the five changed snapshots after reviewing the
+  diffs. The drift is expected: dead helper cones disappear and stable
+  generated signal names shift accordingly in e-graph/hierarchy cases.
+- Synced README, USER_GUIDE, ROADMAP, CODEBASE_ANALYSIS,
+  DEVELOPMENT_NOTES, the mdBook factorization/IR/structural-rules
+  chapters, and Knowledge Map facts.
+
+**Why it matters**
+
+This is the first combinational semantic identity expansion beyond
+gate-to-gate merging. It strengthens the current `e-graph` fragment
+without broadening into an unbounded prover: the same support-bit and
+cone-node budgets still apply, and live canonical roots remain part of
+the identity proof.
+
+**Tests**
+
+- `cargo test -q merge_equivalent_gates`
+- `cargo test -q ir::compact::tests::semantic`
+- `cargo test -q ir::compact::tests::merge_equivalent_flops`
+- `cargo test -q ir::compact::tests::merge_equivalent_fsms`
+- `cargo test -q --test snapshots` after deliberate snapshot
+  review/acceptance
+- `cargo run -q -- --seed 42 --count 1 --out /tmp/anvil-csi1-smoke-20260605 --identity-mode node-id --factorization-level e-graph`
+- `verilator --lint-only /tmp/anvil-csi1-smoke-20260605/mod_42_0000.sv`
+- `yosys -p "read_verilog -sv /tmp/anvil-csi1-smoke-20260605/mod_42_0000.sv; synth -noabc; stat"`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `cargo test -q --test book_examples`
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- Generated RTL can change under `identity_mode = node-id` with
+  effective `factorization_level = e-graph`; the default doctrine is
+  stronger sharing and less dead helper logic.
+- `identity_mode = relaxed` remains the semantic off-switch.
+- No CLI flag, config default, or numbered roadmap phase label changed.
+- Full `cargo test` was not run; this slice used focused compact tests,
+  snapshot guard, book example gate, and downstream Verilator/Yosys
+  smoke instead.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `tests/snapshots/*.snap`
+- `book/src/factorization.md`
+- `book/src/ir.md`
+- `book/src/structural-rules.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/combinational-semantic-endpoint-fold.md`
+- `docs/knowledge/endpoint-identity-boundary.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-roadmap-followup-task-tree-registration — ROADMAP-FOLLOWUP-OWNERSHIP.1 register the five remaining roadmap follow-up trees
+
+**Landed as:** `3d93043`
 
 **What changed**
 

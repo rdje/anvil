@@ -254,13 +254,33 @@ builds an endpoint-preserving proof for each combinational cone:
 The proof is structural over the normalized IR by default. For
 small-support cones, ANVIL also computes a bounded semantic proof by
 enumerating every endpoint assignment and keying the cone by its truth
-table. If two gates match, later users are rewired to the canonical
-gate and compaction removes the dead duplicate subtree.
+table. After enumeration, functionally-unused endpoints are removed
+from the proof. That means a syntactic helper variable that provably
+cancels out does not keep the expression artificially distinct.
+
+If two gates match, later users are rewired to the canonical gate and
+compaction removes the dead duplicate subtree. The canonical node does
+not have to be another gate: if a gate is proven equal to an already-
+existing endpoint or constant, it is rewired to that node directly.
+
+Example:
+
+```systemverilog
+assign y = a & (b | ~b);
+```
+
+The bounded semantic proof enumerates `a` and `b`, observes that `b`
+does not affect the output, reduces the proof to endpoint `a`, and
+rewires `y` to the existing `a` node at the `e-graph` rung. No new
+user knob is required: this is part of
+`--identity-mode node-id --factorization-level e-graph`.
 
 The endpoint list is part of the identity, not just an implementation
 detail. A cone shaped like `a & (b | !b)` and another shaped like
-`c & (d | !d)` have the same local truth table, but they depend on
-different canonical primary-input endpoints and therefore do not merge.
+`c & (d | !d)` both reduce away their helper endpoints, but they still
+reduce to different canonical roots: the first rewires to `a`, the
+second to `c`. They do not merge with each other merely because the
+local shape or local truth table looks the same.
 
 This is the first live `e-graph` fragment. It is intentionally bounded:
 full semantic equivalence across arbitrary-width cones is still future

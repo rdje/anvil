@@ -12,7 +12,8 @@
 //! - `merge_equivalent_gates(&mut m)`: a bounded semantic-sharing pass
 //!   for combinational nodes. Under `identity_mode = node-id` with
 //!   effective factorization level `EGraph`, gates with the same
-//!   endpoint-preserving proof collapse to one node.
+//!   endpoint-preserving proof collapse to one earlier canonical node,
+//!   including an existing endpoint or constant when the proof matches.
 //! - `merge_equivalent_flops(&mut m)`: a conservative stateful
 //!   sharing pass that runs only once flop D-cones exist. Under
 //!   `identity_mode = node-id` with effective factorization level
@@ -614,6 +615,42 @@ fn semantic_cone_proof(
         ));
     }
 
+    let mut kept_endpoints = Vec::new();
+    let mut kept_offsets = Vec::new();
+    for endpoint in &endpoints {
+        let offset = endpoint_offsets[endpoint];
+        let endpoint_mask = bitmask(endpoint.width()) << offset;
+        let independent = outputs.iter().enumerate().all(|(assignment, value)| {
+            let canonical_assignment = (assignment as u128) & !endpoint_mask;
+            *value == outputs[canonical_assignment as usize]
+        });
+        if !independent {
+            kept_offsets.push(offset);
+            kept_endpoints.push(*endpoint);
+        }
+    }
+
+    if kept_endpoints.len() != endpoints.len() {
+        let kept_support_bits: u32 = kept_endpoints.iter().map(|endpoint| endpoint.width()).sum();
+        let kept_assignment_count = 1usize << kept_support_bits;
+        let mut reduced_outputs = Vec::with_capacity(kept_assignment_count);
+        for reduced_assignment in 0..kept_assignment_count {
+            let mut reduced_offset = 0u32;
+            let mut original_assignment = 0u128;
+            for (endpoint, original_offset) in kept_endpoints.iter().zip(kept_offsets.iter()) {
+                let value =
+                    ((reduced_assignment as u128) >> reduced_offset) & bitmask(endpoint.width());
+                original_assignment |= value << original_offset;
+                reduced_offset += endpoint.width();
+            }
+            reduced_outputs.push(outputs[original_assignment as usize]);
+        }
+        return Some(SemanticConeProof {
+            endpoints: kept_endpoints,
+            outputs: reduced_outputs,
+        });
+    }
+
     Some(SemanticConeProof { endpoints, outputs })
 }
 
@@ -747,8 +784,9 @@ fn cone_proof(
 /// This is the first bounded semantic fragment of the `EGraph` intent:
 /// under `identity_mode = node-id` with requested/effective `EGraph`,
 /// two gates can collapse even when their literal subgraph shapes
-/// differ, provided ANVIL can prove they implement the same function
-/// over the same canonical leaf endpoints.
+/// differ, and a gate can fold to an existing endpoint or constant,
+/// provided ANVIL can prove they implement the same function over the
+/// same canonical leaf endpoints.
 ///
 /// The proof is intentionally bounded:
 ///
@@ -756,8 +794,7 @@ fn cone_proof(
 /// - use bounded small-support semantic truth tables when available;
 /// - otherwise fall back to the already-normalized structural proof.
 ///
-/// Returns the number of duplicate gates rewired to an earlier
-/// canonical node.
+/// Returns the number of gates rewired to an earlier canonical node.
 pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
     use crate::config::{FactorizationLevel, IdentityMode};
 
@@ -776,11 +813,10 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
     let mut removed = 0u32;
 
     for node_id in 0..m.nodes.len() as NodeId {
-        let Node::Gate { width, .. } = &m.nodes[node_id as usize] else {
-            continue;
-        };
+        let width = m.nodes[node_id as usize].width();
+        let is_gate = matches!(&m.nodes[node_id as usize], Node::Gate { .. });
         let sig = GateSignature {
-            width: *width,
+            width,
             proof: cone_proof(
                 m,
                 node_id,
@@ -790,11 +826,15 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
                 &mut semantic_memo,
             ),
         };
-        if let Some(&canonical) = canonical_by_sig.get(&sig) {
-            node_remap.insert(node_id, canonical);
-            removed += 1;
+        if is_gate {
+            if let Some(&canonical) = canonical_by_sig.get(&sig) {
+                node_remap.insert(node_id, canonical);
+                removed += 1;
+            } else {
+                canonical_by_sig.insert(sig, node_id);
+            }
         } else {
-            canonical_by_sig.insert(sig, node_id);
+            canonical_by_sig.entry(sig).or_insert(node_id);
         }
     }
 
@@ -2265,11 +2305,46 @@ mod tests {
         assert_eq!(removed, 1);
 
         let compacted = compact_node_ids(&mut m);
-        assert_eq!(
-            compacted, 2,
-            "duplicate semantic cone and dead subtrees should compact"
-        );
+        assert_eq!(compacted, 1, "duplicate semantic gate should compact");
         validate(&m).expect("merged semantic-equivalent gates should still validate");
+    }
+
+    #[test]
+    fn merge_equivalent_gates_folds_small_semantic_gate_to_existing_endpoint() {
+        let mut m = semantic_endpoint_fold_gate_fixture();
+
+        let removed = merge_equivalent_gates(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(
+            m.drives[0].1, 0,
+            "gate proven equal to the canonical endpoint should be rewired to that endpoint"
+        );
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(
+            compacted, 4,
+            "folded endpoint-equivalent cone should become unreachable"
+        );
+        validate(&m).expect("endpoint-folded semantic gate should still validate");
+    }
+
+    #[test]
+    fn merge_equivalent_gates_folds_small_semantic_gate_to_existing_constant() {
+        let mut m = semantic_constant_fold_gate_fixture();
+
+        let removed = merge_equivalent_gates(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(
+            m.drives[0].1, 1,
+            "gate proven equal to an existing constant should be rewired to that constant"
+        );
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(
+            compacted, 3,
+            "constant-equivalent helper cone should become unreachable"
+        );
+        validate(&m).expect("constant-folded semantic gate should still validate");
     }
 
     #[test]
@@ -2278,8 +2353,13 @@ mod tests {
 
         let removed = merge_equivalent_gates(&mut m);
         assert_eq!(
-            removed, 0,
-            "semantic gate merge must preserve canonical leaf endpoints, not only truth-table shape"
+            removed, 3,
+            "tautology sub-cones may merge and each root may fold to its own endpoint"
+        );
+        assert_eq!(
+            m.drives,
+            vec![(4, 0), (5, 2)],
+            "same-shape cones over different endpoints must not collapse to the same canonical node"
         );
 
         validate(&m).expect("same-shape different-endpoint gates should still validate");
@@ -3239,11 +3319,11 @@ mod tests {
             deps: DepSet::from_port(1),
         }); // 2 !b
         m.nodes.push(Node::Gate {
-            op: GateOp::And,
-            operands: vec![0, 1],
+            op: GateOp::Not,
+            operands: vec![0],
             width: 1,
-            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
-        }); // 3 a&b
+            deps: DepSet::from_port(0),
+        }); // 3 !a
         m.nodes.push(Node::Gate {
             op: GateOp::And,
             operands: vec![0, 2],
@@ -3251,25 +3331,118 @@ mod tests {
             deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
         }); // 4 a&!b
         m.nodes.push(Node::Gate {
-            op: GateOp::Or,
-            operands: vec![3, 4],
+            op: GateOp::And,
+            operands: vec![3, 1],
             width: 1,
             deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
-        }); // 5 (a&b)|(a&!b)
+        }); // 5 !a&b
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![4, 5],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 6 (a&!b)|(!a&b)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Xor,
+            operands: vec![0, 1],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 7 a^b
+        m.drives.push((2, 6));
+        m.drives.push((3, 7));
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn semantic_endpoint_fold_gate_fixture() -> Module {
+        let mut m = Module {
+            name: "semantic_endpoint_fold_gate".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "b".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 2,
+            name: "y".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0 a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 1 }); // 1 b
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![1],
+            width: 1,
+            deps: DepSet::from_port(1),
+        }); // 2 !b
         m.nodes.push(Node::Gate {
             op: GateOp::Or,
             operands: vec![1, 2],
             width: 1,
             deps: DepSet::from_port(1),
-        }); // 6 b|!b
+        }); // 3 b|!b
         m.nodes.push(Node::Gate {
             op: GateOp::And,
-            operands: vec![0, 6],
+            operands: vec![0, 3],
             width: 1,
             deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
-        }); // 7 a&(b|!b)
-        m.drives.push((2, 5));
-        m.drives.push((3, 7));
+        }); // 4 a&(b|!b)
+        m.drives.push((2, 4));
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn semantic_constant_fold_gate_fixture() -> Module {
+        let mut m = Module {
+            name: "semantic_constant_fold_gate".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "b".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0 b
+        let one = push_constant(&mut m, 1, 1); // 1
+        assert_eq!(one, 1);
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![0],
+            width: 1,
+            deps: DepSet::from_port(0),
+        }); // 2 !b
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![0, 2],
+            width: 1,
+            deps: DepSet::from_port(0),
+        }); // 3 b|!b
+        m.drives.push((1, 3));
 
         rebuild_instance_tables(&mut m);
         m

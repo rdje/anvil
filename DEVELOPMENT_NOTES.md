@@ -58,14 +58,30 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Gate-to-endpoint semantic fold (2026-06-05, COMBINATIONAL-SEMANTIC-IDENTITY.1)
+
+The bounded `EGraph` fragment now indexes earlier non-gate canonical
+nodes as valid semantic targets. After enumerating a small-support cone,
+the proof drops any endpoint whose bits do not affect the output. That
+lets a cone such as `a & (b | !b)` reduce its proof from syntactic
+endpoints `{a,b}` to the functional endpoint `{a}`, then rewire the gate
+to the existing `a` node.
+
+This is not a general unbounded e-graph. The existing support-bit and
+cone-node budgets still apply before enumeration, and the proof still
+keys on canonical endpoints after minimization. The important boundary
+is now: semantically-dead helper endpoints may disappear, but live
+canonical roots remain part of identity.
+
 ### Endpoint-preserving semantic gate merge (2026-06-05, ENDPOINT-IDENTITY-BOUNDARY.1)
 
 The bounded `EGraph` fragment now has a paired no-merge regression for
 the endpoint part of the proof. The existing tests already prove
 same-endpoint semantic equivalents can merge; the new proof constructs
 `a & (b | !b)` and `c & (d | !d)`. These have the same local truth-table
-shape, but their canonical leaf endpoint sets differ, so
-`merge_equivalent_gates` must remove zero gates.
+shape. After `COMBINATIONAL-SEMANTIC-IDENTITY.1`, each cone may fold to
+its own live endpoint (`a` and `c` respectively), but they still must
+not collapse to the same canonical node.
 
 This protects the doctrine that NodeId identity is not "looks like the
 same Boolean shape somewhere". It is equality of functionality over the

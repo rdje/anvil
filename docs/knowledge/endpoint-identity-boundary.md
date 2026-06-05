@@ -14,10 +14,12 @@ evidence: src/ir/compact.rs; book/src/factorization.md; DEVELOPMENT_NOTES.md
 
 ANVIL's bounded semantic gate merge keys a cone by both its proven
 function and its canonical leaf endpoints. Equal local truth-table shape
-is not enough.
+is not enough. Semantically-dead helper endpoints may now be minimized
+away, but live canonical roots remain part of identity.
 
 `ENDPOINT-IDENTITY-BOUNDARY.1` adds a regression with two same-shaped
 cones: `a & (b | !b)` and `c & (d | !d)`. They simplify to the first
-endpoint in each pair, but their endpoint sets differ, so
-`merge_equivalent_gates` removes zero gates. This protects the doctrine
-that `NodeId` identity means equality over the same canonical endpoints.
+endpoint in each pair. After `COMBINATIONAL-SEMANTIC-IDENTITY.1`, the
+roots may fold to `a` and `c` respectively, but they must not collapse
+to the same canonical node. This protects the doctrine that `NodeId`
+identity means equality over the same canonical endpoints.
