@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `HIERARCHY-SEMANTIC-IDENTITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `NodeId as identity / hierarchical module identity`
 - Created: `2026-06-05`
 - Last updated: `2026-06-05`
@@ -40,7 +40,7 @@ whole module behavior.
 ## Task Tree
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY`
-  Status: `active`
+  Status: `done`
   Goal: `Broaden hierarchy/module identity beyond structural signatures.`
   Children: `HIERARCHY-SEMANTIC-IDENTITY.1`, `HIERARCHY-SEMANTIC-IDENTITY.2`, `HIERARCHY-SEMANTIC-IDENTITY.3`
 
@@ -56,20 +56,20 @@ whole module behavior.
   Goal: `Evaluate extension beyond pure combinational leaves.`
   Acceptance: `The next safe module-equivalence class is implemented or deferred with proof-boundary evidence.`
   Verification: `cargo test -q semantic_dedup; cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
-  Commit: `pending this commit`
+  Commit: `71c0fd1 HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers`
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Close the hierarchy semantic identity frontier.`
   Acceptance: `The tree records all landed semantic module identity behavior and explicit blockers for unsupported module classes.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `mdbook build book; mdbook test book; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
+  Commit: `pending this commit`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-SEMANTIC-IDENTITY.3` | `pending` | Close the hierarchy semantic identity frontier by recording landed classes and explicit blockers for unsupported classes. |
+| 1 | complete | `done` | All hierarchy semantic identity leaves are closed. |
 
 ## Decisions
 
@@ -94,7 +94,21 @@ whole module behavior.
 
 ## Blockers
 
-- None.
+- Broader temporal/sequential module equivalence remains deferred until
+  ANVIL has an explicit transition-relation or coinductive proof at the
+  module boundary.
+- Reset-less memory modules remain state-by-instance; the
+  reset-defined-memory path is blocked by the warning-clean `$mem_v2`
+  inference requirement recorded in `MEMORY-STATE-IDENTITY`.
+- Parameterized and aggregate-projected modules remain outside the
+  semantic module proof until the proof can reason over symbolic widths
+  and emitter-surface aggregate projections.
+- Oversized modules, wrappers with more than 8 child instances, and
+  wrappers whose children are outside the proof boundary remain skipped
+  by the bounded work envelope.
+- Ancestor/descendant semantic groups are intentionally skipped because
+  merging them can create hierarchy cycles through `Instance.module`
+  rewrites.
 
 ## Verification Log
 
@@ -102,13 +116,15 @@ whole module behavior.
 | --- | --- | --- | --- |
 | `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.1` | `semantic module dedup unit/integration tests; snapshots; cargo check/clippy/fmt; mdBook build/test/book examples; memory/knowledge-map checks; git diff --check` | `passed` |
 | `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.2` | `semantic module dedup unit/integration tests; snapshots; cargo check/clippy/fmt; mdBook build/test/book examples; memory/knowledge-map checks; git diff --check` | `passed` |
+| `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.3` | `mdBook build/test; memory/knowledge-map checks; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `HIERARCHY-SEMANTIC-IDENTITY.1` | `447da5b HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup` | `Bounded pure-combinational semantic module dedup plus docs/metrics.` |
-| `HIERARCHY-SEMANTIC-IDENTITY.2` | `pending this commit` | `Bounded pure-combinational wrapper semantic module dedup plus cycle guard.` |
+| `HIERARCHY-SEMANTIC-IDENTITY.2` | `71c0fd1 HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers` | `Bounded pure-combinational wrapper semantic module dedup plus cycle guard.` |
+| `HIERARCHY-SEMANTIC-IDENTITY.3` | `pending this commit` | `Closeout and explicit unsupported proof boundaries.` |
 
 ## Changelog
 
@@ -123,3 +139,6 @@ whole module behavior.
   semantics can be recursively proven. Leaf/wrapper proof classes stay
   separate, and ancestor/descendant groups are skipped to avoid
   hierarchy cycles. Frontier advanced to `.3`.
+- `2026-06-05`: Completed `HIERARCHY-SEMANTIC-IDENTITY.3` by closing
+  the tree, recording the landed semantic module-identity classes, and
+  documenting deferred proof boundaries for unsupported classes.

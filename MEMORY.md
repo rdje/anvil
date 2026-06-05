@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `447da5b` - `HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup`
-- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.2` extends bounded semantic module dedup to pure-combinational wrappers with recursively proven children.
-- next_action: finish focused validation, commit `HIERARCHY-SEMANTIC-IDENTITY.2`, clear `git_message_brief.txt`, then close `HIERARCHY-SEMANTIC-IDENTITY.3`.
-- in_flight_uncommitted: code/docs/task-tree/knowledge-map edits for `.2` are under validation and ready for commit workflow after gates pass.
+- latest_commit: `71c0fd1` - `HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers`
+- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.3` closes the hierarchy semantic identity tree with landed classes and deferred proof boundaries.
+- next_action: finish docs validation, commit `HIERARCHY-SEMANTIC-IDENTITY.3`, clear `git_message_brief.txt`, then pick `SIGNOFF-SURFACE-EXPANSION.1`.
+- in_flight_uncommitted: docs/task-tree/live-doc closeout edits for `.3` are ready for focused validation and commit workflow.
 - blockers: none.
 
 ## Validation policy

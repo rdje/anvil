@@ -1,8 +1,38 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-hierarchy-semantic-identity-2 — HIERARCHY-SEMANTIC-IDENTITY.2 extend semantic dedup to wrappers
+## 2026-06-05-hierarchy-semantic-identity-3 — HIERARCHY-SEMANTIC-IDENTITY.3 close hierarchy semantic frontier
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/live-doc slice. Completed `HIERARCHY-SEMANTIC-IDENTITY.3`.
+
+- Marked `HIERARCHY-SEMANTIC-IDENTITY` done in its task file and in
+  `docs/TASK_TREE.md`.
+- Backfilled `.2` with commit
+  `71c0fd1 HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers`.
+- Recorded the landed semantic module-identity classes:
+  pure-combinational leaves and bounded pure-combinational wrappers
+  with recursively proven children.
+- Recorded deferred proof boundaries for temporal/sequential module
+  equivalence, reset-less memories, parameterized/aggregate modules,
+  oversized wrappers, out-of-bound children, and ancestor/descendant
+  merge groups.
+- Updated `ROADMAP.md` and `MEMORY.md` so the next frontier is
+  `SIGNOFF-SURFACE-EXPANSION.1`.
+
+**Tests**
+
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+## 2026-06-05-hierarchy-semantic-identity-2 — HIERARCHY-SEMANTIC-IDENTITY.2 extend semantic dedup to wrappers
+
+**Landed as:** `71c0fd1 HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers`
 
 **What changed**
 
