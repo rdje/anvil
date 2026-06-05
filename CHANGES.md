@@ -1,8 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-live-doc-identity-alignment-1 — LIVE-DOC-IDENTITY-ALIGNMENT.1 align identity live docs
+## 2026-06-05-live-doc-roadmap-alignment-1 — LIVE-DOC-ROADMAP-ALIGNMENT.1 align follow-up status
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/live-doc slice. Completed and closed
+`LIVE-DOC-ROADMAP-ALIGNMENT.1`.
+
+- Updated `ROADMAP.md` so the current follow-up status matches
+  `docs/TASK_TREE.md`: both `DIFFERENTIAL-SIMULATION` and
+  `MULTI-CLOCK-CDC` are closed as of `2026-05-24`.
+- Updated `CODEBASE_ANALYSIS.md` Phase 6 and Phase 9 rows so they no
+  longer describe multi-clock CDC or differential simulation as open
+  work.
+- Updated the active task-tree registry rows for Phase 6 and Phase 9 to
+  point at the closed post-phase follow-up state.
+- Registered and closed the tiny roadmap-status alignment task tree.
+- Refreshed `MEMORY.md` with the previous live-doc identity-alignment
+  commit hash.
+
+**Why it matters**
+
+The roadmap and task-tree index were out of sync on current follow-up
+status. A future session should not conclude that already-closed
+`MULTI-CLOCK-CDC` or `DIFFERENTIAL-SIMULATION.2b` work is still open.
+
+**Tests**
+
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+- `mdbook build book`
+
+**Impact**
+
+- Documentation only.
+- No `src/`, tests, CLI, generator output, metrics, or roadmap phase
+  status changed.
+
+**Files**
+
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/LIVE-DOC-ROADMAP-ALIGNMENT.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-live-doc-identity-alignment-1 — LIVE-DOC-IDENTITY-ALIGNMENT.1 align identity live docs
+
+**Landed as:** `1f28eaf`
 
 **What changed**
 

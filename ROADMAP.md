@@ -2081,11 +2081,13 @@ With Phase 9 closed, every numbered roadmap phase from 0 through
   2026-05-20; `/tmp/anvil-frontend-parity-phase8-yosys-p1/`).
 - Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
 
-Remaining open follow-up trees (post-phase quality work) include
-multi-clock CDC (explicitly-optional separately-prioritised
-deferral, originally Phase-6-adjacent) and
-`DIFFERENTIAL-SIMULATION.2b` (iverilog↔verilator differential
-harness implementation; quality lane, not a numbered phase).
+No registered post-phase follow-up tree is currently open in
+`docs/TASK_TREE.md` as of `2026-06-05`. The previously separate
+quality/capability follow-ups are closed: `DIFFERENTIAL-SIMULATION`
+landed its cross-simulator semantic-agreement lane on `2026-05-24`, and
+`MULTI-CLOCK-CDC` landed the opt-in multi-clock/2-flop-synchronizer
+lane on `2026-05-24`. Standing steering gaps, especially broader
+identity/factorization work, may still seed future task trees.
 
 ## Non-goals
 
