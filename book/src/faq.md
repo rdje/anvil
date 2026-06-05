@@ -137,7 +137,11 @@ Only the full, unbounded **`e-graph`** story remains aspirational. A user at
 `--identity-mode node-id --factorization-level e-graph` (or the
 shortcut `--full-factorization`) gets the strongest implemented
 behaviour today, which means the bounded semantic gate-sharing fragment
-plus every lower layer plus that conservative flop merge. `--identity-mode relaxed` (or the shortcut
+plus every lower layer plus that conservative flop merge. The bounded
+gate proof currently enumerates up to 12 endpoint-support bits, but
+only when the candidate cone also fits its node/work budget; larger
+candidates fall back to structural identity instead of being
+truth-table-proven. `--identity-mode relaxed` (or the shortcut
 `--no-full-factorization`) is the coarse off-switch.
 
 Interpretation note: doctrinally, `node-id` already means full

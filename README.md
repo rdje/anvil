@@ -640,7 +640,9 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   generation is mature, DAG sharing is default-on, the bounded semantic
   `e-graph` fragment is live under `--identity-mode node-id` (including
   small-support gate-to-gate merges and gate-to-existing-endpoint /
-  constant folds when helper endpoints cancel out), and Phase 4
+  constant folds when helper endpoints cancel out; current truth-table
+  proofs cover up to 12 endpoint-support bits only while the cone fits
+  the node/work budget), and Phase 4
   hierarchy now has two real lanes:
   - legacy exact depth-1 wrapper mode via `--hierarchy-depth 1`
     plus `--num-leaf-modules` / `--num-child-instances`

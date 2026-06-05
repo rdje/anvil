@@ -240,10 +240,11 @@ meaning of `NodeId`:
 Post-construction sharing has two additional steps outside
 `intern_gate`: at effective level `e-graph`, finalisation may merge
 small-support combinational cones proven equivalent over the same
-canonical leaf endpoints, and may fold a proven gate to an existing
-endpoint or constant when irrelevant helper endpoints cancel out; after
-every flop's `d` exists, finalisation may also merge flops by
-emitted-state meaning under
+canonical leaf endpoints, with shallow 12-endpoint-bit truth-table
+proofs admitted only inside the current node/work budget, and may fold
+a proven gate to an existing endpoint or constant when irrelevant
+helper endpoints cancel out; after every flop's `d` exists,
+finalisation may also merge flops by emitted-state meaning under
 `identity_mode = node-id` with effective level `>= cse`.
 
 Each layer except the bypass can short-circuit the call to a

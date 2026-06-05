@@ -3870,15 +3870,14 @@ module mod_11_0001 (
     wire  or_15;
     wire  eq_4;
     wire  mux_6;
-    wire  mux_7;
     wire  xor_7;
     wire  lt_0;
     wire [2:0] concat_14;
     wire  red_and_1;
     wire  eq_5;
-    wire  mux_8;
+    wire  mux_7;
     wire  eq_6;
-    wire  mux_9;
+    wire  mux_8;
     wire  add_5;
     wire  and_22;
     wire  and_23;
@@ -3900,13 +3899,13 @@ module mod_11_0001 (
     wire  lt_1;
     wire  and_27;
     wire  eq_7;
-    wire  mux_10;
+    wire  mux_9;
     wire  eq_8;
-    wire  mux_11;
+    wire  mux_10;
     wire [1:0] or_19;
     wire [1:0] add_8;
     wire [1:0] and_28;
-    wire  mux_12;
+    wire  mux_11;
     wire [1:0] concat_15;
     wire [1:0] and_29;
     wire [6:0] concat_16;
@@ -3919,7 +3918,7 @@ module mod_11_0001 (
     wire [6:0] or_22;
     logic [6:0] case_mux_6;
     wire [6:0] not_10;
-    wire [6:0] mux_13;
+    wire [6:0] mux_12;
     wire [6:0] or_23;
     wire  gt_1;
     wire [1:0] mul_10;
@@ -3998,9 +3997,9 @@ module mod_11_0001 (
     logic [1:0] for_fold_add_2;
     wire  slice_12;
     wire  eq_9;
-    wire  mux_14;
+    wire  mux_13;
     wire  eq_10;
-    wire  mux_15;
+    wire  mux_14;
     wire [3:0] concat_26;
     wire [3:0] and_44;
     wire [3:0] concat_27;
@@ -4032,13 +4031,13 @@ module mod_11_0001 (
     wire [7:0] sub_16;
     logic [7:0] case_mux_11;
     wire  eq_11;
-    wire [7:0] mux_16;
+    wire [7:0] mux_15;
     wire  eq_12;
-    wire [7:0] mux_17;
+    wire [7:0] mux_16;
     wire  eq_13;
-    wire [7:0] mux_18;
+    wire [7:0] mux_17;
     wire  eq_14;
-    wire [7:0] mux_19;
+    wire [7:0] mux_18;
     wire [5:0] slice_13;
     wire [5:0] sub_17;
     wire  red_xor_5;
@@ -4050,19 +4049,19 @@ module mod_11_0001 (
     wire  and_50;
     logic  case_mux_13;
     wire  add_17;
-    wire  mux_20;
+    wire  mux_19;
+    wire [1:0] mux_20;
     wire [1:0] mux_21;
-    wire [1:0] mux_22;
+    wire  mux_22;
     wire  mux_23;
-    wire  mux_24;
     wire  eq_15;
-    wire  mux_25;
+    wire  mux_24;
     wire  lt_2;
     wire  or_38;
     wire  eq_16;
-    wire  mux_26;
+    wire  mux_25;
     wire  eq_17;
-    wire  mux_27;
+    wire  mux_26;
     wire [1:0] xor_22;
     wire [1:0] xor_23;
     wire [1:0] not_16;
@@ -4090,7 +4089,7 @@ module mod_11_0001 (
     wire [1:0] shr_4;
     logic [3:0] for_fold_and_1;
     wire [1:0] slice_15;
-    wire [1:0] mux_28;
+    wire [1:0] mux_27;
     wire [1:0] shl_5;
     wire [3:0] shl_6;
     wire [3:0] add_23;
@@ -4102,25 +4101,25 @@ module mod_11_0001 (
     wire [4:0] not_19;
     wire [3:0] slice_16;
     wire  eq_18;
-    wire [3:0] mux_29;
+    wire [3:0] mux_28;
     wire  eq_19;
-    wire [3:0] mux_30;
+    wire [3:0] mux_29;
     logic [1:0] for_fold_and_2;
     wire  eq_20;
-    wire [1:0] mux_31;
+    wire [1:0] mux_30;
     wire  eq_21;
-    wire [1:0] mux_32;
+    wire [1:0] mux_31;
     wire  eq_22;
-    wire [1:0] mux_33;
+    wire [1:0] mux_32;
     wire  eq_23;
-    wire [1:0] mux_34;
+    wire [1:0] mux_33;
     wire  red_or_3;
-    wire [2:0] mux_35;
+    wire [2:0] mux_34;
     logic  for_fold_xor_1;
     wire  ge_1;
     wire  or_42;
     wire  mul_25;
-    wire  mux_36;
+    wire  mux_35;
     wire  not_20;
     wire [4:0] concat_34;
     wire [4:0] and_55;
@@ -4130,9 +4129,9 @@ module mod_11_0001 (
     wire  neq_0;
     wire  add_25;
     wire  eq_24;
-    wire  mux_37;
+    wire  mux_36;
     wire  eq_25;
-    wire  mux_38;
+    wire  mux_37;
     wire [2:0] add_26;
     wire [2:0] sub_25;
     wire [2:0] not_21;
@@ -4174,12 +4173,12 @@ module mod_11_0001 (
     wire [4:0] xor_27;
     wire [4:0] or_47;
     wire  eq_26;
-    wire [4:0] mux_39;
+    wire [4:0] mux_38;
     wire  eq_27;
-    wire [4:0] mux_40;
+    wire [4:0] mux_39;
     wire  mul_29;
     wire  xor_28;
-    wire  mux_41;
+    wire  mux_40;
     wire  xor_29;
     wire  xor_30;
     wire  not_26;
@@ -4216,13 +4215,13 @@ module mod_11_0001 (
     wire [2:0] concat_37;
     logic [2:0] case_mux_19;
     wire  eq_28;
-    wire [2:0] mux_42;
+    wire [2:0] mux_41;
     wire  eq_29;
-    wire [2:0] mux_43;
+    wire [2:0] mux_42;
     wire  eq_30;
-    wire [2:0] mux_44;
+    wire [2:0] mux_43;
     wire  eq_31;
-    wire [2:0] mux_45;
+    wire [2:0] mux_44;
     wire [2:0] xor_32;
     wire [2:0] shr_5;
     wire [2:0] and_66;
@@ -4231,9 +4230,9 @@ module mod_11_0001 (
     wire [2:0] concat_38;
     wire [2:0] and_67;
     wire [2:0] or_52;
-    wire [2:0] mux_46;
+    wire [2:0] mux_45;
     wire  eq_32;
-    wire [2:0] mux_47;
+    wire [2:0] mux_46;
     wire  not_29;
     wire [3:0] concat_39;
     wire [3:0] and_68;
@@ -4251,13 +4250,13 @@ module mod_11_0001 (
     wire [1:0] or_54;
     logic  case_mux_21;
     wire  eq_33;
-    wire  mux_48;
+    wire  mux_47;
     wire  eq_34;
-    wire  mux_49;
+    wire  mux_48;
     wire  eq_35;
-    wire  mux_50;
+    wire  mux_49;
     wire  eq_36;
-    wire  mux_51;
+    wire  mux_50;
     logic  case_mux_22;
     wire  eq_37;
     logic  case_mux_23;
@@ -4273,14 +4272,14 @@ module mod_11_0001 (
     wire  xor_34;
     wire  or_57;
     wire [1:0] or_58;
-    wire [1:0] mux_52;
+    wire [1:0] mux_51;
     wire [1:0] sub_32;
     wire  eq_38;
-    wire [1:0] mux_53;
+    wire [1:0] mux_52;
     wire  eq_39;
-    wire [1:0] mux_54;
+    wire [1:0] mux_53;
     wire  eq_40;
-    wire [1:0] mux_55;
+    wire [1:0] mux_54;
     wire [1:0] and_73;
     wire  red_and_5;
     wire [1:0] concat_41;
@@ -4312,7 +4311,7 @@ module mod_11_0001 (
     wire [1:0] and_79;
     wire [1:0] or_63;
     wire  red_xor_7;
-    wire  mux_56;
+    wire  mux_55;
     wire  or_64;
     wire  neq_2;
     logic  casez_mux_13;
@@ -4327,19 +4326,19 @@ module mod_11_0001 (
     wire  red_and_6;
     wire  or_66;
     wire  or_67;
-    wire  mux_57;
+    wire  mux_56;
     wire [1:0] concat_47;
     wire  and_82;
     logic  casez_mux_14;
+    wire  mux_57;
     wire  mux_58;
-    wire  mux_59;
     wire  not_33;
     logic  casez_mux_15;
     wire  add_32;
     logic  case_mux_26;
     wire  red_xor_8;
+    wire  mux_59;
     wire  mux_60;
-    wire  mux_61;
     logic  for_fold_add_3;
     wire  and_83;
     wire [3:0] sub_36;
@@ -4347,7 +4346,7 @@ module mod_11_0001 (
     wire  xor_37;
     wire  and_84;
     wire  mul_38;
-    wire  mux_62;
+    wire  mux_61;
     wire  or_68;
     wire  xor_38;
     wire  le_3;
@@ -4365,11 +4364,11 @@ module mod_11_0001 (
     wire [2:0] concat_48;
     logic  casez_mux_17;
     wire  sub_37;
-    wire  mux_63;
+    wire  mux_62;
     wire [2:0] concat_49;
     wire  eq_41;
     wire  red_or_7;
-    wire  mux_64;
+    wire  mux_63;
     logic  case_mux_27;
     wire  mul_40;
     logic  casez_mux_18;
@@ -4426,13 +4425,13 @@ module mod_11_0001 (
     wire [2:0] add_35;
     logic [2:0] casez_mux_24;
     wire  eq_42;
-    wire [2:0] mux_65;
+    wire [2:0] mux_64;
     wire  eq_43;
-    wire [2:0] mux_66;
+    wire [2:0] mux_65;
     wire  eq_44;
-    wire [2:0] mux_67;
+    wire [2:0] mux_66;
     wire  eq_45;
-    wire [2:0] mux_68;
+    wire [2:0] mux_67;
     wire [7:0] not_39;
     wire [1:0] shl_12;
     wire [1:0] not_40;
@@ -4440,11 +4439,11 @@ module mod_11_0001 (
     wire [1:0] sub_43;
     wire [1:0] mul_43;
     wire  eq_46;
-    wire [1:0] mux_69;
+    wire [1:0] mux_68;
     wire  eq_47;
-    wire [1:0] mux_70;
+    wire [1:0] mux_69;
     wire  eq_48;
-    wire [1:0] mux_71;
+    wire [1:0] mux_70;
     wire  or_77;
     logic  casez_mux_25;
     logic  case_mux_33;
@@ -4452,7 +4451,7 @@ module mod_11_0001 (
     wire [7:0] or_78;
     wire [7:0] xor_46;
     logic  for_fold_add_5;
-    wire [7:0] mux_72;
+    wire [7:0] mux_71;
     wire [10:0] slice_23;
     wire [10:0] and_96;
     wire [10:0] mul_44;
@@ -4470,7 +4469,7 @@ module mod_11_0001 (
     wire [7:0] add_36;
     wire [7:0] not_42;
     wire [7:0] mul_47;
-    wire [7:0] mux_73;
+    wire [7:0] mux_72;
     wire [7:0] xor_48;
     wire [7:0] add_37;
     wire [7:0] or_80;
@@ -4480,15 +4479,15 @@ module mod_11_0001 (
     wire [7:0] sub_45;
     wire [7:0] or_81;
     wire  eq_49;
-    wire [2:0] mux_74;
+    wire [2:0] mux_73;
     wire  eq_50;
-    wire [2:0] mux_75;
+    wire [2:0] mux_74;
     wire  eq_51;
-    wire [2:0] mux_76;
+    wire [2:0] mux_75;
     wire  eq_52;
-    wire [2:0] mux_77;
+    wire [2:0] mux_76;
     logic  for_fold_xor_5;
-    wire  mux_78;
+    wire  mux_77;
     wire  ge_2;
     wire  or_82;
     wire  xor_49;
@@ -4514,11 +4513,11 @@ module mod_11_0001 (
     wire [2:0] or_84;
     logic [2:0] case_mux_36;
     wire  eq_53;
-    wire [2:0] mux_79;
+    wire [2:0] mux_78;
     wire  eq_54;
-    wire [2:0] mux_80;
+    wire [2:0] mux_79;
     wire  eq_55;
-    wire [2:0] mux_81;
+    wire [2:0] mux_80;
     wire  ge_4;
     wire [7:0] concat_58;
     wire [7:0] and_101;
@@ -4565,9 +4564,9 @@ module mod_11_0001 (
     wire [7:0] and_108;
     wire [7:0] or_91;
     wire  red_xor_11;
-    wire  mux_82;
+    wire  mux_81;
     wire  xor_54;
-    wire  mux_83;
+    wire  mux_82;
     wire [7:0] sub_54;
     wire [7:0] concat_65;
     wire [7:0] and_109;
@@ -4575,9 +4574,9 @@ module mod_11_0001 (
     wire [7:0] and_110;
     wire [7:0] or_92;
     wire  eq_56;
-    wire [7:0] mux_84;
+    wire [7:0] mux_83;
     wire  eq_57;
-    wire [7:0] mux_85;
+    wire [7:0] mux_84;
     wire [7:0] or_93;
     wire [7:0] not_43;
     wire [7:0] concat_67;
@@ -4591,13 +4590,13 @@ module mod_11_0001 (
     wire [7:0] sub_56;
     wire [7:0] sub_57;
     wire  eq_58;
-    wire [7:0] mux_86;
+    wire [7:0] mux_85;
     wire  eq_59;
-    wire [7:0] mux_87;
+    wire [7:0] mux_86;
     wire  eq_60;
-    wire [7:0] mux_88;
+    wire [7:0] mux_87;
     wire  eq_61;
-    wire [7:0] mux_89;
+    wire [7:0] mux_88;
     logic [7:0] casez_mux_30;
     wire [7:0] shl_13;
     wire [7:0] sub_58;
@@ -4617,11 +4616,11 @@ module mod_11_0001 (
     wire [4:0] or_96;
     wire  xor_56;
     wire  slice_26;
+    wire  mux_89;
     wire  mux_90;
-    wire  mux_91;
     wire [4:0] sub_59;
     wire  sub_60;
-    wire [2:0] mux_92;
+    wire [2:0] mux_91;
     wire  or_97;
     logic  case_mux_40;
     wire  slice_27;
@@ -4630,9 +4629,9 @@ module mod_11_0001 (
     wire  not_44;
     wire  sub_61;
     wire  eq_62;
-    wire  mux_93;
+    wire  mux_92;
     wire  eq_63;
-    wire  mux_94;
+    wire  mux_93;
     wire  xor_57;
     wire  mul_56;
     wire [1:0] add_46;
@@ -4640,11 +4639,11 @@ module mod_11_0001 (
     wire [4:0] sub_63;
     wire [4:0] xor_58;
     wire  eq_64;
-    wire [4:0] mux_95;
+    wire [4:0] mux_94;
     wire  eq_65;
-    wire [4:0] mux_96;
+    wire [4:0] mux_95;
     wire  eq_66;
-    wire [4:0] mux_97;
+    wire [4:0] mux_96;
     wire [4:0] not_45;
     logic [4:0] casez_mux_33;
     wire  add_47;
@@ -4655,9 +4654,9 @@ module mod_11_0001 (
     wire [4:0] or_98;
     logic [4:0] casez_mux_34;
     wire  eq_67;
-    wire [4:0] mux_98;
+    wire [4:0] mux_97;
     wire  eq_68;
-    wire [4:0] mux_99;
+    wire [4:0] mux_98;
     wire  or_99;
     wire [1:0] and_115;
     wire [1:0] and_116;
@@ -4671,7 +4670,7 @@ module mod_11_0001 (
     wire [4:0] not_46;
     logic [4:0] case_mux_43;
     wire [4:0] not_47;
-    wire  mux_100;
+    wire  mux_99;
     wire  or_100;
     wire [6:0] shl_15;
     wire [6:0] or_101;
@@ -4701,9 +4700,9 @@ module mod_11_0001 (
     logic  casez_mux_36;
     wire  xor_62;
     wire  eq_69;
-    wire  mux_101;
+    wire  mux_100;
     wire  eq_70;
-    wire  mux_102;
+    wire  mux_101;
     wire  and_123;
     wire [22:0] sub_65;
     wire [22:0] xor_63;
@@ -4728,16 +4727,16 @@ module mod_11_0001 (
     wire [1:0] xor_64;
     wire  mul_58;
     wire  not_51;
-    wire [1:0] mux_103;
+    wire [1:0] mux_102;
     wire [1:0] mul_59;
     logic  case_mux_44;
     wire [1:0] add_49;
     wire  slice_31;
-    wire  mux_104;
+    wire  mux_103;
     wire  eq_71;
-    wire  mux_105;
+    wire  mux_104;
     wire  eq_72;
-    wire  mux_106;
+    wire  mux_105;
     wire  mul_60;
     wire [14:0] concat_81;
     wire [14:0] or_107;
@@ -4765,7 +4764,7 @@ module mod_11_0001 (
     wire [91:0] not_53;
     wire [1:0] mul_63;
     logic  for_fold_add_7;
-    wire [91:0] mux_107;
+    wire [91:0] mux_106;
     wire [91:0] sub_67;
     wire  or_110;
     wire  not_54;
@@ -4775,7 +4774,7 @@ module mod_11_0001 (
     wire [41:0] slice_32;
     logic [41:0] casez_mux_39;
     wire [35:0] slice_33;
-    wire [35:0] mux_108;
+    wire [35:0] mux_107;
     wire [35:0] or_112;
     logic [8:0] for_fold_xor_9;
     wire [91:0] concat_89;
@@ -4926,19 +4925,18 @@ module mod_11_0001 (
     assign or_15 = case_mux_4 | and_21;
     assign eq_4 = xor_4 == 2'h3;
     assign mux_6 = (eq_1) ? (and_14) : (eq_0);
-    assign mux_7 = (eq_2) ? (1'h0) : (mux_6);
-    assign xor_7 = flop_23 ^ and_21 ^ mux_7 ^ flop_6;
+    assign xor_7 = flop_23 ^ and_21 ^ mux_6 ^ flop_6;
     assign lt_0 = flop_21 < flop_11;
     assign concat_14 = {lt_0, 1'h1, casez_mux_0};
     assign red_and_1 = &(concat_14);
     assign eq_5 = and_20 == 2'h2;
-    assign mux_8 = (eq_5) ? (red_and_1) : (1'h0);
+    assign mux_7 = (eq_5) ? (red_and_1) : (1'h0);
     assign eq_6 = and_20 == 2'h0;
-    assign mux_9 = (eq_6) ? (1'h0) : (mux_8);
+    assign mux_8 = (eq_6) ? (1'h0) : (mux_7);
     assign add_5 = 1'h1 + flop_9 + and_19;
     assign and_22 = add_4 & sub_8;
     assign and_23 = casez_mux_1 & red_or_2;
-    assign and_24 = or_14 & mux_9 & add_5;
+    assign and_24 = or_14 & mux_8 & add_5;
     assign or_16 = sub_8 | red_or_2;
     assign or_17 = sub_8 | red_or_2 | add_5;
     assign not_8 = ~or_17;
@@ -4956,14 +4954,14 @@ module mod_11_0001 (
     assign lt_1 = mul_8 < 8'h90;
     assign and_27 = or_14 & lt_1;
     assign eq_7 = red_xor_1 == 1'h1;
-    assign mux_10 = (eq_7) ? (and_27) : (1'h0);
+    assign mux_9 = (eq_7) ? (and_27) : (1'h0);
     assign eq_8 = red_xor_1 == 1'h0;
-    assign mux_11 = (eq_8) ? (1'h0) : (mux_10);
+    assign mux_10 = (eq_8) ? (1'h0) : (mux_9);
     assign or_19 = 2'h2 | flop_15;
     assign add_8 = concat_12 + or_19;
     assign and_28 = 2'h1 & add_8;
-    assign mux_12 = (flop_25) ? (1'h0) : (add_1);
-    assign concat_15 = {2{mux_12}};
+    assign mux_11 = (flop_25) ? (1'h0) : (add_1);
+    assign concat_15 = {2{mux_11}};
     assign and_29 = 2'h1 & concat_15;
     assign concat_16 = {7{eq_4}};
     assign and_30 = 7'h2e & concat_16;
@@ -4973,23 +4971,23 @@ module mod_11_0001 (
     assign or_21 = and_31 | 7'h35;
     assign or_22 = 7'h7f | and_31;
     assign not_10 = ~sub_6;
-    assign mux_13 = (mux_3) ? (7'h53) : (not_10);
-    assign or_23 = 7'h3a | case_mux_6 | mux_13;
+    assign mux_12 = (mux_3) ? (7'h53) : (not_10);
+    assign or_23 = 7'h3a | case_mux_6 | mux_12;
     assign gt_1 = i_0 > or_23;
     assign mul_10 = concat_13 * and_28;
     assign slice_11 = concat_0[14:0];
     assign le_1 = case_mux_7 <= flop_2;
     assign concat_18 = {2{red_xor_3}};
     assign and_32 = xor_8 & concat_18;
-    assign concat_19 = {2{mux_11}};
+    assign concat_19 = {2{mux_10}};
     assign and_33 = 2'h3 & concat_19;
     assign concat_20 = {2{gt_1}};
     assign and_34 = 2'h1 & add_8 & concat_20;
     assign concat_21 = {2{le_1}};
     assign and_35 = mul_10 & concat_21;
-    assign or_24 = red_xor_3 | mux_11;
-    assign or_25 = red_xor_3 | mux_11 | gt_1;
-    assign or_26 = red_xor_3 | mux_11 | gt_1 | le_1;
+    assign or_24 = red_xor_3 | mux_10;
+    assign or_25 = red_xor_3 | mux_10 | gt_1;
+    assign or_26 = red_xor_3 | mux_10 | gt_1 | le_1;
     assign not_11 = ~or_26;
     assign concat_22 = {2{not_11}};
     assign and_36 = flop_31 & concat_22;
@@ -5046,10 +5044,10 @@ module mod_11_0001 (
     assign not_15 = ~shl_4;
     assign slice_12 = or_0[2];
     assign eq_9 = and_25 == 1'h1;
-    assign mux_14 = (eq_9) ? (eq_0) : (1'h0);
+    assign mux_13 = (eq_9) ? (eq_0) : (1'h0);
     assign eq_10 = and_25 == 1'h0;
-    assign mux_15 = (eq_10) ? (1'h0) : (mux_14);
-    assign concat_26 = {4{mux_15}};
+    assign mux_14 = (eq_10) ? (1'h0) : (mux_13);
+    assign concat_26 = {4{mux_14}};
     assign and_44 = concat_1 & 4'h1 & concat_26;
     assign concat_27 = {4{flop_6}};
     assign and_45 = 4'h7 & concat_27;
@@ -5077,13 +5075,13 @@ module mod_11_0001 (
     assign mul_23 = not_14 * 8'h0;
     assign sub_16 = 8'h27 - mul_23;
     assign eq_11 = for_fold_add_2 == 2'h3;
-    assign mux_16 = (eq_11) ? (case_mux_11) : (flop_28);
+    assign mux_15 = (eq_11) ? (case_mux_11) : (flop_28);
     assign eq_12 = for_fold_add_2 == 2'h2;
-    assign mux_17 = (eq_12) ? (8'hff) : (mux_16);
+    assign mux_16 = (eq_12) ? (8'hff) : (mux_15);
     assign eq_13 = for_fold_add_2 == 2'h1;
-    assign mux_18 = (eq_13) ? (concat_32) : (mux_17);
+    assign mux_17 = (eq_13) ? (concat_32) : (mux_16);
     assign eq_14 = for_fold_add_2 == 2'h0;
-    assign mux_19 = (eq_14) ? (flop_28) : (mux_18);
+    assign mux_18 = (eq_14) ? (flop_28) : (mux_17);
     assign slice_13 = or_23[5:0];
     assign sub_17 = shl_4 - slice_13;
     assign red_xor_5 = ^(sub_17);
@@ -5092,19 +5090,19 @@ module mod_11_0001 (
     assign xor_21 = flop_20 ^ and_48 ^ and_49;
     assign and_50 = add_1 & xor_7;
     assign add_17 = 1'h1 + case_mux_13;
-    assign mux_20 = (case_mux_12) ? (xor_21) : (add_17);
-    assign mux_21 = (flop_9) ? (2'h2) : (2'h0);
-    assign mux_22 = (flop_6) ? (2'h1) : (mux_21);
-    assign mux_23 = (mux_0) ? (and_18) : (1'h0);
-    assign mux_24 = (flop_6) ? (1'h1) : (mux_23);
-    assign eq_15 = mux_22 == 2'h0;
-    assign mux_25 = (eq_15) ? (mul_0) : (mux_24);
+    assign mux_19 = (case_mux_12) ? (xor_21) : (add_17);
+    assign mux_20 = (flop_9) ? (2'h2) : (2'h0);
+    assign mux_21 = (flop_6) ? (2'h1) : (mux_20);
+    assign mux_22 = (mux_0) ? (and_18) : (1'h0);
+    assign mux_23 = (flop_6) ? (1'h1) : (mux_22);
+    assign eq_15 = mux_21 == 2'h0;
+    assign mux_24 = (eq_15) ? (mul_0) : (mux_23);
     assign lt_2 = 2'h2 < concat_21;
-    assign or_38 = mux_25 | lt_2;
+    assign or_38 = mux_24 | lt_2;
     assign eq_16 = red_xor_5 == 1'h1;
-    assign mux_26 = (eq_16) ? (or_38) : (1'h0);
+    assign mux_25 = (eq_16) ? (or_38) : (1'h0);
     assign eq_17 = red_xor_5 == 1'h0;
-    assign mux_27 = (eq_17) ? (mux_20) : (mux_26);
+    assign mux_26 = (eq_17) ? (mux_19) : (mux_25);
     assign xor_22 = 2'h1 ^ concat_10 ^ mul_3 ^ concat_20;
     assign xor_23 = add_7 ^ concat_15 ^ and_36;
     assign not_16 = ~xor_23;
@@ -5115,7 +5113,7 @@ module mod_11_0001 (
     assign not_18 = ~sub_19;
     assign add_19 = flop_9 + or_13 + or_25;
     assign add_20 = 1'h1 + sub_4 + and_11 + or_26;
-    assign add_21 = 1'h1 + mux_11 + add_20;
+    assign add_21 = 1'h1 + mux_10 + add_20;
     assign sub_20 = 1'h0 - or_17;
     assign sub_21 = 1'h1 - mul_0;
     assign and_51 = not_18 & add_19;
@@ -5129,8 +5127,8 @@ module mod_11_0001 (
     assign add_22 = 2'h3 + or_41;
     assign shr_4 = add_22 >> 1'h0;
     assign slice_15 = for_fold_and_1[2:1];
-    assign mux_28 = (xor_0) ? (2'h1) : (mul_13);
-    assign shl_5 = mux_28 << 1'h0;
+    assign mux_27 = (xor_0) ? (2'h1) : (mul_13);
+    assign shl_5 = mux_27 << 1'h0;
     assign shl_6 = xor_15 << 2'h2;
     assign add_23 = 4'h7 + shl_6;
     assign mul_24 = 4'ha * add_23;
@@ -5141,25 +5139,25 @@ module mod_11_0001 (
     assign not_19 = ~i_2;
     assign slice_16 = not_19[3:0];
     assign eq_18 = shl_5 == 2'h1;
-    assign mux_29 = (eq_18) ? (and_54) : (4'h0);
+    assign mux_28 = (eq_18) ? (and_54) : (4'h0);
     assign eq_19 = shl_5 == 2'h0;
-    assign mux_30 = (eq_19) ? (sub_23) : (mux_29);
+    assign mux_29 = (eq_19) ? (sub_23) : (mux_28);
     assign eq_20 = slice_14 == 2'h3;
-    assign mux_31 = (eq_20) ? (for_fold_and_2) : (flop_24);
+    assign mux_30 = (eq_20) ? (for_fold_and_2) : (flop_24);
     assign eq_21 = slice_14 == 2'h2;
-    assign mux_32 = (eq_21) ? (slice_15) : (mux_31);
+    assign mux_31 = (eq_21) ? (slice_15) : (mux_30);
     assign eq_22 = slice_14 == 2'h1;
-    assign mux_33 = (eq_22) ? (shr_4) : (mux_32);
+    assign mux_32 = (eq_22) ? (shr_4) : (mux_31);
     assign eq_23 = slice_14 == 2'h0;
-    assign mux_34 = (eq_23) ? (flop_24) : (mux_33);
+    assign mux_33 = (eq_23) ? (flop_24) : (mux_32);
     assign red_or_3 = |(case_mux_7);
-    assign mux_35 = (red_or_3) ? (and_47) : (concat_31);
+    assign mux_34 = (red_or_3) ? (and_47) : (concat_31);
     assign ge_1 = flop_19 >= for_fold_or_1;
     assign or_42 = eq_0 | and_49 | add_20;
     assign mul_25 = 1'h1 * flop_18 * add_19 * or_42;
-    assign mux_36 = (eq_21) ? (1'h0) : (red_and_0);
-    assign not_20 = ~mux_36;
-    assign concat_34 = {5{mux_12}};
+    assign mux_35 = (eq_21) ? (1'h0) : (red_and_0);
+    assign not_20 = ~mux_35;
+    assign concat_34 = {5{mux_11}};
     assign and_55 = 5'h6 & concat_34;
     assign sub_24 = not_20 - 1'h1;
     assign red_or_4 = |(for_fold_or_1);
@@ -5167,9 +5165,9 @@ module mod_11_0001 (
     assign neq_0 = eq_4 != xor_24;
     assign add_25 = 1'h1 + red_or_4 + neq_0;
     assign eq_24 = mul_25 == 1'h1;
-    assign mux_37 = (eq_24) ? (add_25) : (1'h0);
+    assign mux_36 = (eq_24) ? (add_25) : (1'h0);
     assign eq_25 = mul_25 == 1'h0;
-    assign mux_38 = (eq_25) ? (sub_24) : (mux_37);
+    assign mux_37 = (eq_25) ? (sub_24) : (mux_36);
     assign add_26 = concat_29 + concat_30;
     assign sub_25 = 3'h2 - concat_29;
     assign not_21 = ~sub_25;
@@ -5183,7 +5181,7 @@ module mod_11_0001 (
     assign red_or_5 = |(xor_14);
     assign mul_27 = red_or_1 * le_1 * and_17 * neq_1 * or_44 * red_or_5;
     assign add_27 = 1'h1 + xor_0 + and_14;
-    assign sub_26 = xor_0 - mux_23;
+    assign sub_26 = xor_0 - mux_22;
     assign sub_27 = 1'h0 - sub_26;
     assign not_23 = ~casez_mux_7;
     assign add_28 = or_39 + not_23;
@@ -5206,12 +5204,12 @@ module mod_11_0001 (
     assign xor_27 = 5'h19 ^ concat_34;
     assign or_47 = and_55 | for_fold_and_3 | xor_27 | 5'h2;
     assign eq_26 = add_29 == 1'h1;
-    assign mux_39 = (eq_26) ? (or_47) : (flop_19);
+    assign mux_38 = (eq_26) ? (or_47) : (flop_19);
     assign eq_27 = add_29 == 1'h0;
-    assign mux_40 = (eq_27) ? (flop_19) : (mux_39);
+    assign mux_39 = (eq_27) ? (flop_19) : (mux_38);
     assign mul_29 = eq_2 * red_or_1;
-    assign xor_28 = or_17 ^ and_27 ^ mux_20 ^ sub_24;
-    assign mux_41 = (or_24) ? (1'h1) : (1'h0);
+    assign xor_28 = or_17 ^ and_27 ^ mux_19 ^ sub_24;
+    assign mux_40 = (or_24) ? (1'h1) : (1'h0);
     assign xor_29 = eq_3 ^ red_xor_5;
     assign xor_30 = red_or_1 ^ eq_3 ^ red_xor_5 ^ mul_29;
     assign not_26 = ~xor_24;
@@ -5227,7 +5225,7 @@ module mod_11_0001 (
     assign sub_29 = sub_28 - 1'h1;
     assign sub_30 = 1'h0 - sub_29;
     assign slice_20 = add_15[1];
-    assign red_xor_6 = ^(mux_29);
+    assign red_xor_6 = ^(mux_28);
     assign and_64 = or_26 & red_and_3 & sub_30;
     assign and_65 = slice_20 & red_xor_6;
     assign or_50 = and_64 | and_65;
@@ -5243,24 +5241,24 @@ module mod_11_0001 (
     assign or_51 = xor_4 | shl_5 | concat_36;
     assign concat_37 = {1'h1, casez_mux_9};
     assign eq_28 = or_51 == 2'h3;
-    assign mux_42 = (eq_28) ? (3'h6) : (3'h0);
+    assign mux_41 = (eq_28) ? (3'h6) : (3'h0);
     assign eq_29 = or_51 == 2'h2;
-    assign mux_43 = (eq_29) ? (case_mux_19) : (mux_42);
+    assign mux_42 = (eq_29) ? (case_mux_19) : (mux_41);
     assign eq_30 = or_51 == 2'h1;
-    assign mux_44 = (eq_30) ? (and_47) : (mux_43);
+    assign mux_43 = (eq_30) ? (and_47) : (mux_42);
     assign eq_31 = or_51 == 2'h0;
-    assign mux_45 = (eq_31) ? (3'h1) : (mux_44);
+    assign mux_44 = (eq_31) ? (3'h1) : (mux_43);
     assign xor_32 = 3'h1 ^ flop_21;
     assign shr_5 = sub_25 >> 2'h2;
     assign and_66 = xor_32 & shr_5;
     assign mul_32 = 3'h6 * and_66;
-    assign mul_33 = flop_21 * 3'h3 * mux_42;
+    assign mul_33 = flop_21 * 3'h3 * mux_41;
     assign concat_38 = {3{or_39}};
-    assign and_67 = mux_45 & concat_38;
+    assign and_67 = mux_44 & concat_38;
     assign or_52 = case_mux_9 | mul_33 | and_67;
-    assign mux_46 = (red_and_4) ? (or_52) : (3'h0);
+    assign mux_45 = (red_and_4) ? (or_52) : (3'h0);
     assign eq_32 = red_and_4 == 1'h0;
-    assign mux_47 = (eq_32) ? (case_mux_18) : (mux_46);
+    assign mux_46 = (eq_32) ? (case_mux_18) : (mux_45);
     assign not_29 = ~and_40;
     assign concat_39 = {4{sub_27}};
     assign and_68 = concat_1 & 4'h1 & concat_39;
@@ -5272,13 +5270,13 @@ module mod_11_0001 (
     assign not_30 = ~mul_36;
     assign or_54 = concat_12 | 2'h2 | not_30;
     assign eq_33 = or_27 == 2'h3;
-    assign mux_48 = (eq_33) ? (case_mux_21) : (1'h0);
+    assign mux_47 = (eq_33) ? (case_mux_21) : (1'h0);
     assign eq_34 = or_27 == 2'h2;
-    assign mux_49 = (eq_34) ? (1'h0) : (mux_48);
+    assign mux_48 = (eq_34) ? (1'h0) : (mux_47);
     assign eq_35 = or_27 == 2'h1;
-    assign mux_50 = (eq_35) ? (1'h1) : (mux_49);
+    assign mux_49 = (eq_35) ? (1'h1) : (mux_48);
     assign eq_36 = or_27 == 2'h0;
-    assign mux_51 = (eq_36) ? (1'h0) : (mux_50);
+    assign mux_50 = (eq_36) ? (1'h0) : (mux_49);
     assign eq_37 = mul_35 == mul_34;
     assign and_69 = xor_30 & mul_30;
     assign and_70 = add_30 & or_50;
@@ -5289,18 +5287,18 @@ module mod_11_0001 (
     assign mul_37 = xor_0 * eq_22;
     assign concat_40 = {1'h0, case_mux_2};
     assign shl_8 = concat_40 << 1'h1;
-    assign xor_34 = 1'h0 ^ mux_36 ^ slice_17;
-    assign or_57 = mux_12 | xor_34;
+    assign xor_34 = 1'h0 ^ mux_35 ^ slice_17;
+    assign or_57 = mux_11 | xor_34;
     assign or_58 = 2'h2 | slice_14;
-    assign mux_52 = (for_fold_xor_3) ? (2'h1) : (2'h3);
+    assign mux_51 = (for_fold_xor_3) ? (2'h1) : (2'h3);
     assign sub_32 = 2'h2 - concat_21;
-    assign eq_38 = mux_52 == 2'h3;
-    assign mux_53 = (eq_38) ? (sub_32) : (2'h0);
-    assign eq_39 = mux_52 == 2'h2;
-    assign mux_54 = (eq_39) ? (2'h2) : (mux_53);
-    assign eq_40 = mux_52 == 2'h1;
-    assign mux_55 = (eq_40) ? (2'h2) : (mux_54);
-    assign and_73 = 2'h1 & flop_24 & concat_35 & mux_55;
+    assign eq_38 = mux_51 == 2'h3;
+    assign mux_52 = (eq_38) ? (sub_32) : (2'h0);
+    assign eq_39 = mux_51 == 2'h2;
+    assign mux_53 = (eq_39) ? (2'h2) : (mux_52);
+    assign eq_40 = mux_51 == 2'h1;
+    assign mux_54 = (eq_40) ? (2'h2) : (mux_53);
+    assign and_73 = 2'h1 & flop_24 & concat_35 & mux_54;
     assign red_and_5 = &(and_73);
     assign concat_41 = {2{or_57}};
     assign and_74 = shl_8 & concat_41;
@@ -5309,7 +5307,7 @@ module mod_11_0001 (
     assign or_59 = and_74 | and_75;
     assign sub_33 = add_21 - 1'h0;
     assign not_31 = ~and_26;
-    assign or_60 = 3'h1 | mux_43 | mux_46;
+    assign or_60 = 3'h1 | mux_42 | mux_45;
     assign shr_6 = or_60 >> 2'h2;
     assign sub_34 = not_13 - 8'h0;
     assign shl_9 = xor_18 << mul_12;
@@ -5319,7 +5317,7 @@ module mod_11_0001 (
     assign xor_35 = and_20 ^ and_76;
     assign and_77 = mul_9 & concat_23 & case_mux_14 & case_mux_25;
     assign not_32 = ~and_77;
-    assign or_62 = mux_55 | shl_10 | xor_35 | not_32;
+    assign or_62 = mux_54 | shl_10 | xor_35 | not_32;
     assign xor_36 = 1'h1 ^ flop_20;
     assign sub_35 = 1'h0 - xor_26;
     assign concat_43 = {2{sub_33}};
@@ -5328,11 +5326,11 @@ module mod_11_0001 (
     assign and_79 = or_62 & concat_44;
     assign or_63 = and_78 | and_79;
     assign red_xor_7 = ^(mul_32);
-    assign mux_56 = (mux_26) ? (red_xor_7) : (1'h1);
-    assign or_64 = case_mux_15 | mux_56;
+    assign mux_55 = (mux_25) ? (red_xor_7) : (1'h1);
+    assign or_64 = case_mux_15 | mux_55;
     assign neq_2 = slice_14 != 2'h3;
     assign le_2 = xor_14 <= 6'h16;
-    assign concat_45 = {8{mux_50}};
+    assign concat_45 = {8{mux_49}};
     assign and_80 = shl_3 & concat_45;
     assign concat_46 = {8{le_2}};
     assign and_81 = mul_17 & concat_46;
@@ -5342,30 +5340,30 @@ module mod_11_0001 (
     assign red_and_6 = &(add_13);
     assign or_66 = eq_0 | and_49 | add_20 | red_and_6;
     assign or_67 = and_51 | add_29 | xor_36 | neq_2;
-    assign mux_57 = (case_mux_12) ? (1'h0) : (or_67);
+    assign mux_56 = (case_mux_12) ? (1'h0) : (or_67);
     assign concat_47 = {or_55, 1'h0};
-    assign and_82 = ge_1 & mux_50;
-    assign mux_58 = (and_27) ? (1'h1) : (1'h0);
-    assign mux_59 = (casez_mux_14) ? (1'h0) : (mux_58);
-    assign not_33 = ~mux_59;
+    assign and_82 = ge_1 & mux_49;
+    assign mux_57 = (and_27) ? (1'h1) : (1'h0);
+    assign mux_58 = (casez_mux_14) ? (1'h0) : (mux_57);
+    assign not_33 = ~mux_58;
     assign add_32 = flop_16 + and_14 + case_mux_16 + not_33 + casez_mux_15;
     assign red_xor_8 = ^(mul_14);
-    assign mux_60 = (red_xor_8) ? (1'h1) : (1'h0);
-    assign mux_61 = (eq_37) ? (1'h0) : (mux_60);
+    assign mux_59 = (red_xor_8) ? (1'h1) : (1'h0);
+    assign mux_60 = (eq_37) ? (1'h0) : (mux_59);
     assign and_83 = xor_0 & add_28 & xor_34 & for_fold_add_3;
     assign sub_36 = slice_16 - 4'h1;
     assign red_and_7 = &(sub_36);
     assign xor_37 = or_16 ^ eq_23;
-    assign and_84 = eq_24 & mux_56;
+    assign and_84 = eq_24 & mux_55;
     assign mul_38 = xor_37 * and_84;
-    assign mux_62 = (and_49) ? (mux_0) : (1'h1);
-    assign or_68 = sub_35 | red_and_7 | mul_38 | mux_62;
-    assign xor_38 = 1'h1 ^ or_4 ^ flop_18 ^ red_or_0 ^ add_3 ^ or_48 ^ mux_57;
+    assign mux_61 = (and_49) ? (mux_0) : (1'h1);
+    assign or_68 = sub_35 | red_and_7 | mul_38 | mux_61;
+    assign xor_38 = 1'h1 ^ or_4 ^ flop_18 ^ red_or_0 ^ add_3 ^ or_48 ^ mux_56;
     assign le_3 = not_21 <= 3'h5;
     assign mul_39 = eq_27 * xor_38 * casez_mux_16;
     assign and_85 = or_64 & red_or_6;
-    assign and_86 = mux_57 & case_mux_26;
-    assign and_87 = xor_0 & add_28 & xor_34 & mux_61 & for_fold_add_3;
+    assign and_86 = mux_56 & case_mux_26;
+    assign and_87 = xor_0 & add_28 & xor_34 & mux_60 & for_fold_add_3;
     assign and_88 = or_68 & mul_39;
     assign or_69 = red_or_6 | case_mux_26 | and_83;
     assign or_70 = red_or_6 | case_mux_26 | and_83 | mul_39;
@@ -5374,21 +5372,21 @@ module mod_11_0001 (
     assign or_71 = and_85 | and_86 | and_87 | and_88 | and_89;
     assign concat_48 = {1'h1, sub_32};
     assign sub_37 = 1'h1 - casez_mux_17;
-    assign mux_63 = (sub_37) ? (1'h1) : (1'h0);
-    assign concat_49 = {mux_63, 1'h0, red_xor_4};
+    assign mux_62 = (sub_37) ? (1'h1) : (1'h0);
+    assign concat_49 = {mux_62, 1'h0, red_xor_4};
     assign eq_41 = shr_5 == concat_49;
-    assign red_or_7 = |(mux_42);
-    assign mux_64 = (sub_31) ? (1'h0) : (1'h1);
+    assign red_or_7 = |(mux_41);
+    assign mux_63 = (sub_31) ? (1'h0) : (1'h1);
     assign mul_40 = case_mux_27 * 1'h0;
     assign sub_38 = 1'h0 - casez_mux_5;
     assign sub_39 = sub_38 - 1'h1;
     assign xor_39 = 1'h1 ^ sub_39;
-    assign or_72 = sub_35 | red_and_7 | mul_38 | mux_62 | xor_39;
+    assign or_72 = sub_35 | red_and_7 | mul_38 | mux_61 | xor_39;
     assign xor_40 = 1'h1 ^ lt_0;
     assign not_35 = ~slice_9;
     assign mul_41 = and_11 * xor_40 * casez_mux_19;
     assign not_36 = ~mul_41;
-    assign xor_41 = and_25 ^ eq_11 ^ mux_62;
+    assign xor_41 = and_25 ^ eq_11 ^ mux_61;
     assign sub_40 = flop_19 - concat_34;
     assign slice_21 = sub_40[3];
     assign mul_42 = eq_41 * case_mux_29 * slice_21;
@@ -5396,13 +5394,13 @@ module mod_11_0001 (
     assign shl_11 = casez_mux_20 << 1'h0;
     assign shr_8 = shl_11 >> 1'h1;
     assign and_90 = eq_41 & red_or_7;
-    assign and_91 = mux_64 & casez_mux_18;
+    assign and_91 = mux_63 & casez_mux_18;
     assign and_92 = or_72 & not_36;
     assign and_93 = mul_42 & for_fold_add_4;
     assign or_73 = and_90 | and_91 | and_92 | and_93;
     assign not_37 = ~concat_15;
     assign concat_50 = {flop_6, mul_39};
-    assign concat_51 = {mux_14, and_24};
+    assign concat_51 = {mux_13, and_24};
     assign xor_42 = or_28 ^ casez_mux_20;
     assign and_94 = case_mux_30 & 3'h0;
     assign add_34 = and_47 + and_94;
@@ -5420,13 +5418,13 @@ module mod_11_0001 (
     assign or_76 = case_mux_18 | mul_32;
     assign add_35 = 3'h1 + or_76;
     assign eq_42 = casez_mux_21 == 2'h3;
-    assign mux_65 = (eq_42) ? (casez_mux_24) : (flop_11);
+    assign mux_64 = (eq_42) ? (casez_mux_24) : (flop_11);
     assign eq_43 = casez_mux_21 == 2'h2;
-    assign mux_66 = (eq_43) ? (3'h0) : (mux_65);
+    assign mux_65 = (eq_43) ? (3'h0) : (mux_64);
     assign eq_44 = casez_mux_21 == 2'h1;
-    assign mux_67 = (eq_44) ? (case_mux_32) : (mux_66);
+    assign mux_66 = (eq_44) ? (case_mux_32) : (mux_65);
     assign eq_45 = casez_mux_21 == 2'h0;
-    assign mux_68 = (eq_45) ? (flop_11) : (mux_67);
+    assign mux_67 = (eq_45) ? (flop_11) : (mux_66);
     assign not_39 = ~concat_24;
     assign shl_12 = 2'h2 << mul_15;
     assign not_40 = ~add_6;
@@ -5434,20 +5432,20 @@ module mod_11_0001 (
     assign sub_43 = add_31 - 2'h2;
     assign mul_43 = 2'h3 * sub_43;
     assign eq_46 = xor_45 == 2'h2;
-    assign mux_69 = (eq_46) ? (not_40) : (2'h0);
+    assign mux_68 = (eq_46) ? (not_40) : (2'h0);
     assign eq_47 = xor_45 == 2'h1;
-    assign mux_70 = (eq_47) ? (2'h1) : (mux_69);
+    assign mux_69 = (eq_47) ? (2'h1) : (mux_68);
     assign eq_48 = xor_45 == 2'h0;
-    assign mux_71 = (eq_48) ? (mul_43) : (mux_70);
+    assign mux_70 = (eq_48) ? (mul_43) : (mux_69);
     assign or_77 = xor_29 | not_26;
     assign or_78 = 8'hae | shr_3 | case_mux_3;
     assign xor_46 = or_30 ^ not_13 ^ 8'h16 ^ or_78;
-    assign mux_72 = (for_fold_add_5) ? (8'h70) : (mul_17);
+    assign mux_71 = (for_fold_add_5) ? (8'h70) : (mul_17);
     assign slice_23 = concat_0[10:0];
     assign and_96 = slice_23 & 11'h6a0;
     assign mul_44 = slice_23 * and_96 * 11'h5b9;
     assign slice_24 = mul_44[9:2];
-    assign mul_45 = flop_3 * mux_72 * slice_24;
+    assign mul_45 = flop_3 * mux_71 * slice_24;
     assign or_79 = mul_8 | casez_mux_4 | mul_45 | 8'h9b;
     assign not_41 = ~and_82;
     assign and_97 = 3'h2 & or_52 & sub_41;
@@ -5458,30 +5456,30 @@ module mod_11_0001 (
     assign add_36 = mul_46 + 8'ha9;
     assign not_42 = ~sub_3;
     assign mul_47 = add_36 * not_42 * 8'hbd;
-    assign mux_73 = (or_46) ? (8'h74) : (8'he0);
+    assign mux_72 = (or_46) ? (8'h74) : (8'he0);
     assign xor_48 = add_2 ^ 8'hc6;
     assign add_37 = sub_1 + xor_19 + 8'h7 + not_39 + slice_24 + xor_48;
-    assign or_80 = mul_47 | mux_73 | add_37 | 8'h2a;
+    assign or_80 = mul_47 | mux_72 | add_37 | 8'h2a;
     assign and_98 = 8'hfd & or_34 & or_80;
     assign add_38 = sub_1 + 8'h4a;
     assign sub_45 = add_38 - for_fold_add_6;
     assign or_81 = mul_14 | xor_18 | and_98 | 8'h2e | sub_45;
     assign eq_49 = concat_20 == 2'h3;
-    assign mux_74 = (eq_49) ? (3'h0) : (3'h0);
+    assign mux_73 = (eq_49) ? (3'h0) : (3'h0);
     assign eq_50 = concat_20 == 2'h2;
-    assign mux_75 = (eq_50) ? (3'h1) : (mux_74);
+    assign mux_74 = (eq_50) ? (3'h1) : (mux_73);
     assign eq_51 = concat_20 == 2'h1;
-    assign mux_76 = (eq_51) ? (3'h3) : (mux_75);
+    assign mux_75 = (eq_51) ? (3'h3) : (mux_74);
     assign eq_52 = concat_20 == 2'h0;
-    assign mux_77 = (eq_52) ? (3'h1) : (mux_76);
-    assign mux_78 = (and_15) ? (1'h1) : (not_7);
+    assign mux_76 = (eq_52) ? (3'h1) : (mux_75);
+    assign mux_77 = (and_15) ? (1'h1) : (not_7);
     assign ge_2 = 3'h4 >= not_38;
     assign or_82 = 1'h0 | ge_2;
     assign xor_49 = or_4 ^ flop_17 ^ and_14 ^ and_19 ^ 1'h0 ^ flop_6 ^ or_44;
     assign sub_46 = or_82 - 1'h1;
     assign sub_47 = sub_46 - xor_26;
     assign sub_48 = sub_47 - xor_49;
-    assign add_39 = eq_14 + mul_27 + mux_78 + sub_48;
+    assign add_39 = eq_14 + mul_27 + mux_77 + sub_48;
     assign mul_48 = and_37 * sub_13 * 8'h0 * add_36 * not_42;
     assign sub_49 = concat_35 - 2'h2;
     assign concat_54 = {not_21, 1'h0, sub_49, 2'h0};
@@ -5496,11 +5494,11 @@ module mod_11_0001 (
     assign and_100 = casez_mux_22 & concat_57;
     assign or_84 = and_100 | 3'h0;
     assign eq_53 = and_9 == 2'h2;
-    assign mux_79 = (eq_53) ? (case_mux_31) : (3'h0);
+    assign mux_78 = (eq_53) ? (case_mux_31) : (3'h0);
     assign eq_54 = and_9 == 2'h1;
-    assign mux_80 = (eq_54) ? (3'h4) : (mux_79);
+    assign mux_79 = (eq_54) ? (3'h4) : (mux_78);
     assign eq_55 = and_9 == 2'h0;
-    assign mux_81 = (eq_55) ? (3'h3) : (mux_80);
+    assign mux_80 = (eq_55) ? (3'h3) : (mux_79);
     assign ge_4 = or_83 >= case_mux_36;
     assign concat_58 = {8{casez_mux_26}};
     assign and_101 = not_39 & concat_58;
@@ -5514,7 +5512,7 @@ module mod_11_0001 (
     assign or_86 = and_101 | and_102 | and_103 | and_104;
     assign mul_49 = case_mux_12 * ge_3;
     assign sub_50 = mul_37 - lt_1;
-    assign gt_2 = case_mux_30 > mux_81;
+    assign gt_2 = case_mux_30 > mux_80;
     assign red_or_8 = |(case_mux_37);
     assign and_105 = flop_6 & case_mux_2 & 1'h0 & sub_50;
     assign and_106 = gt_2 & red_or_8;
@@ -5530,7 +5528,7 @@ module mod_11_0001 (
     assign red_xor_9 = ^(add_43);
     assign or_89 = mul_50 | red_xor_9;
     assign xor_53 = case_mux_3 ^ 8'hab ^ and_41 ^ and_101;
-    assign concat_62 = {2{mux_27}};
+    assign concat_62 = {2{mux_26}};
     assign or_90 = mul_22 | case_mux_24 | and_103;
     assign mul_51 = 8'hc * and_41;
     assign mul_52 = concat_53 * or_90 * 8'h98;
@@ -5544,19 +5542,19 @@ module mod_11_0001 (
     assign and_108 = 8'h35 & concat_64;
     assign or_91 = sub_53 | and_107 | and_108;
     assign red_xor_11 = ^(not_39);
-    assign mux_82 = (for_fold_xor_5) ? (1'h1) : (add_41);
-    assign xor_54 = not_18 ^ mux_82;
-    assign mux_83 = (xor_54) ? (ge_2) : (eq_37);
+    assign mux_81 = (for_fold_xor_5) ? (1'h1) : (add_41);
+    assign xor_54 = not_18 ^ mux_81;
+    assign mux_82 = (xor_54) ? (ge_2) : (eq_37);
     assign sub_54 = 8'hd2 - casez_mux_2;
     assign concat_65 = {8{red_xor_11}};
     assign and_109 = or_91 & concat_65;
-    assign concat_66 = {8{mux_83}};
+    assign concat_66 = {8{mux_82}};
     assign and_110 = 8'h25 & concat_66;
     assign or_92 = and_109 | and_110;
     assign eq_56 = or_89 == 1'h1;
-    assign mux_84 = (eq_56) ? (or_92) : (8'h0);
+    assign mux_83 = (eq_56) ? (or_92) : (8'h0);
     assign eq_57 = or_89 == 1'h0;
-    assign mux_85 = (eq_57) ? (xor_53) : (mux_84);
+    assign mux_84 = (eq_57) ? (xor_53) : (mux_83);
     assign or_93 = xor_1 | sub_3 | and_109 | concat_66 | and_110 | 8'hfa;
     assign not_43 = ~or_93;
     assign concat_67 = {mul_43, 3'h0, 3'h3};
@@ -5570,13 +5568,13 @@ module mod_11_0001 (
     assign sub_56 = sub_55 - mul_55;
     assign sub_57 = sub_56 - 8'hf4;
     assign eq_58 = concat_23 == 2'h3;
-    assign mux_86 = (eq_58) ? (8'ha7) : (8'h0);
+    assign mux_85 = (eq_58) ? (8'ha7) : (8'h0);
     assign eq_59 = concat_23 == 2'h2;
-    assign mux_87 = (eq_59) ? (8'h7d) : (mux_86);
+    assign mux_86 = (eq_59) ? (8'h7d) : (mux_85);
     assign eq_60 = concat_23 == 2'h1;
-    assign mux_88 = (eq_60) ? (8'hb3) : (mux_87);
+    assign mux_87 = (eq_60) ? (8'hb3) : (mux_86);
     assign eq_61 = concat_23 == 2'h0;
-    assign mux_89 = (eq_61) ? (8'hac) : (mux_88);
+    assign mux_88 = (eq_61) ? (8'hac) : (mux_87);
     assign shl_13 = casez_mux_30 << 2'h2;
     assign sub_58 = sub_57 - shl_13;
     assign shr_9 = casez_mux_31 >> 3'h4;
@@ -5588,35 +5586,35 @@ module mod_11_0001 (
     assign concat_69 = {5{for_fold_or_4}};
     assign and_112 = for_fold_xor_6 & concat_69;
     assign or_96 = add_44 | and_112;
-    assign xor_56 = le_1 ^ mux_59;
+    assign xor_56 = le_1 ^ mux_58;
     assign slice_26 = and_67[1];
-    assign mux_90 = (slice_26) ? (1'h1) : (1'h0);
-    assign mux_91 = (xor_56) ? (1'h0) : (mux_90);
+    assign mux_89 = (slice_26) ? (1'h1) : (1'h0);
+    assign mux_90 = (xor_56) ? (1'h0) : (mux_89);
     assign sub_59 = add_44 - 5'h11;
     assign sub_60 = xor_5 - xor_30;
-    assign mux_92 = (sub_60) ? (3'h2) : (3'h2);
+    assign mux_91 = (sub_60) ? (3'h2) : (3'h2);
     assign or_97 = and_58 | and_59 | and_60 | and_61 | 1'h0;
     assign slice_27 = add_24[2];
     assign add_45 = 1'h1 + flop_6 + slice_27;
     assign not_44 = ~sub_44;
     assign sub_61 = eq_27 - and_92;
     assign eq_62 = casez_mux_32 == 1'h1;
-    assign mux_93 = (eq_62) ? (sub_61) : (1'h0);
+    assign mux_92 = (eq_62) ? (sub_61) : (1'h0);
     assign eq_63 = casez_mux_32 == 1'h0;
-    assign mux_94 = (eq_63) ? (not_44) : (mux_93);
-    assign xor_57 = 1'h0 ^ mux_41 ^ or_66 ^ add_45;
+    assign mux_93 = (eq_63) ? (not_44) : (mux_92);
+    assign xor_57 = 1'h0 ^ mux_40 ^ or_66 ^ add_45;
     assign mul_56 = le_0 * xor_57;
     assign add_46 = mul_31 + 2'h3;
     assign sub_62 = sub_59 - 5'he;
     assign sub_63 = sub_62 - 5'h1c;
     assign xor_58 = case_mux_7 ^ 5'h19 ^ concat_34 ^ or_47;
     assign eq_64 = add_46 == 2'h2;
-    assign mux_95 = (eq_64) ? (xor_58) : (5'h0);
+    assign mux_94 = (eq_64) ? (xor_58) : (5'h0);
     assign eq_65 = add_46 == 2'h1;
-    assign mux_96 = (eq_65) ? (5'h1e) : (mux_95);
+    assign mux_95 = (eq_65) ? (5'h1e) : (mux_94);
     assign eq_66 = add_46 == 2'h0;
-    assign mux_97 = (eq_66) ? (sub_63) : (mux_96);
-    assign not_45 = ~mux_39;
+    assign mux_96 = (eq_66) ? (sub_63) : (mux_95);
+    assign not_45 = ~mux_38;
     assign add_47 = and_53 + red_and_5 + eq_44 + 1'h1;
     assign concat_70 = {5{add_47}};
     assign and_113 = 5'h6 & concat_70;
@@ -5624,32 +5622,32 @@ module mod_11_0001 (
     assign and_114 = 5'h15 & concat_71;
     assign or_98 = and_113 | and_114;
     assign eq_67 = mul_56 == 1'h1;
-    assign mux_98 = (eq_67) ? (5'h10) : (5'h0);
+    assign mux_97 = (eq_67) ? (5'h10) : (5'h0);
     assign eq_68 = mul_56 == 1'h0;
-    assign mux_99 = (eq_68) ? (casez_mux_34) : (mux_98);
+    assign mux_98 = (eq_68) ? (casez_mux_34) : (mux_97);
     assign or_99 = xor_51 | 1'h0;
-    assign and_115 = 2'h1 & mul_10 & add_22 & mux_52;
+    assign and_115 = 2'h1 & mul_10 & add_22 & mux_51;
     assign and_116 = sub_5 & or_19;
     assign add_48 = 2'h1 + and_116;
     assign xor_59 = concat_4 ^ or_5;
     assign sub_64 = and_3 - xor_59;
     assign not_46 = ~for_fold_and_3;
     assign not_47 = ~case_mux_43;
-    assign mux_100 = (eq_23) ? (1'h1) : (1'h0);
-    assign or_100 = eq_66 | mux_100;
+    assign mux_99 = (eq_23) ? (1'h1) : (1'h0);
+    assign or_100 = eq_66 | mux_99;
     assign shl_15 = not_10 << 1'h1;
     assign or_101 = case_mux_6 | shl_15;
     assign red_xor_12 = ^(or_101);
     assign xor_60 = sub_27 ^ eq_40 ^ or_100 ^ red_xor_12;
-    assign concat_72 = {5{mux_91}};
+    assign concat_72 = {5{mux_90}};
     assign and_117 = or_96 & concat_72;
-    assign concat_73 = {5{mux_94}};
+    assign concat_73 = {5{mux_93}};
     assign and_118 = sub_59 & concat_73;
     assign concat_74 = {5{case_mux_42}};
-    assign and_119 = mux_99 & concat_74;
+    assign and_119 = mux_98 & concat_74;
     assign concat_75 = {5{xor_60}};
     assign and_120 = not_47 & concat_75;
-    assign or_102 = mux_91 | mux_94 | case_mux_42 | xor_60;
+    assign or_102 = mux_90 | mux_93 | case_mux_42 | xor_60;
     assign not_48 = ~or_102;
     assign concat_76 = {5{not_48}};
     assign and_121 = flop_2 & concat_76;
@@ -5663,10 +5661,10 @@ module mod_11_0001 (
     assign concat_77 = {concat_21, 1'h1};
     assign xor_62 = 1'h1 ^ or_69 ^ red_and_9 ^ casez_mux_36;
     assign eq_69 = xor_62 == 1'h1;
-    assign mux_101 = (eq_69) ? (1'h1) : (1'h0);
+    assign mux_100 = (eq_69) ? (1'h1) : (1'h0);
     assign eq_70 = xor_62 == 1'h0;
-    assign mux_102 = (eq_70) ? (and_25) : (mux_101);
-    assign and_123 = not_49 & mux_102;
+    assign mux_101 = (eq_70) ? (and_25) : (mux_100);
+    assign and_123 = not_49 & mux_101;
     assign sub_65 = or_104 - for_fold_and_0;
     assign xor_63 = sub_65 ^ 23'h4f6554;
     assign and_124 = case_mux_0 & sub_65 & xor_63;
@@ -5689,20 +5687,20 @@ module mod_11_0001 (
     assign xor_64 = mul_6 ^ concat_62;
     assign mul_58 = add_1 * flop_12 * eq_10 * and_88;
     assign not_51 = ~mul_58;
-    assign mux_103 = (red_and_8) ? (2'h0) : (2'h2);
-    assign mul_59 = 2'h2 * mul_9 * mux_103;
+    assign mux_102 = (red_and_8) ? (2'h0) : (2'h2);
+    assign mul_59 = 2'h2 * mul_9 * mux_102;
     assign add_49 = 2'h1 + or_54 + concat_41 + casez_mux_21;
     assign slice_31 = add_49[0];
-    assign mux_104 = (not_51) ? (case_mux_44) : (slice_31);
+    assign mux_103 = (not_51) ? (case_mux_44) : (slice_31);
     assign eq_71 = xor_64 == 2'h1;
-    assign mux_105 = (eq_71) ? (case_mux_26) : (1'h0);
+    assign mux_104 = (eq_71) ? (case_mux_26) : (1'h0);
     assign eq_72 = xor_64 == 2'h0;
-    assign mux_106 = (eq_72) ? (mux_104) : (mux_105);
-    assign mul_60 = case_mux_12 * ge_3 * mux_106;
+    assign mux_105 = (eq_72) ? (mux_103) : (mux_104);
+    assign mul_60 = case_mux_12 * ge_3 * mux_105;
     assign concat_81 = {slice_3, 1'h1, 1'h0, 1'h0};
     assign or_107 = slice_11 | 15'h37f | concat_81;
     assign concat_82 = {or_107, 4'h7, 4'h7};
-    assign add_50 = mux_11 + mux_41;
+    assign add_50 = mux_10 + mux_40;
     assign not_52 = ~add_50;
     assign concat_83 = {23{or_43}};
     assign and_130 = not_50 & concat_79 & concat_83;
@@ -5711,7 +5709,7 @@ module mod_11_0001 (
     assign and_132 = flop_1 & shl_16 & concat_79 & concat_82 & 23'h7fffff;
     assign or_108 = 23'h5b221d | and_130 | and_131 | and_132;
     assign mul_61 = case_mux_0 * not_50 * and_129 * or_108;
-    assign mul_62 = 5'hb * mux_98;
+    assign mul_62 = 5'hb * mux_97;
     assign sub_66 = mul_62 - 5'hc;
     assign lt_3 = sub_66 < 5'h4;
     assign concat_85 = {23{and_123}};
@@ -5722,8 +5720,8 @@ module mod_11_0001 (
     assign and_135 = mul_61 & concat_87;
     assign or_109 = and_133 | and_134 | and_135;
     assign not_53 = ~flop_0;
-    assign mul_63 = xor_2 * 2'h0 * mux_55 * or_63;
-    assign mux_107 = (case_mux_35) ? (92'he798cc28136a342685e5649) : (concat_0);
+    assign mul_63 = xor_2 * 2'h0 * mux_54 * or_63;
+    assign mux_106 = (case_mux_35) ? (92'he798cc28136a342685e5649) : (concat_0);
     assign sub_67 = concat_0 - not_53;
     assign or_110 = not_7 | xor_51;
     assign not_54 = ~or_110;
@@ -5732,14 +5730,14 @@ module mod_11_0001 (
     assign or_111 = concat_0 | and_136;
     assign slice_32 = or_111[41:0];
     assign slice_33 = or_111[35:0];
-    assign mux_108 = (sub_20) ? (36'h9b3d514f2) : (slice_33);
-    assign or_112 = slice_33 | 36'hafbc8594a | mux_108;
+    assign mux_107 = (sub_20) ? (36'h9b3d514f2) : (slice_33);
+    assign or_112 = slice_33 | 36'hafbc8594a | mux_107;
     assign concat_89 = {casez_mux_39, for_fold_xor_9, 41'h1e86daab6ca};
     assign slice_34 = concat_89[46:0];
     assign slice_35 = concat_89[18:0];
     assign slice_36 = concat_89[25:0];
     assign concat_90 = {slice_34, slice_35, slice_36};
-    assign mul_64 = mux_107 * or_111 * concat_89 * concat_90 * 92'hb;
+    assign mul_64 = mux_106 * or_111 * concat_89 * concat_90 * 92'hb;
     assign concat_91 = {92{for_fold_add_7}};
     assign and_137 = not_53 & concat_91;
     assign concat_92 = {92{1'h1}};
@@ -6013,14 +6011,14 @@ module mod_11_0001 (
     always_comb begin
         for_fold_and_2 = 2'h3;
         for (int i = 0; i < 2; i++) begin
-            for_fold_and_2 = for_fold_and_2 & mux_30[(i * 2) +: 2];
+            for_fold_and_2 = for_fold_and_2 & mux_29[(i * 2) +: 2];
         end
     end
 
     always_comb begin
         for_fold_xor_1 = 1'h0;
         for (int i = 0; i < 3; i++) begin
-            for_fold_xor_1 = for_fold_xor_1 ^ mux_35[(i * 1) +: 1];
+            for_fold_xor_1 = for_fold_xor_1 ^ mux_34[(i * 1) +: 1];
         end
     end
 
@@ -6037,7 +6035,7 @@ module mod_11_0001 (
     always_comb begin
         casez (not_21)
             3'b00?: casez_mux_7 = 1'h0;
-            3'b01?: casez_mux_7 = mux_12;
+            3'b01?: casez_mux_7 = mux_11;
             3'b10?: casez_mux_7 = 1'h1;
             3'b11?: casez_mux_7 = 1'h1;
             default: casez_mux_7 = 1'h0;
@@ -6045,7 +6043,7 @@ module mod_11_0001 (
     end
 
     always_comb begin
-        casez (mux_31)
+        casez (mux_30)
             2'b0?: casez_mux_8 = 5'hc;
             2'b1?: casez_mux_8 = 5'ha;
             default: casez_mux_8 = 5'h0;
@@ -6121,7 +6119,7 @@ module mod_11_0001 (
     end
 
     always_comb begin
-        casez (mux_47)
+        casez (mux_46)
             3'b00?: casez_mux_11 = not_29;
             3'b01?: casez_mux_11 = 1'h0;
             3'b10?: casez_mux_11 = for_fold_or_2;
@@ -6163,9 +6161,9 @@ module mod_11_0001 (
 
     always_comb begin
         case (2'h1)
-            2'd0: case_mux_22 = mux_12;
+            2'd0: case_mux_22 = mux_11;
             2'd1: case_mux_22 = 1'h1;
-            2'd2: case_mux_22 = mux_51;
+            2'd2: case_mux_22 = mux_50;
             default: case_mux_22 = 1'h0;
         endcase
     end
@@ -6416,7 +6414,7 @@ module mod_11_0001 (
     end
 
     always_comb begin
-        casez (mux_71)
+        casez (mux_70)
             2'b0?: casez_mux_26 = 1'h1;
             2'b1?: casez_mux_26 = case_mux_33;
             default: casez_mux_26 = 1'h0;
@@ -6459,7 +6457,7 @@ module mod_11_0001 (
     always_comb begin
         for_fold_xor_5 = 1'h0;
         for (int i = 0; i < 3; i++) begin
-            for_fold_xor_5 = for_fold_xor_5 ^ mux_77[(i * 1) +: 1];
+            for_fold_xor_5 = for_fold_xor_5 ^ mux_76[(i * 1) +: 1];
         end
     end
 
@@ -6512,7 +6510,7 @@ module mod_11_0001 (
     always_comb begin
         for_fold_and_4 = 1'h1;
         for (int i = 0; i < 4; i++) begin
-            for_fold_and_4 = for_fold_and_4 & mux_29[(i * 1) +: 1];
+            for_fold_and_4 = for_fold_and_4 & mux_28[(i * 1) +: 1];
         end
     end
 
@@ -6528,7 +6526,7 @@ module mod_11_0001 (
     always_comb begin
         casez (2'h2)
             2'b0?: casez_mux_30 = mul_22;
-            2'b1?: casez_mux_30 = mux_89;
+            2'b1?: casez_mux_30 = mux_88;
             default: casez_mux_30 = 8'h0;
         endcase
     end
@@ -6580,7 +6578,7 @@ module mod_11_0001 (
     end
 
     always_comb begin
-        casez (mux_92)
+        casez (mux_91)
             3'b00?: casez_mux_32 = case_mux_40;
             3'b01?: casez_mux_32 = add_45;
             3'b10?: casez_mux_32 = add_17;
@@ -6590,7 +6588,7 @@ module mod_11_0001 (
 
     always_comb begin
         casez (concat_48)
-            3'b00?: casez_mux_33 = mux_97;
+            3'b00?: casez_mux_33 = mux_96;
             3'b01?: casez_mux_33 = 5'h16;
             3'b10?: casez_mux_33 = not_45;
             3'b11?: casez_mux_33 = 5'hb;
@@ -6674,7 +6672,7 @@ module mod_11_0001 (
 
     always_comb begin
         case (mul_59)
-            2'd0: case_mux_44 = mux_78;
+            2'd0: case_mux_44 = mux_77;
             2'd1: case_mux_44 = 1'h1;
             2'd2: case_mux_44 = add_28;
             default: case_mux_44 = 1'h0;
@@ -6684,7 +6682,7 @@ module mod_11_0001 (
     always_comb begin
         casez (2'h0)
             2'b0?: casez_mux_38 = not_52;
-            2'b1?: casez_mux_38 = mux_12;
+            2'b1?: casez_mux_38 = mux_11;
             default: casez_mux_38 = 1'h0;
         endcase
     end
@@ -6756,10 +6754,10 @@ module mod_11_0001 (
             flop_5 <= or_1;
             flop_6 <= flop_6;
             flop_7 <= or_9;
-            flop_8 <= mux_85;
+            flop_8 <= mux_84;
             flop_9 <= add_42;
             flop_10 <= or_86;
-            flop_11 <= mux_68;
+            flop_11 <= mux_67;
             flop_12 <= or_73;
             flop_13 <= or_71;
             flop_14 <= mux_5;
@@ -6767,16 +6765,16 @@ module mod_11_0001 (
             flop_16 <= or_13;
             flop_17 <= mul_37;
             flop_18 <= or_56;
-            flop_19 <= mux_40;
+            flop_19 <= mux_39;
             flop_20 <= or_46;
             flop_21 <= casez_mux_6;
-            flop_22 <= mux_38;
+            flop_22 <= mux_37;
             flop_23 <= for_fold_xor_1;
-            flop_24 <= mux_34;
+            flop_24 <= mux_33;
             flop_25 <= case_mux_15;
             flop_26 <= or_18;
-            flop_27 <= mux_27;
-            flop_28 <= mux_19;
+            flop_27 <= mux_26;
+            flop_28 <= mux_18;
             flop_29 <= add_12;
             flop_30 <= mul_17;
             flop_31 <= or_29;
@@ -10010,7 +10008,6 @@ module mod_11_0004 (
     wire  mux_3;
     wire  eq_5;
     wire  mux_4;
-    logic [5:0] casez_mux_1;
     logic [5:0] case_mux_2;
     wire [1:0] not_0;
     wire [11:0] slice_6;
@@ -10023,7 +10020,7 @@ module mod_11_0004 (
     wire [5:0] mux_7;
     wire  eq_9;
     wire [5:0] mux_8;
-    logic [5:0] casez_mux_2;
+    logic [5:0] casez_mux_1;
     wire [5:0] add_1;
     wire [5:0] xor_2;
     wire [5:0] concat_3;
@@ -10044,8 +10041,8 @@ module mod_11_0004 (
     wire [5:0] or_3;
     wire [5:0] or_4;
     wire [5:0] or_5;
-    logic [5:0] casez_mux_3;
-    logic [2:0] casez_mux_4;
+    logic [5:0] casez_mux_2;
+    logic [2:0] casez_mux_3;
     wire [2:0] mul_0;
     wire [5:0] concat_7;
     wire [5:0] and_8;
@@ -10071,7 +10068,7 @@ module mod_11_0004 (
     wire [1:0] concat_9;
     wire  le_0;
     wire [1:0] slice_9;
-    logic [1:0] casez_mux_5;
+    logic [1:0] casez_mux_4;
     wire [1:0] and_11;
     wire [1:0] concat_10;
     wire [1:0] sub_1;
@@ -10096,15 +10093,15 @@ module mod_11_0004 (
     wire [5:0] add_2;
     wire [5:0] or_13;
     wire [5:0] xor_6;
+    logic [5:0] casez_mux_5;
     logic [5:0] casez_mux_6;
-    logic [5:0] casez_mux_7;
     wire [5:0] add_3;
     wire [5:0] xor_7;
     wire [5:0] sub_2;
     wire [5:0] or_14;
     wire [2:0] mux_15;
     wire  sub_3;
-    logic  casez_mux_8;
+    logic  casez_mux_7;
     wire [1:0] add_4;
     wire  eq_13;
     wire  eq_14;
@@ -10122,7 +10119,7 @@ module mod_11_0004 (
     wire  slice_10;
     wire [31:0] concat_13;
     logic [7:0] for_fold_and_2;
-    logic [7:0] casez_mux_9;
+    logic [7:0] casez_mux_8;
     wire  ge_1;
     wire  lt_0;
     wire  xor_8;
@@ -10140,10 +10137,10 @@ module mod_11_0004 (
     wire [2:0] shr_1;
     wire [2:0] mul_4;
     wire [2:0] sub_4;
-    logic [1:0] casez_mux_10;
+    logic [1:0] casez_mux_9;
     wire [1:0] sub_5;
     wire [1:0] add_5;
-    logic  casez_mux_11;
+    logic  casez_mux_10;
     wire  and_19;
     wire  or_17;
     wire  and_20;
@@ -10207,14 +10204,14 @@ module mod_11_0004 (
     wire  mux_29;
     wire [4:0] not_12;
     logic [4:0] case_mux_4;
-    logic  casez_mux_12;
+    logic  casez_mux_11;
     wire [6:0] slice_15;
     wire [6:0] shl_1;
     wire [6:0] mux_30;
     wire [4:0] slice_16;
     wire  lt_1;
     wire  slice_17;
-    logic  casez_mux_13;
+    logic  casez_mux_12;
     wire  mux_31;
     wire  slice_18;
     wire  and_29;
@@ -10237,7 +10234,7 @@ module mod_11_0004 (
     wire  sub_13;
     wire  neq_0;
     wire  or_25;
-    logic  casez_mux_14;
+    logic  casez_mux_13;
     wire  or_26;
     wire  and_30;
     wire  and_31;
@@ -10257,7 +10254,7 @@ module mod_11_0004 (
     wire [1:0] mul_6;
     wire [1:0] sub_15;
     wire [1:0] sub_16;
-    logic [3:0] casez_mux_15;
+    logic [3:0] casez_mux_14;
     wire  lt_2;
     wire  mul_7;
     wire [5:0] or_32;
@@ -10269,7 +10266,7 @@ module mod_11_0004 (
     wire [2:0] xor_15;
     wire [1:0] add_9;
     logic [3:0] case_mux_6;
-    logic [3:0] casez_mux_16;
+    logic [3:0] casez_mux_15;
     wire [3:0] shl_2;
     wire [3:0] mul_9;
     wire [3:0] add_10;
@@ -10279,7 +10276,7 @@ module mod_11_0004 (
     logic  case_mux_7;
     wire [2:0] add_11;
     wire [3:0] not_15;
-    logic [3:0] casez_mux_17;
+    logic [3:0] casez_mux_16;
     wire [3:0] mul_11;
     wire  mux_40;
     wire [2:0] not_16;
@@ -10310,7 +10307,7 @@ module mod_11_0004 (
     wire [3:0] mux_42;
     wire [2:0] and_42;
     wire [2:0] mul_12;
-    logic [1:0] casez_mux_18;
+    logic [1:0] casez_mux_17;
     wire [1:0] xor_16;
     logic [3:0] case_mux_9;
     wire  eq_28;
@@ -10322,9 +10319,9 @@ module mod_11_0004 (
     wire  eq_31;
     wire [3:0] mux_46;
     wire [2:0] concat_21;
-    logic [1:0] casez_mux_19;
+    logic [1:0] casez_mux_18;
     wire [2:0] not_18;
-    logic [3:0] casez_mux_20;
+    logic [3:0] casez_mux_19;
     wire [3:0] mul_13;
     wire [3:0] slice_20;
     wire [3:0] shl_3;
@@ -10335,9 +10332,9 @@ module mod_11_0004 (
     wire [3:0] add_12;
     wire [1:0] mul_16;
     wire [1:0] mul_17;
-    logic [2:0] casez_mux_21;
+    logic [2:0] casez_mux_20;
     wire  neq_1;
-    logic  casez_mux_22;
+    logic  casez_mux_21;
     wire [3:0] xor_19;
     wire [3:0] mul_18;
     wire [3:0] mul_19;
@@ -10383,7 +10380,7 @@ module mod_11_0004 (
     wire [5:0] mux_54;
     wire  eq_42;
     wire [5:0] mux_55;
-    logic [11:0] casez_mux_23;
+    logic [11:0] casez_mux_22;
     wire [11:0] sub_23;
     logic [5:0] for_fold_add_1;
     wire [5:0] shr_3;
@@ -10480,8 +10477,8 @@ module mod_11_0004 (
     wire  neq_6;
     logic  case_mux_12;
     logic  case_mux_13;
+    logic  casez_mux_23;
     logic  casez_mux_24;
-    logic  casez_mux_25;
     wire  or_53;
     wire  mux_66;
     logic  case_mux_14;
@@ -10493,7 +10490,7 @@ module mod_11_0004 (
     logic  for_fold_xor_3;
     wire  sub_28;
     wire  sub_29;
-    logic  casez_mux_26;
+    logic  casez_mux_25;
     wire [1:0] concat_31;
     wire [1:0] sub_30;
     wire  eq_49;
@@ -10522,11 +10519,11 @@ module mod_11_0004 (
     wire [7:0] shr_6;
     wire [7:0] xor_28;
     wire [7:0] or_57;
-    logic [7:0] casez_mux_27;
+    logic [7:0] casez_mux_26;
     wire [7:0] and_64;
-    logic [7:0] casez_mux_28;
+    logic [7:0] casez_mux_27;
     wire [2:0] sub_31;
-    logic [2:0] casez_mux_29;
+    logic [2:0] casez_mux_28;
     wire [2:0] shr_7;
     wire [2:0] add_21;
     wire [1:0] mul_30;
@@ -10552,7 +10549,7 @@ module mod_11_0004 (
     wire [2:0] sub_34;
     wire [2:0] sub_35;
     wire [2:0] not_28;
-    logic [2:0] casez_mux_30;
+    logic [2:0] casez_mux_29;
     wire  or_58;
     wire [2:0] not_29;
     wire [2:0] add_24;
@@ -10560,7 +10557,7 @@ module mod_11_0004 (
     wire [2:0] shr_9;
     wire [2:0] not_30;
     wire [2:0] not_31;
-    logic [2:0] casez_mux_31;
+    logic [2:0] casez_mux_30;
     wire [2:0] shr_10;
     wire  add_25;
     wire  add_26;
@@ -10569,7 +10566,7 @@ module mod_11_0004 (
     wire [8:0] slice_25;
     wire [8:0] shr_11;
     logic [2:0] for_fold_and_4;
-    logic [2:0] casez_mux_32;
+    logic [2:0] casez_mux_31;
     wire [2:0] mul_35;
     wire  red_and_4;
     wire  mul_36;
@@ -10594,7 +10591,7 @@ module mod_11_0004 (
     wire  eq_66;
     wire [7:0] shr_12;
     wire  red_or_4;
-    logic  casez_mux_33;
+    logic  casez_mux_32;
     wire [2:0] concat_33;
     wire [2:0] and_67;
     wire [2:0] concat_34;
@@ -10645,16 +10642,16 @@ module mod_11_0004 (
     wire [5:0] or_64;
     wire [5:0] or_65;
     wire [5:0] shr_13;
-    logic [5:0] casez_mux_34;
+    logic [5:0] casez_mux_33;
     wire [5:0] shl_6;
     wire [5:0] and_73;
     wire [5:0] or_66;
     wire [1:0] not_38;
-    logic  casez_mux_35;
+    logic  casez_mux_34;
     wire  mul_42;
     wire  add_28;
     wire  red_or_5;
-    logic  casez_mux_36;
+    logic  casez_mux_35;
     wire  or_67;
     wire [2:0] or_68;
     wire  slice_28;
@@ -10756,7 +10753,7 @@ module mod_11_0004 (
     wire  not_44;
     wire  slice_30;
     wire  and_92;
-    logic  casez_mux_37;
+    logic  casez_mux_36;
     wire  sub_40;
     wire  red_and_6;
     wire  not_45;
@@ -10769,7 +10766,7 @@ module mod_11_0004 (
     wire  or_80;
     wire  mux_104;
     wire  or_81;
-    logic [2:0] casez_mux_38;
+    logic [2:0] casez_mux_37;
     wire [6:0] concat_49;
     wire  red_and_7;
     wire  or_82;
@@ -10790,7 +10787,7 @@ module mod_11_0004 (
     wire [5:0] add_34;
     wire [5:0] not_47;
     logic [5:0] case_mux_21;
-    logic [5:0] casez_mux_39;
+    logic [5:0] casez_mux_38;
     wire  red_xor_3;
     wire  eq_78;
     wire [4:0] mux_105;
@@ -10840,7 +10837,7 @@ module mod_11_0004 (
     wire [1:0] mux_113;
     wire [1:0] not_50;
     wire [1:0] shr_14;
-    logic [1:0] casez_mux_40;
+    logic [1:0] casez_mux_39;
     wire  sub_45;
     wire  not_51;
     wire  eq_80;
@@ -10860,36 +10857,34 @@ module mod_11_0004 (
     wire  sub_46;
     logic  case_mux_24;
     wire  add_39;
-    wire [5:0] and_109;
     wire [5:0] mul_52;
     wire [5:0] mul_53;
-    wire [5:0] mul_54;
     wire [5:0] add_40;
     wire [5:0] concat_57;
-    wire [5:0] and_110;
+    wire [5:0] and_109;
     wire [5:0] concat_58;
-    wire [5:0] and_111;
+    wire [5:0] and_110;
     wire [5:0] or_92;
     wire  eq_82;
     wire [5:0] mux_116;
     wire  eq_83;
     wire [5:0] mux_117;
-    logic [2:0] casez_mux_41;
+    logic [2:0] casez_mux_40;
     wire [1:0] slice_32;
     wire [9:0] not_53;
     wire [9:0] add_41;
     wire [9:0] xor_49;
     wire [9:0] or_93;
-    wire [9:0] and_112;
+    wire [9:0] and_111;
     wire [12:0] slice_33;
     wire [12:0] sub_47;
+    wire [12:0] mul_54;
     wire [12:0] mul_55;
     wire [12:0] mul_56;
-    wire [12:0] mul_57;
     wire [12:0] add_42;
     wire [12:0] or_94;
     wire [12:0] xor_50;
-    wire [12:0] and_113;
+    wire [12:0] and_112;
     wire [9:0] slice_34;
     logic [9:0] case_mux_25;
     wire [7:0] slice_35;
@@ -10901,19 +10896,19 @@ module mod_11_0004 (
     wire [23:0] sub_49;
     wire [1:0] xor_51;
     wire [1:0] shl_8;
-    wire [1:0] and_114;
+    wire [1:0] and_113;
     wire [1:0] not_55;
     wire [1:0] sub_50;
     wire  xor_52;
     wire  red_or_6;
-    logic  casez_mux_42;
+    logic  casez_mux_41;
     wire [23:0] concat_60;
     wire [23:0] add_44;
-    logic [2:0] casez_mux_43;
-    wire [2:0] mul_58;
+    logic [2:0] casez_mux_42;
+    wire [2:0] mul_57;
     logic  for_fold_and_7;
     wire [2:0] concat_61;
-    wire [2:0] and_115;
+    wire [2:0] and_114;
     wire [2:0] concat_62;
     wire [2:0] or_95;
     logic  for_fold_and_8;
@@ -10929,16 +10924,16 @@ module mod_11_0004 (
     wire  not_56;
     wire  add_45;
     wire  xor_53;
-    wire  and_116;
+    wire  and_115;
     wire  xor_54;
     wire [23:0] concat_63;
-    wire [23:0] and_117;
+    wire [23:0] and_116;
     wire [23:0] concat_64;
-    wire [23:0] and_118;
+    wire [23:0] and_117;
     wire  or_96;
     wire  not_57;
     wire [23:0] concat_65;
-    wire [23:0] and_119;
+    wire [23:0] and_118;
     wire [23:0] or_97;
     wire  red_xor_5;
     wire [9:0] concat_66;
@@ -10986,7 +10981,7 @@ module mod_11_0004 (
     assign eq_9 = not_0 == 2'h0;
     assign mux_8 = (eq_9) ? (6'h7) : (mux_7);
     assign add_1 = case_mux_2 + 6'h21;
-    assign xor_2 = flop_4 ^ casez_mux_2 ^ flop_7 ^ add_1;
+    assign xor_2 = flop_4 ^ casez_mux_1 ^ flop_7 ^ add_1;
     assign concat_3 = {6{for_fold_xor_0}};
     assign and_3 = 6'h3e & concat_3;
     assign concat_4 = {6{red_or_1}};
@@ -11005,10 +11000,10 @@ module mod_11_0004 (
     assign or_3 = 6'h28 | and_6;
     assign or_4 = 6'h28 | and_6 | and_7;
     assign or_5 = 6'h3f | and_6 | and_7;
-    assign mul_0 = casez_mux_4 * 3'h6;
+    assign mul_0 = casez_mux_3 * 3'h6;
     assign concat_7 = {6{flop_8}};
     assign and_8 = or_1 & concat_7;
-    assign and_9 = casez_mux_3 & concat_4;
+    assign and_9 = casez_mux_2 & concat_4;
     assign or_6 = flop_8 | red_or_1;
     assign not_1 = ~or_6;
     assign concat_8 = {6{not_1}};
@@ -11020,7 +11015,7 @@ module mod_11_0004 (
     assign mux_11 = (mux_10) ? (8'h76) : (or_9);
     assign not_2 = ~mux_11;
     assign not_3 = ~add_1;
-    assign or_10 = casez_mux_2 | and_8 | and_9 | not_3 | 6'h2a;
+    assign or_10 = casez_mux_1 | and_8 | and_9 | not_3 | 6'h2a;
     assign and_10 = not_0 & for_fold_or_1;
     assign xor_3 = i_3 ^ for_fold_and_0 ^ for_fold_or_1 ^ and_10;
     assign slice_8 = flop_0[1:0];
@@ -11032,7 +11027,7 @@ module mod_11_0004 (
     assign concat_10 = {2{eq_2}};
     assign sub_1 = concat_10 - concat_9;
     assign xor_4 = 2'h3 ^ flop_9;
-    assign mul_1 = 2'h2 * for_fold_or_1 * casez_mux_5 * sub_1 * xor_4;
+    assign mul_1 = 2'h2 * for_fold_or_1 * casez_mux_4 * sub_1 * xor_4;
     assign not_4 = ~i_0;
     assign xor_5 = mul_1 ^ not_4;
     assign mul_2 = 2'h3 * slice_9 * xor_5;
@@ -11052,7 +11047,7 @@ module mod_11_0004 (
     assign add_2 = xor_2 + mul_3 + 6'h14;
     assign or_13 = i_6 | and_8 | and_9 | 6'h13;
     assign xor_6 = 6'h5 ^ or_13;
-    assign add_3 = flop_13 + casez_mux_7;
+    assign add_3 = flop_13 + casez_mux_6;
     assign xor_7 = concat_4 ^ add_3;
     assign sub_2 = flop_16 - case_mux_2;
     assign or_14 = xor_7 | flop_15 | sub_2;
@@ -11074,7 +11069,7 @@ module mod_11_0004 (
     assign gt_1 = mux_18 > slice_4;
     assign slice_10 = i_1[0];
     assign concat_13 = {slice_10, i_1};
-    assign ge_1 = casez_mux_9 >= 8'h10;
+    assign ge_1 = casez_mux_8 >= 8'h10;
     assign lt_0 = slice_9 < concat_10;
     assign xor_8 = gt_1 ^ ge_1 ^ lt_0;
     assign not_7 = ~mux_9;
@@ -11088,12 +11083,12 @@ module mod_11_0004 (
     assign not_8 = ~or_15;
     assign and_18 = flop_18 & not_8;
     assign or_16 = and_15 | and_16 | and_17 | and_18;
-    assign shr_1 = casez_mux_4 >> 1'h1;
+    assign shr_1 = casez_mux_3 >> 1'h1;
     assign mul_4 = 3'h5 * shr_1;
     assign sub_4 = mul_0 - mul_4;
-    assign sub_5 = 2'h0 - casez_mux_10;
+    assign sub_5 = 2'h0 - casez_mux_9;
     assign add_5 = 2'h3 + sub_5 + flop_22;
-    assign and_19 = eq_8 & casez_mux_11;
+    assign and_19 = eq_8 & casez_mux_10;
     assign or_17 = 1'h0 | and_19;
     assign and_20 = mux_2 & not_7 & or_15;
     assign sub_6 = sub_3 - xor_8;
@@ -11110,7 +11105,7 @@ module mod_11_0004 (
     assign and_21 = eq_7 & flop_18 & not_8 & flop_24;
     assign slice_11 = flop_25[4:2];
     assign not_9 = ~flop_26;
-    assign gt_2 = casez_mux_4 > flop_0;
+    assign gt_2 = casez_mux_3 > flop_0;
     assign mux_23 = (gt_2) ? (xor_0) : (3'h0);
     assign eq_22 = gt_2 == 1'h0;
     assign mux_24 = (eq_22) ? (3'h5) : (mux_23);
@@ -11155,11 +11150,11 @@ module mod_11_0004 (
     assign not_12 = ~mux_18;
     assign slice_15 = concat_13[6:0];
     assign shl_1 = slice_15 << 1'h0;
-    assign mux_30 = (casez_mux_12) ? (shl_1) : (7'h12);
+    assign mux_30 = (casez_mux_11) ? (shl_1) : (7'h12);
     assign slice_16 = mux_30[5:1];
     assign lt_1 = case_mux_4 < slice_16;
     assign slice_17 = slice_11[1];
-    assign mux_31 = (slice_17) ? (casez_mux_13) : (red_xor_1);
+    assign mux_31 = (slice_17) ? (casez_mux_12) : (red_xor_1);
     assign slice_18 = slice_16[3];
     assign and_29 = red_xor_1 & mux_29;
     assign or_24 = eq_8 | eq_17 | and_29;
@@ -11181,18 +11176,18 @@ module mod_11_0004 (
     assign sub_13 = sub_12 - for_fold_xor_1;
     assign neq_0 = sub_3 != not_8;
     assign or_25 = flop_23 | mux_36 | neq_0;
-    assign or_26 = mux_10 | casez_mux_14;
+    assign or_26 = mux_10 | casez_mux_13;
     assign and_30 = xor_11 & eq_23;
     assign and_31 = lt_1 & mux_31;
     assign and_32 = add_8 & or_26;
     assign or_27 = eq_23 | mux_31;
-    assign or_28 = mux_10 | eq_23 | mux_31 | casez_mux_14;
+    assign or_28 = mux_10 | eq_23 | mux_31 | casez_mux_13;
     assign not_14 = ~or_28;
     assign and_33 = flop_29 & not_14;
     assign or_29 = and_30 | and_31;
     assign or_30 = and_30 | and_31 | and_32;
     assign or_31 = and_30 | and_31 | and_32 | and_33;
-    assign sub_14 = casez_mux_10 - 2'h3;
+    assign sub_14 = casez_mux_9 - 2'h3;
     assign xor_12 = i_3 ^ sub_1 ^ mul_2 ^ add_7;
     assign xor_13 = 2'h3 ^ add_7 ^ case_mux_5;
     assign mul_5 = 2'h3 * sub_14;
@@ -11211,13 +11206,13 @@ module mod_11_0004 (
     assign add_9 = 2'h1 + sub_5;
     assign shl_2 = xor_10 << not_2;
     assign mul_9 = flop_27 * 4'he;
-    assign add_10 = flop_27 + 4'he + casez_mux_16 + mul_9;
-    assign mul_10 = casez_mux_15 * 4'he * shl_2 * add_10;
+    assign add_10 = flop_27 + 4'he + casez_mux_15 + mul_9;
+    assign mul_10 = casez_mux_14 * 4'he * shl_2 * add_10;
     assign eq_27 = or_2 == i_5;
     assign or_33 = mux_10 | 1'h0 | eq_27;
     assign add_11 = flop_0 + 3'h5;
     assign not_15 = ~mul_10;
-    assign mul_11 = 4'ha * casez_mux_17;
+    assign mul_11 = 4'ha * casez_mux_16;
     assign mux_40 = (sub_7) ? (eq_17) : (mux_31);
     assign not_16 = ~flop_0;
     assign red_and_3 = &(not_16);
@@ -11233,7 +11228,7 @@ module mod_11_0004 (
     assign and_37 = mux_40 & or_35;
     assign and_38 = or_36 & mux_41;
     assign or_38 = and_37 | and_38;
-    assign and_39 = casez_mux_16 & 4'hf;
+    assign and_39 = casez_mux_15 & 4'hf;
     assign concat_19 = {4{case_mux_7}};
     assign and_40 = mul_10 & concat_19;
     assign concat_20 = {4{or_38}};
@@ -11247,36 +11242,36 @@ module mod_11_0004 (
     assign and_42 = flop_0 & 3'h2 & shl_0 & concat_16;
     assign mul_12 = 3'h3 * concat_18 * and_42;
     assign xor_16 = 2'h2 ^ slice_8 ^ concat_9 ^ and_11;
-    assign eq_28 = casez_mux_18 == 2'h3;
+    assign eq_28 = casez_mux_17 == 2'h3;
     assign mux_43 = (eq_28) ? (4'h6) : (4'h0);
-    assign eq_29 = casez_mux_18 == 2'h2;
+    assign eq_29 = casez_mux_17 == 2'h2;
     assign mux_44 = (eq_29) ? (4'h1) : (mux_43);
-    assign eq_30 = casez_mux_18 == 2'h1;
+    assign eq_30 = casez_mux_17 == 2'h1;
     assign mux_45 = (eq_30) ? (case_mux_9) : (mux_44);
-    assign eq_31 = casez_mux_18 == 2'h0;
+    assign eq_31 = casez_mux_17 == 2'h0;
     assign mux_46 = (eq_31) ? (4'h5) : (mux_45);
     assign concat_21 = {2'h0, or_27};
     assign not_18 = ~concat_17;
-    assign mul_13 = 4'hf * casez_mux_20;
+    assign mul_13 = 4'hf * casez_mux_19;
     assign slice_20 = for_fold_and_2[6:3];
     assign shl_3 = concat_20 << 1'h1;
-    assign xor_17 = casez_mux_15 ^ not_17 ^ slice_20 ^ shl_3;
-    assign xor_18 = 4'h5 ^ casez_mux_15 ^ casez_mux_16 ^ not_17 ^ slice_20 ^ shl_3;
+    assign xor_17 = casez_mux_14 ^ not_17 ^ slice_20 ^ shl_3;
+    assign xor_18 = 4'h5 ^ casez_mux_14 ^ casez_mux_15 ^ not_17 ^ slice_20 ^ shl_3;
     assign mul_14 = 4'h8 * xor_17;
     assign mul_15 = 4'ha * xor_18;
     assign add_12 = mul_14 + mul_15;
     assign mul_16 = for_fold_and_0 * slice_9 * sub_15;
     assign mul_17 = for_fold_and_0 * slice_9 * and_11 * not_4 * sub_15;
-    assign neq_1 = casez_mux_21 != 3'h5;
+    assign neq_1 = casez_mux_20 != 3'h5;
     assign xor_19 = 4'h9 ^ and_40 ^ not_17 ^ mul_14;
     assign mul_18 = flop_27 * 4'h6;
     assign mul_19 = 4'h6 * xor_19;
     assign add_13 = mul_18 + mul_19;
     assign add_14 = eq_11 + or_25 + 1'h1;
     assign concat_22 = {4{add_14}};
-    assign eq_32 = casez_mux_19 == 2'h3;
-    assign eq_33 = casez_mux_19 == 2'h2;
-    assign eq_34 = casez_mux_19 == 2'h0;
+    assign eq_32 = casez_mux_18 == 2'h3;
+    assign eq_33 = casez_mux_18 == 2'h2;
+    assign eq_34 = casez_mux_18 == 2'h0;
     assign not_19 = ~mux_5;
     assign or_40 = mux_6 | 6'h14 | not_19;
     assign sub_19 = or_32 - or_7;
@@ -11291,7 +11286,7 @@ module mod_11_0004 (
     assign mul_22 = 6'h5 * and_43;
     assign mul_23 = for_fold_and_1 * 6'hf;
     assign add_15 = mul_22 + 6'h3c + mul_23;
-    assign neq_2 = casez_mux_18 != 2'h0;
+    assign neq_2 = casez_mux_17 != 2'h0;
     assign mux_47 = (mux_33) ? (concat_10) : (2'h1);
     assign mul_24 = flop_5 * mux_7 * 6'h22;
     assign neq_3 = or_2 != i_5;
@@ -11302,7 +11297,7 @@ module mod_11_0004 (
     assign eq_36 = slice_8 == 2'h2;
     assign mux_49 = (eq_36) ? (6'h9) : (mux_48);
     assign eq_37 = slice_8 == 2'h1;
-    assign mux_50 = (eq_37) ? (casez_mux_3) : (mux_49);
+    assign mux_50 = (eq_37) ? (casez_mux_2) : (mux_49);
     assign eq_38 = slice_8 == 2'h0;
     assign mux_51 = (eq_38) ? (mul_24) : (mux_50);
     assign eq_39 = mux_47 == 2'h3;
@@ -11313,14 +11308,14 @@ module mod_11_0004 (
     assign mux_54 = (eq_41) ? (6'h1f) : (mux_53);
     assign eq_42 = mux_47 == 2'h0;
     assign mux_55 = (eq_42) ? (mul_24) : (mux_54);
-    assign sub_23 = casez_mux_23 - 12'h43;
+    assign sub_23 = casez_mux_22 - 12'h43;
     assign shr_3 = for_fold_add_1 >> 1'h0;
     assign mul_25 = 6'h27 * concat_23 * mux_55 * shr_3;
     assign slice_21 = concat_13[17:0];
     assign neq_4 = 6'h1e != for_fold_or_2;
     assign sub_24 = neq_4 - 1'h1;
     assign not_20 = ~sub_24;
-    assign and_44 = concat_3 & casez_mux_3 & concat_4 & mul_20 & 6'h3c;
+    assign and_44 = concat_3 & casez_mux_2 & concat_4 & mul_20 & 6'h3c;
     assign mul_26 = 6'h5 * and_44;
     assign sub_25 = mul_26 - 6'h3f;
     assign mul_27 = 6'h3f * sub_25;
@@ -11361,7 +11356,7 @@ module mod_11_0004 (
     assign shl_4 = or_45 << 2'h2;
     assign and_53 = case_mux_11 & or_44;
     assign or_46 = gt_1 | red_or_2 | and_53;
-    assign not_21 = ~casez_mux_17;
+    assign not_21 = ~casez_mux_16;
     assign or_47 = and_39 | and_40 | and_41 | not_21;
     assign not_22 = ~red_and_0;
     assign eq_46 = 4'h8 == concat_22;
@@ -11399,7 +11394,7 @@ module mod_11_0004 (
     assign and_59 = concat_9 & concat_29;
     assign or_52 = and_58 | and_59;
     assign neq_6 = not_24 != and_46;
-    assign or_53 = slice_13 | lt_1 | casez_mux_25;
+    assign or_53 = slice_13 | lt_1 | casez_mux_24;
     assign mux_66 = (or_53) ? (1'h0) : (eq_14);
     assign and_60 = le_1 & add_19;
     assign or_54 = not_23 | case_mux_14 | and_60;
@@ -11408,7 +11403,7 @@ module mod_11_0004 (
     assign concat_30 = {or_55, le_0};
     assign sub_28 = mux_60 - 1'h1;
     assign sub_29 = sub_28 - 1'h1;
-    assign concat_31 = {casez_mux_26, 1'h1};
+    assign concat_31 = {casez_mux_25, 1'h1};
     assign sub_30 = 2'h1 - concat_31;
     assign eq_49 = slice_24 == 2'h2;
     assign mux_67 = (eq_49) ? (sub_30) : (flop_22);
@@ -11429,15 +11424,15 @@ module mod_11_0004 (
     assign and_62 = 3'h0 & slice_11 & mux_73;
     assign not_27 = ~for_fold_or_3;
     assign or_56 = i_5 | flop_10 | 8'hfd | not_27;
-    assign and_63 = case_mux_0 & casez_mux_9 & 8'he5;
+    assign and_63 = case_mux_0 & casez_mux_8 & 8'he5;
     assign xor_27 = or_56 ^ and_63;
     assign shr_6 = xor_27 >> 1'h1;
     assign xor_28 = flop_10 ^ not_2 ^ 8'h3d;
     assign or_57 = 8'hc6 | xor_28;
-    assign and_64 = or_56 & 8'h3b & casez_mux_27;
+    assign and_64 = or_56 & 8'h3b & casez_mux_26;
     assign sub_31 = concat_14 - and_62;
-    assign shr_7 = casez_mux_29 >> 2'h2;
-    assign add_21 = 3'h6 + shl_0 + casez_mux_29;
+    assign shr_7 = casez_mux_28 >> 2'h2;
+    assign add_21 = 3'h6 + shl_0 + casez_mux_28;
     assign mul_30 = 2'h3 * slice_9 * xor_13 * concat_30;
     assign shr_8 = not_0 >> 1'h0;
     assign add_22 = 2'h3 + sub_5 + flop_22 + xor_13 + mul_30 + shr_8;
@@ -11468,14 +11463,14 @@ module mod_11_0004 (
     assign shr_9 = xor_9 >> 1'h0;
     assign not_30 = ~and_13;
     assign not_31 = ~or_23;
-    assign shr_10 = casez_mux_31 >> 1'h0;
+    assign shr_10 = casez_mux_30 >> 1'h0;
     assign add_25 = mux_9 + mux_21 + or_49;
     assign add_26 = for_fold_and_3 + mux_66;
     assign not_32 = ~add_26;
     assign and_65 = add_25 & not_32;
     assign slice_25 = concat_13[8:0];
     assign shr_11 = slice_25 >> 1'h0;
-    assign mul_35 = 3'h4 * casez_mux_32;
+    assign mul_35 = 3'h4 * casez_mux_31;
     assign red_and_4 = &(shr_4);
     assign mul_36 = sub_9 * red_and_4;
     assign concat_32 = {eq_15, concat_16, not_9, mul_36};
@@ -11490,20 +11485,20 @@ module mod_11_0004 (
     assign mux_82 = (eq_64) ? (concat_32) : (mux_81);
     assign slice_26 = mux_82[4:3];
     assign or_59 = mux_36 | eq_47;
-    assign mux_83 = (casez_mux_8) ? (mux_64) : (2'h2);
-    assign and_66 = 2'h0 & casez_mux_18 & mux_64;
+    assign mux_83 = (casez_mux_7) ? (mux_64) : (2'h2);
+    assign and_66 = 2'h0 & casez_mux_17 & mux_64;
     assign xor_30 = flop_9 ^ mux_83 ^ and_66;
     assign not_33 = ~mux_66;
     assign eq_65 = xor_30 == 2'h3;
     assign mux_84 = (eq_65) ? (mux_2) : (1'h0);
     assign eq_66 = xor_30 == 2'h1;
-    assign shr_12 = casez_mux_27 >> 3'h6;
+    assign shr_12 = casez_mux_26 >> 3'h6;
     assign red_or_4 = |(shr_12);
     assign concat_33 = {3{or_58}};
-    assign and_67 = casez_mux_30 & concat_33;
+    assign and_67 = casez_mux_29 & concat_33;
     assign concat_34 = {3{and_65}};
     assign and_68 = shr_10 & concat_34;
-    assign concat_35 = {3{casez_mux_33}};
+    assign concat_35 = {3{casez_mux_32}};
     assign and_69 = mul_35 & concat_35;
     assign or_60 = and_67 | and_68 | and_69;
     assign or_61 = shr_2 | mul_19;
@@ -11546,14 +11541,14 @@ module mod_11_0004 (
     assign or_64 = xor_2 | and_71;
     assign or_65 = xor_2 | and_71 | and_72;
     assign shr_13 = or_65 >> 2'h3;
-    assign shl_6 = casez_mux_34 << 3'h4;
+    assign shl_6 = casez_mux_33 << 3'h4;
     assign and_73 = add_1 & or_5 & mux_14 & 6'h12 & concat_32 & not_36 & shl_6;
     assign or_66 = concat_32 | shr_13 | 6'h19 | and_73;
     assign not_38 = ~slice_8;
-    assign mul_42 = casez_mux_35 * 1'h0;
+    assign mul_42 = casez_mux_34 * 1'h0;
     assign add_28 = le_0 + or_25;
     assign red_or_5 = |(and_12);
-    assign or_67 = eq_29 | mul_36 | add_28 | casez_mux_36;
+    assign or_67 = eq_29 | mul_36 | add_28 | casez_mux_35;
     assign or_68 = and_22 | concat_16 | mux_77 | not_30;
     assign slice_28 = or_68[1];
     assign add_29 = 1'h1 + red_or_0;
@@ -11621,7 +11616,7 @@ module mod_11_0004 (
     assign mux_100 = (eq_76) ? (or_77) : (6'h0);
     assign eq_77 = not_40 == 1'h0;
     assign mux_101 = (eq_77) ? (or_76) : (mux_100);
-    assign xor_41 = casez_mux_23 ^ 12'hc18;
+    assign xor_41 = casez_mux_22 ^ 12'hc18;
     assign sub_38 = case_mux_2 - for_fold_xor_5;
     assign sub_39 = sub_38 - 6'h36;
     assign mul_44 = shr_5 * 7'h44;
@@ -11641,13 +11636,13 @@ module mod_11_0004 (
     assign concat_48 = {3{mux_84}};
     assign and_91 = 3'h1 & concat_48;
     assign or_79 = 3'h7 | and_91;
-    assign mul_45 = 3'h2 * casez_mux_4 * and_25 * concat_21;
+    assign mul_45 = 3'h2 * casez_mux_3 * and_25 * concat_21;
     assign xor_43 = 3'h1 ^ flop_0 ^ sub_27;
     assign add_32 = 3'h7 + mul_45 + xor_43;
     assign not_44 = ~flop_6;
     assign slice_30 = not_26[0];
     assign and_92 = 1'h0 & slice_30;
-    assign sub_40 = not_44 - casez_mux_37;
+    assign sub_40 = not_44 - casez_mux_36;
     assign red_and_6 = &(shr_6);
     assign not_45 = ~red_and_6;
     assign add_33 = not_10 + eq_48;
@@ -11659,7 +11654,7 @@ module mod_11_0004 (
     assign or_80 = sub_42 | and_93 | and_94;
     assign mux_104 = (sub_40) ? (or_80) : (1'h1);
     assign or_81 = eq_14 | not_10 | slice_19;
-    assign concat_49 = {4'he, casez_mux_38};
+    assign concat_49 = {4'he, casez_mux_37};
     assign red_and_7 = &(concat_49);
     assign or_82 = eq_14 | not_10 | slice_19 | red_and_7;
     assign lt_3 = mux_104 < or_82;
@@ -11682,7 +11677,7 @@ module mod_11_0004 (
     assign eq_78 = gt_3 == 1'h0;
     assign mux_105 = (eq_78) ? (5'h11) : (5'h0);
     assign eq_79 = 5'h7 == mux_105;
-    assign and_99 = 3'h4 & or_79 & casez_mux_38;
+    assign and_99 = 3'h4 & or_79 & casez_mux_37;
     assign add_35 = 3'h1 + mul_12 + and_91;
     assign or_86 = and_99 | add_35;
     assign not_48 = ~and_34;
@@ -11690,7 +11685,7 @@ module mod_11_0004 (
     assign red_xor_4 = ^(or_86);
     assign sub_44 = 1'h0 - or_72;
     assign xor_44 = slice_18 ^ or_28 ^ sub_44;
-    assign mux_106 = (eq_29) ? (casez_mux_12) : (xor_44);
+    assign mux_106 = (eq_29) ? (casez_mux_11) : (xor_44);
     assign and_100 = eq_79 & red_xor_4;
     assign and_101 = 1'h1 & mux_106;
     assign or_87 = and_100 | and_101;
@@ -11699,7 +11694,7 @@ module mod_11_0004 (
     assign or_88 = and_47 | mul_46;
     assign add_36 = 3'h6 + xor_15 + concat_50 + or_84 + case_mux_22;
     assign mux_107 = (eq_78) ? (1'h1) : (1'h0);
-    assign mux_108 = (casez_mux_22) ? (1'h0) : (mux_107);
+    assign mux_108 = (casez_mux_21) ? (1'h0) : (mux_107);
     assign mul_47 = eq_2 * mux_108;
     assign xor_46 = eq_48 ^ for_fold_and_6 ^ mul_47;
     assign or_89 = eq_33 | slice_28;
@@ -11708,7 +11703,7 @@ module mod_11_0004 (
     assign and_102 = case_mux_8 & or_62 & mux_109;
     assign and_103 = or_33 & xor_46 & or_89 & case_mux_23;
     assign concat_54 = {6{xor_45}};
-    assign and_104 = casez_mux_39 & concat_54;
+    assign and_104 = casez_mux_38 & concat_54;
     assign concat_55 = {6{and_103}};
     assign and_105 = or_88 & concat_55;
     assign or_90 = xor_45 | and_103;
@@ -11726,9 +11721,9 @@ module mod_11_0004 (
     assign shr_14 = slice_24 >> 1'h1;
     assign sub_45 = case_mux_10 - 1'h1;
     assign not_51 = ~sub_45;
-    assign eq_80 = casez_mux_40 == 2'h1;
+    assign eq_80 = casez_mux_39 == 2'h1;
     assign mux_114 = (eq_80) ? (not_51) : (flop_6);
-    assign eq_81 = casez_mux_40 == 2'h0;
+    assign eq_81 = casez_mux_39 == 2'h0;
     assign mux_115 = (eq_81) ? (flop_6) : (mux_114);
     assign ge_3 = slice_9 >= concat_10;
     assign and_107 = or_0 & concat_6 & mul_20 & sub_21 & mux_52 & shr_13;
@@ -11739,39 +11734,37 @@ module mod_11_0004 (
     assign add_38 = 6'h4 + mul_49 + mul_50 + mul_51;
     assign shl_7 = add_38 << 2'h3;
     assign and_108 = 6'h39 & flop_7 & not_52 & shl_7;
-    assign xor_48 = 6'h10 ^ casez_mux_3 ^ and_107 ^ and_108;
+    assign xor_48 = 6'h10 ^ casez_mux_2 ^ and_107 ^ and_108;
     assign sub_46 = or_59 - not_51;
     assign add_39 = and_20 + case_mux_24;
-    assign and_109 = casez_mux_1 & concat_7 & 6'h0;
     assign mul_52 = or_4 * 6'he;
-    assign mul_53 = 6'h5 * and_109;
-    assign mul_54 = 6'h3 * sub_38;
-    assign add_40 = mul_52 + mul_53 + mul_54;
+    assign mul_53 = 6'h3 * sub_38;
+    assign add_40 = mul_52 + 6'h0 + mul_53;
     assign concat_57 = {6{add_39}};
-    assign and_110 = 6'h26 & concat_57;
+    assign and_109 = 6'h26 & concat_57;
     assign concat_58 = {6{eq_1}};
-    assign and_111 = or_0 & concat_6 & xor_20 & add_15 & mux_53 & mux_55 & 6'h2 & add_40 & concat_58;
-    assign or_92 = and_110 | and_111;
+    assign and_110 = or_0 & concat_6 & xor_20 & add_15 & mux_53 & mux_55 & 6'h2 & add_40 & concat_58;
+    assign or_92 = and_109 | and_110;
     assign eq_82 = ge_3 == 1'h1;
     assign mux_116 = (eq_82) ? (or_92) : (6'h0);
     assign eq_83 = ge_3 == 1'h0;
     assign mux_117 = (eq_83) ? (xor_48) : (mux_116);
-    assign slice_32 = casez_mux_41[1:0];
+    assign slice_32 = casez_mux_40[1:0];
     assign not_53 = ~case_mux_1;
     assign add_41 = case_mux_1 + concat_1;
     assign xor_49 = for_fold_or_0 ^ 10'h3d9;
     assign or_93 = and_98 | xor_49 | 10'h37f;
-    assign and_112 = case_mux_1 & add_41 & or_93;
+    assign and_111 = case_mux_1 & add_41 & or_93;
     assign slice_33 = concat_13[12:0];
     assign sub_47 = 13'h390 - slice_33;
-    assign mul_55 = slice_33 * 13'ha;
-    assign mul_56 = sub_47 * 13'h7;
-    assign mul_57 = slice_33 * 13'h5;
-    assign add_42 = mul_55 + 13'h141c + mul_56 + mul_57;
+    assign mul_54 = slice_33 * 13'ha;
+    assign mul_55 = sub_47 * 13'h7;
+    assign mul_56 = slice_33 * 13'h5;
+    assign add_42 = mul_54 + 13'h141c + mul_55 + mul_56;
     assign or_94 = sub_47 | add_42;
-    assign xor_50 = mul_55 ^ or_94 ^ 13'h1702;
-    assign and_113 = sub_47 & mul_56 & or_94 & xor_50;
-    assign slice_34 = and_113[11:2];
+    assign xor_50 = mul_54 ^ or_94 ^ 13'h1702;
+    assign and_112 = sub_47 & mul_55 & or_94 & xor_50;
+    assign slice_34 = and_112[11:2];
     assign slice_35 = concat_13[7:0];
     assign concat_59 = {slice_35, concat_13, concat_13};
     assign add_43 = mux_0 + for_fold_or_4 + 24'h83cec;
@@ -11780,18 +11773,18 @@ module mod_11_0004 (
     assign sub_49 = add_43 - flop_1;
     assign xor_51 = i_3 ^ for_fold_and_0 ^ slice_8 ^ sub_1 ^ mul_2 ^ add_7 ^ mul_37;
     assign shl_8 = xor_51 << 1'h0;
-    assign and_114 = 2'h0 & xor_13 & shl_8;
+    assign and_113 = 2'h0 & xor_13 & shl_8;
     assign not_55 = ~mul_16;
-    assign sub_50 = and_114 - not_55;
+    assign sub_50 = and_113 - not_55;
     assign xor_52 = 1'h1 ^ slice_14 ^ or_58;
     assign red_or_6 = |(concat_53);
-    assign concat_60 = {mul_55, concat_17, 1'h0, 7'h7f};
+    assign concat_60 = {mul_54, concat_17, 1'h0, 7'h7f};
     assign add_44 = and_1 + concat_60 + 24'h13a54a;
-    assign mul_58 = 3'h2 * casez_mux_43;
+    assign mul_57 = 3'h2 * casez_mux_42;
     assign concat_61 = {3{for_fold_and_7}};
-    assign and_115 = mul_58 & concat_61;
+    assign and_114 = mul_57 & concat_61;
     assign concat_62 = {3{or_35}};
-    assign or_95 = and_115 | concat_62;
+    assign or_95 = and_114 | concat_62;
     assign eq_84 = mux_83 == 2'h3;
     assign mux_118 = (eq_84) ? (and_18) : (1'h0);
     assign eq_85 = mux_83 == 2'h2;
@@ -11802,18 +11795,18 @@ module mod_11_0004 (
     assign mux_121 = (eq_87) ? (1'h1) : (mux_120);
     assign not_56 = ~flop_18;
     assign add_45 = case_mux_26 + not_56;
-    assign xor_53 = mux_10 ^ sub_9 ^ casez_mux_13;
-    assign and_116 = not_33 & add_45 & xor_53;
-    assign xor_54 = for_fold_and_8 ^ and_116;
-    assign concat_63 = {24{casez_mux_42}};
-    assign and_117 = sub_49 & concat_63;
+    assign xor_53 = mux_10 ^ sub_9 ^ casez_mux_12;
+    assign and_115 = not_33 & add_45 & xor_53;
+    assign xor_54 = for_fold_and_8 ^ and_115;
+    assign concat_63 = {24{casez_mux_41}};
+    assign and_116 = sub_49 & concat_63;
     assign concat_64 = {24{xor_54}};
-    assign and_118 = add_44 & concat_64;
-    assign or_96 = casez_mux_42 | xor_54;
+    assign and_117 = add_44 & concat_64;
+    assign or_96 = casez_mux_41 | xor_54;
     assign not_57 = ~or_96;
     assign concat_65 = {24{not_57}};
-    assign and_119 = flop_1 & concat_65;
-    assign or_97 = and_117 | and_118 | and_119;
+    assign and_118 = flop_1 & concat_65;
+    assign or_97 = and_116 | and_117 | and_118;
     assign red_xor_5 = ^(i_2);
     assign concat_66 = {10{red_xor_5}};
     assign red_xor_6 = ^(i_4);
@@ -11870,17 +11863,8 @@ module mod_11_0004 (
     end
 
     always_comb begin
-        casez (3'h0)
-            3'b00?: casez_mux_1 = i_6;
-            3'b01?: casez_mux_1 = flop_5;
-            3'b10?: casez_mux_1 = 6'h10;
-            default: casez_mux_1 = 6'h0;
-        endcase
-    end
-
-    always_comb begin
         case (flop_6)
-            1'd0: case_mux_2 = casez_mux_1;
+            1'd0: case_mux_2 = i_6;
             1'd1: case_mux_2 = 6'h10;
             default: case_mux_2 = 6'h0;
         endcase
@@ -11895,28 +11879,28 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h1)
-            3'b00?: casez_mux_2 = 6'h27;
-            3'b01?: casez_mux_2 = 6'h37;
-            3'b10?: casez_mux_2 = case_mux_2;
-            3'b11?: casez_mux_2 = mux_8;
-            default: casez_mux_2 = 6'h0;
+            3'b00?: casez_mux_1 = 6'h27;
+            3'b01?: casez_mux_1 = 6'h37;
+            3'b10?: casez_mux_1 = case_mux_2;
+            3'b11?: casez_mux_1 = mux_8;
+            default: casez_mux_1 = 6'h0;
         endcase
     end
 
     always_comb begin
         casez (flop_9)
-            2'b0?: casez_mux_3 = casez_mux_1;
-            2'b1?: casez_mux_3 = or_5;
-            default: casez_mux_3 = 6'h0;
+            2'b0?: casez_mux_2 = i_6;
+            2'b1?: casez_mux_2 = or_5;
+            default: casez_mux_2 = 6'h0;
         endcase
     end
 
     always_comb begin
         casez (xor_0)
-            3'b00?: casez_mux_4 = 3'h6;
-            3'b01?: casez_mux_4 = 3'h2;
-            3'b10?: casez_mux_4 = 3'h6;
-            default: casez_mux_4 = 3'h0;
+            3'b00?: casez_mux_3 = 3'h6;
+            3'b01?: casez_mux_3 = 3'h2;
+            3'b10?: casez_mux_3 = 3'h6;
+            default: casez_mux_3 = 3'h0;
         endcase
     end
 
@@ -11939,37 +11923,37 @@ module mod_11_0004 (
 
     always_comb begin
         casez (2'h0)
-            2'b0?: casez_mux_5 = 2'h0;
-            2'b1?: casez_mux_5 = slice_9;
-            default: casez_mux_5 = 2'h0;
+            2'b0?: casez_mux_4 = 2'h0;
+            2'b1?: casez_mux_4 = slice_9;
+            default: casez_mux_4 = 2'h0;
         endcase
     end
 
     always_comb begin
         casez (flop_14)
-            3'b00?: casez_mux_6 = 6'h1e;
-            3'b01?: casez_mux_6 = 6'h23;
-            3'b10?: casez_mux_6 = concat_8;
-            3'b11?: casez_mux_6 = 6'h35;
-            default: casez_mux_6 = 6'h0;
+            3'b00?: casez_mux_5 = 6'h1e;
+            3'b01?: casez_mux_5 = 6'h23;
+            3'b10?: casez_mux_5 = concat_8;
+            3'b11?: casez_mux_5 = 6'h35;
+            default: casez_mux_5 = 6'h0;
         endcase
     end
 
     always_comb begin
         casez (or_12)
-            3'b00?: casez_mux_7 = add_2;
-            3'b01?: casez_mux_7 = xor_6;
-            3'b10?: casez_mux_7 = casez_mux_6;
-            default: casez_mux_7 = 6'h0;
+            3'b00?: casez_mux_6 = add_2;
+            3'b01?: casez_mux_6 = xor_6;
+            3'b10?: casez_mux_6 = casez_mux_5;
+            default: casez_mux_6 = 6'h0;
         endcase
     end
 
     always_comb begin
         casez (mux_15)
-            3'b00?: casez_mux_8 = sub_3;
-            3'b01?: casez_mux_8 = 1'h0;
-            3'b10?: casez_mux_8 = 1'h0;
-            default: casez_mux_8 = 1'h0;
+            3'b00?: casez_mux_7 = sub_3;
+            3'b01?: casez_mux_7 = 1'h0;
+            3'b10?: casez_mux_7 = 1'h0;
+            default: casez_mux_7 = 1'h0;
         endcase
     end
 
@@ -11982,29 +11966,29 @@ module mod_11_0004 (
 
     always_comb begin
         casez (flop_19)
-            3'b00?: casez_mux_9 = flop_20;
-            3'b01?: casez_mux_9 = for_fold_and_2;
-            3'b10?: casez_mux_9 = 8'he6;
-            default: casez_mux_9 = 8'h0;
+            3'b00?: casez_mux_8 = flop_20;
+            3'b01?: casez_mux_8 = for_fold_and_2;
+            3'b10?: casez_mux_8 = 8'he6;
+            default: casez_mux_8 = 8'h0;
         endcase
     end
 
     always_comb begin
         casez (flop_14)
-            3'b00?: casez_mux_10 = 2'h3;
-            3'b01?: casez_mux_10 = 2'h2;
-            3'b10?: casez_mux_10 = 2'h2;
-            3'b11?: casez_mux_10 = 2'h0;
-            default: casez_mux_10 = 2'h0;
+            3'b00?: casez_mux_9 = 2'h3;
+            3'b01?: casez_mux_9 = 2'h2;
+            3'b10?: casez_mux_9 = 2'h2;
+            3'b11?: casez_mux_9 = 2'h0;
+            default: casez_mux_9 = 2'h0;
         endcase
     end
 
     always_comb begin
         casez (3'h4)
-            3'b00?: casez_mux_11 = le_0;
-            3'b01?: casez_mux_11 = 1'h0;
-            3'b10?: casez_mux_11 = 1'h0;
-            default: casez_mux_11 = 1'h0;
+            3'b00?: casez_mux_10 = le_0;
+            3'b01?: casez_mux_10 = 1'h0;
+            3'b10?: casez_mux_10 = 1'h0;
+            default: casez_mux_10 = 1'h0;
         endcase
     end
 
@@ -12032,28 +12016,28 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h5)
-            3'b00?: casez_mux_12 = or_6;
-            3'b01?: casez_mux_12 = 1'h0;
-            3'b10?: casez_mux_12 = 1'h1;
-            3'b11?: casez_mux_12 = mux_2;
-            default: casez_mux_12 = 1'h0;
+            3'b00?: casez_mux_11 = or_6;
+            3'b01?: casez_mux_11 = 1'h0;
+            3'b10?: casez_mux_11 = 1'h1;
+            3'b11?: casez_mux_11 = mux_2;
+            default: casez_mux_11 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (slice_12)
-            2'b0?: casez_mux_13 = 1'h0;
-            2'b1?: casez_mux_13 = 1'h1;
-            default: casez_mux_13 = 1'h0;
+            2'b0?: casez_mux_12 = 1'h0;
+            2'b1?: casez_mux_12 = 1'h1;
+            default: casez_mux_12 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (3'h4)
-            3'b00?: casez_mux_14 = sub_13;
-            3'b01?: casez_mux_14 = 1'h0;
-            3'b10?: casez_mux_14 = or_25;
-            default: casez_mux_14 = 1'h0;
+            3'b00?: casez_mux_13 = sub_13;
+            3'b01?: casez_mux_13 = 1'h0;
+            3'b10?: casez_mux_13 = or_25;
+            default: casez_mux_13 = 1'h0;
         endcase
     end
 
@@ -12069,9 +12053,9 @@ module mod_11_0004 (
 
     always_comb begin
         casez (2'h3)
-            2'b0?: casez_mux_15 = slice_2;
-            2'b1?: casez_mux_15 = 4'h6;
-            default: casez_mux_15 = 4'h0;
+            2'b0?: casez_mux_14 = slice_2;
+            2'b1?: casez_mux_14 = 4'h6;
+            default: casez_mux_14 = 4'h0;
         endcase
     end
 
@@ -12086,10 +12070,10 @@ module mod_11_0004 (
 
     always_comb begin
         casez (xor_15)
-            3'b00?: casez_mux_16 = slice_2;
-            3'b01?: casez_mux_16 = case_mux_6;
-            3'b10?: casez_mux_16 = slice_2;
-            default: casez_mux_16 = 4'h0;
+            3'b00?: casez_mux_15 = slice_2;
+            3'b01?: casez_mux_15 = case_mux_6;
+            3'b10?: casez_mux_15 = slice_2;
+            default: casez_mux_15 = 4'h0;
         endcase
     end
 
@@ -12105,11 +12089,11 @@ module mod_11_0004 (
 
     always_comb begin
         casez (add_11)
-            3'b00?: casez_mux_17 = 4'he;
-            3'b01?: casez_mux_17 = not_15;
-            3'b10?: casez_mux_17 = 4'h8;
-            3'b11?: casez_mux_17 = 4'h1;
-            default: casez_mux_17 = 4'h0;
+            3'b00?: casez_mux_16 = 4'he;
+            3'b01?: casez_mux_16 = not_15;
+            3'b10?: casez_mux_16 = 4'h8;
+            3'b11?: casez_mux_16 = 4'h1;
+            default: casez_mux_16 = 4'h0;
         endcase
     end
 
@@ -12125,10 +12109,10 @@ module mod_11_0004 (
 
     always_comb begin
         casez (mul_12)
-            3'b00?: casez_mux_18 = 2'h2;
-            3'b01?: casez_mux_18 = sub_16;
-            3'b10?: casez_mux_18 = 2'h2;
-            default: casez_mux_18 = 2'h0;
+            3'b00?: casez_mux_17 = 2'h2;
+            3'b01?: casez_mux_17 = sub_16;
+            3'b10?: casez_mux_17 = 2'h2;
+            default: casez_mux_17 = 2'h0;
         endcase
     end
 
@@ -12143,46 +12127,46 @@ module mod_11_0004 (
 
     always_comb begin
         casez (concat_21)
-            3'b00?: casez_mux_19 = 2'h3;
-            3'b01?: casez_mux_19 = xor_13;
-            3'b10?: casez_mux_19 = 2'h1;
-            default: casez_mux_19 = 2'h0;
+            3'b00?: casez_mux_18 = 2'h3;
+            3'b01?: casez_mux_18 = xor_13;
+            3'b10?: casez_mux_18 = 2'h1;
+            default: casez_mux_18 = 2'h0;
         endcase
     end
 
     always_comb begin
         casez (not_18)
-            3'b00?: casez_mux_20 = 4'ha;
-            3'b01?: casez_mux_20 = 4'h6;
-            3'b10?: casez_mux_20 = 4'hb;
-            default: casez_mux_20 = 4'h0;
+            3'b00?: casez_mux_19 = 4'ha;
+            3'b01?: casez_mux_19 = 4'h6;
+            3'b10?: casez_mux_19 = 4'hb;
+            default: casez_mux_19 = 4'h0;
         endcase
     end
 
     always_comb begin
         casez (concat_16)
-            3'b00?: casez_mux_21 = concat_18;
-            3'b01?: casez_mux_21 = 3'h6;
-            3'b10?: casez_mux_21 = casez_mux_4;
-            3'b11?: casez_mux_21 = not_16;
-            default: casez_mux_21 = 3'h0;
+            3'b00?: casez_mux_20 = concat_18;
+            3'b01?: casez_mux_20 = 3'h6;
+            3'b10?: casez_mux_20 = casez_mux_3;
+            3'b11?: casez_mux_20 = not_16;
+            default: casez_mux_20 = 3'h0;
         endcase
     end
 
     always_comb begin
         casez (mul_17)
-            2'b0?: casez_mux_22 = slice_19;
-            2'b1?: casez_mux_22 = neq_1;
-            default: casez_mux_22 = 1'h0;
+            2'b0?: casez_mux_21 = slice_19;
+            2'b1?: casez_mux_21 = neq_1;
+            default: casez_mux_21 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (3'h3)
-            3'b00?: casez_mux_23 = slice_6;
-            3'b01?: casez_mux_23 = 12'hb80;
-            3'b10?: casez_mux_23 = slice_6;
-            default: casez_mux_23 = 12'h0;
+            3'b00?: casez_mux_22 = slice_6;
+            3'b01?: casez_mux_22 = 12'hb80;
+            3'b10?: casez_mux_22 = slice_6;
+            default: casez_mux_22 = 12'h0;
         endcase
     end
 
@@ -12268,26 +12252,26 @@ module mod_11_0004 (
 
     always_comb begin
         casez (not_26)
-            2'b0?: casez_mux_24 = for_fold_add_3;
-            2'b1?: casez_mux_24 = case_mux_13;
-            default: casez_mux_24 = 1'h0;
+            2'b0?: casez_mux_23 = for_fold_add_3;
+            2'b1?: casez_mux_23 = case_mux_13;
+            default: casez_mux_23 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (3'h4)
-            3'b00?: casez_mux_25 = 1'h0;
-            3'b01?: casez_mux_25 = 1'h0;
-            3'b10?: casez_mux_25 = 1'h1;
-            3'b11?: casez_mux_25 = eq_31;
-            default: casez_mux_25 = 1'h0;
+            3'b00?: casez_mux_24 = 1'h0;
+            3'b01?: casez_mux_24 = 1'h0;
+            3'b10?: casez_mux_24 = 1'h1;
+            3'b11?: casez_mux_24 = eq_31;
+            default: casez_mux_24 = 1'h0;
         endcase
     end
 
     always_comb begin
         case (mux_65)
             2'd0: case_mux_14 = not_25;
-            2'd1: case_mux_14 = casez_mux_24;
+            2'd1: case_mux_14 = casez_mux_23;
             2'd2: case_mux_14 = 1'h0;
             2'd3: case_mux_14 = mux_66;
             default: case_mux_14 = 1'h0;
@@ -12303,10 +12287,10 @@ module mod_11_0004 (
 
     always_comb begin
         casez (xor_15)
-            3'b00?: casez_mux_26 = for_fold_xor_3;
-            3'b01?: casez_mux_26 = sub_29;
-            3'b10?: casez_mux_26 = eq_46;
-            default: casez_mux_26 = 1'h0;
+            3'b00?: casez_mux_25 = for_fold_xor_3;
+            3'b01?: casez_mux_25 = sub_29;
+            3'b10?: casez_mux_25 = eq_46;
+            default: casez_mux_25 = 1'h0;
         endcase
     end
 
@@ -12326,48 +12310,48 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h1)
-            3'b00?: casez_mux_27 = for_fold_or_3;
-            3'b01?: casez_mux_27 = 8'hb0;
-            3'b10?: casez_mux_27 = or_57;
-            default: casez_mux_27 = 8'h0;
+            3'b00?: casez_mux_26 = for_fold_or_3;
+            3'b01?: casez_mux_26 = 8'hb0;
+            3'b10?: casez_mux_26 = or_57;
+            default: casez_mux_26 = 8'h0;
         endcase
     end
 
     always_comb begin
         casez (and_62)
-            3'b00?: casez_mux_28 = 8'h94;
-            3'b01?: casez_mux_28 = shr_6;
-            3'b10?: casez_mux_28 = and_64;
-            default: casez_mux_28 = 8'h0;
+            3'b00?: casez_mux_27 = 8'h94;
+            3'b01?: casez_mux_27 = shr_6;
+            3'b10?: casez_mux_27 = and_64;
+            default: casez_mux_27 = 8'h0;
         endcase
     end
 
     always_comb begin
-        casez (casez_mux_4)
-            3'b00?: casez_mux_29 = 3'h2;
-            3'b01?: casez_mux_29 = sub_31;
-            3'b10?: casez_mux_29 = 3'h1;
-            default: casez_mux_29 = 3'h0;
+        casez (casez_mux_3)
+            3'b00?: casez_mux_28 = 3'h2;
+            3'b01?: casez_mux_28 = sub_31;
+            3'b10?: casez_mux_28 = 3'h1;
+            default: casez_mux_28 = 3'h0;
         endcase
     end
 
     always_comb begin
         casez (shr_7)
-            3'b00?: casez_mux_30 = add_23;
-            3'b01?: casez_mux_30 = not_28;
-            3'b10?: casez_mux_30 = add_11;
-            3'b11?: casez_mux_30 = concat_16;
-            default: casez_mux_30 = 3'h0;
+            3'b00?: casez_mux_29 = add_23;
+            3'b01?: casez_mux_29 = not_28;
+            3'b10?: casez_mux_29 = add_11;
+            3'b11?: casez_mux_29 = concat_16;
+            default: casez_mux_29 = 3'h0;
         endcase
     end
 
     always_comb begin
         casez (xor_29)
-            3'b00?: casez_mux_31 = shr_9;
-            3'b01?: casez_mux_31 = 3'h1;
-            3'b10?: casez_mux_31 = not_31;
-            3'b11?: casez_mux_31 = sub_32;
-            default: casez_mux_31 = 3'h0;
+            3'b00?: casez_mux_30 = shr_9;
+            3'b01?: casez_mux_30 = 3'h1;
+            3'b10?: casez_mux_30 = not_31;
+            3'b11?: casez_mux_30 = sub_32;
+            default: casez_mux_30 = 3'h0;
         endcase
     end
 
@@ -12380,19 +12364,19 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h5)
-            3'b00?: casez_mux_32 = concat_15;
-            3'b01?: casez_mux_32 = 3'h0;
-            3'b10?: casez_mux_32 = 3'h0;
-            3'b11?: casez_mux_32 = for_fold_and_4;
-            default: casez_mux_32 = 3'h0;
+            3'b00?: casez_mux_31 = concat_15;
+            3'b01?: casez_mux_31 = 3'h0;
+            3'b10?: casez_mux_31 = 3'h0;
+            3'b11?: casez_mux_31 = for_fold_and_4;
+            default: casez_mux_31 = 3'h0;
         endcase
     end
 
     always_comb begin
         casez (slice_26)
-            2'b0?: casez_mux_33 = 1'h0;
-            2'b1?: casez_mux_33 = red_or_4;
-            default: casez_mux_33 = 1'h0;
+            2'b0?: casez_mux_32 = 1'h0;
+            2'b1?: casez_mux_32 = red_or_4;
+            default: casez_mux_32 = 1'h0;
         endcase
     end
 
@@ -12423,34 +12407,34 @@ module mod_11_0004 (
 
     always_comb begin
         casez (sub_4)
-            3'b00?: casez_mux_34 = 6'h13;
-            3'b01?: casez_mux_34 = concat_7;
-            3'b10?: casez_mux_34 = 6'h2b;
-            3'b11?: casez_mux_34 = and_45;
-            default: casez_mux_34 = 6'h0;
+            3'b00?: casez_mux_33 = 6'h13;
+            3'b01?: casez_mux_33 = concat_7;
+            3'b10?: casez_mux_33 = 6'h2b;
+            3'b11?: casez_mux_33 = and_45;
+            default: casez_mux_33 = 6'h0;
         endcase
     end
 
     always_comb begin
         casez (not_38)
-            2'b0?: casez_mux_35 = 1'h0;
-            2'b1?: casez_mux_35 = eq_32;
-            default: casez_mux_35 = 1'h0;
+            2'b0?: casez_mux_34 = 1'h0;
+            2'b1?: casez_mux_34 = eq_32;
+            default: casez_mux_34 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (2'h2)
-            2'b0?: casez_mux_36 = red_or_5;
-            2'b1?: casez_mux_36 = 1'h1;
-            default: casez_mux_36 = 1'h0;
+            2'b0?: casez_mux_35 = red_or_5;
+            2'b1?: casez_mux_35 = 1'h1;
+            default: casez_mux_35 = 1'h0;
         endcase
     end
 
     always_comb begin
         for_fold_add_4 = 6'h0;
         for (int i = 0; i < 2; i++) begin
-            for_fold_add_4 = for_fold_add_4 + casez_mux_23[(i * 6) +: 6];
+            for_fold_add_4 = for_fold_add_4 + casez_mux_22[(i * 6) +: 6];
         end
     end
 
@@ -12505,18 +12489,18 @@ module mod_11_0004 (
 
     always_comb begin
         casez (mux_78)
-            3'b00?: casez_mux_37 = slice_30;
-            3'b01?: casez_mux_37 = and_92;
-            3'b10?: casez_mux_37 = 1'h1;
-            default: casez_mux_37 = 1'h0;
+            3'b00?: casez_mux_36 = slice_30;
+            3'b01?: casez_mux_36 = and_92;
+            3'b10?: casez_mux_36 = 1'h1;
+            default: casez_mux_36 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (2'h0)
-            2'b0?: casez_mux_38 = 3'h3;
-            2'b1?: casez_mux_38 = add_23;
-            default: casez_mux_38 = 3'h0;
+            2'b0?: casez_mux_37 = 3'h3;
+            2'b1?: casez_mux_37 = add_23;
+            default: casez_mux_37 = 3'h0;
         endcase
     end
 
@@ -12532,10 +12516,10 @@ module mod_11_0004 (
 
     always_comb begin
         casez (mul_12)
-            3'b00?: casez_mux_39 = slice_31;
-            3'b01?: casez_mux_39 = add_34;
-            3'b10?: casez_mux_39 = case_mux_21;
-            default: casez_mux_39 = 6'h0;
+            3'b00?: casez_mux_38 = slice_31;
+            3'b01?: casez_mux_38 = add_34;
+            3'b10?: casez_mux_38 = case_mux_21;
+            default: casez_mux_38 = 6'h0;
         endcase
     end
 
@@ -12566,11 +12550,11 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h6)
-            3'b00?: casez_mux_40 = mul_48;
-            3'b01?: casez_mux_40 = mux_113;
-            3'b10?: casez_mux_40 = not_50;
-            3'b11?: casez_mux_40 = shr_14;
-            default: casez_mux_40 = 2'h0;
+            3'b00?: casez_mux_39 = mul_48;
+            3'b01?: casez_mux_39 = mux_113;
+            3'b10?: casez_mux_39 = not_50;
+            3'b11?: casez_mux_39 = shr_14;
+            default: casez_mux_39 = 2'h0;
         endcase
     end
 
@@ -12586,10 +12570,10 @@ module mod_11_0004 (
 
     always_comb begin
         casez (3'h4)
-            3'b00?: casez_mux_41 = 3'h5;
-            3'b01?: casez_mux_41 = 3'h7;
-            3'b10?: casez_mux_41 = add_23;
-            default: casez_mux_41 = 3'h0;
+            3'b00?: casez_mux_40 = 3'h5;
+            3'b01?: casez_mux_40 = 3'h7;
+            3'b10?: casez_mux_40 = add_23;
+            default: casez_mux_40 = 3'h0;
         endcase
     end
 
@@ -12597,7 +12581,7 @@ module mod_11_0004 (
         case (slice_32)
             2'd0: case_mux_25 = not_53;
             2'd1: case_mux_25 = flop_3;
-            2'd2: case_mux_25 = and_112;
+            2'd2: case_mux_25 = and_111;
             2'd3: case_mux_25 = slice_34;
             default: case_mux_25 = 10'h0;
         endcase
@@ -12612,17 +12596,17 @@ module mod_11_0004 (
 
     always_comb begin
         casez (sub_50)
-            2'b0?: casez_mux_42 = xor_52;
-            2'b1?: casez_mux_42 = red_or_6;
-            default: casez_mux_42 = 1'h0;
+            2'b0?: casez_mux_41 = xor_52;
+            2'b1?: casez_mux_41 = red_or_6;
+            default: casez_mux_41 = 1'h0;
         endcase
     end
 
     always_comb begin
         casez (mul_16)
-            2'b0?: casez_mux_43 = 3'h1;
-            2'b1?: casez_mux_43 = 3'h0;
-            default: casez_mux_43 = 3'h0;
+            2'b0?: casez_mux_42 = 3'h1;
+            2'b1?: casez_mux_42 = 3'h0;
+            default: casez_mux_42 = 3'h0;
         endcase
     end
 
@@ -12702,7 +12686,7 @@ module mod_11_0004 (
             flop_17 <= or_73;
             flop_18 <= or_16;
             flop_19 <= or_60;
-            flop_20 <= casez_mux_28;
+            flop_20 <= casez_mux_27;
             flop_21 <= or_20;
             flop_22 <= mux_69;
             flop_23 <= or_54;

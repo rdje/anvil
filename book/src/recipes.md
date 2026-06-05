@@ -774,8 +774,9 @@ Walking the differences:
 - **`peephole` → `e-graph`**: this is now a bounded semantic
   upgrade, not a pure alias. On seeds where small-support
   different-shape cones exist over the same canonical endpoints,
-  `e-graph` can reduce gate count further; on other seeds it may
-  still look identical.
+  `e-graph` can reduce gate count further. The live proof is bounded:
+  up to 12 endpoint-support bits and only while the candidate cone fits
+  the node/work budget. On other seeds it may still look identical.
 
 Default is `e-graph` (the theoretical ceiling). The generator
 activates every layer it knows how to implement; `effective()`

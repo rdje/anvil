@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `3d93043` - `ROADMAP-FOLLOWUP-OWNERSHIP.1 - register follow-up trees`
-- active_work_unit: `COMBINATIONAL-SEMANTIC-IDENTITY.1` is implemented/validated; this commit advances the frontier to `COMBINATIONAL-SEMANTIC-IDENTITY.2`.
-- next_action: commit `COMBINATIONAL-SEMANTIC-IDENTITY.1`, clear `git_message_brief.txt`, then continue at `COMBINATIONAL-SEMANTIC-IDENTITY.2`.
-- in_flight_uncommitted: bounded semantic gate proofs now minimize functionally-unused endpoints and can rewire proven gates to earlier endpoint/constant nodes; mdBook/user docs, Knowledge Map, and snapshots are synced.
+- latest_commit: `41948a6` - `COMBINATIONAL-SEMANTIC-IDENTITY.1 - fold gates to endpoints`
+- active_work_unit: `COMBINATIONAL-SEMANTIC-IDENTITY.2` is implemented/validated; this commit advances the frontier to `COMBINATIONAL-SEMANTIC-IDENTITY.3`.
+- next_action: commit `COMBINATIONAL-SEMANTIC-IDENTITY.2`, clear `git_message_brief.txt`, then continue at `COMBINATIONAL-SEMANTIC-IDENTITY.3`.
+- in_flight_uncommitted: bounded semantic proofs now allow shallow 12 endpoint-support bits only inside fixed merge/cleanup work budgets; mdBook/user docs, Knowledge Map, and snapshots are synced.
 - blockers: none.
 
 ## Validation policy

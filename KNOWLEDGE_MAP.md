@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **9** facts · **36** question keys.
+> **10** facts · **40** question keys.
 
 ## Questions → fact
 
@@ -22,6 +22,7 @@
 - "does hierarchy module dedup remove unreachable modules" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "does hierarchy_module_dedup change under-instantiation" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "does semantic gate merge ignore endpoint identity" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
+- "how many endpoint bits can semantic gate merge prove" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "how should project file paths be written in live docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "repo-root-relative paths in ANVIL docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "should ANVIL docs use absolute paths" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
@@ -34,13 +35,16 @@
 - "what happens to helper endpoints that cancel out" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
 - "what is ANVIL's task-tree doctrine" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
 - "what is the commit workflow" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "what is the egraph truth table budget" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "what is the module dedup proof boundary" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
 - "when are unused module definitions pruned" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "when is focused workflow validation enough" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "when should git_message_brief.txt be cleared" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
 - "why can FSMs merge but memories stay opaque" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
 - "why can FSMs merge but memories stay separate" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
+- "why do larger semantic cones fall back to structural proof" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "why do semantically equal modules stay separate" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
+- "why does the semantic proof stop at 12 bits" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "why doesn't ANVIL merge duplicate memories" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "why don't identical truth-table shapes always share NodeIds" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 
@@ -109,6 +113,14 @@ _Full-suite validation is resource-monitored and not mandatory for workflow-doc 
 - **date:** 2026-06-04 · **status:** current
 - **evidence:** `docs/decisions/0003-resource-safe-validation.md; COMMIT.md; MEMORY.md`
 - **source:** [`docs/decisions/0003-resource-safe-validation.md`](docs/decisions/0003-resource-safe-validation.md)
+
+### semantic-proof-budget
+_Bounded semantic proofs use support, node, and work budgets_
+
+- **answers:** how many endpoint bits can semantic gate merge prove | why does the semantic proof stop at 12 bits | what is the egraph truth table budget | why do larger semantic cones fall back to structural proof
+- **date:** 2026-06-05 · **status:** current
+- **evidence:** `src/ir/compact.rs; book/src/factorization.md; DEVELOPMENT_NOTES.md`
+- **source:** [`docs/knowledge/semantic-proof-budget.md`](docs/knowledge/semantic-proof-budget.md)
 
 ### task-tree-and-commit-doctrine
 _Task-tree ownership before work and strict commit workflow_

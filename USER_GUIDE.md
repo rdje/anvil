@@ -156,8 +156,11 @@ shift. Examples:
 - Under `identity_mode=node-id`, the live bounded `e-graph` fragment can
   collapse small-support combinational cones too, including gates proven
   equal to an existing endpoint or constant after helper endpoints cancel
-  out; `semantic_gates_merged` tells you how much post-construction
-  semantic gate sharing it found.
+  out. The current truth-table proof can enumerate up to 12 endpoint-
+  support bits, but only while the cone also fits the node/work budget;
+  larger candidates fall back to structural identity.
+  `semantic_gates_merged` tells you how much post-construction semantic
+  gate sharing it found.
 - Under `identity_mode=node-id`, equivalent state cones can collapse too;
   `flops_merged` tells you how much sequential sharing the post-drain
   pass found.
@@ -255,7 +258,9 @@ different-shape small-support cones proven equivalent over the same leaf
 variables. If the proof shows a helper variable does not affect the
 function, that helper endpoint is minimized out; for example,
 `a & (b | ~b)` rewires to `a`, while the same shape rooted on `c`
-rewires to `c`.
+rewires to `c`. The proof is bounded, not a solver: it enumerates at
+most 12 endpoint-support bits and skips candidates whose
+`assignment_count * cone_node_count` exceeds the current work budget.
 
 Interpretation note: doctrinally, `identity_mode=node-id` means
 `NodeId` is the identity of an expression, which implies full

@@ -81,7 +81,8 @@ instead of leaving them implicit.
    combinational identity plus a live bounded semantic fragment at the
    `e-graph` rung for small-support gate cones over the same canonical
    endpoints, including gate-to-existing-endpoint / constant folds when
-   helper endpoints cancel out, together with
+   helper endpoints cancel out and tiny 12-endpoint-bit proofs that fit
+   the current node/work budget, together with
    conservative post-drain flop merging and deterministic generated-FSM
    merging over the same endpoint-preserving proof discipline; broader
    sequential equivalence, memory-state merging beyond the current
@@ -192,7 +193,9 @@ run.
   canonical leaf endpoints, together with the same `width` and reset
   semantics. At effective level `e-graph`, a bounded semantic
   post-construction gate merge is also live for small-support
-  combinational cones over the same canonical leaf variables.
+  combinational cones over the same canonical leaf variables, with
+  12-bit shallow truth-table proofs admitted only inside the current
+  node/work budget.
 - Dep-set propagation correctly handles shared fanout.
 - Fanout stress: a single wire can drive many consumers.
 - Anti-collapse rules still apply post-share (no `x ^ x` even when both

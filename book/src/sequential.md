@@ -128,8 +128,11 @@ path after drain: if two flops ended up with the same emitted state
 semantics over the same canonical leaf endpoints, they are merged even
 if they were born as distinct registers. The proof is still bounded:
 normalized structural proof first, plus a bounded semantic check for
-small-support cones. That is stronger than exact `d: NodeId` equality,
-but still not full sequential equivalence.
+small-support cones. The semantic branch has the same support/node/work
+budget as the combinational merge proof, so shallow 12-endpoint-bit
+cones can qualify and larger candidates fall back to structural proof.
+That is stronger than exact `d: NodeId` equality, but still not full
+sequential equivalence.
 
 The same identity discipline now applies to deterministic generated FSM
 blocks. FSMs reset to state 0 and carry explicit transition and

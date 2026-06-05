@@ -94,10 +94,34 @@ use super::types::{
 use crate::config::FactorizationLevel;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-const MAX_SEMANTIC_SUPPORT_BITS: u32 = 10;
+const BASELINE_SEMANTIC_SUPPORT_BITS: u32 = 10;
+const MAX_SEMANTIC_SUPPORT_BITS: u32 = 12;
 const MAX_SEMANTIC_EXACT_ENDPOINTS: usize = 3;
 const MAX_MERGE_SEMANTIC_CONE_NODES: usize = 128;
 const MAX_CLEANUP_SEMANTIC_CONE_NODES: usize = 64;
+const MAX_MERGE_SEMANTIC_WORK_UNITS: usize =
+    (1usize << BASELINE_SEMANTIC_SUPPORT_BITS) * MAX_MERGE_SEMANTIC_CONE_NODES;
+const MAX_CLEANUP_SEMANTIC_WORK_UNITS: usize =
+    (1usize << BASELINE_SEMANTIC_SUPPORT_BITS) * MAX_CLEANUP_SEMANTIC_CONE_NODES;
+
+#[derive(Debug, Clone, Copy)]
+struct SemanticProofLimits {
+    max_support_bits: u32,
+    max_cone_nodes: usize,
+    max_work_units: usize,
+}
+
+const MERGE_SEMANTIC_LIMITS: SemanticProofLimits = SemanticProofLimits {
+    max_support_bits: MAX_SEMANTIC_SUPPORT_BITS,
+    max_cone_nodes: MAX_MERGE_SEMANTIC_CONE_NODES,
+    max_work_units: MAX_MERGE_SEMANTIC_WORK_UNITS,
+};
+
+const CLEANUP_SEMANTIC_LIMITS: SemanticProofLimits = SemanticProofLimits {
+    max_support_bits: MAX_SEMANTIC_SUPPORT_BITS,
+    max_cone_nodes: MAX_CLEANUP_SEMANTIC_CONE_NODES,
+    max_work_units: MAX_CLEANUP_SEMANTIC_WORK_UNITS,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
@@ -369,6 +393,58 @@ fn cone_within_node_budget(
     true
 }
 
+fn assignment_count_for_support(support_bits: u32) -> Option<usize> {
+    if support_bits >= usize::BITS {
+        None
+    } else {
+        Some(1usize << support_bits)
+    }
+}
+
+fn semantic_work_within_budget(
+    assignment_count: usize,
+    cone_nodes: usize,
+    max_work_units: usize,
+) -> bool {
+    assignment_count.saturating_mul(cone_nodes) <= max_work_units
+}
+
+fn semantic_proof_eligibility(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    limits: SemanticProofLimits,
+) -> Option<(Vec<LeafEndpoint>, usize)> {
+    if m.nodes[node_id as usize].width() > 128 {
+        return None;
+    }
+
+    let endpoints: Vec<LeafEndpoint> = collect_leaf_endpoints(m, node_id, endpoint_memo)
+        .into_iter()
+        .collect();
+    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
+    if support_bits > limits.max_support_bits {
+        return None;
+    }
+
+    let assignment_count = assignment_count_for_support(support_bits)?;
+
+    // Semantic proofs stay intentionally bounded: large settled cones
+    // with tiny endpoint support can still explode runtime if every
+    // assignment walks the whole cone. The work budget preserves the
+    // old 10-bit worst-case envelope while allowing slightly wider
+    // support only for shallow cones.
+    let mut seen = HashSet::new();
+    if !cone_within_node_budget(m, node_id, limits.max_cone_nodes, &mut seen) {
+        return None;
+    }
+    if !semantic_work_within_budget(assignment_count, seen.len(), limits.max_work_units) {
+        return None;
+    }
+
+    Some((endpoints, assignment_count))
+}
+
 fn evaluate_node_under_assignment(
     m: &Module,
     node_id: NodeId,
@@ -573,28 +649,17 @@ fn semantic_cone_proof(
     node_id: NodeId,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
 ) -> Option<SemanticConeProof> {
-    if m.nodes[node_id as usize].width() > 128 {
-        return None;
-    }
+    semantic_cone_proof_with_limits(m, node_id, endpoint_memo, MERGE_SEMANTIC_LIMITS)
+}
 
-    let endpoints: Vec<LeafEndpoint> = collect_leaf_endpoints(m, node_id, endpoint_memo)
-        .into_iter()
-        .collect();
-    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
-    if support_bits > MAX_SEMANTIC_SUPPORT_BITS {
-        return None;
-    }
-
-    // Semantic merge proofs stay intentionally bounded: large settled
-    // cones with tiny endpoint support can still explode runtime if we
-    // brute-force every assignment through the whole cone. When that
-    // happens we fall back to the structural proof path instead of
-    // turning compaction into a second whole-graph evaluator.
-    let mut seen = HashSet::new();
-    if !cone_within_node_budget(m, node_id, MAX_MERGE_SEMANTIC_CONE_NODES, &mut seen) {
-        return None;
-    }
-
+fn semantic_cone_proof_with_limits(
+    m: &Module,
+    node_id: NodeId,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    limits: SemanticProofLimits,
+) -> Option<SemanticConeProof> {
+    let (endpoints, assignment_count) =
+        semantic_proof_eligibility(m, node_id, endpoint_memo, limits)?;
     let mut endpoint_offsets: HashMap<LeafEndpoint, u32> = HashMap::new();
     let mut next_offset = 0u32;
     for endpoint in &endpoints {
@@ -602,7 +667,6 @@ fn semantic_cone_proof(
         next_offset += endpoint.width();
     }
 
-    let assignment_count = 1usize << support_bits;
     let mut outputs = Vec::with_capacity(assignment_count);
     for assignment in 0..assignment_count {
         let mut memo: HashMap<NodeId, u128> = HashMap::new();
@@ -674,13 +738,23 @@ fn cleanup_exact_proof_eligible(
         return false;
     }
 
-    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
-    if support_bits > MAX_SEMANTIC_SUPPORT_BITS {
-        return false;
-    }
-
     let mut seen = HashSet::new();
-    cone_within_node_budget(m, node_id, MAX_CLEANUP_SEMANTIC_CONE_NODES, &mut seen)
+    let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
+    let Some(assignment_count) = assignment_count_for_support(support_bits) else {
+        return false;
+    };
+    support_bits <= CLEANUP_SEMANTIC_LIMITS.max_support_bits
+        && cone_within_node_budget(
+            m,
+            node_id,
+            CLEANUP_SEMANTIC_LIMITS.max_cone_nodes,
+            &mut seen,
+        )
+        && semantic_work_within_budget(
+            assignment_count,
+            seen.len(),
+            CLEANUP_SEMANTIC_LIMITS.max_work_units,
+        )
 }
 
 fn cleanup_exact_value(
@@ -739,14 +813,15 @@ fn semantic_exact_value(
         memo.insert(node_id, None);
         return None;
     }
-    let exact = semantic_cone_proof(m, node_id, endpoint_memo).and_then(|proof| {
-        let first = *proof.outputs.first()?;
-        proof
-            .outputs
-            .iter()
-            .all(|&value| value == first)
-            .then_some(first)
-    });
+    let exact = semantic_cone_proof_with_limits(m, node_id, endpoint_memo, CLEANUP_SEMANTIC_LIMITS)
+        .and_then(|proof| {
+            let first = *proof.outputs.first()?;
+            proof
+                .outputs
+                .iter()
+                .all(|&value| value == first)
+                .then_some(first)
+        });
     memo.insert(node_id, exact);
     exact
 }
@@ -2464,6 +2539,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn semantic_merge_proof_accepts_tiny_twelve_bit_cones() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        let operands: Vec<NodeId> = (0..MAX_SEMANTIC_SUPPORT_BITS)
+            .map(|port| push_primary(&mut m, port, 1))
+            .collect();
+        let root = push_raw_gate(&mut m, GateOp::Concat, operands, MAX_SEMANTIC_SUPPORT_BITS);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        let proof =
+            semantic_cone_proof(&m, root, &mut endpoint_memo).expect("tiny 12-bit proof fits");
+        assert_eq!(proof.endpoints.len(), MAX_SEMANTIC_SUPPORT_BITS as usize);
+        assert_eq!(proof.outputs.len(), 1usize << MAX_SEMANTIC_SUPPORT_BITS);
+    }
+
+    #[test]
+    fn semantic_merge_proof_skips_twelve_bit_cones_over_work_budget() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        let inputs: Vec<NodeId> = (0..MAX_SEMANTIC_SUPPORT_BITS)
+            .map(|port| push_primary(&mut m, port, 1))
+            .collect();
+        let mut root = inputs[0];
+        for &input in &inputs[1..] {
+            root = push_raw_gate(&mut m, GateOp::Xor, vec![root, input], 1);
+        }
+        let max_twelve_bit_nodes =
+            MAX_MERGE_SEMANTIC_WORK_UNITS / (1usize << MAX_SEMANTIC_SUPPORT_BITS);
+        while m.nodes.len() <= max_twelve_bit_nodes {
+            root = push_raw_gate(&mut m, GateOp::Xor, vec![root, inputs[0]], 1);
+        }
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            semantic_cone_proof(&m, root, &mut endpoint_memo).is_none(),
+            "12-bit proofs must stay within the old 10-bit work envelope"
+        );
+    }
+
     fn push_primary(m: &mut Module, port: PortId, width: u32) -> NodeId {
         if !m.inputs.iter().any(|existing| existing.id == port) {
             m.inputs.push(Port {
@@ -2788,6 +2909,26 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_exact_proof_accepts_tiny_twelve_bit_three_endpoint_cones() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 4);
+        let b = push_primary(&mut m, 1, 4);
+        let c = push_primary(&mut m, 2, 4);
+        let xor = push_raw_gate(&mut m, GateOp::Xor, vec![a, b, c], 4);
+        let root = push_raw_gate(&mut m, GateOp::RedOr, vec![xor], 1);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            cleanup_exact_proof_eligible(&m, root, &mut endpoint_memo),
+            "tiny cleanup proofs may use up to twelve support bits across three endpoints"
+        );
+    }
+
+    #[test]
     fn cleanup_exact_proof_skips_large_low_support_cones() {
         let mut m = Module {
             max_ast_instances: u32::MAX,
@@ -2805,6 +2946,31 @@ mod tests {
         assert!(
             !cleanup_exact_proof_eligible(&m, root, &mut endpoint_memo),
             "post-construction exact cleanup must skip large cones even when the endpoint support stays tiny"
+        );
+    }
+
+    #[test]
+    fn cleanup_exact_proof_skips_twelve_bit_cones_over_work_budget() {
+        let mut m = Module {
+            max_ast_instances: u32::MAX,
+            factorization_level: FactorizationLevel::None,
+            ..Module::default()
+        };
+        let a = push_primary(&mut m, 0, 4);
+        let b = push_primary(&mut m, 1, 4);
+        let c = push_primary(&mut m, 2, 4);
+        let mut root = push_raw_gate(&mut m, GateOp::Xor, vec![a, b, c], 4);
+        let max_twelve_bit_nodes =
+            MAX_CLEANUP_SEMANTIC_WORK_UNITS / (1usize << MAX_SEMANTIC_SUPPORT_BITS);
+        while m.nodes.len() <= max_twelve_bit_nodes {
+            root = push_raw_gate(&mut m, GateOp::Xor, vec![root, a], 4);
+        }
+        root = push_raw_gate(&mut m, GateOp::RedOr, vec![root], 1);
+
+        let mut endpoint_memo = std::collections::HashMap::new();
+        assert!(
+            !cleanup_exact_proof_eligible(&m, root, &mut endpoint_memo),
+            "cleanup proofs keep the tighter old 10-bit work envelope"
         );
     }
 

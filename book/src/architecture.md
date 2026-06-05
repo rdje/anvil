@@ -259,7 +259,8 @@ impl Module {
 /// Post-construction bounded semantic gate-sharing pass. Under
 /// `identity_mode = node-id` with effective level `>= e-graph`,
 /// merges same-width combinational cones proven equivalent over
-/// the same canonical leaf endpoints.
+/// the same canonical leaf endpoints, within the current
+/// support/node/work proof budget.
 pub fn merge_equivalent_gates(m: &mut Module) -> u32;
 
 /// Post-remap associative normalization pass. Re-runs the live

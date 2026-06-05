@@ -1,8 +1,95 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-combinational-semantic-identity-1 — COMBINATIONAL-SEMANTIC-IDENTITY.1 fold gates to endpoints
+## 2026-06-05-combinational-semantic-identity-2 — COMBINATIONAL-SEMANTIC-IDENTITY.2 audit semantic proof budgets
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `COMBINATIONAL-SEMANTIC-IDENTITY.2` by
+turning the bounded semantic proof limits into explicit support,
+cone-node, and work-budget gates.
+
+- Raised the semantic truth-table support ceiling from 10 to 12
+  endpoint-support bits only for cones that also fit the combined work
+  budget.
+- Added `SemanticProofLimits` for merge and cleanup paths so
+  `merge_equivalent_gates` / endpoint-aware state proofs and
+  cleanup-only exact proofs use separate node/work envelopes.
+- Kept the merge worst-case evaluator envelope at the old 10-bit ×
+  128-node budget (`assignment_count * cone_node_count <= 131072`).
+- Kept cleanup stricter: width <= 8, <= 3 canonical endpoints,
+  support <= 12 bits, <= 64 cone nodes, and
+  `assignment_count * cone_node_count <= 65536`.
+- Added focused tests proving tiny 12-bit semantic proofs are accepted
+  and larger 12-bit candidates skip before enumeration.
+- Deliberately accepted three changed snapshots after review. The drift
+  is expected: zero-shift chains, known-zero reductions, and
+  constant-selector cases fold earlier, then generated signal names
+  renumber.
+- Synced README, USER_GUIDE, ROADMAP, CODEBASE_ANALYSIS,
+  DEVELOPMENT_NOTES, the mdBook, task tree, and Knowledge Map facts.
+
+**Why it matters**
+
+This extends the live `e-graph` fragment without turning finalization
+into an unbounded truth-table pass. Users get a real shallow 12-bit
+semantic capability increase under `identity_mode = node-id` /
+`factorization_level = e-graph`, while wider or deeper cones fall back
+to structural identity once the work budget would be exceeded.
+
+**Tests**
+
+- `cargo test -q semantic_merge_proof`
+- `cargo test -q cleanup_exact_proof`
+- `/usr/bin/time -l cargo test -q semantic_merge_proof` — passed 3
+  tests in 0.32s, max RSS 45252608 bytes
+- `/usr/bin/time -l cargo test -q cleanup_exact_proof` — passed 4
+  tests in 0.05s, max RSS 45678592 bytes
+- `cargo test -q merge_equivalent_gates`
+- `cargo test -q ir::compact::tests::semantic`
+- `cargo test -q --test snapshots` after deliberate snapshot
+  review/acceptance
+- `cargo run -q -- --seed 42 --count 1 --out /tmp/anvil-csi2-smoke-20260605 --identity-mode node-id --factorization-level e-graph`
+- `verilator --lint-only /tmp/anvil-csi2-smoke-20260605/mod_42_0000.sv`
+- `yosys -p "read_verilog -sv /tmp/anvil-csi2-smoke-20260605/mod_42_0000.sv; synth -noabc; stat"` — 0 problems, 67.75 MB peak
+
+**Impact**
+
+- Generated RTL can change under `identity_mode = node-id` with
+  effective `factorization_level = e-graph` because more shallow
+  semantic proofs are now eligible.
+- `identity_mode = relaxed` remains the semantic off-switch.
+- No CLI flag, config default, or numbered roadmap phase label changed.
+- Full `cargo test` was not run; focused compact tests, snapshot guard,
+  and downstream smoke covered this budget slice without invoking the
+  resource-sensitive full suite.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `tests/snapshots/*.snap`
+- `book/src/factorization.md`
+- `book/src/structural-rules.md`
+- `book/src/faq.md`
+- `book/src/knobs.md`
+- `book/src/ir.md`
+- `book/src/architecture.md`
+- `book/src/recipes.md`
+- `book/src/sequential.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/semantic-proof-budget.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md`
+- `docs/TASK_TREE.md`
+
+## 2026-06-05-combinational-semantic-identity-1 — COMBINATIONAL-SEMANTIC-IDENTITY.1 fold gates to endpoints
+
+**Landed as:** `41948a6`
 
 **What changed**
 

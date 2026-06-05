@@ -58,6 +58,29 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Bounded semantic proof budget audit (2026-06-05, COMBINATIONAL-SEMANTIC-IDENTITY.2)
+
+The semantic proof limit moved from a flat 10 endpoint-support-bit cap
+to a two-part budget: support may reach 12 bits, but only when
+`assignment_count * cone_node_count` stays inside the previous
+10-bit worst-case envelope. Merge proofs therefore admit tiny 12-bit
+cones while still skipping larger 12-bit cones before truth-table
+evaluation. Cleanup exact proofs use the same 12-bit support ceiling
+but a stricter 64-node / 65536-work-unit budget and still require no
+more than three canonical endpoints.
+
+Rejected alternative: simply raising the support cap. That would double
+or quadruple per-proof cost with no bound on how many finalization
+candidates could become eligible. The combined work budget gives the
+useful shallow-cone win without making the semantic pass a second
+whole-graph evaluator.
+
+Focused resource evidence: `/usr/bin/time -l cargo test -q
+semantic_merge_proof` passed 3 tests in 0.32s with 45252608-byte max
+RSS; `/usr/bin/time -l cargo test -q cleanup_exact_proof` passed 4
+tests in 0.05s with 45678592-byte max RSS. The full suite was not
+needed for this budget audit.
+
 ### Gate-to-endpoint semantic fold (2026-06-05, COMBINATIONAL-SEMANTIC-IDENTITY.1)
 
 The bounded `EGraph` fragment now indexes earlier non-gate canonical
@@ -67,11 +90,11 @@ lets a cone such as `a & (b | !b)` reduce its proof from syntactic
 endpoints `{a,b}` to the functional endpoint `{a}`, then rewire the gate
 to the existing `a` node.
 
-This is not a general unbounded e-graph. The existing support-bit and
-cone-node budgets still apply before enumeration, and the proof still
-keys on canonical endpoints after minimization. The important boundary
-is now: semantically-dead helper endpoints may disappear, but live
-canonical roots remain part of identity.
+This is not a general unbounded e-graph. The current support, cone-node,
+and combined work budgets still apply before enumeration, and the proof
+still keys on canonical endpoints after minimization. The important
+boundary is now: semantically-dead helper endpoints may disappear, but
+live canonical roots remain part of identity.
 
 ### Endpoint-preserving semantic gate merge (2026-06-05, ENDPOINT-IDENTITY-BOUNDARY.1)
 

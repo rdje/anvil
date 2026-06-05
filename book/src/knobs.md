@@ -307,7 +307,10 @@ instead of creating fresh logic.
   when `identity_mode = node-id`. Each step implies all lower
   ones. Lower rungs are weaker enforcement of the same doctrine, not a
   different definition of `node-id`. Implemented layers land
-  progressively without requiring a config change. See Rule 21c.
+  progressively without requiring a config change. Today the `e-graph`
+  rung includes a bounded semantic gate proof, not an unbounded solver:
+  up to 12 endpoint-support bits and only while the candidate cone fits
+  its node/work budget. See Rule 21c.
 
 - `max_ast_instances` — maximum number of times a given AST
   (`(op, operands, width)` for gates, `(width, value)` for

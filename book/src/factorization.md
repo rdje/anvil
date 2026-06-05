@@ -284,12 +284,30 @@ local shape or local truth table looks the same.
 
 This is the first live `e-graph` fragment. It is intentionally bounded:
 full semantic equivalence across arbitrary-width cones is still future
-work.
+work. The current merge proof can enumerate up to **12 canonical
+endpoint-support bits**, but only while the cone stays shallow enough
+to fit the work budget. Concretely, merge proofs require:
+
+- output width no wider than 128 bits;
+- canonical endpoint support no wider than 12 bits;
+- at most 128 unique nodes in the candidate cone; and
+- `assignment_count * cone_node_count <= 131072`.
+
+That last rule is why a tiny 12-bit cone can be proven, while a larger
+12-bit cone falls back to the structural proof path instead of turning
+module finalisation into an expensive truth-table evaluator. This is a
+capability boundary, not a user knob: wider or deeper cones may still
+share by structural/normalised identity, but they are not semantically
+truth-table-proven by this bounded fragment.
 
 The settled-graph exact-value cleanup that feeds these remaps is also
 allowed to reason through narrow `Slice` results even when the source
 cone is wider than the small finite-set engine's direct domain. A
-wide-source / narrow-slice cone is still a narrow proof problem.
+wide-source / narrow-slice cone is still a narrow proof problem. Its
+general exact-value fallback is stricter than the merge proof: output
+width up to 8 bits, no more than 3 canonical endpoints, endpoint
+support up to 12 bits, at most 64 cone nodes, and
+`assignment_count * cone_node_count <= 65536`.
 
 Later remap-producing passes can themselves create fresh legal
 associative opportunities by changing which already-built node an
