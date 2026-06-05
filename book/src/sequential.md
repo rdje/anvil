@@ -35,9 +35,10 @@ domains**:
   `Module.flop_domains` (defaulting to 0 — the K=1 special
   case); the emitter generates one `always_ff @(posedge clk_X
   or negedge rst_n_X)` block per (domain, polarity) tuple.
-  Every cross-domain signal is wrapped by-construction in a
-  2-flop synchronizer (`src/gen/multi_clock.rs::construct_2flop_synchronizer`)
-  — there is no generate-then-filter step (rules-first
+  Every supported cross-domain signal is wrapped by-construction in a
+  synchronizer chain. The default chain is the original 2-flop
+  primitive; `Config::cdc_synchronizer_stages >= 3` opts into the
+  N-flop variant. There is no generate-then-filter step (rules-first
   generation, `feedback_rules_first_generation.md`).
 
 - *No* per-flop *clock-source* choice, per-flop *reset polarity*
@@ -65,8 +66,10 @@ For the multi-clock case, the by-construction rule extends to
 domain-crossing signals: the generator never emits a flop in
 domain B whose D-cone references a domain-A flop output directly;
 instead, the synchronizer wrap is constructed in place via
-`construct_2flop_synchronizer` (rules-first generation per
-`feedback_rules_first_generation.md`).
+`construct_nflop_synchronizer` (rules-first generation per
+`feedback_rules_first_generation.md`). The default stage count is 2,
+and higher stage counts remain the same 1-bit crossing primitive with
+additional destination-domain flops.
 
 ## Cone boundaries
 
@@ -236,30 +239,49 @@ configuration-only — same convention as `memory_prob` /
    flop's Q (declines cleanly on multi-bit outputs — those need
    handshake or async FIFO, deferred to a follow-up tree per
    `MULTI-CLOCK-CDC.1`'s catalogue tier 3-5).
-3. Constructs a 2-flop synchronizer chain in domain 1 via the
-   `src/gen/multi_clock.rs::construct_2flop_synchronizer`
-   primitive — two new flops, both in domain 1, chained
-   D=src_q → first → second → synced_q.
+3. Constructs a synchronizer chain in domain 1. The default
+   `Config::cdc_synchronizer_stages = 2` calls the compatibility
+   `src/gen/multi_clock.rs::construct_2flop_synchronizer` path; setting
+   the config value to `N >= 3` uses the N-flop synchronizer extension.
+   Every stage is a new flop in domain 1, chained
+   D=src_q → stage0 → ... → synced_q.
 4. Rewires the chosen output's drive to the synced Q.
 
-The result is a K=2 module whose B-domain output is properly
-2-flop-synchronized from the A-domain source flop. Both
-Verilator and Yosys accept the emitted SV without configuration
-(`int_multi_clock_2flop_sync` scenario in the default
-`tool_matrix` sweep is part of the gate). The
-`saw_multi_clock_design` + `saw_cdc_2_flop_synchronizer`
-coverage facts surface in `tool_matrix_report.json`.
+The result is a K=2 module whose B-domain output is synchronized from
+the A-domain source flop. Both Verilator and Yosys accept the emitted SV
+without configuration (`int_multi_clock_2flop_sync` and
+`int_multi_clock_3flop_sync` scenarios in the default `tool_matrix`
+sweep exercise the default and N-flop paths). The
+`saw_multi_clock_design`, `saw_cdc_2_flop_synchronizer`, and
+`saw_cdc_nflop_synchronizer` coverage facts surface in
+`tool_matrix_report.json`.
+
+For direct library use:
+
+```rust,ignore
+let mut cfg = anvil::Config {
+    multi_clock_prob: 1.0,
+    cdc_synchronizer_stages: 3,
+    flop_prob: 1.0,
+    min_width: 1,
+    max_width: 1,
+    ..anvil::Config::default()
+};
+let module = anvil::Generator::new(cfg).generate_module();
+let metrics = anvil::metrics::compute(&module);
+assert!(metrics.max_cdc_synchronizer_stages >= 3);
+```
 
 The pass is **rules-first** (`feedback_rules_first_generation.md`):
 the synchronizer is constructed in place at the moment of the
 domain-crossing decision; there is no post-pass filter.
 
-**First-cut MVP scope.** The current pass promotes one 1-bit
-flop-driven output per fired module. Multi-bit signal transfer
-(async FIFO, gray-code pointer, handshake), N-flop synchronizers,
-pulse synchronizers, and reset synchronizers are explicit
-follow-up tiers per `MULTI-CLOCK-CDC.1`'s catalogue — each is a
-separate task tree.
+**Current scope.** The current pass promotes one 1-bit flop-driven
+output per fired module and supports 2-stage or N-stage synchronizer
+chains for that crossing. Multi-bit signal transfer (async FIFO,
+gray-code pointer, handshake), pulse synchronizers, and reset
+synchronizers remain explicit follow-up tiers per
+`MULTI-CLOCK-CDC.1`'s catalogue.
 
 ## Combinational cycles
 

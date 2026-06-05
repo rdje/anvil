@@ -274,9 +274,10 @@ multi-clock domain table, `Module.flop_domains` tags flops by domain
 index (defaulting to 0 for the K=1 special case), and
 `Flop.reset_kind` is populated with `ResetKind::Async`
 unconditionally by `build_flop_leaf`. The multi-clock generator path
-uses `src/gen/multi_clock.rs::construct_2flop_synchronizer` for the
-current by-construction CDC primitive rather than filtering unsafe
-crossings later.
+uses `src/gen/multi_clock.rs::construct_nflop_synchronizer` for the
+by-construction CDC primitive rather than filtering unsafe crossings
+later. The default stage count is 2; `cdc_synchronizer_stages >= 3`
+opts into the N-flop variant.
 
 **Boundary rule:** `clk` / `rst_n` are emitted at a module boundary iff
 that module carries sequential state locally or through instantiated

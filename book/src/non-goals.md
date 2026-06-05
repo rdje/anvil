@@ -95,11 +95,13 @@ synthesizable construct appears eventually."
 Why: honest scope. Coverage metrics for random by-construction RTL are
 an unsolved research problem.
 
-## No CDC, no multi-clock (until a later dedicated phase)
+## No general CDC fabric
 
-Multi-clock designs require CDC-safe handshake synthesis, which is
-subtle. `anvil` uses one clock and one reset until/unless a later
-dedicated CDC phase lands with explicit support.
+ANVIL has an opt-in multi-clock promotion path with by-construction
+1-bit synchronizer chains. The default remains single-clock. It does
+not yet generate general CDC fabrics such as async FIFOs, gray-code
+pointer transfers, req/ack word handshakes, pulse synchronizers, or
+reset synchronizers.
 
 ## No formal proof of correctness
 

@@ -390,13 +390,17 @@ struct CoverageSummary {
     /// domain.
     saw_multi_clock_design: bool,
     /// `MULTI-CLOCK-CDC.3b.2` — at least one DUT carried a
-    /// 2-flop synchronizer chain (≥2 flops mapped to the same
-    /// non-zero domain via `Module.flop_domains`). Distinct from
+    /// exact 2-flop synchronizer chain. Distinct from
     /// `saw_multi_clock_design`: a module could declare K=2
     /// domains without any synchronizer if the promotion-pass
     /// decline path fired. Both facts together prove the
     /// by-construction synchronizer rule actually executed.
     saw_cdc_2_flop_synchronizer: bool,
+    /// `SIGNOFF-SURFACE-EXPANSION.1` — at least one DUT carried a
+    /// CDC synchronizer chain with three or more destination-domain
+    /// stages. This proves the N-flop synchronizer primitive beyond
+    /// the default 2-flop chain.
+    saw_cdc_nflop_synchronizer: bool,
     saw_comb_only_module: bool,
     saw_sequential_module: bool,
     saw_priority_encoder: bool,
@@ -828,15 +832,21 @@ fn build_default_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
         next_seed += 1;
     }
 
-    // `MULTI-CLOCK-CDC.3b.2` — multi-clock scenario. Forces
-    // `multi_clock_prob = 1.0` + a sequential + narrow-output
-    // profile so the `promote_to_multi_clock` pass has an
-    // eligible target. Lights `saw_multi_clock_design` +
-    // `saw_cdc_2_flop_synchronizer` coverage facts.
+    // `MULTI-CLOCK-CDC.3b.2` / `SIGNOFF-SURFACE-EXPANSION.1` —
+    // multi-clock scenarios. Force `multi_clock_prob = 1.0` + a
+    // sequential + narrow-output profile so the promotion pass has an
+    // eligible target. The first scenario preserves the exact 2-stage
+    // path; the second proves the N-stage path.
     scenarios.push(make_scenario(
         "int_multi_clock_2flop_sync",
         "Interleaved with multi_clock_prob=1.0 + flop_prob=1.0 + min/max-width=1 — exercises the MULTI-CLOCK-CDC.3b promote_to_multi_clock pass; lights saw_multi_clock_design + saw_cdc_2_flop_synchronizer.",
         multi_clock_focus_config(ConstructionStrategy::Interleaved, next_seed),
+    )?);
+    next_seed += 1;
+    scenarios.push(make_scenario(
+        "int_multi_clock_3flop_sync",
+        "Interleaved with multi_clock_prob=1.0 + cdc_synchronizer_stages=3 + flop_prob=1.0 + min/max-width=1 — exercises the SIGNOFF-SURFACE-EXPANSION.1 N-flop synchronizer path; lights saw_cdc_nflop_synchronizer.",
+        multi_clock_nflop_focus_config(ConstructionStrategy::Interleaved, next_seed, 3),
     )?);
 
     Ok(scenarios)
@@ -855,6 +865,16 @@ fn multi_clock_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config
     cfg.flop_prob = 1.0;
     cfg.min_width = 1;
     cfg.max_width = 1;
+    cfg
+}
+
+fn multi_clock_nflop_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    stages: u32,
+) -> Config {
+    let mut cfg = multi_clock_focus_config(strategy, seed);
+    cfg.cdc_synchronizer_stages = stages;
     cfg
 }
 
@@ -5017,16 +5037,19 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
                 coverage.saw_design_with_cross_simulator_agreement = true;
             }
         }
-        // `MULTI-CLOCK-CDC.3b.2` — multi-clock facts surface via
-        // the per-module Metrics fields populated by
-        // `anvil::metrics::compute` (`num_clock_domains` +
-        // `num_cdc_2_flop_synchronizers`). Module-level only —
-        // the design-level path uses `summarize_design_coverage`.
+        // `MULTI-CLOCK-CDC.3b.2` / `SIGNOFF-SURFACE-EXPANSION.1`
+        // — multi-clock facts surface via the per-module Metrics
+        // fields populated by `anvil::metrics::compute`.
+        // Module-level only — the design-level path uses
+        // `summarize_design_coverage`.
         if module.metrics.num_clock_domains >= 2 {
             coverage.saw_multi_clock_design = true;
         }
         if module.metrics.num_cdc_2_flop_synchronizers >= 1 {
             coverage.saw_cdc_2_flop_synchronizer = true;
+        }
+        if module.metrics.max_cdc_synchronizer_stages >= 3 {
+            coverage.saw_cdc_nflop_synchronizer = true;
         }
     }
 
@@ -6467,6 +6490,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
+    dst.saw_cdc_nflop_synchronizer |= src.saw_cdc_nflop_synchronizer;
     dst.saw_comb_only_module |= src.saw_comb_only_module;
     dst.saw_sequential_module |= src.saw_sequential_module;
     dst.saw_priority_encoder |= src.saw_priority_encoder;
@@ -6813,6 +6837,15 @@ fn compute_coverage_gaps(
     }
     if !coverage.saw_for_fold {
         gaps.push("matrix never emitted a combinational for-fold block".to_string());
+    }
+    if scenario_set == ScenarioSet::Default && !coverage.saw_multi_clock_design {
+        gaps.push("matrix never emitted an opt-in multi-clock module".to_string());
+    }
+    if scenario_set == ScenarioSet::Default && !coverage.saw_cdc_2_flop_synchronizer {
+        gaps.push("matrix never emitted an exact 2-flop CDC synchronizer".to_string());
+    }
+    if scenario_set == ScenarioSet::Default && !coverage.saw_cdc_nflop_synchronizer {
+        gaps.push("matrix never emitted an N-flop CDC synchronizer".to_string());
     }
     if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_hierarchy_design {
         gaps.push("matrix never emitted a hierarchy design".to_string());
@@ -7850,16 +7883,25 @@ mod tests {
             .iter()
             .any(|gap| gap.contains("missing gate category arithmetic")));
         assert!(gaps.iter().any(|gap| gap.contains("priority-encoder")));
+        assert!(gaps.iter().any(|gap| gap.contains("multi-clock module")));
+        assert!(gaps.iter().any(|gap| gap.contains("2-flop CDC")));
+        assert!(gaps.iter().any(|gap| gap.contains("N-flop CDC")));
     }
 
     #[test]
     fn phase1_gate_raises_modules_per_scenario_to_cover_1000_modules() {
         let mut cli = test_cli();
         cli.phase1_gate = true;
+        let scenario_count = build_scenarios(0, ScenarioSet::Default)
+            .expect("build scenarios")
+            .len();
 
-        let plan = derive_run_plan(&cli, 15);
-        assert_eq!(plan.modules_per_scenario, 67);
-        assert_eq!(plan.total_modules, 1005);
+        let plan = derive_run_plan(&cli, scenario_count);
+        assert_eq!(
+            plan.modules_per_scenario,
+            PHASE1_MIN_TOTAL_MODULES.div_ceil(scenario_count)
+        );
+        assert!(plan.total_modules >= PHASE1_MIN_TOTAL_MODULES);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -7868,10 +7910,13 @@ mod tests {
         let mut cli = test_cli();
         cli.phase1_gate = true;
         cli.modules_per_scenario = 100;
+        let scenario_count = build_scenarios(0, ScenarioSet::Default)
+            .expect("build scenarios")
+            .len();
 
-        let plan = derive_run_plan(&cli, 15);
+        let plan = derive_run_plan(&cli, scenario_count);
         assert_eq!(plan.modules_per_scenario, 100);
-        assert_eq!(plan.total_modules, 1500);
+        assert_eq!(plan.total_modules, scenario_count * 100);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -9622,6 +9667,18 @@ endmodule\n";
     }
 
     #[test]
+    fn merge_coverage_unions_saw_cdc_nflop_synchronizer() {
+        let mut dst = CoverageSummary::default();
+        let src = CoverageSummary {
+            saw_cdc_nflop_synchronizer: true,
+            ..CoverageSummary::default()
+        };
+        merge_coverage(&mut dst, &src);
+        assert!(dst.saw_cdc_nflop_synchronizer);
+        assert!(!dst.saw_cdc_2_flop_synchronizer);
+    }
+
+    #[test]
     fn summarize_coverage_lights_multi_clock_facts_from_module_metrics() {
         let scenario = Scenario {
             name: "synthetic".to_string(),
@@ -9652,6 +9709,10 @@ endmodule\n";
         let cov2 = summarize_coverage(&scenario, &modules);
         assert!(cov2.saw_multi_clock_design);
         assert!(cov2.saw_cdc_2_flop_synchronizer);
+
+        modules[0].metrics.max_cdc_synchronizer_stages = 3;
+        let cov3 = summarize_coverage(&scenario, &modules);
+        assert!(cov3.saw_cdc_nflop_synchronizer);
     }
 
     #[test]
@@ -9665,6 +9726,12 @@ endmodule\n";
         assert_eq!(multi_clock.config.flop_prob, 1.0);
         assert_eq!(multi_clock.config.min_width, 1);
         assert_eq!(multi_clock.config.max_width, 1);
+        assert_eq!(multi_clock.config.cdc_synchronizer_stages, 2);
+        let nflop = scenarios
+            .iter()
+            .find(|s| s.name == "int_multi_clock_3flop_sync")
+            .expect("N-flop multi-clock scenario should be in the default set");
+        assert_eq!(nflop.config.cdc_synchronizer_stages, 3);
     }
 
     #[test]

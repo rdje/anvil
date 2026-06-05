@@ -356,16 +356,16 @@ literature names ~7 patterns; ANVIL adopts them in priority order:
 | Tier | Primitive | First cut? | Notes |
 | --- | --- | --- | --- |
 | 1 | **2-flop synchronizer** (1-bit) | **Yes** | The minimum-viable CDC building block. Every 1-bit signal crossing domain A → domain B is two flops registered in B's domain; the metastability is captured + resolved by the second flop. Covers ~80% of real CDC paths. |
-| 2 | N-flop synchronizer (1-bit) | Deferred (`.5` or follow-up) | Same as tier-1 with N≥3 flops; needed for very-high-speed paths where 2 flops is insufficient. Adds a knob, not a structural change. |
+| 2 | N-flop synchronizer (1-bit) | **Yes (2026-06-05, `SIGNOFF-SURFACE-EXPANSION.1`)** | Same as tier-1 with N≥3 flops; needed for very-high-speed paths where 2 flops is insufficient. Implemented as `cdc_synchronizer_stages`, default 2 for byte-identical compatibility. |
 | 3 | Async FIFO (multi-bit) | Deferred (own tree) | Major structural change: depth, gray-code pointers, empty/full handshake, separate read/write domains. Phase-sized. |
 | 4 | Gray-code pointer transfer | Deferred (own tree) | Foundation for async FIFO; gray code's single-bit transition prevents pointer corruption mid-flight. |
 | 5 | Req/ack handshake (multi-bit) | Deferred (`.6` or follow-up) | 4-phase or 2-phase handshake for word transfer; smaller than FIFO but still structural. |
 | 6 | Pulse synchronizer | Deferred (`.7` or follow-up) | Toggle + 2-flop sync + XOR; transfers an event across domains. |
 | 7 | Reset synchronizer | Deferred (`.4` or follow-up) | Async-assert + sync-deassert; each domain gets its own. |
 
-**Tier 1 (2-flop synchronizer)** is the minimum viable cut.
-The deferred tiers either reuse tier-1 mechanically (N-flop)
-or are large enough to warrant their own task tree (FIFO,
+**Tier 1 (2-flop synchronizer)** is the minimum viable cut. Tier 2
+reuses tier 1 mechanically by adding stage count. The remaining
+deferred tiers are large enough to warrant their own task tree (FIFO,
 handshake, gray code). Per `feedback_full_factorization.md`
 and `feedback_rules_first_generation.md`: when the generator
 makes a domain-crossing decision, the synchronizer wrap is
@@ -403,14 +403,16 @@ flop, and the emit is byte-identical.
 **By-construction rule** (`book/src/structural-rules.md`, new
 Rule for multi-clock). When the generator emits a flop in
 domain B whose D-cone references a flop output in domain A,
-the cone is rewritten to dereference a **2-flop synchronizer**
-in domain B instead — that is, the flop sees `Synchronizer{
-src_flop_q, dst_domain }` as its operand, never the bare
-cross-domain flop output. The synchronizer is two newly-minted
-flops, both in dst_domain. The rule fires at *construction
-time*; there is no post-pass filter. The bookkeeping that
-discovers domain-crossing operands is `Flop.domain` + the
-cone-recursion that ANVIL already does.
+the cone is rewritten to dereference a synchronizer chain in
+domain B instead — that is, the flop sees `Synchronizer{
+src_flop_q, dst_domain, stages }` as its operand, never the bare
+cross-domain flop output. The default chain is the original
+2-flop synchronizer; `SIGNOFF-SURFACE-EXPANSION.1` adds the
+`cdc_synchronizer_stages` count for N-flop chains. All stages
+are newly-minted flops in dst_domain. The rule fires at
+*construction time*; there is no post-pass filter. The
+bookkeeping that discovers domain-crossing operands is
+`Flop.domain` + the cone-recursion that ANVIL already does.
 
 This is exactly the rules-first generation pattern
 (`feedback_rules_first_generation.md`): we never generate an
@@ -476,11 +478,12 @@ the cycle-accurate `@(negedge clk_B)` sample.
   testbench concern, not a generator concern.
 
 **Leaf shape.** `.2` implements the IR extension (multi-domain
-`Module`, per-flop `domain`, 2-flop synchronizer construction
-rule, emitter); `.3` adds the downstream-tool gate (Verilator
+`Module`, per-flop `domain`, synchronizer construction rule,
+emitter); `.3` adds the downstream-tool gate (Verilator
 `--cdc=metastable`) and the matrix wiring (`--multi-clock-prob`
 knob, `saw_multi_clock_design` + `saw_cdc_2_flop_synchronizer`
-coverage facts); `.4` documents the contract (README +
+coverage facts; `SIGNOFF-SURFACE-EXPANSION.1` adds
+`saw_cdc_nflop_synchronizer`); `.4` documents the contract (README +
 USER_GUIDE + `book/src/sequential.md` updates removing the
 "Multi-clock deferred" caveat).
 

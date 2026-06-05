@@ -650,6 +650,8 @@ Config {
     hierarchy_parent_flop_prob: 0.0,
     hierarchy_module_dedup: false,
     hierarchy_semantic_module_dedup: false,
+    multi_clock_prob: 0.0,
+    cdc_synchronizer_stages: 2,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,
@@ -841,6 +843,15 @@ resume/checkpoint behavior, and which external tools are invoked.
   both Yosys, `saw_fsm_design = true`). **This closes Phase 6
   (advanced motifs).** Mealy outputs are the recorded post-closure
   extension and are not emitted today.
+- `multi_clock_prob` (default `0.0`) — per-module probability that a
+  finalized module is promoted to K=2 with a by-construction CDC
+  synchronizer on one 1-bit flop-driven output. Config/library-only;
+  default-off is byte-identical.
+- `cdc_synchronizer_stages` (default `2`) — number of destination-domain
+  flops in that generated CDC synchronizer chain. `2` is the original
+  2-flop primitive; values `>= 3` opt into the N-flop synchronizer
+  primitive. It is meaningful only when `multi_clock_prob` fires and the
+  module has an eligible 1-bit flop-driven output. Config/library-only.
 
 ## Knob serialization
 

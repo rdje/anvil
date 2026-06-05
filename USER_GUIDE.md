@@ -287,6 +287,15 @@ rewires to `c`. The proof is bounded, not a solver: it enumerates at
 most 12 endpoint-support bits and skips candidates whose
 `assignment_count * cone_node_count` exceeds the current work budget.
 
+Multi-clock CDC is config/library-only. Set `multi_clock_prob > 0.0`
+to promote eligible modules to K=2, and set
+`cdc_synchronizer_stages = N` to choose the number of destination-domain
+flops in the generated 1-bit synchronizer chain. The default `N = 2`
+is the original 2-flop synchronizer; `N >= 3` exercises the N-flop
+primitive. Inspect `num_cdc_synchronizer_chains` and
+`max_cdc_synchronizer_stages` in module metrics; the legacy
+`num_cdc_2_flop_synchronizers` counts exact 2-stage chains.
+
 Interpretation note: doctrinally, `identity_mode=node-id` means
 `NodeId` is the identity of an expression, which implies full
 factorization by definition. `factorization_level` is the current
@@ -644,13 +653,16 @@ Useful options:
   mandatorily; the per-axis subset gives signoff-quality coverage
   without 2h+ CI runtime.
 
-Current local smoke status after the full current-code Phase 1 closure:
-the built-in matrix is 15/15 clean in Verilator and 15/15 clean in
-Yosys under `--yosys-mode without-abc`. `tool_matrix` treats warnings
-as failures, so a green run means "no errors, no warnings", not merely
-zero non-zero exits. A small `--yosys-mode both` probe is clean in both
-Yosys sub-modes too: `without-abc = 15/15 pass`, `with-abc = 15/15
-pass`. The completed current-code `--phase1-gate --yosys-mode both`
+Current focused smoke status after `SIGNOFF-SURFACE-EXPANSION.1`: the
+built-in matrix is 17/17 clean in Verilator and 17/17 clean in Yosys
+under `--yosys-mode without-abc`, with `coverage_gaps = []` and both
+CDC coverage facts lit (`saw_cdc_2_flop_synchronizer` and
+`saw_cdc_nflop_synchronizer`). `tool_matrix` treats warnings as
+failures, so a green run means "no errors, no warnings", not merely
+zero non-zero exits. A previous small `--yosys-mode both` probe was
+clean in both Yosys sub-modes too: `without-abc = 15/15 pass`,
+`with-abc = 15/15 pass`. The completed current-code
+`--phase1-gate --yosys-mode both`
 report at `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
 records:
 

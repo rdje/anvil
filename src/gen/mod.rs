@@ -3,14 +3,14 @@
 pub mod cone;
 pub mod hierarchy;
 pub mod module;
-/// `MULTI-CLOCK-CDC.3a` — 2-flop synchronizer construction
-/// primitive for cross-clock-domain signals. Per
-/// `MULTI-CLOCK-CDC.1`'s design + the rules-first generation
-/// doctrine (`feedback_rules_first_generation.md`), the
-/// synchronizer is constructed in place when the generator
-/// makes a domain-crossing decision; never via a post-pass
-/// filter. `.3b` wires this primitive into the per-module
-/// generator's domain-crossing decision path.
+/// `MULTI-CLOCK-CDC.3a` / `SIGNOFF-SURFACE-EXPANSION.1` —
+/// synchronizer construction primitive for cross-clock-domain
+/// signals. Per `MULTI-CLOCK-CDC.1`'s design + the rules-first
+/// generation doctrine (`feedback_rules_first_generation.md`), the
+/// synchronizer is constructed in place when the generator makes a
+/// domain-crossing decision; never via a post-pass filter. The
+/// default chain is 2 stages; `Config::cdc_synchronizer_stages >= 3`
+/// opts into the N-flop variant.
 pub mod multi_clock;
 pub mod pool;
 
@@ -77,7 +77,10 @@ impl Generator {
         if self.cfg.multi_clock_prob > 0.0 {
             let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
             if self.rng.gen_bool(p) {
-                let _ = multi_clock::promote_to_multi_clock(&mut m);
+                let _ = multi_clock::promote_to_multi_clock_with_stages(
+                    &mut m,
+                    self.cfg.cdc_synchronizer_stages,
+                );
             }
         }
         m
@@ -95,7 +98,10 @@ impl Generator {
         if self.cfg.multi_clock_prob > 0.0 {
             let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
             if self.rng.gen_bool(p) {
-                let _ = multi_clock::promote_to_multi_clock(&mut m);
+                let _ = multi_clock::promote_to_multi_clock_with_stages(
+                    &mut m,
+                    self.cfg.cdc_synchronizer_stages,
+                );
             }
         }
         m
@@ -187,7 +193,10 @@ impl Generator {
             let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
             for module in &mut design.modules {
                 if self.rng.gen_bool(p) {
-                    let _ = multi_clock::promote_to_multi_clock(module);
+                    let _ = multi_clock::promote_to_multi_clock_with_stages(
+                        module,
+                        self.cfg.cdc_synchronizer_stages,
+                    );
                 }
             }
         }

@@ -2125,6 +2125,11 @@ frontiers:
   proof boundaries.
 - `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,
   simulator/tool parity, and resource-aware signoff sweep expansion.
+  `.1` landed the next CDC primitive: configurable N-flop 1-bit
+  synchronizer chains via `cdc_synchronizer_stages`, with default
+  2-stage behavior preserved and general CDC fabrics still deferred.
+  The next frontier is `.2`, richer AST/source extractor parity where
+  available.
 
 The previously separate quality/capability follow-ups are closed:
 `DIFFERENTIAL-SIMULATION` landed its cross-simulator semantic-agreement

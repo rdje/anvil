@@ -44,15 +44,25 @@ pub struct Metrics {
     /// promotion pass has fired on this module.
     #[serde(default)]
     pub num_clock_domains: usize,
-    /// `MULTI-CLOCK-CDC.3b.2` — number of 2-flop synchronizer
-    /// chains in this module (a "chain" is ≥2 flops mapped to
-    /// the same non-zero domain via `Module.flop_domains`,
-    /// chained D-to-Q). Surfaces the by-construction
-    /// synchronizer rule's actual execution. `0` for any
-    /// module without a domain-1 chain; `>= 1` after a
-    /// successful `promote_to_multi_clock` call.
+    /// `MULTI-CLOCK-CDC.3b.2` — number of exact 2-flop synchronizer
+    /// chains in this module. `SIGNOFF-SURFACE-EXPANSION.1` keeps
+    /// this legacy metric exact-2 only; N-flop chains are counted by
+    /// `num_cdc_synchronizer_chains` and summarized by
+    /// `max_cdc_synchronizer_stages`.
     #[serde(default)]
     pub num_cdc_2_flop_synchronizers: usize,
+    /// `SIGNOFF-SURFACE-EXPANSION.1` — number of CDC synchronizer
+    /// chains with at least two destination-domain stages. This is the
+    /// stage-count-agnostic companion to the legacy exact-2-flop
+    /// metric above.
+    #[serde(default)]
+    pub num_cdc_synchronizer_chains: usize,
+    /// `SIGNOFF-SURFACE-EXPANSION.1` — maximum number of destination-
+    /// domain stages observed in any CDC synchronizer chain in this
+    /// module. `2` is the default primitive; values `>= 3` prove the
+    /// N-flop synchronizer path executed.
+    #[serde(default)]
+    pub max_cdc_synchronizer_stages: usize,
 
     // --- Per-gate-kind distribution -----------------------------
     /// Count of `Node::Gate` per `GateOp` kind (`"and"`, `"mux"`,
@@ -567,52 +577,70 @@ pub struct DesignMetrics {
 
 /// Compute metrics from a generated `Module`. Pure function — does
 /// not modify the module.
-/// `MULTI-CLOCK-CDC.3b.2` — count 2-flop synchronizer chains in
-/// `m`. A "chain" is ≥2 flops mapped to the same non-zero domain
-/// via `Module.flop_domains`, with the second flop's D
-/// referencing the first flop's Q (the by-construction
-/// `construct_2flop_synchronizer` pattern from `.3a`). For the
-/// first-cut MVP, the `promote_to_multi_clock` pass produces
-/// exactly one chain per fired module, so this counts as
-/// expected. The check is structural — it traverses
-/// `Module.flop_domains` and confirms the chain shape.
-fn count_2flop_synchronizer_chains(m: &Module) -> usize {
-    use std::collections::BTreeMap;
-    // Group flops by their (non-zero) domain index.
-    let mut by_domain: BTreeMap<u32, Vec<crate::ir::FlopId>> = BTreeMap::new();
+/// Structural CDC synchronizer chain lengths. A chain is two or more
+/// flops in a non-zero domain where each later stage's D input is the
+/// previous stage's Q. This recognizes both the default 2-flop
+/// primitive and the N-flop extension.
+fn cdc_synchronizer_chain_stage_lengths(m: &Module) -> Vec<usize> {
+    let mut flops_by_domain: BTreeMap<u32, Vec<crate::ir::FlopId>> = BTreeMap::new();
     for (flop_id, domain) in &m.flop_domains {
-        if *domain == 0 {
-            continue; // domain 0 is the default — not a sync chain.
+        if *domain != 0 {
+            flops_by_domain.entry(*domain).or_default().push(*flop_id);
         }
-        by_domain.entry(*domain).or_default().push(*flop_id);
     }
-    // Count chains: for each non-zero domain, look for pairs of
-    // flops (first, second) where second.D references first.Q.
-    let mut chains = 0;
-    for flops_in_domain in by_domain.values() {
-        if flops_in_domain.len() < 2 {
-            continue;
+
+    let mut lengths = Vec::new();
+    for flops in flops_by_domain.values() {
+        let domain_flops: BTreeSet<_> = flops.iter().copied().collect();
+        let q_to_flop: BTreeMap<_, _> = flops
+            .iter()
+            .map(|flop_id| (m.flops[*flop_id as usize].q, *flop_id))
+            .collect();
+        let mut consumers_by_d: BTreeMap<crate::ir::NodeId, Vec<crate::ir::FlopId>> =
+            BTreeMap::new();
+        for flop_id in flops {
+            if let Some(d) = m.flops[*flop_id as usize].d {
+                consumers_by_d.entry(d).or_default().push(*flop_id);
+            }
         }
-        // For each pair, check if second.D points at first.Q.
-        // The first-cut MVP allocates the pair consecutively, so
-        // this O(N^2) scan is cheap.
-        for &first_id in flops_in_domain {
-            for &second_id in flops_in_domain {
-                if first_id == second_id {
-                    continue;
+
+        for start in flops {
+            let start_d = m.flops[*start as usize].d;
+            if start_d
+                .and_then(|node| q_to_flop.get(&node).copied())
+                .is_some()
+            {
+                continue;
+            }
+
+            let mut len = 1usize;
+            let mut current = *start;
+            let mut seen = BTreeSet::from([current]);
+            loop {
+                let q = m.flops[current as usize].q;
+                let nexts: Vec<_> = consumers_by_d
+                    .get(&q)
+                    .into_iter()
+                    .flat_map(|ids| ids.iter().copied())
+                    .filter(|id| domain_flops.contains(id) && !seen.contains(id))
+                    .collect();
+                if nexts.len() != 1 {
+                    break;
                 }
-                let first_q = m.flops[first_id as usize].q;
-                let second_d = m.flops[second_id as usize].d;
-                if second_d == Some(first_q) {
-                    chains += 1;
-                }
+                current = nexts[0];
+                seen.insert(current);
+                len += 1;
+            }
+            if len >= 2 {
+                lengths.push(len);
             }
         }
     }
-    chains
+    lengths
 }
 
 pub fn compute(m: &Module) -> Metrics {
+    let cdc_chain_lengths = cdc_synchronizer_chain_stage_lengths(m);
     let mut out = Metrics {
         module: m.name.clone(),
         num_inputs: m.inputs.len(),
@@ -625,7 +653,12 @@ pub fn compute(m: &Module) -> Metrics {
         // `summarize_coverage` can light the new coverage facts
         // without needing the typed Module IR in scope.
         num_clock_domains: m.clock_domains.len(),
-        num_cdc_2_flop_synchronizers: count_2flop_synchronizer_chains(m),
+        num_cdc_2_flop_synchronizers: cdc_chain_lengths
+            .iter()
+            .filter(|stages| **stages == 2)
+            .count(),
+        num_cdc_synchronizer_chains: cdc_chain_lengths.len(),
+        max_cdc_synchronizer_stages: cdc_chain_lengths.iter().copied().max().unwrap_or(0),
         ..Default::default()
     };
 

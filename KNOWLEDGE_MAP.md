@@ -3,13 +3,14 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **13** facts · **54** question keys.
+> **14** facts · **58** question keys.
 
 ## Questions → fact
 
 - "are local checkout paths allowed in the book" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "are memory blocks state by instance" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "can ANVIL fold a gate to an input under egraph" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
+- "can ANVIL generate N-flop CDC synchronizers" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "can ANVIL merge duplicate FSM blocks" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
 - "can ANVIL merge semantically equivalent modules" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "can equivalent flops merge across clock domains" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
@@ -18,6 +19,7 @@
 - "can self-holding flops merge" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "can semantic gate merge target non-gate nodes" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
 - "do I need a task tree before changing code" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "does ANVIL generate async FIFOs or pulse synchronizers" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "does ANVIL merge resetless self-hold flops" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "does ANVIL merge stateful modules by semantic equivalence" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "does a and b or not b simplify to a" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
@@ -28,6 +30,7 @@
 - "does hierarchy module dedup remove unreachable modules" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "does hierarchy_module_dedup change under-instantiation" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "does semantic gate merge ignore endpoint identity" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
+- "how can ANVIL prove a 3-flop CDC synchronizer was generated" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "how many endpoint bits can semantic gate merge prove" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "how should project file paths be written in live docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "repo-root-relative paths in ANVIL docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
@@ -36,6 +39,7 @@
 - "should I run the full cargo test suite for memory architecture docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "what RAM threshold stops a full suite" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
+- "what does cdc_synchronizer_stages do" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "what does endpoint-preserving identity mean" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 - "what does fsms_merged measure" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
 - "what does hierarchy_semantic_module_dedup do" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
@@ -135,6 +139,14 @@ _Inferrable memories stay instance-local under full factorization_
 - **date:** 2026-06-05 · **status:** current
 - **evidence:** `src/ir/compact.rs; book/src/factorization.md; DEVELOPMENT_NOTES.md`
 - **source:** [`docs/knowledge/memory-identity-boundary.md`](docs/knowledge/memory-identity-boundary.md)
+
+### n-flop-cdc-synchronizer
+_N-flop CDC synchronizer is config-selectable_
+
+- **answers:** can ANVIL generate N-flop CDC synchronizers | what does cdc_synchronizer_stages do | how can ANVIL prove a 3-flop CDC synchronizer was generated | does ANVIL generate async FIFOs or pulse synchronizers
+- **date:** 2026-06-05 · **status:** current
+- **evidence:** `src/gen/multi_clock.rs; src/config.rs; src/metrics.rs; src/bin/tool_matrix.rs; book/src/sequential.md; book/src/knobs.md`
+- **source:** [`docs/knowledge/n-flop-cdc-synchronizer.md`](docs/knowledge/n-flop-cdc-synchronizer.md)
 
 ### reset-defined-self-hold-flop-identity
 _Exact reset-defined self-hold flops can merge_

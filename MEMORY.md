@@ -8,11 +8,11 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `71c0fd1` - `HIERARCHY-SEMANTIC-IDENTITY.2 - extend semantic dedup to wrappers`
-- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.3` closes the hierarchy semantic identity tree with landed classes and deferred proof boundaries.
-- next_action: finish docs validation, commit `HIERARCHY-SEMANTIC-IDENTITY.3`, clear `git_message_brief.txt`, then pick `SIGNOFF-SURFACE-EXPANSION.1`.
-- in_flight_uncommitted: docs/task-tree/live-doc closeout edits for `.3` are ready for focused validation and commit workflow.
-- blockers: none.
+- latest_commit: `367dca1` - `HIERARCHY-SEMANTIC-IDENTITY.3 - close hierarchy semantic frontier`
+- active_work_unit: `SIGNOFF-SURFACE-EXPANSION.1` adds configurable N-flop 1-bit CDC synchronizer chains and closes the first signoff-surface leaf.
+- next_action: commit `SIGNOFF-SURFACE-EXPANSION.1`, clear `git_message_brief.txt`, then pick `SIGNOFF-SURFACE-EXPANSION.2` for richer AST/source extractor parity.
+- in_flight_uncommitted: N-flop CDC code, metrics, matrix coverage, mdBook/user docs, Knowledge Map, task tree, roadmap, CHANGES update ready for commit.
+- blockers: full `cargo test` is resource-blocked in this environment; monitored run stopped at 90.7% RAM per owner policy. Focused validation and 17-scenario matrix smoke are clean.
 
 ## Validation policy
 - For workflow-doc memory/retrieval architecture leaves, use focused functional checks; full `cargo test` is not required per owner instruction.

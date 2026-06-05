@@ -101,6 +101,10 @@ fn default_multi_clock_prob() -> f64 {
     0.0
 }
 
+fn default_cdc_synchronizer_stages() -> u32 {
+    2
+}
+
 fn default_hierarchy_registered_sibling_route_prob() -> f64 {
     0.0
 }
@@ -593,14 +597,20 @@ pub struct Config {
     /// `MULTI-CLOCK-CDC.3b` — per-module roll for the multi-clock
     /// promotion pass. When fired, a second clock domain is added
     /// to the generated module + one flop-driven output is wrapped
-    /// in a 2-flop synchronizer chain in the new domain (the
-    /// `src/gen/multi_clock.rs::construct_2flop_synchronizer`
-    /// primitive landed in `MULTI-CLOCK-CDC.3a`). `default = 0.0`
-    /// keeps every existing output byte-identical to pre-`.3b`
-    /// ANVIL — the load-bearing default-`dut` book-runnable
-    /// contract from Phase 9 is preserved.
+    /// in a by-construction synchronizer chain in the new domain.
+    /// `default = 0.0` keeps every existing output byte-identical
+    /// to pre-`.3b` ANVIL — the load-bearing default-`dut`
+    /// book-runnable contract from Phase 9 is preserved.
     #[serde(default = "default_multi_clock_prob")]
     pub multi_clock_prob: f64,
+
+    /// `SIGNOFF-SURFACE-EXPANSION.1` — number of destination-domain
+    /// flops in the generated 1-bit CDC synchronizer chain. Default
+    /// `2` preserves the existing `MULTI-CLOCK-CDC` behavior
+    /// byte-for-byte. Values `>= 3` opt into the N-flop synchronizer
+    /// primitive for higher-MTBF CDC stress.
+    #[serde(default = "default_cdc_synchronizer_stages")]
+    pub cdc_synchronizer_stages: u32,
 
     // Clocking (Phase 2+)
     pub use_async_reset: bool,
@@ -758,6 +768,7 @@ impl Default for Config {
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
+            cdc_synchronizer_stages: default_cdc_synchronizer_stages(),
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
@@ -848,6 +859,8 @@ pub enum ConfigError {
         "num_leaf_modules ({0}) is only valid when hierarchy_child_source_mode=library in legacy exact depth-1 wrapper mode"
     )]
     LeafLibraryRequiresLibrarySourcing(u32),
+    #[error("cdc_synchronizer_stages ({0}) must be >= 2")]
+    CdcSynchronizerStagesTooSmall(u32),
 }
 
 impl Config {
@@ -954,6 +967,11 @@ impl Config {
             return Err(ConfigError::CoefficientRange(
                 self.min_coefficient,
                 self.max_coefficient,
+            ));
+        }
+        if self.cdc_synchronizer_stages < 2 {
+            return Err(ConfigError::CdcSynchronizerStagesTooSmall(
+                self.cdc_synchronizer_stages,
             ));
         }
         if self.uses_hierarchy_range_mode() {
@@ -1398,6 +1416,18 @@ mod tests {
             other => {
                 panic!("expected operand_duplication_rate probability error, got {other:?}")
             }
+        }
+    }
+
+    #[test]
+    fn validate_rejects_cdc_synchronizer_stage_counts_below_two() {
+        let cfg = Config {
+            cdc_synchronizer_stages: 1,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::CdcSynchronizerStagesTooSmall(stages)) => assert_eq!(stages, 1),
+            other => panic!("expected cdc stage-count rejection, got {other:?}"),
         }
     }
 

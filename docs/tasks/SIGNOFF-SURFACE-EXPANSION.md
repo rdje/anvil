@@ -45,11 +45,11 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   Children: `SIGNOFF-SURFACE-EXPANSION.1`, `SIGNOFF-SURFACE-EXPANSION.2`, `SIGNOFF-SURFACE-EXPANSION.3`, `SIGNOFF-SURFACE-EXPANSION.4`
 
 - ID: `SIGNOFF-SURFACE-EXPANSION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Add the next CDC primitive or record the concrete proof/tooling blocker.`
   Acceptance: `A CDC primitive beyond the existing 2-flop synchronizer lands with generation, metrics, matrix coverage, and docs, or a blocker records why the next primitive is not yet safe.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `focused cargo/config/matrix tests, snapshots, book_examples, mdBook, clippy, check, Knowledge Map, memory architecture, focused 17-scenario tool_matrix smoke clean; full cargo test monitored and stopped at 90.7% RAM per policy.`
+  Commit: `SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer`
 
 - ID: `SIGNOFF-SURFACE-EXPANSION.2`
   Status: `pending`
@@ -76,13 +76,19 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SIGNOFF-SURFACE-EXPANSION.1` | `pending` | CDC is already a live opt-in capability, so the next primitive is the nearest signoff-surface expansion. |
+| 1 | `SIGNOFF-SURFACE-EXPANSION.2` | `pending` | CDC now has the next low-risk primitive; richer AST/source extractor parity is the next signoff surface. |
 
 ## Decisions
 
 - `2026-06-05`: Keep all richer tool integrations optional and
   repo-portable. ANVIL-specific signoff work must not import SpecForge,
   docling, LLM, or VLM assumptions.
+- `2026-06-05`: The next CDC primitive is the N-flop 1-bit
+  synchronizer, not async FIFO or handshake. It is a safe extension of
+  the existing by-construction 2-flop lane: `cdc_synchronizer_stages`
+  defaults to `2`, validates `>= 2`, and values `>= 3` generate longer
+  destination-domain chains. Multi-bit CDC fabrics remain separate
+  future trees.
 
 ## Open Questions
 
@@ -96,15 +102,17 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.1` | `pending` | `pending` |
+| `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.1` | `cargo check --all-targets`; `cargo test -q synchronizer`; `cargo test -q --bin tool_matrix coverage_gaps_detect_missing_categories`; `cargo test -q --bin tool_matrix phase1_gate_raises_modules_per_scenario_to_cover_1000_modules`; `cargo test -q --bin tool_matrix phase1_gate_preserves_larger_explicit_module_count`; `cargo test -q --bin tool_matrix build_default_scenarios_includes_multi_clock_scenario`; `cargo test -q --bin tool_matrix summarize_coverage_lights_multi_clock_facts_from_module_metrics`; `cargo test -q validate_rejects_cdc`; `cargo test -q --bin tool_matrix merge_coverage_unions_saw_cdc_nflop_synchronizer`; `cargo test -q --bin tool_matrix diff_sim_subset_against_default_scenarios_is_nonempty_and_capped`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples`; `cargo test --test snapshots`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`; focused `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap --yosys-mode without-abc`; monitored `cargo test` attempt. | Focused checks clean. Focused matrix: 17 scenarios / 17 modules, `coverage_gaps=[]`, Verilator 17/0, Yosys without-abc 17/0, `saw_multi_clock_design=true`, `saw_cdc_2_flop_synchronizer=true`, `saw_cdc_nflop_synchronizer=true`. Full `cargo test` was stopped at 90.7% RAM per owner resource policy. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `SIGNOFF-SURFACE-EXPANSION.1` | `pending` | `pending` |
+| `SIGNOFF-SURFACE-EXPANSION.1` | `SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer` | Lands `cdc_synchronizer_stages`, N-flop generation, metrics, matrix coverage, user docs, and Knowledge Map fact. |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened
   `SIGNOFF-SURFACE-EXPANSION.1`.
+- `2026-06-05`: Landed `SIGNOFF-SURFACE-EXPANSION.1`; frontier moves
+  to `.2`.

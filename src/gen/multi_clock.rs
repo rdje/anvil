@@ -1,15 +1,14 @@
-//! `MULTI-CLOCK-CDC.3a` — 2-flop synchronizer construction
-//! primitive for cross-clock-domain signals.
+//! `MULTI-CLOCK-CDC.3a` / `SIGNOFF-SURFACE-EXPANSION.1` —
+//! synchronizer construction primitive for cross-clock-domain signals.
 //!
 //! Per `MULTI-CLOCK-CDC.1`'s design (`DEVELOPMENT_NOTES.md`
 //! "Multi-clock + CDC primitives design (2026-05-24,
 //! MULTI-CLOCK-CDC.1)"): when ANVIL emits a flop in domain B
 //! whose D-cone references a flop output in domain A, the cone
-//! must dereference a **2-flop synchronizer in domain B**, not
-//! the bare cross-domain Q. The synchronizer is two newly-minted
-//! flops, both in `dst_domain`. This module exposes the
-//! construction primitive in isolation; `.3b` will wire it into
-//! the per-module generator's domain-crossing decision path.
+//! must dereference a synchronizer in domain B, not the bare
+//! cross-domain Q. The default is the original 2-flop chain; raising
+//! `Config::cdc_synchronizer_stages` builds an N-flop chain with the
+//! same by-construction shape.
 //!
 //! Why a primitive in isolation first: the generator-side
 //! integration is sensitive (it touches the per-module
@@ -31,21 +30,20 @@
 //!   that B's flop should reference.
 //!
 //! - **Full factorization** (`feedback_full_factorization.md`):
-//!   the synchronizer is two distinct flops; their Q nodes are
-//!   real `NodeId`s in the Module's node table, participating
-//!   in the existing identity discipline (Relaxed mode forces
-//!   fresh nodes; NodeId mode CSEs would be a future
-//!   consideration for synchronizer reuse — but the canonical
-//!   rule is "one synchronizer per (src, dst_domain) pair", not
-//!   structural CSE, so today's identity discipline already
-//!   gives the right answer).
+//!   the synchronizer flops are distinct state elements; their Q
+//!   nodes are real `NodeId`s in the Module's node table,
+//!   participating in the existing identity discipline (Relaxed mode
+//!   forces fresh nodes; NodeId mode CSEs would be a future
+//!   consideration for synchronizer reuse — but the canonical rule is
+//!   "one synchronizer per (src, dst_domain) pair", not structural CSE,
+//!   so today's identity discipline already gives the right answer).
 
 use crate::ir::{
     ClockDomain, Direction, Flop, FlopId, FlopKind, FlopMux, Module, Node, NodeId, Port, PortId,
     ResetKind,
 };
 
-/// Result of constructing a 2-flop synchronizer chain.
+/// Result of constructing a synchronizer chain.
 #[derive(Debug, Clone, Copy)]
 pub struct SynchronizerChain {
     /// FlopId of the first synchronizer flop (D = src_q;
@@ -54,10 +52,12 @@ pub struct SynchronizerChain {
     /// FlopId of the second synchronizer flop (D = first.Q;
     /// resolves the metastable transition).
     pub second_flop: FlopId,
-    /// NodeId of the second flop's Q — the synchronized signal
-    /// in `dst_domain`. This is what downstream-in-dst-domain
-    /// cones should reference.
+    /// NodeId of the final stage's Q — the synchronized signal in
+    /// `dst_domain`. This is what downstream-in-dst-domain cones
+    /// should reference.
     pub synced_q: NodeId,
+    /// Number of destination-domain flops in the synchronizer chain.
+    pub num_stages: u32,
 }
 
 /// Construct a 2-flop synchronizer chain in `dst_domain` driven
@@ -89,51 +89,63 @@ pub fn construct_2flop_synchronizer(
     src_q: NodeId,
     dst_domain: u32,
 ) -> Option<SynchronizerChain> {
-    // Look up the source's width — synchronizer flops inherit it.
+    construct_nflop_synchronizer(module, src_q, dst_domain, 2)
+}
+
+/// Construct an N-flop synchronizer chain in `dst_domain` driven by
+/// `src_q`. `stages` must be >= 2; use
+/// [`construct_2flop_synchronizer`] for the default compatibility
+/// primitive.
+pub fn construct_nflop_synchronizer(
+    module: &mut Module,
+    src_q: NodeId,
+    dst_domain: u32,
+    stages: u32,
+) -> Option<SynchronizerChain> {
+    if stages < 2 {
+        return None;
+    }
+
     let width = node_width(module, src_q)?;
 
-    // Allocate the first synchronizer flop. D = src_q.
-    let first_flop_id = module.flops.len() as FlopId;
-    let first_q_node = module.nodes.len() as NodeId;
-    module.nodes.push(Node::FlopQ {
-        flop: first_flop_id,
-        width,
-    });
-    module.flops.push(Flop {
-        id: first_flop_id,
-        width,
-        d: Some(src_q),
-        q: first_q_node,
-        reset_val: 0,
-        reset_kind: ResetKind::Async,
-        kind: FlopKind::ZeroDefault,
-        mux: FlopMux::None,
-    });
-    module.flop_domains.insert(first_flop_id, dst_domain);
+    let mut previous_q = src_q;
+    let mut first_flop = None;
+    let mut second_flop = None;
+    let mut synced_q = None;
 
-    // Allocate the second synchronizer flop. D = first_q_node.
-    let second_flop_id = module.flops.len() as FlopId;
-    let second_q_node = module.nodes.len() as NodeId;
-    module.nodes.push(Node::FlopQ {
-        flop: second_flop_id,
-        width,
-    });
-    module.flops.push(Flop {
-        id: second_flop_id,
-        width,
-        d: Some(first_q_node),
-        q: second_q_node,
-        reset_val: 0,
-        reset_kind: ResetKind::Async,
-        kind: FlopKind::ZeroDefault,
-        mux: FlopMux::None,
-    });
-    module.flop_domains.insert(second_flop_id, dst_domain);
+    for stage in 0..stages {
+        let flop_id = module.flops.len() as FlopId;
+        let q_node = module.nodes.len() as NodeId;
+        module.nodes.push(Node::FlopQ {
+            flop: flop_id,
+            width,
+        });
+        module.flops.push(Flop {
+            id: flop_id,
+            width,
+            d: Some(previous_q),
+            q: q_node,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        module.flop_domains.insert(flop_id, dst_domain);
+
+        if stage == 0 {
+            first_flop = Some(flop_id);
+        } else if stage == 1 {
+            second_flop = Some(flop_id);
+        }
+        previous_q = q_node;
+        synced_q = Some(q_node);
+    }
 
     Some(SynchronizerChain {
-        first_flop: first_flop_id,
-        second_flop: second_flop_id,
-        synced_q: second_q_node,
+        first_flop: first_flop?,
+        second_flop: second_flop?,
+        synced_q: synced_q?,
+        num_stages: stages,
     })
 }
 
@@ -161,10 +173,13 @@ pub struct PromotionOutcome {
     /// `0` when the pass declined; `2` after a successful
     /// first-cut promotion.
     pub num_domains: u32,
-    /// Number of 2-flop synchronizer chains constructed by this
-    /// pass (`0` or `1` in the first-cut MVP — exactly one
-    /// flop-driven output is promoted per call).
+    /// Number of synchronizer chains constructed by this pass (`0`
+    /// or `1` in the current MVP — exactly one flop-driven output is
+    /// promoted per call).
     pub num_synchronizers: u32,
+    /// Number of destination-domain flops in the synchronizer chain.
+    /// `0` when the pass declines.
+    pub synchronizer_stages: u32,
 }
 
 /// `MULTI-CLOCK-CDC.3b` — promote a single-clock module to K=2
@@ -186,19 +201,18 @@ pub struct PromotionOutcome {
 ///    returns `PromotionOutcome { promoted: false, .. }` (no
 ///    transformation; module remains K=1 — backward-compatible
 ///    decline).
-/// 4. **Constructing a 2-flop synchronizer chain in domain 1**
-///    driven by that source flop's Q (via the
-///    `construct_2flop_synchronizer` primitive from `.3a`).
+/// 4. **Constructing a synchronizer chain in domain 1** driven by
+///    that source flop's Q. The default is 2 stages; callers can
+///    request N stages through `promote_to_multi_clock_with_stages`.
 /// 5. **Rewiring the chosen output's drive** to dereference the
 ///    synced Q instead of the source Q. The output is now
 ///    semantically a domain-1 signal — synchronised in B and
 ///    sampled at B's clock.
 ///
-/// This is the first-cut MVP per `.1`'s design: one synchronizer
-/// per call, on a 1-bit flop-driven output. Wider promotion
-/// (multiple synchronizers per module, arbitrary cross-domain
-/// data paths, fsm/memory in non-default domains) are
-/// follow-up leaves. The pass is **rules-first**: the
+/// This is still one synchronizer per call, on a 1-bit flop-driven
+/// output. Wider promotion (multiple synchronizers per module,
+/// arbitrary cross-domain data paths, fsm/memory in non-default
+/// domains) remains a follow-up. The pass is **rules-first**: the
 /// synchronizer is constructed in place at the moment of the
 /// rewrite decision; there is no post-pass filter
 /// (`feedback_rules_first_generation.md`).
@@ -212,6 +226,14 @@ pub struct PromotionOutcome {
 /// `promoted: false` and leaves the module untouched — also
 /// backward-compatible for downstream consumers.
 pub fn promote_to_multi_clock(module: &mut Module) -> PromotionOutcome {
+    promote_to_multi_clock_with_stages(module, 2)
+}
+
+pub fn promote_to_multi_clock_with_stages(
+    module: &mut Module,
+    synchronizer_stages: u32,
+) -> PromotionOutcome {
+    let synchronizer_stages = synchronizer_stages.max(2);
     // Idempotency: already-promoted modules
     // (`clock_domains.len() >= 2`) are returned untouched. This
     // is the load-bearing guard that lets `Generator::generate_module`
@@ -305,8 +327,8 @@ pub fn promote_to_multi_clock(module: &mut Module) -> PromotionOutcome {
         name: "b".to_string(),
     });
 
-    // Construct the 2-flop synchronizer chain in domain 1.
-    let chain = match construct_2flop_synchronizer(module, src_q, 1) {
+    // Construct the synchronizer chain in domain 1.
+    let chain = match construct_nflop_synchronizer(module, src_q, 1, synchronizer_stages) {
         Some(c) => c,
         None => return PromotionOutcome::default(),
     };
@@ -318,6 +340,7 @@ pub fn promote_to_multi_clock(module: &mut Module) -> PromotionOutcome {
         promoted: true,
         num_domains: 2,
         num_synchronizers: 1,
+        synchronizer_stages: chain.num_stages,
     }
 }
 
@@ -407,6 +430,21 @@ mod tests {
         // sync-flop output — this is what makes it a 2-flop
         // chain rather than two independent flops).
         assert_eq!(second_flop.d, Some(first_flop.q));
+    }
+
+    #[test]
+    fn construct_nflop_synchronizer_allocates_requested_stage_count() {
+        let (mut m, src_q) = two_domain_module_with_source_flop();
+        let chain = construct_nflop_synchronizer(&mut m, src_q, 1, 3).expect("ok");
+
+        assert_eq!(chain.num_stages, 3);
+        assert_eq!(m.flops.len(), 4, "source flop + three sync stages");
+        assert_eq!(m.flop_domain(chain.first_flop), 1);
+        assert_eq!(m.flop_domain(chain.second_flop), 1);
+        assert_eq!(m.flop_domain(3), 1);
+        let third_flop = &m.flops[3];
+        assert_eq!(third_flop.d, Some(m.flops[chain.second_flop as usize].q));
+        assert_eq!(chain.synced_q, third_flop.q);
     }
 
     #[test]
@@ -572,6 +610,26 @@ mod tests {
             }
             other => panic!("expected FlopQ drive after promotion; got {other:?}"),
         }
+    }
+
+    #[test]
+    fn promote_to_multi_clock_with_stages_uses_configured_stage_count() {
+        let mut m = single_clock_module_with_flop_driven_1bit_output();
+        let outcome = promote_to_multi_clock_with_stages(&mut m, 3);
+
+        assert!(outcome.promoted);
+        assert_eq!(outcome.num_synchronizers, 1);
+        assert_eq!(outcome.synchronizer_stages, 3);
+        assert_eq!(m.flops.len(), 4, "source flop + three sync stages");
+        assert_eq!(m.flop_domain(1), 1);
+        assert_eq!(m.flop_domain(2), 1);
+        assert_eq!(m.flop_domain(3), 1);
+        let (_, drive_node) = m.drives.iter().find(|(p, _)| *p == 3).expect("o drive");
+        assert_eq!(*drive_node, m.flops[3].q);
+        let metrics = crate::metrics::compute(&m);
+        assert_eq!(metrics.num_cdc_2_flop_synchronizers, 0);
+        assert_eq!(metrics.num_cdc_synchronizer_chains, 1);
+        assert_eq!(metrics.max_cdc_synchronizer_stages, 3);
     }
 
     #[test]

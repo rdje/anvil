@@ -1,8 +1,115 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-hierarchy-semantic-identity-3 — HIERARCHY-SEMANTIC-IDENTITY.3 close hierarchy semantic frontier
+
+## 2026-06-05-signoff-surface-expansion-1 — SIGNOFF-SURFACE-EXPANSION.1 add N-flop CDC synchronizer
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `SIGNOFF-SURFACE-EXPANSION.1`.
+
+- Added `Config::cdc_synchronizer_stages` with default `2` and
+  validation rejecting values below `2`.
+- Extended `src/gen/multi_clock.rs` from the compatibility
+  `construct_2flop_synchronizer` path to a shared
+  `construct_nflop_synchronizer` primitive.
+- Added `promote_to_multi_clock_with_stages`; all generator call paths
+  now pass the configured stage count while preserving default 2-stage
+  behavior.
+- Extended `Metrics` with `num_cdc_synchronizer_chains` and
+  `max_cdc_synchronizer_stages`; the legacy
+  `num_cdc_2_flop_synchronizers` metric now counts exact 2-stage chains
+  only.
+- Added `tool_matrix` coverage fact `saw_cdc_nflop_synchronizer`, a
+  dedicated default scenario `int_multi_clock_3flop_sync`, default
+  coverage-gap enforcement for multi-clock / exact-2 / N-flop CDC
+  facts, and tests for the new scenario/counting behavior.
+- Added the Knowledge Map fact
+  `docs/knowledge/n-flop-cdc-synchronizer.md` and regenerated
+  `KNOWLEDGE_MAP.md`.
+- Synced `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+  `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `docs/TASK_TREE.md`,
+  `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`, and mdBook chapters
+  `book/src/sequential.md`, `book/src/knobs.md`,
+  `book/src/non-goals.md`, and `book/src/structural-rules.md`.
+
+**Why it matters**
+
+CDC coverage now has the next low-risk primitive beyond the original
+2-flop synchronizer without pretending ANVIL has a general CDC fabric.
+Users can generate 3+ stage 1-bit synchronizer chains through library
+configuration, inspect them through metrics, and require coverage via
+the default matrix. Multi-bit async FIFO, gray-code pointer transfer,
+req/ack handshakes, pulse synchronizers, and reset synchronizers remain
+explicitly deferred.
+
+**Validation**
+
+- `cargo check --all-targets`
+- `cargo test -q synchronizer`
+- `cargo test -q --bin tool_matrix coverage_gaps_detect_missing_categories`
+- `cargo test -q --bin tool_matrix phase1_gate_raises_modules_per_scenario_to_cover_1000_modules`
+- `cargo test -q --bin tool_matrix phase1_gate_preserves_larger_explicit_module_count`
+- `cargo test -q --bin tool_matrix build_default_scenarios_includes_multi_clock_scenario`
+- `cargo test -q --bin tool_matrix summarize_coverage_lights_multi_clock_facts_from_module_metrics`
+- `cargo test -q validate_rejects_cdc`
+- `cargo test -q --bin tool_matrix merge_coverage_unions_saw_cdc_nflop_synchronizer`
+- `cargo test -q --bin tool_matrix diff_sim_subset_against_default_scenarios_is_nonempty_and_capped`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo test --test book_examples`
+- `cargo test --test snapshots`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+- Focused downstream smoke:
+  `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap --yosys-mode without-abc`
+  yielded 17 scenarios / 17 modules, `coverage_gaps=[]`, Verilator
+  17/0, Yosys without-abc 17/0, and all CDC coverage facts true.
+
+**Resource note**
+
+A monitored full `cargo test` attempt was stopped at 90.7% RAM per the
+owner's resource-safety rule. It is not recorded as a completed
+full-suite result.
+
+**Impact**
+
+- Default behavior remains unchanged for users who do not set
+  `multi_clock_prob` or leave `cdc_synchronizer_stages` at `2`.
+- Config/library users can select 3+ stage 1-bit synchronizers.
+- Default matrix coverage now requires proof of exact-2 and N-flop CDC
+  paths.
+- User-facing docs now state both the supported CDC primitive and the
+  still-deferred general CDC fabrics.
+
+**Files touched**
+
+- `src/config.rs`
+- `src/gen/mod.rs`
+- `src/gen/multi_clock.rs`
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `book/src/sequential.md`
+- `book/src/knobs.md`
+- `book/src/non-goals.md`
+- `book/src/structural-rules.md`
+- `USER_GUIDE.md`
+- `README.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`
+- `docs/knowledge/n-flop-cdc-synchronizer.md`
+- `KNOWLEDGE_MAP.md`
+- `MEMORY.md`
+
+## 2026-06-05-hierarchy-semantic-identity-3 — HIERARCHY-SEMANTIC-IDENTITY.3 close hierarchy semantic frontier
+
+**Landed as:** `367dca1 HIERARCHY-SEMANTIC-IDENTITY.3 - close hierarchy semantic frontier`
 
 **What changed**
 

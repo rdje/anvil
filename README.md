@@ -229,10 +229,13 @@ cargo run --bin tool_matrix -- --out ./tool-matrix
 
 That writes per-scenario generated corpora plus
 `tool_matrix_report.json`, and exits non-zero if Verilator or Yosys
-fails on any generated file or emits any warning. Current local smoke
-status after the post-construction proof-cleanup slice: the built-in
-matrix is 15/15 clean in Verilator and 15/15 clean in Yosys under the
-current default `--yosys-mode without-abc`.
+fails on any generated file or emits any warning. Current focused
+smoke status after `SIGNOFF-SURFACE-EXPANSION.1`: the built-in matrix
+is 17/17 clean in Verilator and 17/17 clean in Yosys under the current
+default `--yosys-mode without-abc`, with `coverage_gaps = []` and the
+multi-clock CDC facts `saw_cdc_2_flop_synchronizer = true` and
+`saw_cdc_nflop_synchronizer = true`
+(`/tmp/anvil-signoff-surface-nflop-r1/tool_matrix_report.json`).
 
 The harness now has an explicit Yosys mode axis too:
 
@@ -281,8 +284,9 @@ baseline. `with-abc` now means the repo-owned warning-clean ABC path
 (`synth -noabc; abc -fast; opt -fast; stat; check`) rather than the
 raw default `synth` script, because the latter's ABC flow was tripping
 non-actionable combinational-network warnings on valid generated
-designs. A small repo-owned `--yosys-mode both` probe is now clean in
-both sub-modes: `without-abc = 15/15 pass`, `with-abc = 15/15 pass`.
+designs. A previous small repo-owned `--yosys-mode both` probe was
+clean in both sub-modes: `without-abc = 15/15 pass`, `with-abc =
+15/15 pass`.
 A completed current-code `--phase1-gate --yosys-mode both` report now
 exists at `/tmp/anvil-tool-matrix-phase1-real-r21`. The final
 `tool_matrix_report.json` records:
@@ -996,11 +1000,16 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   post-reset trace check; `saw_design_with_cross_simulator_agreement`
   coverage fact). **`MULTI-CLOCK-CDC` `.3` container closed
   (`2026-05-24`)** — `Config.multi_clock_prob` knob +
-  per-module promotion pass + 2-flop synchronizer
+  per-module promotion pass + default 2-flop synchronizer
   construction primitive + `int_multi_clock_2flop_sync`
   default-set scenario + `saw_multi_clock_design` /
   `saw_cdc_2_flop_synchronizer` coverage facts; the first
   ANVIL multi-clock SV passed Verilator + Yosys first try.
+  `SIGNOFF-SURFACE-EXPANSION.1` extends that CDC lane with
+  `Config.cdc_synchronizer_stages`, `int_multi_clock_3flop_sync`,
+  `num_cdc_synchronizer_chains`, `max_cdc_synchronizer_stages`,
+  and `saw_cdc_nflop_synchronizer` while preserving default
+  2-stage behavior.
   See `docs/TASK_TREE.md` for the active-tree index,
   `ROADMAP.md` for phase gating, and
   `book/src/sequential.md` "Multi-clock and CDC" for the
