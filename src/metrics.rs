@@ -296,6 +296,13 @@ pub struct DesignMetrics {
     /// these signatures to dedupe `Design::modules` at construction
     /// time when `IdentityMode::NodeId` is active.
     pub canonical_module_signatures: Vec<u64>,
+    /// One deterministic bounded-semantic signature per module when
+    /// the module is inside the current semantic proof boundary:
+    /// pure combinational, instance-free, concrete, same-port-id
+    /// interface, input support <= 12 bits, reachable cone <= 128
+    /// nodes, and output widths <= 128. `None` means the module is
+    /// outside that boundary, not that it failed validation.
+    pub semantic_module_signatures: Vec<Option<u64>>,
     /// Number of distinct values in `canonical_module_signatures`.
     /// Equal to `num_modules` when every module is structurally
     /// distinct; strictly less when the planner emitted duplicate
@@ -305,6 +312,11 @@ pub struct DesignMetrics {
     /// canonical signature (sum of `count choose 2` over signatures
     /// with `count > 1`). Always 0 when every module is distinct.
     pub num_structurally_duplicate_module_pairs: usize,
+    /// Pairs of modules that share the same bounded semantic module
+    /// proof. This can be non-zero even when structural signatures
+    /// differ, for example `out = in` vs. `out = ~~in` inside the
+    /// current pure-combinational proof boundary.
+    pub num_semantically_duplicate_module_pairs: usize,
     /// Phase 5: number of `Design::modules` carrying a width
     /// `parameter` (`Module::param_env.is_some()`). 0 for every
     /// default-off / pre-Phase-5 design.
@@ -896,6 +908,20 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .filter(|count| **count > 1)
         .map(|count| count * (count - 1) / 2)
         .sum();
+    let semantic_module_proofs: Vec<_> = design.modules.iter().map(semantic_module_proof).collect();
+    let semantic_module_signatures: Vec<_> = semantic_module_proofs
+        .iter()
+        .map(|proof| proof.as_ref().map(semantic_module_signature_hash))
+        .collect();
+    let mut semantic_proof_counts: BTreeMap<SemanticModuleProof, usize> = BTreeMap::new();
+    for proof in semantic_module_proofs.into_iter().flatten() {
+        *semantic_proof_counts.entry(proof).or_insert(0) += 1;
+    }
+    let num_semantically_duplicate_module_pairs = semantic_proof_counts
+        .values()
+        .filter(|count| **count > 1)
+        .map(|count| count * (count - 1) / 2)
+        .sum();
     // Phase 5 (PHASE-5-PARAMETERIZATION.2.4) coverage inputs.
     let num_width_parameterized_modules = design
         .modules
@@ -926,8 +952,10 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
     let mut out = DesignMetrics {
         design: design.top.clone(),
         canonical_module_signatures,
+        semantic_module_signatures,
         num_distinct_module_signatures,
         num_structurally_duplicate_module_pairs,
+        num_semantically_duplicate_module_pairs,
         num_width_parameterized_modules,
         num_param_override_instances,
         num_packed_aggregate_modules,
@@ -2300,6 +2328,341 @@ fn fnv1a_64_u64(state: u64, value: u64) -> u64 {
 }
 fn fnv1a_64_u32(state: u64, value: u32) -> u64 {
     fnv1a_64_extend(state, &value.to_le_bytes())
+}
+
+fn bitmask(width: u32) -> u128 {
+    if width >= 128 {
+        u128::MAX
+    } else {
+        (1u128 << width) - 1
+    }
+}
+
+const MAX_SEMANTIC_MODULE_SUPPORT_BITS: u32 = 12;
+const MAX_SEMANTIC_MODULE_NODES: usize = 128;
+const BASELINE_SEMANTIC_MODULE_SUPPORT_BITS: usize = 10;
+const MAX_SEMANTIC_MODULE_WORK_UNITS: usize =
+    (1usize << BASELINE_SEMANTIC_MODULE_SUPPORT_BITS) * MAX_SEMANTIC_MODULE_NODES;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct SemanticModuleProof {
+    input_ports: Vec<(PortId, u32)>,
+    output_ports: Vec<(PortId, u32)>,
+    outputs_by_assignment: Vec<Vec<u128>>,
+}
+
+/// Bounded whole-module semantic proof for pure combinational leaf
+/// modules. The proof deliberately keys ports by `(PortId, width)`,
+/// not by width alone, because module dedup rewrites `Instance.module`
+/// names while preserving parent-side port-id bindings.
+pub(crate) fn semantic_module_proof(module: &Module) -> Option<SemanticModuleProof> {
+    if !module.instances.is_empty()
+        || module.has_local_flops()
+        || module.has_local_memories()
+        || module.has_local_fsms()
+        || module.param_env.is_some()
+        || module.aggregate_layout.is_some()
+    {
+        return None;
+    }
+
+    let input_ports: Vec<(PortId, u32)> = module
+        .emitted_data_input_ports()
+        .map(|port| (port.id, port.width))
+        .collect();
+    let output_ports: Vec<(PortId, u32)> = module
+        .outputs
+        .iter()
+        .map(|port| (port.id, port.width))
+        .collect();
+    if output_ports.is_empty() {
+        return None;
+    }
+    if output_ports.iter().any(|(_, width)| *width > 128) {
+        return None;
+    }
+
+    let support_bits: u32 = input_ports.iter().map(|(_, width)| *width).sum();
+    if support_bits > MAX_SEMANTIC_MODULE_SUPPORT_BITS {
+        return None;
+    }
+    let assignment_count = 1usize.checked_shl(support_bits)?;
+
+    let drive_by_port: BTreeMap<PortId, NodeId> = module.drives.iter().copied().collect();
+    let drive_nodes: Vec<NodeId> = output_ports
+        .iter()
+        .map(|(port, _)| drive_by_port.get(port).copied())
+        .collect::<Option<Vec<_>>>()?;
+    let reachable_nodes = reachable_nodes_from(module, &drive_nodes)?;
+    if reachable_nodes.len() > MAX_SEMANTIC_MODULE_NODES {
+        return None;
+    }
+    if assignment_count.saturating_mul(reachable_nodes.len()) > MAX_SEMANTIC_MODULE_WORK_UNITS {
+        return None;
+    }
+
+    let mut input_offsets: BTreeMap<PortId, u32> = BTreeMap::new();
+    let mut next_offset = 0u32;
+    for (port, width) in &input_ports {
+        input_offsets.insert(*port, next_offset);
+        next_offset += *width;
+    }
+
+    let mut outputs_by_assignment = Vec::with_capacity(assignment_count);
+    for assignment in 0..assignment_count {
+        let mut memo = HashMap::new();
+        let mut row = Vec::with_capacity(drive_nodes.len());
+        for &drive in &drive_nodes {
+            row.push(evaluate_semantic_module_node(
+                module,
+                drive,
+                assignment as u128,
+                &input_offsets,
+                &mut memo,
+            )?);
+        }
+        outputs_by_assignment.push(row);
+    }
+
+    Some(SemanticModuleProof {
+        input_ports,
+        output_ports,
+        outputs_by_assignment,
+    })
+}
+
+pub(crate) fn semantic_module_signature_hash(proof: &SemanticModuleProof) -> u64 {
+    let mut h = fnv1a_64_init();
+    h = fnv1a_64_extend(h, b"semantic-module-v1");
+    h = fnv1a_64_u64(h, proof.input_ports.len() as u64);
+    for (port, width) in &proof.input_ports {
+        h = fnv1a_64_u32(h, *port);
+        h = fnv1a_64_u32(h, *width);
+    }
+    h = fnv1a_64_u64(h, proof.output_ports.len() as u64);
+    for (port, width) in &proof.output_ports {
+        h = fnv1a_64_u32(h, *port);
+        h = fnv1a_64_u32(h, *width);
+    }
+    h = fnv1a_64_u64(h, proof.outputs_by_assignment.len() as u64);
+    for row in &proof.outputs_by_assignment {
+        h = fnv1a_64_u64(h, row.len() as u64);
+        for value in row {
+            h = fnv1a_64_extend(h, &value.to_le_bytes());
+        }
+    }
+    h
+}
+
+fn reachable_nodes_from(module: &Module, roots: &[NodeId]) -> Option<BTreeSet<NodeId>> {
+    let mut seen = BTreeSet::new();
+    let mut stack = roots.to_vec();
+    while let Some(node_id) = stack.pop() {
+        if node_id as usize >= module.nodes.len() {
+            return None;
+        }
+        if !seen.insert(node_id) {
+            continue;
+        }
+        let Node::Gate { operands, .. } = &module.nodes[node_id as usize] else {
+            continue;
+        };
+        stack.extend(operands.iter().copied());
+    }
+    Some(seen)
+}
+
+fn evaluate_semantic_module_node(
+    module: &Module,
+    node_id: NodeId,
+    assignment: u128,
+    input_offsets: &BTreeMap<PortId, u32>,
+    memo: &mut HashMap<NodeId, u128>,
+) -> Option<u128> {
+    if let Some(&value) = memo.get(&node_id) {
+        return Some(value);
+    }
+    if node_id as usize >= module.nodes.len() {
+        return None;
+    }
+
+    let value = match &module.nodes[node_id as usize] {
+        Node::PrimaryInput { port, width } => {
+            if *width > 128 {
+                return None;
+            }
+            let offset = *input_offsets.get(port)?;
+            (assignment >> offset) & bitmask(*width)
+        }
+        Node::Constant { width, value } => {
+            if *width > 128 {
+                return None;
+            }
+            *value & bitmask(*width)
+        }
+        Node::Gate {
+            op,
+            operands,
+            width,
+            ..
+        } => {
+            if *width > 128 {
+                return None;
+            }
+            let width_mask = bitmask(*width);
+            let operand_values: Vec<u128> = operands
+                .iter()
+                .map(|&operand| {
+                    evaluate_semantic_module_node(module, operand, assignment, input_offsets, memo)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            match op {
+                GateOp::And => operand_values
+                    .iter()
+                    .copied()
+                    .fold(width_mask, |acc, v| acc & v),
+                GateOp::Or => operand_values.iter().copied().fold(0u128, |acc, v| acc | v),
+                GateOp::Xor => operand_values.iter().copied().fold(0u128, |acc, v| acc ^ v),
+                GateOp::Not => (!operand_values[0]) & width_mask,
+                GateOp::Add => operand_values
+                    .iter()
+                    .copied()
+                    .fold(0u128, |acc, v| acc.wrapping_add(v) & width_mask),
+                GateOp::Sub => operand_values[0].wrapping_sub(operand_values[1]) & width_mask,
+                GateOp::Mul => operand_values
+                    .iter()
+                    .copied()
+                    .fold(1u128, |acc, v| acc.wrapping_mul(v) & width_mask),
+                GateOp::Eq => (operand_values[0] == operand_values[1]) as u128,
+                GateOp::Neq => (operand_values[0] != operand_values[1]) as u128,
+                GateOp::Lt => (operand_values[0] < operand_values[1]) as u128,
+                GateOp::Gt => (operand_values[0] > operand_values[1]) as u128,
+                GateOp::Le => (operand_values[0] <= operand_values[1]) as u128,
+                GateOp::Ge => (operand_values[0] >= operand_values[1]) as u128,
+                GateOp::Mux => {
+                    if operand_values[0] == 0 {
+                        operand_values[2] & width_mask
+                    } else {
+                        operand_values[1] & width_mask
+                    }
+                }
+                GateOp::CaseMux => {
+                    let sel = operand_values[0] as usize;
+                    let data_arms = operand_values.len().saturating_sub(1);
+                    if sel < data_arms {
+                        operand_values[sel + 1] & width_mask
+                    } else {
+                        0
+                    }
+                }
+                GateOp::CasezMux => {
+                    let sel_width = module.nodes[operands[0] as usize].width();
+                    if sel_width > 128 {
+                        return None;
+                    }
+                    let sel_mask = bitmask(sel_width);
+                    let sel = operand_values[0] & sel_mask;
+                    let mut matched = None;
+                    for arm in operand_values[1..].chunks_exact(3) {
+                        let pattern = arm[0] & sel_mask;
+                        let wildcard_mask = arm[1] & sel_mask;
+                        let care_mask = (!wildcard_mask) & sel_mask;
+                        if (sel & care_mask) == (pattern & care_mask) {
+                            matched = Some(arm[2] & width_mask);
+                            break;
+                        }
+                    }
+                    matched.unwrap_or(0)
+                }
+                GateOp::ForFold {
+                    kind,
+                    trip_count,
+                    chunk_width,
+                } => {
+                    if *chunk_width > 128 {
+                        return None;
+                    }
+                    let mut acc = match kind {
+                        crate::ir::ForFoldKind::And => bitmask(*chunk_width),
+                        crate::ir::ForFoldKind::Xor
+                        | crate::ir::ForFoldKind::Or
+                        | crate::ir::ForFoldKind::Add => 0,
+                    };
+                    for idx in 0..*trip_count {
+                        let shift = idx.saturating_mul(*chunk_width);
+                        let chunk = if shift >= 128 {
+                            0
+                        } else {
+                            (operand_values[0] >> shift) & bitmask(*chunk_width)
+                        };
+                        acc = match kind {
+                            crate::ir::ForFoldKind::Xor => (acc ^ chunk) & width_mask,
+                            crate::ir::ForFoldKind::Or => (acc | chunk) & width_mask,
+                            crate::ir::ForFoldKind::And => (acc & chunk) & width_mask,
+                            crate::ir::ForFoldKind::Add => acc.wrapping_add(chunk) & width_mask,
+                        };
+                    }
+                    acc & width_mask
+                }
+                GateOp::Slice { hi, lo } => {
+                    let slice_width = hi - lo + 1;
+                    if slice_width > 128 {
+                        return None;
+                    }
+                    (operand_values[0] >> lo) & bitmask(slice_width)
+                }
+                GateOp::Concat => {
+                    let mut out = 0u128;
+                    for (&operand, operand_value) in operands.iter().zip(operand_values.iter()) {
+                        let operand_width = module.nodes[operand as usize].width();
+                        if operand_width > 128 {
+                            return None;
+                        }
+                        out = if operand_width >= 128 {
+                            operand_value & bitmask(operand_width)
+                        } else {
+                            (out << operand_width) | (operand_value & bitmask(operand_width))
+                        };
+                    }
+                    out & width_mask
+                }
+                GateOp::RedAnd => {
+                    let src_width = module.nodes[operands[0] as usize].width();
+                    if src_width > 128 {
+                        return None;
+                    }
+                    (operand_values[0] == bitmask(src_width)) as u128
+                }
+                GateOp::RedOr => (operand_values[0] != 0) as u128,
+                GateOp::RedXor => (operand_values[0].count_ones() & 1) as u128,
+                GateOp::Shl => {
+                    let amt = operand_values[1];
+                    if amt >= u128::from(*width) {
+                        0
+                    } else {
+                        operand_values[0].wrapping_shl(amt as u32) & width_mask
+                    }
+                }
+                GateOp::Shr => {
+                    let amt = operand_values[1];
+                    if amt >= u128::from(*width) {
+                        0
+                    } else {
+                        (operand_values[0] >> amt) & width_mask
+                    }
+                }
+            }
+        }
+        Node::InstanceOutput { .. }
+        | Node::FlopQ { .. }
+        | Node::MemRead { .. }
+        | Node::FsmOut { .. } => {
+            return None;
+        }
+    };
+
+    memo.insert(node_id, value);
+    Some(value)
 }
 
 /// Canonical, deterministic signature of a `Module`'s structure.

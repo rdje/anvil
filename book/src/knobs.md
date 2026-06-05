@@ -499,6 +499,66 @@ instead of creating fresh logic.
   matrix scenario (the `phase4_hier1_structurally_duplicate_modules`
   baseline stays in the bank with dedup off so the before/after
   comparison is visible directly in the gate output).
+- `hierarchy_semantic_module_dedup` — opt-in `bool`, default `false`.
+  This is a second pass, separate from `hierarchy_module_dedup`. It
+  groups non-top pure-combinational leaf modules by a bounded
+  whole-module truth-table proof instead of by structural signature.
+  The pass is active only when `identity_mode = node-id` and the
+  effective `factorization_level` is `e-graph`; `identity_mode =
+  relaxed` keeps it inert even if the knob is true. The current proof
+  boundary is intentionally narrow:
+
+  - no flops, memories, FSMs, or child instances;
+  - no parameterized or aggregate-projected module templates;
+  - identical emitted data input and output interfaces by `(PortId,
+    width)`;
+  - total emitted input support <= 12 bits;
+  - reachable output cone <= 128 nodes and inside the work budget; and
+  - output widths <= 128 bits.
+
+  Within that boundary, semantically equal but structurally different
+  modules can merge, such as a direct pass-through output and the same
+  output computed through two `Not` gates. Outside that boundary, the
+  pass skips the module; it does not degrade into a guess.
+
+  This knob is **config/library-only — there is no
+  `--hierarchy-semantic-module-dedup` CLI flag**. Set it through a
+  `Config` value or a config file:
+
+  ```rust,ignore
+  use anvil::{Config, Generator, metrics};
+  use anvil::config::{FactorizationLevel, IdentityMode};
+
+  let mut cfg = Config {
+      seed: 42,
+      hierarchy_depth: 1,
+      num_leaf_modules: 4,
+      num_child_instances: 4,
+      min_inputs: 1, max_inputs: 1,
+      min_outputs: 1, max_outputs: 1,
+      min_width: 1, max_width: 1,
+      max_depth: 1,
+      terminal_reuse_prob: 1.0,
+      constant_prob: 0.0,
+      identity_mode: IdentityMode::NodeId,
+      factorization_level: FactorizationLevel::EGraph,
+      ..Config::default()
+  };
+
+  let off = metrics::compute_design(&Generator::new(cfg.clone()).generate_design());
+  assert!(off.num_semantically_duplicate_module_pairs > 0);
+
+  cfg.hierarchy_semantic_module_dedup = true;
+  let on = metrics::compute_design(&Generator::new(cfg).generate_design());
+  assert_eq!(on.num_semantically_duplicate_module_pairs, 0);
+  assert!(on.num_modules < off.num_modules);
+  ```
+
+  The related design metrics are
+  `DesignMetrics.semantic_module_signatures` (one compact proof hash per
+  module, `null` for unsupported modules) and
+  `num_semantically_duplicate_module_pairs` (proof-equal pairs still
+  present after any enabled dedup pass).
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
@@ -578,6 +638,7 @@ Config {
     max_parent_cone_instances_per_module: 1,
     hierarchy_parent_flop_prob: 0.0,
     hierarchy_module_dedup: false,
+    hierarchy_semantic_module_dedup: false,
     min_hierarchy_depth: 0,
     max_hierarchy_depth: 0,
     min_child_instances_per_module: 0,

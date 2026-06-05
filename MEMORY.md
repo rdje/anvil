@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `ca6a449` - `MEMORY-STATE-IDENTITY.2 - record reset-memory blocker`
-- active_work_unit: `MEMORY-STATE-IDENTITY.3` docs-only closeout; memory-state identity is closed with reset-less memories remaining instance-local.
-- next_action: commit `MEMORY-STATE-IDENTITY.3`, clear `git_message_brief.txt`, then start `HIERARCHY-SEMANTIC-IDENTITY.1`.
-- in_flight_uncommitted: memory closeout docs/task-tree/live-doc edits are prepared; validation pending.
+- latest_commit: `d0fd9f6` - `MEMORY-STATE-IDENTITY.3 - close memory frontier`
+- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.1` adds default-off bounded semantic module dedup for pure combinational leaves plus design metrics/docs.
+- next_action: finish validation, commit `HIERARCHY-SEMANTIC-IDENTITY.1`, clear `git_message_brief.txt`, then evaluate `HIERARCHY-SEMANTIC-IDENTITY.2`.
+- in_flight_uncommitted: code/docs/task-tree/knowledge-map edits are validated and ready to commit.
 - blockers: none.
 
 ## Validation policy

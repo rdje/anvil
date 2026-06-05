@@ -498,6 +498,17 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 | FSM merge | `fsms_merged: u32` | `Metrics::fsms_merged` |
 | Compaction | `nodes_compacted: u32` | `Metrics::nodes_compacted` |
 
+Hierarchy/module identity exposes design-level metrics rather than a
+per-`Module` counter:
+`DesignMetrics.semantic_module_signatures` records the bounded
+whole-module proof hash for each module that fits the pure-combinational
+proof boundary, and `num_semantically_duplicate_module_pairs` records
+how many proof-equal module pairs remain in the design. Enabling
+`Config::hierarchy_semantic_module_dedup` can reduce that pair count to
+zero for supported non-top leaf modules; unsupported stateful,
+hierarchical, memory, FSM, parameterized, aggregate-projected, or
+too-large modules are skipped.
+
 Plus a structural post-construction metric:
 `nested_associative_operand_count` — the number of operand slots
 on associative gates whose operand is itself a same-op same-width

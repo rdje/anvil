@@ -349,7 +349,9 @@ impl Generator {
 // metrics.rs
 pub struct Metrics { /* ~25 public fields; see module doc */ }
 pub fn compute(m: &Module) -> Metrics;
-pub struct DesignMetrics { /* hierarchy composition facts */ }
+pub struct DesignMetrics {
+    /* hierarchy composition facts, canonical/semantic module signatures */
+}
 pub fn compute_design(d: &Design) -> DesignMetrics;
 
 // emit/sv.rs

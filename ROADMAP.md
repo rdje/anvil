@@ -2099,7 +2099,7 @@ With Phase 9 closed, every numbered roadmap phase from 0 through
   2026-05-20; `/tmp/anvil-frontend-parity-phase8-yosys-p1/`).
 - Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
 
-Five post-phase follow-up trees are now open in `docs/TASK_TREE.md` as
+Five post-phase follow-up trees are tracked in `docs/TASK_TREE.md` as
 of `2026-06-05`, owning the remaining steering gaps through task-tree
 frontiers:
 
@@ -2115,8 +2115,12 @@ frontiers:
   lane: reset-less memories remain state-by-instance, and the
   reset-defined-memory merge candidate is blocked because the reset-all
   array probe is not warning-clean `$mem_v2` memory inference in Yosys.
-- `HIERARCHY-SEMANTIC-IDENTITY` owns bounded semantic module identity
-  beyond canonical structural module signatures.
+- `HIERARCHY-SEMANTIC-IDENTITY` has landed the first bounded semantic
+  module-identity class: opt-in pure-combinational leaf modules with
+  matching `(PortId, width)` interfaces and small truth-table proofs
+  can merge beyond canonical structural signatures. Its active frontier
+  is evaluating any safe extension beyond pure combinational leaves, or
+  recording the proof blocker.
 - `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,
   simulator/tool parity, and resource-aware signoff sweep expansion.
 

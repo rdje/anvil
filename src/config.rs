@@ -525,6 +525,19 @@ pub struct Config {
     #[serde(default)]
     pub hierarchy_module_dedup: bool,
 
+    /// When `true`, the generator runs the bounded semantic module
+    /// dedup pass after structural module dedup. The pass is narrower
+    /// than an arbitrary module-equivalence engine: it only admits
+    /// pure combinational, instance-free, concrete non-top modules
+    /// with identical emitted data port IDs/widths and <= 12 bits of
+    /// total input support. It is effective only under
+    /// `identity_mode = node-id` with effective `factorization_level`
+    /// `e-graph`; `identity_mode = relaxed` remains the semantic
+    /// off-switch. Default `false` preserves existing hierarchy output.
+    /// First slice: `HIERARCHY-SEMANTIC-IDENTITY.1`.
+    #[serde(default)]
+    pub hierarchy_semantic_module_dedup: bool,
+
     /// Phase 5 (parameterization). Probability that a finalized module
     /// is given a single width `parameter` by the post-construction
     /// `crate::ir::param::parameterize_module` pass. The module body
@@ -739,6 +752,7 @@ impl Default for Config {
             max_parent_cone_instances_per_module: default_max_parent_cone_instances_per_module(),
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             hierarchy_module_dedup: false,
+            hierarchy_semantic_module_dedup: false,
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
             memory_prob: default_memory_prob(),

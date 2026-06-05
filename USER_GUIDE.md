@@ -111,6 +111,11 @@ and average fanout), flop kind and mux-shape distribution,
 bounded semantic gate-merge count (`semantic_gates_merged`),
 endpoint-preserving flop-merge count (`flops_merged`),
 deterministic FSM block merge count (`fsms_merged`),
+design-level canonical and bounded-semantic module signatures
+(`canonical_module_signatures`, `semantic_module_signatures`),
+structural and semantic module duplicate-pair counts
+(`num_structurally_duplicate_module_pairs`,
+`num_semantically_duplicate_module_pairs`),
 AST-instance saturation (`max_gate_ast_multiplicity`,
 `max_constant_ast_multiplicity` — relative to the
 `max_ast_instances` cap), and operand-arity distribution
@@ -167,6 +172,16 @@ shift. Examples:
 - Under `identity_mode=node-id`, duplicate deterministic FSM blocks can
   collapse when their selector proof, encoding, transition table, and
   Moore-output table match; `fsms_merged` records that sharing.
+- With `hierarchy_semantic_module_dedup=true` in a JSON config or
+  library `Config`, ANVIL can also collapse non-top pure-combinational
+  leaf modules whose bounded whole-module truth tables match. The pass
+  is active only under `identity_mode=node-id` with effective
+  `factorization_level=e-graph`; `identity_mode=relaxed` keeps it off.
+  The proof is deliberately bounded: matching `(PortId, width)`
+  interfaces, <= 12 emitted input-support bits, <= 128 reachable output
+  cone nodes, no flops/memories/FSMs/instances/parameters/aggregates,
+  and <= 128-bit outputs. `num_semantically_duplicate_module_pairs`
+  tells you how many proof-equal module pairs remain.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 

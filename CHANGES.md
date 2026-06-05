@@ -1,8 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-memory-state-identity-3 — MEMORY-STATE-IDENTITY.3 close memory frontier
+## 2026-06-05-hierarchy-semantic-identity-1 — HIERARCHY-SEMANTIC-IDENTITY.1 bounded semantic module dedup
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `HIERARCHY-SEMANTIC-IDENTITY.1`.
+
+- Added `Config::hierarchy_semantic_module_dedup`, a default-off
+  semantic module-dedup pass separate from the existing structural
+  `hierarchy_module_dedup` knob.
+- Gated the pass so it is active only under `identity_mode = node-id`
+  with effective `factorization_level = e-graph`; `relaxed` remains the
+  semantic off-switch.
+- Implemented bounded whole-module proof for non-top pure-combinational,
+  instance-free, state-free, concrete modules with matching `(PortId,
+  width)` interfaces, <= 12 emitted input-support bits, <= 128
+  reachable output-cone nodes, and <= 128-bit outputs.
+- Used the full proof object as the merge key; the compact hash is only
+  for metrics.
+- Added `DesignMetrics.semantic_module_signatures` and
+  `num_semantically_duplicate_module_pairs`.
+- Added merge/no-merge tests for semantic-equivalent pure comb leaves,
+  stateful no-merge, instance-bearing no-merge, port-id mismatch
+  no-merge, generator integration, relaxed-mode off-switch behavior,
+  and structural dedup regression preservation.
+- Synced the mdBook hierarchy/knobs/factorization/architecture docs,
+  `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, the
+  Knowledge Map, and the hierarchy semantic task tree.
+
+**Why it matters**
+
+Hierarchy identity now has its first semantic class beyond structural
+signatures without turning ANVIL into a general hierarchy equivalence
+engine. Users can opt in when they want proof-backed module definition
+collapse for tiny pure-combinational leaves, while stateful,
+hierarchical, memory/FSM, parameterized, aggregate-projected, mismatched
+interface, and too-large modules stay distinct.
+
+**Tests**
+
+- `cargo test -q semantic_dedup`
+- `cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules`
+- `cargo test -q module_dedup_pass_collapses_structurally_duplicate_modules`
+- `cargo test -q --test snapshots`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `cargo test -q --test book_examples`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- Default behavior stays byte-identical unless the new
+  `hierarchy_semantic_module_dedup` config/library knob is enabled.
+- `--dump-config` and JSON manifests now include the new default-false
+  config field and the new design metrics.
+- The new knob is config/library-only; no CLI flag was added.
+
+**Files**
+
+- `src/config.rs`
+- `src/gen/mod.rs`
+- `src/ir/dedup.rs`
+- `src/metrics.rs`
+- `tests/pipeline.rs`
+- `book/src/hierarchy.md`
+- `book/src/knobs.md`
+- `book/src/factorization.md`
+- `book/src/architecture.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/bounded-semantic-module-identity.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/HIERARCHY-SEMANTIC-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `ROADMAP.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-memory-state-identity-3 — MEMORY-STATE-IDENTITY.3 close memory frontier
+
+**Landed as:** `d0fd9f6`
 
 **What changed**
 

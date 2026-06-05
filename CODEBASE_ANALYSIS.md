@@ -348,15 +348,20 @@ src/
 │                     output exposure is complete, acyclic module
 │                     graph). Has inline unit tests covering valid
 │                     and invalid hand-built IRs.
-│   ├── dedup.rs      Opt-in hierarchy module identity pass:
-│                     collapses structurally-identical Module
-│                     definitions by canonical signature, rewrites
-│                     Instance.module references to the survivor, and
-│                     after a real merge prunes definitions that were
-│                     reachable before dedup but are no longer
-│                     reachable from the design top. No-merge calls and
-│                     pre-existing under-instantiation are not
-│                     reachability-pruned.
+│   ├── dedup.rs      Opt-in hierarchy module identity passes:
+│                     `dedup_modules` collapses structurally-identical
+│                     Module definitions by canonical signature;
+│                     `dedup_semantic_modules` collapses non-top
+│                     pure-combinational, instance-free, state-free
+│                     concrete modules by a bounded whole-module
+│                     truth-table proof (same PortId/width interface,
+│                     <=12 input-support bits, <=128 reachable nodes).
+│                     Both rewrite Instance.module references to the
+│                     survivor and, after a real merge, prune
+│                     definitions that were reachable before dedup but
+│                     are no longer reachable from the design top.
+│                     No-merge calls and pre-existing
+│                     under-instantiation are not reachability-pruned.
 │
 ├── gen/
 │   ├── mod.rs        Generator struct (rng + cfg + next_module_index),
@@ -364,8 +369,10 @@ src/
 │   │                 still routes into the mature leaf-module lane;
 │   │                 hierarchy dispatches to either the legacy exact
 │   │                 depth-1 wrapper lane or the newer bounded
-│   │                 recursive lane. No artifact-family selector
-│   │                 exists yet.
+│   │                 recursive lane. `generate_design` runs opt-in
+│   │                 structural module dedup, then opt-in bounded
+│   │                 semantic module dedup only under node-id/e-graph,
+│   │                 before parameter/aggregate/multi-clock projection.
 │   ├── module.rs     Leaf-module top-level generator: pick port counts,
 │   │                 pick widths, seed signal pool with primary inputs,
 │   │                 build a cone per primary output. Dispatches on

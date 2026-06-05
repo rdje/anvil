@@ -65,6 +65,46 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Bounded semantic module identity (2026-06-05, HIERARCHY-SEMANTIC-IDENTITY.1)
+
+`Config::hierarchy_semantic_module_dedup` is a separate default-off
+module identity pass, not a broadening of the existing structural
+`hierarchy_module_dedup` knob. The structural pass remains
+canonical-signature-only; the semantic pass groups modules by a bounded
+whole-module truth-table proof and runs only when the config asks for it
+under `identity_mode = node-id` with effective `factorization_level =
+e-graph`.
+
+The proof boundary is deliberately narrow: non-top, pure
+combinational, instance-free, state-free, concrete modules only; same
+emitted data input/output interface by `(PortId, width)`; <= 12 emitted
+input-support bits; <= 128 reachable output-cone nodes within the work
+budget; and <= 128-bit outputs. The full proof object, not its compact
+hash, is the merge key. The hash exposed in
+`DesignMetrics.semantic_module_signatures` is only observability.
+
+The `(PortId, width)` interface key is non-negotiable. Module dedup
+rewrites `Instance.module` names but intentionally leaves parent-side
+`(port_id, node)` bindings alone. Merging modules whose public port IDs
+differ would make a previously valid instance bind a signal to the
+wrong child port. Width-only or name-only interface matching was
+therefore rejected.
+
+Rejected alternatives:
+
+- Reuse `hierarchy_module_dedup` and silently make it semantic. That
+  would change an established config meaning and break the documented
+  structural-only boundary.
+- Key the merge by a 64-bit semantic hash. That is acceptable for
+  metrics but not for signoff-level merge decisions; the pass compares
+  the full proof value.
+- Admit modules with instances by treating instance outputs as opaque
+  endpoints. That would be module-context-sensitive and would require
+  already-proven child semantics plus binding substitution. It belongs
+  to a later hierarchy semantic identity leaf.
+- Admit flops, memories, or FSMs. Those need transition/state proof
+  inputs beyond this pure-combinational whole-module truth-table class.
+
 ### Reset-defined memory identity blocker (2026-06-05, MEMORY-STATE-IDENTITY.1)
 
 The current `Memory` motif is intentionally the reset-less synchronous

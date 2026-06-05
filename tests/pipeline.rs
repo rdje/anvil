@@ -1,7 +1,9 @@
 //! End-to-end: generate many modules across seeds and assert each
 //! passes IR validation and produces non-empty SV output.
 
-use anvil::config::{ConstructionStrategy, HierarchyChildSourceMode};
+use anvil::config::{
+    ConstructionStrategy, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
+};
 use anvil::ir::{GateOp, Node};
 use anvil::{Config, Generator};
 use std::collections::{BTreeMap, BTreeSet};
@@ -959,6 +961,97 @@ fn module_dedup_pass_collapses_structurally_duplicate_modules() {
         assert_eq!(
             metrics_on.num_distinct_module_signatures, metrics_on.num_modules,
             "after dedup, every surviving module should have a unique canonical signature for strategy {:?}: {metrics_on:#?}",
+            strategy,
+        );
+    }
+}
+
+#[test]
+fn semantic_module_dedup_flag_collapses_bounded_pure_comb_modules() {
+    // HIERARCHY-SEMANTIC-IDENTITY.1: the semantic pass is opt-in and
+    // separate from structural module dedup. This constrained hierarchy
+    // shape keeps leaf modules pure combinational with a 1-bit public
+    // input support, so they are inside the bounded whole-module proof.
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ] {
+        let base = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 4,
+            num_child_instances: 4,
+            min_inputs: 1,
+            max_inputs: 1,
+            min_outputs: 1,
+            max_outputs: 1,
+            min_width: 1,
+            max_width: 1,
+            flop_prob: 0.0,
+            hierarchy_sibling_route_prob: 0.0,
+            hierarchy_registered_sibling_route_prob: 0.0,
+            hierarchy_registered_child_input_cone_prob: 0.0,
+            hierarchy_child_input_cone_prob: 0.0,
+            hierarchy_parent_cone_instance_prob: 0.0,
+            hierarchy_parent_flop_prob: 0.0,
+            max_flops_per_module: 0,
+            terminal_reuse_prob: 1.0,
+            constant_prob: 0.0,
+            max_depth: 1,
+            construction_strategy: strategy,
+            hierarchy_module_dedup: false,
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Config::default()
+        };
+        base.validate()
+            .expect("semantic module dedup proof config should be valid");
+
+        let mut g_off = Generator::new(base.clone());
+        let design_off = g_off.generate_design();
+        anvil::ir::validate::validate_design(&design_off)
+            .expect("semantic dedup baseline design should validate");
+        let metrics_off = anvil::metrics::compute_design(&design_off);
+        assert!(
+            metrics_off.num_semantically_duplicate_module_pairs > 0,
+            "baseline should expose semantic duplicate leaves for strategy {:?}: {metrics_off:#?}",
+            strategy,
+        );
+
+        let mut cfg_on = base.clone();
+        cfg_on.hierarchy_semantic_module_dedup = true;
+        let mut g_on = Generator::new(cfg_on);
+        let design_on = g_on.generate_design();
+        anvil::ir::validate::validate_design(&design_on)
+            .expect("semantic-dedup design should validate");
+        let metrics_on = anvil::metrics::compute_design(&design_on);
+        assert!(
+            metrics_on.num_modules < metrics_off.num_modules,
+            "semantic module dedup should remove equivalent pure-comb modules for strategy {:?}: before={:?}, after={:?}",
+            strategy,
+            metrics_off.num_modules,
+            metrics_on.num_modules,
+        );
+        assert_eq!(
+            metrics_on.num_semantically_duplicate_module_pairs, 0,
+            "semantic module dedup should leave no duplicate semantic module proof in this focused shape for strategy {:?}: {metrics_on:#?}",
+            strategy,
+        );
+
+        let mut relaxed = base;
+        relaxed.hierarchy_semantic_module_dedup = true;
+        relaxed.identity_mode = IdentityMode::Relaxed;
+        relaxed.factorization_level = FactorizationLevel::EGraph;
+        let mut g_relaxed = Generator::new(relaxed);
+        let design_relaxed = g_relaxed.generate_design();
+        anvil::ir::validate::validate_design(&design_relaxed)
+            .expect("relaxed semantic-dedup design should validate");
+        let metrics_relaxed = anvil::metrics::compute_design(&design_relaxed);
+        assert_eq!(
+            metrics_relaxed.num_modules, metrics_off.num_modules,
+            "identity_mode=relaxed must keep semantic module dedup inert for strategy {:?}",
             strategy,
         );
     }

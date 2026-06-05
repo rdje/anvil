@@ -14,7 +14,7 @@ pub mod module;
 pub mod multi_clock;
 pub mod pool;
 
-use crate::config::Config;
+use crate::config::{Config, FactorizationLevel, IdentityMode};
 use crate::ir::{Design, KnobId, Module, ModuleInterfaceProfile};
 use rand::Rng;
 use rand::SeedableRng;
@@ -139,6 +139,12 @@ impl Generator {
         };
         if self.cfg.hierarchy_module_dedup {
             crate::ir::dedup::dedup_modules(&mut design);
+        }
+        if self.cfg.hierarchy_semantic_module_dedup
+            && self.cfg.identity_mode == IdentityMode::NodeId
+            && self.cfg.effective_factorization_level() >= FactorizationLevel::EGraph
+        {
+            crate::ir::dedup::dedup_semantic_modules(&mut design);
         }
         // Phase 5: opt-in post-construction width-parameterization
         // annotation. The opt-in *decision* is taken once at

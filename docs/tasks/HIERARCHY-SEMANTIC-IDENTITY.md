@@ -45,11 +45,11 @@ whole module behavior.
   Children: `HIERARCHY-SEMANTIC-IDENTITY.1`, `HIERARCHY-SEMANTIC-IDENTITY.2`, `HIERARCHY-SEMANTIC-IDENTITY.3`
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement bounded semantic dedup for pure combinational leaf modules with identical public interfaces.`
   Acceptance: `Semantically equal but structurally different pure combinational leaf modules can merge under an explicit proof boundary; sequential/stateful/module-instance cases remain no-merge; docs explain the boundary.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test -q semantic_dedup; cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules; cargo test -q module_dedup_pass_collapses_structurally_duplicate_modules; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
+  Commit: `pending this commit`
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY.2`
   Status: `pending`
@@ -69,13 +69,18 @@ whole module behavior.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-SEMANTIC-IDENTITY.1` | `pending` | Pure combinational leaf modules are the smallest whole-module class with a bounded truth-table proof. |
+| 1 | `HIERARCHY-SEMANTIC-IDENTITY.2` | `pending` | Evaluate whether any semantic module-equivalence class beyond pure combinational leaves is safe, or record the proof blocker. |
 
 ## Decisions
 
 - `2026-06-05`: Start with pure combinational leaves only. Stateful,
   hierarchical, and memory/FSM modules stay outside semantic module
   dedup until their own proof inputs exist.
+- `2026-06-05`: Landed `hierarchy_semantic_module_dedup` as a
+  separate default-off semantic pass. It is active only under
+  node-id/e-graph and only for non-top pure-combinational,
+  instance-free, state-free, concrete modules with matching `(PortId,
+  width)` public interfaces and bounded truth-table proof size.
 
 ## Open Questions
 
@@ -89,15 +94,19 @@ whole module behavior.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.1` | `pending` | `pending` |
+| `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.1` | `semantic module dedup unit/integration tests; snapshots; cargo check/clippy/fmt; mdBook build/test/book examples; memory/knowledge-map checks; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `HIERARCHY-SEMANTIC-IDENTITY.1` | `pending` | `pending` |
+| `HIERARCHY-SEMANTIC-IDENTITY.1` | `pending this commit` | `Bounded pure-combinational semantic module dedup plus docs/metrics.` |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened
   `HIERARCHY-SEMANTIC-IDENTITY.1`.
+- `2026-06-05`: Completed `HIERARCHY-SEMANTIC-IDENTITY.1` by adding
+  a default-off bounded semantic module dedup pass for pure
+  combinational leaves, design metrics for semantic module signatures,
+  and user-facing docs/examples. Frontier advanced to `.2`.

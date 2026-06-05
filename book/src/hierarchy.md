@@ -678,12 +678,78 @@ those modules can still be merged only if they have duplicate structural
 signatures. The cleanup removes definitions made dead by the merge
 itself.
 
-The proof boundary is structural. `hierarchy_module_dedup` does not try
-to prove arbitrary whole-module semantic equivalence: two modules that
-compute the same function through different IR shapes remain distinct
-unless their canonical structural signatures match. That boundary is
-regression-protected with a pass-through module versus a
-`Not(Not(input))` module.
+The original `hierarchy_module_dedup` proof boundary remains
+structural. It groups by canonical structure and does not try to prove
+that two different gate sequences compute the same function. That
+structural-only boundary is still regression-protected with a
+pass-through module versus a `Not(Not(input))` module.
+
+`HIERARCHY-SEMANTIC-IDENTITY.1` adds a separate, default-off semantic
+layer: `Config::hierarchy_semantic_module_dedup`. It runs only when all
+of the following are true:
+
+- the config knob is `true`;
+- `identity_mode = node-id`;
+- the effective `factorization_level` is `e-graph`;
+- the candidate module is non-top, pure combinational, instance-free,
+  concrete (not parameterized or aggregate-projected), and state-free;
+- the emitted data input interface matches by **port id and width**;
+- the total emitted data-input support is at most 12 bits;
+- the reachable output cone has at most 128 nodes and stays inside the
+  current work budget; and
+- every output is at most 128 bits.
+
+The port-id requirement is load-bearing. Module dedup rewrites
+`Instance.module` names but leaves parent-side `(port_id, node)`
+bindings unchanged, so two modules with the same width sequence but
+different public port IDs must not merge.
+
+Within that boundary, ANVIL enumerates the bounded input truth table for
+every output and uses the full proof as the merge key. This means
+`out = in` and `out = ~~in` can collapse to one module definition even
+though their canonical structural signatures differ:
+
+```rust,ignore
+use anvil::{Config, Generator, metrics};
+use anvil::config::{FactorizationLevel, IdentityMode};
+
+let mut cfg = Config {
+    seed: 42,
+    hierarchy_depth: 1,
+    num_leaf_modules: 4,
+    num_child_instances: 4,
+    min_inputs: 1, max_inputs: 1,
+    min_outputs: 1, max_outputs: 1,
+    min_width: 1, max_width: 1,
+    max_depth: 1,
+    terminal_reuse_prob: 1.0,
+    constant_prob: 0.0,
+    identity_mode: IdentityMode::NodeId,
+    factorization_level: FactorizationLevel::EGraph,
+    ..Config::default()
+};
+
+let off = metrics::compute_design(&Generator::new(cfg.clone()).generate_design());
+assert!(off.num_semantically_duplicate_module_pairs > 0);
+
+cfg.hierarchy_semantic_module_dedup = true;
+let on = metrics::compute_design(&Generator::new(cfg).generate_design());
+assert_eq!(on.num_semantically_duplicate_module_pairs, 0);
+assert!(on.num_modules < off.num_modules);
+```
+
+Unsupported candidates are skipped, not partially simplified. Sequential
+modules, memories, FSMs, modules containing instances, parameterized
+templates, aggregate-projected modules, mismatched interfaces, wider
+input-support cases, and larger cones remain distinct unless the
+structural dedup pass also proves them identical by canonical
+signature. This is not an arbitrary hierarchy equivalence engine.
+
+`DesignMetrics.semantic_module_signatures` records a compact
+deterministic hash of each module's bounded semantic proof (`null` for
+modules outside the boundary), and
+`num_semantically_duplicate_module_pairs` records how many proof-equal
+module pairs remain in the emitted design.
 
 The earlier `r86` bank closed `HIERARCHY-AWARE-IDENTITY.2` by proving the
 planner can emit structurally-duplicate Module definitions under
