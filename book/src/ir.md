@@ -525,8 +525,8 @@ sessions.
   the deterministic 5-seed corpus through yosys 0.64 `write_json`
   and asserts exact agreement on the yosys-supported categories
   (Seed/Top/Params/Widths/Generate; localparams + package
-  constants are folded by yosys and remain visible only to
-  richer-AST tools — slang / verilator-with-debug — recorded as
+  constants are folded by yosys and remain visible only to a
+  future microdesign-specific richer-AST extractor — recorded as
   a post-Phase-7 follow-up that does NOT retract closure). The
   DUT lane stays byte-identical by construction (microdesign
   is never invoked from the DUT generate path; default-off).
@@ -577,15 +577,34 @@ sessions.
   load-bearing per-instance per-binding values are
   read from yosys's `.cells[<inst>].parameters`).
   Top_localparams + package_constants are folded by
-  yosys and remain visible only to richer-AST tools
-  (slang `--ast-json` / verilator `--xml-only`) —
-  recorded post-Phase-8 follow-up that does NOT
-  retract closure (ANVIL's manifest already covers
-  all 7 categories). The DUT lane stays byte-identical
-  by construction (`frontend` is never invoked from
-  the DUT generate path; default-off). See
-  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md` and the
+  yosys. `SIGNOFF-SURFACE-EXPANSION.2` adds the richer
+  optional Verilator JSON-AST gate
+  `tests/frontend_parity.rs::parity_against_real_verilator_json_frontend_ast`
+  for local Verilator builds that support `--json-only`.
+  That extractor reads top GPARAMs, top LPARAMs, package
+  constants, specialized child-module GPARAMs reached
+  through each top `CELL.modp`, and surviving
+  `GENBLOCK` names. Its scope is `ParityScope::all()`,
+  so it checks all 7 manifest categories:
+  Seed/Top/PackageConstants/TopParams/TopLocalparams/
+  Instances/GenerateBranches. The local gate is clean
+  across the same 5 reproducibility seeds; artifacts land
+  in `target/tmp/frontend-parity-signoff-verilator-json`.
+  `slang` is not required for this path and was not present
+  in the local tool environment. The DUT lane stays
+  byte-identical by construction (`frontend` is never
+  invoked from the DUT generate path; default-off). See
+  `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`,
+  `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`, and the
   `ROADMAP.md` Phase 8 entry.
+
+  Optional real-tool parity gates:
+
+  <!-- book-test: skip — requires external Yosys/Verilator and ignored cargo tests -->
+  ```bash
+  cargo test --test frontend_parity -- --ignored parity_against_real_yosys_hierarchy_write_json --nocapture
+  cargo test --test frontend_parity -- --ignored parity_against_real_verilator_json_frontend_ast --nocapture
+  ```
 - **Multi-artifact umbrella selector** — Phase 9.
   **Delivered (Phase 9, 2026-05-20,
   `PHASE-9-MULTI-ARTIFACT-UMBRELLA` tree CLOSED).** A new

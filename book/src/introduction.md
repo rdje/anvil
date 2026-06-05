@@ -1,9 +1,9 @@
 # Introduction
 
-`anvil` generates random, synthesizable SystemVerilog RTL. Today that
-means one implemented artifact family: the leaf-module typed circuit
-generator. You give it a seed and a handful of knobs; it gives you back
-one or many SystemVerilog modules that are guaranteed to:
+`anvil` generates random, synthesizable SystemVerilog RTL artifacts.
+The default artifact family is the DUT RTL lane: you give it a seed and
+a handful of knobs; it gives you back one or many SystemVerilog modules
+that are guaranteed to:
 
 1. **Parse** — valid SystemVerilog syntax.
 2. **Elaborate** — valid semantics: widths match, names resolve, no
@@ -25,13 +25,17 @@ inputs, not malformed fuzz cases and not real designs.
 Whole-module intended functionality is usually absent. The target is
 legal structure, not behavior with a specification behind it.
 
-The longer-term project scope is broader than this one lane. The user
-has now made the end goal explicit: ANVIL should become the go-to tool
-for multiple families of **pseudo-random, valid-by-construction,
-synthesizable HDL artifacts**. So the current leaf-module generator is
-the start, not the finish. Future families include oracle-backed
-micro-design corpora and frontend/elaboration-oriented accept corpora
-with explicit expected-facts manifests.
+The project scope is broader than this one lane. ANVIL now ships three
+families of **pseudo-random, valid-by-construction, synthesizable HDL
+artifacts** through the same binary:
+
+- the default DUT RTL lane (`--artifact dut`);
+- the oracle-backed micro-design lane (`--artifact microdesign`);
+- the source-level frontend/elaboration accept lane (`--artifact frontend`).
+
+The two non-DUT lanes emit explicit expected-facts manifests so a
+downstream frontend or elaborator can be checked against known parameter,
+localparam, package, instance-binding, and generate-branch facts.
 
 The quality bar is intentionally high. `anvil` is not trying to become
 "a fuzzer that sometimes emits legal RTL"; it is trying to become a

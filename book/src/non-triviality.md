@@ -181,7 +181,8 @@ trivially constant" for a tiny fraction of the cost. We drop the
 oracle entirely. Users who want tool-testing workflows can run
 downstream tools (Verilator, Yosys) against the output themselves.
 
-That does **not** forbid explicit expected-facts manifests for future
-artifact families. A manifest is a declared contract for one family of
-generated files; what is still rejected is a bundled general-purpose
-RTL interpreter used as a global filter over all output.
+That does **not** forbid explicit expected-facts manifests for scoped
+artifact families. The microdesign and frontend lanes use manifests as
+declared contracts for their generated files; what is still rejected is
+a bundled general-purpose RTL interpreter used as a global filter over
+all output.

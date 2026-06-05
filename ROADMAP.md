@@ -32,13 +32,14 @@ current one**:
 
 - the current signoff-grade synthesizable RTL lane remains
   valid-by-construction and tool-clean by default;
-- future oracle-backed micro-design corpora are new artifact families,
+- oracle-backed micro-design corpora are new artifact families,
   not a weakening of the existing lane; and
-- broader source-level frontend/elaboration artifacts must also remain
+- broader source-level frontend/elaboration artifacts also remain
   valid-by-construction and synthesizable, not a license to blur
   invalid files into the project scope.
 
-The first explicitly-requested families beyond the current lane are:
+The first explicitly-requested families beyond the current lane are now
+delivered:
 
 - an **oracle-backed micro-design mode** for small self-contained `.sv`
   files with known expected facts;
@@ -1913,8 +1914,8 @@ non-negative-modulo-idiom fix) and both generate branches
 the 7 manifest fact categories — Seed/Top/Params/Widths/Generate.
 Localparams and package-qualified constants are folded by the
 elaborator and not name-introspectable from `write_json` alone;
-the parity comparator scopes accordingly. Richer-AST coverage via
-`slang --ast-json` or `verilator --xml-only` would surface the
+the parity comparator scopes accordingly. Richer-AST coverage via a
+future microdesign-specific AST extractor would surface the
 folded categories and is a recorded post-Phase-7 follow-up that
 **does NOT** retract Phase 7 closure — ANVIL's by-construction
 oracle already covers all 7 categories in the manifest; the parity
@@ -1994,12 +1995,16 @@ TopParams / Instances / GenerateBranches. Top localparams and
 package-qualified constants are folded by yosys's elaborator and
 not name-introspectable from `write_json` alone; the parity
 comparator scopes accordingly via `yosys_hierarchy_scope`.
-Richer-AST coverage via `slang --ast-json` or `verilator
---xml-only` would surface the folded categories and is a recorded
-post-Phase-8 follow-up that **does NOT** retract Phase 8 closure
-— ANVIL's by-construction oracle already covers all 7 categories
-in the manifest; the parity gate exercises whatever the tool
-reports.
+`SIGNOFF-SURFACE-EXPANSION.2` adds the richer optional Verilator
+JSON-AST gate
+`tests/frontend_parity.rs::parity_against_real_verilator_json_frontend_ast`
+for local Verilator builds that support `--json-only`. It parses
+Verilator's specialized child modules and direct package/top
+parameter declarations, enforces `ParityScope::all()` across all 7
+Phase-8 categories, and is verified clean across the 5 reproducibility
+seeds with artifacts in
+`target/tmp/frontend-parity-signoff-verilator-json`. `slang` remains
+optional and was not present in the local tool environment.
 
 **Notable during closure:** Phase 8's parity gate came back
 clean on the **first** real-tool run, **without** needing a
@@ -2128,8 +2133,11 @@ frontiers:
   `.1` landed the next CDC primitive: configurable N-flop 1-bit
   synchronizer chains via `cdc_synchronizer_stages`, with default
   2-stage behavior preserved and general CDC fabrics still deferred.
-  The next frontier is `.2`, richer AST/source extractor parity where
-  available.
+  `.2` landed the optional Verilator JSON-AST frontend parity gate,
+  which checks all 7 Phase-8 manifest categories when local Verilator
+  supports `--json-only`; `slang` was absent locally and is not
+  required. The next frontier is `.3`, broader simulator/tool parity or
+  a larger resource-aware signoff sweep where practical.
 
 The previously separate quality/capability follow-ups are closed:
 `DIFFERENTIAL-SIMULATION` landed its cross-simulator semantic-agreement

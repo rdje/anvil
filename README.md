@@ -3,10 +3,10 @@ Single entry point for the project.
 
 ## Project objective
 `anvil` is a random by-construction generator of **synthesizable
-SystemVerilog RTL**. Today its implemented lane produces syntactically
-valid, semantically correct, synthesizable, and structurally
-non-trivial modules by building a typed circuit graph via fanin-cone
-recursion and emitting SV from it.
+SystemVerilog RTL artifacts**. Its default DUT lane produces
+syntactically valid, semantically correct, synthesizable, and
+structurally non-trivial modules by building a typed circuit graph via
+fanin-cone recursion and emitting SV from it.
 
 The intended destination is stronger than "valid enough": `anvil`
 should become a **signoff-level-quality random RTL generator** whose
@@ -23,22 +23,21 @@ tool-ingestible complexity; absent a specification, most generated
 modules are expected to be functionally arbitrary or outright
 gibberish, and that is acceptable.
 
-The long-term scope is broader than one leaf-module format. The user
-has now made that explicit: the current "leaf-module typed circuit
-generator" is the starting point, not the end state. ANVIL is meant to
-grow into the go-to tool for **multiple families of pseudo-random,
-valid-by-construction, synthesizable HDL artifacts** — for example the
-current DUT RTL lane, future oracle-backed micro-design corpora, and
-future frontend/elaboration-oriented accept corpora with explicit
-expected-facts manifests.
+The scope is broader than one leaf-module format. ANVIL now ships three
+artifact lanes through the same `anvil` binary: the default DUT RTL
+lane, an oracle-backed micro-design lane, and a source-level
+frontend/elaboration accept lane with explicit expected-facts
+manifests. The default remains `--artifact dut`; the other lanes are
+opt-in and keep their generators decoupled from the DUT path.
 
 **Three load-bearing principles:**
 1. **Recursion is the core algorithm.** The generator answers one question — *"what drives this signal?"* — and recurses. Every level of abstraction (gate, cone, module, hierarchy) is the same recursion with a richer choice set. Iteration is the exception; recursion is the default. Anything that can be expressed as a recursive descent over a typed circuit graph should be.
 2. **Every emitted module is valid by construction.** No generate-then-filter. No post-hoc repair. If a generator output fails semantic validation or synthesis, that is a generator bug, not expected behavior.
 3. **Every output is reproducible.** Byte-identical output for the same `(seed, knobs)` pair, across platforms, forever. Seeded ChaCha8; no `thread_rng`; no wall-clock entropy; no hash-map iteration order in output paths.
 
-See `ROADMAP.md` for the phased scope of the current leaf RTL lane plus
-the broader future artifact families.
+See `ROADMAP.md` for the phased scope of the DUT RTL lane, the
+delivered non-DUT artifact lanes, and the active post-phase follow-up
+trees.
 
 ## Fast ramp-up (recommended reading order)
 1. `README.md` (this file): canonical entry point and project map.
@@ -560,6 +559,15 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
 `Slice` / `Concat`, and variable shifts.
 
 ## Current CLI truth
+- `anvil --artifact <dut|microdesign|frontend>` selects the artifact
+  lane. `dut` is the default and preserves the historical no-flag DUT
+  RTL path. `microdesign` and `frontend` are opt-in non-DUT lanes with
+  expected-facts manifests.
+- `anvil --artifact microdesign --lane-n-params N` controls the number
+  of parameter/localparam declarations in the micro-design lane.
+- `anvil --artifact frontend --lane-n-params N --lane-n-children M`
+  controls the top parameter/localparam count and child-instance count
+  in the frontend/elaboration lane.
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.
 - `anvil --dump-config` prints the effective knobs as JSON.
@@ -931,8 +939,8 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   `last.value`) — exactly what `.1` designed the gate to do.
   Scope caveat: yosys 0.64 covers 4 of the 7 manifest fact
   categories (Seed/Top/Params/Widths/Generate); richer-AST
-  coverage via `slang`/`verilator-with-debug` is a recorded
-  post-Phase-7 follow-up that does NOT retract closure (the
+  coverage via a future microdesign-specific AST extractor is a
+  recorded post-Phase-7 follow-up that does NOT retract closure (the
   manifest already covers all 7 categories). **Phase 8 —
   Frontend/elaboration accept corpora is done (2026-05-20,
   `PHASE-8-FRONTEND-ACCEPT` tree CLOSED):** delivered a
@@ -965,10 +973,19 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   take `g_taken`). Scope caveat: yosys covers 5 of the 7
   manifest fact categories
   (Seed/Top/TopParams/Instances/GenerateBranches);
-  top_localparams + package_constants are folded —
-  richer-AST coverage via slang/verilator-with-debug
-  remains a recorded post-Phase-8 follow-up. ANVIL now
-  ships **three** complementary lanes: the DUT lane
+  top_localparams + package_constants are folded by
+  yosys. `SIGNOFF-SURFACE-EXPANSION.2` adds a richer
+  optional Verilator JSON-AST gate
+  (`tests/frontend_parity.rs::parity_against_real_verilator_json_frontend_ast`)
+  for local Verilator builds that support `--json-only`.
+  That gate parses Verilator's specialized-module AST,
+  enforces all 7 Phase-8 manifest categories, and is
+  verified clean across the same 5 reproducibility seeds
+  with artifacts in
+  `target/tmp/frontend-parity-signoff-verilator-json`.
+  `slang` is not required and was not present in the
+  local tool environment. ANVIL now ships **three**
+  complementary lanes: the DUT lane
   (Phases 1–6), the oracle-backed micro-design lane
   (Phase 7), and the source-level frontend/elaboration
   accept lane (Phase 8). **Phase 9 — Multi-artifact ANVIL

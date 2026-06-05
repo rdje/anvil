@@ -181,23 +181,20 @@ mean). A random testbench for a random DUT tests nothing. See
 
 ## Is `anvil` permanently just a leaf-module typed circuit generator?
 
-No. That is the **current implemented lane**, not the intended final
-shape of the project.
+No. The leaf/module typed-circuit generator is the default DUT RTL lane,
+but ANVIL now ships three artifact lanes through the same binary:
 
-The user has now made the broader direction explicit: ANVIL should grow
-into the go-to tool for multiple families of pseudo-random,
-valid-by-construction, synthesizable HDL artifacts. The current
-leaf-module generator remains the first lane. Future lanes on the
-roadmap include:
+- `--artifact dut` — the default synthesizable DUT RTL lane;
+- `--artifact microdesign` — compact oracle-backed const-expression /
+  parameter micro-designs with expected-facts manifests;
+- `--artifact frontend` — source-level frontend/elaboration accept
+  corpora with packages, top parameters, chained localparams,
+  named-binding child instances, generate branches, and expected-facts
+  manifests.
 
-- oracle-backed micro-design corpora;
-- source-level parameter / hierarchy / package / type driven accept
-  corpora; and
-- a shared multi-artifact umbrella that keeps reproducibility,
-  manifests, and mode selection explicit.
-
-What does **not** change is the quality bar: these broadened families
-are still meant to be valid by construction and synthesizable.
+What does **not** change is the quality bar: every lane is valid by
+construction and synthesizable, and the non-DUT lanes stay separate from
+the DUT generator instead of weakening it.
 
 ## Does "no oracle" mean expected-facts manifests are forbidden?
 

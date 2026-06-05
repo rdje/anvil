@@ -21,7 +21,7 @@
 //!   invocable but is skipped by the portable suite. `.2c.2` is the
 //!   gated step that wires it end-to-end against a real elaborator
 //!   (yosys hierarchy+write_json AFTER elaboration, slang
-//!   `--ast-json`, or verilator `--xml-only`) and banks a verified
+//!   `--ast-json`, or a Verilator AST dump) and banks a verified
 //!   clean artifact before ROADMAP Phase 8 → done (r87).
 //!
 //! The cargo-portable proofs DO NOT shell yosys / slang / verilator.
@@ -755,5 +755,534 @@ fn parity_against_real_downstream_elaborator() {
     eprintln!(
         "parity_against_real_downstream_elaborator: .2c.2a picked yosys; \
          see parity_against_real_yosys_hierarchy_write_json for the live gate"
+    );
+}
+
+// ===================================================================
+// SIGNOFF-SURFACE-EXPANSION.2 — Verilator `--json-only` AST extractor.
+//
+// Empirical local-tool probe (2026-06-05): Verilator 5.046 on this
+// machine does NOT accept the older `--xml-only` option recorded as a
+// Phase-8 follow-up, but it does expose `--json-only` plus
+// `--json-only-output` / `--json-only-meta-output`.
+//
+// That JSON AST carries a richer fact surface than yosys 0.64's
+// `hierarchy -top; write_json` report for the Phase-8 frontend lane:
+//
+//   * top GPARAMs: direct `VAR varType=GPARAM` entries under the top
+//     module's `stmtsp`, each with a resolved `valuep[CONST]`;
+//   * top LPARAMs: direct `VAR varType=LPARAM` entries under the top
+//     module's `stmtsp`;
+//   * package constants: `PACKAGE` entries in `modulesp`, again as
+//     direct `VAR varType=LPARAM` entries;
+//   * instances: top-module `CELL` entries point via `modp` to
+//     Verilator's specialized child modules, whose `origName` is the
+//     source child module and whose GPARAM values are the resolved
+//     instance bindings;
+//   * generate branches: the surviving branch is represented as a
+//     direct `GENBLOCK` named `g_taken` or `g_else`.
+//
+// Keep this extractor in the test harness: it is a signoff surface,
+// not production DUT generation.
+// ===================================================================
+
+fn parse_verilator_int_const(name: &str) -> Option<i128> {
+    let literal = name.trim().replace('_', "");
+    if literal.is_empty() {
+        return None;
+    }
+
+    if let Some(apostrophe_idx) = literal.find('\'') {
+        let width: u32 = literal[..apostrophe_idx].parse().ok()?;
+        if width == 0 || width > 127 {
+            return None;
+        }
+        let mut suffix = &literal[apostrophe_idx + 1..];
+        let explicit_signed = suffix.starts_with('s') || suffix.starts_with('S');
+        if explicit_signed {
+            suffix = &suffix[1..];
+        }
+        let (base, digits) = suffix.split_at(1);
+        if digits.is_empty()
+            || digits
+                .chars()
+                .any(|c| matches!(c, 'x' | 'X' | 'z' | 'Z' | '?'))
+        {
+            return None;
+        }
+        let radix = match base {
+            "b" | "B" => 2,
+            "o" | "O" => 8,
+            "d" | "D" => 10,
+            "h" | "H" => 16,
+            _ => return None,
+        };
+
+        let magnitude = if let Some(stripped) = digits.strip_prefix('-') {
+            let value = i128::from_str_radix(stripped, radix).ok()?;
+            return Some(-value);
+        } else {
+            u128::from_str_radix(digits, radix).ok()?
+        };
+        if magnitude >= (1u128 << width) && radix != 10 {
+            return None;
+        }
+
+        // Phase-8 frontend facts are SystemVerilog `int` values.  In
+        // Verilator JSON those appear as both `32'sh...` and `32'h...`;
+        // sign-extend all 32-bit facts so future negative values stay
+        // aligned with the manifest instead of becoming large unsigned
+        // integers.
+        let should_sign_extend = explicit_signed || width == 32;
+        if should_sign_extend && (magnitude & (1u128 << (width - 1))) != 0 {
+            let signed = magnitude as i128 - (1i128 << width);
+            Some(signed)
+        } else {
+            Some(magnitude as i128)
+        }
+    } else {
+        literal.parse::<i128>().ok()
+    }
+}
+
+fn verilator_value_type(value: &serde_json::Value) -> Option<&str> {
+    value.get("type").and_then(serde_json::Value::as_str)
+}
+
+fn verilator_value_name(value: &serde_json::Value) -> Option<&str> {
+    value.get("name").and_then(serde_json::Value::as_str)
+}
+
+fn verilator_stmtsp(value: &serde_json::Value) -> &[serde_json::Value] {
+    value
+        .get("stmtsp")
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+}
+
+fn verilator_modulesp(value: &serde_json::Value) -> &[serde_json::Value] {
+    value
+        .get("modulesp")
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+}
+
+fn verilator_var_value(var: &serde_json::Value) -> Option<i128> {
+    let valuep = var.get("valuep")?.as_array()?;
+    valuep
+        .iter()
+        .find(|v| verilator_value_type(v) == Some("CONST"))
+        .and_then(verilator_value_name)
+        .and_then(parse_verilator_int_const)
+}
+
+fn verilator_param_map(
+    module_or_package: &serde_json::Value,
+    var_type: &str,
+) -> BTreeMap<String, i128> {
+    let mut out = BTreeMap::new();
+    for stmt in verilator_stmtsp(module_or_package) {
+        if verilator_value_type(stmt) != Some("VAR") {
+            continue;
+        }
+        if stmt.get("varType").and_then(serde_json::Value::as_str) != Some(var_type) {
+            continue;
+        }
+        if stmt.get("isParam").and_then(serde_json::Value::as_bool) != Some(true) {
+            continue;
+        }
+        if let (Some(name), Some(value)) = (verilator_value_name(stmt), verilator_var_value(stmt)) {
+            out.insert(name.to_string(), value);
+        }
+    }
+    out
+}
+
+fn verilator_json_to_tool_report(json: &serde_json::Value, seed: u64) -> ToolReport {
+    let top = format!("acc_{seed}");
+    let modulesp = verilator_modulesp(json);
+    let top_module = modulesp.iter().find(|m| {
+        verilator_value_type(m) == Some("MODULE") && verilator_value_name(m) == Some(top.as_str())
+    });
+
+    let mut modules_by_addr: BTreeMap<String, &serde_json::Value> = BTreeMap::new();
+    for module in modulesp {
+        if verilator_value_type(module) == Some("MODULE") {
+            if let Some(addr) = module.get("addr").and_then(serde_json::Value::as_str) {
+                modules_by_addr.insert(addr.to_string(), module);
+            }
+        }
+    }
+
+    let mut package_constants = BTreeMap::new();
+    for package in modulesp {
+        if verilator_value_type(package) != Some("PACKAGE") {
+            continue;
+        }
+        let Some(package_name) = verilator_value_name(package) else {
+            continue;
+        };
+        for (name, value) in verilator_param_map(package, "LPARAM") {
+            package_constants.insert(format!("{package_name}::{name}"), value);
+        }
+    }
+
+    let mut top_params = BTreeMap::new();
+    let mut top_localparams = BTreeMap::new();
+    let mut instances = Vec::new();
+    let mut g_taken_alive = false;
+    let mut g_else_alive = false;
+
+    if let Some(top_module) = top_module {
+        top_params = verilator_param_map(top_module, "GPARAM");
+        top_localparams = verilator_param_map(top_module, "LPARAM");
+
+        for stmt in verilator_stmtsp(top_module) {
+            match verilator_value_type(stmt) {
+                Some("CELL") => {
+                    let Some(inst_name) = verilator_value_name(stmt) else {
+                        continue;
+                    };
+                    let Some(child_addr) = stmt.get("modp").and_then(serde_json::Value::as_str)
+                    else {
+                        continue;
+                    };
+                    let Some(child_module) = modules_by_addr.get(child_addr) else {
+                        continue;
+                    };
+                    let child_name = child_module
+                        .get("origName")
+                        .and_then(serde_json::Value::as_str)
+                        .or_else(|| verilator_value_name(child_module))
+                        .unwrap_or("");
+                    instances.push(InstanceToolReport {
+                        inst_name: inst_name.to_string(),
+                        child_module: child_name.to_string(),
+                        resolved_bindings: verilator_param_map(child_module, "GPARAM"),
+                    });
+                }
+                Some("GENBLOCK") => match verilator_value_name(stmt) {
+                    Some("g_taken") => g_taken_alive = true,
+                    Some("g_else") => g_else_alive = true,
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
+
+    let mut generate_branches = BTreeMap::new();
+    generate_branches.insert("g_taken".to_string(), g_taken_alive && !g_else_alive);
+
+    ToolReport {
+        seed,
+        top,
+        package_constants,
+        top_params,
+        top_localparams,
+        instances,
+        generate_branches,
+    }
+}
+
+fn verilator_json_scope() -> ParityScope {
+    ParityScope::all()
+}
+
+#[test]
+fn verilator_const_parser_reads_sv_int_literals() {
+    assert_eq!(parse_verilator_int_const("32'sh39"), Some(57));
+    assert_eq!(parse_verilator_int_const("32'h35"), Some(53));
+    assert_eq!(parse_verilator_int_const("32'hffff_ffff"), Some(-1));
+    assert_eq!(parse_verilator_int_const("8'shff"), Some(-1));
+    assert_eq!(parse_verilator_int_const("1'h1"), Some(1));
+    assert_eq!(parse_verilator_int_const("32'hx"), None);
+}
+
+#[test]
+fn verilator_json_extractor_reads_a_synthetic_ast_correctly() {
+    let synthetic = serde_json::json!({
+        "type": "NETLIST",
+        "modulesp": [
+            {
+                "type": "MODULE",
+                "name": "acc_0",
+                "origName": "acc_0",
+                "addr": "(top)",
+                "stmtsp": [
+                    {
+                        "type": "VAR",
+                        "name": "P0",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'sh39" }]
+                    },
+                    {
+                        "type": "VAR",
+                        "name": "P1",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'sh26" }]
+                    },
+                    {
+                        "type": "VAR",
+                        "name": "L0",
+                        "varType": "LPARAM",
+                        "isParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'h35" }]
+                    },
+                    {
+                        "type": "CELL",
+                        "name": "u_0_0",
+                        "modp": "(child0)"
+                    },
+                    {
+                        "type": "CELL",
+                        "name": "u_0_1",
+                        "modp": "(child1)"
+                    },
+                    {
+                        "type": "GENBLOCK",
+                        "name": "g_taken"
+                    }
+                ]
+            },
+            {
+                "type": "PACKAGE",
+                "name": "acc_0_pkg",
+                "stmtsp": [
+                    {
+                        "type": "VAR",
+                        "name": "K",
+                        "varType": "LPARAM",
+                        "isParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'sh1" }]
+                    }
+                ]
+            },
+            {
+                "type": "MODULE",
+                "name": "child_0__C39_CB28",
+                "origName": "child_0",
+                "addr": "(child0)",
+                "stmtsp": [
+                    {
+                        "type": "VAR",
+                        "name": "CP0",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'h39" }]
+                    },
+                    {
+                        "type": "VAR",
+                        "name": "CP1",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'h28" }]
+                    }
+                ]
+            },
+            {
+                "type": "MODULE",
+                "name": "child_0__C3c_CB3b",
+                "origName": "child_0",
+                "addr": "(child1)",
+                "stmtsp": [
+                    {
+                        "type": "VAR",
+                        "name": "CP0",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'h3c" }]
+                    },
+                    {
+                        "type": "VAR",
+                        "name": "CP1",
+                        "varType": "GPARAM",
+                        "isParam": true,
+                        "isGParam": true,
+                        "valuep": [{ "type": "CONST", "name": "32'h3b" }]
+                    }
+                ]
+            }
+        ]
+    });
+
+    let report = verilator_json_to_tool_report(&synthetic, 0);
+    assert_eq!(report.seed, 0);
+    assert_eq!(report.top, "acc_0");
+    assert_eq!(report.top_params.get("P0").copied(), Some(57));
+    assert_eq!(report.top_params.get("P1").copied(), Some(38));
+    assert_eq!(report.top_localparams.get("L0").copied(), Some(53));
+    assert_eq!(
+        report.package_constants.get("acc_0_pkg::K").copied(),
+        Some(1)
+    );
+    assert_eq!(report.generate_branches.get("g_taken").copied(), Some(true));
+    assert_eq!(report.instances.len(), 2);
+
+    let u00 = report
+        .instances
+        .iter()
+        .find(|i| i.inst_name == "u_0_0")
+        .expect("u_0_0");
+    assert_eq!(u00.child_module, "child_0");
+    assert_eq!(u00.resolved_bindings.get("CP0").copied(), Some(57));
+    assert_eq!(u00.resolved_bindings.get("CP1").copied(), Some(40));
+
+    let u01 = report
+        .instances
+        .iter()
+        .find(|i| i.inst_name == "u_0_1")
+        .expect("u_0_1");
+    assert_eq!(u01.child_module, "child_0");
+    assert_eq!(u01.resolved_bindings.get("CP0").copied(), Some(60));
+    assert_eq!(u01.resolved_bindings.get("CP1").copied(), Some(59));
+}
+
+#[test]
+fn verilator_json_extractor_reports_g_else_when_else_branch_survives() {
+    let synthetic = serde_json::json!({
+        "type": "NETLIST",
+        "modulesp": [
+            {
+                "type": "MODULE",
+                "name": "acc_99",
+                "origName": "acc_99",
+                "addr": "(top)",
+                "stmtsp": [
+                    {
+                        "type": "GENBLOCK",
+                        "name": "g_else"
+                    }
+                ]
+            }
+        ]
+    });
+
+    let report = verilator_json_to_tool_report(&synthetic, 99);
+    assert_eq!(
+        report.generate_branches.get("g_taken").copied(),
+        Some(false)
+    );
+}
+
+/// Real-tool parity gate, invocable with
+/// `cargo test --test frontend_parity -- --ignored
+///  parity_against_real_verilator_json_frontend_ast`.
+///
+/// This gate is optional: if Verilator is absent, or if a local
+/// Verilator build predates `--json-only`, it prints a skip reason and
+/// returns. When available, it enforces the full Phase-8 fact scope:
+/// seed, top, package constants, top params, top localparams,
+/// per-instance bindings, and surviving generate branch.
+#[test]
+#[ignore]
+fn parity_against_real_verilator_json_frontend_ast() {
+    let probe = std::process::Command::new("verilator")
+        .arg("--version")
+        .output();
+    if probe.is_err() || !probe.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+        eprintln!(
+            "parity_against_real_verilator_json_frontend_ast: verilator not on $PATH \
+             (skipping; rerun with verilator installed for the real-tool gate)"
+        );
+        return;
+    }
+
+    let help = std::process::Command::new("verilator")
+        .arg("--help")
+        .output();
+    let supports_json_only = help
+        .as_ref()
+        .ok()
+        .map(|o| {
+            let mut text = String::from_utf8_lossy(&o.stdout).to_string();
+            text.push_str(&String::from_utf8_lossy(&o.stderr));
+            text.contains("--json-only") && text.contains("--json-only-output")
+        })
+        .unwrap_or(false);
+    if !supports_json_only {
+        eprintln!(
+            "parity_against_real_verilator_json_frontend_ast: local verilator lacks \
+             --json-only / --json-only-output (skipping; richer AST gate unavailable)"
+        );
+        return;
+    }
+
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join("frontend-parity-signoff-verilator-json");
+    std::fs::create_dir_all(&dir).expect("can create the harness output dir");
+
+    let scope = verilator_json_scope();
+    let mut counterexamples: Vec<(u64, Vec<Divergence>)> = Vec::new();
+
+    for &seed in SEEDS {
+        let unit = build_acceptable_unit(seed, N_PARAMS, N_CHILDREN);
+        let manifest = build_manifest(&unit);
+
+        let sv_path = dir.join(format!("acc_{seed}.sv"));
+        let manifest_path = dir.join(format!("acc_{seed}.json"));
+        let verilator_json_path = dir.join(format!("acc_{seed}.verilator.tree.json"));
+        let verilator_meta_path = dir.join(format!("acc_{seed}.verilator.meta.json"));
+        std::fs::write(&sv_path, emit_sv(&unit)).expect("write .sv");
+        std::fs::write(&manifest_path, emit_manifest(&unit)).expect("write manifest .json");
+
+        let status = std::process::Command::new("verilator")
+            .arg("--json-only")
+            .arg("--json-only-output")
+            .arg(&verilator_json_path)
+            .arg("--json-only-meta-output")
+            .arg(&verilator_meta_path)
+            .arg(&sv_path)
+            .output()
+            .expect("run verilator");
+        assert!(
+            status.status.success(),
+            "verilator exited non-zero on seed {seed}: stdout=\n{}\nstderr=\n{}",
+            String::from_utf8_lossy(&status.stdout),
+            String::from_utf8_lossy(&status.stderr)
+        );
+
+        let verilator_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(&verilator_json_path).expect("read verilator json"),
+        )
+        .expect("parse verilator json");
+        let report = verilator_json_to_tool_report(&verilator_json, seed);
+
+        match compare_manifest_to_tool_report_in_scope(&manifest, &report, &scope) {
+            Ok(()) => {}
+            Err(divergences) => {
+                counterexamples.push((seed, divergences));
+            }
+        }
+    }
+
+    if !counterexamples.is_empty() {
+        for (seed, divs) in &counterexamples {
+            eprintln!(
+                "verilator-json parity counterexample at seed={seed} \
+                 (artifacts in {}/): divergences={divs:?}",
+                dir.display()
+            );
+        }
+        panic!(
+            "verilator-json parity gate retained {} counterexample(s); artifact dir: {}",
+            counterexamples.len(),
+            dir.display()
+        );
+    }
+
+    eprintln!(
+        "verilator-json parity gate clean across {} seeds; artifacts in {}",
+        SEEDS.len(),
+        dir.display()
     );
 }

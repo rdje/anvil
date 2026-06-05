@@ -1,9 +1,104 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-06-05-signoff-surface-expansion-1 — SIGNOFF-SURFACE-EXPANSION.1 add N-flop CDC synchronizer
+## 2026-06-05-signoff-surface-expansion-2 — SIGNOFF-SURFACE-EXPANSION.2 add Verilator JSON frontend parity
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `SIGNOFF-SURFACE-EXPANSION.2`.
+
+- Added a Verilator `--json-only` extractor in
+  `tests/frontend_parity.rs` for the Phase-8 frontend/elaboration
+  accept lane.
+- Added cargo-portable proofs for Verilator SV-int literal parsing,
+  synthetic JSON AST extraction, instance binding recovery through
+  `CELL.modp` specialized child modules, package/top param recovery,
+  and `g_else` generate-branch recovery.
+- Added ignored real-tool gate
+  `parity_against_real_verilator_json_frontend_ast`.
+- Kept the gate optional and skip-friendly when Verilator is absent or
+  lacks `--json-only`.
+- Recorded the local tool boundary: Verilator 5.046 supports JSON AST
+  output and rejects `--xml-only`; `slang` is absent and is not required
+  for this ANVIL gate.
+- Added Knowledge Map fact
+  `docs/knowledge/verilator-json-frontend-parity.md` and regenerated
+  `KNOWLEDGE_MAP.md`.
+- Synced `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+  `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `docs/TASK_TREE.md`,
+  `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`, and mdBook chapters
+  `book/src/introduction.md`, `book/src/faq.md`, `book/src/ir.md`, and
+  `book/src/non-triviality.md`.
+
+**Why it matters**
+
+The Phase-8 Yosys gate remains valuable but exposes only 5 of the 7
+frontend manifest categories because Yosys folds top localparams and
+package constants. The Verilator JSON gate reads those facts from the
+AST, resolves per-instance bindings through specialized child modules,
+and enforces `ParityScope::all()` across all 7 categories:
+Seed/Top/PackageConstants/TopParams/TopLocalparams/Instances/
+GenerateBranches.
+
+**Validation**
+
+- `cargo test --test frontend_parity -- --nocapture` — 15 passed / 3
+  ignored.
+- `cargo test --test frontend_parity -- --ignored parity_against_real_yosys_hierarchy_write_json --nocapture`
+  — clean across 5 seeds; artifacts in `target/tmp/frontend-parity-phase8-yosys`.
+- `cargo test --test frontend_parity -- --ignored parity_against_real_verilator_json_frontend_ast --nocapture`
+  — clean across 5 seeds; artifacts in
+  `target/tmp/frontend-parity-signoff-verilator-json`.
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `cargo test --test book_examples` — 3/3 passed in 75.00s.
+- `cargo test --test snapshots` — 6/6 passed.
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+
+**Resource note**
+
+Full `cargo test` was not rerun for this leaf. The previous monitored
+full-suite attempt was stopped at 90.7% RAM per the owner's resource
+safety rule, and this slice is covered by focused frontend parity,
+snapshot, book, clippy, check, Knowledge Map, and memory-architecture
+gates.
+
+**Impact**
+
+- No DUT generated RTL behavior changes.
+- Users can now run an optional Verilator JSON frontend parity gate to
+  verify all Phase-8 manifest categories when local Verilator supports
+  `--json-only`.
+- The mdBook and user guide now describe the delivered non-DUT artifact
+  lanes and the exact frontend parity-tool boundaries.
+
+**Files touched**
+
+- `tests/frontend_parity.rs`
+- `book/src/introduction.md`
+- `book/src/faq.md`
+- `book/src/ir.md`
+- `book/src/non-triviality.md`
+- `README.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `docs/TASK_TREE.md`
+- `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`
+- `docs/knowledge/verilator-json-frontend-parity.md`
+- `KNOWLEDGE_MAP.md`
+- `MEMORY.md`
+
+## 2026-06-05-signoff-surface-expansion-1 — SIGNOFF-SURFACE-EXPANSION.1 add N-flop CDC synchronizer
+
+**Landed as:** `6d27a4b SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer`
 
 **What changed**
 

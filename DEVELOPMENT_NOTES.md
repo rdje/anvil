@@ -65,6 +65,40 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Verilator JSON frontend parity extractor (2026-06-05, SIGNOFF-SURFACE-EXPANSION.2)
+
+The richer Phase-8 AST/source parity follow-up landed through
+Verilator JSON, not Verilator XML. Local evidence: Verilator 5.046
+rejects `--xml-only` but supports `--json-only`,
+`--json-only-output`, and `--json-only-meta-output`; `slang` was not on
+`PATH`.
+
+The extractor deliberately stays in `tests/frontend_parity.rs` because
+it is a signoff harness, not production DUT generation. It parses
+Verilator's netlist JSON for the Phase-8 source-level frontend lane:
+top `MODULE` GPARAM/LPARAM `VAR.valuep[CONST]` facts become top
+params/localparams; `PACKAGE` LPARAMs become `pkg::name` constants;
+top `CELL.modp` links resolve each instance to Verilator's specialized
+child module, whose `origName` is the source child and whose GPARAMs are
+the resolved instance bindings; surviving `GENBLOCK` names recover the
+generate branch. That makes the Verilator gate stricter than the Yosys
+gate for this lane: Yosys still covers 5 of 7 categories because it
+folds package constants and top localparams, while Verilator JSON
+enforces all 7 categories through `ParityScope::all()`.
+
+Rejected alternatives:
+
+- Keep waiting for `slang --ast-json`. It is not present locally, and
+  this slice can add a real available richer gate without making slang
+  mandatory.
+- Keep the old `verilator --xml-only` wording. It is false for the
+  local Verilator build and would turn a concrete available gate into a
+  stale aspirational one.
+- Move the extractor into `src/frontend/`. The production frontend lane
+  already emits its own manifest and comparator types; downstream-tool
+  JSON parsing is harness wiring and belongs in the integration test
+  where the optional real-tool gate lives.
+
 ### Bounded semantic module identity (2026-06-05, HIERARCHY-SEMANTIC-IDENTITY.1/.2)
 
 `Config::hierarchy_semantic_module_dedup` is a separate default-off

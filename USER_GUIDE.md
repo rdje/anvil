@@ -57,6 +57,27 @@ Generate 100 modules into a directory:
 anvil --seed 42 --count 100 --out ./generated
 ```
 
+Generate a source-level frontend/elaboration accept artifact with its
+expected-facts manifest:
+
+```bash
+anvil --artifact frontend --seed 0 --lane-n-params 4 --lane-n-children 2 --out ./frontend-artifact
+```
+
+That writes `./frontend-artifact/acc_0.sv` and
+`./frontend-artifact/acc_0.json`. The `.sv` keeps package constants,
+top parameters, chained localparams, instance parameter bindings, and
+the generate predicate symbolic; the `.json` records the resolved facts
+that the parity gates compare against downstream tool output. Omitting
+`--out` prints the `.sv` to stdout and the manifest to stderr so stdout
+pipelines stay clean.
+
+Generate an oracle-backed const-expression micro-design artifact:
+
+```bash
+anvil --artifact microdesign --seed 7 --lane-n-params 5 --out ./microdesign-artifact
+```
+
 Each module lands in its own `.sv` file named by seed and index, e.g.
 `generated/mod_42_0007.sv`. A `manifest.json` in the output directory
 records the seed, knobs, and per-module summary (port counts, widths,
@@ -1405,6 +1426,24 @@ yosys -p "read_verilog -sv generated/mod_42_0000.sv; synth -noabc; abc -fast; op
 
 Both should succeed on every generated file. If one fails, that's a bug
 in `anvil` — file an issue with the seed and knobs from `manifest.json`.
+
+**Frontend expected-facts parity gates (optional, require external tools):**
+
+```bash
+cargo test --test frontend_parity -- --ignored parity_against_real_yosys_hierarchy_write_json --nocapture
+cargo test --test frontend_parity -- --ignored parity_against_real_verilator_json_frontend_ast --nocapture
+```
+
+The Yosys gate checks the categories Yosys exposes after
+`hierarchy -top; write_json`:
+Seed/Top/TopParams/Instances/GenerateBranches. Yosys folds
+top-localparams and package constants away. The Verilator gate uses
+`--json-only` when the local Verilator build supports it and checks the
+full frontend manifest scope:
+Seed/Top/PackageConstants/TopParams/TopLocalparams/Instances/
+GenerateBranches. In the current local evidence, it is clean across the
+5 reproducibility seeds and writes artifacts under
+`target/tmp/frontend-parity-signoff-verilator-json`.
 
 ## Use as a library
 

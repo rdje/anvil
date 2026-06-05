@@ -52,11 +52,11 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   Commit: `SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer`
 
 - ID: `SIGNOFF-SURFACE-EXPANSION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Add richer AST/source extractor parity where available.`
-  Acceptance: `A slang or Verilator XML extractor path lands as an optional gate with scoped facts, or tool availability/scope blockers are recorded.`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `A richer optional frontend AST/source extractor path lands with scoped facts, or tool availability/scope blockers are recorded.`
+  Verification: `frontend parity portable suite, optional real Yosys gate, optional real Verilator JSON gate, check, clippy, fmt, mdBook, book examples, snapshots, Knowledge Map, memory architecture, diff whitespace all clean.`
+  Commit: `SIGNOFF-SURFACE-EXPANSION.2 - add Verilator JSON frontend parity`
 
 - ID: `SIGNOFF-SURFACE-EXPANSION.3`
   Status: `pending`
@@ -76,7 +76,7 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SIGNOFF-SURFACE-EXPANSION.2` | `pending` | CDC now has the next low-risk primitive; richer AST/source extractor parity is the next signoff surface. |
+| 1 | `SIGNOFF-SURFACE-EXPANSION.3` | `pending` | CDC and richer frontend AST parity are now covered; broader simulator/tool parity or resource-aware sweeps are the next signoff surface. |
 
 ## Decisions
 
@@ -89,6 +89,10 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   defaults to `2`, validates `>= 2`, and values `>= 3` generate longer
   destination-domain chains. Multi-bit CDC fabrics remain separate
   future trees.
+- `2026-06-05`: Use Verilator JSON, not Verilator XML, for the richer
+  Phase-8 frontend parity follow-up in this environment. Local
+  Verilator 5.046 rejects `--xml-only` but supports `--json-only`;
+  `slang` is absent. The new gate stays optional and harness-local.
 
 ## Open Questions
 
@@ -102,12 +106,14 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.2` | `cargo test --test frontend_parity -- --nocapture`; `cargo test --test frontend_parity -- --ignored parity_against_real_yosys_hierarchy_write_json --nocapture`; `cargo test --test frontend_parity -- --ignored parity_against_real_verilator_json_frontend_ast --nocapture`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples`; `cargo test --test snapshots`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`. | Clean. Portable frontend suite: 15 passed / 3 ignored. Real Yosys gate clean across 5 seeds. Real Verilator JSON gate clean across 5 seeds with artifacts in `target/tmp/frontend-parity-signoff-verilator-json` and all 7 Phase-8 manifest categories enforced. Full `cargo test` intentionally not rerun after the prior monitored resource stop at 90.7% RAM. |
 | `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.1` | `cargo check --all-targets`; `cargo test -q synchronizer`; `cargo test -q --bin tool_matrix coverage_gaps_detect_missing_categories`; `cargo test -q --bin tool_matrix phase1_gate_raises_modules_per_scenario_to_cover_1000_modules`; `cargo test -q --bin tool_matrix phase1_gate_preserves_larger_explicit_module_count`; `cargo test -q --bin tool_matrix build_default_scenarios_includes_multi_clock_scenario`; `cargo test -q --bin tool_matrix summarize_coverage_lights_multi_clock_facts_from_module_metrics`; `cargo test -q validate_rejects_cdc`; `cargo test -q --bin tool_matrix merge_coverage_unions_saw_cdc_nflop_synchronizer`; `cargo test -q --bin tool_matrix diff_sim_subset_against_default_scenarios_is_nonempty_and_capped`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples`; `cargo test --test snapshots`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`; focused `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap --yosys-mode without-abc`; monitored `cargo test` attempt. | Focused checks clean. Focused matrix: 17 scenarios / 17 modules, `coverage_gaps=[]`, Verilator 17/0, Yosys without-abc 17/0, `saw_multi_clock_design=true`, `saw_cdc_2_flop_synchronizer=true`, `saw_cdc_nflop_synchronizer=true`. Full `cargo test` was stopped at 90.7% RAM per owner resource policy. |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SIGNOFF-SURFACE-EXPANSION.2` | `SIGNOFF-SURFACE-EXPANSION.2 - add Verilator JSON frontend parity` | Lands optional Verilator JSON-AST frontend extractor, full-scope real-tool gate, docs, and Knowledge Map fact. |
 | `SIGNOFF-SURFACE-EXPANSION.1` | `SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer` | Lands `cdc_synchronizer_stages`, N-flop generation, metrics, matrix coverage, user docs, and Knowledge Map fact. |
 
 ## Changelog
@@ -116,3 +122,5 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   `SIGNOFF-SURFACE-EXPANSION.1`.
 - `2026-06-05`: Landed `SIGNOFF-SURFACE-EXPANSION.1`; frontier moves
   to `.2`.
+- `2026-06-05`: Landed `SIGNOFF-SURFACE-EXPANSION.2`; frontier moves
+  to `.3`.
