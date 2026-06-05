@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `f962e6e` - `MEMORY-STATE-IDENTITY.1 - design memory proof boundary`
-- active_work_unit: `MEMORY-STATE-IDENTITY.2` is docs-only blocker record; no reset-defined memory merge will land for the current warning-clean `$mem_v2` memory-inference lane.
-- next_action: commit `MEMORY-STATE-IDENTITY.2`, clear `git_message_brief.txt`, then run `MEMORY-STATE-IDENTITY.3` closeout.
-- in_flight_uncommitted: task tree, docs/TASK_TREE, CHANGES, and MEMORY are synced; docs-only validation passed.
+- latest_commit: `ca6a449` - `MEMORY-STATE-IDENTITY.2 - record reset-memory blocker`
+- active_work_unit: `MEMORY-STATE-IDENTITY.3` docs-only closeout; memory-state identity is closed with reset-less memories remaining instance-local.
+- next_action: commit `MEMORY-STATE-IDENTITY.3`, clear `git_message_brief.txt`, then start `HIERARCHY-SEMANTIC-IDENTITY.1`.
+- in_flight_uncommitted: memory closeout docs/task-tree/live-doc edits are prepared; validation pending.
 - blockers: none.
 
 ## Validation policy

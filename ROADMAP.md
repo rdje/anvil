@@ -2111,8 +2111,10 @@ frontiers:
   reset-defined self-hold flops can merge, deterministic FSM exact-table
   sharing remains covered, and broader coinduction is blocked until a
   transition-relation proof and/or extra IR domain facts exist.
-- `MEMORY-STATE-IDENTITY` owns the reset-defined memory-state identity
-  boundary beyond the current reset-less instance-local memory proof.
+- `MEMORY-STATE-IDENTITY` is closed for the current memory-inference
+  lane: reset-less memories remain state-by-instance, and the
+  reset-defined-memory merge candidate is blocked because the reset-all
+  array probe is not warning-clean `$mem_v2` memory inference in Yosys.
 - `HIERARCHY-SEMANTIC-IDENTITY` owns bounded semantic module identity
   beyond canonical structural module signatures.
 - `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,

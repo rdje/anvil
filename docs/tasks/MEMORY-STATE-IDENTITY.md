@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `MEMORY-STATE-IDENTITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `NodeId as identity / full-factorization mode`
 - Created: `2026-06-05`
 - Last updated: `2026-06-05`
@@ -39,7 +39,7 @@ to any reset-defined memory-state sharing ANVIL can prove.
 ## Task Tree
 
 - ID: `MEMORY-STATE-IDENTITY`
-  Status: `active`
+  Status: `done`
   Goal: `Determine and implement safe reset-defined memory-state identity.`
   Children: `MEMORY-STATE-IDENTITY.1`, `MEMORY-STATE-IDENTITY.2`, `MEMORY-STATE-IDENTITY.3`
 
@@ -55,20 +55,20 @@ to any reset-defined memory-state sharing ANVIL can prove.
   Goal: `Record the reset-defined memory identity blocker for the current memory-inference lane.`
   Acceptance: `No source behavior changes land; the task tree and user-facing docs retain the reset-less instance-local boundary and record the reset-all-array Yosys warning / register-lowering evidence.`
   Verification: `blocker-record audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
-  Commit: `pending this commit`
+  Commit: `ca6a449`
 
 - ID: `MEMORY-STATE-IDENTITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Close the memory-state identity frontier.`
   Acceptance: `The tree records landed memory identity behavior or explicit blocker evidence, and the current reset-less boundary remains documented.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `closeout audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
+  Commit: `pending this commit`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-STATE-IDENTITY.3` | `pending` | Close the tree with the reset-less memory boundary and blocker evidence recorded. |
+| _none_ | _complete_ | _done_ | Reset-less memory identity remains instance-local; reset-defined memory sharing is blocked for the current warning-clean memory-inference lane. |
 
 ## Decisions
 
@@ -103,14 +103,15 @@ to any reset-defined memory-state sharing ANVIL can prove.
 | --- | --- | --- | --- |
 | `2026-06-05` | `MEMORY-STATE-IDENTITY.1` | `current memory template audit; Verilator reset-all probe; Yosys reset-all probe; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
 | `2026-06-05` | `MEMORY-STATE-IDENTITY.2` | `blocker-record audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
+| `2026-06-05` | `MEMORY-STATE-IDENTITY.3` | `closeout audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `MEMORY-STATE-IDENTITY.1` | `f962e6e MEMORY-STATE-IDENTITY.1 - design memory proof boundary` | `Reset-defined memory proof boundary and blocker evidence.` |
-| `MEMORY-STATE-IDENTITY.2` | `pending this commit` | `Record blocker; no source behavior change.` |
-| `MEMORY-STATE-IDENTITY.3` | `pending` | `Close memory-state frontier.` |
+| `MEMORY-STATE-IDENTITY.2` | `ca6a449 MEMORY-STATE-IDENTITY.2 - record reset-memory blocker` | `Record blocker; no source behavior change.` |
+| `MEMORY-STATE-IDENTITY.3` | `pending this commit` | `Close memory-state frontier.` |
 
 ## Changelog
 
@@ -122,3 +123,7 @@ to any reset-defined memory-state sharing ANVIL can prove.
 - `2026-06-05`: Completed `MEMORY-STATE-IDENTITY.2` as a blocker
   record. No reset-defined memory merge is implemented for the current
   memory-inference lane.
+- `2026-06-05`: Completed `MEMORY-STATE-IDENTITY.3` closeout. The
+  tree is closed with current reset-less memories remaining
+  instance-local and reset-defined memory sharing blocked for the
+  current warning-clean memory-inference lane.

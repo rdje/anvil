@@ -1,8 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-memory-state-identity-2 — MEMORY-STATE-IDENTITY.2 record reset-memory blocker
+## 2026-06-05-memory-state-identity-3 — MEMORY-STATE-IDENTITY.3 close memory frontier
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree closeout slice. Completed `MEMORY-STATE-IDENTITY.3` and
+closed the `MEMORY-STATE-IDENTITY` tree.
+
+- Backfilled the `.2` commit hash (`ca6a449`) in the task-tree commit
+  log.
+- Marked the memory-state tree `done` with an empty frontier.
+- Updated `docs/TASK_TREE.md` so future PNT selection moves to
+  `HIERARCHY-SEMANTIC-IDENTITY.1`.
+- Updated `ROADMAP.md` so the five-follow-up summary records that
+  memory-state identity is closed for the current warning-clean memory
+  lane with an explicit blocker.
+- Refreshed `MEMORY.md` for the next active follow-up tree.
+
+**Why it matters**
+
+The reset-defined memory candidate is no longer an ambiguous open
+implementation slot. The user-facing behavior remains explicit:
+current reset-less inferrable memories are state-by-instance, and
+reset-defined memory sharing would require a separate motif/knob with
+new downstream evidence.
+
+**Tests**
+
+- Closeout audit
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No code, generated RTL behavior, CLI flags, config defaults, metrics,
+  or mdBook behavior text changed in this closeout leaf.
+- Full `cargo test` was not run for this docs-only closeout.
+
+**Files**
+
+- `docs/tasks/MEMORY-STATE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `ROADMAP.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-memory-state-identity-2 — MEMORY-STATE-IDENTITY.2 record reset-memory blocker
+
+**Landed as:** `ca6a449`
 
 **What changed**
 
