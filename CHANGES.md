@@ -1,8 +1,60 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-combinational-semantic-identity-2 — COMBINATIONAL-SEMANTIC-IDENTITY.2 audit semantic proof budgets
+## 2026-06-05-combinational-semantic-identity-3 — COMBINATIONAL-SEMANTIC-IDENTITY.3 close combinational frontier
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree closeout slice. Completed
+`COMBINATIONAL-SEMANTIC-IDENTITY.3` and closed the
+`COMBINATIONAL-SEMANTIC-IDENTITY` tree with an empty frontier.
+
+- Recorded the final combinational scope landed by this tree:
+  gate-to-gate small-support semantic merges, gate-to-existing-endpoint
+  / constant folds after helper endpoint minimization, and shallow
+  12-bit semantic proofs under fixed work budgets.
+- Backfilled the `.2` commit hash (`a1f5729`) in the task-tree commit
+  log.
+- Updated `docs/TASK_TREE.md` so the tree is listed as `done`.
+- Updated `ROADMAP.md` to call the bounded combinational semantic
+  fragment closed while leaving the sequential, memory, hierarchy, and
+  signoff follow-up trees active.
+- Refreshed `MEMORY.md` for the next active follow-up tree.
+
+**Why it matters**
+
+This removes ambiguity from the roadmap: the combinational part of the
+NodeId/full-factorization follow-up is exhausted for the current proof
+model. Remaining identity work is not hidden in this tree; it is owned
+by the sibling task trees.
+
+**Tests**
+
+- Task-tree closeout audit
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No code or generated RTL behavior changed in this closeout leaf.
+- No mdBook behavior text changed because `.1` and `.2` already synced
+  the user-facing behavior.
+- No numbered roadmap phase label changed.
+- Full `cargo test` was not run for this docs-only closeout.
+
+**Files**
+
+- `docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `ROADMAP.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-combinational-semantic-identity-2 — COMBINATIONAL-SEMANTIC-IDENTITY.2 audit semantic proof budgets
+
+**Landed as:** `a1f5729`
 
 **What changed**
 

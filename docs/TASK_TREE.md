@@ -64,7 +64,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 
 | Tree | Status | Roadmap lane | Current frontier | File |
 | --- | --- | --- | --- | --- |
-| `COMBINATIONAL-SEMANTIC-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `COMBINATIONAL-SEMANTIC-IDENTITY.3` — close the combinational frontier after gate-to-endpoint fold and bounded proof-budget expansion landed | [docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md](tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md) |
+| `COMBINATIONAL-SEMANTIC-IDENTITY` | `done` | NodeId as identity / full-factorization mode | complete — `.1` gate-to-existing-endpoint / constant fold; `.2` shallow 12-bit semantic proof budget with fixed work envelope; `.3` closeout | [docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md](tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md) |
 | `SEQUENTIAL-COINDUCTIVE-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` — inventory reset/domain proof preconditions before new sequential merges | [docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md](tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md) |
 | `MEMORY-STATE-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `MEMORY-STATE-IDENTITY.1` — design the reset-defined memory proof boundary | [docs/tasks/MEMORY-STATE-IDENTITY.md](tasks/MEMORY-STATE-IDENTITY.md) |
 | `HIERARCHY-SEMANTIC-IDENTITY` | `active` | NodeId as identity / hierarchical module identity | `HIERARCHY-SEMANTIC-IDENTITY.1` — bounded semantic dedup for pure combinational leaf modules | [docs/tasks/HIERARCHY-SEMANTIC-IDENTITY.md](tasks/HIERARCHY-SEMANTIC-IDENTITY.md) |

@@ -78,7 +78,7 @@ instead of leaving them implicit.
    two cones should share one identity only when ANVIL can prove they
    implement the same functionality with respect to the same canonical
    leaf endpoints. Today's implementation covers normalized
-   combinational identity plus a live bounded semantic fragment at the
+   combinational identity plus a closed bounded semantic fragment at the
    `e-graph` rung for small-support gate cones over the same canonical
    endpoints, including gate-to-existing-endpoint / constant folds when
    helper endpoints cancel out and tiny 12-endpoint-bit proofs that fit

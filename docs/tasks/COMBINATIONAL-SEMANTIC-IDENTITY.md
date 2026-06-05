@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `COMBINATIONAL-SEMANTIC-IDENTITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `NodeId as identity / full-factorization mode`
 - Created: `2026-06-05`
 - Last updated: `2026-06-05`
@@ -41,7 +41,7 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 ## Task Tree
 
 - ID: `COMBINATIONAL-SEMANTIC-IDENTITY`
-  Status: `active`
+  Status: `done`
   Goal: `Broaden same-endpoint combinational semantic identity.`
   Children: `COMBINATIONAL-SEMANTIC-IDENTITY.1`, `COMBINATIONAL-SEMANTIC-IDENTITY.2`, `COMBINATIONAL-SEMANTIC-IDENTITY.3`
 
@@ -60,17 +60,17 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
   Commit: `COMBINATIONAL-SEMANTIC-IDENTITY.2 - widen semantic proof budget safely`
 
 - ID: `COMBINATIONAL-SEMANTIC-IDENTITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Close the combinational semantic frontier.`
   Acceptance: `The task file records all landed expansions, any deferred proof limits, validation, and an empty frontier.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `task-tree closeout audit; live docs updated; memory/Knowledge Map checks; git diff check.`
+  Commit: `COMBINATIONAL-SEMANTIC-IDENTITY.3 - close combinational frontier`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COMBINATIONAL-SEMANTIC-IDENTITY.3` | `pending` | With the gate-to-endpoint fold and bounded proof-budget expansion landed, close the combinational frontier and record any remaining proof boundaries. |
+| - | - | - | Empty. The combinational semantic frontier is closed. |
 
 ## Decisions
 
@@ -81,6 +81,13 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 - `2026-06-05`: Permit shallow 12 endpoint-support-bit semantic proofs
   only under a combined work budget. The flat support cap alone is not
   the safety invariant; `assignment_count * cone_node_count` is.
+- `2026-06-05`: Close this tree with the following landed
+  combinational scope: gate-to-gate small-support semantic merges,
+  gate-to-existing-endpoint / constant folds after helper endpoint
+  minimization, and shallow 12-bit semantic proofs admitted only inside
+  the current node/work budget. Remaining broader identity work is now
+  owned by the sibling sequential, memory, hierarchy, and signoff
+  follow-up trees.
 
 ## Open Questions
 
@@ -94,6 +101,7 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-05` | `COMBINATIONAL-SEMANTIC-IDENTITY.3` | task-tree closeout audit; `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed; no code or user-facing behavior changed in the closeout leaf |
 | `2026-06-05` | `COMBINATIONAL-SEMANTIC-IDENTITY.2` | `cargo test -q semantic_merge_proof`; `cargo test -q cleanup_exact_proof`; `/usr/bin/time -l cargo test -q semantic_merge_proof`; `/usr/bin/time -l cargo test -q cleanup_exact_proof`; `cargo test -q merge_equivalent_gates`; `cargo test -q ir::compact::tests::semantic`; `cargo test -q --test snapshots` after deliberate snapshot review/acceptance; generated seed-42 node-id/e-graph smoke through Verilator and Yosys; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `cargo test -q --test book_examples`; `mdbook build book`; `mdbook test book`; `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed; measured focused budget tests stayed below 46 MB max RSS; Yosys smoke reported 0 problems and 67.75 MB peak; full `cargo test` not run because this resource-sensitive slice is covered by focused compact tests, snapshots, book gates, and downstream smoke |
 | `2026-06-05` | `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `cargo test -q merge_equivalent_gates`; `cargo test -q ir::compact::tests::semantic`; `cargo test -q ir::compact::tests::merge_equivalent_flops`; `cargo test -q ir::compact::tests::merge_equivalent_fsms`; `cargo test -q --test snapshots` after deliberate snapshot review/acceptance; generated seed-42 node-id/e-graph smoke through Verilator and Yosys; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `cargo test -q --test book_examples`; `mdbook build book`; `mdbook test book`; `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed; full `cargo test` not run because focused gates and snapshot/book/downstream checks covered this slice without invoking the resource-sensitive full suite |
 
@@ -101,7 +109,8 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `COMBINATIONAL-SEMANTIC-IDENTITY.2` | `COMBINATIONAL-SEMANTIC-IDENTITY.2 - widen semantic proof budget safely` | `pending hash`; advances frontier to `.3`. |
+| `COMBINATIONAL-SEMANTIC-IDENTITY.3` | `COMBINATIONAL-SEMANTIC-IDENTITY.3 - close combinational frontier` | `pending hash`; closes the tree with an empty frontier. |
+| `COMBINATIONAL-SEMANTIC-IDENTITY.2` | `COMBINATIONAL-SEMANTIC-IDENTITY.2 - widen semantic proof budget safely` | `a1f5729`; advanced frontier to `.3`. |
 | `COMBINATIONAL-SEMANTIC-IDENTITY.1` | `COMBINATIONAL-SEMANTIC-IDENTITY.1 - fold gates to endpoints` | `41948a6`; advanced frontier to `.2`. |
 
 ## Changelog
@@ -116,3 +125,7 @@ e-graph`, while preserving the existing canonical-endpoint boundary.
   progress for the bounded semantic proof-budget audit.
 - `2026-06-05`: Completed `COMBINATIONAL-SEMANTIC-IDENTITY.2` and
   advanced the frontier to `COMBINATIONAL-SEMANTIC-IDENTITY.3`.
+- `2026-06-05`: Marked `COMBINATIONAL-SEMANTIC-IDENTITY.3` in
+  progress for combinational semantic frontier closeout.
+- `2026-06-05`: Completed `COMBINATIONAL-SEMANTIC-IDENTITY.3` and
+  closed the tree with an empty frontier.
