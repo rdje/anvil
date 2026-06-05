@@ -49,7 +49,7 @@ unless ANVIL can prove reset-defined behavioral equivalence.
   Goal: `Inventory reset/domain proof preconditions and split the first implementable sequential merge candidate.`
   Acceptance: `The task tree records which candidates are sound now, which need new IR facts, and the next executable implementation leaf; no source behavior changes in this design leaf.`
   Verification: `task-tree inventory, mdBook drift correction, memory/knowledge-map checks`
-  Commit: `pending this commit`
+  Commit: `50746ef`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2`
   Status: `active`
@@ -60,11 +60,11 @@ unless ANVIL can prove reset-defined behavioral equivalence.
   Commit: `container; no direct commit`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Add clock-domain proof input to existing flop identity.`
   Acceptance: `Flop identity signatures include Module::flop_domain; same-domain duplicate-D flops still merge; cross-domain duplicate-D/reset flops do not merge; user-facing docs state the domain boundary.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test -q merge_equivalent_flops; cargo test -q compact_remaps_explicit_flop_domains; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; memory/knowledge-map checks; git diff --check`
+  Commit: `pending this commit`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
   Status: `pending`
@@ -84,8 +84,7 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending` | Clock-domain identity is a prerequisite before any broader state merge proof is allowed. |
-| 2 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | The exact self-hold class is the first coinductive candidate with a bounded proof in the current IR. |
+| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | The exact self-hold class is the first coinductive candidate with a bounded proof in the current IR. |
 
 ## Decisions
 
@@ -130,13 +129,14 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `task-tree inventory; mdBook sequential/factorization/structural-rule drift correction; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
+| `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `cargo test -q merge_equivalent_flops; cargo test -q compact_remaps_explicit_flop_domains; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `pending this commit` | `Inventory reset/domain proof envelope and split .2.1/.2.2 implementation leaves.` |
-| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending` | `Domain-aware flop signature prerequisite.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `50746ef SEQUENTIAL-COINDUCTIVE-IDENTITY.1 - inventory proof envelope` | `Inventory reset/domain proof envelope and split .2.1/.2.2 implementation leaves.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending this commit` | `Domain-aware flop signature prerequisite.` |
 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | `Exact reset-defined self-hold coinductive merge.` |
 
 ## Changelog
@@ -146,3 +146,8 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 - `2026-06-05`: Completed `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`
   inventory. Split implementation into `.2.1` domain-aware flop
   signatures and `.2.2` exact self-hold coinductive identity.
+- `2026-06-05`: Opened `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
+  for implementation.
+- `2026-06-05`: Completed `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
+  by adding clock-domain identity to flop merge signatures and
+  remapping explicit `flop_domains` entries during merge/compaction.

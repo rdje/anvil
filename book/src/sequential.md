@@ -129,9 +129,10 @@ semantics over the same canonical leaf endpoints, they are merged even
 if they were born as distinct registers. In the current generator flow,
 this pass runs during leaf finalisation before the opt-in multi-clock
 promotion pass, so promotion-added synchronizer flops are not
-re-merged by this pass. Any state-sharing proof that runs after clock
-domains exist must stay within one declared domain. The proof is still
-bounded:
+re-merged by this pass. The signature still includes
+`Module::flop_domain`, so a library caller or future pass that runs
+after explicit domain tags exist will not merge equal-looking flops
+across domains. The proof is still bounded:
 normalized structural proof first, plus a bounded semantic check for
 small-support cones. The semantic branch has the same support/node/work
 budget as the combinational merge proof, so shallow 12-endpoint-bit

@@ -1,8 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-sequential-coinductive-identity-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.1 inventory sequential proof envelope
+## 2026-06-05-sequential-coinductive-identity-2-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1 add domain-aware flop identity
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed
+`SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` by making the existing
+post-drain flop identity proof clock-domain aware.
+
+- Added `Module::flop_domain(flop.id)` to `FlopSignature`, so
+  equal-looking flops in different clock/reset domains no longer share
+  one state element.
+- Preserved existing K=1 behavior because absent `flop_domains` entries
+  still default to domain 0.
+- Remapped explicit `Module.flop_domains` entries when
+  `merge_equivalent_flops` removes duplicate state and when
+  `compact_node_ids` drops dead flops and renumbers surviving `FlopId`s.
+- Added focused regressions for cross-domain no-merge, same-domain
+  explicit-domain merge, and compaction domain-map remapping.
+- Synced USER_GUIDE, mdBook factorization/sequential chapters,
+  CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, task-tree frontier, and a
+  Knowledge Map fact card for direct future retrieval.
+
+**Why it matters**
+
+Clock/reset domain is part of state identity. This hardens the existing
+flop-sharing pass before broader coinductive state merging lands: two
+registers can have the same D proof and reset value but still be
+different state if they sample different declared domains.
+
+**Tests**
+
+- `cargo test -q merge_equivalent_flops`
+- `cargo test -q compact_remaps_explicit_flop_domains`
+- `cargo test -q --test snapshots`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `cargo test -q --test book_examples` — 3 passed in 76.15s
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- Generated K=1 output remains unchanged; the snapshot guard passed.
+- Explicit multi-domain/library uses of `merge_equivalent_flops` now
+  keep cross-domain state distinct and preserve domain metadata across
+  merge/compaction.
+- `identity_mode = relaxed` remains the off-switch.
+- No CLI flag, config default, metric name, or numbered roadmap phase
+  label changed.
+- Full `cargo test` was not run; this leaf used focused tests plus the
+  snapshot, compile, lint, format, book, memory, and Knowledge Map
+  gates.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `book/src/factorization.md`
+- `book/src/sequential.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/domain-aware-flop-identity.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-sequential-coinductive-identity-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.1 inventory sequential proof envelope
+
+**Landed as:** `50746ef`
 
 **What changed**
 

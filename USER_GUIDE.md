@@ -254,8 +254,10 @@ pass: if two flops end up with the same emitted state semantics over the
 same canonical leaf endpoints, their Qs are unified before reachability
 compaction. In the current generated flow this pass runs before opt-in
 multi-clock promotion; synchronizer flops added by that promotion are
-not re-merged by the pass, and broader coinductive state equivalence is
-not claimed. At effective level `e-graph`, finalisation also runs a
+not re-merged by the pass. The proof key includes the flop clock-domain
+tag, so cross-domain state is not unified, and broader coinductive state
+equivalence is not claimed. At effective level `e-graph`, finalisation
+also runs a
 bounded semantic combinational-sharing pass that can merge
 different-shape small-support cones proven equivalent over the same leaf
 variables. If the proof shows a helper variable does not affect the

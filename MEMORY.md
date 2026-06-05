@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `0e178a0` - `COMBINATIONAL-SEMANTIC-IDENTITY.3 - close combinational frontier`
-- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` is a docs-only design inventory; it split the next code frontier into `.2.1` domain-aware flop signatures and `.2.2` exact self-hold coinductive merge.
-- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`, clear `git_message_brief.txt`, then implement `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`.
-- in_flight_uncommitted: task tree, mdBook, USER_GUIDE, DEVELOPMENT_NOTES, CHANGES, and MEMORY are synced; docs-only validation passed.
+- latest_commit: `50746ef` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.1 - inventory proof envelope`
+- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` is implemented/validated; flop identity now keys on `Module::flop_domain`, and explicit `flop_domains` entries remap during merge/compaction.
+- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`, clear `git_message_brief.txt`, then implement `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` exact self-hold coinductive merge.
+- in_flight_uncommitted: source, tests, mdBook, USER_GUIDE, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, Knowledge Map, task tree, CHANGES, and MEMORY are synced; focused validation passed.
 - blockers: none.
 
 ## Validation policy

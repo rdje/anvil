@@ -65,6 +65,21 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Domain-aware flop identity (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1)
+
+`merge_equivalent_flops` now treats `Module::flop_domain(flop.id)` as
+part of the reset-defined state signature. This is a hard safety
+precondition for any broader sequential identity work: two registers
+with the same D proof and reset value are still distinct if they sample
+different `(clk, rst_n)` domain pairs. The K=1 default remains domain
+0 through `Module::flop_domain`, so existing single-clock fixtures keep
+their previous merge behavior.
+
+The implementation also remaps explicit `Module.flop_domains` entries
+when state is merged or dead flops are compacted. Without that metadata
+remap, a later pass or library caller could observe stale domain tags
+after dense `FlopId` renumbering.
+
 ### Sequential identity proof envelope inventory (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.1)
 
 Before broadening state sharing, the proof inputs have to be explicit.

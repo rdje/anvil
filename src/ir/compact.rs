@@ -18,10 +18,10 @@
 //!   sharing pass that runs only once flop D-cones exist. Under
 //!   `identity_mode = node-id` with effective factorization level
 //!   at least `Cse`, flops with the same emitted state semantics
-//!   (`width`, reset, same canonical leaf endpoints, and a D-cone
-//!   functionality proven either by the current normalized proof form
-//!   or by a bounded small-support semantic check) are collapsed to one
-//!   state element.
+//!   (`width`, reset, clock domain, same canonical leaf endpoints, and a
+//!   D-cone functionality proven either by the current normalized proof
+//!   form or by a bounded small-support semantic check) are collapsed to
+//!   one state element.
 //! - `merge_equivalent_fsms(&mut m)`: a deterministic FSM-sharing pass
 //!   that uses the same endpoint-preserving proof discipline for the
 //!   selector cone, plus the reset-defined FSM transition/output tables,
@@ -92,7 +92,7 @@ use super::types::{
     Flop, FlopId, FlopMux, FsmEncoding, FsmId, GateOp, Module, Node, NodeId, PortId, ResetKind,
 };
 use crate::config::FactorizationLevel;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 const BASELINE_SEMANTIC_SUPPORT_BITS: u32 = 10;
 const MAX_SEMANTIC_SUPPORT_BITS: u32 = 12;
@@ -126,6 +126,7 @@ const CLEANUP_SEMANTIC_LIMITS: SemanticProofLimits = SemanticProofLimits {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct FlopSignature {
     width: u32,
+    clock_domain: u32,
     d: ConeProof,
     reset_val: u128,
     reset_kind: ResetKind,
@@ -950,7 +951,9 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
 /// same emitted state signature (`width`, reset, and a D-cone with the
 /// same canonical leaf endpoints plus the same currently-proven
 /// functionality), every consumer of the duplicate Q can safely be
-/// redirected to the canonical Q.
+/// redirected to the canonical Q. Clock domain is part of that emitted
+/// state signature: two equal-looking flops in different domains are
+/// distinct state elements.
 ///
 /// The pass is gated by the effective identity mode:
 ///
@@ -997,6 +1000,7 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         };
         let sig = FlopSignature {
             width: flop.width,
+            clock_domain: m.flop_domain(flop.id),
             d: cone_proof(
                 m,
                 d,
@@ -1081,8 +1085,32 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         rewrite_flop_from_partial_map(flop, &q_node_remap);
     }
 
+    remap_explicit_flop_domains_after_merge(m, &old_to_canonical_old, &old_to_new);
     rebuild_instance_tables(m);
     removed
+}
+
+fn remap_explicit_flop_domains_after_merge(
+    m: &mut Module,
+    old_to_canonical_old: &[FlopId],
+    old_to_new: &[FlopId],
+) {
+    if m.flop_domains.is_empty() {
+        return;
+    }
+
+    let old_domains = std::mem::take(&mut m.flop_domains);
+    let mut new_domains = BTreeMap::new();
+    for old in 0..old_to_canonical_old.len() {
+        let old_id = old as FlopId;
+        if old_to_canonical_old[old] != old_id {
+            continue;
+        }
+        if let Some(domain) = old_domains.get(&old_id).copied() {
+            new_domains.insert(old_to_new[old], domain);
+        }
+    }
+    m.flop_domains = new_domains;
 }
 
 /// Merge duplicate generated FSM blocks after their selector cones are known.
@@ -1843,6 +1871,7 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
         new_flops.push(flop);
     }
     m.flops = new_flops;
+    remap_explicit_flop_domains_after_compaction(m, &reachable_flops, &old_flop_to_new);
 
     // 7. Rebuild dedup tables against the new NodeId space. Drop
     //    entries whose target was unreachable; remap surviving ones.
@@ -1886,6 +1915,29 @@ pub fn compact_node_ids(m: &mut Module) -> u32 {
     m.const_instances = new_const_instances;
 
     removed
+}
+
+fn remap_explicit_flop_domains_after_compaction(
+    m: &mut Module,
+    reachable_flops: &[bool],
+    old_flop_to_new: &[FlopId],
+) {
+    if m.flop_domains.is_empty() {
+        return;
+    }
+
+    let old_domains = std::mem::take(&mut m.flop_domains);
+    let mut new_domains = BTreeMap::new();
+    for (old, reachable) in reachable_flops.iter().copied().enumerate() {
+        if !reachable {
+            continue;
+        }
+        let old_id = old as FlopId;
+        if let Some(domain) = old_domains.get(&old_id).copied() {
+            new_domains.insert(old_flop_to_new[old], domain);
+        }
+    }
+    m.flop_domains = new_domains;
 }
 
 fn rewrite_flop(
@@ -2053,7 +2105,9 @@ mod tests {
     use super::*;
     use crate::config::{FactorizationLevel, IdentityMode};
     use crate::ir::validate::validate;
-    use crate::ir::{DepSet, Direction, Flop, FlopKind, FlopMux, Instance, Port, ResetKind};
+    use crate::ir::{
+        ClockDomain, DepSet, Direction, Flop, FlopKind, FlopMux, Instance, Port, ResetKind,
+    };
 
     /// No-op on a clean IR: all nodes reachable, nothing compacted.
     /// Built at `FactorizationLevel::Cse` so fold rules don't
@@ -2243,6 +2297,60 @@ mod tests {
     }
 
     #[test]
+    fn compact_remaps_explicit_flop_domains() {
+        let mut m = Module {
+            max_ast_instances: 1,
+            factorization_level: crate::config::FactorizationLevel::None,
+            ..Module::default()
+        };
+        m.outputs.push(Port {
+            id: 0,
+            name: "y".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 });
+        m.nodes.push(Node::FlopQ { flop: 1, width: 1 });
+        let zero = push_constant(&mut m, 1, 0);
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(zero),
+            q: 0,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 1,
+            d: Some(zero),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        attach_two_clock_domains(&mut m);
+        m.flop_domains.insert(0, 0);
+        m.flop_domains.insert(1, 1);
+        m.drives.push((0, 1));
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "only the dead flop Q node should be removed");
+        assert_eq!(m.flops.len(), 1);
+        assert_eq!(m.flops[0].id, 0);
+        assert_eq!(m.flops[0].q, 0);
+        assert_eq!(
+            m.flop_domain(0),
+            1,
+            "the surviving old flop-1 domain must follow the new FlopId"
+        );
+        validate(&m).expect("compacting explicit-domain flops must preserve IR validity");
+    }
+
+    #[test]
     fn merge_equivalent_flops_rewrites_consumers_and_deps() {
         let mut m =
             exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 0);
@@ -2329,6 +2437,45 @@ mod tests {
         let removed = merge_equivalent_flops(&mut m);
         assert_eq!(removed, 0);
         assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_distinct_clock_domains() {
+        let mut m =
+            exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 0);
+        attach_two_clock_domains(&mut m);
+        m.flop_domains.insert(0, 0);
+        m.flop_domains.insert(1, 1);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0, "cross-domain state must not merge");
+        assert_eq!(m.flops.len(), 2);
+        assert_eq!(m.flop_domain(0), 0);
+        assert_eq!(m.flop_domain(1), 1);
+        validate(&m).expect("cross-domain no-merge fixture should remain valid");
+    }
+
+    #[test]
+    fn merge_equivalent_flops_merges_same_explicit_clock_domain() {
+        let mut m =
+            exact_signature_flop_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, 0, 0);
+        attach_two_clock_domains(&mut m);
+        m.flop_domains.insert(0, 1);
+        m.flop_domains.insert(1, 1);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.flops.len(), 1);
+        assert_eq!(
+            m.flop_domain(0),
+            1,
+            "explicit surviving domain must be remapped to the dense FlopId"
+        );
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "duplicate Q should become unreachable");
+        assert_eq!(m.flop_domain(0), 1);
+        validate(&m).expect("same-domain merged fixture should validate after compaction");
     }
 
     #[test]
@@ -3075,6 +3222,46 @@ mod tests {
             .enumerate()
             .filter(|(i, n)| matches!(n, Node::Gate { .. }) && !used[*i])
             .count()
+    }
+
+    fn attach_two_clock_domains(m: &mut Module) {
+        let next_port_id = m
+            .inputs
+            .iter()
+            .chain(m.outputs.iter())
+            .map(|p| p.id)
+            .max()
+            .map(|id| id + 1)
+            .unwrap_or(0);
+        let clk_a = next_port_id;
+        let rst_n_a = next_port_id + 1;
+        let clk_b = next_port_id + 2;
+        let rst_n_b = next_port_id + 3;
+        for (id, name) in [
+            (clk_a, "clk"),
+            (rst_n_a, "rst_n"),
+            (clk_b, "clk_b"),
+            (rst_n_b, "rst_n_b"),
+        ] {
+            m.inputs.push(Port {
+                id,
+                name: name.to_string(),
+                width: 1,
+                dir: Direction::In,
+            });
+        }
+        m.clock = Some(clk_a);
+        m.reset = Some(rst_n_a);
+        m.clock_domains.push(ClockDomain {
+            clk: clk_a,
+            rst_n: rst_n_a,
+            name: "a".to_string(),
+        });
+        m.clock_domains.push(ClockDomain {
+            clk: clk_b,
+            rst_n: rst_n_b,
+            name: "b".to_string(),
+        });
     }
 
     fn exact_signature_flop_fixture(
