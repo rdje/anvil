@@ -2095,13 +2095,26 @@ With Phase 9 closed, every numbered roadmap phase from 0 through
   2026-05-20; `/tmp/anvil-frontend-parity-phase8-yosys-p1/`).
 - Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
 
-No registered post-phase follow-up tree is currently open in
-`docs/TASK_TREE.md` as of `2026-06-05`. The previously separate
-quality/capability follow-ups are closed: `DIFFERENTIAL-SIMULATION`
-landed its cross-simulator semantic-agreement lane on `2026-05-24`, and
-`MULTI-CLOCK-CDC` landed the opt-in multi-clock/2-flop-synchronizer
-lane on `2026-05-24`. Standing steering gaps, especially broader
-identity/factorization work, may still seed future task trees.
+Five post-phase follow-up trees are now open in `docs/TASK_TREE.md` as
+of `2026-06-05`, owning the remaining steering gaps through task-tree
+frontiers:
+
+- `COMBINATIONAL-SEMANTIC-IDENTITY` owns broader same-endpoint
+  combinational semantic identity beyond the current bounded
+  gate-to-gate merge.
+- `SEQUENTIAL-COINDUCTIVE-IDENTITY` owns broader reset/domain-safe
+  sequential identity beyond exact flop-D and deterministic FSM merges.
+- `MEMORY-STATE-IDENTITY` owns the reset-defined memory-state identity
+  boundary beyond the current reset-less instance-local memory proof.
+- `HIERARCHY-SEMANTIC-IDENTITY` owns bounded semantic module identity
+  beyond canonical structural module signatures.
+- `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,
+  simulator/tool parity, and resource-aware signoff sweep expansion.
+
+The previously separate quality/capability follow-ups are closed:
+`DIFFERENTIAL-SIMULATION` landed its cross-simulator semantic-agreement
+lane on `2026-05-24`, and `MULTI-CLOCK-CDC` landed the opt-in
+multi-clock/2-flop-synchronizer lane on `2026-05-24`.
 
 ## Non-goals
 

@@ -64,6 +64,12 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 
 | Tree | Status | Roadmap lane | Current frontier | File |
 | --- | --- | --- | --- | --- |
+| `COMBINATIONAL-SEMANTIC-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `COMBINATIONAL-SEMANTIC-IDENTITY.1` — first safe same-endpoint semantic fold beyond gate-to-gate merging | [docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md](tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md) |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` — inventory reset/domain proof preconditions before new sequential merges | [docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md](tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md) |
+| `MEMORY-STATE-IDENTITY` | `active` | NodeId as identity / full-factorization mode | `MEMORY-STATE-IDENTITY.1` — design the reset-defined memory proof boundary | [docs/tasks/MEMORY-STATE-IDENTITY.md](tasks/MEMORY-STATE-IDENTITY.md) |
+| `HIERARCHY-SEMANTIC-IDENTITY` | `active` | NodeId as identity / hierarchical module identity | `HIERARCHY-SEMANTIC-IDENTITY.1` — bounded semantic dedup for pure combinational leaf modules | [docs/tasks/HIERARCHY-SEMANTIC-IDENTITY.md](tasks/HIERARCHY-SEMANTIC-IDENTITY.md) |
+| `SIGNOFF-SURFACE-EXPANSION` | `active` | Quality / signoff-level downstream confidence | `SIGNOFF-SURFACE-EXPANSION.1` — next CDC primitive or concrete proof/tooling blocker | [docs/tasks/SIGNOFF-SURFACE-EXPANSION.md](tasks/SIGNOFF-SURFACE-EXPANSION.md) |
+| `ROADMAP-FOLLOWUP-OWNERSHIP` | `done` | Workflow / roadmap task-tree ownership | complete — `.1` registered the five active post-phase follow-up trees before implementation resumed | [docs/tasks/ROADMAP-FOLLOWUP-OWNERSHIP.md](tasks/ROADMAP-FOLLOWUP-OWNERSHIP.md) |
 | `HIERARCHY-AWARE-IDENTITY` | `done` | Phase 4 — Hierarchy | (complete — all leaves done) | [docs/tasks/HIERARCHY-AWARE-IDENTITY.md](tasks/HIERARCHY-AWARE-IDENTITY.md) |
 | `PHASE-4-HIERARCHY` | `done` | Phase 4 — Hierarchy | (complete — `.1` done, `.2` superseded, `.3` done; Phase 4 closed) | [docs/tasks/PHASE-4-HIERARCHY.md](tasks/PHASE-4-HIERARCHY.md) |
 | `PHASE-5-PARAMETERIZATION` | `done` | Phase 5 — Parameterization | (complete — Phase 5 closed `2026-05-17`; `.2.4b` verified `/tmp/anvil-tool-matrix-phase5-p1` clean → ROADMAP Phase 5 `done`) | [docs/tasks/PHASE-5-PARAMETERIZATION.md](tasks/PHASE-5-PARAMETERIZATION.md) |

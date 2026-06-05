@@ -1,8 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-endpoint-identity-boundary-1 — ENDPOINT-IDENTITY-BOUNDARY.1 preserve semantic endpoints
+## 2026-06-05-roadmap-followup-task-tree-registration — ROADMAP-FOLLOWUP-OWNERSHIP.1 register the five remaining roadmap follow-up trees
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs/workflow slice. Completed `ROADMAP-FOLLOWUP-OWNERSHIP.1`, which
+registered task-tree ownership for the five remaining post-phase
+capability areas before any source implementation:
+
+- `COMBINATIONAL-SEMANTIC-IDENTITY`
+- `SEQUENTIAL-COINDUCTIVE-IDENTITY`
+- `MEMORY-STATE-IDENTITY`
+- `HIERARCHY-SEMANTIC-IDENTITY`
+- `SIGNOFF-SURFACE-EXPANSION`
+
+The task-tree index now lists all five active trees and their current
+frontier leaves. `ROADMAP.md` no longer says there are no open
+post-phase trees; it points to the five active ownership lanes.
+`CODEBASE_ANALYSIS.md`, the mdBook architecture chapter, and
+`MEMORY.md` now resume/status-reference those active trees instead of
+describing the gaps as unowned future work.
+
+**Why it matters**
+
+The five remaining bullets are now explicitly task-tree tracked and
+owned before any implementation work starts, preserving the repo
+doctrine that every code change has a leaf owner first. The
+registration activity itself also has a task-tree leaf ID, matching the
+repo's current commit-hook enforcement.
+
+**Tests**
+
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No source code, generated RTL behavior, CLI flag, config default, or
+  mdBook user-facing feature behavior changed.
+- The roadmap status changed from "no registered open follow-up tree"
+  to five active post-phase follow-up trees.
+
+**Files**
+
+- `docs/tasks/COMBINATIONAL-SEMANTIC-IDENTITY.md`
+- `docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md`
+- `docs/tasks/MEMORY-STATE-IDENTITY.md`
+- `docs/tasks/HIERARCHY-SEMANTIC-IDENTITY.md`
+- `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`
+- `docs/tasks/ROADMAP-FOLLOWUP-OWNERSHIP.md`
+- `docs/TASK_TREE.md`
+- `ROADMAP.md`
+- `CODEBASE_ANALYSIS.md`
+- `book/src/architecture.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-endpoint-identity-boundary-1 — ENDPOINT-IDENTITY-BOUNDARY.1 preserve semantic endpoints
+
+**Landed as:** `8dc0e6d`
 
 **What changed**
 
