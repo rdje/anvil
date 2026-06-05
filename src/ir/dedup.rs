@@ -7,6 +7,10 @@
 //! `design.modules` that share a canonical structural signature to a
 //! single surviving entry and rewrites every `Instance.module`
 //! reference in the surviving Modules so they point at the survivor.
+//! If at least one merge occurred, it then prunes module definitions
+//! that were reachable before dedup but are no longer reachable from
+//! `Design::top`. Pre-existing under-instantiated library definitions
+//! are preserved.
 //!
 //! See `DEVELOPMENT_NOTES.md` "Module-dedup pass design sketch
 //! (2026-05-15, HIERARCHY-AWARE-IDENTITY.3)" for the design
@@ -20,16 +24,15 @@
 
 use crate::ir::{Design, Module};
 use crate::metrics::canonical_module_signature;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Iteratively collapse `Module` definitions that share a canonical
 /// structural signature. Returns the number of Modules removed across
 /// all fixed-point iterations.
 ///
-/// **Top module is never merged away.** When the top appears in a
-/// signature group, it is forced to be the survivor (regardless of
-/// the lex-smallest-name tiebreaker that applies to all other
-/// groups).
+/// **Top module is never merged away.** The top is excluded from
+/// grouping, so non-top modules may still merge with each other even
+/// when the top happens to share their structural signature.
 ///
 /// **Termination.** Each iteration that performs at least one merge
 /// strictly decreases `design.modules.len()`. The minimum possible
@@ -37,12 +40,16 @@ use std::collections::{BTreeMap, HashMap};
 /// at most `initial_len - 1` iterations.
 pub fn dedup_modules(design: &mut Design) -> usize {
     let mut total_removed = 0usize;
+    let reachable_before = reachable_module_names(design);
     loop {
         let removed_this_pass = dedup_modules_once(design);
         if removed_this_pass == 0 {
             break;
         }
         total_removed += removed_this_pass;
+    }
+    if total_removed > 0 {
+        total_removed += prune_modules_made_unreachable(design, &reachable_before);
     }
     total_removed
 }
@@ -119,6 +126,57 @@ fn rewrite_instance_module_names(modules: &mut [Module], name_remap: &HashMap<St
             }
         }
     }
+}
+
+fn prune_modules_made_unreachable(
+    design: &mut Design,
+    reachable_before: &BTreeSet<String>,
+) -> usize {
+    if design.modules.len() <= 1 {
+        return 0;
+    }
+
+    let reachable_after = reachable_module_names(design);
+    if reachable_after.is_empty() {
+        return 0;
+    }
+
+    let before = design.modules.len();
+    let top_name = design.top.clone();
+    design.modules.retain(|module| {
+        module.name == top_name
+            || reachable_after.contains(&module.name)
+            || !reachable_before.contains(&module.name)
+    });
+    before - design.modules.len()
+}
+
+fn reachable_module_names(design: &Design) -> BTreeSet<String> {
+    let modules_by_name: HashMap<&str, &Module> = design
+        .modules
+        .iter()
+        .map(|module| (module.name.as_str(), module))
+        .collect();
+    if !modules_by_name.contains_key(design.top.as_str()) {
+        return BTreeSet::new();
+    }
+
+    let mut reachable: BTreeSet<String> = BTreeSet::new();
+    let mut stack = vec![design.top.clone()];
+    while let Some(name) = stack.pop() {
+        if !reachable.insert(name.clone()) {
+            continue;
+        }
+        let Some(module) = modules_by_name.get(name.as_str()) else {
+            continue;
+        };
+        for instance in &module.instances {
+            if !reachable.contains(&instance.module) {
+                stack.push(instance.module.clone());
+            }
+        }
+    }
+    reachable
 }
 
 #[cfg(test)]
@@ -261,6 +319,130 @@ mod tests {
         let removed = dedup_modules(&mut design);
         assert_eq!(removed, 0);
         assert!(design.modules.iter().any(|m| m.name == "top"));
+    }
+
+    fn parent_instantiating_child(name: &str, child_module: &str) -> Module {
+        let mut m = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        m.inputs.push(make_port(0, "i", 1, Direction::In));
+        m.outputs.push(make_port(1, "o", 1, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        m.instances.push(Instance {
+            id: 0,
+            name: "u_child".into(),
+            module: child_module.into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        m.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 1,
+        });
+        m.drives.push((1, 1));
+        m
+    }
+
+    #[test]
+    fn dedup_prunes_modules_made_unreachable_by_a_merge() {
+        let child_a = trivial_leaf("child_a");
+        let mut child_b = trivial_leaf("child_b");
+        child_b.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 1,
+            deps: crate::ir::DepSet::from_port(0),
+        });
+        child_b.drives[0] = (1, 1);
+        let parent_a = parent_instantiating_child("parent_a", "child_a");
+        let parent_b = parent_instantiating_child("parent_b", "child_b");
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "i", 1, Direction::In));
+        top.outputs.push(make_port(1, "o", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "parent_a".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.instances.push(Instance {
+            id: 1,
+            name: "u1".into(),
+            module: "parent_b".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.drives.push((1, 0));
+
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![child_a, child_b, parent_a, parent_b, top],
+        };
+
+        let removed = dedup_modules(&mut design);
+        assert_eq!(
+            removed, 2,
+            "one duplicate parent and its now-unreachable child should be removed"
+        );
+        let names: Vec<_> = design.modules.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, vec!["child_a", "parent_a", "top"]);
+        let top_after = design
+            .modules
+            .iter()
+            .find(|module| module.name == "top")
+            .expect("top survived");
+        assert!(top_after.instances.iter().all(|i| i.module == "parent_a"));
+    }
+
+    #[test]
+    fn dedup_preserves_unreachable_modules_when_no_merge_occurs() {
+        let used = trivial_leaf("used");
+        let mut unused_distinct = trivial_leaf("unused_distinct");
+        unused_distinct.inputs[0].width = 2;
+        unused_distinct.outputs[0].width = 2;
+        unused_distinct.nodes[0] = Node::PrimaryInput { port: 0, width: 2 };
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "i", 1, Direction::In));
+        top.outputs.push(make_port(1, "o", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "used".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.drives.push((1, 0));
+
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![used, unused_distinct, top],
+        };
+
+        let removed = dedup_modules(&mut design);
+        assert_eq!(removed, 0);
+        let names: Vec<_> = design.modules.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["used", "unused_distinct", "top"],
+            "no-merge calls preserve existing under-instantiated library definitions"
+        );
     }
 
     fn param_leaf(name: &str, w: u32) -> Module {

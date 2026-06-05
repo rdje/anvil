@@ -667,6 +667,17 @@ opt-in `Config::hierarchy_module_dedup` knob. The new focus scenario
 visible directly in the matrix output. The `HIERARCHY-AWARE-IDENTITY`
 task tree is complete.
 
+The dedup pass now also performs a conservative reachability cleanup.
+It snapshots the modules reachable from the design top before dedup;
+after a structural merge and instance-rewrite pass, any module that was
+previously reachable but is no longer reachable is pruned. If the pass
+finds no duplicate module signature, it leaves existing
+under-instantiated library definitions alone. The reachability cleanup
+also leaves modules that were already unreferenced before dedup alone;
+those modules can still be merged only if they have duplicate structural
+signatures. The cleanup removes definitions made dead by the merge
+itself.
+
 The earlier `r86` bank closed `HIERARCHY-AWARE-IDENTITY.2` by proving the
 planner can emit structurally-duplicate Module definitions under
 tight 1-in / 1-out / width-1 / max_depth-1 / terminal_reuse_prob=1.0

@@ -338,6 +338,15 @@ src/
 │                     output exposure is complete, acyclic module
 │                     graph). Has inline unit tests covering valid
 │                     and invalid hand-built IRs.
+│   ├── dedup.rs      Opt-in hierarchy module identity pass:
+│                     collapses structurally-identical Module
+│                     definitions by canonical signature, rewrites
+│                     Instance.module references to the survivor, and
+│                     after a real merge prunes definitions that were
+│                     reachable before dedup but are no longer
+│                     reachable from the design top. No-merge calls and
+│                     pre-existing under-instantiation are not
+│                     reachability-pruned.
 │
 ├── gen/
 │   ├── mod.rs        Generator struct (rng + cfg + next_module_index),

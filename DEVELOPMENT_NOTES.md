@@ -58,6 +58,25 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Post-dedup unreachable-module pruning (2026-06-05, HIERARCHY-DEDUP-PRUNE.1)
+
+`dedup_modules` now snapshots the module definitions reachable from
+`Design::top` before structural module merging, then prunes only those
+definitions that become unreachable after a real merge and instance
+rewrite. This is a hierarchy-identity cleanup: if a parent module is
+merged away and its private child is no longer reachable, that child
+should not remain in the emitted design.
+
+The guard is deliberately "after at least one merge", not "whenever the
+function is called", and the prune set is deliberately "reachable before,
+unreachable after", not "all top-unreachable definitions". That preserves
+the existing under-instantiated library surface when
+`hierarchy_module_dedup` finds no duplicate canonical signatures and
+also keeps modules that were intentionally unreferenced before dedup out
+of the reachability-prune set. Such modules may still merge if they have
+duplicate structural signatures. Dedup-off behavior is unchanged, and no
+broader module equivalence is introduced.
+
 ### Deterministic FSM identity merge (2026-06-05, SEQUENTIAL-IDENTITY.1)
 
 The roadmap's full-factorization doctrine now has a finite sequential

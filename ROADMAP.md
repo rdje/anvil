@@ -274,6 +274,13 @@ and is **not** a Phase 4 blocker. No mode or strategy was retired — every
 implemented route remains; further breadth, if ever pursued, lands as
 post-Phase-4 `rN` slices without reopening the phase.
 
+Post-closure identity follow-up `HIERARCHY-DEDUP-PRUNE.1` tightened the
+opt-in module-dedup cleanup: after a real structural merge, definitions
+that were reachable before dedup but become unreachable from the top are
+pruned; no-merge calls are preserved, and pre-existing
+under-instantiated library modules are not removed by the reachability
+cleanup unless the structural dedup merge itself collapses them.
+
 - **Landed slices so far:**
   - the legacy exact wrapper lane:
     `--hierarchy-depth 1 --num-leaf-modules N [--num-child-instances M]`

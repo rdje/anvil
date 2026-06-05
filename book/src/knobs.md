@@ -121,8 +121,9 @@ Control the size and topology of generated modules.
   budget for hierarchy parent-cone sources (Phase 4).
 - `hierarchy_module_dedup` — opt-in post-finalisation pass that collapses
   structurally-identical `Module` definitions in a `Design` to one
-  survivor (Phase 4, hierarchy-aware identity). Config/library-only;
-  no CLI flag.
+  survivor and, after a real merge, prunes module definitions no longer
+  reachable from the top (Phase 4, hierarchy-aware identity).
+  Config/library-only; no CLI flag.
 
 ### Sequential knobs (flops and mux motifs)
 
@@ -436,7 +437,12 @@ instead of creating fresh logic.
   group (the lexicographically-smallest module name; the top module is
   never merged away), rewrites every `Instance.module` reference in the
   surviving modules to point at the survivor, and drops the merged-away
-  definitions. This extends the doctrine *"NodeId = identity of an
+  definitions. If at least one merge occurred, it then prunes module
+  definitions that were reachable before dedup but are no longer
+  reachable from the design top after the instance rewrites. A no-merge
+  run preserves existing under-instantiated library definitions, and
+  pre-existing unreferenced modules are not pruned merely because a
+  separate merge happened. This extends the doctrine *"NodeId = identity of an
   expression"* up one level to *"ModuleId = identity of a hierarchical
   module template"*: structurally-identical `Module`s collapse the same
   way structurally-identical expressions already share a `NodeId`. It

@@ -1,8 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-live-doc-roadmap-alignment-1 — LIVE-DOC-ROADMAP-ALIGNMENT.1 align follow-up status
+## 2026-06-05-hierarchy-dedup-prune-1 — HIERARCHY-DEDUP-PRUNE.1 prune post-dedup dead modules
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `HIERARCHY-DEDUP-PRUNE.1` and closed the
+`HIERARCHY-DEDUP-PRUNE` task tree.
+
+- Updated `src/ir/dedup.rs` so `dedup_modules` snapshots the modules
+  reachable from `Design::top` before structural module merging, runs
+  the existing fixed-point module merge, then prunes only definitions
+  that were reachable before dedup and become top-unreachable after
+  instance rewrites.
+- Kept the prune conservative: it only runs after at least one real
+  structural merge, preserves no-merge under-instantiated library
+  behavior, never removes the top, and does not reachability-prune
+  modules that were already unreferenced before dedup. Such modules can
+  still be collapsed by the structural dedup rule if they have duplicate
+  canonical signatures.
+- Added focused unit coverage for the new post-merge prune path and for
+  the no-merge preservation path.
+- Synced the mdBook hierarchy/knob chapters, live design notes,
+  codebase analysis, roadmap identity follow-up note, task-tree records,
+  and Knowledge Map fact card.
+
+**Why it matters**
+
+The opt-in hierarchy module-dedup layer now removes private child
+definitions made dead by a parent-module merge. This keeps the emitted
+module library aligned with the rewritten instance graph without
+turning dedup into a general unused-library cleanup pass.
+
+**Tests**
+
+- `cargo test -q ir::dedup::tests::dedup_`
+- `cargo test -q aggregate_projected_twin_dedup_collapses`
+- `cargo test -q parameter_aware_identity_collapses_templates_differing_only_in_design_width`
+- `cargo test -q module_dedup_pass_collapses_structurally_duplicate_modules`
+- `cargo test -q --bin tool_matrix phase4_hierarchy_matrix_covers_wrapper_and_recursive_profiles`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- Full `cargo test` with RAM monitor: passed, peak 56.1%
+- `cargo fmt --all --check`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- User-visible behavior changes only for library/config users who set
+  `Config::hierarchy_module_dedup = true`.
+- No CLI flag, default config value, generator seed behavior with dedup
+  off, roadmap phase label, or snapshot baseline changed.
+
+**Files**
+
+- `src/ir/dedup.rs`
+- `book/src/hierarchy.md`
+- `book/src/knobs.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `docs/knowledge/hierarchy-dedup-prune.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/HIERARCHY-DEDUP-PRUNE.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-live-doc-roadmap-alignment-1 — LIVE-DOC-ROADMAP-ALIGNMENT.1 align follow-up status
+
+**Landed as:** `576550a`
 
 **What changed**
 
