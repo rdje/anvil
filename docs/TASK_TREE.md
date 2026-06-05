@@ -84,6 +84,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `LIVE-DOC-IDENTITY-ALIGNMENT` | `done` | Live docs / NodeId identity status | complete — `.1` aligned stale CODEBASE identity-status prose after the FSM merge and existing hierarchy module-dedup layer. | [docs/tasks/LIVE-DOC-IDENTITY-ALIGNMENT.md](tasks/LIVE-DOC-IDENTITY-ALIGNMENT.md) |
 | `LIVE-DOC-ROADMAP-ALIGNMENT` | `done` | Live docs / roadmap follow-up status | complete — `.1` aligned current roadmap/index/codebase follow-up status after `MULTI-CLOCK-CDC` and `DIFFERENTIAL-SIMULATION` closure. | [docs/tasks/LIVE-DOC-ROADMAP-ALIGNMENT.md](tasks/LIVE-DOC-ROADMAP-ALIGNMENT.md) |
 | `HIERARCHY-DEDUP-PRUNE` | `done` | NodeId as identity / hierarchical module identity | complete — `.1` prunes modules made unreachable by opt-in hierarchy dedup merges while preserving no-merge under-instantiation and pre-existing top-unreachable modules from reachability cleanup. | [docs/tasks/HIERARCHY-DEDUP-PRUNE.md](tasks/HIERARCHY-DEDUP-PRUNE.md) |
+| `MEMORY-IDENTITY-BOUNDARY` | `done` | NodeId as identity / full-factorization mode | complete — `.1` proves and documents that current inferrable memories remain state-by-instance under full-factorization passes because their stored contents are not reset-defined. | [docs/tasks/MEMORY-IDENTITY-BOUNDARY.md](tasks/MEMORY-IDENTITY-BOUNDARY.md) |
 
 ## Directory Layout
 

@@ -7,7 +7,7 @@
 //! `process_signal_frame`'s existing-operand fallback. That keeps
 //! the IR Rule-18-clean without any post-pass.
 //!
-//! This module houses three post-construction passes:
+//! This module houses post-construction finalization passes:
 //!
 //! - `merge_equivalent_gates(&mut m)`: a bounded semantic-sharing pass
 //!   for combinational nodes. Under `identity_mode = node-id` with
@@ -21,6 +21,10 @@
 //!   functionality proven either by the current normalized proof form
 //!   or by a bounded small-support semantic check) are collapsed to one
 //!   state element.
+//! - `merge_equivalent_fsms(&mut m)`: a deterministic FSM-sharing pass
+//!   that uses the same endpoint-preserving proof discipline for the
+//!   selector cone, plus the reset-defined FSM transition/output tables,
+//!   to collapse duplicate generated FSM blocks.
 //! - `fold_proven_gates(&mut m)`: a downstream-cleanliness pass that
 //!   revisits already-built gates using the final graph. It folds any
 //!   gate whose current cone is provably exact and rewires muxes whose
@@ -78,7 +82,10 @@
 //! general equivalence provers, and `compact_node_ids` is not a
 //! semantic merge at all. Wider semantic equivalence across arbitrary
 //! gate trees, larger supports, and richer stateful motifs remains the
-//! e-graph aspiration (Rule 21c).
+//! e-graph aspiration (Rule 21c). Memories are deliberately not merged
+//! by the current state passes: the inferrable-memory template has no
+//! reset-defined array contents, so equal write/read cones are not proof
+//! that two independent memory instances store equal state.
 
 use super::types::{
     Flop, FlopId, FlopMux, FsmEncoding, FsmId, GateOp, Module, Node, NodeId, PortId, ResetKind,
@@ -3441,6 +3448,69 @@ mod tests {
         assert_eq!(
             mem_reads, 2,
             "two distinct memories' reads must never be CSE-merged"
+        );
+    }
+
+    #[test]
+    fn memory_state_identity_stays_instance_local_under_full_factorization() {
+        let mut m = memory_leaf(4, 8, crate::ir::MemKind::SimpleDualPort);
+        m.identity_mode = IdentityMode::NodeId;
+        m.factorization_level = FactorizationLevel::EGraph;
+
+        let m1 = m.memories.len() as crate::ir::MemId;
+        let src = &m.memories[0];
+        let (we, waddr, wdata, raddr) = (src.we, src.waddr, src.wdata, src.raddr);
+        m.memories.push(crate::ir::Memory {
+            id: m1,
+            addr_width: src.addr_width,
+            data_width: src.data_width,
+            kind: src.kind,
+            we,
+            waddr,
+            wdata,
+            raddr,
+        });
+        let rd1 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::MemRead { mem: m1, width: 8 });
+        m.outputs.push(crate::ir::Port {
+            id: 8,
+            name: "rdata1".into(),
+            width: 8,
+            dir: crate::ir::Direction::Out,
+        });
+        m.drives.push((8, rd1));
+        validate(&m).expect("two-memory module validates before identity passes");
+
+        assert_eq!(
+            merge_equivalent_flops(&mut m),
+            0,
+            "memory state must not be routed through the flop merge proof"
+        );
+        assert_eq!(
+            merge_equivalent_fsms(&mut m),
+            0,
+            "memory state must not be routed through the reset-defined FSM merge proof"
+        );
+        compact_node_ids(&mut m);
+        validate(&m).expect("two-memory module validates after identity passes");
+
+        assert_eq!(
+            m.memories.len(),
+            2,
+            "independent memory blocks remain state-by-instance even with equal source cones"
+        );
+        let mem_read_ids: Vec<_> = m
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                Node::MemRead { mem, .. } => Some(*mem),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            mem_read_ids,
+            vec![0, 1],
+            "both independent memory read leaves remain addressable"
         );
     }
 

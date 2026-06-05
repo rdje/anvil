@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `576550a` - `LIVE-DOC-ROADMAP-ALIGNMENT.1 - align follow-up status`
-- active_work_unit: `HIERARCHY-DEDUP-PRUNE` -> frontier leaf `HIERARCHY-DEDUP-PRUNE.1` (`done`; this commit closes the tree)
-- next_action: commit `HIERARCHY-DEDUP-PRUNE.1`, clear `git_message_brief.txt`, then pick the next roadmap-aligned task-tree slice.
-- in_flight_uncommitted: implemented and verified post-dedup unreachable-module pruning plus synced live docs/book/Knowledge Map for `HIERARCHY-DEDUP-PRUNE.1`.
+- latest_commit: `2bdf8ec` - `HIERARCHY-DEDUP-PRUNE.1 - prune post-dedup dead modules`
+- active_work_unit: `MEMORY-IDENTITY-BOUNDARY` -> frontier leaf `MEMORY-IDENTITY-BOUNDARY.1` (`done`; this commit closes the tree)
+- next_action: commit `MEMORY-IDENTITY-BOUNDARY.1`, clear `git_message_brief.txt`, then pick the next roadmap-aligned task-tree slice.
+- in_flight_uncommitted: implemented and verified memory-state instance-local identity boundary plus synced live docs/book/Knowledge Map for `MEMORY-IDENTITY-BOUNDARY.1`.
 - blockers: none.
 
 ## Validation policy

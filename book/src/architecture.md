@@ -171,7 +171,9 @@ than accidental:
    construction, endpoint-aware duplicate flops merge after drain, and
    deterministic duplicate FSM blocks merge when their selector proof
    and table/encoding/output signatures match. Broader state
-   equivalence and future hierarchical identity are not finished.
+   equivalence is still incomplete; current memories deliberately stay
+   instance-local because their array contents are not reset-defined,
+   and future hierarchical identity is not finished.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
    now exists, and its current stable smoke matrix is green: 15/15

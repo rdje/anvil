@@ -335,6 +335,10 @@ and compaction removes the now-dead duplicate `FsmOut` node.
 Memories deliberately stay outside this pass. The current inferrable
 memory template does not reset array contents, so two memories with the
 same address/data cones are not treated as one proven state object.
+That boundary is regression-protected: under node-id/e-graph
+factorization, two independent memories with identical source cones must
+still survive as two `Memory` blocks and two `MemRead` leaves after the
+state-sharing passes and compaction.
 
 ## What "full factorization" still means
 
@@ -357,8 +361,9 @@ Today, ANVIL is **part-way there**:
 - endpoint-preserving duplicate flops merge once their D-cones exist;
 - deterministic duplicate FSM blocks merge when their selector proof and
   table/encoding/output signatures match; but
-- broader sequential equivalence, memory-state equivalence, and future
-  parameter-aware hierarchical identity are still open work.
+- broader sequential equivalence, memory-state merging beyond the
+  current instance-local boundary, and future parameter-aware
+  hierarchical identity are still open work.
 
 This remains deliberately user-controllable:
 

@@ -40,22 +40,21 @@ into four explicit gaps:
    and bounded recursive lanes with child sourcing, parent-side
    composition, registered routing, helper instances, and measurable
    design metrics. Parameterization, aggregates, memories, FSMs, and
-   broader hierarchy-aware identity are still open. Beyond that, the
-   newer user direction broadens the target beyond one output family:
-   ANVIL should eventually generate more kinds of
-   valid-by-construction synthesizable artifacts such as oracle-backed
-   micro-design corpora and frontend/elaboration accept corpora. The
-   current codebase supports this as an architectural direction, but it
-   does not yet implement the needed source-level IR or artifact-family
-   plumbing.
+   the multi-artifact lanes are real delivered surfaces. Beyond that,
+   the newer user direction broadens the target beyond one output
+   family: ANVIL now has separate DUT, oracle-backed micro-design, and
+   frontend/elaboration accept artifact lanes, while broader
+   identity/factorization strengthening remains open-ended work on top
+   of that base.
 2. **`NodeId`-as-identity is only partially realized**
    `Module::intern_gate` gives a strong combinational canonicalization
    chokepoint, `merge_equivalent_flops` handles endpoint-preserving
    duplicate flop state, and `merge_equivalent_fsms` now handles
    deterministic duplicate generated FSM blocks. But "same expression
    anywhere in the cone forest means same `NodeId`" is still not fully
-   true for broader sequential equivalence, memory-state equivalence, or
-   future hierarchical objects.
+   true for broader sequential equivalence, memory-state merging beyond
+   the current instance-local memory boundary, or future hierarchical
+   objects.
 3. **Downstream-acceptance confidence still needs broader automation beyond current phase gates**
    The repo now has strong internal validation and strong local smoke
    evidence. That includes a real `tool_matrix --phase1-gate` frontier
@@ -820,8 +819,11 @@ In `ir::validate::validate_design`:
   longer flop-only: endpoint-preserving duplicate flops and
   deterministic generated FSM blocks merge under the live proof
   discipline. Opt-in module-dedup identity exists for hierarchy
-  templates; broader sequential equivalence, memory-state equivalence,
-  and deeper hierarchical equivalence remain open work.
+  templates; current memories remain state-by-instance under a focused
+  full-factorization regression because their stored contents are not
+  reset-defined; broader sequential equivalence, memory-state merging
+  beyond that boundary, and deeper hierarchical equivalence remain open
+  work.
 - Phase 4 is no longer only the first depth-1 slice. The legacy exact
   wrapper lane is still real, and the repo-owned Phase 4 gate now also
   banks the current representative bounded-recursive hierarchy surface,

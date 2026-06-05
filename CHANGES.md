@@ -1,8 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-hierarchy-dedup-prune-1 — HIERARCHY-DEDUP-PRUNE.1 prune post-dedup dead modules
+## 2026-06-05-memory-identity-boundary-1 — MEMORY-IDENTITY-BOUNDARY.1 keep memories instance-local
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `MEMORY-IDENTITY-BOUNDARY.1` and closed
+the `MEMORY-IDENTITY-BOUNDARY` task tree.
+
+- Added a focused compact/identity regression proving that two
+  independent inferrable `Memory` blocks with identical source cones
+  remain two memory blocks and two `MemRead` leaves after the
+  node-id/e-graph state-sharing boundary (`merge_equivalent_flops`,
+  `merge_equivalent_fsms`, and compaction).
+- Updated `src/ir/compact.rs` module documentation so the state-sharing
+  passes explicitly name the deterministic FSM merge and the memory
+  non-goal.
+- Synced the mdBook factorization and architecture chapters, roadmap
+  identity wording, codebase analysis, development notes, task-tree
+  records, and Knowledge Map fact card.
+- Corrected stale `CODEBASE_ANALYSIS.md` top-level wording that still
+  described already-delivered memory/FSM/multi-artifact surfaces as
+  open.
+
+**Why it matters**
+
+The roadmap still names memory-state equivalence as open work. This
+slice keeps that gap honest and mechanically protected: current
+memories are state-by-instance because their array contents are not
+reset-defined, unlike generated FSMs that can merge from explicit reset
+and table semantics.
+
+**Tests**
+
+- `cargo test -q memory_state_identity_stays_instance_local_under_full_factorization`
+- `cargo test -q ir::compact::tests::mem`
+- `cargo test -q ir::compact::tests::merge_equivalent_flops`
+- `cargo test -q ir::compact::tests::merge_equivalent_fsms`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No emitted SV, CLI, config default, generator distribution, roadmap
+  phase label, or snapshot baseline changed.
+- No full suite was run for this narrow regression/docs slice; focused
+  compact identity coverage plus check/clippy/doc gates passed.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `book/src/factorization.md`
+- `book/src/architecture.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `docs/knowledge/memory-identity-boundary.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/MEMORY-IDENTITY-BOUNDARY.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-hierarchy-dedup-prune-1 — HIERARCHY-DEDUP-PRUNE.1 prune post-dedup dead modules
+
+**Landed as:** `2bdf8ec`
 
 **What changed**
 

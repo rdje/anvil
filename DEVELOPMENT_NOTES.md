@@ -58,6 +58,21 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Memory identity remains instance-local (2026-06-05, MEMORY-IDENTITY-BOUNDARY.1)
+
+The roadmap's memory-state identity gap is now protected by a focused
+regression instead of relying on prose alone. A two-memory module with
+identical write/read source cones is driven through the node-id /
+e-graph state-sharing boundary (`merge_equivalent_flops`,
+`merge_equivalent_fsms`, and compaction), and both independent
+`Memory` blocks plus both `MemRead` leaves must remain.
+
+This is the correct signoff boundary for the current inferrable-memory
+template. Unlike generated FSMs, memories have no reset-defined array
+contents, so equal address/write cones do not prove equal stored state.
+A future memory-state merge would first need a stronger reset/init or
+equivalence proof; until then, memory identity is by instance.
+
 ### Post-dedup unreachable-module pruning (2026-06-05, HIERARCHY-DEDUP-PRUNE.1)
 
 `dedup_modules` now snapshots the module definitions reachable from

@@ -82,8 +82,11 @@ instead of leaving them implicit.
    `e-graph` rung for small-support gate cones, together with
    conservative post-drain flop merging and deterministic generated-FSM
    merging over the same endpoint-preserving proof discipline; broader
-   sequential equivalence, memory-state equivalence, and hierarchical
-   equivalence are still open work. This mode must remain
+   sequential equivalence, memory-state merging beyond the current
+   instance-local proof boundary, and hierarchical equivalence are still
+   open work. Current inferrable memories deliberately remain
+   state-by-instance because their stored contents are not reset-defined.
+   This mode must remain
    user-controllable from the CLI:
    `--identity-mode relaxed` is the real semantic off-switch.
    Within `node-id`, `--factorization-level` remains an
