@@ -131,6 +131,13 @@ normalized structural proof first, plus a bounded semantic check for
 small-support cones. That is stronger than exact `d: NodeId` equality,
 but still not full sequential equivalence.
 
+The same identity discipline now applies to deterministic generated FSM
+blocks. FSMs reset to state 0 and carry explicit transition and
+Moore-output tables, so two FSM blocks can share one state machine when
+their selector proof, encoding, state count, transition table, output
+table, and output width match. Memories stay opaque because their
+stored contents are not reset-defined in the current template.
+
 ## Clock and reset
 
 Exactly one clock and one reset, declared as ports of the module

@@ -79,10 +79,12 @@ instead of leaving them implicit.
    implement the same functionality with respect to the same canonical
    leaf endpoints. Today's implementation covers normalized
    combinational identity plus a live bounded semantic fragment at the
-   `e-graph` rung for small-support gate cones, together with a
-   conservative post-drain state merge over the same proof discipline;
-   stronger sequential and hierarchical equivalence are still open
-   work. This mode must remain user-controllable from the CLI:
+   `e-graph` rung for small-support gate cones, together with
+   conservative post-drain flop merging and deterministic generated-FSM
+   merging over the same endpoint-preserving proof discipline; broader
+   sequential equivalence, memory-state equivalence, and hierarchical
+   equivalence are still open work. This mode must remain
+   user-controllable from the CLI:
    `--identity-mode relaxed` is the real semantic off-switch.
    Within `node-id`, `--factorization-level` remains an
    implementation/proof-depth and stress-coverage dial while the build

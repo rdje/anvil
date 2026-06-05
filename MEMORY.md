@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `5a019bc` - `KNOWLEDGE-MAP-DOC.2 - install Knowledge Map enforcement`
-- active_work_unit: none.
-- next_action: pick the next task-tree-owned roadmap/workflow task.
-- in_flight_uncommitted: `KNOWLEDGE-MAP-DOC.3` commit in progress.
+- latest_commit: `ed061e5` - `KNOWLEDGE-MAP-DOC.3 - seed ANVIL facts and close`
+- active_work_unit: none; `SEQUENTIAL-IDENTITY.1` is implemented, verified, and closes with the next commit.
+- next_action: commit `SEQUENTIAL-IDENTITY.1`, clear `git_message_brief.txt`, then pick the next task-tree-owned roadmap slice.
+- in_flight_uncommitted: `SEQUENTIAL-IDENTITY.1` code/docs/Knowledge Map updates verified; commit workflow in progress.
 - blockers: none.
 
 ## Validation policy

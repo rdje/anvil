@@ -110,6 +110,7 @@ mux shape (2-to-1 count, degenerate count), concat shape
 and average fanout), flop kind and mux-shape distribution,
 bounded semantic gate-merge count (`semantic_gates_merged`),
 endpoint-preserving flop-merge count (`flops_merged`),
+deterministic FSM block merge count (`fsms_merged`),
 AST-instance saturation (`max_gate_ast_multiplicity`,
 `max_constant_ast_multiplicity` — relative to the
 `max_ast_instances` cap), and operand-arity distribution
@@ -158,6 +159,9 @@ shift. Examples:
 - Under `identity_mode=node-id`, equivalent state cones can collapse too;
   `flops_merged` tells you how much sequential sharing the post-drain
   pass found.
+- Under `identity_mode=node-id`, duplicate deterministic FSM blocks can
+  collapse when their selector proof, encoding, transition table, and
+  Moore-output table match; `fsms_merged` records that sharing.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 

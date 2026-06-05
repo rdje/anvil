@@ -312,6 +312,30 @@ What it deliberately does **not** do yet:
 - merge cones that depend on different canonical leaf endpoints;
 - merge wider sequentially-equivalent machines.
 
+### 9. Post-construction deterministic FSM merge (`identity_mode = node-id`, effective `>= Cse`)
+
+Generated FSM blocks are also state, but unlike memories they are
+reset-defined and fully described by ANVIL-owned tables:
+
+- reset state is always state 0;
+- `encoding` and `num_states` define the state register values;
+- `transitions[state][sel]` defines the next-state function;
+- `outputs[state]` defines the registered Moore output; and
+- `sel` is a normal `NodeId` cone with the same endpoint-preserving
+  proof machinery used by flop merging.
+
+After flop merging, `generate_leaf_module` runs
+[`crate::ir::compact::merge_equivalent_fsms`]. If two FSM blocks have
+the same selector proof, selector width, encoding, state count,
+transition table, output table, and output width, consumers of the
+duplicate `FsmOut` leaf are rewired to the canonical block. Virtual FSM
+dependencies are remapped, surviving FSM ids are renumbered densely,
+and compaction removes the now-dead duplicate `FsmOut` node.
+
+Memories deliberately stay outside this pass. The current inferrable
+memory template does not reset array contents, so two memories with the
+same address/data cones are not treated as one proven state object.
+
 ## What "full factorization" still means
 
 The strong-form user doctrine is:
@@ -331,8 +355,9 @@ Today, ANVIL is **part-way there**:
 - combinational expressions are canonicalized through the intern-time
   ladder described above;
 - endpoint-preserving duplicate flops merge once their D-cones exist;
-  but
-- stronger sequential equivalence, block/module identity, and future
+- deterministic duplicate FSM blocks merge when their selector proof and
+  table/encoding/output signatures match; but
+- broader sequential equivalence, memory-state equivalence, and future
   parameter-aware hierarchical identity are still open work.
 
 This remains deliberately user-controllable:
@@ -403,6 +428,7 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 | Peephole | `peephole_rewrites_applied: u64` | `Metrics::peephole_rewrites_applied` |
 | Semantic gate merge | `semantic_gates_merged: u32` | `Metrics::semantic_gates_merged` |
 | Flop merge | `flops_merged: u32` | `Metrics::flops_merged` |
+| FSM merge | `fsms_merged: u32` | `Metrics::fsms_merged` |
 | Compaction | `nodes_compacted: u32` | `Metrics::nodes_compacted` |
 
 Plus a structural post-construction metric:

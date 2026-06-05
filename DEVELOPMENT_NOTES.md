@@ -58,6 +58,20 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Deterministic FSM identity merge (2026-06-05, SEQUENTIAL-IDENTITY.1)
+
+The roadmap's full-factorization doctrine now has a finite sequential
+extension beyond flop D-cones: `merge_equivalent_fsms` deduplicates
+generated FSM blocks under `identity_mode = node-id` when their selector
+proof, selector width, encoding, state count, transition table,
+Moore-output table, and output width match.
+
+The proof boundary is deliberate. FSMs reset to state 0 and have
+explicit transition/output tables, so duplicate blocks are one proven
+state machine. Memories remain opaque because the current inferrable
+memory template does not reset array contents; identical write/read
+cones alone are not enough to prove identical stored state.
+
 ### Knowledge Map enforcement (2026-06-05, KNOWLEDGE-MAP-DOC.2)
 
 `KNOWLEDGE_MAP.md` is a derived retrieval index, not an authored live

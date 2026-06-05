@@ -46,7 +46,7 @@ src/
 │   │                # and live counters (fold_identities_applied,
 │   │                # peephole_rewrites_applied,
 │   │                # flatten_associative_applied, flops_merged,
-│   │                # semantic_gates_merged,
+│   │                # fsms_merged, semantic_gates_merged,
 │   │                # nodes_compacted,
 │   │                # block-build counters, knob_rolls).
 │   │                # API: intern_gate() runs the full factorization
@@ -161,15 +161,17 @@ than accidental:
    `src/gen/module.rs`, with a live hierarchy planner above it in
    `src/gen/hierarchy.rs`. Richer structured ops and the current
    hierarchy slice are now real generator surfaces; parameterization,
-   aggregates, memories, FSMs, and broader hierarchy-aware identity are
-   future work on top of this base, not evidence against it.
+   aggregates, memories, FSMs, and the multi-artifact lanes are real
+   surfaces too; broader identity work remains future strengthening on
+   top of this base, not evidence against it.
 2. **`NodeId` as identity**
    Full factorization is only partially realized today. Combinational
    identity flows through `Module::intern_gate`, a bounded semantic
    gate-merge fragment now lives at the `e-graph` rung after
-   construction, and endpoint-aware duplicate flops merge after drain,
-   but stronger state equivalence and future hierarchical identity are
-   not finished.
+   construction, endpoint-aware duplicate flops merge after drain, and
+   deterministic duplicate FSM blocks merge when their selector proof
+   and table/encoding/output signatures match. Broader state
+   equivalence and future hierarchical identity are not finished.
 3. **Tool-clean industrialization**
    Internal tests are strong, and a repo-owned `tool_matrix` harness
    now exists, and its current stable smoke matrix is green: 15/15
@@ -227,6 +229,7 @@ pub struct Module {
     pub peephole_rewrites_applied:   u64,
     pub flatten_associative_applied: u64,
     pub flops_merged:                u32,
+    pub fsms_merged:                 u32,
     pub semantic_gates_merged:       u32,
     pub nodes_compacted:             u32,
     // Per-knob probability-roll counters:
@@ -268,6 +271,14 @@ pub fn flatten_posthoc_associative_gates(m: &mut Module) -> u32;
 /// Returns the number of duplicate flops removed
 /// (`Metrics::flops_merged`).
 pub fn merge_equivalent_flops(m: &mut Module) -> u32;
+
+/// Post-construction deterministic FSM-sharing pass. Under
+/// `identity_mode = node-id` with effective level `>= cse`,
+/// merges generated FSM blocks with equal selector proof,
+/// encoding, transition table, Moore-output table, and output
+/// width. Returns the number of duplicate FSMs removed
+/// (`Metrics::fsms_merged`).
+pub fn merge_equivalent_fsms(m: &mut Module) -> u32;
 
 /// Post-construction BFS-reachability pass. Drops unreachable
 /// gates, remaps every `NodeId` holder across `m.nodes` /

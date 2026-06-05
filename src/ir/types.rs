@@ -310,6 +310,16 @@ pub struct Module {
     /// Surfaced via `Metrics::flops_merged`.
     pub flops_merged: u32,
 
+    /// Number of duplicate deterministic FSM blocks merged away during
+    /// the post-construction endpoint-preserving state-sharing pass.
+    /// FSMs reset to state 0 and have explicit transition/output
+    /// tables, so under `identity_mode = node-id` two FSMs with the
+    /// same selector proof and same table/encoding/output signature
+    /// can safely collapse to one state block. Memories intentionally
+    /// remain opaque because their stored contents are not reset-defined.
+    /// Surfaced via `Metrics::fsms_merged`.
+    pub fsms_merged: u32,
+
     /// Number of duplicate combinational gates merged away during
     /// the post-construction bounded semantic-sharing pass.
     /// Under the live `EGraph` fragment, small-support cones that
@@ -2263,6 +2273,23 @@ impl DepSet {
         })
     }
 
+    pub fn contains_fsm_virtual(&self, fsm: FsmId) -> bool {
+        self.set.contains(&DepAtom::FsmVirtual(fsm))
+    }
+
+    pub fn has_fsm_virtuals(&self) -> bool {
+        self.set
+            .iter()
+            .any(|atom| matches!(atom, DepAtom::FsmVirtual(_)))
+    }
+
+    pub fn fsm_virtuals(&self) -> impl Iterator<Item = FsmId> + '_ {
+        self.set.iter().filter_map(|atom| match atom {
+            DepAtom::FsmVirtual(fsm) => Some(*fsm),
+            _ => None,
+        })
+    }
+
     pub fn contains_instance_output_virtual(&self, instance: InstanceId, port: PortId) -> bool {
         self.set
             .contains(&DepAtom::InstanceOutputVirtual { instance, port })
@@ -2283,7 +2310,7 @@ impl DepSet {
 
     /// Rewrite virtual flop ids after a flop merge / renumbering
     /// pass. Primary-input deps are left untouched; virtual flop
-    /// deps are remapped through the provided old-id → new-id
+    /// deps are remapped through the provided old-id -> new-id
     /// table and deduplicated naturally by the set.
     pub(crate) fn remap_flop_virtuals(&mut self, old_to_new: &[FlopId]) {
         let mut next = BTreeSet::new();
@@ -2292,6 +2319,25 @@ impl DepSet {
                 DepAtom::FlopVirtual(old) => {
                     let new = old_to_new.get(old as usize).copied().unwrap_or(old);
                     next.insert(DepAtom::FlopVirtual(new));
+                }
+                _ => {
+                    next.insert(atom);
+                }
+            }
+        }
+        self.set = next;
+    }
+
+    /// Rewrite virtual FSM ids after an FSM merge / renumbering pass.
+    /// Mirrors [`Self::remap_flop_virtuals`] for deterministic
+    /// generated FSM blocks.
+    pub(crate) fn remap_fsm_virtuals(&mut self, old_to_new: &[FsmId]) {
+        let mut next = BTreeSet::new();
+        for atom in self.set.iter().copied() {
+            match atom {
+                DepAtom::FsmVirtual(old) => {
+                    let new = old_to_new.get(old as usize).copied().unwrap_or(old);
+                    next.insert(DepAtom::FsmVirtual(new));
                 }
                 _ => {
                     next.insert(atom);

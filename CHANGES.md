@@ -1,8 +1,97 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-knowledge-map-3 — KNOWLEDGE-MAP-DOC.3 seed ANVIL facts and close
+## 2026-06-05-sequential-identity-1 — SEQUENTIAL-IDENTITY.1 merge equivalent FSM blocks
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `SEQUENTIAL-IDENTITY.1` and closed the
+`SEQUENTIAL-IDENTITY` task tree.
+
+- Added `merge_equivalent_fsms`, a post-construction state-sharing pass
+  that deduplicates deterministic generated FSM blocks under
+  `identity_mode = node-id` when the effective factorization level is
+  at least `cse`.
+- The pass compares state count, encoding, selector proof, selector
+  width, transition table, Moore-output table, and output width before
+  merging. It preserves the first matching FSM as canonical.
+- Rewired duplicate `FsmOut` consumers, FSM virtual dependencies,
+  drives, instance inputs, flop sources, memory source nodes, and
+  surviving FSM selector nodes through the canonical block, then
+  rebuilt instance tables.
+- Added `Module::fsms_merged`, `Metrics::fsms_merged`, and
+  `tool_matrix` aggregate accounting so the new sharing is visible in
+  reports and trace output.
+- Added focused unit coverage for the merge path, relaxed identity
+  no-op, factorization-off no-op, and distinct selector proof no-merge
+  behavior.
+- Added a Knowledge Map fact card for the FSM-vs-memory proof boundary
+  and regenerated `KNOWLEDGE_MAP.md`.
+
+**Why it matters**
+
+The `NodeId`/full-factorization doctrine now covers one more proven
+state category. Generated FSMs reset to state 0 and are fully described
+by ANVIL-owned tables, so exact duplicate FSM blocks can share one state
+machine without weakening synthesizability or reproducibility. Memories
+remain intentionally opaque because their array contents are not
+reset-defined by the current template.
+
+**Tests**
+
+- `cargo fmt --all`
+- `cargo check --all-targets`
+- `cargo test -q ir::compact::tests::merge_equivalent_fsms`
+- `cargo test -q ir::compact::tests::merge_equivalent`
+- `cargo test -q metrics_count_flops_by_shape`
+- `cargo test -q --bin tool_matrix aggregate`
+- `cargo test` — full suite passed while RAM was monitored; peak observed
+  usage was 55.9%, final observed usage was 45.2%, and the 90% danger
+  threshold was never approached.
+- `cargo fmt --all --check`
+- `cargo clippy --all-targets -- -D warnings`
+- `mdbook build book`
+- `mdbook test book`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+
+**Impact**
+
+- User-visible metrics now include `fsms_merged`.
+- Finalization trace lines include `fsms_merged=...`.
+- `identity_mode=relaxed` remains the semantic off-switch.
+- `factorization_level=none` still disables this post-construction
+  sharing even under `identity_mode=node-id`.
+- The slice does not introduce general sequential equivalence and does
+  not merge memories.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `src/ir/types.rs`
+- `src/gen/module.rs`
+- `src/metrics.rs`
+- `src/bin/tool_matrix.rs`
+- `USER_GUIDE.md`
+- `book/src/architecture.md`
+- `book/src/factorization.md`
+- `book/src/recipes.md`
+- `book/src/sequential.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `ROADMAP.md`
+- `docs/knowledge/fsm-identity-merge.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/SEQUENTIAL-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-knowledge-map-3 — KNOWLEDGE-MAP-DOC.3 seed ANVIL facts and close
+
+**Landed as:** `ed061e5`
 
 **What changed**
 

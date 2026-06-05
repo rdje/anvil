@@ -589,6 +589,14 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
     let flops_merged = crate::ir::compact::merge_equivalent_flops(m);
     m.flops_merged = flops_merged;
 
+    // Deterministic FSM state-sharing pass: generated FSMs reset to
+    // state 0 and carry explicit transition/output tables, so under
+    // `identity_mode = node-id` duplicate FSM blocks with the same
+    // selector proof can safely collapse to one state block. Memories
+    // stay opaque because their contents are not reset-defined.
+    let fsms_merged = crate::ir::compact::merge_equivalent_fsms(m);
+    m.fsms_merged = fsms_merged;
+
     // Sharing/remap can expose new exact cones, so rerun the
     // downstream-clean proof pass once on the settled graph.
     crate::ir::compact::fold_proven_gates(m);
@@ -653,6 +661,7 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
         flops = m.flops.len(),
         semantic_gates_merged,
         flops_merged,
+        fsms_merged,
         drives = m.drives.len(),
         orphans,
         compacted,

@@ -80,7 +80,9 @@
 //! gate trees, larger supports, and richer stateful motifs remains the
 //! e-graph aspiration (Rule 21c).
 
-use super::types::{Flop, FlopId, FlopMux, GateOp, Module, Node, NodeId, PortId, ResetKind};
+use super::types::{
+    Flop, FlopId, FlopMux, FsmEncoding, FsmId, GateOp, Module, Node, NodeId, PortId, ResetKind,
+};
 use crate::config::FactorizationLevel;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -95,6 +97,17 @@ struct FlopSignature {
     d: ConeProof,
     reset_val: u128,
     reset_kind: ResetKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct FsmSignature {
+    num_states: u32,
+    encoding: FsmEncoding,
+    sel: ConeProof,
+    sel_width: u32,
+    transitions: Vec<Vec<u32>>,
+    outputs: Vec<u128>,
+    out_width: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -944,6 +957,159 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
     rewrite_instance_inputs_from_partial_map(m, &q_node_remap);
     for flop in &mut m.flops {
         rewrite_flop_from_partial_map(flop, &q_node_remap);
+    }
+
+    rebuild_instance_tables(m);
+    removed
+}
+
+/// Merge duplicate generated FSM blocks after their selector cones are known.
+///
+/// This is a deterministic-block extension of the same state-identity
+/// discipline as [`merge_equivalent_flops`]. A generated FSM has a
+/// reset-defined initial state, an explicit transition table, and an
+/// explicit Moore-output table. Under `identity_mode = node-id`, two
+/// FSMs with the same table/encoding/output signature and the same
+/// selector proof represent the same state machine, so consumers of the
+/// duplicate `FsmOut` can be redirected to the canonical block.
+///
+/// Memories deliberately do not use this pass: their contents are not
+/// reset-defined in ANVIL's current inferrable-memory template.
+pub fn merge_equivalent_fsms(m: &mut Module) -> u32 {
+    use crate::config::{FactorizationLevel, IdentityMode};
+
+    if m.fsms.len() < 2 {
+        return 0;
+    }
+    if m.identity_mode != IdentityMode::NodeId
+        || m.effective_factorization_level() < FactorizationLevel::Cse
+    {
+        return 0;
+    }
+
+    let mut canonical_by_sig: HashMap<FsmSignature, FsmId> = HashMap::new();
+    let mut structural_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
+    let mut structural_ctx = StructuralSignatureCtx::default();
+    let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+    let mut semantic_memo: HashMap<NodeId, Option<SemanticConeProof>> = HashMap::new();
+    let mut old_to_canonical_old: Vec<FsmId> = (0..m.fsms.len() as FsmId).collect();
+    let mut removed = 0u32;
+
+    for fsm in &m.fsms {
+        let sig = FsmSignature {
+            num_states: fsm.num_states,
+            encoding: fsm.encoding,
+            sel: cone_proof(
+                m,
+                fsm.sel,
+                &mut structural_memo,
+                &mut structural_ctx,
+                &mut endpoint_memo,
+                &mut semantic_memo,
+            ),
+            sel_width: fsm.sel_width,
+            transitions: fsm.transitions.clone(),
+            outputs: fsm.outputs.clone(),
+            out_width: fsm.out_width,
+        };
+        if let Some(&canonical_old) = canonical_by_sig.get(&sig) {
+            old_to_canonical_old[fsm.id as usize] = canonical_old;
+            removed += 1;
+        } else {
+            canonical_by_sig.insert(sig, fsm.id);
+        }
+    }
+
+    if removed == 0 {
+        return 0;
+    }
+
+    let mut old_to_new: Vec<FsmId> = vec![0; m.fsms.len()];
+    let mut next_new: FsmId = 0;
+    for old in 0..m.fsms.len() as FsmId {
+        if old_to_canonical_old[old as usize] == old {
+            old_to_new[old as usize] = next_new;
+            next_new += 1;
+        }
+    }
+    for old in 0..m.fsms.len() as FsmId {
+        let canonical_old = old_to_canonical_old[old as usize];
+        old_to_new[old as usize] = old_to_new[canonical_old as usize];
+    }
+
+    let mut first_fsm_out_by_old_fsm: Vec<Option<NodeId>> = vec![None; m.fsms.len()];
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        if let Node::FsmOut { fsm, .. } = node {
+            let slot = *fsm as usize;
+            if slot < first_fsm_out_by_old_fsm.len() && first_fsm_out_by_old_fsm[slot].is_none() {
+                first_fsm_out_by_old_fsm[slot] = Some(node_id as NodeId);
+            }
+        }
+    }
+
+    let mut fsm_out_node_remap: HashMap<NodeId, NodeId> = HashMap::new();
+    for (node_id, node) in m.nodes.iter().enumerate() {
+        let Node::FsmOut { fsm, .. } = node else {
+            continue;
+        };
+        let old = *fsm;
+        let canonical_old = old_to_canonical_old[old as usize];
+        let Some(canonical_node) = first_fsm_out_by_old_fsm
+            .get(canonical_old as usize)
+            .and_then(|node| *node)
+        else {
+            continue;
+        };
+        let node_id = node_id as NodeId;
+        if canonical_node != node_id {
+            fsm_out_node_remap.insert(node_id, canonical_node);
+        }
+    }
+
+    let old_fsms = std::mem::take(&mut m.fsms);
+    let mut new_fsms = Vec::with_capacity(old_fsms.len() - removed as usize);
+    for mut fsm in old_fsms {
+        let old = fsm.id as usize;
+        if old_to_canonical_old[old] != fsm.id {
+            continue;
+        }
+        fsm.id = old_to_new[old];
+        rewrite_node_id_if_mapped(&mut fsm.sel, &fsm_out_node_remap);
+        new_fsms.push(fsm);
+    }
+    m.fsms = new_fsms;
+
+    for node in &mut m.nodes {
+        match node {
+            Node::FsmOut { fsm, .. } => {
+                *fsm = old_to_new[*fsm as usize];
+            }
+            Node::Gate { operands, deps, .. } => {
+                for operand in operands.iter_mut() {
+                    rewrite_node_id_if_mapped(operand, &fsm_out_node_remap);
+                }
+                deps.remap_fsm_virtuals(&old_to_new);
+            }
+            Node::PrimaryInput { .. }
+            | Node::Constant { .. }
+            | Node::InstanceOutput { .. }
+            | Node::FlopQ { .. }
+            | Node::MemRead { .. } => {}
+        }
+    }
+
+    for (_, root) in &mut m.drives {
+        rewrite_node_id_if_mapped(root, &fsm_out_node_remap);
+    }
+    rewrite_instance_inputs_from_partial_map(m, &fsm_out_node_remap);
+    for flop in &mut m.flops {
+        rewrite_flop_from_partial_map(flop, &fsm_out_node_remap);
+    }
+    for mem in &mut m.memories {
+        rewrite_node_id_if_mapped(&mut mem.we, &fsm_out_node_remap);
+        rewrite_node_id_if_mapped(&mut mem.waddr, &fsm_out_node_remap);
+        rewrite_node_id_if_mapped(&mut mem.wdata, &fsm_out_node_remap);
+        rewrite_node_id_if_mapped(&mut mem.raddr, &fsm_out_node_remap);
     }
 
     rebuild_instance_tables(m);
@@ -2120,6 +2286,64 @@ mod tests {
     }
 
     #[test]
+    fn merge_equivalent_fsms_merges_duplicate_blocks_and_remaps_consumers() {
+        let mut m = duplicate_fsm_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, false);
+
+        let removed = merge_equivalent_fsms(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.fsms.len(), 1);
+
+        let Node::Gate { operands, deps, .. } = &m.nodes[3] else {
+            panic!("drive root should still be the fsm-output combiner");
+        };
+        assert_eq!(
+            operands,
+            &vec![1, 1],
+            "duplicate FsmOut consumers must be rewired to the canonical output"
+        );
+        assert_eq!(deps.len(), 1, "virtual FSM deps should coalesce");
+        assert!(deps.contains_fsm_virtual(0));
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "duplicate FsmOut should become unreachable");
+        validate(&m).expect("merged duplicate FSMs should still validate");
+        assert_eq!(m.fsms[0].id, 0);
+        match &m.nodes[1] {
+            Node::FsmOut { fsm, width } => {
+                assert_eq!((*fsm, *width), (0, 8));
+            }
+            other => panic!("expected surviving canonical FsmOut, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn merge_equivalent_fsms_respects_relaxed_identity() {
+        let mut m = duplicate_fsm_fixture(IdentityMode::Relaxed, FactorizationLevel::EGraph, false);
+
+        let removed = merge_equivalent_fsms(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.fsms.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_fsms_respects_factorization_off() {
+        let mut m = duplicate_fsm_fixture(IdentityMode::NodeId, FactorizationLevel::None, false);
+
+        let removed = merge_equivalent_fsms(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.fsms.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_fsms_keeps_distinct_selector_proofs() {
+        let mut m = duplicate_fsm_fixture(IdentityMode::NodeId, FactorizationLevel::Cse, true);
+
+        let removed = merge_equivalent_fsms(&mut m);
+        assert_eq!(removed, 0, "different selector endpoints are distinct FSMs");
+        assert_eq!(m.fsms.len(), 2);
+    }
+
+    #[test]
     fn semantic_merge_proof_skips_large_low_support_cones() {
         let mut m = Module {
             max_ast_instances: u32::MAX,
@@ -2773,6 +2997,82 @@ mod tests {
             reset_kind: ResetKind::Async,
             kind: FlopKind::ZeroDefault,
             mux: FlopMux::None,
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn duplicate_fsm_fixture(
+        identity_mode: IdentityMode,
+        factorization_level: FactorizationLevel,
+        distinct_selector: bool,
+    ) -> Module {
+        let mut m = Module {
+            name: "duplicate_fsm".into(),
+            identity_mode,
+            factorization_level,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "sel0".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0 sel0
+        let sel1 = if distinct_selector {
+            m.inputs.push(Port {
+                id: 2,
+                name: "sel1".into(),
+                width: 1,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 1 sel1
+            1
+        } else {
+            0
+        };
+        let fsm0_out = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FsmOut { fsm: 0, width: 8 });
+        let fsm1_out = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FsmOut { fsm: 1, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![fsm0_out, fsm1_out],
+            width: 8,
+            deps: DepSet::union(&[&DepSet::from_fsm_virtual(0), &DepSet::from_fsm_virtual(1)]),
+        });
+        m.drives.push((1, m.nodes.len() as NodeId - 1));
+
+        let transitions = vec![vec![0, 1], vec![1, 0]];
+        let outputs = vec![3, 7];
+        m.fsms.push(crate::ir::Fsm {
+            id: 0,
+            num_states: 2,
+            encoding: crate::ir::FsmEncoding::Binary,
+            sel: 0,
+            sel_width: 1,
+            transitions: transitions.clone(),
+            outputs: outputs.clone(),
+            out_width: 8,
+        });
+        m.fsms.push(crate::ir::Fsm {
+            id: 1,
+            num_states: 2,
+            encoding: crate::ir::FsmEncoding::Binary,
+            sel: sel1,
+            sel_width: 1,
+            transitions,
+            outputs,
+            out_width: 8,
         });
 
         rebuild_instance_tables(&mut m);

@@ -257,6 +257,7 @@ struct AggregateMetrics {
     total_for_fold_blocks: u64,
     total_semantic_gates_merged: u64,
     total_flops_merged: u64,
+    total_fsms_merged: u64,
     gates_by_kind: BTreeMap<String, u64>,
     knob_roll_attempts: BTreeMap<String, u64>,
     knob_roll_fires: BTreeMap<String, u64>,
@@ -6563,6 +6564,7 @@ fn accumulate_metrics(aggregate: &mut AggregateMetrics, metrics: &Metrics) {
     aggregate.total_for_fold_blocks += u64::from(metrics.num_for_fold_blocks);
     aggregate.total_semantic_gates_merged += u64::from(metrics.semantic_gates_merged);
     aggregate.total_flops_merged += u64::from(metrics.flops_merged);
+    aggregate.total_fsms_merged += u64::from(metrics.fsms_merged);
 
     merge_usize_count_map_into_u64(&mut aggregate.gates_by_kind, &metrics.gates_by_kind);
     merge_count_map(

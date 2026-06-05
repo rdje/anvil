@@ -50,10 +50,12 @@ into four explicit gaps:
    plumbing.
 2. **`NodeId`-as-identity is only partially realized**
    `Module::intern_gate` gives a strong combinational canonicalization
-   chokepoint and `merge_equivalent_flops` adds the first stateful
-   sharing pass, but "same expression anywhere in the cone forest means
-   same `NodeId`" is not yet fully true for stronger sequential
-   equivalence or future hierarchical objects.
+   chokepoint, `merge_equivalent_flops` handles endpoint-preserving
+   duplicate flop state, and `merge_equivalent_fsms` now handles
+   deterministic duplicate generated FSM blocks. But "same expression
+   anywhere in the cone forest means same `NodeId`" is still not fully
+   true for broader sequential equivalence, memory-state equivalence, or
+   future hierarchical objects.
 3. **Downstream-acceptance confidence still needs broader automation beyond current phase gates**
    The repo now has strong internal validation and strong local smoke
    evidence. That includes a real `tool_matrix --phase1-gate` frontier
@@ -301,7 +303,12 @@ src/
 │   │                 variables collapse to one gate. Then
 │   │                 `merge_equivalent_flops(&mut Module)` applies
 │   │                 the analogous endpoint-aware proof discipline
-│   │                 to state elements. `fold_proven_gates(&mut Module)`
+│   │                 to flop state elements, and
+│   │                 `merge_equivalent_fsms(&mut Module)` applies it
+│   │                 to deterministic generated FSM blocks with
+│   │                 matching selector proof, encoding, transition
+│   │                 table, Moore-output table, and output width.
+│   │                 `fold_proven_gates(&mut Module)`
 │   │                 keeps the general cleanup exact prover tiny-only,
 │   │                 but still revisits compare gates with the bounded
 │   │                 unsigned-compare proof and shift gates with a
@@ -312,11 +319,12 @@ src/
 │   │                 BFSes from output drives, discovers live flops
 │   │                 through actually-consumed `FlopQ` leaves, drops
 │   │                 unreachable nodes plus dead flops, remaps
-│   │                 surviving NodeIds / FlopIds and virtual flop
+│   │                 surviving NodeIds / FlopIds and virtual flop/FSM
 │   │                 deps, and rebuilds dedup tables. Called from
 │   │                 `gen::module::generate_leaf_module`; counts are
 │   │                 surfaced as `Metrics::semantic_gates_merged`,
-│   │                 `Metrics::flops_merged`, and
+│   │                 `Metrics::flops_merged`,
+│   │                 `Metrics::fsms_merged`, and
 │   │                 `Metrics::nodes_compacted`.
 │   └── validate.rs   Module invariant checker: operands and drive
 │                     roots defined, drive count == 1, flop ids dense,
@@ -360,7 +368,7 @@ src/
 │   │                 1/2/3 leaf kernel; hierarchy composes above it
 │   │                 rather than collapsing inter-module generation
 │   │                 into it. `m.semantic_gates_merged`,
-│   │                 `m.flops_merged`, and `m.nodes_compacted`
+│   │                 `m.flops_merged`, `m.fsms_merged`, and `m.nodes_compacted`
 │   │                 record the removal counts.
 │   ├── hierarchy.rs  Current Phase 4 planner. Keeps the legacy exact
 │   │                 depth-1 wrapper lane alive, and also lands a
