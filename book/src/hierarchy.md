@@ -172,8 +172,8 @@ mix helper output support with parent-port support in the same
 unregistered parent-composed child-input binding, mix helper-through-state
 support with parent-port support in the same unregistered
 parent-composed child-input binding, and add local parent
-flops. It still does not
-solve hierarchy-aware identity.
+flops. Hierarchy-aware identity and dedup are a separate layer
+described below.
 
 ## Choosing a hierarchy routing surface
 
@@ -684,20 +684,33 @@ that two different gate sequences compute the same function. That
 structural-only boundary is still regression-protected with a
 pass-through module versus a `Not(Not(input))` module.
 
-`HIERARCHY-SEMANTIC-IDENTITY.1` adds a separate, default-off semantic
-layer: `Config::hierarchy_semantic_module_dedup`. It runs only when all
-of the following are true:
+`HIERARCHY-SEMANTIC-IDENTITY.1` and `.2` add a separate, default-off
+semantic layer: `Config::hierarchy_semantic_module_dedup`. It runs only
+when all of the following are true:
 
 - the config knob is `true`;
 - `identity_mode = node-id`;
 - the effective `factorization_level` is `e-graph`;
-- the candidate module is non-top, pure combinational, instance-free,
-  concrete (not parameterized or aggregate-projected), and state-free;
+- the candidate module is non-top, pure combinational, concrete (not
+  parameterized or aggregate-projected), and state-free;
 - the emitted data input interface matches by **port id and width**;
 - the total emitted data-input support is at most 12 bits;
 - the reachable output cone has at most 128 nodes and stays inside the
   current work budget; and
 - every output is at most 128 bits.
+
+There are two supported proof classes:
+
+- instance-free pure-combinational modules; and
+- bounded pure-combinational wrappers with at most 8 child instances,
+  where every child is itself inside the semantic proof boundary and
+  every instance has concrete, non-parameterized bindings.
+
+Those two classes stay separate. ANVIL does not merge a leaf module with
+a wrapper even if both compute the same function, and it skips any
+semantic merge group containing an ancestor/descendant pair. That
+conservative rule prevents a module-rewrite from accidentally creating a
+hierarchy cycle.
 
 The port-id requirement is load-bearing. Module dedup rewrites
 `Instance.module` names but leaves parent-side `(port_id, node)`
@@ -738,12 +751,14 @@ assert_eq!(on.num_semantically_duplicate_module_pairs, 0);
 assert!(on.num_modules < off.num_modules);
 ```
 
-Unsupported candidates are skipped, not partially simplified. Sequential
-modules, memories, FSMs, modules containing instances, parameterized
-templates, aggregate-projected modules, mismatched interfaces, wider
-input-support cases, and larger cones remain distinct unless the
-structural dedup pass also proves them identical by canonical
-signature. This is not an arbitrary hierarchy equivalence engine.
+Unsupported candidates are skipped, not partially simplified.
+Sequential modules, memories, FSMs, parameterized templates,
+aggregate-projected modules, mismatched interfaces, wider input-support
+cases, larger cones, wrappers with too many instances, wrappers whose
+children are outside the proof boundary, and ancestor/descendant merge
+groups remain distinct unless the structural dedup pass also proves them
+identical by canonical signature. This is not an arbitrary hierarchy
+equivalence engine.
 
 `DesignMetrics.semantic_module_signatures` records a compact
 deterministic hash of each module's bounded semantic proof (`null` for

@@ -65,7 +65,7 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
-### Bounded semantic module identity (2026-06-05, HIERARCHY-SEMANTIC-IDENTITY.1)
+### Bounded semantic module identity (2026-06-05, HIERARCHY-SEMANTIC-IDENTITY.1/.2)
 
 `Config::hierarchy_semantic_module_dedup` is a separate default-off
 module identity pass, not a broadening of the existing structural
@@ -76,11 +76,14 @@ under `identity_mode = node-id` with effective `factorization_level =
 e-graph`.
 
 The proof boundary is deliberately narrow: non-top, pure
-combinational, instance-free, state-free, concrete modules only; same
-emitted data input/output interface by `(PortId, width)`; <= 12 emitted
-input-support bits; <= 128 reachable output-cone nodes within the work
-budget; and <= 128-bit outputs. The full proof object, not its compact
-hash, is the merge key. The hash exposed in
+combinational, state-free, concrete modules only; same emitted data
+input/output interface by `(PortId, width)`; <= 12 emitted input-support
+bits; <= 128 reachable output-cone nodes within the work budget; and
+<= 128-bit outputs. The supported classes are instance-free modules and
+bounded pure-combinational wrappers with <= 8 child instances, where
+every child is itself inside the proof boundary and every instance has
+concrete, non-parameterized bindings. The full proof object, not its
+compact hash, is the merge key. The hash exposed in
 `DesignMetrics.semantic_module_signatures` is only observability.
 
 The `(PortId, width)` interface key is non-negotiable. Module dedup
@@ -98,10 +101,14 @@ Rejected alternatives:
 - Key the merge by a 64-bit semantic hash. That is acceptable for
   metrics but not for signoff-level merge decisions; the pass compares
   the full proof value.
-- Admit modules with instances by treating instance outputs as opaque
-  endpoints. That would be module-context-sensitive and would require
-  already-proven child semantics plus binding substitution. It belongs
-  to a later hierarchy semantic identity leaf.
+- Treat instance outputs as opaque endpoints. `.2` instead admits only
+  wrappers whose child semantics can be recursively proven and whose
+  instance bindings can be substituted into the child proof.
+- Merge leaves and wrappers in the same proof class. That would permit
+  semantic dedup to flatten hierarchy as a side effect, and it can
+  create a cycle if the lexicographic survivor is an ancestor. The pass
+  keeps leaf and wrapper proof classes separate and skips any semantic
+  merge group containing an ancestor/descendant pair.
 - Admit flops, memories, or FSMs. Those need transition/state proof
   inputs beyond this pure-combinational whole-module truth-table class.
 

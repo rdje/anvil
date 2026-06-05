@@ -505,9 +505,10 @@ whole-module proof hash for each module that fits the pure-combinational
 proof boundary, and `num_semantically_duplicate_module_pairs` records
 how many proof-equal module pairs remain in the design. Enabling
 `Config::hierarchy_semantic_module_dedup` can reduce that pair count to
-zero for supported non-top leaf modules; unsupported stateful,
-hierarchical, memory, FSM, parameterized, aggregate-projected, or
-too-large modules are skipped.
+zero for supported non-top leaves and bounded pure-combinational
+hierarchy wrappers; unsupported stateful, memory, FSM, parameterized,
+aggregate-projected, too-large, too-many-instance, out-of-bound child,
+or ancestor/descendant wrapper groups are skipped.
 
 Plus a structural post-construction metric:
 `nested_associative_operand_count` — the number of operand slots

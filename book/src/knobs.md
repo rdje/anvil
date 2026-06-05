@@ -501,14 +501,14 @@ instead of creating fresh logic.
   comparison is visible directly in the gate output).
 - `hierarchy_semantic_module_dedup` — opt-in `bool`, default `false`.
   This is a second pass, separate from `hierarchy_module_dedup`. It
-  groups non-top pure-combinational leaf modules by a bounded
+  groups supported non-top pure-combinational modules by a bounded
   whole-module truth-table proof instead of by structural signature.
   The pass is active only when `identity_mode = node-id` and the
   effective `factorization_level` is `e-graph`; `identity_mode =
   relaxed` keeps it inert even if the knob is true. The current proof
   boundary is intentionally narrow:
 
-  - no flops, memories, FSMs, or child instances;
+  - no flops, memories, or FSMs locally or through descendants;
   - no parameterized or aggregate-projected module templates;
   - identical emitted data input and output interfaces by `(PortId,
     width)`;
@@ -516,10 +516,21 @@ instead of creating fresh logic.
   - reachable output cone <= 128 nodes and inside the work budget; and
   - output widths <= 128 bits.
 
+  The supported classes are instance-free pure-combinational modules
+  and pure-combinational hierarchy wrappers with at most 8 child
+  instances, where every child is also inside the proof boundary and
+  every instance has concrete, non-parameterized bindings. Leaf modules
+  and wrappers stay in separate proof classes, and a merge group is
+  skipped if any member is an ancestor or descendant of another member.
+  Those two rules prevent semantic dedup from flattening hierarchy or
+  creating a hierarchy cycle through an instance rewrite.
+
   Within that boundary, semantically equal but structurally different
   modules can merge, such as a direct pass-through output and the same
-  output computed through two `Not` gates. Outside that boundary, the
-  pass skips the module; it does not degrade into a guess.
+  output computed through two `Not` gates, or two pure-combinational
+  wrappers whose children compute the same bounded behavior. Outside
+  that boundary, the pass skips the module; it does not degrade into a
+  guess.
 
   This knob is **config/library-only — there is no
   `--hierarchy-semantic-module-dedup` CLI flag**. Set it through a

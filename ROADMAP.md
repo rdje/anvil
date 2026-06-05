@@ -2115,12 +2115,15 @@ frontiers:
   lane: reset-less memories remain state-by-instance, and the
   reset-defined-memory merge candidate is blocked because the reset-all
   array probe is not warning-clean `$mem_v2` memory inference in Yosys.
-- `HIERARCHY-SEMANTIC-IDENTITY` has landed the first bounded semantic
-  module-identity class: opt-in pure-combinational leaf modules with
-  matching `(PortId, width)` interfaces and small truth-table proofs
-  can merge beyond canonical structural signatures. Its active frontier
-  is evaluating any safe extension beyond pure combinational leaves, or
-  recording the proof blocker.
+- `HIERARCHY-SEMANTIC-IDENTITY` has landed the first two bounded
+  semantic module-identity classes: opt-in pure-combinational leaf
+  modules and bounded pure-combinational wrappers with recursively
+  proven children can merge beyond canonical structural signatures when
+  `(PortId, width)` interfaces and small truth-table proofs match. Its
+  active frontier is closing the tree by recording landed behavior and
+  explicit blockers for unsupported stateful, memory/FSM,
+  parameterized, aggregate, oversized, and unsafe hierarchy-cycle
+  classes.
 - `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,
   simulator/tool parity, and resource-aware signoff sweep expansion.
 

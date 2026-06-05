@@ -49,14 +49,14 @@ whole module behavior.
   Goal: `Implement bounded semantic dedup for pure combinational leaf modules with identical public interfaces.`
   Acceptance: `Semantically equal but structurally different pure combinational leaf modules can merge under an explicit proof boundary; sequential/stateful/module-instance cases remain no-merge; docs explain the boundary.`
   Verification: `cargo test -q semantic_dedup; cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules; cargo test -q module_dedup_pass_collapses_structurally_duplicate_modules; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
-  Commit: `pending this commit`
+  Commit: `447da5b HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup`
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Evaluate extension beyond pure combinational leaves.`
   Acceptance: `The next safe module-equivalence class is implemented or deferred with proof-boundary evidence.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test -q semantic_dedup; cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
+  Commit: `pending this commit`
 
 - ID: `HIERARCHY-SEMANTIC-IDENTITY.3`
   Status: `pending`
@@ -69,7 +69,7 @@ whole module behavior.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `HIERARCHY-SEMANTIC-IDENTITY.2` | `pending` | Evaluate whether any semantic module-equivalence class beyond pure combinational leaves is safe, or record the proof blocker. |
+| 1 | `HIERARCHY-SEMANTIC-IDENTITY.3` | `pending` | Close the hierarchy semantic identity frontier by recording landed classes and explicit blockers for unsupported classes. |
 
 ## Decisions
 
@@ -81,6 +81,12 @@ whole module behavior.
   node-id/e-graph and only for non-top pure-combinational,
   instance-free, state-free, concrete modules with matching `(PortId,
   width)` public interfaces and bounded truth-table proof size.
+- `2026-06-05`: Extended the semantic proof to bounded
+  pure-combinational hierarchy wrappers. A wrapper is admitted only
+  when it has at most 8 child instances, every child is also inside the
+  proof boundary, every instance binding is concrete, and the merge
+  group has no ancestor/descendant relation. Leaf and wrapper proof
+  classes stay separate.
 
 ## Open Questions
 
@@ -95,12 +101,14 @@ whole module behavior.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.1` | `semantic module dedup unit/integration tests; snapshots; cargo check/clippy/fmt; mdBook build/test/book examples; memory/knowledge-map checks; git diff --check` | `passed` |
+| `2026-06-05` | `HIERARCHY-SEMANTIC-IDENTITY.2` | `semantic module dedup unit/integration tests; snapshots; cargo check/clippy/fmt; mdBook build/test/book examples; memory/knowledge-map checks; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `HIERARCHY-SEMANTIC-IDENTITY.1` | `pending this commit` | `Bounded pure-combinational semantic module dedup plus docs/metrics.` |
+| `HIERARCHY-SEMANTIC-IDENTITY.1` | `447da5b HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup` | `Bounded pure-combinational semantic module dedup plus docs/metrics.` |
+| `HIERARCHY-SEMANTIC-IDENTITY.2` | `pending this commit` | `Bounded pure-combinational wrapper semantic module dedup plus cycle guard.` |
 
 ## Changelog
 
@@ -110,3 +118,8 @@ whole module behavior.
   a default-off bounded semantic module dedup pass for pure
   combinational leaves, design metrics for semantic module signatures,
   and user-facing docs/examples. Frontier advanced to `.2`.
+- `2026-06-05`: Completed `HIERARCHY-SEMANTIC-IDENTITY.2` by extending
+  the semantic proof to bounded pure-combinational wrappers whose child
+  semantics can be recursively proven. Leaf/wrapper proof classes stay
+  separate, and ancestor/descendant groups are skipped to avoid
+  hierarchy cycles. Frontier advanced to `.3`.

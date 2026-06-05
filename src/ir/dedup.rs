@@ -21,9 +21,18 @@
 //! / r85). It deliberately excludes `Instance.module` and
 //! `Instance.name`, so two structurally-identical Modules whose
 //! children have distinct names still share a signature.
+//!
+//! `dedup_semantic_modules` is separate and default-off. It uses a
+//! bounded whole-module truth-table proof for pure-combinational
+//! non-top Modules, including bounded wrappers whose children are
+//! recursively proven. It keeps leaf and wrapper proof classes
+//! separate and skips ancestor/descendant merge groups so an
+//! `Instance.module` rewrite cannot introduce a hierarchy cycle.
 
 use crate::ir::{Design, Module};
-use crate::metrics::{canonical_module_signature, semantic_module_proof, SemanticModuleProof};
+use crate::metrics::{
+    canonical_module_signature, semantic_module_proof_with_modules, SemanticModuleProof,
+};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Iteratively collapse `Module` definitions that share a canonical
@@ -146,21 +155,32 @@ fn dedup_semantic_modules_once(design: &mut Design) -> usize {
         return 0;
     }
 
-    let top_name = design.top.clone();
-    let mut groups: BTreeMap<SemanticModuleProof, Vec<usize>> = BTreeMap::new();
-    for (idx, module) in design.modules.iter().enumerate() {
-        if module.name == top_name {
-            continue;
+    let groups = {
+        let modules_by_name: BTreeMap<_, _> = design
+            .modules
+            .iter()
+            .map(|module| (module.name.as_str(), module))
+            .collect();
+        let top_name = design.top.clone();
+        let mut groups: BTreeMap<SemanticModuleProof, Vec<usize>> = BTreeMap::new();
+        for (idx, module) in design.modules.iter().enumerate() {
+            if module.name == top_name {
+                continue;
+            }
+            if let Some(proof) = semantic_module_proof_with_modules(module, &modules_by_name) {
+                groups.entry(proof).or_default().push(idx);
+            }
         }
-        if let Some(proof) = semantic_module_proof(module) {
-            groups.entry(proof).or_default().push(idx);
-        }
-    }
+        groups
+    };
 
     let mut name_remap: HashMap<String, String> = HashMap::new();
     let mut indices_to_remove: Vec<usize> = Vec::new();
     for indices in groups.values() {
         if indices.len() < 2 {
+            continue;
+        }
+        if semantic_group_has_ancestor_relation(design, indices) {
             continue;
         }
         let survivor_idx = *indices
@@ -191,6 +211,49 @@ fn dedup_semantic_modules_once(design: &mut Design) -> usize {
     }
 
     removed
+}
+
+fn semantic_group_has_ancestor_relation(design: &Design, indices: &[usize]) -> bool {
+    for (pos, &a_idx) in indices.iter().enumerate() {
+        let a_name = design.modules[a_idx].name.as_str();
+        for &b_idx in &indices[pos + 1..] {
+            let b_name = design.modules[b_idx].name.as_str();
+            if module_reaches_module(design, a_name, b_name)
+                || module_reaches_module(design, b_name, a_name)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn module_reaches_module(design: &Design, from: &str, target: &str) -> bool {
+    if from == target {
+        return false;
+    }
+    let modules_by_name: HashMap<&str, &Module> = design
+        .modules
+        .iter()
+        .map(|module| (module.name.as_str(), module))
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![from];
+    while let Some(name) = stack.pop() {
+        if !seen.insert(name) {
+            continue;
+        }
+        let Some(module) = modules_by_name.get(name) else {
+            continue;
+        };
+        for instance in &module.instances {
+            if instance.module == target {
+                return true;
+            }
+            stack.push(instance.module.as_str());
+        }
+    }
+    false
 }
 
 fn rewrite_instance_module_names(modules: &mut [Module], name_remap: &HashMap<String, String>) {
@@ -574,18 +637,69 @@ mod tests {
     }
 
     #[test]
-    fn semantic_dedup_keeps_modules_with_instances_outside_proof_boundary() {
+    fn semantic_dedup_collapses_bounded_equivalent_comb_wrappers() {
         let child_a = trivial_leaf("child_a");
-        let child_b = trivial_leaf("child_b");
+        let child_b = double_not_leaf("child_b");
         let parent_a = parent_instantiating_child("parent_a", "child_a");
         let parent_b = parent_instantiating_child("parent_b", "child_b");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "i", 1, Direction::In));
+        top.outputs.push(make_port(1, "o", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_a".into(),
+            module: "parent_a".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.instances.push(Instance {
+            id: 1,
+            name: "u_b".into(),
+            module: "parent_b".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.drives.push((1, 0));
+
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![child_a, child_b, parent_a, parent_b, top],
+        };
+
+        assert_eq!(
+            dedup_semantic_modules(&mut design),
+            2,
+            "semantically equivalent pure-combinational wrappers and their equivalent children should merge"
+        );
+        let names: Vec<_> = design
+            .modules
+            .iter()
+            .map(|module| module.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["child_a", "parent_a", "top"]);
+        let top_after = design
+            .modules
+            .iter()
+            .find(|module| module.name == "top")
+            .expect("top survived");
+        assert!(top_after.instances.iter().all(|i| i.module == "parent_a"));
+    }
+
+    #[test]
+    fn semantic_dedup_keeps_leaf_and_wrapper_in_separate_proof_classes() {
+        let child = trivial_leaf("child");
+        let parent = parent_instantiating_child("parent", "child");
         let mut design = Design {
             top: "top".into(),
             modules: vec![
-                child_a,
-                child_b,
-                parent_a,
-                parent_b,
+                child,
+                parent,
                 Module {
                     name: "top".into(),
                     ..Module::default()
@@ -595,17 +709,46 @@ mod tests {
 
         assert_eq!(
             dedup_semantic_modules(&mut design),
-            1,
-            "only the pure child leaves may merge; instance-bearing parents stay outside the semantic proof boundary"
+            0,
+            "leaf and wrapper proofs stay in separate classes to avoid flattening-by-dedup surprises"
         );
-        assert!(design
-            .modules
-            .iter()
-            .any(|module| module.name == "parent_a"));
-        assert!(design
-            .modules
-            .iter()
-            .any(|module| module.name == "parent_b"));
+        assert_eq!(design.modules.len(), 3);
+    }
+
+    #[test]
+    fn semantic_dedup_skips_ancestor_descendant_wrapper_groups() {
+        let child = trivial_leaf("leaf");
+        let mid = parent_instantiating_child("mid", "leaf");
+        let parent = parent_instantiating_child("parent", "mid");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "i", 1, Direction::In));
+        top.outputs.push(make_port(1, "o", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_parent".into(),
+            module: "parent".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0)],
+            param_bindings: Vec::new(),
+        });
+        top.drives.push((1, 0));
+
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![child, mid, parent, top],
+        };
+
+        assert_eq!(
+            dedup_semantic_modules(&mut design),
+            0,
+            "equivalent wrappers that instantiate each other must not merge because a rewrite could create a hierarchy cycle"
+        );
+        assert!(design.modules.iter().any(|module| module.name == "mid"));
+        assert!(design.modules.iter().any(|module| module.name == "parent"));
     }
 
     #[test]

@@ -352,10 +352,15 @@ src/
 │                     `dedup_modules` collapses structurally-identical
 │                     Module definitions by canonical signature;
 │                     `dedup_semantic_modules` collapses non-top
-│                     pure-combinational, instance-free, state-free
-│                     concrete modules by a bounded whole-module
-│                     truth-table proof (same PortId/width interface,
-│                     <=12 input-support bits, <=128 reachable nodes).
+│                     pure-combinational, state-free concrete modules
+│                     by a bounded whole-module truth-table proof
+│                     (same PortId/width interface, <=12 input-support
+│                     bits, <=128 reachable nodes). The semantic proof
+│                     covers instance-free modules plus bounded
+│                     pure-combinational wrappers whose children are
+│                     also inside the proof boundary; it keeps leaves
+│                     and wrappers in separate proof classes and skips
+│                     ancestor/descendant wrapper merge groups.
 │                     Both rewrite Instance.module references to the
 │                     survivor and, after a real merge, prune
 │                     definitions that were reachable before dedup but

@@ -174,14 +174,18 @@ shift. Examples:
   Moore-output table match; `fsms_merged` records that sharing.
 - With `hierarchy_semantic_module_dedup=true` in a JSON config or
   library `Config`, ANVIL can also collapse non-top pure-combinational
-  leaf modules whose bounded whole-module truth tables match. The pass
-  is active only under `identity_mode=node-id` with effective
-  `factorization_level=e-graph`; `identity_mode=relaxed` keeps it off.
-  The proof is deliberately bounded: matching `(PortId, width)`
-  interfaces, <= 12 emitted input-support bits, <= 128 reachable output
-  cone nodes, no flops/memories/FSMs/instances/parameters/aggregates,
-  and <= 128-bit outputs. `num_semantically_duplicate_module_pairs`
-  tells you how many proof-equal module pairs remain.
+  modules whose bounded whole-module truth tables match. Supported
+  classes are instance-free modules and pure-combinational wrappers
+  with at most 8 child instances whose children are also inside the
+  proof boundary. The pass is active only under `identity_mode=node-id`
+  with effective `factorization_level=e-graph`; `identity_mode=relaxed`
+  keeps it off. The proof is deliberately bounded: matching `(PortId,
+  width)` interfaces, <= 12 emitted input-support bits, <= 128
+  reachable output cone nodes, no flops, memories, FSMs, parameters, or
+  aggregates, and <= 128-bit outputs. Leaf and wrapper proofs stay
+  separate, and ancestor/descendant wrapper groups are skipped.
+  `num_semantically_duplicate_module_pairs` tells you how many
+  proof-equal module pairs remain.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 

@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `d0fd9f6` - `MEMORY-STATE-IDENTITY.3 - close memory frontier`
-- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.1` adds default-off bounded semantic module dedup for pure combinational leaves plus design metrics/docs.
-- next_action: finish validation, commit `HIERARCHY-SEMANTIC-IDENTITY.1`, clear `git_message_brief.txt`, then evaluate `HIERARCHY-SEMANTIC-IDENTITY.2`.
-- in_flight_uncommitted: code/docs/task-tree/knowledge-map edits are validated and ready to commit.
+- latest_commit: `447da5b` - `HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup`
+- active_work_unit: `HIERARCHY-SEMANTIC-IDENTITY.2` extends bounded semantic module dedup to pure-combinational wrappers with recursively proven children.
+- next_action: finish focused validation, commit `HIERARCHY-SEMANTIC-IDENTITY.2`, clear `git_message_brief.txt`, then close `HIERARCHY-SEMANTIC-IDENTITY.3`.
+- in_flight_uncommitted: code/docs/task-tree/knowledge-map edits for `.2` are under validation and ready for commit workflow after gates pass.
 - blockers: none.
 
 ## Validation policy

@@ -298,10 +298,12 @@ pub struct DesignMetrics {
     pub canonical_module_signatures: Vec<u64>,
     /// One deterministic bounded-semantic signature per module when
     /// the module is inside the current semantic proof boundary:
-    /// pure combinational, instance-free, concrete, same-port-id
-    /// interface, input support <= 12 bits, reachable cone <= 128
-    /// nodes, and output widths <= 128. `None` means the module is
-    /// outside that boundary, not that it failed validation.
+    /// pure combinational, concrete, same-port-id interface, input
+    /// support <= 12 bits, reachable cone <= 128 nodes, output
+    /// widths <= 128, and either instance-free or a bounded
+    /// hierarchy wrapper whose children are also inside this proof
+    /// boundary. `None` means the module is outside that boundary,
+    /// not that it failed validation.
     pub semantic_module_signatures: Vec<Option<u64>>,
     /// Number of distinct values in `canonical_module_signatures`.
     /// Equal to `num_modules` when every module is structurally
@@ -313,9 +315,9 @@ pub struct DesignMetrics {
     /// with `count > 1`). Always 0 when every module is distinct.
     pub num_structurally_duplicate_module_pairs: usize,
     /// Pairs of modules that share the same bounded semantic module
-    /// proof. This can be non-zero even when structural signatures
-    /// differ, for example `out = in` vs. `out = ~~in` inside the
-    /// current pure-combinational proof boundary.
+    /// proof class. This can be non-zero even when structural
+    /// signatures differ, for example `out = in` vs. `out = ~~in`
+    /// inside the current pure-combinational proof boundary.
     pub num_semantically_duplicate_module_pairs: usize,
     /// Phase 5: number of `Design::modules` carrying a width
     /// `parameter` (`Module::param_env.is_some()`). 0 for every
@@ -908,7 +910,11 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .filter(|count| **count > 1)
         .map(|count| count * (count - 1) / 2)
         .sum();
-    let semantic_module_proofs: Vec<_> = design.modules.iter().map(semantic_module_proof).collect();
+    let semantic_module_proofs: Vec<_> = design
+        .modules
+        .iter()
+        .map(|module| semantic_module_proof_with_modules(module, &modules_by_name))
+        .collect();
     let semantic_module_signatures: Vec<_> = semantic_module_proofs
         .iter()
         .map(|proof| proof.as_ref().map(semantic_module_signature_hash))
@@ -2340,24 +2346,43 @@ fn bitmask(width: u32) -> u128 {
 
 const MAX_SEMANTIC_MODULE_SUPPORT_BITS: u32 = 12;
 const MAX_SEMANTIC_MODULE_NODES: usize = 128;
+const MAX_SEMANTIC_MODULE_INSTANCES: usize = 8;
 const BASELINE_SEMANTIC_MODULE_SUPPORT_BITS: usize = 10;
 const MAX_SEMANTIC_MODULE_WORK_UNITS: usize =
     (1usize << BASELINE_SEMANTIC_MODULE_SUPPORT_BITS) * MAX_SEMANTIC_MODULE_NODES;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct SemanticModuleProof {
+    contains_instances: bool,
     input_ports: Vec<(PortId, u32)>,
     output_ports: Vec<(PortId, u32)>,
     outputs_by_assignment: Vec<Vec<u128>>,
 }
 
-/// Bounded whole-module semantic proof for pure combinational leaf
-/// modules. The proof deliberately keys ports by `(PortId, width)`,
-/// not by width alone, because module dedup rewrites `Instance.module`
-/// names while preserving parent-side port-id bindings.
-pub(crate) fn semantic_module_proof(module: &Module) -> Option<SemanticModuleProof> {
-    if !module.instances.is_empty()
-        || module.has_local_flops()
+struct InstanceSemanticView {
+    proof: SemanticModuleProof,
+    input_binding_by_port: BTreeMap<PortId, NodeId>,
+    output_index_by_port: BTreeMap<PortId, usize>,
+}
+
+/// Bounded whole-module semantic proof with a design environment for
+/// resolving pure-combinational child instances. The proof deliberately
+/// keys ports by `(PortId, width)`, not by width alone, because module
+/// dedup rewrites `Instance.module` names while preserving parent-side
+/// port-id bindings.
+pub(crate) fn semantic_module_proof_with_modules(
+    module: &Module,
+    modules: &BTreeMap<&str, &Module>,
+) -> Option<SemanticModuleProof> {
+    semantic_module_proof_inner(module, Some(modules), &mut BTreeSet::new())
+}
+
+fn semantic_module_proof_inner(
+    module: &Module,
+    modules: Option<&BTreeMap<&str, &Module>>,
+    visiting: &mut BTreeSet<String>,
+) -> Option<SemanticModuleProof> {
+    if module.has_local_flops()
         || module.has_local_memories()
         || module.has_local_fsms()
         || module.param_env.is_some()
@@ -2366,8 +2391,22 @@ pub(crate) fn semantic_module_proof(module: &Module) -> Option<SemanticModulePro
         return None;
     }
 
+    if !visiting.insert(module.name.clone()) {
+        return None;
+    }
+    let proof = semantic_module_proof_body(module, modules, visiting);
+    visiting.remove(&module.name);
+    proof
+}
+
+fn semantic_module_proof_body(
+    module: &Module,
+    modules: Option<&BTreeMap<&str, &Module>>,
+    visiting: &mut BTreeSet<String>,
+) -> Option<SemanticModuleProof> {
+    let instance_views = build_instance_semantic_views(module, modules, visiting)?;
     let input_ports: Vec<(PortId, u32)> = module
-        .emitted_data_input_ports()
+        .emitted_data_input_ports_in(modules)
         .map(|port| (port.id, port.width))
         .collect();
     let output_ports: Vec<(PortId, u32)> = module
@@ -2418,6 +2457,7 @@ pub(crate) fn semantic_module_proof(module: &Module) -> Option<SemanticModulePro
                 drive,
                 assignment as u128,
                 &input_offsets,
+                &instance_views,
                 &mut memo,
             )?);
         }
@@ -2425,15 +2465,69 @@ pub(crate) fn semantic_module_proof(module: &Module) -> Option<SemanticModulePro
     }
 
     Some(SemanticModuleProof {
+        contains_instances: !module.instances.is_empty(),
         input_ports,
         output_ports,
         outputs_by_assignment,
     })
 }
 
+fn build_instance_semantic_views(
+    module: &Module,
+    modules: Option<&BTreeMap<&str, &Module>>,
+    visiting: &mut BTreeSet<String>,
+) -> Option<Vec<InstanceSemanticView>> {
+    if module.instances.is_empty() {
+        return Some(Vec::new());
+    }
+    if module.instances.len() > MAX_SEMANTIC_MODULE_INSTANCES {
+        return None;
+    }
+    let modules = modules?;
+
+    let mut views = Vec::with_capacity(module.instances.len());
+    for instance in &module.instances {
+        if instance.id as usize != views.len() {
+            return None;
+        }
+        if !instance.param_bindings.is_empty() {
+            return None;
+        }
+        let child = modules.get(instance.module.as_str()).copied()?;
+        let proof = semantic_module_proof_inner(child, Some(modules), visiting)?;
+
+        let input_binding_by_port: BTreeMap<PortId, NodeId> =
+            instance.inputs.iter().copied().collect();
+        if input_binding_by_port.len() != proof.input_ports.len() {
+            return None;
+        }
+        for (port, width) in &proof.input_ports {
+            let source = *input_binding_by_port.get(port)?;
+            if module.nodes.get(source as usize)?.width() != *width {
+                return None;
+            }
+        }
+
+        let output_index_by_port: BTreeMap<PortId, usize> = proof
+            .output_ports
+            .iter()
+            .enumerate()
+            .map(|(idx, (port, _))| (*port, idx))
+            .collect();
+        views.push(InstanceSemanticView {
+            proof,
+            input_binding_by_port,
+            output_index_by_port,
+        });
+    }
+
+    Some(views)
+}
+
 pub(crate) fn semantic_module_signature_hash(proof: &SemanticModuleProof) -> u64 {
     let mut h = fnv1a_64_init();
-    h = fnv1a_64_extend(h, b"semantic-module-v1");
+    h = fnv1a_64_extend(h, b"semantic-module-v2");
+    h = fnv1a_64_u64(h, proof.contains_instances as u64);
     h = fnv1a_64_u64(h, proof.input_ports.len() as u64);
     for (port, width) in &proof.input_ports {
         h = fnv1a_64_u32(h, *port);
@@ -2464,10 +2558,14 @@ fn reachable_nodes_from(module: &Module, roots: &[NodeId]) -> Option<BTreeSet<No
         if !seen.insert(node_id) {
             continue;
         }
-        let Node::Gate { operands, .. } = &module.nodes[node_id as usize] else {
-            continue;
-        };
-        stack.extend(operands.iter().copied());
+        match &module.nodes[node_id as usize] {
+            Node::Gate { operands, .. } => stack.extend(operands.iter().copied()),
+            Node::InstanceOutput { instance, .. } => {
+                let instance = module.instances.get(*instance as usize)?;
+                stack.extend(instance.inputs.iter().map(|(_, node)| *node));
+            }
+            _ => {}
+        }
     }
     Some(seen)
 }
@@ -2477,6 +2575,7 @@ fn evaluate_semantic_module_node(
     node_id: NodeId,
     assignment: u128,
     input_offsets: &BTreeMap<PortId, u32>,
+    instance_views: &[InstanceSemanticView],
     memo: &mut HashMap<NodeId, u128>,
 ) -> Option<u128> {
     if let Some(&value) = memo.get(&node_id) {
@@ -2513,7 +2612,14 @@ fn evaluate_semantic_module_node(
             let operand_values: Vec<u128> = operands
                 .iter()
                 .map(|&operand| {
-                    evaluate_semantic_module_node(module, operand, assignment, input_offsets, memo)
+                    evaluate_semantic_module_node(
+                        module,
+                        operand,
+                        assignment,
+                        input_offsets,
+                        instance_views,
+                        memo,
+                    )
                 })
                 .collect::<Option<Vec<_>>>()?;
             match op {
@@ -2653,10 +2759,42 @@ fn evaluate_semantic_module_node(
                 }
             }
         }
-        Node::InstanceOutput { .. }
-        | Node::FlopQ { .. }
-        | Node::MemRead { .. }
-        | Node::FsmOut { .. } => {
+        Node::InstanceOutput {
+            instance,
+            port,
+            width,
+        } => {
+            if *width > 128 {
+                return None;
+            }
+            let view = instance_views.get(*instance as usize)?;
+            let mut child_assignment = 0u128;
+            let mut next_offset = 0u32;
+            for (child_port, child_width) in &view.proof.input_ports {
+                let source = *view.input_binding_by_port.get(child_port)?;
+                let source_value = evaluate_semantic_module_node(
+                    module,
+                    source,
+                    assignment,
+                    input_offsets,
+                    instance_views,
+                    memo,
+                )?;
+                child_assignment |= (source_value & bitmask(*child_width)) << next_offset;
+                next_offset += *child_width;
+            }
+            let output_idx = *view.output_index_by_port.get(port)?;
+            let (_, expected_width) = view.proof.output_ports.get(output_idx)?;
+            if expected_width != width {
+                return None;
+            }
+            let row = view
+                .proof
+                .outputs_by_assignment
+                .get(child_assignment as usize)?;
+            *row.get(output_idx)? & bitmask(*width)
+        }
+        Node::FlopQ { .. } | Node::MemRead { .. } | Node::FsmOut { .. } => {
             return None;
         }
     };

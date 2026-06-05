@@ -1,8 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-hierarchy-semantic-identity-1 — HIERARCHY-SEMANTIC-IDENTITY.1 bounded semantic module dedup
+## 2026-06-05-hierarchy-semantic-identity-2 — HIERARCHY-SEMANTIC-IDENTITY.2 extend semantic dedup to wrappers
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `HIERARCHY-SEMANTIC-IDENTITY.2`.
+
+- Extended bounded semantic module proof from pure-combinational leaves
+  to bounded pure-combinational hierarchy wrappers.
+- Added recursive child-proof evaluation for `Node::InstanceOutput`:
+  child input bindings are substituted into the child proof, and child
+  outputs are read from the child's bounded truth table.
+- Kept leaf modules and instance-bearing wrappers in separate semantic
+  proof classes.
+- Added a semantic merge-group guard that skips any group containing an
+  ancestor/descendant module pair, preventing instance rewrites from
+  creating hierarchy cycles.
+- Updated `DesignMetrics.semantic_module_signatures` and
+  `num_semantically_duplicate_module_pairs` to use the design-aware
+  semantic proof.
+- Added merge/no-merge unit proofs for pure-combinational wrappers,
+  leaf-vs-wrapper separation, and ancestor/descendant cycle prevention.
+- Synced the mdBook hierarchy/knobs/factorization docs,
+  `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, the
+  Knowledge Map, roadmap, memory pointer, and task tree.
+
+**Why it matters**
+
+Semantic hierarchy identity now covers the next safe class beyond
+leaves without admitting state or arbitrary hierarchy equivalence.
+Users who opt in can collapse small pure-combinational wrappers whose
+full behavior is provably identical, while stateful descendants,
+parameterized/aggregate projections, oversized wrappers, and unsafe
+ancestor/descendant groups stay distinct.
+
+**Tests**
+
+- `cargo test -q semantic_dedup`
+- `cargo test -q semantic_module_dedup_flag_collapses_bounded_pure_comb_modules`
+- `cargo test -q --test snapshots`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `cargo test -q --test book_examples`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- Default behavior stays byte-identical unless
+  `hierarchy_semantic_module_dedup` is enabled under node-id/e-graph.
+- The semantic pass remains bounded and proof-backed; unsupported module
+  classes are skipped instead of guessed.
+
+## 2026-06-05-hierarchy-semantic-identity-1 — HIERARCHY-SEMANTIC-IDENTITY.1 bounded semantic module dedup
+
+**Landed as:** `447da5b HIERARCHY-SEMANTIC-IDENTITY.1 - add semantic module dedup`
 
 **What changed**
 
