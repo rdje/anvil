@@ -8,11 +8,11 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `e39bf1c` - `SIGNOFF-SURFACE-EXPANSION.2 - add Verilator JSON frontend parity`
-- active_work_unit: `SIGNOFF-SURFACE-EXPANSION.3` adds optional Icarus Verilog compile/elaboration acceptance to `tool_matrix` and static structured-gate `assign` lowering.
-- next_action: commit `SIGNOFF-SURFACE-EXPANSION.3`, clear `git_message_brief.txt`, then task-tree-own/execute `SIGNOFF-SURFACE-EXPANSION.4` closeout before moving to another tree.
-- in_flight_uncommitted: Icarus matrix column, emitter static structured-gate lowering, snapshot updates, mdBook/user docs, Knowledge Map, task tree, roadmap, CHANGES update ready for commit.
-- blockers: full `cargo test` remains resource-risky in this environment; prior monitored run stopped at 90.7% RAM per owner policy. Focused `.3` validation is clean.
+- latest_commit: `0d70120` - `SIGNOFF-SURFACE-EXPANSION.3 - add Icarus compile axis`
+- active_work_unit: none. `SIGNOFF-SURFACE-EXPANSION` is closed; the five 2026-06-05 post-phase follow-up trees are done or explicitly bounded.
+- next_action: if work continues, pick a new roadmap-aligned task tree before any source change; otherwise report that no active task-tree frontier remains.
+- in_flight_uncommitted: none.
+- blockers: no active blocker. Full `cargo test` remains resource-risky in this environment; prior monitored run stopped at 90.7% RAM per owner policy.
 
 ## Validation policy
 - For workflow-doc memory/retrieval architecture leaves, use focused functional checks; full `cargo test` is not required per owner instruction.

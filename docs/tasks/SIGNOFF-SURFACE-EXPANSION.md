@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `SIGNOFF-SURFACE-EXPANSION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Quality / signoff-level downstream confidence`
 - Created: `2026-06-05`
 - Last updated: `2026-06-05`
@@ -17,7 +17,7 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 ## Non-Goals
 
-- No LLM/VLM or external-project-specific capability.
+- No external-project-specific capability.
 - No tool gate that assumes a commercial/proprietary tool is present.
 - No full-suite run without RAM monitoring and the 90% danger-zone
   stop rule.
@@ -40,7 +40,7 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 ## Task Tree
 
 - ID: `SIGNOFF-SURFACE-EXPANSION`
-  Status: `active`
+  Status: `done`
   Goal: `Broaden downstream and signoff confidence surfaces.`
   Children: `SIGNOFF-SURFACE-EXPANSION.1`, `SIGNOFF-SURFACE-EXPANSION.2`, `SIGNOFF-SURFACE-EXPANSION.3`, `SIGNOFF-SURFACE-EXPANSION.4`
 
@@ -63,26 +63,26 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   Goal: `Broaden simulator/tool parity beyond the current matrix where practical.`
   Acceptance: `A new optional parity axis or larger resource-aware sweep lands, with RAM-monitoring policy observed for any full-suite run.`
   Verification: `tool_matrix unit suite, emitter tests, snapshots, focused Icarus-only smoke, combined Verilator/Yosys/Icarus smoke, docs/book/Knowledge Map checks all clean; full cargo test intentionally not rerun because focused coverage suffices and full-suite RAM risk remains.`
-  Commit: `pending`
+  Commit: `0d70120 SIGNOFF-SURFACE-EXPANSION.3 - add Icarus compile axis`
 
 - ID: `SIGNOFF-SURFACE-EXPANSION.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Close the signoff-surface frontier.`
   Acceptance: `The tree records landed axes, optional-gate boundaries, deferred tool blockers, and an empty frontier.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `mdbook build book; cargo test --test book_examples -- --nocapture; knowledge-map/scripts/check_knowledge_map.sh; scripts/check_memory_architecture.sh; git diff --check.`
+  Commit: `SIGNOFF-SURFACE-EXPANSION.4 - close signoff frontier`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `SIGNOFF-SURFACE-EXPANSION.4` | `pending` | CDC, richer frontend AST parity, and Icarus compile acceptance are now covered; the remaining work is closeout and explicit frontier/blocker recording. |
+The current frontier is empty. All leaves in this tree are done, and
+future signoff expansion must open a new task-tree leaf or tree before
+any source change.
 
 ## Decisions
 
 - `2026-06-05`: Keep all richer tool integrations optional and
   repo-portable. ANVIL-specific signoff work must not import
-  external-project, docling, LLM, or VLM assumptions.
+  external-project assumptions.
 - `2026-06-05`: The next CDC primitive is the N-flop 1-bit
   synchronizer, not async FIFO or handshake. It is a safe extension of
   the existing by-construction 2-flop lane: `cdc_synchronizer_stages`
@@ -106,10 +106,26 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 - None.
 
+## Deferred Boundaries
+
+- General CDC fabrics beyond configurable 1-bit synchronizer chains
+  (async FIFO, gray-code pointer transfer, req/ack word handshakes,
+  pulse synchronizers, reset synchronizers) require future task-tree
+  ownership.
+- Optional real-tool gates remain optional. ANVIL does not require
+  absent tools such as `slang`, proprietary/commercial tools, or
+  project-external capability assumptions.
+- `tool_matrix --iverilog-compile` is compile/elaboration acceptance
+  only; trace agreement remains owned by `--diff-sim`.
+- Full `cargo test` is not a mandatory closeout gate in this
+  environment unless needed for the slice. If it is run in the future,
+  RAM must be monitored and the run stopped above the 90% danger zone.
+
 ## Verification Log
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.4` | `mdbook build book`; `cargo test --test book_examples -- --nocapture`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`. | Clean docs-only closeout. The signoff-surface tree frontier is empty; landed axes and deferred boundaries are recorded. |
 | `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.3` | `cargo test --bin tool_matrix iverilog -- --nocapture`; `cargo test --bin tool_matrix -- --nocapture`; `cargo test emit::sv::tests -- --nocapture`; `cargo run --bin tool_matrix -- --out /tmp/anvil-iverilog-compile-smoke-r2 --modules-per-scenario 1 --skip-verilator --skip-yosys --iverilog-compile`; `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-iverilog-r1 --modules-per-scenario 1 --yosys-mode both --iverilog-compile`; `cargo test --test snapshots -- --nocapture`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples -- --nocapture`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`. | Clean. Icarus-only smoke: 17 scenarios / 17 modules, Icarus compile 17/0. Combined focused smoke: Verilator 17/0, Yosys without-abc 17/0, Yosys with-abc 17/0, Icarus compile 17/0. Snapshot updates reflect the intended static structured-gate `assign` lowering. Full cargo test intentionally not rerun because this leaf is covered by focused gates and the prior monitored full-suite attempt hit the 90.7% RAM stop rule. |
 | `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.2` | `cargo test --test frontend_parity -- --nocapture`; `cargo test --test frontend_parity -- --ignored parity_against_real_yosys_hierarchy_write_json --nocapture`; `cargo test --test frontend_parity -- --ignored parity_against_real_verilator_json_frontend_ast --nocapture`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples`; `cargo test --test snapshots`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`. | Clean. Portable frontend suite: 15 passed / 3 ignored. Real Yosys gate clean across 5 seeds. Real Verilator JSON gate clean across 5 seeds with artifacts in `target/tmp/frontend-parity-signoff-verilator-json` and all 7 Phase-8 manifest categories enforced. Full `cargo test` intentionally not rerun after the prior monitored resource stop at 90.7% RAM. |
 | `2026-06-05` | `SIGNOFF-SURFACE-EXPANSION.1` | `cargo check --all-targets`; `cargo test -q synchronizer`; `cargo test -q --bin tool_matrix coverage_gaps_detect_missing_categories`; `cargo test -q --bin tool_matrix phase1_gate_raises_modules_per_scenario_to_cover_1000_modules`; `cargo test -q --bin tool_matrix phase1_gate_preserves_larger_explicit_module_count`; `cargo test -q --bin tool_matrix build_default_scenarios_includes_multi_clock_scenario`; `cargo test -q --bin tool_matrix summarize_coverage_lights_multi_clock_facts_from_module_metrics`; `cargo test -q validate_rejects_cdc`; `cargo test -q --bin tool_matrix merge_coverage_unions_saw_cdc_nflop_synchronizer`; `cargo test -q --bin tool_matrix diff_sim_subset_against_default_scenarios_is_nonempty_and_capped`; `cargo clippy --all-targets -- -D warnings`; `cargo fmt --all --check`; `mdbook build book`; `cargo test --test book_examples`; `cargo test --test snapshots`; `knowledge-map/scripts/check_knowledge_map.sh`; `scripts/check_memory_architecture.sh`; `git diff --check`; focused `cargo run --bin tool_matrix -- --out /tmp/anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap --yosys-mode without-abc`; monitored `cargo test` attempt. | Focused checks clean. Focused matrix: 17 scenarios / 17 modules, `coverage_gaps=[]`, Verilator 17/0, Yosys without-abc 17/0, `saw_multi_clock_design=true`, `saw_cdc_2_flop_synchronizer=true`, `saw_cdc_nflop_synchronizer=true`. Full `cargo test` was stopped at 90.7% RAM per owner resource policy. |
@@ -118,7 +134,8 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `SIGNOFF-SURFACE-EXPANSION.3` | `pending` | Lands optional Icarus compile/elaboration matrix column plus static structured-gate lowering needed for warning-clean Icarus acceptance. |
+| `SIGNOFF-SURFACE-EXPANSION.4` | `SIGNOFF-SURFACE-EXPANSION.4 - close signoff frontier` | Closes the tree, records an empty frontier, and names deferred signoff/tool boundaries. |
+| `SIGNOFF-SURFACE-EXPANSION.3` | `0d70120 SIGNOFF-SURFACE-EXPANSION.3 - add Icarus compile axis` | Lands optional Icarus compile/elaboration matrix column plus static structured-gate lowering needed for warning-clean Icarus acceptance. |
 | `SIGNOFF-SURFACE-EXPANSION.2` | `SIGNOFF-SURFACE-EXPANSION.2 - add Verilator JSON frontend parity` | Lands optional Verilator JSON-AST frontend extractor, full-scope real-tool gate, docs, and Knowledge Map fact. |
 | `SIGNOFF-SURFACE-EXPANSION.1` | `SIGNOFF-SURFACE-EXPANSION.1 - add N-flop CDC synchronizer` | Lands `cdc_synchronizer_stages`, N-flop generation, metrics, matrix coverage, user docs, and Knowledge Map fact. |
 
@@ -132,3 +149,5 @@ simulator/tool parity, and larger but resource-aware regression sweeps.
   to `.3`.
 - `2026-06-05`: Landed `SIGNOFF-SURFACE-EXPANSION.3`; frontier moves
   to `.4`.
+- `2026-06-05`: Landed `SIGNOFF-SURFACE-EXPANSION.4`; tree complete,
+  frontier empty.

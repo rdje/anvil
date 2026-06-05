@@ -1,9 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
-## 2026-06-05-signoff-surface-expansion-3 — SIGNOFF-SURFACE-EXPANSION.3 add Icarus compile matrix axis
+## 2026-06-05-signoff-surface-expansion-4 — SIGNOFF-SURFACE-EXPANSION.4 close signoff frontier
 
 **Landed as:** this commit
+
+**What changed**
+
+Docs-only task-tree closeout. Completed
+`SIGNOFF-SURFACE-EXPANSION.4`.
+
+- Marked `SIGNOFF-SURFACE-EXPANSION` done in `docs/TASK_TREE.md` and
+  `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`.
+- Recorded the empty frontier and deferred signoff boundaries:
+  broader CDC fabrics, absent/proprietary optional tools, larger
+  RAM-sensitive full-suite sweeps, and future artifact-family stress
+  surfaces require new task-tree ownership before source changes.
+- Backfilled the `.3` commit reference
+  `0d70120 SIGNOFF-SURFACE-EXPANSION.3 - add Icarus compile axis`.
+- Updated `ROADMAP.md`, `README.md`, `CODEBASE_ANALYSIS.md`, and
+  `book/src/architecture.md` so the user-facing and live-doc status
+  agree that the five 2026-06-05 post-phase follow-up trees are now
+  closed or explicitly bounded.
+- Added Knowledge Map fact
+  `docs/knowledge/post-phase-followup-frontier-closed.md` and
+  regenerated `KNOWLEDGE_MAP.md`.
+- Refreshed `MEMORY.md` to record no active frontier after `.4`
+  closeout.
+
+**Why it matters**
+
+The roadmap, task-tree index, live docs, and mdBook no longer imply
+that the `.3` simulator/tool-parity leaf is still the next frontier.
+The repository now has a durable answer to "what remains": the
+registered five-tree follow-up batch is exhausted, and future source
+work must open a new task-tree leaf with explicit scope and evidence.
+
+**Validation**
+
+- `mdbook build book`
+- `cargo test --test book_examples -- --nocapture`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `scripts/check_memory_architecture.sh`
+- `git diff --check`
+
+**Impact**
+
+- No Rust source or generated RTL behavior changes.
+- The mdBook and live docs now reflect the true post-phase frontier:
+  ANVIL's current landed surfaces remain available, and any next
+  expansion must be task-tree-owned before code changes.
+
+## 2026-06-05-signoff-surface-expansion-3 — SIGNOFF-SURFACE-EXPANSION.3 add Icarus compile matrix axis
+
+**Landed as:** `0d70120 SIGNOFF-SURFACE-EXPANSION.3 - add Icarus compile axis`
 
 **What changed**
 

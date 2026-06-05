@@ -36,8 +36,8 @@ opt-in and keep their generators decoupled from the DUT path.
 3. **Every output is reproducible.** Byte-identical output for the same `(seed, knobs)` pair, across platforms, forever. Seeded ChaCha8; no `thread_rng`; no wall-clock entropy; no hash-map iteration order in output paths.
 
 See `ROADMAP.md` for the phased scope of the DUT RTL lane, the
-delivered non-DUT artifact lanes, and the active post-phase follow-up
-trees.
+delivered non-DUT artifact lanes, and the post-phase follow-up trees
+that are now tracked through explicit current-proof boundaries.
 
 ## Fast ramp-up (recommended reading order)
 1. `README.md` (this file): canonical entry point and project map.
@@ -54,7 +54,7 @@ trees.
 12. `CHANGES.md`: fully detailed description of completed changes.
 13. `COMMIT.md`: canonical commit workflow.
 14. `docs/TASK_TREE.md`: repo-local task-tree workflow and active-tree index. **Doctrine (2026-05-17, non-negotiable): no code change may be made without a task-tree leaf owning it first** (pure-docs/mdBook/workflow edits exempt; see its "ANVIL Adoption Scope" for the code/not-code boundary and `docs/TASK_TREE_README.md` for the portable setup guide).
-15. `docs/tasks/*.md`: one file per active top-level task tree, with stable leaf IDs, current frontier, blockers, decisions, and verification log.
+15. `docs/tasks/*.md`: one file per top-level task tree, with stable leaf IDs, current frontier or closure state, blockers, decisions, and verification log.
 16. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
 17. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 

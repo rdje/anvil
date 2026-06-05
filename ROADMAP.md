@@ -2113,12 +2113,12 @@ With Phase 9 closed, every numbered roadmap phase from 0 through
 - Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
 
 Five post-phase follow-up trees are tracked in `docs/TASK_TREE.md` as
-of `2026-06-05`, owning the remaining steering gaps through task-tree
-frontiers:
+of `2026-06-05`, and all five are now exhausted to their current
+proof/tool boundaries:
 
-- `COMBINATIONAL-SEMANTIC-IDENTITY` owns broader same-endpoint
-  combinational semantic identity beyond the current bounded
-  gate-to-gate merge.
+- `COMBINATIONAL-SEMANTIC-IDENTITY` is closed for the current broader
+  same-endpoint combinational semantic identity frontier beyond the
+  bounded gate-to-gate merge.
 - `SEQUENTIAL-COINDUCTIVE-IDENTITY` is closed for the current bounded
   proof model: flop identity now includes clock/reset domain, exact
   reset-defined self-hold flops can merge, deterministic FSM exact-table
@@ -2136,16 +2136,21 @@ frontiers:
   Unsupported stateful, memory/FSM, parameterized, aggregate, oversized,
   and unsafe hierarchy-cycle classes are explicitly recorded as deferred
   proof boundaries.
-- `SIGNOFF-SURFACE-EXPANSION` owns richer CDC, AST/source extractor,
-  simulator/tool parity, and resource-aware signoff sweep expansion.
+- `SIGNOFF-SURFACE-EXPANSION` is closed for the current richer CDC,
+  AST/source extractor, simulator/tool parity, and resource-aware
+  signoff sweep frontier.
   `.1` landed the next CDC primitive: configurable N-flop 1-bit
   synchronizer chains via `cdc_synchronizer_stages`, with default
   2-stage behavior preserved and general CDC fabrics still deferred.
   `.2` landed the optional Verilator JSON-AST frontend parity gate,
   which checks all 7 Phase-8 manifest categories when local Verilator
   supports `--json-only`; `slang` was absent locally and is not
-  required. The next frontier is `.3`, broader simulator/tool parity or
-  a larger resource-aware signoff sweep where practical.
+  required. `.3` landed the optional Icarus Verilog compile/elaboration
+  matrix column and the static structured-gate lowering needed for
+  warning-clean Icarus acceptance. `.4` records that there is no
+  remaining frontier inside this tree: broader CDC fabrics, proprietary
+  or absent tools, larger RAM-sensitive full-suite sweeps, and new
+  artifact-family stress surfaces require future task-tree leaves.
 
 The previously separate quality/capability follow-ups are closed:
 `DIFFERENTIAL-SIMULATION` landed its cross-simulator semantic-agreement

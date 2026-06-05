@@ -164,9 +164,10 @@ than accidental:
    `src/gen/hierarchy.rs`. Richer structured ops and the current
    hierarchy slice are now real generator surfaces; parameterization,
    aggregates, memories, FSMs, and the multi-artifact lanes are real
-   surfaces too; broader identity work is now owned by the active
-   post-phase task trees in `docs/TASK_TREE.md`, not evidence against
-   this base.
+   surfaces too. The five post-phase follow-up trees registered on
+   2026-06-05 are now closed or explicitly bounded at their current
+   proof/tool limits, so future breadth work should start from a new
+   task-tree leaf rather than treating the old frontier as still open.
 2. **`NodeId` as identity**
    Full factorization is only partially realized today. Combinational
    identity flows through `Module::intern_gate`, a bounded semantic
