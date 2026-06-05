@@ -1,8 +1,52 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-memory-state-identity-1 — MEMORY-STATE-IDENTITY.1 design memory proof boundary
+## 2026-06-05-memory-state-identity-2 — MEMORY-STATE-IDENTITY.2 record reset-memory blocker
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree blocker slice. Completed `MEMORY-STATE-IDENTITY.2` without
+changing source behavior.
+
+- Backfilled the `.1` commit hash (`f962e6e`) in the task-tree commit
+  log.
+- Recorded that no reset-defined memory merge will be implemented for
+  the current memory-inference lane.
+- Kept the current reset-less `Memory` / opaque `Node::MemRead`
+  boundary as the user-visible behavior.
+- Advanced the memory-state task-tree frontier to `.3` closeout.
+
+**Why it matters**
+
+The project now has an explicit no-implementation decision for this
+candidate rather than an ambiguous pending implementation task. The
+blocker is the warning-clean downstream contract: reset-all arrays are
+synthesizable but not warning-clean `$mem_v2` memory inference in Yosys.
+
+**Tests**
+
+- Blocker-record audit
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No code, generated RTL behavior, mdBook behavior text, CLI flags,
+  config defaults, or metrics changed in this blocker-record leaf.
+- Full `cargo test` was not run for this docs-only blocker record.
+
+**Files**
+
+- `docs/tasks/MEMORY-STATE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-memory-state-identity-1 — MEMORY-STATE-IDENTITY.1 design memory proof boundary
+
+**Landed as:** `f962e6e`
 
 **What changed**
 

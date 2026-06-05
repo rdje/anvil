@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `3407f27` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.3 - close sequential frontier`
-- active_work_unit: `MEMORY-STATE-IDENTITY.1` is docs/probe design work; reset-all memory template is Verilator-clean but Yosys warns and lowers to registers, so current memory-inference lane remains reset-less and instance-local.
-- next_action: commit `MEMORY-STATE-IDENTITY.1`, clear `git_message_brief.txt`, then run `MEMORY-STATE-IDENTITY.2` to record/defer the blocker.
-- in_flight_uncommitted: task tree, mdBook, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, Knowledge Map, CHANGES, and MEMORY are synced; docs/probe validation passed.
+- latest_commit: `f962e6e` - `MEMORY-STATE-IDENTITY.1 - design memory proof boundary`
+- active_work_unit: `MEMORY-STATE-IDENTITY.2` is docs-only blocker record; no reset-defined memory merge will land for the current warning-clean `$mem_v2` memory-inference lane.
+- next_action: commit `MEMORY-STATE-IDENTITY.2`, clear `git_message_brief.txt`, then run `MEMORY-STATE-IDENTITY.3` closeout.
+- in_flight_uncommitted: task tree, docs/TASK_TREE, CHANGES, and MEMORY are synced; docs-only validation passed.
 - blockers: none.
 
 ## Validation policy

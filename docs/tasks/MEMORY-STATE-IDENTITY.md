@@ -48,14 +48,14 @@ to any reset-defined memory-state sharing ANVIL can prove.
   Goal: `Design the reset-defined memory proof boundary.`
   Acceptance: `The task tree and design notes record whether ANVIL can add a synthesizable reset-defined memory template suitable for sharing, plus the next executable implementation leaf or a blocker.`
   Verification: `current memory template audit; /tmp/anvil-reset-mem-probe.sv Verilator/Yosys reset-all probe; memory/knowledge-map checks`
-  Commit: `pending this commit`
+  Commit: `f962e6e`
 
 - ID: `MEMORY-STATE-IDENTITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Record the reset-defined memory identity blocker for the current memory-inference lane.`
   Acceptance: `No source behavior changes land; the task tree and user-facing docs retain the reset-less instance-local boundary and record the reset-all-array Yosys warning / register-lowering evidence.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `blocker-record audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check`
+  Commit: `pending this commit`
 
 - ID: `MEMORY-STATE-IDENTITY.3`
   Status: `pending`
@@ -68,7 +68,7 @@ to any reset-defined memory-state sharing ANVIL can prove.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-STATE-IDENTITY.2` | `pending` | The reset-all probe is not warning-clean for the memory-inference lane, so the blocker must be recorded instead of implementing a merge. |
+| 1 | `MEMORY-STATE-IDENTITY.3` | `pending` | Close the tree with the reset-less memory boundary and blocker evidence recorded. |
 
 ## Decisions
 
@@ -102,13 +102,15 @@ to any reset-defined memory-state sharing ANVIL can prove.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-05` | `MEMORY-STATE-IDENTITY.1` | `current memory template audit; Verilator reset-all probe; Yosys reset-all probe; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
+| `2026-06-05` | `MEMORY-STATE-IDENTITY.2` | `blocker-record audit; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `MEMORY-STATE-IDENTITY.1` | `pending this commit` | `Reset-defined memory proof boundary and blocker evidence.` |
-| `MEMORY-STATE-IDENTITY.2` | `pending` | `Record blocker; no source behavior change.` |
+| `MEMORY-STATE-IDENTITY.1` | `f962e6e MEMORY-STATE-IDENTITY.1 - design memory proof boundary` | `Reset-defined memory proof boundary and blocker evidence.` |
+| `MEMORY-STATE-IDENTITY.2` | `pending this commit` | `Record blocker; no source behavior change.` |
+| `MEMORY-STATE-IDENTITY.3` | `pending` | `Close memory-state frontier.` |
 
 ## Changelog
 
@@ -117,3 +119,6 @@ to any reset-defined memory-state sharing ANVIL can prove.
 - `2026-06-05`: Completed `MEMORY-STATE-IDENTITY.1` design boundary.
   Reset-all array contents are not warning-clean `$mem_v2` memory
   inference in Yosys; current reset-less memories remain instance-local.
+- `2026-06-05`: Completed `MEMORY-STATE-IDENTITY.2` as a blocker
+  record. No reset-defined memory merge is implemented for the current
+  memory-inference lane.
