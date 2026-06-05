@@ -58,6 +58,20 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Endpoint-preserving semantic gate merge (2026-06-05, ENDPOINT-IDENTITY-BOUNDARY.1)
+
+The bounded `EGraph` fragment now has a paired no-merge regression for
+the endpoint part of the proof. The existing tests already prove
+same-endpoint semantic equivalents can merge; the new proof constructs
+`a & (b | !b)` and `c & (d | !d)`. These have the same local truth-table
+shape, but their canonical leaf endpoint sets differ, so
+`merge_equivalent_gates` must remove zero gates.
+
+This protects the doctrine that NodeId identity is not "looks like the
+same Boolean shape somewhere". It is equality of functionality over the
+same canonical endpoints. Any future proof-budget expansion must keep
+that endpoint key.
+
 ### Hierarchy module dedup remains structural-only (2026-06-05, HIERARCHY-IDENTITY-BOUNDARY.1)
 
 The hierarchy module-dedup pass now has an explicit boundary regression:

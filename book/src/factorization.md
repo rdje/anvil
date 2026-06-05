@@ -257,6 +257,11 @@ enumerating every endpoint assignment and keying the cone by its truth
 table. If two gates match, later users are rewired to the canonical
 gate and compaction removes the dead duplicate subtree.
 
+The endpoint list is part of the identity, not just an implementation
+detail. A cone shaped like `a & (b | !b)` and another shaped like
+`c & (d | !d)` have the same local truth table, but they depend on
+different canonical primary-input endpoints and therefore do not merge.
+
 This is the first live `e-graph` fragment. It is intentionally bounded:
 full semantic equivalence across arbitrary-width cones is still future
 work.

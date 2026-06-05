@@ -79,7 +79,8 @@ instead of leaving them implicit.
    implement the same functionality with respect to the same canonical
    leaf endpoints. Today's implementation covers normalized
    combinational identity plus a live bounded semantic fragment at the
-   `e-graph` rung for small-support gate cones, together with
+   `e-graph` rung for small-support gate cones over the same canonical
+   endpoints, together with
    conservative post-drain flop merging and deterministic generated-FSM
    merging over the same endpoint-preserving proof discipline; broader
    sequential equivalence, memory-state merging beyond the current

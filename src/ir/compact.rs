@@ -2273,6 +2273,19 @@ mod tests {
     }
 
     #[test]
+    fn merge_equivalent_gates_keeps_same_shape_different_endpoints_distinct() {
+        let mut m = same_shape_different_endpoints_gate_fixture();
+
+        let removed = merge_equivalent_gates(&mut m);
+        assert_eq!(
+            removed, 0,
+            "semantic gate merge must preserve canonical leaf endpoints, not only truth-table shape"
+        );
+
+        validate(&m).expect("same-shape different-endpoint gates should still validate");
+    }
+
+    #[test]
     fn merge_equivalent_gates_respects_requested_level() {
         let mut m = semantic_equivalent_gate_fixture();
         m.factorization_level = FactorizationLevel::Peephole;
@@ -3257,6 +3270,80 @@ mod tests {
         }); // 7 a&(b|!b)
         m.drives.push((2, 5));
         m.drives.push((3, 7));
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn same_shape_different_endpoints_gate_fixture() -> Module {
+        let mut m = Module {
+            name: "same_shape_different_endpoints_gate".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        for (id, name) in [(0, "a"), (1, "b"), (2, "c"), (3, "d")] {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: 1,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: id, width: 1 });
+        }
+        m.outputs.push(Port {
+            id: 4,
+            name: "y0".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.outputs.push(Port {
+            id: 5,
+            name: "y1".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![1],
+            width: 1,
+            deps: DepSet::from_port(1),
+        }); // 4 !b
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![1, 4],
+            width: 1,
+            deps: DepSet::from_port(1),
+        }); // 5 b|!b
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 5],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]),
+        }); // 6 a&(b|!b)
+
+        m.nodes.push(Node::Gate {
+            op: GateOp::Not,
+            operands: vec![3],
+            width: 1,
+            deps: DepSet::from_port(3),
+        }); // 7 !d
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![3, 7],
+            width: 1,
+            deps: DepSet::from_port(3),
+        }); // 8 d|!d
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![2, 8],
+            width: 1,
+            deps: DepSet::union(&[&DepSet::from_port(2), &DepSet::from_port(3)]),
+        }); // 9 c&(d|!d)
+
+        m.drives.push((4, 6));
+        m.drives.push((5, 9));
 
         rebuild_instance_tables(&mut m);
         m

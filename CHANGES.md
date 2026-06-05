@@ -1,8 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-hierarchy-identity-boundary-1 — HIERARCHY-IDENTITY-BOUNDARY.1 keep module dedup structural
+## 2026-06-05-endpoint-identity-boundary-1 — ENDPOINT-IDENTITY-BOUNDARY.1 preserve semantic endpoints
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed `ENDPOINT-IDENTITY-BOUNDARY.1` and
+closed the `ENDPOINT-IDENTITY-BOUNDARY` task tree.
+
+- Added a focused `src/ir/compact.rs` regression proving that
+  same-shaped Boolean cones over different canonical primary-input
+  endpoints do not merge under the bounded semantic gate merge.
+- The proof uses `a & (b | !b)` and `c & (d | !d)`: same local truth
+  table shape, disjoint endpoint sets, zero gates removed.
+- Synced the mdBook factorization chapter, roadmap identity wording,
+  codebase analysis, development notes, task-tree records, and
+  Knowledge Map fact card.
+
+**Why it matters**
+
+NodeId identity is endpoint-preserving. Equal truth-table shape is not
+enough unless the expression is proven over the same canonical leaf
+endpoints. This protects the proof contract before any future semantic
+budget expansion.
+
+**Tests**
+
+- `cargo test -q merge_equivalent_gates_keeps_same_shape_different_endpoints_distinct`
+- `cargo test -q ir::compact::tests::merge_equivalent_gates`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No emitted SV, CLI, config default, generator distribution, roadmap
+  phase label, or snapshot baseline changed.
+- No full suite was run for this narrow regression/docs slice; focused
+  compact semantic-merge coverage plus check/clippy/doc gates passed.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `book/src/factorization.md`
+- `DEVELOPMENT_NOTES.md`
+- `CODEBASE_ANALYSIS.md`
+- `ROADMAP.md`
+- `docs/knowledge/endpoint-identity-boundary.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/ENDPOINT-IDENTITY-BOUNDARY.md`
+- `docs/TASK_TREE.md`
+- `MEMORY.md`
+- `CHANGES.md`
+
+## 2026-06-05-hierarchy-identity-boundary-1 — HIERARCHY-IDENTITY-BOUNDARY.1 keep module dedup structural
+
+**Landed as:** `3ccc47b`
 
 **What changed**
 

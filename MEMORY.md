@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `72a05dc` - `MEMORY-IDENTITY-BOUNDARY.1 - keep memories instance-local`
-- active_work_unit: `HIERARCHY-IDENTITY-BOUNDARY` -> frontier leaf `HIERARCHY-IDENTITY-BOUNDARY.1` (`done`; this commit closes the tree)
-- next_action: commit `HIERARCHY-IDENTITY-BOUNDARY.1`, clear `git_message_brief.txt`, then pick the next roadmap-aligned task-tree slice.
-- in_flight_uncommitted: implemented and verified structural-only hierarchy module-dedup boundary plus synced live docs/book/Knowledge Map for `HIERARCHY-IDENTITY-BOUNDARY.1`.
+- latest_commit: `3ccc47b` - `HIERARCHY-IDENTITY-BOUNDARY.1 - keep module dedup structural`
+- active_work_unit: `ENDPOINT-IDENTITY-BOUNDARY` -> frontier leaf `ENDPOINT-IDENTITY-BOUNDARY.1` (`done`; this commit closes the tree)
+- next_action: commit `ENDPOINT-IDENTITY-BOUNDARY.1`, clear `git_message_brief.txt`, then pick the next roadmap-aligned task-tree slice.
+- in_flight_uncommitted: implemented and verified same-shape/different-endpoint semantic-gate boundary plus synced live docs/book/Knowledge Map for `ENDPOINT-IDENTITY-BOUNDARY.1`.
 - blockers: none.
 
 ## Validation policy
