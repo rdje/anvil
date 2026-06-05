@@ -391,6 +391,12 @@ and compaction removes the now-dead duplicate `FsmOut` node.
 Memories deliberately stay outside this pass. The current inferrable
 memory template does not reset array contents, so two memories with the
 same address/data cones are not treated as one proven state object.
+ANVIL also does not silently replace that template with a reset-all
+array reset. A reset-all probe is accepted by Verilator, but Yosys emits
+a warning and replaces the memory with a list of registers instead of
+preserving the warning-clean `$mem_v2` memory-inference lane. A future
+reset-defined register-file motif would need to be explicit, separately
+documented, and downstream-clean.
 That boundary is regression-protected: under node-id/e-graph
 factorization, two independent memories with identical source cones must
 still survive as two `Memory` blocks and two `MemRead` leaves after the

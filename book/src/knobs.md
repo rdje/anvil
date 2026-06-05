@@ -747,7 +747,10 @@ resume/checkpoint behavior, and which external tools are invoked.
   [+ independent `raddr` for `SimpleDualPort`]) whose registered
   read is an opaque `Node::MemRead` leaf — never CSE'd/factorized;
   the emitter renders the synchronous-write / registered-read
-  template Yosys infers as `$mem_v2`. Mutually exclusive with the
+  template Yosys infers as `$mem_v2`. It is reset-less by design:
+  reset-all array contents are not warning-clean in Yosys for this
+  memory-inference lane, so memory state remains instance-local.
+  Mutually exclusive with the
   Phase 5 width-parameterization and Phase 6 FSM lanes; default-off
   is byte-identical. **Delivered (Phase 6, 2026-05-18)**, proven
   downstream-clean on the `Phase4Hierarchy` gate. See

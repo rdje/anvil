@@ -1,8 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-sequential-coinductive-identity-3 — SEQUENTIAL-COINDUCTIVE-IDENTITY.3 close sequential frontier
+## 2026-06-05-memory-state-identity-1 — MEMORY-STATE-IDENTITY.1 design memory proof boundary
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree/design slice. Completed `MEMORY-STATE-IDENTITY.1` without
+changing source behavior.
+
+- Audited the current `Memory` motif: reset-less synchronous write /
+  registered-read template, opaque `Node::MemRead`, no reset/init field,
+  and no memory participation in CSE/identity.
+- Probed a reset-all unpacked-array template outside the repo at
+  `/tmp/anvil-reset-mem-probe.sv`.
+- Recorded evidence: Verilator 5.046 accepted the reset-all template,
+  but Yosys 0.64 warned that it was replacing the memory with a list of
+  registers and lowered the design to flip-flop/register logic instead
+  of the current warning-clean `$mem_v2` memory-inference lane.
+- Re-scoped `MEMORY-STATE-IDENTITY.2` to record/defer the blocker
+  rather than implement an unsafe reset-defined memory merge.
+- Synced mdBook memory/factorization/knob docs, CODEBASE_ANALYSIS,
+  DEVELOPMENT_NOTES, task-tree frontier, and the Knowledge Map memory
+  boundary fact.
+
+**Why it matters**
+
+Memory state identity cannot be made sound by equal write/read cones
+alone, and the obvious reset-all alternative would silently change the
+artifact family from inferred memory toward register-file logic with a
+Yosys warning. The current ANVIL memory lane therefore stays
+reset-less, warning-clean, and instance-local.
+
+**Tests**
+
+- `verilator --lint-only /tmp/anvil-reset-mem-probe.sv`
+- `yosys -p "read_verilog -sv /tmp/anvil-reset-mem-probe.sv; synth -noabc; stat"` — 0 problems, but one warning: memory replaced with registers; 20.16 MB peak
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- No Rust source, generated RTL behavior, CLI flags, config defaults, or
+  metrics changed in this design leaf.
+- User-facing docs now explicitly state why reset-defined memory sharing
+  is blocked for the current inferrable-memory motif.
+- Full `cargo test` was not run for this docs/probe leaf.
+
+**Files**
+
+- `docs/tasks/MEMORY-STATE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `book/src/factorization.md`
+- `book/src/ir.md`
+- `book/src/knobs.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/memory-identity-boundary.md`
+- `KNOWLEDGE_MAP.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-sequential-coinductive-identity-3 — SEQUENTIAL-COINDUCTIVE-IDENTITY.3 close sequential frontier
+
+**Landed as:** `3407f27`
 
 **What changed**
 

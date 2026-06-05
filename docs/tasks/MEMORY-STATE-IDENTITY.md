@@ -44,16 +44,16 @@ to any reset-defined memory-state sharing ANVIL can prove.
   Children: `MEMORY-STATE-IDENTITY.1`, `MEMORY-STATE-IDENTITY.2`, `MEMORY-STATE-IDENTITY.3`
 
 - ID: `MEMORY-STATE-IDENTITY.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Design the reset-defined memory proof boundary.`
   Acceptance: `The task tree and design notes record whether ANVIL can add a synthesizable reset-defined memory template suitable for sharing, plus the next executable implementation leaf or a blocker.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `current memory template audit; /tmp/anvil-reset-mem-probe.sv Verilator/Yosys reset-all probe; memory/knowledge-map checks`
+  Commit: `pending this commit`
 
 - ID: `MEMORY-STATE-IDENTITY.2`
   Status: `pending`
-  Goal: `Implement reset-defined memory identity when the proof boundary is available.`
-  Acceptance: `A reset-defined memory template and merge/no-merge tests land, or this leaf is split/deferred with a concrete synthesizability blocker.`
+  Goal: `Record the reset-defined memory identity blocker for the current memory-inference lane.`
+  Acceptance: `No source behavior changes land; the task tree and user-facing docs retain the reset-less instance-local boundary and record the reset-all-array Yosys warning / register-lowering evidence.`
   Verification: `pending`
   Commit: `pending`
 
@@ -68,13 +68,19 @@ to any reset-defined memory-state sharing ANVIL can prove.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `MEMORY-STATE-IDENTITY.1` | `pending` | Memory state sharing is only sound if reset/init semantics are explicit first. |
+| 1 | `MEMORY-STATE-IDENTITY.2` | `pending` | The reset-all probe is not warning-clean for the memory-inference lane, so the blocker must be recorded instead of implementing a merge. |
 
 ## Decisions
 
 - `2026-06-05`: Keep the existing reset-less inferrable memory
   template instance-local until a reset-defined template exists and is
   downstream-clean.
+- `2026-06-05`: A reset-all unpacked-array template is syntactically
+  accepted by Verilator 5.046, but Yosys 0.64 warns
+  `Replacing memory \mem with list of registers` and lowers the 16x8
+  probe to flip-flop/register logic rather than preserving the current
+  warning-clean `$mem_v2` memory-inference lane. That is not acceptable
+  as a silent replacement for ANVIL's inferrable-memory motif.
 
 ## Open Questions
 
@@ -82,21 +88,32 @@ to any reset-defined memory-state sharing ANVIL can prove.
 
 ## Blockers
 
-- None.
+- Current `Memory` has no reset/init field, and the current emitter is
+  intentionally a reset-less synchronous write/read template.
+- Resetting all array contents in the memory `always_ff` makes Yosys
+  replace the memory with registers and emit a warning, which violates
+  ANVIL's warning-clean downstream contract for this lane.
+- A future reset-defined register-file artifact may be possible, but it
+  would be a distinct motif/knob with explicit docs and downstream
+  evidence, not a merge of the current reset-less memory template.
 
 ## Verification Log
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-05` | `MEMORY-STATE-IDENTITY.1` | `pending` | `pending` |
+| `2026-06-05` | `MEMORY-STATE-IDENTITY.1` | `current memory template audit; Verilator reset-all probe; Yosys reset-all probe; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `MEMORY-STATE-IDENTITY.1` | `pending` | `pending` |
+| `MEMORY-STATE-IDENTITY.1` | `pending this commit` | `Reset-defined memory proof boundary and blocker evidence.` |
+| `MEMORY-STATE-IDENTITY.2` | `pending` | `Record blocker; no source behavior change.` |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened
   `MEMORY-STATE-IDENTITY.1`.
+- `2026-06-05`: Completed `MEMORY-STATE-IDENTITY.1` design boundary.
+  Reset-all array contents are not warning-clean `$mem_v2` memory
+  inference in Yosys; current reset-less memories remain instance-local.

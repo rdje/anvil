@@ -487,7 +487,11 @@ sessions.
   (`SinglePort` shares one address; `SimpleDualPort` adds an
   independent read port). It is opt-in behind the `memory_prob`
   knob (default `0.0` → byte-identical; the array never participates
-  in CSE/identity), and is proven downstream-clean against the
+  in CSE/identity). The memory contents are not reset-defined; reset-all
+  array templates are not used in this lane because Yosys lowers them to
+  register lists with a warning instead of preserving warning-clean
+  memory inference. The current template is proven downstream-clean
+  against the
   `Phase4Hierarchy` matrix gate (`phase6_inferrable_memory`
   scenario — 219 scenarios / 876 designs, `coverage_gaps = []`,
   876/0 Verilator + both Yosys). See `book/src/knobs.md`

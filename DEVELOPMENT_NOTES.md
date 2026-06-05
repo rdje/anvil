@@ -65,6 +65,30 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Reset-defined memory identity blocker (2026-06-05, MEMORY-STATE-IDENTITY.1)
+
+The current `Memory` motif is intentionally the reset-less synchronous
+write/read template that Yosys infers as `$mem_v2`. That makes memory
+state opaque: identical write/read cones do not prove identical stored
+contents, so `MemRead` remains identity-by-instance.
+
+Probe evidence for the obvious reset-defined alternative is not
+signoff-clean. A 16x8 reset-all unpacked-array template passed
+`verilator --lint-only /tmp/anvil-reset-mem-probe.sv`, but
+`yosys -p "read_verilog -sv /tmp/anvil-reset-mem-probe.sv; synth -noabc; stat"`
+warned that it was replacing the memory with a list of registers and
+reported flip-flop/register logic rather than a preserved memory cell.
+That is synthesizable, but it is not the warning-clean memory-inference
+lane ANVIL currently documents and gates.
+
+Rejected alternative: silently add a reset-all branch to the existing
+memory motif and then merge memories with equal source cones. That would
+change the artifact family from inferred memory toward register-file
+logic and would violate the current downstream-warning contract. A
+future reset-defined register-file motif can be introduced only as an
+explicit, separately documented lane with its own knob, metrics, and
+tool-matrix evidence.
+
 ### Exact reset-defined self-hold identity (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2)
 
 The first coinductive state merge is intentionally tiny: two flops may

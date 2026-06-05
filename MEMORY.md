@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `1abc41b` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2 - merge self-hold flops`
-- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.3` is docs-only closeout; sequential tree is closed with domain-aware flop identity and exact reset-defined self-hold landed.
-- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.3`, clear `git_message_brief.txt`, then continue with `MEMORY-STATE-IDENTITY.1`.
-- in_flight_uncommitted: task tree, roadmap, CHANGES, and MEMORY are synced; docs-only closeout validation passed.
+- latest_commit: `3407f27` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.3 - close sequential frontier`
+- active_work_unit: `MEMORY-STATE-IDENTITY.1` is docs/probe design work; reset-all memory template is Verilator-clean but Yosys warns and lowers to registers, so current memory-inference lane remains reset-less and instance-local.
+- next_action: commit `MEMORY-STATE-IDENTITY.1`, clear `git_message_brief.txt`, then run `MEMORY-STATE-IDENTITY.2` to record/defer the blocker.
+- in_flight_uncommitted: task tree, mdBook, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, Knowledge Map, CHANGES, and MEMORY are synced; docs/probe validation passed.
 - blockers: none.
 
 ## Validation policy
