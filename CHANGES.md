@@ -1,8 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-sequential-coinductive-identity-2-2 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2 add exact self-hold merge
+## 2026-06-05-sequential-coinductive-identity-3 — SEQUENTIAL-COINDUCTIVE-IDENTITY.3 close sequential frontier
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree closeout slice. Completed
+`SEQUENTIAL-COINDUCTIVE-IDENTITY.3` and closed the
+`SEQUENTIAL-COINDUCTIVE-IDENTITY` tree.
+
+- Backfilled the `.2.2` commit hash (`1abc41b`) in the task-tree
+  commit log.
+- Recorded the landed sequential scope: domain-aware duplicate-D flop
+  identity, explicit `flop_domains` remapping during merge/compaction,
+  deterministic generated-FSM exact-table sharing, and exact
+  reset-defined self-hold coinduction.
+- Recorded retained blockers: arbitrary transition-relation
+  coinduction, FSM coinduction without per-FSM domain/reset facts,
+  convergence-after-N-cycles, retiming, mutually-recursive registers,
+  CDC state sharing, and memory state.
+- Updated `docs/TASK_TREE.md` so the sequential tree is listed as
+  `done`.
+- Updated `ROADMAP.md` so the post-phase follow-up list no longer
+  presents sequential identity as an open frontier.
+- Refreshed `MEMORY.md` for the next active follow-up tree:
+  `MEMORY-STATE-IDENTITY.1`.
+
+**Why it matters**
+
+The sequential identity work is now explicit and bounded. Future work
+will not accidentally reopen a vague "broader sequential equivalence"
+promise; the remaining pieces require a different proof model or are
+owned by sibling task trees.
+
+**Tests**
+
+- Task-tree closeout audit
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- No code or generated RTL behavior changed in this closeout leaf.
+- No mdBook behavior text changed because `.2.1` and `.2.2` already
+  synced the user-facing behavior.
+- No numbered roadmap phase label changed.
+- Full `cargo test` was not run for this docs-only closeout.
+
+**Files**
+
+- `docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `ROADMAP.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-sequential-coinductive-identity-2-2 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2 add exact self-hold merge
+
+**Landed as:** `1abc41b`
 
 **What changed**
 

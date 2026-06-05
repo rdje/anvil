@@ -2106,8 +2106,11 @@ frontiers:
 - `COMBINATIONAL-SEMANTIC-IDENTITY` owns broader same-endpoint
   combinational semantic identity beyond the current bounded
   gate-to-gate merge.
-- `SEQUENTIAL-COINDUCTIVE-IDENTITY` owns broader reset/domain-safe
-  sequential identity beyond exact flop-D and deterministic FSM merges.
+- `SEQUENTIAL-COINDUCTIVE-IDENTITY` is closed for the current bounded
+  proof model: flop identity now includes clock/reset domain, exact
+  reset-defined self-hold flops can merge, deterministic FSM exact-table
+  sharing remains covered, and broader coinduction is blocked until a
+  transition-relation proof and/or extra IR domain facts exist.
 - `MEMORY-STATE-IDENTITY` owns the reset-defined memory-state identity
   boundary beyond the current reset-less instance-local memory proof.
 - `HIERARCHY-SEMANTIC-IDENTITY` owns bounded semantic module identity
