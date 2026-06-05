@@ -21,7 +21,10 @@
 //!   (`width`, reset, clock domain, same canonical leaf endpoints, and a
 //!   D-cone functionality proven either by the current normalized proof
 //!   form or by a bounded small-support semantic check) are collapsed to
-//!   one state element.
+//!   one state element. The one coinductive exception is exact
+//!   reset-defined self-hold (`D == own Q`): equal reset/domain/width
+//!   self-hold flops may share one state element because reset
+//!   establishes equality and the transition preserves it.
 //! - `merge_equivalent_fsms(&mut m)`: a deterministic FSM-sharing pass
 //!   that uses the same endpoint-preserving proof discipline for the
 //!   selector cone, plus the reset-defined FSM transition/output tables,
@@ -127,9 +130,15 @@ const CLEANUP_SEMANTIC_LIMITS: SemanticProofLimits = SemanticProofLimits {
 struct FlopSignature {
     width: u32,
     clock_domain: u32,
-    d: ConeProof,
+    d: FlopDSignature,
     reset_val: u128,
     reset_kind: ResetKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum FlopDSignature {
+    Cone(ConeProof),
+    ResetDefinedSelfHold,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -966,6 +975,9 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
 /// - compares D-cones by a leaf-aware proof form: bounded small-support
 ///   semantic signature when available, otherwise a structural
 ///   signature over the already-normalized IR;
+/// - treats exact reset-defined self-hold (`D == own Q` with a reset)
+///   as a coinductive proof class whose own-Q endpoint is intentionally
+///   alpha-renamed away;
 /// - treats "same functionality" as the doctrine, while only claiming
 ///   the proof subset the current normalization ladder can actually
 ///   establish today;
@@ -1001,8 +1013,9 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         let sig = FlopSignature {
             width: flop.width,
             clock_domain: m.flop_domain(flop.id),
-            d: cone_proof(
+            d: flop_d_signature(
                 m,
+                flop,
                 d,
                 &mut structural_memo,
                 &mut structural_ctx,
@@ -1111,6 +1124,29 @@ fn remap_explicit_flop_domains_after_merge(
         }
     }
     m.flop_domains = new_domains;
+}
+
+fn flop_d_signature(
+    m: &Module,
+    flop: &Flop,
+    d: NodeId,
+    structural_memo: &mut HashMap<NodeId, StructuralSigId>,
+    structural_ctx: &mut StructuralSignatureCtx,
+    endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    semantic_memo: &mut HashMap<NodeId, Option<SemanticConeProof>>,
+) -> FlopDSignature {
+    if flop.reset_kind != ResetKind::None && d == flop.q {
+        return FlopDSignature::ResetDefinedSelfHold;
+    }
+
+    FlopDSignature::Cone(cone_proof(
+        m,
+        d,
+        structural_memo,
+        structural_ctx,
+        endpoint_memo,
+        semantic_memo,
+    ))
 }
 
 /// Merge duplicate generated FSM blocks after their selector cones are known.
@@ -2488,6 +2524,68 @@ mod tests {
     }
 
     #[test]
+    fn merge_equivalent_flops_merges_reset_defined_self_hold_flops() {
+        let mut m = self_hold_flop_fixture(8, 8, 0, 0, ResetKind::Async);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 1);
+        assert_eq!(m.flops.len(), 1);
+        assert_eq!(
+            m.drives,
+            vec![(0, 0), (1, 0)],
+            "duplicate self-hold Q consumers should use the canonical Q"
+        );
+
+        let compacted = compact_node_ids(&mut m);
+        assert_eq!(compacted, 1, "duplicate self-hold Q should compact");
+        validate(&m).expect("merged self-hold flops should still validate");
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_resetless_self_hold_flops_distinct() {
+        let mut m = self_hold_flop_fixture(8, 8, 0, 0, ResetKind::None);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(
+            removed, 0,
+            "without reset there is no reset-defined equality point"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_self_hold_reset_mismatches_distinct() {
+        let mut m = self_hold_flop_fixture(8, 8, 0, 1, ResetKind::Async);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_self_hold_domain_mismatches_distinct() {
+        let mut m = self_hold_flop_fixture(8, 8, 0, 0, ResetKind::Async);
+        attach_two_clock_domains(&mut m);
+        m.flop_domains.insert(0, 0);
+        m.flop_domains.insert(1, 1);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.flops.len(), 2);
+        validate(&m).expect("cross-domain self-hold fixture should remain valid");
+    }
+
+    #[test]
+    fn merge_equivalent_flops_keeps_self_hold_width_mismatches_distinct() {
+        let mut m = self_hold_flop_fixture(8, 4, 0, 0, ResetKind::Async);
+
+        let removed = merge_equivalent_flops(&mut m);
+        assert_eq!(removed, 0);
+        assert_eq!(m.flops.len(), 2);
+        validate(&m).expect("width-mismatch self-hold fixture should remain valid");
+    }
+
+    #[test]
     fn merge_equivalent_flops_merges_same_endpoint_duplicate_d_cones() {
         let mut m = non_self_duplicate_d_fixture();
 
@@ -3381,6 +3479,68 @@ mod tests {
             reset_kind: ResetKind::Async,
             kind: FlopKind::QFeedback,
             mux: FlopMux::OneHot(vec![]),
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    fn self_hold_flop_fixture(
+        width0: u32,
+        width1: u32,
+        reset0: u128,
+        reset1: u128,
+        reset_kind: ResetKind,
+    ) -> Module {
+        let mut m = Module {
+            name: "self_hold".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::Cse,
+            ..Module::default()
+        };
+        m.outputs.push(Port {
+            id: 0,
+            name: "y0".into(),
+            width: width0,
+            dir: Direction::Out,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y1".into(),
+            width: width1,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::FlopQ {
+            flop: 0,
+            width: width0,
+        }); // 0
+        m.nodes.push(Node::FlopQ {
+            flop: 1,
+            width: width1,
+        }); // 1
+        m.drives.push((0, 0));
+        m.drives.push((1, 1));
+
+        m.flops.push(Flop {
+            id: 0,
+            width: width0,
+            d: Some(0),
+            q: 0,
+            reset_val: reset0,
+            reset_kind,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: width1,
+            d: Some(1),
+            q: 1,
+            reset_val: reset1,
+            reset_kind,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
         });
 
         rebuild_instance_tables(&mut m);

@@ -52,11 +52,11 @@ unless ANVIL can prove reset-defined behavioral equivalence.
   Commit: `50746ef`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the prerequisite domain proof input and the first proven broader sequential identity class.`
   Acceptance: `Domain-safe state identity lands before any broader coinductive merge; then a reset/domain-safe merge class beyond existing exact flop/FSM signatures lands with focused no-merge and merge tests.`
   Children: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`, `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
-  Verification: `container; see child leaves`
+  Verification: `container complete; see child leaves`
   Commit: `container; no direct commit`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
@@ -64,14 +64,14 @@ unless ANVIL can prove reset-defined behavioral equivalence.
   Goal: `Add clock-domain proof input to existing flop identity.`
   Acceptance: `Flop identity signatures include Module::flop_domain; same-domain duplicate-D flops still merge; cross-domain duplicate-D/reset flops do not merge; user-facing docs state the domain boundary.`
   Verification: `cargo test -q merge_equivalent_flops; cargo test -q compact_remaps_explicit_flop_domains; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; memory/knowledge-map checks; git diff --check`
-  Commit: `pending this commit`
+  Commit: `06b89f2`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement reset-defined self-hold coinductive flop identity.`
   Acceptance: `Same-domain, same-width, same-reset flops whose D is exactly their own Q merge after reset-defined proof; reset/domain/width mismatches and non-self-update cases remain no-merge; mdBook examples explain the retained boundary.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test -q merge_equivalent_flops; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; memory/knowledge-map checks; git diff --check`
+  Commit: `pending this commit`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.3`
   Status: `pending`
@@ -84,7 +84,7 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | The exact self-hold class is the first coinductive candidate with a bounded proof in the current IR. |
+| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.3` | `pending` | Close the tree by recording landed behavior and remaining coinductive blockers. |
 
 ## Decisions
 
@@ -130,14 +130,15 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 | --- | --- | --- | --- |
 | `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `task-tree inventory; mdBook sequential/factorization/structural-rule drift correction; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
 | `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `cargo test -q merge_equivalent_flops; cargo test -q compact_remaps_explicit_flop_domains; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
+| `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `cargo test -q merge_equivalent_flops; cargo test -q --test snapshots; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo fmt --all --check; mdbook build book; mdbook test book; cargo test -q --test book_examples; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `50746ef SEQUENTIAL-COINDUCTIVE-IDENTITY.1 - inventory proof envelope` | `Inventory reset/domain proof envelope and split .2.1/.2.2 implementation leaves.` |
-| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending this commit` | `Domain-aware flop signature prerequisite.` |
-| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | `Exact reset-defined self-hold coinductive merge.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `06b89f2 SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1 - key flops by domain` | `Domain-aware flop signature prerequisite.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending this commit` | `Exact reset-defined self-hold coinductive merge.` |
 
 ## Changelog
 
@@ -151,3 +152,9 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 - `2026-06-05`: Completed `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
   by adding clock-domain identity to flop merge signatures and
   remapping explicit `flop_domains` entries during merge/compaction.
+- `2026-06-05`: Opened `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
+  for implementation.
+- `2026-06-05`: Completed `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
+  by adding the exact reset-defined self-hold merge class and retained
+  no-merge regressions for resetless, reset/domain/width mismatch, and
+  non-exact feedback cases.

@@ -336,13 +336,22 @@ The current proof is intentionally conservative:
 - same `reset_kind`
 - same `reset_val`
 - same `Module::flop_domain` value (the K=1 default is domain 0)
-- same canonical leaf endpoints (`PrimaryInput`s / `FlopQ`s)
-- same D-cone proof form after the current normalization ladder
-  (commutative canonicalization, associative flattening, constant fold,
-  peephole, etc.) has done what it can
+- either the same D-cone proof form after the current normalization
+  ladder (commutative canonicalization, associative flattening, constant
+  fold, peephole, etc.) has done what it can, or exact reset-defined
+  self-hold on both sides (`D == own Q`)
+- for D-cone proofs, the same canonical leaf endpoints
+  (`PrimaryInput`s / `FlopQ`s)
 - for small-support cones, an extra bounded semantic proof:
   enumerate every assignment over the canonical endpoint bits and key
   the cone by its resulting truth table
+
+The exact self-hold class is the one coinductive exception to the
+"same canonical leaf endpoints" rule. If two flops in the same domain
+have the same width, reset kind, and reset value, and each has
+`D == own Q`, reset makes the Q values equal and the transition relation
+preserves equality forever. This is reset-defined equality, not arbitrary
+state-machine equivalence.
 
 If those match, every consumer of the duplicate Q is rewired to the
 canonical Q, virtual flop deps are remapped, surviving flops are
@@ -355,9 +364,9 @@ What it deliberately does **not** do yet:
   D-cone forms;
 - merge cones that depend on different canonical leaf endpoints;
 - merge cross-domain state; or
-- merge wider sequentially-equivalent machines such as reset-equal
-  self-holding registers, mutually-recursive registers, retimed state,
-  or state that only converges after one or more cycles.
+- merge wider sequentially-equivalent machines such as mutually-recursive
+  registers, retimed state, non-exact feedback forms, or state that only
+  converges after one or more cycles.
 
 ### 9. Post-construction deterministic FSM merge (`identity_mode = node-id`, effective `>= Cse`)
 

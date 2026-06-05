@@ -65,6 +65,24 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Exact reset-defined self-hold identity (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2)
+
+The first coinductive state merge is intentionally tiny: two flops may
+share state when they have the same width, reset kind, reset value,
+clock/reset domain, and each D input is exactly its own Q. Reset
+establishes equality, and `D == Q` preserves that equality on every
+subsequent clock. The proof deliberately requires an actual reset;
+reset-less self-hold flops can start with different values and must stay
+distinct.
+
+Rejected alternatives: alpha-renaming arbitrary state variables inside
+D cones, proving mutually-recursive update functions, or treating
+semantically equivalent feedback such as a reduced `Not(Not(Q))` as a
+coinductive class. Those need a bounded transition-relation proof and a
+clear reset-domain model. `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` keeps
+the class exact and local to avoid turning a safe state-sharing pass
+into an implicit sequential-equivalence engine.
+
 ### Domain-aware flop identity (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1)
 
 `merge_equivalent_flops` now treats `Module::flop_domain(flop.id)` as

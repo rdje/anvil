@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `50746ef` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.1 - inventory proof envelope`
-- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` is implemented/validated; flop identity now keys on `Module::flop_domain`, and explicit `flop_domains` entries remap during merge/compaction.
-- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`, clear `git_message_brief.txt`, then implement `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` exact self-hold coinductive merge.
+- latest_commit: `06b89f2` - `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1 - key flops by domain`
+- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` is implemented/validated; exact reset-defined self-hold flops now merge when width/reset/domain match, while resetless/reset/domain/width mismatch and non-exact feedback stay distinct.
+- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`, clear `git_message_brief.txt`, then run `SEQUENTIAL-COINDUCTIVE-IDENTITY.3` closeout.
 - in_flight_uncommitted: source, tests, mdBook, USER_GUIDE, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, Knowledge Map, task tree, CHANGES, and MEMORY are synced; focused validation passed.
 - blockers: none.
 

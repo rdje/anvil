@@ -138,9 +138,30 @@ small-support cones. The semantic branch has the same support/node/work
 budget as the combinational merge proof, so shallow 12-endpoint-bit
 cones can qualify and larger candidates fall back to structural proof.
 That is stronger than exact `d: NodeId` equality, but still not full
-sequential equivalence. For example, broader coinductive classes such
-as reset-equal self-holding registers are not merged by the current
-released proof.
+sequential equivalence.
+
+There is one deliberately narrow coinductive class: exact reset-defined
+self-hold. If two flops have the same width, reset kind, reset value,
+and clock/reset domain, and each D input is exactly its own Q, they can
+share one state element:
+
+```systemverilog
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        a <= 8'h00;
+        b <= 8'h00;
+    end else begin
+        a <= a;
+        b <= b;
+    end
+end
+```
+
+After reset, `a` and `b` are equal; each next state is its current
+state, so equality is preserved forever. ANVIL does **not** extend that
+reasoning to reset-less self-hold, cross-domain self-hold, reset-value
+mismatches, width mismatches, mutually-recursive registers, retiming, or
+feedback that is only semantically equivalent after additional rewriting.
 
 The same identity discipline now applies to deterministic generated FSM
 blocks. FSMs reset to state 0 and carry explicit transition and

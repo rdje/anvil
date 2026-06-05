@@ -1,8 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-sequential-coinductive-identity-2-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1 add domain-aware flop identity
+## 2026-06-05-sequential-coinductive-identity-2-2 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2 add exact self-hold merge
 
 **Landed as:** this commit
+
+**What changed**
+
+Roadmap/code slice. Completed
+`SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` by adding the first deliberately
+narrow coinductive flop identity class.
+
+- Added `FlopDSignature::ResetDefinedSelfHold` for flops whose D input
+  is exactly their own Q and whose reset kind is not `None`.
+- Kept width, reset kind, reset value, and `Module::flop_domain` in the
+  outer `FlopSignature`, so only same-domain, same-reset self-hold
+  flops can share.
+- Left reset-less self-hold instance-local because there is no
+  reset-defined equality point.
+- Added focused regressions for self-hold merge plus no-merge coverage
+  for reset-less, reset-value mismatch, domain mismatch, width mismatch,
+  and non-exact feedback cones.
+- Synced USER_GUIDE, mdBook factorization/sequential chapters,
+  CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, the task-tree frontier, and a
+  Knowledge Map fact card for the exact self-hold rule.
+
+**Why it matters**
+
+This is the first sequential identity class beyond duplicate D-cone/FSM
+table signatures. It is sound because reset establishes equality and
+`D == Q` preserves equality forever, while the retained no-merge tests
+keep the pass from becoming an implicit general sequential-equivalence
+engine.
+
+**Tests**
+
+- `cargo test -q merge_equivalent_flops`
+- `cargo test -q --test snapshots`
+- `cargo check --all-targets`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo fmt --all --check`
+- `mdbook build book`
+- `mdbook test book`
+- `cargo test -q --test book_examples` — 3 passed in 75.97s
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `git diff --check`
+
+**Impact**
+
+- Generated snapshots did not change for the canonical cases.
+- Under `identity_mode = node-id` with effective level `>= cse`,
+  exact reset-defined self-hold flops can now merge when width,
+  reset, and domain also match.
+- Reset-less self-hold, reset mismatches, domain mismatches, width
+  mismatches, non-exact feedback, mutually-recursive registers, and
+  retimed state remain no-merge boundaries.
+- No CLI flag, config default, metric name, or numbered roadmap phase
+  label changed.
+- Full `cargo test` was not run; this leaf used focused tests plus the
+  snapshot, compile, lint, format, book, memory, and Knowledge Map
+  gates.
+
+**Files**
+
+- `src/ir/compact.rs`
+- `book/src/factorization.md`
+- `book/src/sequential.md`
+- `USER_GUIDE.md`
+- `CODEBASE_ANALYSIS.md`
+- `DEVELOPMENT_NOTES.md`
+- `docs/knowledge/reset-defined-self-hold-flop-identity.md`
+- `KNOWLEDGE_MAP.md`
+- `docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-sequential-coinductive-identity-2-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1 add domain-aware flop identity
+
+**Landed as:** `06b89f2`
 
 **What changed**
 
