@@ -1,8 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
-## 2026-06-05-combinational-semantic-identity-3 — COMBINATIONAL-SEMANTIC-IDENTITY.3 close combinational frontier
+## 2026-06-05-sequential-coinductive-identity-1 — SEQUENTIAL-COINDUCTIVE-IDENTITY.1 inventory sequential proof envelope
 
 **Landed as:** this commit
+
+**What changed**
+
+Task-tree/design slice. Completed
+`SEQUENTIAL-COINDUCTIVE-IDENTITY.1` without changing source behavior.
+
+- Inventoried the reset/domain proof inputs needed before broadening
+  sequential identity: width, reset kind/value, clock/reset domain, and
+  bounded D-cone proof over canonical endpoints.
+- Split the implementation frontier into `.2.1` (add
+  `Module::flop_domain` to existing flop identity signatures) and
+  `.2.2` (first broader exact self-hold coinductive flop merge).
+- Recorded blockers for broader coinductive classes that need a bounded
+  transition-relation proof or additional IR domain/reset facts.
+- Corrected stale user-facing documentation that still described ANVIL
+  as exactly single-clock only, and clarified that current flop sharing
+  is bounded and not a general sequential-equivalence engine.
+
+**Why it matters**
+
+Sequential identity is the easiest place to make a soundness mistake.
+This leaf fixes the proof envelope before any Rust edit: the next code
+slice has a precise owner and must harden the existing flop signature
+with domain identity before the first broader coinductive merge lands.
+The mdBook now reflects the current K=1/K=N clock-domain capability
+rather than the old single-clock-only wording.
+
+**Tests**
+
+- `scripts/check_memory_architecture.sh`
+- `knowledge-map/scripts/check_knowledge_map.sh`
+- `mdbook build book`
+- `git diff --check`
+
+**Impact**
+
+- No Rust source, tests, generated RTL, CLI flags, config defaults, or
+  metrics changed in this design leaf.
+- User-facing docs now state the implemented multi-clock discipline and
+  the current sequential-sharing boundary more accurately.
+- No numbered roadmap phase label changed.
+- Full `cargo test` was not run for this docs-only inventory leaf.
+
+**Files**
+
+- `docs/tasks/SEQUENTIAL-COINDUCTIVE-IDENTITY.md`
+- `docs/TASK_TREE.md`
+- `book/src/sequential.md`
+- `book/src/structural-rules.md`
+- `book/src/factorization.md`
+- `USER_GUIDE.md`
+- `DEVELOPMENT_NOTES.md`
+- `CHANGES.md`
+- `MEMORY.md`
+
+## 2026-06-05-combinational-semantic-identity-3 — COMBINATIONAL-SEMANTIC-IDENTITY.3 close combinational frontier
+
+**Landed as:** `0e178a0`
 
 **What changed**
 

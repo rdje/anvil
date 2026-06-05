@@ -42,19 +42,34 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY`
   Status: `active`
   Goal: `Broaden reset-defined sequential identity.`
-  Children: `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`, `SEQUENTIAL-COINDUCTIVE-IDENTITY.2`, `SEQUENTIAL-COINDUCTIVE-IDENTITY.3`
+  Children: `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`, `SEQUENTIAL-COINDUCTIVE-IDENTITY.2` (`.2.1`, `.2.2`), `SEQUENTIAL-COINDUCTIVE-IDENTITY.3`
 
 - ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Inventory reset/domain proof preconditions and split the first implementable sequential merge candidate.`
   Acceptance: `The task tree records which candidates are sound now, which need new IR facts, and the next executable implementation leaf; no source behavior changes in this design leaf.`
+  Verification: `task-tree inventory, mdBook drift correction, memory/knowledge-map checks`
+  Commit: `pending this commit`
+
+- ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2`
+  Status: `active`
+  Goal: `Implement the prerequisite domain proof input and the first proven broader sequential identity class.`
+  Acceptance: `Domain-safe state identity lands before any broader coinductive merge; then a reset/domain-safe merge class beyond existing exact flop/FSM signatures lands with focused no-merge and merge tests.`
+  Children: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`, `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
+  Verification: `container; see child leaves`
+  Commit: `container; no direct commit`
+
+- ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`
+  Status: `pending`
+  Goal: `Add clock-domain proof input to existing flop identity.`
+  Acceptance: `Flop identity signatures include Module::flop_domain; same-domain duplicate-D flops still merge; cross-domain duplicate-D/reset flops do not merge; user-facing docs state the domain boundary.`
   Verification: `pending`
   Commit: `pending`
 
-- ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2`
+- ID: `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2`
   Status: `pending`
-  Goal: `Implement the first proven broader sequential identity class.`
-  Acceptance: `A reset/domain-safe merge class beyond existing exact flop/FSM signatures lands with focused no-merge and merge tests.`
+  Goal: `Implement reset-defined self-hold coinductive flop identity.`
+  Acceptance: `Same-domain, same-width, same-reset flops whose D is exactly their own Q merge after reset-defined proof; reset/domain/width mismatches and non-self-update cases remain no-merge; mdBook examples explain the retained boundary.`
   Verification: `pending`
   Commit: `pending`
 
@@ -69,13 +84,35 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `pending` | Sequential equivalence is easy to make unsound; the proof envelope must be fixed before implementation. |
+| 1 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending` | Clock-domain identity is a prerequisite before any broader state merge proof is allowed. |
+| 2 | `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | The exact self-hold class is the first coinductive candidate with a bounded proof in the current IR. |
 
 ## Decisions
 
 - `2026-06-05`: Treat reset kind, reset value, clock domain, and
   canonical endpoint proof as minimum proof inputs for any new
   sequential merge.
+- `2026-06-05`: Existing duplicate-D flop sharing is sound only inside
+  one clock/reset domain. The generated multi-clock promotion pass runs
+  after leaf finalization today, so promotion-added synchronizer flops
+  are not re-merged by the current generator flow; nevertheless the IR
+  has `Module::flop_domain`, and any post-domain merge helper must key
+  on it explicitly.
+- `2026-06-05`: Existing generated-FSM sharing remains an exact-table
+  merge only. `Fsm` has no per-FSM domain field and is emitted on the
+  module's shared clock/reset path, so broader FSM coinduction or
+  multi-domain FSM sharing is not implementable until the IR records
+  that domain/reset fact per FSM.
+- `2026-06-05`: The first broader coinductive candidate is exact
+  self-hold flop identity: for same-domain, same-width, same-reset
+  flops with `D = own Q`, reset makes the two Q values equal and the
+  transition relation preserves equality forever. That is strictly
+  narrower than arbitrary sequential equivalence.
+- `2026-06-05`: Arbitrary mutually-recursive registers, equivalent
+  update functions over different state names, convergence after one or
+  more cycles, retimed state, and CDC state sharing are blocked by
+  missing bounded transition-relation proofs and/or missing IR domain
+  facts.
 
 ## Open Questions
 
@@ -83,21 +120,29 @@ unless ANVIL can prove reset-defined behavioral equivalence.
 
 ## Blockers
 
-- None.
+- No blocker for `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`.
+- Broader coinductive classes beyond exact self-hold are intentionally
+  blocked until ANVIL has a bounded transition-relation proof instead
+  of only per-cone endpoint proofs.
 
 ## Verification Log
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `pending` | `pending` |
+| `2026-06-05` | `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `task-tree inventory; mdBook sequential/factorization/structural-rule drift correction; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; mdbook build book; git diff --check` | `passed` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `pending` | `pending` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` | `pending this commit` | `Inventory reset/domain proof envelope and split .2.1/.2.2 implementation leaves.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1` | `pending` | `Domain-aware flop signature prerequisite.` |
+| `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.2` | `pending` | `Exact reset-defined self-hold coinductive merge.` |
 
 ## Changelog
 
 - `2026-06-05`: Created task tree and opened
   `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`.
+- `2026-06-05`: Completed `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`
+  inventory. Split implementation into `.2.1` domain-aware flop
+  signatures and `.2.2` exact self-hold coinductive identity.

@@ -8,10 +8,10 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `a1f5729` - `COMBINATIONAL-SEMANTIC-IDENTITY.2 - widen semantic proof budget safely`
-- active_work_unit: `COMBINATIONAL-SEMANTIC-IDENTITY.3` is implemented/validated; this commit closes the tree with an empty frontier.
-- next_action: commit `COMBINATIONAL-SEMANTIC-IDENTITY.3`, clear `git_message_brief.txt`, then continue at the next active follow-up tree (`SEQUENTIAL-COINDUCTIVE-IDENTITY.1`).
-- in_flight_uncommitted: combinational semantic identity closeout is docs-only; task tree, roadmap, CHANGES, and MEMORY are synced.
+- latest_commit: `0e178a0` - `COMBINATIONAL-SEMANTIC-IDENTITY.3 - close combinational frontier`
+- active_work_unit: `SEQUENTIAL-COINDUCTIVE-IDENTITY.1` is a docs-only design inventory; it split the next code frontier into `.2.1` domain-aware flop signatures and `.2.2` exact self-hold coinductive merge.
+- next_action: commit `SEQUENTIAL-COINDUCTIVE-IDENTITY.1`, clear `git_message_brief.txt`, then implement `SEQUENTIAL-COINDUCTIVE-IDENTITY.2.1`.
+- in_flight_uncommitted: task tree, mdBook, USER_GUIDE, DEVELOPMENT_NOTES, CHANGES, and MEMORY are synced; docs-only validation passed.
 - blockers: none.
 
 ## Validation policy

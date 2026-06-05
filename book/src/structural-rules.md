@@ -233,37 +233,50 @@ The ZeroDefault kind has no such term — D = 0 when no select fires.
 
 ## 4 — Clock and reset never appear as cone leaves
 
-**Rule:** The module's `clk` and `rst_n` input ports exist in
-`Module.inputs` but are **not** added to the `SignalPool`. No cone
-can terminate at them; no gate can reference them as an operand.
-Their sole use is the `always_ff` header and reset branch.
+**Rule:** The module's clock/reset domain input ports exist in
+`Module.inputs` but are **not** added to the `SignalPool`. In the K=1
+default those ports are `clk` and `rst_n`; in the current K=2
+multi-clock promotion path the added domain-B ports are `clk_b` and
+`rst_n_b`. No cone can terminate at any of those control ports; no gate
+can reference them as an operand. Their sole use is the `always_ff`
+header and reset branch.
 
-**Why:** referencing `clk` or `rst_n` in combinational logic would
-produce patterns synthesis tools reject (`clk` driving combinational
-data; `rst_n` appearing in a datapath). The structural exclusion
-makes such misuse impossible.
+**Why:** referencing clocks or resets in combinational logic would
+produce patterns synthesis tools reject (a clock driving combinational
+data or a reset appearing in a datapath). The structural exclusion makes
+such misuse impossible.
 
 **Where enforced:** `src/gen/module.rs` — `generate_leaf_module`
 iterates `m.inputs` and seeds the pool only with entries whose id
-differs from `m.clock` and `m.reset`.
+differs from `m.clock` and `m.reset`. `src/gen/multi_clock.rs` adds the
+domain-B ports after leaf construction and uses them only through
+`Module.clock_domains`, never through the signal pool.
 
 ---
 
-## 5 — Single-clock / single-reset synchronous discipline
+## 5 — Declared-domain synchronous discipline
 
-**Rule:** Every module is fully synchronous to exactly one clock
-domain. Every flop uses the module's single `clk` (posedge) and
-single `rst_n` (async, active-low). There is no per-flop clock
-choice, no per-flop reset polarity choice, no mixed-edge flops.
+**Rule:** Every stateful module is fully synchronous to one or more
+declared clock/reset domains. The K=1 default uses the module's
+single `clk` (posedge) and single `rst_n` (async, active-low). The
+K=N multi-clock path declares N `(clk_X, rst_n_X)` domain pairs and
+tags every flop with a domain index. There is no arbitrary per-flop
+clock expression, no per-flop reset polarity choice, and no mixed-edge
+flop.
 
 **Why:** this matches real production synchronous-design practice
 and keeps generated modules within the scope that synthesis and
 formal tools handle without additional configuration.
 
-**Where enforced:** the IR has no field for per-flop clock or per-flop
-reset polarity. `Flop.reset_kind` is populated with `ResetKind::Async`
-unconditionally by `build_flop_leaf`. Multi-clock would require new
-IR fields and is an explicit future-phase item.
+**Where enforced:** the IR has no field for arbitrary per-flop clock
+expressions or reset polarity. `Module.clock_domains` declares the
+multi-clock domain table, `Module.flop_domains` tags flops by domain
+index (defaulting to 0 for the K=1 special case), and
+`Flop.reset_kind` is populated with `ResetKind::Async`
+unconditionally by `build_flop_leaf`. The multi-clock generator path
+uses `src/gen/multi_clock.rs::construct_2flop_synchronizer` for the
+current by-construction CDC primitive rather than filtering unsafe
+crossings later.
 
 **Boundary rule:** `clk` / `rst_n` are emitted at a module boundary iff
 that module carries sequential state locally or through instantiated

@@ -335,6 +335,10 @@ The current proof is intentionally conservative:
 - same `width`
 - same `reset_kind`
 - same `reset_val`
+- inside the live generator flow, the pass runs before opt-in
+  multi-clock promotion, so it only sees the K=1 default domain;
+  any caller or future pass that runs after domain tags exist must also
+  require the same `Module::flop_domain`
 - same canonical leaf endpoints (`PrimaryInput`s / `FlopQ`s)
 - same D-cone proof form after the current normalization ladder
   (commutative canonicalization, associative flattening, constant fold,
@@ -353,7 +357,10 @@ What it deliberately does **not** do yet:
 - prove arbitrary semantic equivalence across larger or unreduced
   D-cone forms;
 - merge cones that depend on different canonical leaf endpoints;
-- merge wider sequentially-equivalent machines.
+- merge cross-domain state after domain tags exist; or
+- merge wider sequentially-equivalent machines such as reset-equal
+  self-holding registers, mutually-recursive registers, retimed state,
+  or state that only converges after one or more cycles.
 
 ### 9. Post-construction deterministic FSM merge (`identity_mode = node-id`, effective `>= Cse`)
 

@@ -126,13 +126,20 @@ controlled by the `--share-prob` knob.
 Under `identity_mode = node-id`, there is a second sequential-sharing
 path after drain: if two flops ended up with the same emitted state
 semantics over the same canonical leaf endpoints, they are merged even
-if they were born as distinct registers. The proof is still bounded:
+if they were born as distinct registers. In the current generator flow,
+this pass runs during leaf finalisation before the opt-in multi-clock
+promotion pass, so promotion-added synchronizer flops are not
+re-merged by this pass. Any state-sharing proof that runs after clock
+domains exist must stay within one declared domain. The proof is still
+bounded:
 normalized structural proof first, plus a bounded semantic check for
 small-support cones. The semantic branch has the same support/node/work
 budget as the combinational merge proof, so shallow 12-endpoint-bit
 cones can qualify and larger candidates fall back to structural proof.
 That is stronger than exact `d: NodeId` equality, but still not full
-sequential equivalence.
+sequential equivalence. For example, broader coinductive classes such
+as reset-equal self-holding registers are not merged by the current
+released proof.
 
 The same identity discipline now applies to deterministic generated FSM
 blocks. FSMs reset to state 0 and carry explicit transition and
@@ -141,10 +148,10 @@ their selector proof, encoding, state count, transition table, output
 table, and output width match. Memories stay opaque because their
 stored contents are not reset-defined in the current template.
 
-## Clock and reset
+## K=1 clock and reset shape
 
-Exactly one clock and one reset, declared as ports of the module
-whenever the module contains at least one flop:
+The default K=1 path declares one clock and one reset as ports of the
+module whenever the module contains at least one flop:
 
 ```systemverilog
 module mod_42_0007 (
@@ -167,10 +174,12 @@ module mod_42_0007 (
     end
 ```
 
-Every flop uses `clk` (posedge). Every flop uses `rst_n`
+In this K=1 shape, every flop uses `clk` (posedge) and `rst_n`
 (async, active-low). Reset value is chosen per flop, biased toward 0.
-There is no per-flop choice of clock domain or reset polarity — see
-"Synchronous-design discipline" above.
+For K=N multi-clock modules, each flop's domain tag selects one of the
+declared `(clk_X, rst_n_X)` pairs. There is no per-flop reset polarity
+choice or mixed-edge flop choice — see "Synchronous-design discipline"
+above.
 
 (Flop names are `flop_<id>` per Rule 12; the D-driving wire is a
 gate named `<kind>_<N>` — `add_3` above stands in for whatever op

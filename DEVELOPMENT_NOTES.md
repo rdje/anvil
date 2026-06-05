@@ -10,7 +10,14 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 These are documented in detail in the mdBook. They are restated here only as anchors:
 
 - **Recursion is the core principle.** Every non-trivial generation step is a recursive descent over the typed circuit graph. Iteration is the exception, used only where termination or ordering genuinely require it (e.g., the flop worklist drainer, the per-output driver loop). When in doubt, recurse. See `book/src/core-idea.md` "The single guiding principle".
-- **Synchronous-design discipline.** Every module is fully synchronous to a single clock domain: one `clk` (posedge), one `rst_n` (async, active-low), every flop emitted into one `always_ff` block. Enforced by construction — there is no IR field for per-flop clock or per-flop reset polarity. See `book/src/sequential.md` "Synchronous-design discipline".
+- **Synchronous-design discipline.** Every stateful module is fully
+  synchronous to one or more declared clock/reset domains. The K=1
+  default is one `clk` (posedge) and one `rst_n` (async, active-low);
+  the K=N path declares `ClockDomain` entries and tags flops through
+  `Module.flop_domains`. Enforced by construction — there is no IR
+  field for arbitrary per-flop clock expressions or per-flop reset
+  polarity. See `book/src/sequential.md` "Synchronous-design
+  discipline".
 - **Flop-D mux motifs.** Every flop's D input is constructed from one of: M=0 (direct cone), M≥2 OneHot (OR-of-masked arms), M≥2 Encoded (chained ternary over `Eq(sel, k)`). M=1 is excluded by design; it collapses to a wire. The style (OneHot vs Encoded) and kind (ZeroDefault vs QFeedback) are chosen per-flop and orthogonal — four motif variants plus the M=0 plain register. See `book/src/sequential.md` "Flop motifs".
 - **Q-feedback freedom (revised).** A flop's own Q may appear freely — any number of times — as a leaf in any of its data, select, or direct-D sub-cones. The clock edge breaks the Q→D loop temporally; this is the standard synchronous feedback pattern (counters, accumulators, state machines). Independently, `FlopKind::QFeedback` adds an explicit Q fall-through term in the mux when no select fires. Both are legal; both can be active at the same flop. Combinational self-reference (Rule 1) is still forbidden. See `book/src/structural-rules.md` Rules 2 and 3.
 - **Structural rules catalog.** Every load-bearing generator invariant is documented in `book/src/structural-rules.md`. That chapter is the durable source of truth — new rules land there as they become invariants. Inline design-decision recaps in this file should *point* to the catalog, not duplicate rule text.
@@ -58,6 +65,27 @@ If you need to revise any of these, that is a deliberate task with its own commi
 ---
 
 ## Design notes
+### Sequential identity proof envelope inventory (2026-06-05, SEQUENTIAL-COINDUCTIVE-IDENTITY.1)
+
+Before broadening state sharing, the proof inputs have to be explicit.
+For flops, the minimum safe signature is width, reset kind, reset value,
+clock/reset domain, and a bounded D-cone proof over canonical endpoints.
+The current generated multi-clock promotion pass runs after leaf
+finalization, so promotion-added synchronizer flops are not re-merged by
+the existing generated flow. Still, the IR already has
+`Module::flop_domain`, and any helper that can run after domain tags
+exist must include it in the signature before merging state.
+
+The first broader class worth implementing is exact self-hold
+coinduction: two same-domain, same-width, same-reset registers whose D
+input is exactly their own Q are equal after reset and preserve equality
+on every clock. That is intentionally much narrower than arbitrary
+sequential equivalence. Mutually-recursive registers, update functions
+that are equivalent only after renaming state variables, retimed state,
+cross-domain state, and convergence-after-N-cycles candidates remain
+blocked until ANVIL has a bounded transition-relation proof and the
+necessary IR domain/reset facts.
+
 ### Bounded semantic proof budget audit (2026-06-05, COMBINATIONAL-SEMANTIC-IDENTITY.2)
 
 The semantic proof limit moved from a flat 10 endpoint-support-bit cap
