@@ -89,6 +89,20 @@ fn roll_knob(g: &mut Generator, m: &mut Module, knob: KnobId, prob: f64) -> bool
     fired
 }
 
+/// Per-module construction-time node-budget check
+/// (`WORKLOAD-MEMORY-SAFETY.3`). True once the module's node arena has
+/// reached `cfg.max_nodes_per_module`. The sentinel `0` means *unlimited*
+/// and is the default, so this returns `false` on the default path and
+/// the budget never perturbs construction or RNG consumption — generated
+/// RTL stays byte-identical. When non-zero, callers use this to force
+/// terminal selection (steer to existing signals; never truncate a
+/// finished cone), bounding peak per-module memory.
+#[inline]
+fn node_budget_reached(g: &Generator, m: &Module) -> bool {
+    let budget = g.cfg.max_nodes_per_module;
+    budget != 0 && m.nodes.len() >= budget as usize
+}
+
 /// Retry loop around `build_cone` that rejects trivial (empty dep-set)
 /// roots. Bounded to avoid pathological infinite retries; if we exceed
 /// the budget, the last attempt is accepted.
@@ -199,6 +213,12 @@ pub fn build_graph_first(
     let mut iterations: usize = 0;
     let iter_budget = target.saturating_mul(8);
     while emitted < target && iterations < iter_budget {
+        // Node-budget governor (`WORKLOAD-MEMORY-SAFETY.3`): stop growing
+        // the pool once the module's node arena reaches the budget.
+        // Sentinel 0 = unlimited ⇒ never fires ⇒ byte-identical.
+        if node_budget_reached(g, m) {
+            break;
+        }
         iterations += 1;
         if grow_pool_one_unit(g, m, pool, worklist) {
             emitted += 1;
@@ -585,7 +605,15 @@ fn process_signal_frame(
     per_output_drive: &mut [Option<NodeId>],
 ) {
     let leaf_prob = (frame.depth as f64) / (g.cfg.max_depth as f64);
-    let force_leaf = frame.depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
+    // Node-budget governor (`WORKLOAD-MEMORY-SAFETY.3`): once the module's
+    // node arena reaches the budget, force every further recursion point
+    // to a terminal — steering to existing signals instead of opening new
+    // sub-cones (rules-first; never a truncation). Sentinel 0 = unlimited
+    // ⇒ this term is false ⇒ the decision (and RNG consumption) is
+    // byte-identical to the historical path.
+    let over_budget = node_budget_reached(g, m);
+    let force_leaf =
+        over_budget || frame.depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
 
     if force_leaf {
         let node = pick_terminal(g, m, pool, frame.width, frame.exclude);
@@ -3071,7 +3099,10 @@ pub fn build_cone(
     exclude: Option<NodeId>,
 ) -> NodeId {
     let leaf_prob = (depth as f64) / (g.cfg.max_depth as f64);
-    let force_leaf = depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
+    // Node-budget governor (`WORKLOAD-MEMORY-SAFETY.3`); see
+    // `process_signal_frame`. Sentinel 0 = unlimited ⇒ byte-identical.
+    let over_budget = node_budget_reached(g, m);
+    let force_leaf = over_budget || depth >= g.cfg.max_depth || g.rng.gen_bool(leaf_prob.min(1.0));
 
     if force_leaf {
         trace!(depth, width, "🍃 leaf via pick_terminal");
@@ -4306,6 +4337,62 @@ mod tests {
         let mut g = Generator::new(Config::default());
         assert_eq!(pick_priority_encoder_n(&mut g, 33), None);
         assert_eq!(pick_priority_encoder_n(&mut g, 128), None);
+    }
+
+    #[test]
+    fn node_budget_caps_and_shrinks_module_but_stays_valid() {
+        // WORKLOAD-MEMORY-SAFETY.3: a non-zero `max_nodes_per_module`
+        // bounds the per-module node arena (cone construction steers to
+        // existing terminals once the budget is reached — rules-first,
+        // never truncating a finished cone) while the module stays
+        // valid-by-construction. The default sentinel `0` is unlimited.
+        let base = |seed: u64| Config {
+            seed,
+            // Default max_depth (6) keeps the unbounded reference safely
+            // small; four outputs + no sharing make it reliably exceed
+            // the tight budget below.
+            min_outputs: 4,
+            max_outputs: 4,
+            share_prob: 0.0,
+            constant_prob: 0.0,
+            ..Config::default()
+        };
+
+        // Default is the unlimited sentinel.
+        assert_eq!(Config::default().max_nodes_per_module, 0);
+
+        // Unbounded reference (explicit sentinel 0 = same as default).
+        let mut unb = base(123);
+        unb.max_nodes_per_module = 0;
+        let big = Generator::new(unb).generate_module();
+
+        // Budgeted: identical knobs except a tight node budget.
+        let budget: u32 = 48;
+        let mut bnd = base(123);
+        bnd.max_nodes_per_module = budget;
+        let small = Generator::new(bnd).generate_module();
+
+        // The cap has a real effect: the budgeted module is strictly
+        // smaller than the unbounded one.
+        assert!(
+            small.nodes.len() < big.nodes.len(),
+            "budget must shrink the module: {} !< {}",
+            small.nodes.len(),
+            big.nodes.len()
+        );
+        // And it is genuinely bounded (soft ceiling: a bounded number of
+        // terminal/adapter nodes may close already-open frames past the
+        // budget, hence the generous slack rather than an exact equality).
+        assert!(
+            small.nodes.len() <= budget as usize * 6,
+            "budget must keep the module bounded: {} > {}",
+            small.nodes.len(),
+            budget * 6
+        );
+
+        // Both remain valid-by-construction.
+        crate::ir::validate::validate(&small).expect("budgeted module must be valid");
+        crate::ir::validate::validate(&big).expect("unbounded module must be valid");
     }
 
     fn make_generator(flop_prob: f64) -> Generator {

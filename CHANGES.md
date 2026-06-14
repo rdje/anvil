@@ -1,6 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-workload-memory-safety-3 — WORKLOAD-MEMORY-SAFETY.3 real per-module node budget
+
+**Landed as:** this commit
+
+**What changed**
+
+`max_nodes_per_module` is now a real, enforced, rules-first
+construction-time node budget — previously it was a **ghost knob**
+(declared `src/config.rs`, defaulted to `1000`, enforced nowhere). A
+non-zero budget bounds one module's `Vec<Node>` arena so a pathological
+`(seed, knobs)` (deep `max_depth`, high arity, low sharing) cannot grow a
+single module without bound.
+
+- `src/gen/cone.rs`: new `node_budget_reached(g, m)` helper, OR-ed as the
+  first term into the two `force_leaf` decisions — `process_signal_frame`
+  (interleaved/default strategy) and `build_cone` (sequential/shuffled
+  strategies, flop-D cones, motif sub-cones) — plus a `break` in
+  `build_graph_first`'s pool-growth loop. Once the arena reaches the
+  budget, every further recursion point forces a terminal pick (steer to
+  existing signals; never truncate a finished cone), so cones still close
+  legally and valid-by-construction holds.
+- `src/config.rs`: default changed `1000` → `0` (sentinel `0 = unlimited`),
+  with a doc comment. Enforcing the old inert `1000` default would have
+  silently changed output for modules exceeding it; sentinel-`0` keeps the
+  default path byte-identical.
+- `book/src/knobs.md`: the knob (previously mis-described as an enforced
+  "hard cap" — a drift) is now accurately documented as an opt-in soft
+  node budget, the `--dump-config` sample shows `0`, and the
+  knob-effectiveness map gains `max_nodes_per_module → num_nodes`.
+
+**Byte-identical default.** With the sentinel default `0`,
+`node_budget_reached` returns `false`, so each `force_leaf` reduces to the
+original `depth >= max_depth || gen_bool(...)` — identical RNG, identical
+SV. The only default-path change is the config echo (`1000` → `0`) in
+`--dump-config` / `manifest.json` (config JSON, not SV). Measured by the
+existing `Metrics::num_nodes`.
+
+**Why it matters**
+
+Closes the per-module unbounded-growth vector in ANVIL's own runtime
+(`WORKLOAD-MEMORY-SAFETY` goal): a single deep/wide module can no longer
+balloon the node arena past a user-set bound, while the default stays
+exactly as before.
+
+**Validation**
+
+- `cargo test --lib node_budget` — `node_budget_caps_and_shrinks_module_but_stays_valid`:
+  a tight budget (48) shrinks the arena vs. the unbounded reference,
+  keeps it bounded (≤ budget·6 soft slack), and both modules pass
+  `ir::validate`.
+- `cargo test --test snapshots` 6/6 (default-path SV byte-identical).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all
+  --check` clean.
+- Full `cargo test` under `scripts/ram_guard.sh --threshold 88`.
+
+**Impact**
+
+No default behaviour change (byte-identical SV; only the config echo value
+shifts `1000`→`0`). New opt-in capability: set `max_nodes_per_module > 0`
+via `--config` to bound peak per-module memory.
+
+**Files touched**
+
+`src/gen/cone.rs`, `src/config.rs`, `book/src/knobs.md`,
+`docs/tasks/WORKLOAD-MEMORY-SAFETY.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-workload-memory-safety-2 — WORKLOAD-MEMORY-SAFETY.2 stream the directory-output manifest
 
 **Landed as:** this commit

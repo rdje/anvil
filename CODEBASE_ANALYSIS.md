@@ -629,6 +629,14 @@ main  →  lib  →  gen  →  ir
 ## Invariants currently enforced
 
 In code (constructors / generator):
+- `WORKLOAD-MEMORY-SAFETY.3` enforces a per-module construction-time node
+  budget. `Config::max_nodes_per_module` (sentinel `0` = unlimited,
+  default) is checked by `cone::node_budget_reached`, OR-ed into both
+  `force_leaf` decisions (`process_signal_frame`, `build_cone`) and the
+  `build_graph_first` growth loop: once `Module::nodes` reaches the budget,
+  construction steers to existing terminals (rules-first; never truncates a
+  finished cone), bounding peak per-module memory. Default `0` keeps the
+  recursion (and RNG) byte-identical; effect measured by `Metrics::num_nodes`.
 - `SIGNOFF-SURFACE-EXPANSION.1` extends the closed multi-clock CDC
   lane from exact 2-flop synchronizers to configurable N-flop 1-bit
   synchronizer chains. `Config::cdc_synchronizer_stages` defaults to

@@ -83,11 +83,11 @@ This tree guards `anvil`'s *own* process from the inside.
   Commit: `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Turn the per-module node budget into a real, rules-first construction-time cap (wire up / replace the max_nodes_per_module ghost knob).`
   Acceptance: `A construction-time node budget is enforced rules-first (prefer terminal reuse / stop opening new sub-cones near budget, never truncate a finished cone); default preserves byte-identical generated RTL (default = unlimited or a value provably ≥ all current outputs); a metric measures it (knob-effectiveness doctrine); validation + focused tests; snapshots + book_examples byte-identical at default.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — node_budget_reached() OR-ed into both force_leaf sites (process_signal_frame, build_cone) + build_graph_first loop break; default 1000→sentinel 0 (unlimited) keeps RTL byte-identical (snapshots 6/6); focused test caps+shrinks+validates; effect measured by Metrics::num_nodes. See Verification Log.`
+  Commit: `WORKLOAD-MEMORY-SAFETY.3 - real per-module node budget`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.4`
   Status: `pending`
@@ -107,12 +107,18 @@ This tree guards `anvil`'s *own* process from the inside.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `WORKLOAD-MEMORY-SAFETY.3` | `pending` | Per-module construction-time node budget (wire up the `max_nodes_per_module` ghost knob, rules-first, sentinel-`0`-unlimited default to preserve byte-identical RTL). |
-| 2 | `WORKLOAD-MEMORY-SAFETY.4` | `pending` | Internal RAM/RSS self-governor; opt-in, independent of `.3`. |
-| 3 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout once the mechanisms land. |
+| 1 | `WORKLOAD-MEMORY-SAFETY.4` | `pending` | Internal RAM/RSS self-governor; opt-in, independent of `.2`/`.3`. |
+| 2 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout once the mechanisms land. |
 
-`.2` (stream the directory-output manifest) is `done` — byte-identical,
-peak metadata RAM now O(1) in `--count`.
+`.2` (stream the directory-output manifest) and `.3` (real per-module node
+budget) are `done` — both byte-identical at the default; peak metadata RAM
+is O(1) in `--count`, and per-module node growth is now boundable via
+`max_nodes_per_module`.
+
+> Sequencing note (owner request, 2026-06-14): a separate
+> `CONE-DECOMPOSITION` tree (breaking the 5551-line `src/gen/cone.rs` into
+> cohesive submodules) is prioritized ahead of `.4`/`.5` here. This tree
+> resumes at `.4` after that decomposition lands.
 
 ## Decisions
 
@@ -175,15 +181,18 @@ peak metadata RAM now O(1) in `--count`.
 | --- | --- | --- | --- |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.1` | Codebase memory-behaviour audit (Explore survey + direct verification: `grep -rn max_nodes_per_module src/` → only `config.rs:337` decl + `config.rs:729` default; `src/main.rs:507-575` output paths read directly). Docs-only; design recorded in `DEVELOPMENT_NOTES.md` + this tree. memory-architecture + knowledge-map self-checks (pre-commit). `git diff --check`. Full `cargo test` intentionally skipped (no code change; full-suite RAM risk per `docs/decisions/0003-resource-safe-validation.md`). | passed (docs-only) |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.2` | `cargo check --all-targets` (clean, 6.1s); `cargo clippy --all-targets -- -D warnings` (clean after `io::Error::other` fix); `cargo fmt --all --check` (clean); `cargo test --lib manifest` 3/3 (`streamed_matches_reference`, `streamed_matches_reference_for_designs`, `propagates_element_error`); `cargo test --test snapshots` 6/6 (SV byte-identity); **gold-standard** old-vs-new `diff -r` byte-identical on both lanes (`--seed 42 --count 5` flat; `--seed 7 --count 3 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 4` wrapper design) for `manifest.json` + every `.sv`; full `cargo test` under `scripts/ram_guard.sh --threshold 88` (RAM stayed comfortable). | passed |
+| `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.3` | `cargo test --lib node_budget` 1/1 (`node_budget_caps_and_shrinks_module_but_stays_valid`: budget 48 shrinks arena vs unbounded, stays ≤ budget·6, both validate); `cargo test --test snapshots` 6/6 (default-path SV byte-identical with default `1000`→`0`); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; full `cargo test` under `scripts/ram_guard.sh --threshold 88`; `mdbook build book` clean. | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `WORKLOAD-MEMORY-SAFETY.1` | `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design` | Tree genesis + design leaf. Hash `8f7fb34`. |
-| `WORKLOAD-MEMORY-SAFETY.2` | `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest` | `src/manifest.rs` + main.rs rewire. Pending hash. |
+| `WORKLOAD-MEMORY-SAFETY.2` | `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest` | `src/manifest.rs` + main.rs rewire. Hash `1c5ac85`. |
+| `WORKLOAD-MEMORY-SAFETY.3` | `WORKLOAD-MEMORY-SAFETY.3 - real per-module node budget` | cone.rs `node_budget_reached` + config default `1000`→`0`. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (audit + bounded-memory design, docs-only). Frontier now `.2` (streaming manifest).
 - `2026-06-14`: Landed `.2` (streaming directory-output manifest, byte-identical, peak metadata RAM O(1) in `--count`). Frontier now `.3` (per-module node budget).
+- `2026-06-14`: Landed `.3` (real per-module node budget — `max_nodes_per_module` ghost knob wired up, sentinel `0`=unlimited default, byte-identical). Frontier now `.4`, but a separate `CONE-DECOMPOSITION` tree is prioritized ahead of it per owner request.

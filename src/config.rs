@@ -334,6 +334,16 @@ pub struct Config {
     pub min_width: u32,
     pub max_width: u32,
     pub max_depth: u32,
+    /// Per-module construction-time node budget (`WORKLOAD-MEMORY-SAFETY.3`).
+    /// Sentinel `0` = unlimited (the default; byte-identical to the
+    /// historical unbounded behaviour). When non-zero, cone construction
+    /// stops opening new sub-cones once the module's node arena
+    /// (`Module::nodes`) reaches this many nodes — steering to existing
+    /// terminals (rules-first; it never truncates a finished cone), so a
+    /// pathological `(seed, knobs)` cannot grow one module's `Vec<Node>`
+    /// without bound. A *soft* ceiling: a bounded number of
+    /// terminal/adapter nodes may still be appended to legally close
+    /// already-open frames. Its effect is measured by `Metrics::num_nodes`.
     pub max_nodes_per_module: u32,
 
     // Probability knobs
@@ -726,7 +736,12 @@ impl Default for Config {
             min_width: 1,
             max_width: 32,
             max_depth: 6,
-            max_nodes_per_module: 1000,
+            // Sentinel 0 = unlimited (byte-identical to the historical
+            // unbounded behaviour). Opt in to a real cap via --config.
+            // (WORKLOAD-MEMORY-SAFETY.3 — previously 1000 but never
+            // enforced; enforcing the old default would have changed
+            // output for any module exceeding it.)
+            max_nodes_per_module: 0,
             flop_prob: 0.15,
             share_prob: 0.3,
             min_gate_arity: 2,

@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Per-module construction-time node budget — `WORKLOAD-MEMORY-SAFETY.3`
+
+Turned `max_nodes_per_module` from a **ghost knob** (declared + defaulted
+to `1000`, enforced nowhere) into a real, rules-first construction-time
+budget that bounds one module's `Vec<Node>` arena.
+
+**Where the budget lives — the `force_leaf` funnel.** The recursion has
+exactly two "terminate vs. grow" decision points, both structured
+identically as `force_leaf`:
+`src/gen/cone.rs::process_signal_frame` (the interleaved/default strategy)
+and `src/gen/cone.rs::build_cone` (the recursive builder used by the
+sequential/shuffled strategies, flop-D cones, and every motif sub-cone).
+A new `node_budget_reached(g, m)` helper is OR-ed into both `force_leaf`
+expressions as the **first** term, plus a `break` in
+`build_graph_first`'s pool-growth loop (the only strategy that doesn't go
+through a `force_leaf`). Once the arena reaches the budget, every further
+recursion point forces a terminal pick — steering to existing signals
+instead of opening new sub-cones.
+
+**Why steering, not truncation.** Rules-first + valid-by-construction
+(`feedback_rules_first_generation`): forcing `force_leaf` reuses the
+*exact* path the depth limit already takes (`pick_terminal`), which always
+returns a legal dep-bearing terminal, so every cone still closes and every
+output keeps dep-set ≥ 1. We never cut a half-built cone (that would emit
+invalid RTL). Hence a **soft** ceiling: a bounded number of
+terminal/adapter nodes may still be appended to close frames already
+in-flight when the budget is crossed — the test allows generous slack
+rather than asserting exact equality.
+
+**Why the default had to change `1000` → `0`.** The knob was inert, so
+*enforcing* it at the old default would have silently changed output for
+any module exceeding 1000 nodes — a reproducibility break. Sentinel
+`0 = unlimited` keeps the default path byte-identical: `node_budget_reached`
+returns `false`, so the `force_leaf` expression reduces to the original
+`depth >= max_depth || gen_bool(...)` with identical RNG consumption (the
+`||` short-circuit means the budget term, being `false`, changes nothing).
+The only observable default-path change is the `--dump-config` /
+`manifest.json` config echo (`1000` → `0`) — config JSON, **not** SV, so
+`tests/snapshots.rs` stays green without acceptance. Effect measured by
+the existing `Metrics::num_nodes` (knob-effectiveness map updated).
+
+**RNG note.** When the budget *does* fire (non-default), it short-circuits
+before `gen_bool`, so the RNG stream differs from the unbounded run — but
+that is expected and deterministic: the budget is a knob, and
+reproducibility is per-`(seed, knobs)`.
+
+Validation: `cargo test --lib node_budget` (caps + shrinks + stays valid),
+`cargo test --test snapshots` 6/6 (default-path SV byte-identical), clippy
+`-D warnings` + fmt clean, full `cargo test` under
+`scripts/ram_guard.sh --threshold 88`. Book `knobs.md` updated (the knob
+was previously mis-described as an enforced "hard cap" — that drift is now
+true).
+
+---
+
 ## 2026-06-14 — Streaming manifest writer (byte-identical) — `WORKLOAD-MEMORY-SAFETY.2`
 
 Landed `.2`: `src/manifest.rs` + rewired both `--out DIR` lanes in

@@ -109,8 +109,15 @@ Control the size and topology of generated modules.
 - `min_outputs / max_outputs` — primary output port count range.
 - `min_width / max_width` — port and internal-wire width range.
 - `max_depth` — maximum cone recursion depth.
-- `max_nodes_per_module` — hard cap on node count; currently a safety
-  ceiling, not hit in practice.
+- `max_nodes_per_module` — per-module construction-time node budget.
+  Sentinel `0` = unlimited (the default; byte-identical to the historical
+  unbounded behaviour). When non-zero, cone construction stops opening new
+  sub-cones once the module's node count reaches the budget — it steers to
+  existing terminals (rules-first; it never truncates a finished cone), so
+  a pathological seed/knob mix cannot grow one module without bound. A
+  *soft* ceiling: a bounded number of terminal/adapter nodes may still
+  close already-open cones past the budget. Its effect shows up in the
+  `num_nodes` metric.
 - `hierarchy_depth`, `num_leaf_modules`, `num_child_instances` —
   legacy exact depth-1 wrapper hierarchy controls (Phase 4).
 - `min_hierarchy_depth`, `max_hierarchy_depth`,
@@ -604,7 +611,7 @@ Config {
     min_outputs: 1, max_outputs: 4,
     min_width: 1,   max_width: 32,
     max_depth: 6,
-    max_nodes_per_module: 1000,
+    max_nodes_per_module: 0,   // 0 = unlimited (opt-in node budget)
     // Sequential
     flop_prob: 0.15,
     max_flops_per_module: 32,
@@ -817,7 +824,9 @@ for cross-simulator trace agreement.
 ### Not yet exposed via CLI (reachable via `--config FILE`)
 - `use_async_reset` — unused (flops are always async-reset by discipline).
 - Hierarchy field `library_prob` — future probabilistic mixed-sourcing dial for later Phase 4+ work.
-- `max_nodes_per_module` — safety ceiling, not typically tuned.
+- `max_nodes_per_module` — per-module node budget (default `0` =
+  unlimited). Set it to a positive cap to bound peak per-module memory on
+  huge or pathological workloads; see the structural-knobs entry above.
 - `width_parameterization_prob` (Phase 5, default `0.0`) — per-module
   probability that a finalized width-homogeneous leaf is emitted with
   a width `parameter` and instantiated with per-instance `#(.W(v))`
@@ -925,6 +934,7 @@ which are bugs worth investigating.
 | `min_outputs` / `max_outputs` | `num_outputs`                                              |
 | `min_width` / `max_width`     | port widths (in `manifest.json`), `constants_by_width`     |
 | `max_depth`                   | `max_gate_depth`, `gate_depth_histogram` — monotone in the knob (typically 10–100× because block-assembly helpers expand each recursion level into multiple gate layers). |
+| `max_nodes_per_module`        | `num_nodes` — a non-zero budget caps it (soft ceiling); `0` (default) = unlimited |
 | `flop_prob`                   | `num_flops` / `num_gates`                                  |
 | `max_flops_per_module`        | `num_flops` saturation near the cap                        |
 | `min_mux_arms` / `max_mux_arms` | one-hot `MuxArm` list lengths (via flop-shape metric)    |
