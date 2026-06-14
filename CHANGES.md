@@ -1,6 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-3 — CONE-DECOMPOSITION.3 extract cone/semantic.rs
+
+**Landed as:** this commit
+
+**What changed**
+
+Moved the bounded-semantic analysis machinery (~1360 lines) out of
+`src/gen/cone.rs` into a new `src/gen/cone/semantic.rs` submodule — a pure
+code move, byte-identical.
+
+- `src/gen/cone/semantic.rs` (new): `width_mask`, `exact_bound`,
+  `casez_pattern_matches`, `shift_interval_by_exact_addend`,
+  `prove_node_exact_value[_from_bounds]`,
+  `obvious_unsigned_compare_from_bounds`/`_result`, `exact_gate_value`,
+  `collect_small_set`, the `Small/TinyValueSet*` memo types + impls, all
+  `*_value_set` fns, `node_support_size`, `can_*`,
+  `small_value_set_min_at_least`, `node_unsigned_bounds` — pure analysis
+  over a `&Module`. Top-level items are `pub(crate)`; the one root symbol
+  the proofs call is imported via `use super::node_deps;`.
+- `src/gen/cone.rs`: declares `mod semantic; pub(crate) use semantic::*;`
+  (keeps `crate::gen::cone::obvious_unsigned_compare_result` /
+  `prove_node_exact_value_from_bounds` reachable for `src/ir/compact.rs`).
+  The now-unused root `use std::collections::HashMap;` moved into the test
+  module (the tests still reach it via `use super::*`).
+
+**Why it matters**
+
+The largest single readability win of the decomposition: the proof
+machinery now reads as a self-contained, construction-free analysis
+module, and `cone.rs` shrinks by ~1360 lines.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean. (Full `cargo test`
+deferred to the closeout leaf per the tree's milestone protocol.)
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor.
+
+**Files touched**
+
+`src/gen/cone/semantic.rs` (new), `src/gen/cone.rs`,
+`docs/tasks/CONE-DECOMPOSITION.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-2 — CONE-DECOMPOSITION.2 extract cone/snapshot.rs
 
 **Landed as:** this commit

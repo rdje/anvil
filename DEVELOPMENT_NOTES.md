@@ -60,6 +60,29 @@ root-resident test. Mechanic confirmed end-to-end: `mod snapshot;
 pub(crate) use snapshot::*;` keeps the symbols reachable from the root and
 re-exported, full suite byte-identical.
 
+**Proven extraction recipe (used for `.2` snapshot + `.3` semantic; reuse
+for `.4`–`.6`).** For a large contiguous block `[A,B]` in `cone.rs`:
+1. `sed -n 'A,Bp' cone.rs > cone/<name>.rs` (exact byte-for-byte copy).
+2. `perl -i -pe 's/^(fn |struct |enum )/pub(crate) $1/' cone/<name>.rs`
+   (bump column-0 items; already-`pub(crate)` lines aren't matched;
+   `impl` blocks are left alone). *Note:* BSD `sed -i ''` choked on the
+   `-E` script here — use `perl` for the in-place edits.
+3. Prepend the module header: doc comment + `use crate::ir::{…}` (the IR
+   types the block uses) + `use super::{…}` for any root/sibling symbols
+   the block calls (the compiler's `E0425` lists them — e.g. `semantic.rs`
+   needed only `use super::node_deps;`).
+4. `perl -i -ne 'print unless $. >= A && $. <= B' cone.rs` (delete the
+   moved block).
+5. Add `mod <name>; pub(crate) use <name>::*;` to the root.
+6. `cargo fmt` (collapses the double blank line left at the seam),
+   `cargo check --all-targets`, then fix the imports the compiler names.
+7. Gate: `cargo test --lib` + `cargo test --test snapshots` (byte-identical)
+   + clippy `-D warnings` + fmt. Full suite at the milestones (`.2`, `.7`).
+GOTCHA beyond the field-visibility one above: an import used *only* by the
+moved code becomes unused in the root — move it (e.g. `HashMap` migrated
+into the test module for `.3`, since the tests still reach it via
+`use super::*`).
+
 ---
 
 ## 2026-06-14 — Per-module construction-time node budget — `WORKLOAD-MEMORY-SAFETY.3`

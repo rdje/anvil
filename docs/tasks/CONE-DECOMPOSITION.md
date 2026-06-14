@@ -110,11 +110,11 @@ green without acceptance), all tests pass, no IR/knob/output change.
   Commit: `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs`
 
 - ID: `CONE-DECOMPOSITION.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract cone/semantic.rs (value-set / bounds / exact-value proofs — the largest, most self-contained chunk).`
   Acceptance: `semantic machinery moved; crate::ir::compact users still resolve via re-export; cargo check/clippy/fmt clean; lib + snapshots byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — moved width_mask..obvious_unsigned_compare_result (~1360 lines) to src/gen/cone/semantic.rs; mod semantic + pub(crate) use semantic::* in root; one cross-module import (use super::node_deps), HashMap import migrated to the test module. lib 307/307, snapshots 6/6, clippy/fmt clean. See Verification Log.`
+  Commit: `CONE-DECOMPOSITION.3 - extract cone/semantic.rs`
 
 - ID: `CONE-DECOMPOSITION.4`
   Status: `pending`
@@ -148,15 +148,14 @@ green without acceptance), all tests pass, no IR/knob/output change.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CONE-DECOMPOSITION.3` | `pending` | Largest pure chunk (semantic proofs); biggest readability win, lowest risk (pure `&Module` fns). |
-| 2 | `CONE-DECOMPOSITION.4` | `pending` | Primitives. |
-| 3 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection. |
-| 4 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
-| 5 | `CONE-DECOMPOSITION.7` | `pending` | Motifs + closeout. |
+| 1 | `CONE-DECOMPOSITION.4` | `pending` | Primitives (IR-building gate makers). |
+| 2 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection. |
+| 3 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
+| 4 | `CONE-DECOMPOSITION.7` | `pending` | Motifs + closeout. |
 
-`.2` (extract `cone/snapshot.rs`) is `done` — the `cone.rs`-root + `cone/`
-submodule + `pub(crate) use snapshot::*` re-export mechanic is validated
-end-to-end (full suite green).
+`.2` (extract `cone/snapshot.rs`) and `.3` (extract `cone/semantic.rs`,
+~1360 lines) are `done` — both byte-identical (lib + snapshots); the
+mechanic is validated end-to-end (full suite green at `.2`).
 
 ## Open Questions
 
@@ -175,15 +174,18 @@ end-to-end (full suite green).
 | --- | --- | --- | --- |
 | `2026-06-14` | `CONE-DECOMPOSITION.1` | Full function inventory of `src/gen/cone.rs` (grep of all top-level `fn`/`struct`/`enum`/`impl`); external-user audit (`src/gen/module.rs`, `src/gen/hierarchy.rs`, `src/ir/compact.rs`) for the symbols that must stay path-stable. Docs-only; design recorded here + in `DEVELOPMENT_NOTES.md`. memory-architecture + knowledge-map self-checks; `git diff --check`. | passed (docs-only) |
 | `2026-06-14` | `CONE-DECOMPOSITION.2` | `cargo check --all-targets` clean; `cargo test --lib` 307/307 (incl. the snapshot/rollback test + 42 cone tests); `cargo test --test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; FULL `cargo test` under `scripts/ram_guard.sh --threshold 88` (first-extraction milestone). One fix during the move: `ConstructionSnapshot` fields bumped private→`pub(crate)` so the root-resident cone tests can still inspect them after a snapshot/rollback round-trip. | passed |
+| `2026-06-14` | `CONE-DECOMPOSITION.3` | Moved `width_mask`..`obvious_unsigned_compare_result` (~1360 lines) to `src/gen/cone/semantic.rs` via `sed` extract + `perl` visibility bump; `mod semantic; pub(crate) use semantic::*;`. Two fixups: `use super::node_deps;` (the one root symbol the proofs call) and the `std::collections::HashMap` import migrated from the cone root into the test module (the lib no longer uses it; the tests reach it via `use super::*`). `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. (Full suite deferred to closeout `.7` per protocol.) | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `CONE-DECOMPOSITION.1` | `CONE-DECOMPOSITION.1 - decomposition design` | Tree genesis + design. Hash `31571a5`. |
-| `CONE-DECOMPOSITION.2` | `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs` | Rollback machinery → `src/gen/cone/snapshot.rs`. Pending hash. |
+| `CONE-DECOMPOSITION.2` | `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs` | Rollback machinery → `src/gen/cone/snapshot.rs`. Hash `362756d`. |
+| `CONE-DECOMPOSITION.3` | `CONE-DECOMPOSITION.3 - extract cone/semantic.rs` | ~1360-line proof machinery → `src/gen/cone/semantic.rs`. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (decomposition design, docs-only). Frontier `.2` (extract `cone/snapshot.rs`).
 - `2026-06-14`: Landed `.2` (extract `cone/snapshot.rs`, byte-identical; mechanic validated by full suite). Frontier `.3` (extract `cone/semantic.rs`).
+- `2026-06-14`: Landed `.3` (extract `cone/semantic.rs`, ~1360 lines, byte-identical via lib+snapshots). Frontier `.4` (extract `cone/primitives.rs`).
