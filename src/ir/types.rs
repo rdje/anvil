@@ -74,16 +74,23 @@ pub struct ParamEnv {
 
 /// Packed-aggregate surface kind for the Phase 5b emitter projection.
 ///
-/// `.2.1` (scaffold) only ever selects `StructPacked` — the general,
-/// always-sound case for a group of differing-width ports (a packed
-/// `struct` is LRM-defined to be bit-equivalent to the concatenation
-/// of its members). `UnionPacked` / `ArrayPacked` require a same-width
-/// group and are deferred to a later `.2.x` calibration sub-slice; the
-/// enum is defined now so the IR shape is stable.
+/// `StructPacked` is the general, always-sound case for a group of
+/// differing-width ports (a packed `struct` is LRM-defined to be
+/// bit-equivalent to the concatenation of its members). `ArrayPacked`
+/// is the uniform-width case, rendered as a packed array
+/// (`typedef logic [N-1:0][W-1:0] <name>;`) that is likewise
+/// bit-equivalent to the field concatenation — a faithful projection
+/// owned by `AGGREGATE-ARRAY-PACKING` (opt-in `aggregate_array_prob`).
+/// `UnionPacked` stays deferred: a union aliases distinct ports, so it
+/// is not a faithful projection of a group of distinct data ports.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AggregateKind {
-    /// `typedef struct packed { … } <name>;`
+    /// `typedef struct packed { … } <name>;` — differing-width groups.
     StructPacked,
+    /// `typedef logic [N-1:0][W-1:0] <name>;` — uniform-width groups,
+    /// bit-equivalent to the concatenation of the N same-width fields
+    /// (`AGGREGATE-ARRAY-PACKING`).
+    ArrayPacked,
 }
 
 /// Phase 5b packed-aggregate emitter projection (architecture (P),

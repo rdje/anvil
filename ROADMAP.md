@@ -1801,7 +1801,12 @@ is deferred). These are open-ended capability deepenings recorded in
 the tree's Decisions; they are explicitly **not** Phase 5b blockers
 and land as optional post-Phase-5b sub-slices without reopening the
 phase. Unpacked arrays remain Phase 6; unpacked datapath/enums stay
-deprioritised.
+deprioritised. The `ArrayPacked` sub-slice is now task-tree-owned and
+in progress under
+[`AGGREGATE-ARRAY-PACKING`](docs/tasks/AGGREGATE-ARRAY-PACKING.md)
+(default-off `aggregate_array_prob`; does not reopen Phase 5b);
+`UnionPacked` stays deferred because a union aliases distinct ports and
+is not a faithful projection.
 
 ## Phase 6 — Advanced motifs (done)
 

@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-array-packing-1 — AGGREGATE-ARRAY-PACKING.1 add ArrayPacked variant
+
+**Landed as:** this commit
+
+**What changed**
+
+Opened the `AGGREGATE-ARRAY-PACKING` capability tree (a new task tree
+from the recorded post-Phase-5b deferred boundary) and landed its first
+leaf:
+
+- `src/ir/types.rs`: added `AggregateKind::ArrayPacked` — the
+  uniform-width packed-aggregate kind rendered as
+  `typedef logic [N-1:0][W-1:0] <name>;`, LRM-bit-equivalent to the
+  field concatenation (a faithful projection). Rewrote the enum doc
+  comment: `StructPacked` = differing-width groups; `ArrayPacked` =
+  uniform-width groups; `UnionPacked` stays deferred (a union aliases
+  distinct ports → not a faithful projection).
+- Tree-opening docs (same commit, first-leaf convention): new
+  `docs/tasks/AGGREGATE-ARRAY-PACKING.md` (5-leaf plan), a
+  `docs/TASK_TREE.md` row, and a `ROADMAP.md` Phase 5b scope-note
+  pointer (the ArrayPacked sub-slice is now task-tree-owned and
+  in-progress; does NOT reopen Phase 5b).
+
+The variant is purely additive: nothing constructs `ArrayPacked` yet
+(emitter support lands `.2`, selection `.3`), so output is
+byte-identical.
+
+**Why it matters**
+
+`ArrayPacked` adds a second, distinct synthesizable aggregate surface
+(packed array vs packed struct) to stress parser/elaboration paths in
+downstream tools — directly serving the artifact-breadth mandate — while
+staying valid-by-construction and default-off.
+
+**Validation**
+
+All under `scripts/ram_guard.sh --threshold 88` (warm cache →
+incremental → low RAM; guard never tripped):
+`cargo check --all-targets` clean (variant additive — no non-exhaustive
+match broke); `cargo test --lib aggregate` 10/10; `cargo fmt --all
+--check` + `cargo clippy --lib -D warnings` clean. Full suite
+intentionally not run (additive variant; full-suite RAM risk per the
+resource policy).
+
+**Impact**
+
+IR enum gains one variant. No generated-output, knob, or CLI change
+(default-off).
+
+**Files touched:** `src/ir/types.rs`,
+`docs/tasks/AGGREGATE-ARRAY-PACKING.md` (new), `docs/TASK_TREE.md`,
+`ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-ram-guard — RESOURCE-SAFE-TOOLING.1 add RAM watchdog runner
 
 **Landed as:** this commit
