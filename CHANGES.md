@@ -1,6 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-1 — CONE-DECOMPOSITION.1 decomposition design
+
+**Landed as:** this commit
+
+**What changed**
+
+Opened a new task tree, `CONE-DECOMPOSITION`, to break the 5551-line
+`src/gen/cone.rs` into cohesive submodules under `src/gen/cone/` (owner
+request 2026-06-14). Landed its design leaf `.1` (docs-only — no code):
+
+- `docs/tasks/CONE-DECOMPOSITION.md` (new): goal (pure structural
+  refactor, byte-identical), non-goals (no behaviour/API change), the
+  submodule seam map (`snapshot` / `semantic` / `primitives` / `terminals`
+  / `flops` / `motifs`; strategies stay in the root), the Rust mechanic
+  (`cone.rs` root + `cone/` sibling dir), the visibility strategy
+  (`pub(crate) use <submodule>::*;` root re-export → external
+  `crate::gen::cone::<symbol>` paths stay stable, submodules see siblings
+  via `use super::*`), extraction order, and the byte-identical validation
+  protocol. Seven leaves (`.1` design done; `.2`–`.7` extractions).
+- `docs/TASK_TREE.md`: registered the tree (active; frontier `.2`).
+- `DEVELOPMENT_NOTES.md`: design rationale + external-user audit
+  (`module.rs`, `hierarchy.rs`, `ir/compact.rs` reference the symbols that
+  must stay path-stable).
+
+**Why it matters**
+
+Establishes task-tree ownership before any code move (doctrine), and pins
+the visibility/re-export strategy so the extractions cannot drift into an
+API or behaviour change. The generator core becomes readable without
+touching its logic.
+
+**Validation**
+
+Docs-only; no code touched. memory-architecture + knowledge-map
+self-checks (pre-commit hook); `git diff --check`. No `cargo test` needed
+(no code change).
+
+**Impact**
+
+No behavioural or generated-RTL change. New active tree; frontier `.2`
+(extract `cone/snapshot.rs`).
+
+**Files touched**
+
+`docs/tasks/CONE-DECOMPOSITION.md` (new), `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-workload-memory-safety-3 — WORKLOAD-MEMORY-SAFETY.3 real per-module node budget
 
 **Landed as:** this commit

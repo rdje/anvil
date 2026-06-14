@@ -5,6 +5,54 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — cone.rs decomposition design — `CONE-DECOMPOSITION.1`
+
+Owner asked (2026-06-14) to "carefully and meticulously" break the
+5551-line `src/gen/cone.rs` into interconnected parts. This is a **pure
+structural refactor** — zero behaviour change, byte-identical generated
+RTL — tracked by `docs/tasks/CONE-DECOMPOSITION.md`.
+
+**Seam map (target `src/gen/cone/`):** `snapshot.rs` (rollback machinery),
+`semantic.rs` (value-set / unsigned-bounds / exact-value proofs — the
+largest, purely `&Module` chunk, ~1360 lines), `primitives.rs` (IR-building
+gate makers), `terminals.rs` (terminal/pool selection + gate-shape policy),
+`flops.rs` (flop drains + D assemblers), `motifs.rs` (block/motif builders).
+The **strategy orchestration** stays in the root `cone.rs`:
+`build_cone_with_retry`, `build_graph_first`, `grow_pool_one_unit`,
+`build_outputs_interleaved`, `process_signal_frame`, `deliver`,
+`build_cone`, `roll_knob`, `node_budget_reached`, the `Dest`/`SignalFrame`/
+`GateFrame` types, the `FlopWorklist` alias, and `#[cfg(test)] mod tests`.
+
+**Rust mechanic.** Rust 2018 lets `src/gen/cone.rs` coexist with a sibling
+`src/gen/cone/` directory; the root declares `mod snapshot;` etc. No rename.
+
+**Visibility — flat namespace via root glob re-export.** The original file
+is one all-see-all namespace. To preserve that with minimal churn, each
+moved fn becomes `pub(crate)`, and the root does
+`mod <name>; pub(crate) use <name>::*;` per submodule. That (a) keeps every
+external path stable — `crate::gen::cone::<symbol>` still resolves for the
+callers in `src/gen/module.rs`, `src/gen/hierarchy.rs`, and `src/ir/compact.rs`
+(which uses `cone::obvious_unsigned_compare_result` and
+`cone::prove_node_exact_value_from_bounds`) — and (b) lets each submodule's
+`use super::*;` see all sibling items. The existing test module already
+uses `use super::*;`, so wildcard imports are accepted by the lint config.
+
+**Validation protocol (byte-identical-or-bust).** A pure code move that
+compiles + passes the 307 lib tests (incl. the 42 cone tests + the
+`node_budget` test) + the 6 SV snapshots is behaviour-preserving. Full
+`cargo test` runs at the first extraction (`.2`, validating the mechanic
+end-to-end) and at closeout (`.7`); intermediate leaves use
+`cargo check --all-targets` + `cargo test --lib` + `cargo test --test
+snapshots` + clippy + fmt, all under `scripts/ram_guard.sh`. A snapshot
+byte-diff means the move is wrong — fix the move, never accept the
+snapshot.
+
+**Order — most self-contained first.** `snapshot` (tiny, proves the
+mechanic) → `semantic` (biggest readability win, pure fns) → `primitives`
+→ `terminals` → `flops` → `motifs`.
+
+---
+
 ## 2026-06-14 — Per-module construction-time node budget — `WORKLOAD-MEMORY-SAFETY.3`
 
 Turned `max_nodes_per_module` from a **ghost knob** (declared + defaulted
