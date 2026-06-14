@@ -46,6 +46,14 @@ pub mod ir;
 /// byte-identical to the previous accumulate-then-`to_string_pretty`
 /// path. See `src/manifest.rs`.
 pub mod manifest;
+/// Read-only in-process MCP server (`AGENT-INTROSPECTION-MCP.4`).
+/// A thin, dependency-light JSON-RPC 2.0 dispatcher (newline-delimited
+/// stdio, driven by the `anvil-mcp` bin) that exposes the deterministic
+/// generator as MCP **resources** + pure/safe **tools**
+/// (`generate`/`introspect`/`dump_config`) over a content-addressed
+/// cache. No external-tool execution (that is `.5`); the default `anvil`
+/// build and the `--artifact dut` contract are unaffected.
+pub mod mcp;
 /// Opt-in internal RAM/RSS self-governor (`WORKLOAD-MEMORY-SAFETY.4`).
 /// Default-off / byte-identical; aborts an `--out` run cleanly before
 /// the host danger zone, naming the seed + effective knobs. See

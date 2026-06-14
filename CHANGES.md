@@ -1,9 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.4 — read-only MCP server
+
+**Landed as:** this commit (previous: `aec51e2`).
+
+**What changed (code)**
+
+`.4` lands the read-only in-process MCP server — the transport that exposes the
+`.3` emission surface to an AI agent.
+
+- New library module `src/mcp/mod.rs`: `McpServer`, a pure JSON-RPC 2.0
+  dispatcher (`handle(&Value) -> Option<Value>`; `handle_line(&str)` for the
+  stdio transport) plus a content-addressed artifact cache (keyed by the
+  introspection document's `run_id`). Methods: `initialize`, `ping`,
+  `tools/list`, `tools/call`, `resources/list`, `resources/read`; proper
+  JSON-RPC errors (`-32601`/`-32602`/`-32700`).
+- **Tools (pure/safe):** `generate` (build + cache; returns `run_id` +
+  resource URIs), `introspect` (the schema-1.0 document), `dump_config` (the
+  effective `Config`). No FS writes, no shell, **no external-tool exec** — the
+  controlled `validate`/`minimize`/`coverage_gaps` tools are `.5`.
+- **Resources:** the cached `.sv` (`anvil://artifact/<run_id>/sv`) and
+  introspection document (`.../introspection`), plus static catalogs
+  (`anvil://catalog/knobs`, `anvil://catalog/lanes`).
+- New `anvil-mcp` binary (`src/bin/anvil_mcp.rs` + explicit `Cargo.toml`
+  `[[bin]]` so the target is hyphenated per decision `0004`): a thin
+  newline-delimited stdio loop over `McpServer`. Separate target ⇒ default
+  `anvil` build unaffected. `lib.rs` exposes `pub mod mcp`.
+- **Hand-rolled JSON-RPC, no new dependency** (rejected `rmcp` + `tokio`):
+  `0004` calls for "a simple in-process stdio server"; a minimal dispatcher
+  over `serde_json` keeps the conservative dep set and the "thin adapter"
+  doctrine.
+
+**Why**
+
+`AGENT-INTROSPECTION-MCP.4` acceptance: a server that lists resources + safe
+tools and round-trips a generate+introspect, with the default `anvil` build
+unaffected and DUT byte-identical. This is the MCP bridge half of the agent
+lane (the read-only emission surface was `.3`).
+
+**Validation**
+
+- `cargo fmt --all --check` — clean.
+- `cargo check --all-targets` — green (no duplicate-bin error from the new
+  `[[bin]]`).
+- `cargo clippy --all-targets -- -D warnings` — clean.
+- `cargo test --lib` — 338/338 (incl. 12 new `mcp` tests: initialize handshake,
+  `notifications/initialized`, tools/list, introspect-round-trips-to-schema,
+  generate→resources/read, dump_config, catalogs, unknown-method error,
+  unknown-uri error, invalid-config tool-error, handle_line parse-error,
+  deterministic run_id).
+- `cargo test --test snapshots` — 6/6 **byte-identical** (DUT contract intact).
+- All three binaries build (`anvil`, `anvil-mcp`, `tool_matrix`); end-to-end
+  `anvil-mcp` stdio smoke: `initialize` → serverInfo `anvil-mcp` proto
+  `2024-11-05`; `tools/list` → the three tools; `generate seed=42` → module
+  `mod_42_0000` + `run_id`; `resources/list` → 4 resources incl. both catalogs.
+- Default `anvil --seed 42` still emits the same SV.
+
+**Impact**
+
+ANVIL gains a read-only agent MCP server (`anvil-mcp`). Default build and
+`--artifact dut` byte-identical (snapshots 6/6). Frontier advances to `.5`
+(controlled validate/minimize). No phase label changed. User-facing docs
+(book + USER_GUIDE + README CLI surface) are deferred to the `.7` closeout by
+design — the lane is documented as a stable feature once `.5`/`.6` complete it.
+
+**Files touched**
+
+- `src/mcp/mod.rs` (new), `src/bin/anvil_mcp.rs` (new), `src/lib.rs`
+  (`pub mod mcp`), `Cargo.toml` (`anvil-mcp` `[[bin]]`)
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md`,
+  `CODEBASE_ANALYSIS.md` (targets + module map), `CHANGES.md`, `MEMORY.md`,
+  `DEVELOPMENT_NOTES.md`
+
+---
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.3 — introspection emission surface
 
-**Landed as:** this commit (previous: `defc196`).
+**Landed as:** `aec51e2` (previous: `defc196`).
 
 **What changed (code)**
 

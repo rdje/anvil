@@ -4,7 +4,7 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 ## Snapshot
 - **Workspace:** single crate `anvil` (no Cargo workspace; flat layout).
 - **Edition:** 2021.
-- **Targets:** two binaries (`anvil` as Cargo's default run target, plus the auxiliary `tool_matrix` harness), one library (`anvil`), one example (`generate_one`), six integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`; `diff_sim` — the `DIFFERENTIAL-SIMULATION` cross-simulator harness proofs; `microdesign_parity` — the Phase-7 oracle-vs-tool parity proofs; `frontend_parity` — the Phase-8 frontend/elaboration parity proofs). The last three each also carry a tool-gated `#[ignore]` end-to-end gate that runs only when the real downstream tool is present.
+- **Targets:** three binaries (`anvil` as Cargo's default run target; the auxiliary `tool_matrix` harness; and `anvil-mcp` — the read-only agent MCP server, `AGENT-INTROSPECTION-MCP.4`, an explicit `[[bin]]`), one library (`anvil`), one example (`generate_one`), six integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`; `diff_sim` — the `DIFFERENTIAL-SIMULATION` cross-simulator harness proofs; `microdesign_parity` — the Phase-7 oracle-vs-tool parity proofs; `frontend_parity` — the Phase-8 frontend/elaboration parity proofs). The last three each also carry a tool-gated `#[ignore]` end-to-end gate that runs only when the real downstream tool is present.
 - **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** pinned to Rust 1.95 via `Cargo.toml` `rust-version = "1.95"`.
 - **Package description:** `Cargo.toml` describes ANVIL as a random by-construction generator of synthesizable SystemVerilog RTL; do not use SV/UVM-style constrained-random terminology for the crate purpose.
@@ -300,7 +300,25 @@ src/
 │                     `--out` path stay byte-identical. `coverage` + the
 │                     `microdesign`/`frontend` lane-manifest sections are
 │                     deferred (matrix-only / `.4`+).
+├── mcp/             Read-only in-process MCP server
+│   └── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
+│                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
+│                     `Value → Option<Value>`) over the MCP stdio transport
+│                     (newline-delimited JSON). Exposes the deterministic
+│                     generator as pure/safe **tools** (`generate`,
+│                     `introspect`, `dump_config`) + **resources** (the cached
+│                     `.sv` / introspection document, addressed by the
+│                     content-addressed `run_id`, plus static `knobs`/`lanes`
+│                     catalogs). No external-tool exec, no FS writes (that is
+│                     `.5`). Driven by the `anvil-mcp` bin; the whole protocol
+│                     surface is unit-tested in-process (12 tests). Separate
+│                     target ⇒ default `anvil` build / `--artifact dut`
+│                     unaffected.
 ├── bin/
+│   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
+│   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines
+│   │                from stdin, writes one response line per request, flushes
+│   │                per message. All logic lives in `mcp`; this is transport.
 │   └── tool_matrix.rs
 │                     Repo-owned downstream-tool matrix harness.
 │                     Builds a curated scenario set over

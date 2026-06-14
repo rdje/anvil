@@ -29,6 +29,14 @@ insta = "=1.47.2"
 name = "anvil"
 path = "src/main.rs"
 
+# AGENT-INTROSPECTION-MCP.4 — the read-only MCP server. Explicit so the
+# target is the hyphenated `anvil-mcp` (matching decision 0004) instead of
+# the auto-discovered file-stem name. A separate target ⇒ the default
+# `anvil` build / `--artifact dut` contract are unaffected.
+[[bin]]
+name = "anvil-mcp"
+path = "src/bin/anvil_mcp.rs"
+
 [lib]
 name = "anvil"
 path = "src/lib.rs"

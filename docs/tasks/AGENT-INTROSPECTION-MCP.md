@@ -82,11 +82,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.3 - introspection emission surface`
 
 - ID: `AGENT-INTROSPECTION-MCP.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement the read-only in-process MCP server (separate target): resources + pure/safe tools (generate/introspect/dump_config/coverage_gaps); deterministic run ids; content-addressed artifact cache; no external-tool exec.`
   Acceptance: `Server lists resources + safe tools; round-trips a generate+introspect; default anvil build unaffected; DUT byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/mcp/mod.rs (12 lib tests) + src/bin/anvil_mcp.rs (anvil-mcp target) + Cargo.toml [[bin]]; cargo fmt/check/clippy -D warnings clean; cargo test --lib 338/338; snapshots 6/6 byte-identical; end-to-end stdio smoke (initialize/tools.list/generate/resources). coverage_gaps deferred to .5 (needs external-tool exec).`
+  Commit: `AGENT-INTROSPECTION-MCP.4 - read-only MCP server`
 
 - ID: `AGENT-INTROSPECTION-MCP.5`
   Status: `pending`
@@ -116,18 +116,34 @@ recorded in
 | 1 | `AGENT-INTROSPECTION-MCP.1` | `done` | Design + decision record `0004` landed. |
 | 2 | `AGENT-INTROSPECTION-MCP.2` | `done` | Schema spec landed: `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
 | 3 | `AGENT-INTROSPECTION-MCP.3` | `done` | Emission surface landed: `src/introspect/` + `--introspect` flag; DUT byte-identical. |
-| 4 | `AGENT-INTROSPECTION-MCP.4` | `pending` | Read-only in-process MCP server (separate target) over the `.2`/`.3` surface. |
+| 4 | `AGENT-INTROSPECTION-MCP.4` | `done` | Read-only MCP server landed: `src/mcp/` + `anvil-mcp` bin (stdio JSON-RPC; generate/introspect/dump_config + resources). |
+| 5 | `AGENT-INTROSPECTION-MCP.5` | `pending` | Controlled `validate` + `minimize` tools (external tools only via `tool_matrix`, sandboxed + ram-guarded). |
 
 Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
-leaves. `.3` is done. `.4`–`.7` proceed in order under PNT (`.4` MCP server →
-`.5` controlled validate/minimize → `.6` prompts → `.7` book/USER_GUIDE
-closeout); `.1`/`.2` may still re-split `.4`–`.5` if the transport pins new
-sub-leaves.
+leaves. `.3`/`.4` are done. `.5`–`.7` proceed in order under PNT (`.5`
+controlled validate/minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
+User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
+`.7` closeout by design — the lane is documented as a stable feature only once
+`.5`/`.6` complete it.
 
 ## Decisions
 
 - `2026-06-14`: **Owner accepted the `.1`/`.2` design** — code leaves
   `.3`–`.7` are unblocked; execution proceeds under continuous PNT.
+- `2026-06-14`: `.4` landed the read-only MCP server — `src/mcp/mod.rs` (pure
+  JSON-RPC 2.0 dispatch + content-addressed artifact cache) and a thin stdio
+  bin `src/bin/anvil_mcp.rs` (explicit `anvil-mcp` `[[bin]]` in `Cargo.toml`).
+  Design points: (a) **hand-rolled** newline-delimited JSON-RPC over stdio —
+  no async/SDK dependency (rejected `rmcp` + `tokio`), matching `0004`'s
+  "simple in-process stdio server"; (b) `McpServer::handle` is a pure `Value →
+  Option<Value>` function so the whole protocol surface is unit-tested
+  in-process (12 tests), the bin is just transport; (c) determinism →
+  content-addressed cache: `generate` caches by document `run_id`,
+  `resources/read` serves the cached `.sv` / introspection back; (d) pure/safe
+  tools only (`generate`/`introspect`/`dump_config`) — no FS writes, no shell,
+  no external tools; `coverage_gaps`/`validate`/`minimize` (external-tool
+  exec) are `.5`. DUT byte-identical (snapshots 6/6); default `anvil` build
+  unaffected (separate target).
 - `2026-06-14`: `.3` landed the emission surface — `src/introspect/mod.rs`
   (typed envelope + pure `module_document` / `design_document` builders) and a
   default-off `--introspect` CLI flag that, on a single-artifact stdout run,
@@ -185,6 +201,7 @@ sub-leaves.
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.2` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check`; `cargo check --all-targets` (no code touched) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.3` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib introspect` (6/6); `cargo test --test snapshots` (6/6 byte-identical); CLI smoke (module/design/guard/JSON) | passed |
+| `2026-06-14` | `AGENT-INTROSPECTION-MCP.4` | `cargo fmt --all --check`; `cargo check --all-targets` (no dup-bin); `cargo clippy --all-targets -- -D warnings`; `cargo test --lib` (338/338, incl 12 mcp); `cargo test --test snapshots` (6/6 byte-identical); end-to-end `anvil-mcp` stdio smoke (initialize/tools.list/generate/resources) | passed |
 
 ## Commit Log
 
@@ -192,7 +209,8 @@ sub-leaves.
 | --- | --- | --- |
 | `AGENT-INTROSPECTION-MCP.1` | `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004` | Commit `9ac5ef3`; opens the tree. |
 | `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Commit `defc196`; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
-| `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Pending hash; lands `src/introspect/` + `--introspect`. |
+| `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Commit `aec51e2`; lands `src/introspect/` + `--introspect`. |
+| `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Pending hash; lands `src/mcp/` + `anvil-mcp` bin. |
 
 ## Changelog
 
@@ -207,3 +225,7 @@ sub-leaves.
   emission surface + default-off `--introspect` CLI flag (DUT byte-identical,
   snapshots 6/6, 6 lib tests). Frontier advanced to `.4` (read-only MCP
   server).
+- `2026-06-14`: Landed `.4` — `src/mcp/` read-only MCP server + `anvil-mcp`
+  bin (stdio JSON-RPC; generate/introspect/dump_config tools + resources over
+  a content-addressed cache; no external-tool exec; 12 lib tests; DUT
+  byte-identical). Frontier advanced to `.5` (controlled validate/minimize).

@@ -5,6 +5,59 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Read-only MCP server — `AGENT-INTROSPECTION-MCP.4`
+
+`.4` lands the MCP bridge: `src/mcp/mod.rs` (pure dispatch + cache) + the
+`anvil-mcp` stdio bin. Notes worth keeping:
+
+**Decision — hand-rolled JSON-RPC over stdio; reject `rmcp` + `tokio`.** The
+Rust MCP ecosystem has an async SDK (`rmcp`), but pulling it in drags `tokio`
+and a large async surface into an otherwise sync, conservative-dependency
+crate. Decision `0004` only asks for "a simple in-process MCP server (stdio
+first) … no gRPC service is required." MCP's stdio transport is newline-
+delimited JSON-RPC 2.0 — trivial to implement over `serde_json`. So the server
+is hand-rolled: zero new dependencies, and the "thin adapter beside the core"
+doctrine is honoured literally. If multi-client / HTTP demand ever appears
+(`0004` open question), revisiting an SDK is a separate, owned decision.
+
+**Decision — pure dispatch in lib, transport in bin.** `McpServer::handle` is
+a pure `&Value -> Option<Value>` (notifications → `None`); `handle_line` wraps
+it for the stdio framing. So the entire protocol surface — initialize
+handshake, tools, resources, error codes — is unit-tested in-process (12
+tests) with no child process, and `src/bin/anvil_mcp.rs` is a ~20-line
+stdin→handle_line→stdout loop. This mirrors how the rest of ANVIL keeps logic
+in the lib and binaries thin (`tool_matrix`, `diff_sim`).
+
+**Decision — determinism collapses the session into a content-addressed
+cache.** `generate` builds the artifact, then caches it keyed by the
+introspection document's `run_id` (the FNV-1a content address from `.3`).
+`resources/read anvil://artifact/<run_id>/{sv,introspection}` serves the cached
+bytes back. Because `(seed, knobs) → artifact` is a pure function, the cache is
+trivially sound and no nonce / stateful session is needed — exactly the `0004`
+simplification over the stateful-simulator reference case.
+
+**Decision — pure/safe tools only in `.4`; external exec is `.5`.** `generate`,
+`introspect`, `dump_config` touch no filesystem and run no external tools.
+`coverage_gaps` / `validate` / `minimize` need Verilator/Yosys/iverilog and so
+belong with `.5`, where they run **only** through the hardened `tool_matrix`
+path, sandboxed + ram-guarded. Tool-level failures (bad config) return MCP
+`isError: true` content; protocol failures (unknown method/uri) return JSON-RPC
+error codes — the two failure planes are kept distinct.
+
+**Decision — explicit `[[bin]] name = "anvil-mcp"`.** A `src/bin/anvil_mcp.rs`
+auto-target would be named `anvil_mcp` (file stem); an explicit `[[bin]]` gives
+the hyphenated `anvil-mcp` matching `0004` and suppresses the duplicate auto
+target. Separate target ⇒ the default `anvil` build and `--artifact dut`
+contract are untouched (snapshots 6/6).
+
+**Deferred to `.7`.** User-facing docs (book chapter + USER_GUIDE + README CLI
+surface) are intentionally the `.7` closeout, not done per-leaf: the lane is a
+stable user feature only once `.5` (validate/minimize) and `.6` (prompts)
+complete it. Documenting a half-built capability in the book would violate book
+doctrine more than the short deferral does.
+
+---
+
 ## 2026-06-14 — Agent-introspection emission surface — `AGENT-INTROSPECTION-MCP.3`
 
 `.3` implements the read-only emission surface over the `.2` schema:
