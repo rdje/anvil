@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `CONE-DECOMPOSITION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Code quality / maintainability — generator core readability`
 - Created: `2026-06-14`
 - Last updated: `2026-06-14`
@@ -138,23 +138,21 @@ green without acceptance), all tests pass, no IR/knob/output change.
   Commit: `CONE-DECOMPOSITION.6 - extract cone/flops.rs`
 
 - ID: `CONE-DECOMPOSITION.7`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract cone/motifs.rs (block/motif builders) and close out: update CODEBASE_ANALYSIS module map; FULL cargo test; close tree.`
   Acceptance: `motifs moved; root now holds only strategies+frames+re-exports+tests; CODEBASE_ANALYSIS module map updated; FULL cargo test green (closeout milestone); clippy/fmt clean.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — moved 36 motif/block builders (~810 lines) to src/gen/cone/motifs.rs via 3 contiguous ranges (one perl delete pass). cone.rs root now holds only the recursion strategy (build_cone_with_retry/build_graph_first/grow_pool_one_unit/build_outputs_interleaved/process_signal_frame/deliver/build_cone/drain_flop_worklist_pool_only/roll_knob/node_budget_reached/frames/FlopWorklist) + tests. ALSO fixed a .6 defect: build_flop_leaf's doc comment had been orphaned in the root (mis-attached to build_comb_mux) — restored it onto build_flop_leaf in flops.rs. CODEBASE_ANALYSIS module map updated. lib 307/307, snapshots 6/6, clippy/fmt clean; FULL cargo test green (closeout milestone). cone.rs 3260→2446 (5551→2446 overall, 56% reduction). See Verification Log.`
+  Commit: `CONE-DECOMPOSITION.7 - extract cone/motifs.rs + close`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `CONE-DECOMPOSITION.7` | `pending` | Motifs (linear-combination, shift, comparand, priority encoder, comb-mux/case/casez/for-fold builders, `or_reduce_terms`, `make_none_selected`, `is_comparison_op`) + closeout (CODEBASE_ANALYSIS module map; FULL cargo test). |
-
-`.2`–`.6` (`cone/snapshot.rs`, `cone/semantic.rs` ~1360 lines,
-`cone/primitives.rs`, `cone/terminals.rs` ~537 lines, `cone/flops.rs`
-~270 lines) are `done` — all byte-identical (lib + snapshots); the
-mechanic was validated end-to-end (full suite green at `.2`). `cone.rs`:
-5551 → 3260 lines so far.
+Empty — the tree is `done`. All seven leaves (`.1` design + `.2`–`.7`
+extractions) are complete. `src/gen/cone.rs` went from 5551 → 2446 lines
+(56% reduction), with the recursion strategy in the root and six cohesive
+submodules: `cone/semantic.rs` (~1360), `cone/motifs.rs` (~810),
+`cone/terminals.rs` (~560), `cone/flops.rs` (~280), `cone/primitives.rs`
+(~210), `cone/snapshot.rs` (~70). Every extraction byte-identical
+(snapshots 6/6 throughout; full suite green at `.2` and the `.7` closeout).
 
 ## Open Questions
 
@@ -177,6 +175,7 @@ mechanic was validated end-to-end (full suite green at `.2`). `cone.rs`:
 | `2026-06-14` | `CONE-DECOMPOSITION.4` | Moved the contiguous gate-maker block (`make_constant`..`make_nary_mul`, ~195 lines) to `src/gen/cone/primitives.rs`; `mod primitives; pub(crate) use primitives::*;`. Imports: `use super::{is_comparison_op, node_deps, obvious_unsigned_compare_result};` + `crate::ir`/`crate::gen::pool`. `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); clippy/fmt clean. cone.rs 5551→4048. | passed |
 | `2026-06-14` | `CONE-DECOMPOSITION.5` | Moved the contiguous `pick_terminal`..`node_deps` block (~537 lines) to `src/gen/cone/terminals.rs`; `mod terminals; pub(crate) use terminals::*;`. The 3 externally-used `pub(super)` fns (`pick_terminal_dep_bearing`, `make_width_adapter`, `node_deps`) bumped to `pub(crate)` (second perl pass). Fixups: `use super::{ceil_log2, roll_knob};` and the now-unused `use crate::config::Config;` removed from the cone root (its only Config-typed signatures moved into terminals). `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); clippy/fmt clean. cone.rs 4048→3511. | passed |
 | `2026-06-14` | `CONE-DECOMPOSITION.6` | Moved two contiguous flop ranges (`drain_flop_worklist`..`assemble_flop_d_encoded` incl. `ceil_log2`/`pick_mux_arm_count`; `build_flop_leaf`+`pick_reset_value`) to `src/gen/cone/flops.rs` (one `perl` delete pass over both ranges, original line numbers). Imports `use super::{build_cone_with_retry, make_and/_constant/_eq_const/_mux, make_none_selected, or_reduce_terms, replicate_to_width, roll_knob, FlopWorklist}` + `crate::ir` flop types. Root dropped now-unused `Flop`/`Node`/`ResetKind` (`Node` migrated into the test-module import, used there via `use super::*`). `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); clippy/fmt clean. cone.rs 3511→3260. | passed |
+| `2026-06-14` | `CONE-DECOMPOSITION.7` | Moved 36 motif/block builders (~810 lines: pool-only + recursive comb-mux/case/casez/for-fold, priority encoder, linear-combination, shift, comparand, `make_none_selected`/`or_reduce_terms`/`is_comparison_op`) to `src/gen/cone/motifs.rs` via 3 contiguous ranges (one `perl` delete pass). Imports `use super::{build_cone, ceil_log2, make_*, node_deps, pick_*, replicate_to_width, roll_knob, width_mask, FlopWorklist}` (motifs mutually recurse with the root's `build_cone`). Root dropped now-unused `ForFoldKind`. ALSO restored `build_flop_leaf`'s doc comment in `flops.rs` (a `.6` orphan that had mis-attached to `build_comb_mux`). `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); clippy/fmt clean; FULL `cargo test` under `scripts/ram_guard.sh --threshold 88` (closeout milestone). CODEBASE_ANALYSIS module map updated. cone.rs 3260→2446. | passed |
 
 ## Commit Log
 
@@ -187,7 +186,8 @@ mechanic was validated end-to-end (full suite green at `.2`). `cone.rs`:
 | `CONE-DECOMPOSITION.3` | `CONE-DECOMPOSITION.3 - extract cone/semantic.rs` | ~1360-line proof machinery → `src/gen/cone/semantic.rs`. Hash `915850f`. |
 | `CONE-DECOMPOSITION.4` | `CONE-DECOMPOSITION.4 - extract cone/primitives.rs` | Core gate makers → `src/gen/cone/primitives.rs`. Hash `935aa52`. |
 | `CONE-DECOMPOSITION.5` | `CONE-DECOMPOSITION.5 - extract cone/terminals.rs` | Terminal/pool selection → `src/gen/cone/terminals.rs`. Hash `7ac349a`. |
-| `CONE-DECOMPOSITION.6` | `CONE-DECOMPOSITION.6 - extract cone/flops.rs` | Flop drains + D assemblers → `src/gen/cone/flops.rs`. Pending hash. |
+| `CONE-DECOMPOSITION.6` | `CONE-DECOMPOSITION.6 - extract cone/flops.rs` | Flop drains + D assemblers → `src/gen/cone/flops.rs`. Hash `7097cf3`. |
+| `CONE-DECOMPOSITION.7` | `CONE-DECOMPOSITION.7 - extract cone/motifs.rs + close` | Motif/block builders → `src/gen/cone/motifs.rs`; tree CLOSED. Pending hash. |
 
 ## Changelog
 
@@ -197,3 +197,4 @@ mechanic was validated end-to-end (full suite green at `.2`). `cone.rs`:
 - `2026-06-14`: Landed `.4` (extract `cone/primitives.rs`, core gate makers, byte-identical). Frontier `.5` (extract `cone/terminals.rs`).
 - `2026-06-14`: Landed `.5` (extract `cone/terminals.rs`, ~537 lines, byte-identical). cone.rs 5551→3511. Frontier `.6` (extract `cone/flops.rs`).
 - `2026-06-14`: Landed `.6` (extract `cone/flops.rs`, ~270 lines, byte-identical). cone.rs 5551→3260. Frontier `.7` (extract `cone/motifs.rs` + closeout).
+- `2026-06-14`: Landed `.7` (extract `cone/motifs.rs`, ~810 lines; restored an orphaned `.6` doc; CODEBASE_ANALYSIS map updated; full suite green). cone.rs 5551→2446 (56% reduction). **Tree CLOSED** — 6 cohesive `cone/` submodules + strategy-core root.

@@ -221,6 +221,10 @@ pub(crate) fn assemble_flop_d_encoded(
     }
     tail
 }
+
+/// Allocate a flop and a `FlopQ` node. The Q is returned (and added to
+/// the pool) as the leaf for the current cone. The flop's D-cone is
+/// queued for later construction by `drain_flop_worklist`.
 #[instrument(level = "trace", skip(g, m, pool, worklist))]
 pub(crate) fn build_flop_leaf(
     g: &mut Generator,

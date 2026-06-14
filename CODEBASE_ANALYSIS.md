@@ -468,7 +468,34 @@ src/
 │   │                 `ir/dedup.rs`; broader helper placement beyond
 │   │                 those routes and deeper hierarchy equivalence
 │   │                 remain open.
-│   ├── cone.rs       Fanin-cone recursion + interleaved frame machine.
+│   ├── cone.rs       Fanin-cone recursion + interleaved frame machine
+│   │                 (strategy core). `CONE-DECOMPOSITION` split the former
+│   │                 5551-line file into a `cone/` submodule dir; `cone.rs`
+│   │                 is now ~2446 lines holding only the recursion strategy
+│   │                 (build_cone_with_retry, build_graph_first,
+│   │                 grow_pool_one_unit, build_outputs_interleaved,
+│   │                 process_signal_frame, deliver, build_cone,
+│   │                 drain_flop_worklist_pool_only, roll_knob,
+│   │                 node_budget_reached, the SignalFrame/GateFrame frames,
+│   │                 the FlopWorklist alias) plus the inline tests. Each
+│   │                 submodule is re-exported via `pub(crate) use <sub>::*`
+│   │                 so every `crate::gen::cone::<symbol>` path stays stable.
+│   ├── cone/semantic.rs   value-set / unsigned-bounds / exact-value proofs
+│   │                 (pure `&Module` analysis; ~1360 lines).
+│   ├── cone/primitives.rs IR gate makers (make_constant/_eq_const/_mux/
+│   │                 _and/_mul/_sub/_nary_add/_nary_mul, build_comparison_gate,
+│   │                 replicate_to_width).
+│   ├── cone/terminals.rs  terminal/pool selection + gate-shape policy
+│   │                 (pick_terminal[_dep_bearing], make_width_adapter,
+│   │                 pick_gate, input_widths_for, anti-collapse, try_share,
+│   │                 node_deps).
+│   ├── cone/flops.rs      flop D-cone drains + assemblers (drain_flop_worklist
+│   │                 + one_hot/encoded, assemble_flop_d_*, build_flop_leaf,
+│   │                 pick_reset_value, ceil_log2, pick_mux_arm_count).
+│   ├── cone/motifs.rs     structured block/motif builders (comb-mux / case /
+│   │                 casez / for-fold recursive + pool-only, priority encoder,
+│   │                 linear-combination, shift, comparand, or_reduce_terms).
+│   ├── cone/snapshot.rs   construction-snapshot rollback machinery.
 │   │                 Public: FlopWorklist alias, build_cone_with_retry,
 │   │                 build_outputs_interleaved, build_graph_first
 │   │                 (legacy helper no longer selected by

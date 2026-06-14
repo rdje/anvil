@@ -1,6 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-7 — CONE-DECOMPOSITION.7 extract cone/motifs.rs + close
+
+**Landed as:** this commit
+
+**What changed**
+
+Final extraction of the cone.rs decomposition. The structured
+motif/block builders moved out of `src/gen/cone.rs` into a new
+`src/gen/cone/motifs.rs` submodule — a pure code move, byte-identical —
+and the `CONE-DECOMPOSITION` tree is closed.
+
+- `src/gen/cone/motifs.rs` (new, ~810 lines, 36 fns): comb-mux / case /
+  casez / for-fold builders (both the recursive form called by
+  `process_signal_frame` and the pool-only form called by
+  `grow_pool_one_unit`), the priority encoder, the linear-combination /
+  coefficient compound, the constant-shift and constant-comparand motifs,
+  and the shared mux helpers `make_none_selected` / `or_reduce_terms` /
+  `is_comparison_op`. Imports `use super::{build_cone, ceil_log2, make_*,
+  node_deps, pick_*, replicate_to_width, roll_knob, width_mask,
+  FlopWorklist}` — motifs mutually recurse with the strategy core's
+  `build_cone`, which works through the cone-root re-exports.
+- `src/gen/cone.rs`: declares `mod motifs; pub(crate) use motifs::*;`. The
+  root now holds **only** the recursion strategy
+  (`build_cone_with_retry`, `build_graph_first`, `grow_pool_one_unit`,
+  `build_outputs_interleaved`, `process_signal_frame`, `deliver`,
+  `build_cone`, `drain_flop_worklist_pool_only`, `roll_knob`,
+  `node_budget_reached`, the `SignalFrame`/`GateFrame` frames, the
+  `FlopWorklist` alias) plus the inline tests. Dropped the now-unused
+  `ForFoldKind` import.
+- `src/gen/cone/flops.rs`: restored `build_flop_leaf`'s doc comment — a
+  `.6` defect where its doc was orphaned in the root and had mis-attached
+  to `build_comb_mux`.
+- `CODEBASE_ANALYSIS.md`: module map updated with the `cone/` submodule
+  breakdown.
+
+**Decomposition complete.** `src/gen/cone.rs`: **5551 → 2446 lines (56%
+reduction)**, organized into the strategy-core root + six cohesive
+submodules: `semantic.rs` (~1360), `motifs.rs` (~810), `terminals.rs`
+(~560), `flops.rs` (~280), `primitives.rs` (~210), `snapshot.rs` (~70).
+Every extraction byte-identical (snapshots green throughout); every
+`crate::gen::cone::<symbol>` path preserved via `pub(crate) use <sub>::*`.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean; FULL `cargo test`
+under `scripts/ram_guard.sh --threshold 88` (closeout milestone).
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor;
+generator core is now readable and reviewable per module.
+
+**Files touched**
+
+`src/gen/cone/motifs.rs` (new), `src/gen/cone.rs`, `src/gen/cone/flops.rs`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/CONE-DECOMPOSITION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-6 — CONE-DECOMPOSITION.6 extract cone/flops.rs
 
 **Landed as:** this commit
