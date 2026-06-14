@@ -5,6 +5,49 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Agent-workflow prompts as MCP prompts — `AGENT-INTROSPECTION-MCP.6`
+
+`.6` ships the five agent-workflow prompts (`find_downstream_bug`,
+`close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`,
+`explain_artifact`) as first-class **MCP prompts** in `src/mcp/mod.rs`. Notes:
+
+**Decision — prompts are a real MCP primitive, not static doc text.** The `.1`
+phasing hint called `.6` "docs/config", but MCP defines `prompts/list` /
+`prompts/get` precisely for packaging named, parameterized workflows a client
+can fetch and run. Implementing the workflows there (rather than as prose in the
+book) is the agent-drivable realization decision `0004` envisioned when it
+mapped "Prompts (workflows)" onto ANVIL, and it lets the leaf acceptance ("each
+prompt drives its tool chain end-to-end on a sample") be *proven by execution*
+instead of asserted. The book/USER_GUIDE prose still lands — but in `.7`, as the
+user-facing closeout; `.6` is the mechanism.
+
+**Decision — prompts add no capability and no new truth.** A `PromptSpec`'s
+renderer is a pure function `args -> ordered (role, text) messages`; it only
+instantiates a chain over the *existing* tools/resources. This keeps the
+read-mostly, no-second-source-of-truth doctrine intact: a prompt cannot generate,
+validate, or compute anything the tools don't already own. The single `PROMPTS`
+registry owns the set so it can't drift from the dispatch (the same
+one-owner pattern as `parse_validate_tools`/`parse_yosys_mode_arg` for the
+controlled tools).
+
+**Gotcha — MCP prompt arguments are strings.** Per the MCP prompt contract,
+`prompts/get` arguments arrive as a `{string: string}` map. The server rejects a
+non-string value with a clean `-32602` (see the
+`prompts_get_enforces_required_args_and_unknown_name` test) rather than coercing
+— so the rendered `"seed": 42` substitution comes from a string `"42"`, and a
+client passing a JSON number gets a contract error, not a silent stringify.
+
+**Test shape — portability via `tools: []`.** ANVIL output is
+valid-by-construction, so no real tool can manufacture a failing case, and the
+external-tool legs of the chains can't be exercised portably with a *failure*.
+The end-to-end test therefore drives every chain with `tools: []` (the validate
+oracle is vacuously `ok`, minimize reports `reproduced_initial=false`), which
+still exercises the full generate/sandbox/oracle/audit path through the server —
+proving each prompt names a real, runnable sequence — without requiring
+verilator/yosys to be installed. Same pattern the `.5.2`/`.5.3` tool tests use.
+
+---
+
 ## 2026-06-15 — Controlled `minimize` delta-debugger — `AGENT-INTROSPECTION-MCP.5.3`
 
 `.5.3` adds `downstream::minimize(seed, cfg, opts)` + the MCP `minimize`

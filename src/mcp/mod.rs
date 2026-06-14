@@ -122,6 +122,8 @@ impl McpServer {
             "tools/call" => Some(self.tools_call(id, &params)),
             "resources/list" => Some(ok(id, self.resources_list())),
             "resources/read" => Some(self.resources_read(id, &params)),
+            "prompts/list" => Some(ok(id, prompts_list())),
+            "prompts/get" => Some(prompts_get(id, &params)),
             other => Some(err(
                 id,
                 METHOD_NOT_FOUND,
@@ -135,7 +137,7 @@ impl McpServer {
             id,
             json!({
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": { "tools": {}, "resources": {} },
+                "capabilities": { "tools": {}, "resources": {}, "prompts": {} },
                 "serverInfo": {
                     "name": "anvil-mcp",
                     "version": introspect::anvil_version(),
@@ -151,7 +153,11 @@ impl McpServer {
                      using validate as the oracle (deterministic, budget-bounded, \
                      seed held fixed). Both audit-log each call (see the \
                      anvil://audit/log resource). Artifacts and static catalogs \
-                     are exposed as resources."
+                     are exposed as resources. Workflow prompts (prompts/list, \
+                     prompts/get) package the agent loops: find_downstream_bug, \
+                     close_coverage_gap, minimize_reproducer, triage_tool_failures, \
+                     explain_artifact — each renders an ordered chain over the tools \
+                     above."
             }),
         )
     }
@@ -607,6 +613,259 @@ fn parse_yosys_mode_arg(args: &Value) -> Result<YosysMode, String> {
     }
 }
 
+// --- Agent-workflow prompts (`AGENT-INTROSPECTION-MCP.6`) --------------------
+//
+// MCP *prompts* are the third protocol primitive (beside tools + resources):
+// named, parameterized workflow templates the agent fetches with `prompts/get`
+// and then executes by calling this server's tools in the order the rendered
+// message lays out. Each prompt here packages one bug-hunting loop end-to-end
+// over the *existing* tools/resources — it adds no new capability and computes
+// no new truth; it is pure guidance text, instantiated with the caller's sample
+// arguments. The five workflows are exactly those named in decision `0004`.
+
+/// One declared argument of a workflow prompt (MCP `PromptArgument`).
+struct PromptArg {
+    name: &'static str,
+    description: &'static str,
+    required: bool,
+}
+
+/// A pure prompt renderer: argument map -> ordered `(role, text)` messages.
+type PromptRender = fn(&BTreeMap<String, String>) -> Vec<(&'static str, String)>;
+
+/// A workflow prompt: its name, one-line description, declared arguments, and a
+/// pure renderer that instantiates the workflow messages from those arguments.
+struct PromptSpec {
+    name: &'static str,
+    description: &'static str,
+    args: &'static [PromptArg],
+    render: PromptRender,
+}
+
+impl PromptSpec {
+    /// The MCP `Prompt` descriptor returned by `prompts/list`.
+    fn descriptor(&self) -> Value {
+        json!({
+            "name": self.name,
+            "description": self.description,
+            "arguments": self
+                .args
+                .iter()
+                .map(|a| json!({
+                    "name": a.name,
+                    "description": a.description,
+                    "required": a.required,
+                }))
+                .collect::<Vec<_>>(),
+        })
+    }
+}
+
+/// The fixed registry of agent-workflow prompts (order is the `prompts/list`
+/// order). One owner so the prompt set cannot drift from the dispatch.
+static PROMPTS: &[PromptSpec] = &[
+    PromptSpec {
+        name: "find_downstream_bug",
+        description: "Autonomous loop: generate valid-by-construction RTL, validate it against the vetted downstream tools, and on a rejection minimize it to a reproducer.",
+        args: &[
+            PromptArg { name: "seed", description: "RNG seed to start from (default 42).", required: false },
+            PromptArg { name: "tools", description: "Comma-separated downstream tools (default verilator,yosys).", required: false },
+            PromptArg { name: "yosys_mode", description: "Yosys mode: without-abc | with-abc | both (default without-abc).", required: false },
+        ],
+        render: render_find_downstream_bug,
+    },
+    PromptSpec {
+        name: "close_coverage_gap",
+        description: "Raise the generation knob(s) that light a currently-dark coverage surface, then confirm the metric is non-zero and still downstream-clean.",
+        args: &[
+            PromptArg { name: "target", description: "The coverage surface / metric to exercise (e.g. saw_fsm_design).", required: true },
+            PromptArg { name: "seed", description: "RNG seed (default 42).", required: false },
+        ],
+        render: render_close_coverage_gap,
+    },
+    PromptSpec {
+        name: "minimize_reproducer",
+        description: "Shrink a failing (seed, knobs) to a minimal downstream reproducer (seed held fixed; deterministic, budget-bounded).",
+        args: &[
+            PromptArg { name: "seed", description: "The failing seed (held fixed — it pins the reproducer).", required: true },
+            PromptArg { name: "tools", description: "Comma-separated oracle tools (default verilator,yosys).", required: false },
+            PromptArg { name: "yosys_mode", description: "Yosys mode: without-abc | with-abc | both (default without-abc).", required: false },
+        ],
+        render: render_minimize_reproducer,
+    },
+    PromptSpec {
+        name: "triage_tool_failures",
+        description: "Validate a (seed, knobs) artifact, then classify which downstream tool/mode rejected it and extract the actionable diagnostic.",
+        args: &[
+            PromptArg { name: "seed", description: "RNG seed (default 42).", required: false },
+            PromptArg { name: "tools", description: "Comma-separated downstream tools (default verilator,yosys).", required: false },
+            PromptArg { name: "yosys_mode", description: "Yosys mode: without-abc | with-abc | both (default without-abc).", required: false },
+        ],
+        render: render_triage_tool_failures,
+    },
+    PromptSpec {
+        name: "explain_artifact",
+        description: "Explain a generated artifact from construction-truth (recorded metrics/provenance), not by parsing the emitted SV.",
+        args: &[
+            PromptArg { name: "seed", description: "RNG seed (default 42).", required: false },
+        ],
+        render: render_explain_artifact,
+    },
+];
+
+/// `prompts/list`: the static registry of agent-workflow prompts.
+fn prompts_list() -> Value {
+    json!({ "prompts": PROMPTS.iter().map(PromptSpec::descriptor).collect::<Vec<_>>() })
+}
+
+/// `prompts/get`: instantiate one workflow's messages from its arguments.
+/// Validates the prompt name, the argument value types (MCP prompt arguments
+/// are strings), and that every declared-required argument is present, before
+/// rendering — so a malformed request is a clean JSON-RPC error, never a panic.
+fn prompts_get(id: Value, params: &Value) -> Value {
+    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    let spec = match PROMPTS.iter().find(|p| p.name == name) {
+        Some(s) => s,
+        None => return err(id, INVALID_PARAMS, &format!("unknown prompt: {name}")),
+    };
+
+    // Collect the (string-valued) arguments, per the MCP prompt contract.
+    let mut argmap = BTreeMap::new();
+    if let Some(obj) = params.get("arguments").and_then(Value::as_object) {
+        for (k, v) in obj {
+            match v.as_str() {
+                Some(s) => {
+                    argmap.insert(k.clone(), s.to_string());
+                }
+                None => {
+                    return err(
+                        id,
+                        INVALID_PARAMS,
+                        &format!("prompt argument `{k}` must be a string"),
+                    )
+                }
+            }
+        }
+    }
+
+    // Every declared-required argument must be present.
+    for a in spec.args {
+        if a.required && !argmap.contains_key(a.name) {
+            return err(
+                id,
+                INVALID_PARAMS,
+                &format!("prompt `{name}` requires argument `{}`", a.name),
+            );
+        }
+    }
+
+    let messages: Vec<Value> = (spec.render)(&argmap)
+        .into_iter()
+        .map(|(role, text)| json!({ "role": role, "content": { "type": "text", "text": text } }))
+        .collect();
+    ok(
+        id,
+        json!({ "description": spec.description, "messages": messages }),
+    )
+}
+
+/// Fetch a prompt argument or its default.
+fn prompt_arg(args: &BTreeMap<String, String>, key: &str, default: &str) -> String {
+    args.get(key)
+        .cloned()
+        .unwrap_or_else(|| default.to_string())
+}
+
+/// Render a comma-separated `tools` argument as a JSON array literal for the
+/// workflow text, e.g. `verilator, iverilog` -> `["verilator", "iverilog"]`.
+fn prompt_tools_array(args: &BTreeMap<String, String>, default: &str) -> String {
+    let raw = prompt_arg(args, "tools", default);
+    let items: Vec<String> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(|t| format!("\"{t}\""))
+        .collect();
+    format!("[{}]", items.join(", "))
+}
+
+fn render_find_downstream_bug(args: &BTreeMap<String, String>) -> Vec<(&'static str, String)> {
+    let seed = prompt_arg(args, "seed", "42");
+    let tools = prompt_tools_array(args, "verilator,yosys");
+    let mode = prompt_arg(args, "yosys_mode", "without-abc");
+    let text = format!(
+        "Hunt for a downstream-tool bug with ANVIL's valid-by-construction RTL. \
+ANVIL is the oracle: any rejection of its output is a candidate downstream-tool bug, never an ANVIL bug — and you must never mutate or repair the RTL.\n\
+\n\
+Run this tool chain in order:\n\
+1. `generate` {{ \"seed\": {seed} }} -> note `run_id`; read `anvil://artifact/<run_id>/sv` if you want the source.\n\
+2. `validate` {{ \"seed\": {seed}, \"tools\": {tools}, \"yosys_mode\": \"{mode}\" }} -> inspect `ok` and the per-tool reports.\n\
+3. If `ok` is false (a vetted tool rejected valid-by-construction RTL): call `minimize` {{ \"seed\": {seed}, \"tools\": {tools}, \"yosys_mode\": \"{mode}\" }} to shrink (seed, knobs) to a minimal reproducer, then read `anvil://audit/log` for the exact reproducible command lines.\n\
+4. If `ok` is true: the artifact is downstream-clean — pick another seed and repeat."
+    );
+    vec![("user", text)]
+}
+
+fn render_close_coverage_gap(args: &BTreeMap<String, String>) -> Vec<(&'static str, String)> {
+    let seed = prompt_arg(args, "seed", "42");
+    let target = prompt_arg(args, "target", "<coverage target>");
+    let text = format!(
+        "Drive a generation knob so a currently-dark coverage surface ({target}) is exercised — rules-first: light it by construction, never by post-hoc filtering.\n\
+\n\
+Run this tool chain in order:\n\
+1. Read the `anvil://catalog/knobs` resource for the default Config and the knob taxonomy.\n\
+2. `dump_config` {{ \"seed\": {seed} }} -> the effective Config baseline.\n\
+3. Raise the knob(s) that gate {target} (e.g. set the owning motif probability to 1.0) and call `introspect` {{ \"seed\": {seed}, \"config\": <edited config> }} -> confirm the matching metric under `introspection.module_metrics` / `introspection.design_metrics` is now non-zero.\n\
+4. `validate` {{ \"seed\": {seed}, \"config\": <edited config> }} -> confirm the newly-exercised surface is still downstream-clean."
+    );
+    vec![("user", text)]
+}
+
+fn render_minimize_reproducer(args: &BTreeMap<String, String>) -> Vec<(&'static str, String)> {
+    let seed = prompt_arg(args, "seed", "<failing seed>");
+    let tools = prompt_tools_array(args, "verilator,yosys");
+    let mode = prompt_arg(args, "yosys_mode", "without-abc");
+    let text = format!(
+        "Shrink a failing (seed, knobs) to a minimal downstream reproducer. The seed is held fixed (it pins the reproducer); only knobs shrink. The search is deterministic and budget-bounded.\n\
+\n\
+Run this tool chain in order:\n\
+1. `minimize` {{ \"seed\": {seed}, \"config\": <the failing Config from dump_config>, \"tools\": {tools}, \"yosys_mode\": \"{mode}\" }} (optionally cap the search with \"max_oracle_calls\").\n\
+2. Inspect `reproduced_initial` (false => the case is downstream-clean, nothing to minimize), `reductions` (which knobs shrank), and `final_validation` (the surviving failing-tool reports).\n\
+3. Read `anvil://audit/log` for the minimized `run_id` and the reproducible command lines."
+    );
+    vec![("user", text)]
+}
+
+fn render_triage_tool_failures(args: &BTreeMap<String, String>) -> Vec<(&'static str, String)> {
+    let seed = prompt_arg(args, "seed", "42");
+    let tools = prompt_tools_array(args, "verilator,yosys");
+    let mode = prompt_arg(args, "yosys_mode", "without-abc");
+    let text = format!(
+        "Classify which downstream tool/mode rejected an artifact and extract the actionable diagnostic.\n\
+\n\
+Run this tool chain in order:\n\
+1. `validate` {{ \"seed\": {seed}, \"tools\": {tools}, \"yosys_mode\": \"{mode}\" }}.\n\
+2. For each entry in `tools[]`, read `ok`, `tool`, `argv` (the exact command line), and the captured output; identify the first failing tool and its message. A top-level `declined` verdict means the RAM guard stopped the run, not a tool failure.\n\
+3. Read `anvil://audit/log` to recover the reproducible (run_id, seed, command lines).\n\
+4. Summarize: tool, mode, failure class, and the next step (usually hand off to the `minimize_reproducer` workflow)."
+    );
+    vec![("user", text)]
+}
+
+fn render_explain_artifact(args: &BTreeMap<String, String>) -> Vec<(&'static str, String)> {
+    let seed = prompt_arg(args, "seed", "42");
+    let text = format!(
+        "Explain a generated artifact from construction-truth — ANVIL records structure/provenance by construction, so read those facts instead of parsing the SV.\n\
+\n\
+Run this tool chain in order:\n\
+1. `generate` {{ \"seed\": {seed} }} -> `run_id`, `kind`, `top`.\n\
+2. `introspect` {{ \"seed\": {seed} }} -> read `artifact`, `config`, and `introspection.module_metrics` / `introspection.design_metrics`; these are ground truth.\n\
+3. `resources/read` `anvil://artifact/<run_id>/sv` -> the emitted SystemVerilog, if you need the source.\n\
+4. Summarize: lane, top module, width/depth/flop/motif structure, and which knobs shaped it. Do not claim whole-module intended behavior — ANVIL generates legal structure, not a spec."
+    );
+    vec![("user", text)]
+}
+
 fn ok(id: Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
@@ -964,5 +1223,203 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], true);
         assert!(tool_text_of(&resp).contains("max_oracle_calls"));
+    }
+
+    // --- Agent-workflow prompts (`AGENT-INTROSPECTION-MCP.6`) ----------------
+
+    fn prompt_get(server: &mut McpServer, id: i64, name: &str, args: Value) -> Value {
+        server
+            .handle(&req(
+                id,
+                "prompts/get",
+                json!({ "name": name, "arguments": args }),
+            ))
+            .unwrap()
+    }
+
+    fn prompt_text(resp: &Value) -> String {
+        resp["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[test]
+    fn initialize_advertises_prompts_capability() {
+        let mut s = McpServer::new();
+        let resp = s.handle(&req(0, "initialize", json!({}))).unwrap();
+        assert!(resp["result"]["capabilities"]["prompts"].is_object());
+    }
+
+    #[test]
+    fn prompts_list_lists_the_five_workflows() {
+        let mut s = McpServer::new();
+        let resp = s.handle(&req(1, "prompts/list", json!({}))).unwrap();
+        let prompts = resp["result"]["prompts"].as_array().unwrap();
+        let names: Vec<&str> = prompts
+            .iter()
+            .map(|p| p["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "find_downstream_bug",
+                "close_coverage_gap",
+                "minimize_reproducer",
+                "triage_tool_failures",
+                "explain_artifact",
+            ]
+        );
+        // Each declares a description and an arguments list.
+        for p in prompts {
+            assert!(p["description"].as_str().unwrap().len() > 10);
+            assert!(p["arguments"].is_array());
+        }
+    }
+
+    #[test]
+    fn prompts_get_renders_each_workflow_tool_chain() {
+        let mut s = McpServer::new();
+
+        // find_downstream_bug names generate -> validate -> minimize.
+        let text = prompt_text(&prompt_get(
+            &mut s,
+            2,
+            "find_downstream_bug",
+            json!({ "seed": "42" }),
+        ));
+        assert!(text.contains("`generate`"));
+        assert!(text.contains("`validate`"));
+        assert!(text.contains("`minimize`"));
+        assert!(text.contains("\"seed\": 42"));
+
+        // explain_artifact names generate -> introspect -> the sv resource.
+        let text = prompt_text(&prompt_get(
+            &mut s,
+            3,
+            "explain_artifact",
+            json!({ "seed": "7" }),
+        ));
+        assert!(text.contains("`generate`"));
+        assert!(text.contains("`introspect`"));
+        assert!(text.contains("anvil://artifact/<run_id>/sv"));
+        assert!(text.contains("\"seed\": 7"));
+
+        // triage_tool_failures names validate + the audit log.
+        let text = prompt_text(&prompt_get(&mut s, 4, "triage_tool_failures", json!({})));
+        assert!(text.contains("`validate`"));
+        assert!(text.contains("anvil://audit/log"));
+
+        // minimize_reproducer (seed required) names minimize + audit log.
+        let text = prompt_text(&prompt_get(
+            &mut s,
+            5,
+            "minimize_reproducer",
+            json!({ "seed": "9" }),
+        ));
+        assert!(text.contains("`minimize`"));
+        assert!(text.contains("\"seed\": 9"));
+        assert!(text.contains("anvil://audit/log"));
+
+        // close_coverage_gap (target required) names the knobs catalog + introspect.
+        let text = prompt_text(&prompt_get(
+            &mut s,
+            6,
+            "close_coverage_gap",
+            json!({ "target": "saw_fsm_design" }),
+        ));
+        assert!(text.contains("anvil://catalog/knobs"));
+        assert!(text.contains("`introspect`"));
+        assert!(text.contains("saw_fsm_design"));
+    }
+
+    #[test]
+    fn prompts_get_substitutes_the_tools_array() {
+        let mut s = McpServer::new();
+        let text = prompt_text(&prompt_get(
+            &mut s,
+            2,
+            "find_downstream_bug",
+            json!({ "tools": "verilator, iverilog" }),
+        ));
+        assert!(text.contains("[\"verilator\", \"iverilog\"]"));
+    }
+
+    #[test]
+    fn prompts_get_enforces_required_args_and_unknown_name() {
+        let mut s = McpServer::new();
+        // close_coverage_gap requires `target`.
+        let r = prompt_get(&mut s, 2, "close_coverage_gap", json!({ "seed": "1" }));
+        assert_eq!(r["error"]["code"], INVALID_PARAMS);
+        // minimize_reproducer requires `seed`.
+        let r = prompt_get(&mut s, 3, "minimize_reproducer", json!({}));
+        assert_eq!(r["error"]["code"], INVALID_PARAMS);
+        // Unknown prompt name.
+        let r = prompt_get(&mut s, 4, "no_such_prompt", json!({}));
+        assert_eq!(r["error"]["code"], INVALID_PARAMS);
+        // Non-string argument value is rejected (MCP prompt args are strings).
+        let r = s
+            .handle(&req(
+                5,
+                "prompts/get",
+                json!({ "name": "explain_artifact", "arguments": { "seed": 42 } }),
+            ))
+            .unwrap();
+        assert_eq!(r["error"]["code"], INVALID_PARAMS);
+    }
+
+    #[test]
+    fn each_workflow_tool_chain_runs_end_to_end_on_a_sample() {
+        // The external-tool legs are exercised with `tools: []` so every chain
+        // runs portably (no verilator/yosys needed); the validate/minimize
+        // sandbox + oracle path still executes. This proves each prompt's named
+        // chain is a real, runnable sequence against this very server.
+        let mut s = McpServer::new();
+
+        // explain_artifact: generate -> introspect -> resources/read sv.
+        let gen = call(&mut s, 1, "generate", json!({ "seed": 42 }));
+        let summary: Value = serde_json::from_str(&tool_text_of(&gen)).unwrap();
+        let run_id = summary["run_id"].as_str().unwrap().to_string();
+        let intro = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
+        assert_eq!(intro["result"]["isError"], false);
+        let sv = s
+            .handle(&req(
+                3,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/sv") }),
+            ))
+            .unwrap();
+        assert!(sv["result"]["contents"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("module "));
+
+        // find_downstream_bug / triage_tool_failures: generate -> validate (ok).
+        let val = call(&mut s, 4, "validate", json!({ "seed": 42, "tools": [] }));
+        let report: Value = serde_json::from_str(&tool_text_of(&val)).unwrap();
+        assert_eq!(report["ok"], true);
+
+        // minimize_reproducer: minimize (no repro on downstream-clean output).
+        let min = call(&mut s, 5, "minimize", json!({ "seed": 42, "tools": [] }));
+        let mreport: Value = serde_json::from_str(&tool_text_of(&min)).unwrap();
+        assert_eq!(mreport["reproduced_initial"], false);
+
+        // close_coverage_gap: dump_config -> introspect surfaces the metrics block.
+        let cfg = call(&mut s, 6, "dump_config", json!({ "seed": 42 }));
+        assert_eq!(cfg["result"]["isError"], false);
+        let doc: Value = serde_json::from_str(&tool_text_of(&intro)).unwrap();
+        assert!(doc["introspection"]["module_metrics"].is_object());
+
+        // The validate + minimize legs were audit-logged (chain observability).
+        let log = s
+            .handle(&req(
+                7,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(entries.as_array().unwrap().len(), 2);
     }
 }

@@ -121,11 +121,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool`
 
 - ID: `AGENT-INTROSPECTION-MCP.6`
-  Status: `pending`
+  Status: `done`
   Goal: `Package the agent-workflow prompts (find_downstream_bug, close_coverage_gap, minimize_reproducer, triage_tool_failures, explain_artifact).`
   Acceptance: `Each prompt drives its tool chain end-to-end on a sample.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Implemented as first-class MCP prompts in src/mcp/ (prompts capability + prompts/list + prompts/get over a fixed PROMPTS registry; pure renderers with sample-arg substitution + required-arg + type validation). cargo fmt/check/clippy -D warnings clean; cargo test --lib mcp:: (24/24, +6 prompt tests incl. each_workflow_tool_chain_runs_end_to_end_on_a_sample which executes all five chains portably via tools:[]); cargo test --lib (370/370, 2 gated); cargo test --test snapshots (6/6 byte-identical); anvil-mcp stdio smoke (initialize advertises prompts; prompts/list lists the 5; prompts/get renders + substitutes args; required-arg error -32602).`
+  Commit: `AGENT-INTROSPECTION-MCP.6 - agent-workflow prompts`
 
 - ID: `AGENT-INTROSPECTION-MCP.7`
   Status: `pending`
@@ -145,18 +145,46 @@ recorded in
 | 5 | `AGENT-INTROSPECTION-MCP.5.1` | `done` | Shared downstream-tool invocation surface extracted to `src/downstream/`; `tool_matrix` rewired; behavior-preserving (snapshots 6/6). |
 | 6 | `AGENT-INTROSPECTION-MCP.5.2` | `done` | Controlled `validate` tool: `downstream::validate` (sandboxed temp dir + ram-guard + fixed allow-list) + MCP `validate` tool + `anvil://audit/log`; e2e clean vs Verilator+Yosys. |
 | 7 | `AGENT-INTROSPECTION-MCP.5.3` | `done` | `minimize` delta-debugger: `downstream::minimize` (deterministic coordinate-descent over size bounds + optional-motif probs, budget-bounded, seed fixed) + MCP `minimize` tool + audit log; e2e clean vs real Verilator+Yosys. |
-| 8 | `AGENT-INTROSPECTION-MCP.6` | `pending` | Agent-workflow prompts (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`, `explain_artifact`). |
+| 8 | `AGENT-INTROSPECTION-MCP.6` | `done` | Agent-workflow prompts landed as first-class **MCP prompts** (`prompts/list` / `prompts/get`) in `src/mcp/`: `find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`, `explain_artifact` — each renders its ordered tool chain with sample-arg substitution; every chain proven runnable end-to-end through the server. |
+| 9 | `AGENT-INTROSPECTION-MCP.7` | `pending` | Book chapter + USER_GUIDE section + CODEBASE_ANALYSIS update + closeout (user-facing docs). |
 
 Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
 leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and **all
-three are now done**, so the `.5` container is `done`. The remaining leaves
-proceed in order under PNT (`.6` prompts → `.7` book/USER_GUIDE closeout).
-User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
-`.7` closeout by design — the lane is documented as a stable feature only once
-`.5`/`.6` complete it.
+three are now done**, so the `.5` container is `done`. `.6` is now done — the
+five agent-workflow prompts ship as first-class MCP prompts. The final leaf
+`.7` (book + USER_GUIDE + README CLI surface + CODEBASE_ANALYSIS closeout)
+proceeds next under PNT — user-facing docs were deferred to `.7` by design, the
+lane is documented as a stable feature now that `.5`/`.6` complete it.
 
 ## Decisions
 
+- `2026-06-15`: **Landed `.6`** — the five agent-workflow prompts, packaged as
+  first-class **MCP prompts** (the third MCP primitive beside tools +
+  resources). Rationale: decision `0004` maps "Prompts (workflows)" onto ANVIL,
+  and MCP's `prompts/list`/`prompts/get` is the canonical, agent-drivable way to
+  package a workflow so a client can fetch and execute it — strictly better than
+  static doc text (the `.1` phasing hint), and it satisfies the leaf acceptance
+  ("each prompt drives its tool chain end-to-end on a sample") directly. Design:
+  (a) a fixed `PROMPTS` registry of `PromptSpec { name, description, args,
+  render }` is the single owner of the prompt set, so it cannot drift from the
+  dispatch; (b) each prompt is **pure guidance** — its renderer instantiates an
+  ordered chain over the *existing* tools/resources with the caller's sample
+  arguments; it adds **no** new capability and computes **no** new truth
+  (consistent with the lane's read-mostly, no-second-source-of-truth doctrine);
+  (c) `prompts/get` validates the prompt name, that argument values are strings
+  (the MCP prompt-argument contract), and that every declared-required argument
+  is present, before rendering — a malformed request is a clean `-32602` error,
+  never a panic; (d) the five chains are: `find_downstream_bug`
+  (generate → validate → on-failure minimize), `close_coverage_gap`
+  (knobs catalog → dump_config → introspect to confirm the metric lit →
+  validate), `minimize_reproducer` (minimize → audit log; seed held fixed),
+  `triage_tool_failures` (validate → per-tool argv/output → audit log), and
+  `explain_artifact` (generate → introspect → read the `.sv` resource). The
+  end-to-end test drives all five chains through the server portably (the
+  external-tool legs use `tools: []`), proving each prompt names a real,
+  runnable sequence. `initialize` now advertises the `prompts` capability.
+  Default `anvil` build / DUT byte-identical untouched (snapshots 6/6).
+  User-facing book/USER_GUIDE/README docs remain deferred to `.7`.
 - `2026-06-15`: **Landed `.5.3`** — the controlled `minimize` delta-debugger,
   closing the `.5` container. `downstream::minimize(seed, &Config,
   &MinimizeOptions) -> MinimizeReport` delta-debugs `(seed, knobs)` to a smaller
@@ -298,6 +326,7 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.1` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib downstream::` (7/7); `cargo test --bin tool_matrix` (41 pass, 1 ignored); `cargo test --test snapshots` (6/6 byte-identical) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.2` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (12/12 + 1 gated) + `mcp::` (15/15); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator+Yosys (seed 42 `ok=true`); `anvil-mcp` stdio smoke (initialize → validate → `anvil://audit/log`) | passed |
 | `2026-06-15` | `AGENT-INTROSPECTION-MCP.5.3` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (20/20 + 1 gated, synthetic-oracle shrink proofs) + `mcp::` (18/18); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator 5.046 + Yosys 0.64 (seed 42 `reproduced_initial=false`); `anvil-mcp` stdio smoke (initialize → minimize → `anvil://audit/log`) | passed |
+| `2026-06-15` | `AGENT-INTROSPECTION-MCP.6` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings` (factored the renderer fn-pointer into the `PromptRender` type alias for `type_complexity`); `cargo test --lib mcp::` (24/24, +6 prompt tests); `cargo test --lib` (370/370, 2 gated); `cargo test --test snapshots` (6/6 byte-identical); `anvil-mcp` stdio smoke (initialize advertises `prompts`; `prompts/list` lists the 5; `prompts/get` renders + substitutes args; required-arg → `-32602`) | passed |
 
 ## Commit Log
 
@@ -309,7 +338,8 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Commit `5db5ebc`; lands `src/mcp/` + `anvil-mcp` bin. |
 | `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Commit `64f0bbe`; lands `src/downstream/`, rewires `tool_matrix`. |
 | `AGENT-INTROSPECTION-MCP.5.2` | `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool` | Commit `65db6c3`; lands `downstream::validate` + MCP `validate` tool + `anvil://audit/log`. |
-| `AGENT-INTROSPECTION-MCP.5.3` | `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool` | Pending hash; lands `downstream::minimize` + MCP `minimize` tool; closes the `.5` container. |
+| `AGENT-INTROSPECTION-MCP.5.3` | `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool` | Commit `381ec01`; lands `downstream::minimize` + MCP `minimize` tool; closes the `.5` container. |
+| `AGENT-INTROSPECTION-MCP.6` | `AGENT-INTROSPECTION-MCP.6 - agent-workflow prompts` | Pending hash; lands the five MCP prompts (`prompts/list`/`prompts/get`) in `src/mcp/`. |
 
 ## Changelog
 
@@ -357,3 +387,15 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
   predicate oracle), tool-gated e2e clean vs real Verilator 5.046 + Yosys 0.64
   (`reproduced_initial=false`), `anvil-mcp` stdio smoke clean, snapshots 6/6
   byte-identical. Frontier advanced to `.6` (agent-workflow prompts).
+- `2026-06-15`: Landed `.6` — the five agent-workflow prompts as first-class
+  **MCP prompts** in `src/mcp/` (`prompts` capability + `prompts/list` +
+  `prompts/get` over a fixed `PROMPTS` registry; pure renderers that
+  instantiate each workflow's ordered tool chain with sample-arg substitution;
+  name/type/required-arg validation → clean `-32602` errors). Workflows:
+  `find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`,
+  `triage_tool_failures`, `explain_artifact`. 24 mcp lib tests (+6 prompt
+  tests, incl. an end-to-end test that drives all five chains through the
+  server portably via `tools: []`), full lib 370/370, snapshots 6/6
+  byte-identical, `anvil-mcp` stdio smoke clean. Adds no new capability and
+  computes no new truth (read-mostly doctrine preserved). Frontier advanced to
+  `.7` (book + USER_GUIDE + README + CODEBASE_ANALYSIS closeout).

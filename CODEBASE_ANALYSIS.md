@@ -360,10 +360,20 @@ src/
 │                     same guardrails + an optional `max_oracle_calls`,
 │                     audit-logged); the shared `tools`/`yosys_mode` parsing is
 │                     factored into `parse_validate_tools`/`parse_yosys_mode_arg`
-│                     so `validate`/`minimize` cannot drift. Driven by the
-│                     `anvil-mcp` bin; the whole protocol surface is unit-tested
-│                     in-process. Separate target ⇒ default `anvil` build /
-│                     `--artifact dut` unaffected.
+│                     so `validate`/`minimize` cannot drift. `.6` adds the third
+│                     MCP primitive — **prompts** (`prompts/list`/`prompts/get`,
+│                     advertised in `initialize`): a fixed `PROMPTS` registry of
+│                     `PromptSpec { name, description, args, render: PromptRender }`
+│                     whose pure renderers instantiate the five agent-workflow
+│                     chains (`find_downstream_bug`, `close_coverage_gap`,
+│                     `minimize_reproducer`, `triage_tool_failures`,
+│                     `explain_artifact`) over the *existing* tools/resources with
+│                     sample-arg substitution; `prompts/get` validates name +
+│                     string-arg type + required args (clean `-32602`). Prompts add
+│                     no capability and no new truth. Driven by the `anvil-mcp`
+│                     bin; the whole protocol surface is unit-tested in-process.
+│                     Separate target ⇒ default `anvil` build / `--artifact dut`
+│                     unaffected.
 ├── bin/
 │   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
 │   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines

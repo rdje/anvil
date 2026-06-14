@@ -1,9 +1,94 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-INTROSPECTION-MCP.6 — agent-workflow prompts
+
+**Landed as:** this commit (previous: `381ec01`).
+
+**What changed (code)**
+
+`.6` packages the five agent-workflow prompts as first-class **MCP prompts** —
+the third MCP protocol primitive beside tools and resources — so an MCP client
+can fetch and execute each ANVIL bug-hunting loop. Decision `0004` maps
+"Prompts (workflows)" onto ANVIL; `prompts/list` / `prompts/get` is the
+canonical, agent-drivable realization (and satisfies the leaf acceptance —
+"each prompt drives its tool chain end-to-end on a sample" — directly).
+
+- `src/mcp/mod.rs` now advertises the `prompts` capability in `initialize` and
+  dispatches `prompts/list` + `prompts/get`. A fixed `PROMPTS` registry of
+  `PromptSpec { name, description, args, render }` (with a `PromptRender` type
+  alias for the renderer fn-pointer) is the single owner of the prompt set, so
+  it cannot drift from the dispatch.
+- Each prompt is **pure guidance**: its renderer instantiates an ordered chain
+  over the *existing* tools/resources with the caller's sample arguments. It
+  adds **no** new capability and computes **no** new truth — consistent with the
+  lane's read-mostly, no-second-source-of-truth doctrine.
+- `prompts/get` validates the prompt name, that argument values are strings (the
+  MCP prompt-argument contract), and that every declared-required argument is
+  present, before rendering — a malformed request is a clean JSON-RPC `-32602`
+  error, never a panic.
+- The five workflows and their chains:
+  - `find_downstream_bug` — generate → validate → on a rejection minimize +
+    read `anvil://audit/log` (ANVIL is the oracle; never repair the RTL).
+  - `close_coverage_gap` (requires `target`) — read `anvil://catalog/knobs` →
+    dump_config → raise the gating knob and introspect to confirm the metric is
+    lit → validate it stays downstream-clean (rules-first, not post-hoc filter).
+  - `minimize_reproducer` (requires `seed`) — minimize → inspect
+    `reduced`/`final_validation` → read the audit log (seed held fixed).
+  - `triage_tool_failures` — validate → per-tool `argv`/output classification →
+    audit log → summarize the failing tool/mode.
+  - `explain_artifact` — generate → introspect (construction-truth) → read the
+    `.sv` resource → summarize structure/provenance (no whole-module behavior
+    claims).
+- The renderers substitute `seed`, a comma-separated `tools` list (rendered as a
+  JSON array literal, e.g. `["verilator", "iverilog"]`), `yosys_mode`, and
+  `target` into the workflow text.
+
+**Why**
+
+This is the `.6` leaf of `AGENT-INTROSPECTION-MCP`: the lane's tools (`.3`–`.5`)
+and resources (`.4`–`.5`) were in place; prompts are the missing primitive that
+packages them into the named agent loops decision `0004` specified. Shipping
+them as real MCP prompts (rather than static doc text — the early `.1` phasing
+hint) makes them agent-drivable and lets the acceptance be proven by execution.
+
+**Validation**
+
+- `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy
+  --all-targets -- -D warnings` (factored the renderer fn-pointer into the
+  `PromptRender` type alias to satisfy `clippy::type_complexity`).
+- `cargo test --lib mcp::` — 24/24 (6 new prompt tests: capability advertised;
+  `prompts/list` lists the five in order; each workflow renders its tool chain;
+  `tools` array substitution; required-arg + unknown-name + non-string-arg
+  rejection; and `each_workflow_tool_chain_runs_end_to_end_on_a_sample`, which
+  drives all five chains through the server portably via `tools: []`).
+- `cargo test --lib` — 370/370 (2 tool-gated `#[ignore]`).
+- `cargo test --test snapshots` — 6/6 byte-identical (DUT contract preserved).
+- `anvil-mcp` stdio smoke: `initialize` advertises `prompts`; `prompts/list`
+  returns the five; `prompts/get find_downstream_bug` renders with `seed` +
+  `tools` substitution; `prompts/get close_coverage_gap` without `target`
+  returns `-32602`.
+
+**Impact**
+
+Additive, default-off-equivalent: a separate `anvil-mcp` target; the default
+`anvil` build and the `--artifact dut` byte-identical contract are untouched.
+No new generation path; no output mutation. User-facing book/USER_GUIDE/README
+docs remain deferred to the `.7` closeout by design.
+
+**Files touched**
+
+- `src/mcp/mod.rs` (prompts capability + dispatch + `PROMPTS` registry +
+  renderers + tests)
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md` (leaf `.6` →
+  done; frontier → `.7`)
+- `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`
+
+---
+
 ## 2026-06-15 — AGENT-INTROSPECTION-MCP.5.3 — controlled `minimize` tool
 
-**Landed as:** this commit (previous: `65db6c3`).
+**Landed as:** `381ec01` (previous: `65db6c3`).
 
 **What changed (code)**
 
