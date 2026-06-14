@@ -134,7 +134,11 @@ impl IntrospectionDocument {
 /// decision `0004` relies on. The hash function is an implementation detail
 /// (the schema only requires purity + a hex string), free to change in a
 /// future leaf without altering the contract.
-fn content_run_id(lane: &str, seed: u64, knobs: &Config) -> String {
+///
+/// Exposed (`AGENT-INTROSPECTION-MCP.5.2`) so the controlled `validate` tool
+/// stamps each run with the **same** content address `generate`/`introspect`
+/// use — one deterministic `run_id` per `(seed, knobs)`, not a second scheme.
+pub fn content_run_id(lane: &str, seed: u64, knobs: &Config) -> String {
     // `serde_json::to_string(Config)` is deterministic (declaration field
     // order; BTreeMap-sorted nested maps), so the canonical string is stable.
     let knobs_json = serde_json::to_string(knobs).unwrap_or_default();

@@ -1,9 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.5.2 — controlled `validate` tool
+
+**Landed as:** this commit (previous: `64f0bbe`).
+
+**What changed (code)**
+
+`.5.2` adds the controlled `validate` tool over the `.5.1` invocation surface
+— the first agent tool that runs external tools.
+
+- New `src/downstream/` orchestration: `validate(seed, &Config,
+  &ValidateOptions) -> Result<ValidateReport>`. It regenerates the DUT
+  artifact deterministically (module or design, mirroring the CLI/MCP
+  dispatch), writes the emitted `.sv` into a **fresh per-run sandbox**
+  (`<sandbox_root>/anvil-validate-<run_id>/`), runs the selected vetted tools
+  via the `.5.1` `run_*` functions, and returns a `ValidateReport` (`run_id`,
+  `kind`, `top`, `sandbox`, per-tool `ToolInvocation`s, overall `ok`, and any
+  `declined` reason). Supporting types: `AcceptanceTool` (a fixed
+  `verilator`/`yosys`/`iverilog` allow-list with fixed binary names — no
+  arbitrary command or path) and `ValidateOptions` (tools, `YosysMode`,
+  `MemLimits`, sandbox root, keep-sandbox).
+- Guardrails (decision `0004`): the sandbox root is fixed by the caller (the
+  MCP adapter pins it to the OS temp dir — never agent-supplied), so there is
+  no arbitrary filesystem write; only the fixed `run_*` invocations run (no
+  arbitrary shell); and a `MemGuard` (new `MemGuard::from_limits` in
+  `src/mem_guard.rs`) is checked **before each tool spawn** so the run
+  declines-to-start-more before the host danger zone (the host-%-used axis is
+  the meaningful one for child tools; `scripts/ram_guard.sh` remains the guard
+  for a child's own RSS balloon).
+- New MCP `validate` tool in `src/mcp/mod.rs`: parses the tool allow-list +
+  `yosys_mode` (clean errors on anything off-list), calls
+  `downstream::validate` with the sandbox fixed to `std::env::temp_dir()`, and
+  **audit-logs** each call (run_id, seed, kind, top, the exact command line of
+  every spawned tool, verdict) to an append-only server log exposed read-only
+  as the new `anvil://audit/log` resource.
+- `src/introspect/mod.rs`: `content_run_id` is now `pub` so `validate` stamps
+  each run with the **same** content address `generate`/`introspect` use (one
+  deterministic `run_id` scheme, not a second one).
+
+**Why**
+
+`AGENT-INTROSPECTION-MCP.5.2` acceptance: `validate(seed, knobs, tools)`
+returns structured per-tool reports + a verdict, with the sandbox/ram-guard/
+audit/no-arbitrary-shell guardrails enforced and tested. This is the first
+half of the bug-hunting loop (`.5.3` adds `minimize`).
+
+**Validation**
+
+- `cargo fmt --all --check`, `cargo check --all-targets`, `cargo clippy
+  --all-targets -- -D warnings` all clean.
+- `cargo test --lib downstream::` 12/12 (+1 tool-gated `#[ignore]`); `cargo
+  test --lib mcp::` 15/15; `cargo test --test snapshots` 6/6 **byte-identical**
+  (DUT contract preserved).
+- Tool-gated end-to-end (`--ignored`) clean against real Verilator + Yosys:
+  ANVIL's seed-42 DUT artifact validates `ok=true`.
+- Full `anvil-mcp` stdio smoke: `initialize` → `validate {seed:42,
+  tools:[verilator,yosys]}` returns `ok=true` (sandboxed under the OS temp dir,
+  auto-cleaned) and `resources/read anvil://audit/log` shows one entry with the
+  exact reproducible command lines.
+
+**Impact**
+
+Additive. The default `anvil` build / `--artifact dut` byte-identical contract
+is untouched; the three pure MCP tools are unchanged. The new `validate` tool
+runs external tools only when explicitly called, sandboxed. User-facing docs
+remain deferred to `.7` by design.
+
+**Files touched**
+
+`src/downstream/mod.rs`, `src/mcp/mod.rs`, `src/mem_guard.rs`,
+`src/introspect/mod.rs`, `docs/tasks/AGENT-INTROSPECTION-MCP.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`,
+`CODEBASE_ANALYSIS.md`.
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.5.1 — shared downstream-tool invocation surface
 
-**Landed as:** this commit (previous: `5db5ebc`).
+**Landed as:** `64f0bbe` (previous: `5db5ebc`).
 
 **What changed (code)**
 

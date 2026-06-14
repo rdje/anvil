@@ -107,11 +107,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface`
 
 - ID: `AGENT-INTROSPECTION-MCP.5.2`
-  Status: `pending`
+  Status: `done`
   Goal: `The controlled validate tool over the .5.1 surface: generate (seed, knobs) into a sandboxed temp dir under a project-root/tmp scope, run the selected acceptance tools, ram-guard the run (reuse mem_guard / scripts/ram_guard.sh envelope), return structured ToolInvocation reports + an overall verdict, and audit-log the reproducible (seed, knobs) + exact command line per call; no arbitrary shell.`
   Acceptance: `validate(seed, knobs, tools) returns structured per-tool reports + overall verdict; sandbox + ram-guard + audit-log guardrails enforced and unit-tested; tool-gated end-to-end smoke when tools are present.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo fmt/check/clippy -D warnings clean; cargo test --lib downstream:: (12/12 + 1 tool-gated) + mcp:: (15/15); cargo test --test snapshots (6/6 byte-identical); tool-gated e2e (--ignored) clean vs real Verilator+Yosys (seed 42 ok=true); anvil-mcp stdio smoke (initialize → validate → anvil://audit/log).`
+  Commit: `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool`
 
 - ID: `AGENT-INTROSPECTION-MCP.5.3`
   Status: `pending`
@@ -143,19 +143,36 @@ recorded in
 | 3 | `AGENT-INTROSPECTION-MCP.3` | `done` | Emission surface landed: `src/introspect/` + `--introspect` flag; DUT byte-identical. |
 | 4 | `AGENT-INTROSPECTION-MCP.4` | `done` | Read-only MCP server landed: `src/mcp/` + `anvil-mcp` bin (stdio JSON-RPC; generate/introspect/dump_config + resources). |
 | 5 | `AGENT-INTROSPECTION-MCP.5.1` | `done` | Shared downstream-tool invocation surface extracted to `src/downstream/`; `tool_matrix` rewired; behavior-preserving (snapshots 6/6). |
-| 6 | `AGENT-INTROSPECTION-MCP.5.2` | `pending` | Controlled `validate` tool over the `.5.1` surface (sandboxed temp dir + ram-guard + audit log; no arbitrary shell). |
+| 6 | `AGENT-INTROSPECTION-MCP.5.2` | `done` | Controlled `validate` tool: `downstream::validate` (sandboxed temp dir + ram-guard + fixed allow-list) + MCP `validate` tool + `anvil://audit/log`; e2e clean vs Verilator+Yosys. |
 | 7 | `AGENT-INTROSPECTION-MCP.5.3` | `pending` | `minimize` delta-debugger shrinking `(seed, knobs)` to a smaller failing reproducer via the `.5.2` oracle. |
 
 Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
-leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and `.5.1`
-is done. The remaining leaves proceed in order under PNT (`.5.2` validate →
-`.5.3` minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
+leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and
+`.5.1`/`.5.2` are done. The remaining leaves proceed in order under PNT
+(`.5.3` minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
 User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 `.7` closeout by design — the lane is documented as a stable feature only once
 `.5`/`.6` complete it.
 
 ## Decisions
 
+- `2026-06-14`: **Landed `.5.2`** — the controlled `validate` tool.
+  `downstream::validate(seed, &Config, &ValidateOptions)` regenerates the DUT
+  artifact deterministically into a fresh per-run sandbox
+  (`<root>/anvil-validate-<run_id>/`), runs the selected `AcceptanceTool`
+  allow-list (`verilator`/`yosys`/`iverilog`, fixed binary names) via the
+  `.5.1` runners, checks `MemGuard` before each spawn (decline-to-start-more,
+  new `MemGuard::from_limits`), and returns per-tool `ToolInvocation`s + an
+  overall verdict (`ValidateReport`). The MCP `validate` tool fixes the sandbox
+  to the OS temp dir (never agent-supplied), audit-logs each call to
+  `anvil://audit/log` with the exact reproducible command lines, and rejects
+  off-allow-list tool names / yosys modes with clean errors. `validate` reuses
+  the now-`pub` `introspect::content_run_id` so it shares the one content
+  address with `generate`/`introspect`. Guardrails (decision `0004`): no
+  arbitrary shell, no agent-supplied path, ram-guard decline path — all
+  unit-tested; tool-gated e2e clean vs real Verilator+Yosys. Default `anvil`
+  build / DUT byte-identical untouched (snapshots 6/6). User-facing docs remain
+  deferred to `.7`.
 - `2026-06-14`: **Split `.5` and landed `.5.1`** — the controlled-tools leaf
   `.5` was split into `.5.1` (shared invocation surface), `.5.2` (validate),
   `.5.3` (minimize) per the `docs/TASK_TREE.md` splitting rules (it bundled a
@@ -250,6 +267,7 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.3` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib introspect` (6/6); `cargo test --test snapshots` (6/6 byte-identical); CLI smoke (module/design/guard/JSON) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.4` | `cargo fmt --all --check`; `cargo check --all-targets` (no dup-bin); `cargo clippy --all-targets -- -D warnings`; `cargo test --lib` (338/338, incl 12 mcp); `cargo test --test snapshots` (6/6 byte-identical); end-to-end `anvil-mcp` stdio smoke (initialize/tools.list/generate/resources) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.1` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib downstream::` (7/7); `cargo test --bin tool_matrix` (41 pass, 1 ignored); `cargo test --test snapshots` (6/6 byte-identical) | passed |
+| `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.2` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (12/12 + 1 gated) + `mcp::` (15/15); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator+Yosys (seed 42 `ok=true`); `anvil-mcp` stdio smoke (initialize → validate → `anvil://audit/log`) | passed |
 
 ## Commit Log
 
@@ -259,7 +277,8 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Commit `defc196`; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
 | `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Commit `aec51e2`; lands `src/introspect/` + `--introspect`. |
 | `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Commit `5db5ebc`; lands `src/mcp/` + `anvil-mcp` bin. |
-| `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Pending hash; lands `src/downstream/`, rewires `tool_matrix`. |
+| `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Commit `64f0bbe`; lands `src/downstream/`, rewires `tool_matrix`. |
+| `AGENT-INTROSPECTION-MCP.5.2` | `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool` | Pending hash; lands `downstream::validate` + MCP `validate` tool + `anvil://audit/log`. |
 
 ## Changelog
 
@@ -287,3 +306,11 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
   to `use anvil::downstream::{…}`; behavior-preserving (matrix tool tests pass,
   snapshots 6/6 byte-identical). Frontier advanced to `.5.2` (controlled
   validate tool).
+- `2026-06-14`: Landed `.5.2` — the controlled `validate` tool.
+  `downstream::validate` (sandboxed per-run temp dir + `AcceptanceTool`
+  allow-list + `MemGuard` decline-before-spawn + `ValidateReport`) and the MCP
+  `validate` tool + `anvil://audit/log` resource; `introspect::content_run_id`
+  made `pub` for the shared content address; `MemGuard::from_limits` added.
+  12 downstream + 15 mcp lib tests, tool-gated e2e clean vs real
+  Verilator+Yosys, `anvil-mcp` stdio smoke clean, snapshots 6/6 byte-identical.
+  Frontier advanced to `.5.3` (minimize).

@@ -29,6 +29,7 @@
 //! are `.5`.
 
 use crate::config::Config;
+use crate::downstream::{self, AcceptanceTool, ValidateOptions, YosysMode};
 use crate::introspect;
 use crate::{emit, Generator};
 use serde_json::{json, Value};
@@ -59,6 +60,11 @@ struct CachedArtifact {
 pub struct McpServer {
     cache: BTreeMap<String, CachedArtifact>,
     initialized: bool,
+    /// Append-only audit trail of controlled `validate` calls
+    /// (`AGENT-INTROSPECTION-MCP.5.2`): one record per call with the
+    /// reproducible `(run_id, seed)` and the exact command line of every tool
+    /// spawned. Exposed read-only as the `anvil://audit/log` resource.
+    audit: Vec<Value>,
 }
 
 impl McpServer {
@@ -134,11 +140,14 @@ impl McpServer {
                     "version": introspect::anvil_version(),
                 },
                 "instructions":
-                    "ANVIL agent-introspection (read-only). Tools: generate, \
-                     introspect, dump_config. Artifacts and static catalogs are \
-                     exposed as resources. All output is construction-truth \
-                     derived from existing metrics/config; the server runs no \
-                     external tools."
+                    "ANVIL agent-introspection. Pure tools: generate, introspect, \
+                     dump_config (construction-truth derived from existing \
+                     metrics/config; no side effects). Controlled tool: validate \
+                     runs the vetted downstream tools (verilator / yosys / \
+                     iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
+                     dir — a fixed allow-list, no arbitrary shell — and audit-logs \
+                     each call (see the anvil://audit/log resource). Artifacts and \
+                     static catalogs are exposed as resources."
             }),
         )
     }
@@ -151,6 +160,27 @@ impl McpServer {
                           "description": "RNG seed (deterministic output)." },
                 "config": { "type": "object",
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." }
+            },
+            "additionalProperties": false
+        });
+        let validate_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "RNG seed (deterministic output)." },
+                "config": { "type": "object",
+                            "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
+                "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog"] },
+                    "description": "Vetted downstream tools to run (default: verilator + yosys). \
+                                    A fixed allow-list — no arbitrary commands or binary paths."
+                },
+                "yosys_mode": {
+                    "type": "string",
+                    "enum": ["without-abc", "with-abc", "both"],
+                    "description": "Yosys synthesis mode when yosys is selected (default without-abc)."
+                }
             },
             "additionalProperties": false
         });
@@ -172,6 +202,14 @@ impl McpServer {
                     "name": "dump_config",
                     "description": "Return the effective Config for (seed, config) after validation.",
                     "inputSchema": knob_schema,
+                },
+                {
+                    "name": "validate",
+                    "description": "Generate the (seed, config) DUT artifact into a sandboxed temp dir \
+                                    and run the selected vetted downstream tools (verilator/yosys/iverilog) \
+                                    on it; returns structured per-tool reports + an overall verdict. \
+                                    Audit-logged; no arbitrary shell.",
+                    "inputSchema": validate_schema,
                 },
             ]
         })
@@ -217,8 +255,74 @@ impl McpServer {
                     Err(e) => ok(id, tool_error(&format!("serialize summary: {e}"))),
                 }
             }
+            "validate" => match self.run_validate(seed, &cfg, &args) {
+                Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            },
             other => ok(id, tool_error(&format!("unknown tool: {other}"))),
         }
+    }
+
+    /// The controlled `validate` tool (`AGENT-INTROSPECTION-MCP.5.2`): run the
+    /// selected vetted downstream tools on the `(seed, cfg)` artifact in a
+    /// sandboxed temp dir, audit-log the call, and return the structured
+    /// report. The sandbox root and tool binaries are fixed here (the OS temp
+    /// dir / the standard names) — the agent controls only *which* vetted tools
+    /// run and the Yosys mode; there is no arbitrary-path or arbitrary-command
+    /// surface.
+    fn run_validate(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
+        let tools = match args.get("tools") {
+            None | Some(Value::Null) => {
+                vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys]
+            }
+            Some(Value::Array(items)) => {
+                let mut selected = Vec::with_capacity(items.len());
+                for item in items {
+                    let name = item
+                        .as_str()
+                        .ok_or_else(|| "`tools` entries must be strings".to_string())?;
+                    let tool = AcceptanceTool::from_name(name).ok_or_else(|| {
+                        format!("unknown tool '{name}': allowed = verilator, yosys, iverilog")
+                    })?;
+                    selected.push(tool);
+                }
+                selected
+            }
+            Some(_) => return Err("`tools` must be an array of tool names".to_string()),
+        };
+        let yosys_mode = match args.get("yosys_mode").and_then(Value::as_str) {
+            None => YosysMode::WithoutAbc,
+            Some(s) => parse_yosys_mode(s).ok_or_else(|| {
+                format!("unknown yosys_mode '{s}': allowed = without-abc, with-abc, both")
+            })?,
+        };
+
+        let opts = ValidateOptions {
+            tools,
+            yosys_mode,
+            ..ValidateOptions::default()
+        };
+        let report = downstream::validate(seed, cfg, &opts).map_err(|e| e.to_string())?;
+
+        // Audit-log the reproducible call: the run_id, the seed, and the exact
+        // command line of every tool spawned (the verdict too, for triage).
+        self.audit.push(json!({
+            "tool": "validate",
+            "run_id": report.run_id,
+            "seed": seed,
+            "lane": report.lane,
+            "kind": report.kind,
+            "top": report.top,
+            "commands": report
+                .tools
+                .iter()
+                .map(|t| t.argv.join(" "))
+                .collect::<Vec<_>>(),
+            "ok": report.ok,
+            "declined": report.declined,
+        }));
+
+        serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
     }
 
     /// Build the artifact for `(seed, cfg)`, store it in the content-addressed
@@ -250,6 +354,11 @@ impl McpServer {
             json!({
                 "uri": "anvil://catalog/lanes",
                 "name": "artifact lane catalog",
+                "mimeType": "application/json",
+            }),
+            json!({
+                "uri": "anvil://audit/log",
+                "name": "validate audit log",
                 "mimeType": "application/json",
             }),
         ];
@@ -290,6 +399,10 @@ impl McpServer {
                     ]
                 }))
                 .unwrap_or_default(),
+            ),
+            "anvil://audit/log" => (
+                "application/json",
+                serde_json::to_string_pretty(&self.audit).unwrap_or_default(),
             ),
             other => match parse_artifact_uri(other) {
                 Some((run_id, part)) => match self.cache.get(run_id) {
@@ -370,6 +483,17 @@ fn parse_artifact_uri(uri: &str) -> Option<(&str, &str)> {
     rest.split_once('/')
 }
 
+/// Parse the agent-facing `yosys_mode` string into a [`YosysMode`]. Returns
+/// `None` for anything off the fixed set so the tool reports a clean error.
+fn parse_yosys_mode(s: &str) -> Option<YosysMode> {
+    match s {
+        "without-abc" => Some(YosysMode::WithoutAbc),
+        "with-abc" => Some(YosysMode::WithAbc),
+        "both" => Some(YosysMode::Both),
+        _ => None,
+    }
+}
+
 fn ok(id: Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
@@ -433,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_has_the_three_pure_tools() {
+    fn tools_list_has_the_pure_tools_and_validate() {
         let mut s = McpServer::new();
         let resp = s.handle(&req(1, "tools/list", json!({}))).unwrap();
         let names: Vec<&str> = resp["result"]["tools"]
@@ -442,7 +566,10 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names, vec!["generate", "introspect", "dump_config"]);
+        assert_eq!(
+            names,
+            vec!["generate", "introspect", "dump_config", "validate"]
+        );
     }
 
     #[test]
@@ -581,5 +708,85 @@ mod tests {
         let ra: Value = serde_json::from_str(&a).unwrap();
         let rb: Value = serde_json::from_str(&b).unwrap();
         assert_eq!(ra["run_id"], rb["run_id"]);
+    }
+
+    #[test]
+    fn validate_tool_no_tools_round_trips_and_audits() {
+        let mut s = McpServer::new();
+        // Audit log starts empty.
+        let empty = s
+            .handle(&req(
+                20,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let log: Value =
+            serde_json::from_str(empty["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(log.as_array().unwrap().len(), 0);
+
+        // `tools: []` exercises the generate+sandbox path without needing any
+        // external tool present — portable.
+        let resp = call(&mut s, 21, "validate", json!({ "seed": 7, "tools": [] }));
+        assert_eq!(resp["result"]["isError"], false);
+        let report: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(report["lane"], "dut");
+        assert_eq!(report["kind"], "module");
+        assert_eq!(report["ok"], true);
+        assert!(report["declined"].is_null());
+        assert_eq!(report["tools"].as_array().unwrap().len(), 0);
+
+        // The call was audit-logged with its reproducible run_id.
+        let after = s
+            .handle(&req(
+                22,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let log: Value =
+            serde_json::from_str(after["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let entries = log.as_array().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["tool"], "validate");
+        assert_eq!(entries[0]["run_id"], report["run_id"]);
+        assert_eq!(entries[0]["seed"], 7);
+    }
+
+    #[test]
+    fn validate_tool_rejects_unknown_tool_name() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            23,
+            "validate",
+            json!({ "seed": 0, "tools": ["bash"] }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown tool"));
+        // A rejected call must not be audit-logged (it never ran).
+        let log = s
+            .handle(&req(
+                24,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(entries.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn validate_tool_rejects_unknown_yosys_mode() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            25,
+            "validate",
+            json!({ "seed": 0, "tools": [], "yosys_mode": "turbo" }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown yosys_mode"));
     }
 }

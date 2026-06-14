@@ -37,6 +37,10 @@
 //! line — is `.5.2`, and the `minimize` delta-debugger is `.5.3`. Both build
 //! on this surface; neither is present yet.
 
+use crate::config::Config;
+use crate::introspect::content_run_id;
+use crate::mem_guard::{AbortReason, MemGuard, MemLimits};
+use crate::{emit, Generator};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -420,6 +424,222 @@ pub fn escape_paths_for_double_quotes(paths: &[PathBuf]) -> String {
         .join(" ")
 }
 
+// ---------------------------------------------------------------------------
+// AGENT-INTROSPECTION-MCP.5.2 — the controlled `validate` orchestration.
+//
+// Generate the DUT artifact for `(seed, knobs)` deterministically into a fresh
+// per-run *sandbox* directory, run the selected vetted acceptance tools (the
+// `run_*` primitives above), optionally decline before a spawn when a memory
+// ceiling is crossed, and return a structured report whose every tool entry
+// carries its exact reproducible argv (which the MCP layer audit-logs).
+// Guardrails per decision `0004`: no arbitrary shell (a fixed tool allow-list,
+// fixed binary names), no arbitrary filesystem write (the sandbox root is fixed
+// by the caller, never the agent), and a ram-guard decline path.
+// ---------------------------------------------------------------------------
+
+/// One acceptance tool the agent may ask `validate` to run. A fixed
+/// allow-list: there is no arbitrary-command tool and no agent-supplied binary
+/// path — the binaries are the standard names (decision `0004`: "only fixed,
+/// vetted tool invocations").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AcceptanceTool {
+    Verilator,
+    Yosys,
+    Iverilog,
+}
+
+impl AcceptanceTool {
+    /// Parse the agent-facing tool name. Returns `None` for anything off the
+    /// allow-list — the caller turns that into a clean error, never a spawn.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "verilator" => Some(Self::Verilator),
+            "yosys" => Some(Self::Yosys),
+            "iverilog" => Some(Self::Iverilog),
+            _ => None,
+        }
+    }
+
+    /// The fixed binary name. Not agent-overridable.
+    pub fn binary(self) -> &'static str {
+        match self {
+            Self::Verilator => "verilator",
+            Self::Yosys => "yosys",
+            Self::Iverilog => "iverilog",
+        }
+    }
+}
+
+/// How `validate` should run. The agent controls *which vetted tools* run and
+/// the Yosys mode; it controls neither the sandbox location (fixed to a tmp
+/// scope by the caller) nor the tool binaries.
+#[derive(Debug, Clone)]
+pub struct ValidateOptions {
+    /// The vetted tools to run, in order. Empty = generate + sandbox only
+    /// (a no-tool smoke; useful on hosts without the tools installed).
+    pub tools: Vec<AcceptanceTool>,
+    /// Yosys synthesis mode when [`AcceptanceTool::Yosys`] is selected.
+    pub yosys_mode: YosysMode,
+    /// Abort ceilings checked *before each tool spawn* (decline-to-start-more).
+    /// Default off (sentinel `0`), mirroring `mem_guard`. The host-%-used axis
+    /// is the meaningful one here — it declines a new heavy tool when the host
+    /// is already in the danger zone; a child tool's own RSS balloon is the job
+    /// of the external `scripts/ram_guard.sh` wrapper.
+    pub mem_limits: MemLimits,
+    /// Sandbox root under which a fresh per-run subdirectory is created. The
+    /// MCP adapter fixes this to the OS temp dir; tests pass a controlled path.
+    pub sandbox_root: PathBuf,
+    /// Keep the sandbox directory after the run (default: remove it).
+    pub keep_sandbox: bool,
+}
+
+impl Default for ValidateOptions {
+    fn default() -> Self {
+        Self {
+            tools: vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys],
+            yosys_mode: YosysMode::WithoutAbc,
+            mem_limits: MemLimits {
+                max_rss_mb: 0,
+                ram_abort_pct: 0,
+            },
+            sandbox_root: std::env::temp_dir(),
+            keep_sandbox: false,
+        }
+    }
+}
+
+/// The structured result of a `validate` run: the deterministic `run_id`, the
+/// artifact descriptor, every tool invocation (each carrying its exact
+/// reproducible argv), the overall verdict, and any decline reason.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateReport {
+    pub run_id: String,
+    pub lane: String,
+    pub kind: String,
+    pub top: String,
+    /// The sandbox directory the artifact was written to (and tools ran in).
+    pub sandbox: String,
+    /// One entry per tool invocation (Yosys `both` yields two).
+    pub tools: Vec<ToolInvocation>,
+    /// `true` iff no tool was declined and every run tool succeeded.
+    pub ok: bool,
+    /// Set when the run stopped before completing all tools (e.g. the memory
+    /// guard tripped before a spawn). `None` on a complete run.
+    pub declined: Option<String>,
+}
+
+/// Validate the DUT artifact for `(seed, cfg)` against the selected downstream
+/// tools, sandboxed and (optionally) ram-guarded.
+///
+/// The artifact is generated deterministically into a fresh per-run
+/// subdirectory of `opts.sandbox_root` — never an agent-supplied path — so
+/// there is no arbitrary filesystem write; only the fixed `run_*` invocations
+/// run, with fixed binary names (no arbitrary shell); and the memory guard can
+/// decline-to-spawn before the host enters the danger zone. The returned
+/// [`ValidateReport`] carries the reproducible `(run_id, argv)` for every call.
+pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
+    let run_id = content_run_id("dut", seed, cfg);
+
+    // Generate deterministically. Mirrors the CLI / MCP single-artifact
+    // dispatch: a hierarchy range ⇒ a design, else a leaf module.
+    let mut generator = Generator::new(cfg.clone());
+    let (kind, top, sv) = if cfg.effective_hierarchy_depth_range().is_some() {
+        let design = generator.generate_design();
+        (
+            "design".to_string(),
+            design.top.clone(),
+            emit::to_sv_design(&design),
+        )
+    } else {
+        let module = generator.generate_module();
+        (
+            "module".to_string(),
+            module.name.clone(),
+            emit::to_sv(&module),
+        )
+    };
+
+    // Fresh per-run sandbox directory under the caller-fixed root.
+    let sandbox = opts.sandbox_root.join(format!("anvil-validate-{run_id}"));
+    std::fs::create_dir_all(&sandbox)
+        .with_context(|| format!("create sandbox {}", sandbox.display()))?;
+    let sv_path = sandbox.join(format!("{top}.sv"));
+    std::fs::write(&sv_path, &sv).with_context(|| format!("write {}", sv_path.display()))?;
+
+    let guard = MemGuard::from_limits(opts.mem_limits);
+    let is_design = kind == "design";
+    let mut tools = Vec::new();
+    let mut declined = None;
+
+    for tool in &opts.tools {
+        if let Some(reason) = guard.check() {
+            declined = Some(decline_message(&reason));
+            break;
+        }
+        match tool {
+            AcceptanceTool::Verilator => {
+                tools.push(if is_design {
+                    run_verilator_design(
+                        tool.binary(),
+                        &sandbox,
+                        std::slice::from_ref(&sv_path),
+                        &top,
+                    )?
+                } else {
+                    run_verilator(tool.binary(), &sandbox, &sv_path, &top)?
+                });
+            }
+            AcceptanceTool::Yosys => {
+                let invs = if is_design {
+                    run_yosys_design(
+                        opts.yosys_mode,
+                        tool.binary(),
+                        &sandbox,
+                        std::slice::from_ref(&sv_path),
+                        &top,
+                    )?
+                } else {
+                    run_yosys(opts.yosys_mode, tool.binary(), &sandbox, &sv_path, &top)?
+                };
+                tools.extend(invs);
+            }
+            AcceptanceTool::Iverilog => {
+                tools.push(if is_design {
+                    run_iverilog_compile_design(
+                        tool.binary(),
+                        &sandbox,
+                        std::slice::from_ref(&sv_path),
+                        &top,
+                    )?
+                } else {
+                    run_iverilog_compile(tool.binary(), &sandbox, &sv_path, &top)?
+                });
+            }
+        }
+    }
+
+    let ok = declined.is_none() && tools.iter().all(|t| t.success);
+    let sandbox_str = sandbox.display().to_string();
+    if !opts.keep_sandbox {
+        let _ = std::fs::remove_dir_all(&sandbox);
+    }
+
+    Ok(ValidateReport {
+        run_id,
+        lane: "dut".to_string(),
+        kind,
+        top,
+        sandbox: sandbox_str,
+        tools,
+        ok,
+        declined,
+    })
+}
+
+fn decline_message(reason: &AbortReason) -> String {
+    format!("memory guard declined to spawn the next tool: {reason}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -547,5 +767,156 @@ mod tests {
             escape_paths_for_double_quotes(&paths),
             "\"/a b/x.sv\" \"/c/y.sv\""
         );
+    }
+
+    // ----- AGENT-INTROSPECTION-MCP.5.2: `validate` -----
+
+    fn test_root(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("anvil-validate-test-{tag}"))
+    }
+
+    fn no_tools(tag: &str) -> ValidateOptions {
+        ValidateOptions {
+            tools: vec![],
+            sandbox_root: test_root(tag),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn acceptance_tool_allow_list_rejects_unknown_names() {
+        assert_eq!(
+            AcceptanceTool::from_name("verilator"),
+            Some(AcceptanceTool::Verilator)
+        );
+        assert_eq!(
+            AcceptanceTool::from_name("yosys"),
+            Some(AcceptanceTool::Yosys)
+        );
+        assert_eq!(
+            AcceptanceTool::from_name("iverilog"),
+            Some(AcceptanceTool::Iverilog)
+        );
+        // Anything off the allow-list is rejected — never a spawn.
+        assert_eq!(AcceptanceTool::from_name("rm -rf /"), None);
+        assert_eq!(AcceptanceTool::from_name("bash"), None);
+        assert_eq!(AcceptanceTool::from_name(""), None);
+        // Binary names are the fixed standard ones.
+        assert_eq!(AcceptanceTool::Verilator.binary(), "verilator");
+        assert_eq!(AcceptanceTool::Yosys.binary(), "yosys");
+        assert_eq!(AcceptanceTool::Iverilog.binary(), "iverilog");
+    }
+
+    #[test]
+    fn validate_no_tools_generates_into_sandbox_and_cleans_up() {
+        let cfg = Config {
+            seed: 7,
+            ..Config::default()
+        };
+        let report = validate(7, &cfg, &no_tools("notools")).unwrap();
+
+        assert_eq!(report.lane, "dut");
+        assert_eq!(report.kind, "module");
+        assert!(report.tools.is_empty());
+        assert!(report.declined.is_none());
+        // No tool ran and none declined ⇒ the run is vacuously ok.
+        assert!(report.ok);
+        // The run carries the SAME content address generate/introspect use.
+        assert_eq!(report.run_id, content_run_id("dut", 7, &cfg));
+        // Default keep_sandbox = false ⇒ the sandbox is removed.
+        assert!(!Path::new(&report.sandbox).exists());
+    }
+
+    #[test]
+    fn validate_keeps_sandbox_and_writes_sv_when_requested() {
+        let cfg = Config {
+            seed: 11,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            keep_sandbox: true,
+            ..no_tools("keep")
+        };
+        let report = validate(11, &cfg, &opts).unwrap();
+        let dir = Path::new(&report.sandbox);
+        assert!(dir.exists(), "kept sandbox must remain");
+        let sv = dir.join(format!("{}.sv", report.top));
+        assert!(sv.exists(), "the emitted .sv must be in the sandbox");
+        let text = std::fs::read_to_string(&sv).unwrap();
+        assert!(text.contains("module "));
+        // Clean up the kept sandbox so the test leaves no residue.
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn validate_design_artifact_is_recognised() {
+        let cfg = Config {
+            seed: 3,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            keep_sandbox: true,
+            ..no_tools("design")
+        };
+        let report = validate(3, &cfg, &opts).unwrap();
+        assert_eq!(report.kind, "design");
+        let dir = Path::new(&report.sandbox);
+        assert!(dir.join(format!("{}.sv", report.top)).exists());
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn validate_memory_guard_declines_before_spawning_any_tool() {
+        // A 1 MiB RSS ceiling trips immediately (this process is far larger),
+        // so validate declines before spawning the first tool — proving the
+        // decline-to-start-more guard runs *before* any spawn, with no tool
+        // dependency. Best-effort: on a host where RSS is unreadable the guard
+        // never trips (mem_guard's documented policy), so skip the assertion.
+        if crate::mem_guard::read_process_rss_mb().is_none() {
+            return;
+        }
+        let cfg = Config {
+            seed: 5,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            tools: vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys],
+            mem_limits: MemLimits {
+                max_rss_mb: 1,
+                ram_abort_pct: 0,
+            },
+            sandbox_root: test_root("decline"),
+            keep_sandbox: false,
+            yosys_mode: YosysMode::WithoutAbc,
+        };
+        let report = validate(5, &cfg, &opts).unwrap();
+        assert!(report.declined.is_some(), "guard must decline");
+        assert!(report.tools.is_empty(), "no tool may spawn after a decline");
+        assert!(!report.ok);
+    }
+
+    #[test]
+    #[ignore = "requires verilator + yosys on PATH"]
+    fn validate_dut_seed_is_downstream_clean_end_to_end() {
+        let cfg = Config {
+            seed: 42,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            tools: vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys],
+            sandbox_root: test_root("e2e"),
+            ..Default::default()
+        };
+        let report = validate(42, &cfg, &opts).unwrap();
+        assert!(report.declined.is_none());
+        assert!(
+            report.ok,
+            "ANVIL DUT output must be downstream-clean by construction: {report:?}"
+        );
+        assert!(report.tools.iter().any(|t| t.tool == "verilator"));
+        assert!(report.tools.iter().any(|t| t.tool.starts_with("yosys")));
     }
 }

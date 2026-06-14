@@ -135,6 +135,13 @@ impl MemGuard {
         }
     }
 
+    /// Build the guard from explicit limits. Used by the controlled
+    /// `validate` tool (`AGENT-INTROSPECTION-MCP.5.2`), whose memory ceilings
+    /// are independent of any generation `Config`.
+    pub fn from_limits(limits: MemLimits) -> Self {
+        Self { limits }
+    }
+
     /// True iff at least one axis is armed.
     pub fn enabled(&self) -> bool {
         self.limits.enabled()

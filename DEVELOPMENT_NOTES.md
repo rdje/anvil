@@ -5,6 +5,59 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Controlled `validate` tool — `AGENT-INTROSPECTION-MCP.5.2`
+
+`.5.2` adds the first agent tool that runs external tools:
+`downstream::validate(seed, cfg, opts)` + the MCP `validate` adapter. The
+security model is the load-bearing part; notes worth keeping:
+
+**Decision — generate into a fresh per-run sandbox, never an agent path.** The
+artifact is regenerated deterministically (the run is a pure function of
+`(seed, knobs)`) and written to
+`<sandbox_root>/anvil-validate-<run_id>/<top>.sv`. The MCP adapter fixes
+`sandbox_root` to `std::env::temp_dir()` and does **not** expose it as a tool
+argument, so the agent cannot direct a write anywhere. The directory is removed
+after the run unless `keep_sandbox` (tests set it to inspect the `.sv`).
+
+**Decision — one combined `.sv` file even for designs.** `tool_matrix` writes
+one file per module for hierarchy realism, but for an acceptance check
+`emit::to_sv_design` (all modules in one string) + `--top-module` / `-top`
+is equivalent and simpler, and reuses the `.5.1` `*_design` runners unchanged
+(they take a `&[PathBuf]` — a one-element slice via `std::slice::from_ref`).
+
+**Decision — fixed tool allow-list, no arbitrary shell, no binary override.**
+`AcceptanceTool` is a closed `verilator`/`yosys`/`iverilog` enum with fixed
+`binary()` names. The MCP tool's `tools` argument selects *which* of these run;
+anything off the list is a clean tool error, never a spawn (`from_name`
+returns `None`). There is deliberately no agent-facing way to pass a binary
+path or a raw command — decision `0004`'s "only fixed, vetted tool
+invocations."
+
+**Decision — ram-guard is decline-to-start-more, and honest about its reach.**
+`validate` checks `MemGuard` (built from explicit `MemLimits` via the new
+`MemGuard::from_limits`) *before each spawn*. The honest scope: the in-process
+guard samples ANVIL's own RSS + the host used-%; the host-% axis is what
+meaningfully protects against starting a heavy `yosys` when the machine is
+already near the edge. A child tool's *own* RSS balloon is outside this
+process, so `scripts/ram_guard.sh` remains the right wrapper for that — the
+guard is documented as complementary, not a replacement. The decline test
+arms a 1 MiB RSS ceiling (this process is far larger) so the guard trips
+before the first spawn deterministically, with no tool dependency; it
+no-ops where the OS read is unavailable (mem_guard's best-effort policy).
+
+**Decision — audit log on the server, reproducible argv per call.** Each
+`validate` MCP call appends a record (run_id, seed, kind, top, the
+`argv.join(" ")` of every spawned tool, verdict, decline reason) to an
+append-only `McpServer.audit`, exposed read-only as `anvil://audit/log`. The
+`ToolInvocation.argv` already carries the binary + flags, so the audit record
+is a faithful, replayable command line. A rejected call (bad tool name) is
+*not* logged — it never ran.
+
+**Decision — reuse `introspect::content_run_id` (made `pub`).** `validate`
+stamps the same content-addressed `run_id` that `generate`/`introspect` use,
+so an agent can correlate a validation with the artifact it introspected. One
+hash, one scheme — not a second run-id source.
+
 ## 2026-06-14 — Shared downstream-tool invocation surface — `AGENT-INTROSPECTION-MCP.5.1`
 
 `.5` (controlled `validate` + `minimize`) was split into `.5.1`/`.5.2`/`.5.3`.

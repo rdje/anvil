@@ -205,7 +205,9 @@ src/
 │                     `scripts/ram_guard.sh`: `read_process_rss_mb`
 │                     (Linux `/proc/self/status` VmRSS; macOS `ps`) and
 │                     `read_host_used_pct` (Linux `/proc/meminfo`; macOS
-│                     `memory_pressure`). `MemGuard::from_config` / `check()`
+│                     `memory_pressure`). `MemGuard::from_config` (or
+│                     `from_limits`, used by `downstream::validate`,
+│                     `AGENT-INTROSPECTION-MCP.5.2`) / `check()`
 │                     short-circuits to `None` when both knobs are off, so
 │                     the default `--out` loop is byte-identical and draws
 │                     RNG identically. `main.rs` checks it BETWEEN units in
@@ -299,6 +301,16 @@ src/
 │                     pattern). Behavior-preserving: serialized
 │                     `ToolInvocation` shape unchanged ⇒ banked matrix reports +
 │                     `--resume` checkpoints stay valid.
+│                     `.5.2` adds the controlled `validate(seed, &Config,
+│                     &ValidateOptions) -> ValidateReport` orchestration here:
+│                     generate the DUT artifact deterministically into a fresh
+│                     per-run sandbox (`<root>/anvil-validate-<run_id>/`), run
+│                     the selected vetted tools (the `AcceptanceTool` allow-list
+│                     — fixed binary names), ram-guard via `MemGuard` before each
+│                     spawn (decline-to-start-more), and return per-tool
+│                     `ToolInvocation`s + an overall verdict. No arbitrary shell,
+│                     no agent-supplied path. Reuses `introspect::content_run_id`
+│                     for the shared content address.
 ├── introspect/      Agent-introspection emission surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
 │                     introspection document specified in
@@ -317,7 +329,8 @@ src/
 │                     `--count > 1`), so the default build + the streamed
 │                     `--out` path stay byte-identical. `coverage` + the
 │                     `microdesign`/`frontend` lane-manifest sections are
-│                     deferred (matrix-only / `.4`+).
+│                     deferred (matrix-only / `.4`+). `content_run_id` is `pub`
+│                     (`.5.2`) so `validate` shares the one content address.
 ├── mcp/             Read-only in-process MCP server
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
@@ -327,11 +340,14 @@ src/
 │                     `introspect`, `dump_config`) + **resources** (the cached
 │                     `.sv` / introspection document, addressed by the
 │                     content-addressed `run_id`, plus static `knobs`/`lanes`
-│                     catalogs). No external-tool exec, no FS writes (that is
-│                     `.5`). Driven by the `anvil-mcp` bin; the whole protocol
-│                     surface is unit-tested in-process (12 tests). Separate
-│                     target ⇒ default `anvil` build / `--artifact dut`
-│                     unaffected.
+│                     catalogs). `.5.2` adds the controlled `validate` tool (a
+│                     thin adapter over `downstream::validate`: parses the
+│                     tool allow-list + `yosys_mode`, fixes the sandbox to the OS
+│                     temp dir, audit-logs each call) and the read-only
+│                     `anvil://audit/log` resource; the three original tools stay
+│                     pure (no FS/exec). Driven by the `anvil-mcp` bin; the whole
+│                     protocol surface is unit-tested in-process. Separate target
+│                     ⇒ default `anvil` build / `--artifact dut` unaffected.
 ├── bin/
 │   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
 │   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines
