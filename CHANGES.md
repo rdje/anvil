@@ -1,6 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-workload-memory-safety-1 — WORKLOAD-MEMORY-SAFETY.1 audit + bounded-memory design
+
+**Landed as:** this commit
+
+**What changed**
+
+Opened a new task tree, `WORKLOAD-MEMORY-SAFETY`, and landed its design
+leaf `.1` (docs-only — no code). The tree's goal: make ANVIL's *own*
+generation runs incapable of driving a RAM-limited host toward the
+danger/reboot zone on huge workloads, via bounded-memory generation,
+streamed output, and an internal node/RAM governor — all default-off /
+byte-identical, complementing the *external* `scripts/ram_guard.sh`
+watchdog (`RESOURCE-SAFE-TOOLING`).
+
+- `docs/tasks/WORKLOAD-MEMORY-SAFETY.md` (new): full tree — goal,
+  non-goals, acceptance, five leaves (`.1` design done; `.2` stream
+  manifest; `.3` real per-module node budget; `.4` internal RAM/RSS
+  self-governor; `.5` closeout), frontier `.2`, decisions, open
+  questions, verification + commit logs.
+- `docs/TASK_TREE.md`: registered the tree as the sole `active` tree in
+  the Active Task Trees index.
+- `DEVELOPMENT_NOTES.md`: design rationale — the audit (two unbounded
+  growth vectors + one ghost knob) and the three-mechanism, default-off
+  design with rejected alternatives.
+
+**Audit findings (verified directly):**
+- `max_nodes_per_module` is a **ghost knob** — declared `src/config.rs:337`,
+  defaulted `1000` `src/config.rs:729`, enforced **nowhere**
+  (`grep -rn max_nodes_per_module src/` → only those two lines).
+- Directory output (`src/main.rs:507-575`) streams the `.sv` per module
+  (generate→emit→write→drop) but accumulates per-artifact JSON metadata
+  in a `Vec` that grows O(`--count`) before the single final
+  `manifest.json` write (flat lane `main.rs:551-575`; hierarchical lane
+  `main.rs:509-550` also holds each design's full module set during
+  emit).
+- No internal RAM/RSS governor exists; the external `ram_guard.sh` can
+  be outrun by a single fast-growing module.
+
+**Why it matters**
+
+Establishes task-tree ownership *before* any code change (non-negotiable
+doctrine) and fixes the design so the implementation leaves cannot drift
+into a reproducibility break — every mechanism is default-off /
+byte-identical, bounding is construction-time/decline-to-start (never
+truncation), mirroring how every prior capability knob shipped.
+
+**Validation**
+
+Docs-only; no code touched. memory-architecture + knowledge-map
+self-checks (pre-commit hook); `git diff --check`. Full `cargo test`
+intentionally skipped — no code change, and full-suite RAM risk per
+`docs/decisions/0003-resource-safe-validation.md`.
+
+**Impact**
+
+No behavioural or generated-RTL change. New active tree; frontier `.2`.
+
+**Files touched**
+
+`docs/tasks/WORKLOAD-MEMORY-SAFETY.md` (new), `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-array-packing-5 — AGGREGATE-ARRAY-PACKING.5 book/docs sync + close
 
 **Landed as:** this commit

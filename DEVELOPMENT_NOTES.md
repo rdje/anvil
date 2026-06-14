@@ -5,6 +5,104 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Workload memory-safety design (bounded-memory generation) — `WORKLOAD-MEMORY-SAFETY.1`
+
+**Problem.** ANVIL has no internal defence against driving a RAM-limited
+host to the danger/reboot zone on a huge workload. Two distinct
+unbounded-growth vectors exist today, plus one missing per-module bound:
+
+1. **Cross-run metadata accumulation (unbounded in `--count`).** In the
+   directory-output path (`src/main.rs:507-575`) the per-artifact JSON
+   metadata is accumulated in a `Vec` before a single final
+   `manifest.json` write. Flat lane (`main.rs:551-575`): `let mut manifest
+   = Vec::new()` grows one full-metrics JSON object per module across all
+   `n` iterations. Hierarchical lane (`main.rs:509-550`): `let mut designs
+   = Vec::new()` grows per design, and each design additionally holds **all
+   its modules** in `design.modules` while emitting. The emitted `.sv`
+   itself *is* already streamed (generate → `emit::to_sv` to a `String` →
+   `std::fs::write` → `String` dropped; the previous module is dropped
+   before the next is generated — the `Generator` retains no module
+   history, only `rng` + `cfg` + `next_module_index`). So the leak is the
+   metadata `Vec`, not the modules. `--count 1_000_000` accumulates a
+   million metrics objects in RAM before writing anything.
+
+2. **No per-module construction-time node bound.** `max_nodes_per_module`
+   is a **ghost knob**: declared at `src/config.rs:337`, defaulted to
+   `1000` at `src/config.rs:729`, and **read/enforced nowhere** (`grep -rn
+   max_nodes_per_module src/` returns only those two lines). A pathological
+   `(seed, knobs)` — high `--max-depth`, high arity, low sharing — can grow
+   a single module's `Vec<Node>` arena (the dominant per-module cost; each
+   `Node::Gate` also carries an `operands: Vec<NodeId>` and a `DepSet`
+   wrapping a `BTreeSet`) without any internal ceiling.
+
+3. **No internal RAM/RSS governor.** `scripts/ram_guard.sh`
+   (`RESOURCE-SAFE-TOOLING`) guards *external* heavy jobs from the outside;
+   nothing makes the `anvil` process itself notice it is ballooning and
+   stop cleanly. A single fast-growing module can outrun a 3 s external
+   poll.
+
+**Design — three mechanisms, all default-off / byte-identical.** This is
+the load-bearing constraint: every prior capability knob (`multi_clock_prob`,
+`aggregate_prob`, `memory_prob`, `fsm_prob`) shipped defaulting to the
+no-op value, and the reproducibility contract (`book/src/knobs.md`) is
+non-negotiable. So none of the below may change default SV output;
+`tests/snapshots.rs` + `tests/book_examples.rs` must stay green without
+snapshot acceptance.
+
+- **`.2` Stream the manifest (bounded in `--count`).** Replace the
+  accumulate-then-write `Vec<serde_json::Value>` with an incremental writer
+  that emits the *same* JSON array bytes (`[`, comma-separated pretty
+  elements, `]`) as the current `serde_json::to_string_pretty` produces,
+  so `manifest.json` is byte-identical while peak metadata RAM drops from
+  O(`--count`) to O(1). The hierarchical lane additionally must not be made
+  worse; a `Design`'s own module set is intrinsic to that design and is
+  emitted then dropped per design (already O(one design), not O(`--count`)).
+
+- **`.3` Real per-module node budget (rules-first).** Wire the budget into
+  the cone-construction recursion so that, as the budget is approached,
+  construction *prefers terminal reuse / stops opening new sub-cones*
+  (rules-first per `feedback_rules_first_generation`) — it never truncates
+  a finished cone (that would emit invalid RTL and break
+  valid-by-construction). Default must preserve byte-identical RTL:
+  treat the budget as a sentinel `0 = unlimited` and change the default
+  from `1000` → `0`. Only `--dump-config` / the `manifest.json` config echo
+  shift (config JSON, **not** SV output, **not** the SV snapshots which key
+  on emitted RTL). A `Metrics` field must measure realized node count vs
+  budget (knob-effectiveness doctrine, `book/src/knobs.md`).
+
+- **`.4` Internal RAM/RSS self-governor (opt-in).** An opt-in knob makes
+  `anvil` sample its own RSS (and optionally host %-used, reusing
+  `ram_guard.sh`'s macOS `memory_pressure` / Linux `/proc/meminfo`
+  approach) at safe checkpoints (between modules, and — stretch — at cone
+  worklist-drain boundaries) and abort with a deterministic non-zero exit
+  and a message naming the seed + effective knobs, *before* the host danger
+  zone. Default unset ⇒ no sampling ⇒ byte-identical. This catches the
+  single-pathological-module case that `.2`/`.3` and the external watchdog
+  can each miss.
+
+**Rejected / deferred.**
+- *Generate-then-filter a too-big module away* — rejected: violates
+  rules-first + valid-by-construction; the whole point is construction-time
+  steering.
+- *Sub-seeding the RNG per module to parallelise/bound* — rejected here:
+  would break the serial-RNG reproducibility contract
+  (`book/src/knobs.md` "The RNG is not sub-seeded per module").
+- *Changing `manifest.json` to JSON-lines by default* — deferred to a
+  possible `.2` opt-in sidecar; the default stays the byte-identical
+  pretty-printed array.
+- *Enforcing `max_nodes_per_module` at its current `1000` default* —
+  rejected: it is currently inert, so enforcing at `1000` would silently
+  change output for any module exceeding 1000 nodes (a reproducibility
+  break). Hence the sentinel-`0`-unlimited default.
+
+No code changed in this leaf (design only). Validation: docs-only;
+memory-architecture + knowledge-map self-checks; `git diff --check`. Full
+`cargo test` intentionally skipped (no code change; full-suite RAM risk per
+`docs/decisions/0003-resource-safe-validation.md`). Tracked by
+`docs/tasks/WORKLOAD-MEMORY-SAFETY.md`.
+
+---
+
 ## 2026-06-14 — mdBook drift correction (delivered motifs were labelled "future") — `LIVE-DOC-BOOK-ALIGNMENT.1`
 
 A live-doc/mdBook audit found the user-facing book still described
