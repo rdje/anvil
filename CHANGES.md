@@ -1,6 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-5 — CONE-DECOMPOSITION.5 extract cone/terminals.rs
+
+**Landed as:** this commit
+
+**What changed**
+
+Moved the contiguous terminal/pool-selection + gate-shape-policy block out
+of `src/gen/cone.rs` into a new `src/gen/cone/terminals.rs` submodule — a
+pure code move, byte-identical.
+
+- `src/gen/cone/terminals.rs` (new, ~537 lines): `pick_terminal`,
+  `emit_terminal_constant`, `pick_datas_with_dup_cap`,
+  `pick_signals_with_dup_rate`, `pick_terminal_dep_bearing`,
+  `make_width_adapter`, `pick_gate`, `pick_structured_gate`,
+  `pick_slice_gate`, `pick_concat_operand_widths`, `input_widths_for`,
+  `violates_anti_collapse`, `has_duplicate_operand`, `try_share`,
+  `node_deps`. The three externally-used `pub(super)` fns
+  (`pick_terminal_dep_bearing`, `make_width_adapter`, `node_deps` — called
+  by `src/gen/module.rs` and `src/gen/hierarchy.rs`) are bumped to
+  `pub(crate)` and re-exported, so their `crate::gen::cone::<symbol>`
+  paths stay stable.
+- `src/gen/cone.rs`: declares `mod terminals; pub(crate) use
+  terminals::*;`. Imports `use super::{ceil_log2, roll_knob};` in
+  terminals; the now-unused root `use crate::config::Config;` removed (its
+  only Config-typed signatures, `input_widths_for` /
+  `pick_concat_operand_widths`, moved into terminals).
+
+**Why it matters**
+
+`cone.rs` shrinks to 3511 lines (from 5551); the selection/anti-collapse
+policy is now a focused module.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean.
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor.
+
+**Files touched**
+
+`src/gen/cone/terminals.rs` (new), `src/gen/cone.rs`,
+`docs/tasks/CONE-DECOMPOSITION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-4 — CONE-DECOMPOSITION.4 extract cone/primitives.rs
 
 **Landed as:** this commit
