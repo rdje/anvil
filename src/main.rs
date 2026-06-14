@@ -443,6 +443,22 @@ struct Cli {
     /// visibility.
     #[arg(long)]
     metrics: bool,
+
+    /// Opt-in memory governor (`WORKLOAD-MEMORY-SAFETY.4`): abort an
+    /// `--out` run once this process's resident set (RSS) reaches this
+    /// many MiB. `0` (default) = off / byte-identical. Sampled between
+    /// modules/designs; aborts cleanly with exit code 99 and a stderr
+    /// message naming the seed + effective knobs, before the host
+    /// danger zone. Complements `scripts/ram_guard.sh` from the inside.
+    #[arg(long)]
+    max_rss_mb: Option<u64>,
+
+    /// Opt-in memory governor (`WORKLOAD-MEMORY-SAFETY.4`): abort an
+    /// `--out` run once host used RAM reaches this percentage
+    /// (`1..=100`). `0` (default) = off. Mirrors `scripts/ram_guard.sh`
+    /// (macOS `memory_pressure` / Linux `/proc/meminfo`).
+    #[arg(long)]
+    ram_abort_pct: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -515,12 +531,20 @@ fn main() -> anyhow::Result<()> {
             // `anvil::manifest`'s `streamed_matches_reference` test.
             let seed = cli.seed;
             let metrics_to_stderr = cli.metrics;
+            // WORKLOAD-MEMORY-SAFETY.4 — opt-in internal RAM/RSS governor.
+            // Disabled by default (`check()` short-circuits to `None`
+            // before any OS read), so the default `--out` loop is
+            // byte-identical and consumes RNG identically. When armed it
+            // is sampled BETWEEN units (decline-to-start-more), never
+            // mid-cone — it stops the run cleanly rather than mutilating
+            // a built module.
+            let guard = anvil::mem_guard::MemGuard::from_config(&cfg);
             let mut scalars = serde_json::Map::new();
             scalars.insert("seed".to_string(), serde_json::json!(seed));
             scalars.insert("config".to_string(), serde_json::to_value(&cfg)?);
             let manifest_file =
                 std::io::BufWriter::new(std::fs::File::create(dir.join("manifest.json"))?);
-            if hierarchical {
+            let write_result: std::io::Result<()> = if hierarchical {
                 let mut design_index = 0usize;
                 anvil::manifest::write_streamed_manifest(
                     manifest_file,
@@ -529,6 +553,15 @@ fn main() -> anyhow::Result<()> {
                     std::iter::from_fn(|| {
                         if design_index >= n {
                             return None;
+                        }
+                        // Governor checkpoint: abort before starting the
+                        // next design if a prior one ballooned us past the
+                        // ceiling (WORKLOAD-MEMORY-SAFETY.4).
+                        if let Some(reason) = guard.check() {
+                            return Some(Err(std::io::Error::new(
+                                std::io::ErrorKind::OutOfMemory,
+                                anvil::mem_guard::abort_message(&reason, seed, &cfg),
+                            )));
                         }
                         let idx = design_index;
                         design_index += 1;
@@ -569,7 +602,7 @@ fn main() -> anyhow::Result<()> {
                             }))
                         })())
                     }),
-                )?;
+                )
             } else {
                 let mut i = 0usize;
                 anvil::manifest::write_streamed_manifest(
@@ -579,6 +612,15 @@ fn main() -> anyhow::Result<()> {
                     std::iter::from_fn(|| {
                         if i >= n {
                             return None;
+                        }
+                        // Governor checkpoint: abort before starting the
+                        // next module if a prior one ballooned us past the
+                        // ceiling (WORKLOAD-MEMORY-SAFETY.4).
+                        if let Some(reason) = guard.check() {
+                            return Some(Err(std::io::Error::new(
+                                std::io::ErrorKind::OutOfMemory,
+                                anvil::mem_guard::abort_message(&reason, seed, &cfg),
+                            )));
                         }
                         let idx = i;
                         i += 1;
@@ -599,7 +641,18 @@ fn main() -> anyhow::Result<()> {
                             }))
                         })())
                     }),
-                )?;
+                )
+            };
+            if let Err(e) = write_result {
+                if e.kind() == std::io::ErrorKind::OutOfMemory {
+                    // Clean governor abort (WORKLOAD-MEMORY-SAFETY.4):
+                    // deterministic non-zero exit code 99 (matching
+                    // scripts/ram_guard.sh's convention) plus the
+                    // seed + effective-knobs message on stderr.
+                    eprintln!("{e}");
+                    std::process::exit(99);
+                }
+                return Err(e.into());
             }
         }
         (None, _) => {
@@ -803,6 +856,8 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_parent_cone_instance_prob: cli.hierarchy_parent_cone_instance_prob,
         max_parent_cone_instances_per_module: cli.max_parent_cone_instances_per_module,
         hierarchy_parent_flop_prob: cli.hierarchy_parent_flop_prob,
+        max_rss_mb: cli.max_rss_mb,
+        ram_abort_pct: cli.ram_abort_pct,
     }
 }
 
@@ -952,5 +1007,21 @@ mod tests {
         assert_eq!(overrides.hierarchy_parent_cone_instance_prob, Some(0.55));
         assert_eq!(overrides.max_parent_cone_instances_per_module, Some(3));
         assert_eq!(overrides.hierarchy_parent_flop_prob, Some(0.6));
+    }
+
+    #[test]
+    fn memory_governor_cli_knobs_round_trip_into_overrides() {
+        let cli = Cli::parse_from(["anvil", "--max-rss-mb", "8192", "--ram-abort-pct", "90"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.max_rss_mb, Some(8192));
+        assert_eq!(overrides.ram_abort_pct, Some(90));
+    }
+
+    #[test]
+    fn memory_governor_defaults_to_off_when_flags_absent() {
+        let cli = Cli::parse_from(["anvil", "--seed", "1"]);
+        let overrides = cli_overrides(&cli);
+        assert_eq!(overrides.max_rss_mb, None);
+        assert_eq!(overrides.ram_abort_pct, None);
     }
 }

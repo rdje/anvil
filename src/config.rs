@@ -346,6 +346,24 @@ pub struct Config {
     /// already-open frames. Its effect is measured by `Metrics::num_nodes`.
     pub max_nodes_per_module: u32,
 
+    /// Opt-in process-RSS abort ceiling in MiB (`WORKLOAD-MEMORY-SAFETY.4`).
+    /// Sentinel `0` = off (the default; no sampling ⇒ byte-identical). When
+    /// `> 0`, between-unit checkpoints in the `--out` loop abort the run
+    /// cleanly (deterministic non-zero exit, a stderr message naming the
+    /// seed + effective knobs) once this process's resident set reaches the
+    /// ceiling. A process-safety governor, **not** a generation knob: it
+    /// never alters emitted RTL (it declines to start more units; it never
+    /// truncates a built cone). See `src/mem_guard.rs`.
+    #[serde(default)]
+    pub max_rss_mb: u64,
+    /// Opt-in host used-RAM abort percentage (`WORKLOAD-MEMORY-SAFETY.4`).
+    /// Sentinel `0` = off (the default). When in `1..=100`, between-unit
+    /// `--out` checkpoints abort once host used RAM reaches it, mirroring
+    /// `scripts/ram_guard.sh` (macOS `memory_pressure` / Linux
+    /// `/proc/meminfo`). Default-off ⇒ byte-identical. See `src/mem_guard.rs`.
+    #[serde(default)]
+    pub ram_abort_pct: u32,
+
     // Probability knobs
     pub flop_prob: f64,
     pub share_prob: f64,
@@ -742,6 +760,11 @@ impl Default for Config {
             // enforced; enforcing the old default would have changed
             // output for any module exceeding it.)
             max_nodes_per_module: 0,
+            // Sentinel 0 = off on both axes: the internal RAM/RSS
+            // governor never samples ⇒ byte-identical default path
+            // (WORKLOAD-MEMORY-SAFETY.4).
+            max_rss_mb: 0,
+            ram_abort_pct: 0,
             flop_prob: 0.15,
             share_prob: 0.3,
             min_gate_arity: 2,
@@ -896,6 +919,8 @@ pub enum ConfigError {
     LeafLibraryRequiresLibrarySourcing(u32),
     #[error("cdc_synchronizer_stages ({0}) must be >= 2")]
     CdcSynchronizerStagesTooSmall(u32),
+    #[error("ram_abort_pct ({0}) must be in 0..=100 (0 = off)")]
+    RamAbortPctRange(u32),
 }
 
 impl Config {
@@ -1008,6 +1033,9 @@ impl Config {
             return Err(ConfigError::CdcSynchronizerStagesTooSmall(
                 self.cdc_synchronizer_stages,
             ));
+        }
+        if self.ram_abort_pct > 100 {
+            return Err(ConfigError::RamAbortPctRange(self.ram_abort_pct));
         }
         if self.uses_hierarchy_range_mode() {
             if self.min_hierarchy_depth == 0 || self.max_hierarchy_depth < self.min_hierarchy_depth
@@ -1352,6 +1380,12 @@ impl Config {
         if let Some(v) = o.hierarchy_parent_flop_prob {
             self.hierarchy_parent_flop_prob = v;
         }
+        if let Some(v) = o.max_rss_mb {
+            self.max_rss_mb = v;
+        }
+        if let Some(v) = o.ram_abort_pct {
+            self.ram_abort_pct = v;
+        }
     }
 }
 
@@ -1420,6 +1454,8 @@ pub struct Overrides {
     pub hierarchy_parent_cone_instance_prob: Option<f64>,
     pub max_parent_cone_instances_per_module: Option<u32>,
     pub hierarchy_parent_flop_prob: Option<f64>,
+    pub max_rss_mb: Option<u64>,
+    pub ram_abort_pct: Option<u32>,
 }
 
 #[cfg(test)]
@@ -1465,6 +1501,33 @@ mod tests {
             Err(ConfigError::CdcSynchronizerStagesTooSmall(stages)) => assert_eq!(stages, 1),
             other => panic!("expected cdc stage-count rejection, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn validate_rejects_ram_abort_pct_above_100() {
+        let cfg = Config {
+            ram_abort_pct: 101,
+            ..Config::default()
+        };
+        match cfg.validate() {
+            Err(ConfigError::RamAbortPctRange(pct)) => assert_eq!(pct, 101),
+            other => panic!("expected ram_abort_pct range rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_accepts_ram_abort_pct_boundaries_and_off_sentinel() {
+        // 0 = off, 100 = full, both valid; the governor knobs default off.
+        for pct in [0u32, 1, 88, 100] {
+            let cfg = Config {
+                ram_abort_pct: pct,
+                max_rss_mb: 4096,
+                ..Config::default()
+            };
+            assert!(cfg.validate().is_ok(), "pct {pct} should validate");
+        }
+        assert_eq!(Config::default().max_rss_mb, 0);
+        assert_eq!(Config::default().ram_abort_pct, 0);
     }
 
     #[test]

@@ -1,6 +1,90 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-wms-4 — WORKLOAD-MEMORY-SAFETY.4 internal RAM/RSS self-governor
+
+**Landed as:** this commit (previous: `53bac04`).
+
+**What changed**
+
+Added an opt-in internal RAM/RSS self-governor so an `anvil` bulk
+`--out` run cannot drive a RAM-limited host toward the reboot zone on a
+huge `--count` or a single pathological `(seed, knobs)`. Default-off /
+byte-identical, exactly like every prior capability knob. This is the
+frontier leaf of `WORKLOAD-MEMORY-SAFETY` (`.2` streamed the manifest,
+`.3` added the per-module node budget; `.4` is the process-level
+backstop the design recorded at `.1`).
+
+- `src/mem_guard.rs` (new, ~270 lines incl. tests): the governor.
+  - Pure decision logic `evaluate(&MemLimits, &MemSample) -> Option<AbortReason>`
+    (no I/O, exhaustively unit-tested): RSS checked before host-% (a
+    single-process balloon can outrun the host signal); a disabled axis
+    or an unreadable (`None`) reading never trips.
+  - Best-effort, dep-free OS reads mirroring `scripts/ram_guard.sh`:
+    `read_process_rss_mb` (Linux `/proc/self/status` `VmRSS`; macOS
+    `ps -o rss= -p <pid>`) and `read_host_used_pct` (Linux
+    `/proc/meminfo` `MemTotal`/`MemAvailable`; macOS `memory_pressure`
+    "free percentage"). Unreadable ⇒ `None` ⇒ no abort ("a probe hiccup
+    never kills a healthy job").
+  - `MemGuard::from_config` / `check()`: when both axes are off (the
+    default) `check()` short-circuits to `None` before any OS read, so
+    the default path is byte-identical and consumes RNG identically.
+  - `abort_message(reason, seed, cfg)`: names the reason, the seed, and
+    the full serialized effective knobs so the aborted run reproduces.
+  - 11 unit tests cover disabled/never-abort, RSS/host trip boundaries,
+    unreadable-sample-never-aborts, RSS-before-host precedence,
+    from-config enable/disable, and message/Display content.
+- `src/config.rs`: two new knobs `max_rss_mb: u64` and
+  `ram_abort_pct: u32` (both sentinel `0` = off, `#[serde(default)]` so
+  pre-existing `--config` JSON still parses), `Default` values `0`,
+  `validate()` rejects `ram_abort_pct > 100`
+  (`ConfigError::RamAbortPctRange`), plus `Overrides` fields and
+  `apply_cli_overrides` wiring. 2 new validation tests.
+- `src/main.rs`: `--max-rss-mb` / `--ram-abort-pct` CLI flags +
+  `cli_overrides` wiring; builds a `MemGuard` in the `--out` arm and
+  checks it at the start of each iteration of **both** streaming
+  closures (designs + modules) — i.e. between finished units, never
+  mid-cone. On a trip the closure returns an `io::Error` of kind
+  `OutOfMemory` carrying the governor message; `main` detects that kind,
+  prints the message to stderr, and `std::process::exit(99)` (distinct,
+  deterministic — matches `ram_guard.sh`). Any other write error still
+  propagates as before. 2 new CLI round-trip tests.
+- `src/lib.rs`: `pub mod mem_guard;`.
+
+**Why default-off / byte-identical holds.** When both knobs are `0`,
+`MemGuard::check()` returns `None` without sampling — the closures run
+exactly as before, no extra RNG draws, no SV change. Adding two Config
+fields only shifts the `--dump-config` / `manifest.json` *config echo*
+(two new keys at `0`), never emitted SV — same story as `.3`'s field
+addition. `tests/snapshots.rs` 6/6 stays green without acceptance.
+
+**Why a process-safety knob, not a generation knob.** It never alters
+RTL, so the measurement doctrine ("a metric per knob") does not bite —
+there is no output effect to measure. Its behaviour is proven by the
+`evaluate` unit tests + the clean exit-`99` abort path. Recorded
+explicitly in `book/src/knobs.md` and `DEVELOPMENT_NOTES.md`.
+
+**Validation**
+- `cargo check --all-targets` clean (under `scripts/ram_guard.sh`).
+- `cargo test --lib mem_guard` 11/11; `--lib` config governor tests 2/2;
+  `--bin anvil` governor round-trips 2/2.
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean.
+- `cargo test --test snapshots` 6/6 (SV byte-identical at default).
+- Live smokes (debug binary): `--dump-config` shows both knobs `0`;
+  default `--out` run exit 0; `--max-rss-mb 100000` (under limit)
+  completes exit 0 with **byte-identical .sv** vs the off run;
+  `--max-rss-mb 1` aborts exit **99** with the reason+seed+knobs message;
+  `--ram-abort-pct 101` rejected at validation (exit 1, distinct from 99).
+- `mdbook build book` clean.
+
+**Impact.** New opt-in CLI surface (`--max-rss-mb`, `--ram-abort-pct`).
+Default behaviour, generated RTL, and reproducibility are unchanged.
+
+**Files touched:** `src/mem_guard.rs` (new), `src/lib.rs`,
+`src/config.rs`, `src/main.rs`, `book/src/knobs.md`, `USER_GUIDE.md`,
+`README.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`, `docs/tasks/WORKLOAD-MEMORY-SAFETY.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-14-cone-decomposition-7 — CONE-DECOMPOSITION.7 extract cone/motifs.rs + close
 
 **Landed as:** this commit

@@ -37,6 +37,11 @@ pub mod ir;
 /// byte-identical to the previous accumulate-then-`to_string_pretty`
 /// path. See `src/manifest.rs`.
 pub mod manifest;
+/// Opt-in internal RAM/RSS self-governor (`WORKLOAD-MEMORY-SAFETY.4`).
+/// Default-off / byte-identical; aborts an `--out` run cleanly before
+/// the host danger zone, naming the seed + effective knobs. See
+/// `src/mem_guard.rs`.
+pub mod mem_guard;
 pub mod metrics;
 /// Phase 7 oracle-backed micro-design lane (`PHASE-7-ORACLE-MICRODESIGN`).
 /// A **separate generator path** from the DUT lane: a source-level

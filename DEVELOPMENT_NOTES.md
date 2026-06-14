@@ -5,6 +5,82 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Internal RAM/RSS self-governor — `WORKLOAD-MEMORY-SAFETY.4`
+
+Landed `.4`, the process-level backstop the `.1` design recorded: an
+opt-in governor that lets `anvil` sample its own RSS and/or host
+used-RAM% and abort a bulk `--out` run cleanly before the host danger
+zone. New module `src/mem_guard.rs`; two knobs `max_rss_mb` /
+`ram_abort_pct` (sentinel `0` = off); CLI flags `--max-rss-mb` /
+`--ram-abort-pct`.
+
+**Decision — separate the pure decision from the I/O.** `evaluate(&MemLimits,
+&MemSample)` is a pure function (no syscalls), so the trip logic —
+boundaries, axis precedence, never-abort-on-`None` — is exhaustively
+unit-tested without touching the OS. The OS reads (`read_process_rss_mb`,
+`read_host_used_pct`) are thin best-effort wrappers. This is why the
+acceptance "focused tests for the decision logic" is satisfiable cleanly:
+the decision *is* a function.
+
+**Decision — sample between units, never mid-cone.** Rules-first +
+valid-by-construction (`feedback_rules_first_generation`): the check runs
+at the *start of each iteration* of the `--out` streaming closures, so the
+governor declines to start the next module/design rather than truncating a
+half-built cone (which would emit invalid RTL). This is the
+"decline-to-start-more" mechanism the `.1` design mandated. The per-module
+node budget (`.3`) is the orthogonal *single-module* construction-time
+bound; `.4` is the *process* bound. Sampling deep inside the hot cone
+worklist (the `.1` "stretch") is deliberately deferred — it would touch
+the hot path for marginal benefit now that `.3` already caps a single
+module — and is recorded as a `.5` deferred boundary.
+
+**Decision — RSS checked before host-%.** A single fast-growing module can
+balloon this process's RSS faster than the host %-used signal moves, and
+the external `ram_guard.sh` 3 s poll can miss it entirely; the per-process
+RSS bound is the more urgent guard, so `evaluate` tests it first.
+
+**Decision — best-effort reads never abort a healthy run.** Mirrors
+`scripts/ram_guard.sh` ("a probe hiccup never kills a healthy job"): an
+unreadable `/proc` file or a failed `ps`/`memory_pressure` yields `None`,
+and `None` never trips. The reads are also dep-free (no `sysinfo` crate):
+Linux uses `/proc`; macOS shells the same tools the shell guard uses.
+
+**Decision — exit code 99, distinct from validation/other errors.** A
+governor trip exits `99` (matching `ram_guard.sh`), so a wrapping script
+can tell "governor stopped me" from a config error (exit 1) or a normal
+failure. Implemented without fighting the streaming writer: the closure
+returns an `io::Error` of kind `OutOfMemory` carrying the message; `main`
+matches that kind, prints the message, and `process::exit(99)`.
+
+**Decision — process-safety knob is exempt from the output-metric
+doctrine.** `book/src/knobs.md`'s "every knob needs a metric for its effect
+on *generated output*" does not apply: the governor has no output effect
+(off ⇒ byte-identical; fired ⇒ no further output). Forcing a per-module
+`Metrics` field would be dishonest. The decision-logic tests + the clean
+abort are the observability. This categorization is recorded in the book
+and is a deliberate, defensible reading of the doctrine, not an evasion.
+
+**Rejected / deferred.**
+- *A per-module `Metrics` RSS field* — rejected: the governor is run-level,
+  not per-module-shape; a per-module metric would misrepresent it (see
+  above).
+- *Pulling in the `sysinfo` crate* — rejected: a new dependency for two
+  small reads the shell guard already does dep-free; `/proc` + `ps` /
+  `memory_pressure` match the established approach exactly.
+- *Sampling inside the cone worklist drain* — deferred to a possible future
+  leaf: `.3`'s node budget already bounds a single module construction-time;
+  intra-cone RSS sampling would touch the hot path for marginal gain.
+- *Guarding the `count == 1` stdout path and the non-DUT lanes* — out of
+  scope: those emit one small artifact, not a bulk loop; documented as a
+  `.5` deferred boundary.
+
+Validation: `cargo test --lib mem_guard` 11/11 + config 2/2 + bin 2/2;
+`cargo test --test snapshots` 6/6 (default SV byte-identical); clippy
+`-D warnings` + fmt clean; live exit-99 / byte-identical smokes;
+`mdbook build` clean. Heavy builds under `scripts/ram_guard.sh`.
+
+---
+
 ## 2026-06-14 — cone.rs decomposition design — `CONE-DECOMPOSITION.1`
 
 Owner asked (2026-06-14) to "carefully and meticulously" break the

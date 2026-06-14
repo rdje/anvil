@@ -132,6 +132,43 @@ Control the size and topology of generated modules.
   reachable from the top (Phase 4, hierarchy-aware identity).
   Config/library-only; no CLI flag.
 
+### Process-safety governor (runtime, not generation)
+
+These knobs guard `anvil`'s **own process memory** on a RAM-limited
+host; they never change emitted RTL, so they sit apart from the
+structural knobs above. They complement `scripts/ram_guard.sh`
+(which guards *external* heavy jobs from the outside) by guarding the
+generator from the inside — catching a huge-`--count` or
+single-pathological-module balloon that a coarse external poll can
+outrun.
+
+- `max_rss_mb` — abort a `--out` run once this process's resident set
+  (RSS) reaches this many MiB. Sentinel `0` = off (the default).
+- `ram_abort_pct` — abort once host used RAM reaches this percentage
+  (`1..=100`). Sentinel `0` = off. Mirrors `scripts/ram_guard.sh`'s
+  reads (macOS `memory_pressure` "free percentage"; Linux
+  `/proc/meminfo` `MemAvailable`).
+
+When armed, the governor is sampled **between** finished
+modules/designs (decline-to-start-more), never mid-cone — it stops the
+run cleanly with a deterministic non-zero exit (code `99`, matching the
+shell guard) and a stderr message naming the seed + effective knobs,
+rather than mutilating a built module (which would emit invalid RTL and
+break valid-by-construction). RSS is checked before host-%, since a
+single-process balloon can outrun the host signal. Each OS read is
+best-effort: an unreadable sample never aborts a healthy run.
+
+> **Measurement-doctrine note.** The doctrine above ("every knob must
+> have a metric that captures its effect on *generated output*") does
+> not apply here: a process-safety governor has *no* output effect to
+> measure — when it does nothing, output is byte-identical, and when it
+> fires, there is no output at all past the abort. Its behaviour is
+> proven instead by the pure decision-logic unit tests in
+> `src/mem_guard.rs` (`evaluate`) plus the clean exit-`99` abort path.
+> Both default to the off sentinel, so the default path is
+> byte-identical and consumes RNG identically (the guard is never even
+> sampled).
+
 ### Sequential knobs (flops and mux motifs)
 
 Control flop emission and D-input mux shape.
@@ -612,6 +649,9 @@ Config {
     min_width: 1,   max_width: 32,
     max_depth: 6,
     max_nodes_per_module: 0,   // 0 = unlimited (opt-in node budget)
+    // Process-safety governor (runtime, not generation)
+    max_rss_mb: 0,             // 0 = off (opt-in process-RSS abort, MiB)
+    ram_abort_pct: 0,          // 0 = off (opt-in host used-RAM% abort)
     // Sequential
     flop_prob: 0.15,
     max_flops_per_module: 32,
@@ -701,6 +741,12 @@ is accurate as of this commit.
 --min-outputs, --max-outputs
 --min-width, --max-width
 --max-depth
+```
+
+### Memory governor (process-safety; default off)
+```text
+--max-rss-mb <MiB>        # abort an --out run above this process RSS
+--ram-abort-pct <1..=100> # abort an --out run above this host used-RAM%
 ```
 
 ### Sequential

@@ -598,6 +598,37 @@ targets over the whole suite, and chunk big sweeps with a smaller
 `--modules-per-scenario` plus `--resume` (the matrix writes per-item
 checkpoints). See `docs/decisions/0003-resource-safe-validation.md`.
 
+### `anvil`'s own internal memory governor (opt-in)
+
+`scripts/ram_guard.sh` guards *external* jobs from the outside. For
+`anvil`'s **own** bulk-generation runs there is an opt-in governor that
+guards the process from the inside, so a very large `--count` or a
+single pathological `(seed, knobs)` cannot drive the host toward the
+reboot zone faster than an external poll can react. Two ceilings, both
+**off by default** (sentinel `0`) — when off, output is byte-identical:
+
+```bash
+# Stop the run once this process's resident set reaches 8 GiB.
+anvil --seed 42 --count 100000 --out ./gen --max-rss-mb 8192
+
+# Stop once host used RAM reaches 90% (macOS memory_pressure /
+# Linux /proc/meminfo, same reads as ram_guard.sh).
+anvil --seed 42 --count 100000 --out ./gen --ram-abort-pct 90
+```
+
+The governor is sampled **between** generated modules/designs in the
+`--out` loop, never mid-construction: it declines to start more work
+rather than mutilating a half-built module (which would emit invalid
+RTL). On a trip it stops cleanly with exit code **99** (matching
+`ram_guard.sh`) and a stderr message naming the abort reason, the
+seed, and the full effective knobs, so the aborted run is reproducible.
+Output written before the abort is left in place (the trailing
+`manifest.json` array may be unterminated — expected for an aborted
+run). This complements the always-on per-module construction budget
+`max_nodes_per_module` (config-only; bounds one module's node arena):
+the node budget caps a *single* module's size, the governor caps the
+*process*.
+
 ## Tool matrix sweeps
 
 For a broader repo-owned downstream-validation sweep, use the dedicated

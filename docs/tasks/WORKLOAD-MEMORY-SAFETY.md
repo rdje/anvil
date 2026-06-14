@@ -90,11 +90,11 @@ This tree guards `anvil`'s *own* process from the inside.
   Commit: `WORKLOAD-MEMORY-SAFETY.3 - real per-module node budget`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Add an opt-in internal RAM/RSS self-governor that aborts a run cleanly before the host danger zone.`
   Acceptance: `An opt-in knob (e.g. --max-rss-mb / --ram-abort-pct) makes anvil stop with a deterministic non-zero exit code and a message naming the seed + effective knobs before crossing the threshold; default off ⇒ byte-identical; cross-platform RAM/RSS read (macOS + Linux) consistent with ram_guard.sh's approach; focused tests for the decision logic.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — new src/mem_guard.rs (pure evaluate() + best-effort /proc & ps/memory_pressure reads, default-off short-circuit); --max-rss-mb / --ram-abort-pct knobs (sentinel 0=off, serde(default), validate rejects pct>100); main.rs checks the guard BETWEEN units in both --out streaming closures and exits 99 with a seed+knobs message; 11 mem_guard + 2 config + 2 CLI tests; snapshots 6/6 byte-identical; live smokes prove default exit 0, under-limit exit 0 with byte-identical .sv, tiny-limit exit 99, pct>100 exit 1; clippy/fmt/mdbook clean. See Verification Log.`
+  Commit: `WORKLOAD-MEMORY-SAFETY.4 - internal RAM/RSS self-governor`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.5`
   Status: `pending`
@@ -107,13 +107,19 @@ This tree guards `anvil`'s *own* process from the inside.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `WORKLOAD-MEMORY-SAFETY.4` | `pending` | Internal RAM/RSS self-governor; opt-in, independent of `.2`/`.3`. |
-| 2 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout once the mechanisms land. |
+| 1 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout: deferred-boundary record + book safe-envelope narrative + roadmap status + close the tree. |
 
-`.2` (stream the directory-output manifest) and `.3` (real per-module node
-budget) are `done` — both byte-identical at the default; peak metadata RAM
-is O(1) in `--count`, and per-module node growth is now boundable via
-`max_nodes_per_module`.
+`.2` (stream the directory-output manifest), `.3` (real per-module node
+budget), and `.4` (internal RAM/RSS self-governor) are `done` — all
+byte-identical at the default. Peak metadata RAM is O(1) in `--count`,
+per-module node growth is boundable via `max_nodes_per_module`, and the
+process now has an opt-in RSS/host-% governor that aborts a bulk `--out`
+run cleanly (exit 99) before the host danger zone. The mandatory
+user-facing doc sync for `.4`'s new CLI surface (USER_GUIDE, book
+`knobs.md`, README CLI-truth, CODEBASE_ANALYSIS module map) was pulled
+into the `.4` commit per `COMMIT.md` (a CLI change must not leave docs
+drifting); `.5` adds the cohesive safe-envelope narrative + the explicit
+deferred boundaries and closes the tree.
 
 > Sequencing note (owner request, 2026-06-14): a separate
 > `CONE-DECOMPOSITION` tree (breaking the 5551-line `src/gen/cone.rs` into
@@ -163,10 +169,11 @@ is O(1) in `--count`, and per-module node growth is now boundable via
   steer to terminals) or also a *soft* signal feeding share/terminal-reuse
   probabilities? Default-unlimited makes this non-blocking; resolve at `.3`
   implementation with a focused metric. Owner: repo-local.
-- `.4`: knob spelling/semantics — `--max-rss-mb` (absolute, per-process,
-  portable) vs `--ram-abort-pct` (host %-used, matches ram_guard). Leaning
-  toward supporting both, RSS as the primary single-process guard. Does not
-  block the frontier (`.2` is next). Owner: repo-local.
+- `.4`: knob spelling/semantics — RESOLVED (`.4` landed): **both** knobs
+  ship. `--max-rss-mb` (absolute, per-process, portable) is the primary
+  single-process guard and `evaluate` checks it before `--ram-abort-pct`
+  (host %-used, matches ram_guard) because a single-process balloon can
+  outrun the host signal. Both default to the sentinel `0` = off.
 - `.2`: should the streamed manifest also gain an opt-in JSON-lines
   sidecar for truly huge runs, or is incremental-array streaming enough?
   Resolve at `.2`; incremental-array is the byte-identical default.
@@ -182,6 +189,7 @@ is O(1) in `--count`, and per-module node growth is now boundable via
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.1` | Codebase memory-behaviour audit (Explore survey + direct verification: `grep -rn max_nodes_per_module src/` → only `config.rs:337` decl + `config.rs:729` default; `src/main.rs:507-575` output paths read directly). Docs-only; design recorded in `DEVELOPMENT_NOTES.md` + this tree. memory-architecture + knowledge-map self-checks (pre-commit). `git diff --check`. Full `cargo test` intentionally skipped (no code change; full-suite RAM risk per `docs/decisions/0003-resource-safe-validation.md`). | passed (docs-only) |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.2` | `cargo check --all-targets` (clean, 6.1s); `cargo clippy --all-targets -- -D warnings` (clean after `io::Error::other` fix); `cargo fmt --all --check` (clean); `cargo test --lib manifest` 3/3 (`streamed_matches_reference`, `streamed_matches_reference_for_designs`, `propagates_element_error`); `cargo test --test snapshots` 6/6 (SV byte-identity); **gold-standard** old-vs-new `diff -r` byte-identical on both lanes (`--seed 42 --count 5` flat; `--seed 7 --count 3 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 4` wrapper design) for `manifest.json` + every `.sv`; full `cargo test` under `scripts/ram_guard.sh --threshold 88` (RAM stayed comfortable). | passed |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.3` | `cargo test --lib node_budget` 1/1 (`node_budget_caps_and_shrinks_module_but_stays_valid`: budget 48 shrinks arena vs unbounded, stays ≤ budget·6, both validate); `cargo test --test snapshots` 6/6 (default-path SV byte-identical with default `1000`→`0`); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; full `cargo test` under `scripts/ram_guard.sh --threshold 88`; `mdbook build book` clean. | passed |
+| `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.4` | `cargo check --all-targets` clean (ram-guarded); `cargo test --lib mem_guard` 11/11 (disabled-never-abort, RSS/host trip boundaries, unreadable-never-abort, RSS-before-host precedence, from-config enable/disable, message/Display); `cargo test --lib` config governor 2/2 (`validate_rejects_ram_abort_pct_above_100`, boundary/off-sentinel); `cargo test --bin anvil` governor round-trips 2/2; `cargo test --test snapshots` 6/6 (default SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean. Live debug-binary smokes: `--dump-config` shows both knobs `0`; default `--out` exit 0; `--max-rss-mb 100000` (under) exit 0 with byte-identical `.sv` vs off (diff -q); `--max-rss-mb 1` clean abort exit **99** with reason+seed+knobs stderr message; `--ram-abort-pct 101` rejected at validation (exit 1, distinct from 99). | passed |
 
 ## Commit Log
 
@@ -190,9 +198,11 @@ is O(1) in `--count`, and per-module node growth is now boundable via
 | `WORKLOAD-MEMORY-SAFETY.1` | `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design` | Tree genesis + design leaf. Hash `8f7fb34`. |
 | `WORKLOAD-MEMORY-SAFETY.2` | `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest` | `src/manifest.rs` + main.rs rewire. Hash `1c5ac85`. |
 | `WORKLOAD-MEMORY-SAFETY.3` | `WORKLOAD-MEMORY-SAFETY.3 - real per-module node budget` | cone.rs `node_budget_reached` + config default `1000`→`0`. Pending hash. |
+| `WORKLOAD-MEMORY-SAFETY.4` | `WORKLOAD-MEMORY-SAFETY.4 - internal RAM/RSS self-governor` | new `src/mem_guard.rs` + `max_rss_mb`/`ram_abort_pct` knobs + main.rs between-unit checkpoint + exit 99. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (audit + bounded-memory design, docs-only). Frontier now `.2` (streaming manifest).
 - `2026-06-14`: Landed `.2` (streaming directory-output manifest, byte-identical, peak metadata RAM O(1) in `--count`). Frontier now `.3` (per-module node budget).
 - `2026-06-14`: Landed `.3` (real per-module node budget — `max_nodes_per_module` ghost knob wired up, sentinel `0`=unlimited default, byte-identical). Frontier now `.4`, but a separate `CONE-DECOMPOSITION` tree is prioritized ahead of it per owner request.
+- `2026-06-14`: `CONE-DECOMPOSITION` tree landed and closed; resumed here. Landed `.4` (opt-in internal RAM/RSS self-governor — `src/mem_guard.rs`, `--max-rss-mb` / `--ram-abort-pct`, sentinel `0`=off default-byte-identical, between-unit `--out` checkpoint, clean exit 99 with seed+knobs message). Frontier now `.5` (closeout).

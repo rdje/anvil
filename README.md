@@ -589,6 +589,14 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   in the frontend/elaboration lane.
 - `anvil --seed N` generates a single module to stdout.
 - `anvil --seed N --count M --out DIR` generates M modules into DIR with a `manifest.json`.
+- `anvil --max-rss-mb <MiB>` / `anvil --ram-abort-pct <1..=100>` are the
+  opt-in internal memory governor (`WORKLOAD-MEMORY-SAFETY.4`): they abort
+  an `--out` run cleanly (deterministic exit code `99` + a stderr message
+  naming the seed + effective knobs) once this process's RSS, or host used
+  RAM%, crosses the ceiling, sampled between generated units. Both default
+  to the sentinel `0` = off ⇒ byte-identical; they never change emitted
+  RTL. They guard `anvil`'s own process from the inside, complementing
+  `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), while `relaxed` is the intentional off-switch where equivalent expressions may keep different `NodeId`s.
 - `anvil --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>` is the current-build implementation/proof-depth dial inside `node-id`; lower rungs are weaker enforcement of the same doctrine, not a different meaning of `node-id`.

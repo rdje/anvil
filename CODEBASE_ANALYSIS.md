@@ -194,6 +194,23 @@ src/
 │                     depth. `streamed_matches_reference` proves the
 │                     byte-identity against serde itself.
 │
+├── mem_guard.rs      Opt-in internal RAM/RSS self-governor
+│                     (`WORKLOAD-MEMORY-SAFETY.4`). Pure decision
+│                     `evaluate(&MemLimits, &MemSample) → Option<AbortReason>`
+│                     (RSS before host-%; disabled/`None` never trips)
+│                     + best-effort dep-free OS reads mirroring
+│                     `scripts/ram_guard.sh`: `read_process_rss_mb`
+│                     (Linux `/proc/self/status` VmRSS; macOS `ps`) and
+│                     `read_host_used_pct` (Linux `/proc/meminfo`; macOS
+│                     `memory_pressure`). `MemGuard::from_config` / `check()`
+│                     short-circuits to `None` when both knobs are off, so
+│                     the default `--out` loop is byte-identical and draws
+│                     RNG identically. `main.rs` checks it BETWEEN units in
+│                     the streaming closures (decline-to-start-more, never
+│                     mid-cone) and exits `99` with a seed+knobs message on a
+│                     trip. Process-safety governor, not a generation knob:
+│                     never alters emitted RTL.
+│
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy.
 │                     ConstructionStrategy enum (clap::ValueEnum +
