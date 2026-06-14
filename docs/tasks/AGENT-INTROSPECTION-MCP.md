@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability — agent-drivable introspection + MCP interface`
 - Created: `2026-06-14`
-- Last updated: `2026-06-14`
+- Last updated: `2026-06-15`
 - Owner: repo-local workflow (owner-directed lane)
 
 ## Goal
@@ -89,9 +89,9 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.4 - read-only MCP server`
 
 - ID: `AGENT-INTROSPECTION-MCP.5`
-  Status: `active`
+  Status: `done`
   Goal: `Add the controlled validate + minimize tools: external tools only via existing tool_matrix invocations, sandboxed + ram-guarded; minimize shrinks (seed, knobs); audit log + reproducible command line per call.`
-  Children: `.5.1`, `.5.2`, `.5.3`
+  Children: `.5.1`, `.5.2`, `.5.3` (all `done`)
   Split rationale (`2026-06-14`): the original `.5` leaf bundled three
   independently-reviewable concerns — a cross-binary tool-invocation
   extraction (a lower-level dependency that must land first), the sandboxed
@@ -114,11 +114,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool`
 
 - ID: `AGENT-INTROSPECTION-MCP.5.3`
-  Status: `pending`
+  Status: `done`
   Goal: `The minimize tool: deterministic delta-debug of (seed, knobs) to a smaller failing reproducer using .5.2's validate as the failure oracle; bounded work budget; audit-logged.`
   Acceptance: `minimize produces a smaller failing (seed, knobs) for a seeded failing case; bounded + deterministic; guardrails tested.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo fmt/check/clippy -D warnings clean; cargo test --lib downstream:: (20/20 + 1 tool-gated) — shrink logic proven with a synthetic predicate oracle (bisection finds the monotone boundary; unconstrained bounds collapse to floors; a depended-on knob is preserved; budget + guard-decline both stop the search) + real-oracle no-repro/determinism/invalid-config paths; cargo test --lib mcp:: (18/18) incl. minimize round-trip + audit + off-allow-list/zero-budget rejection; cargo test --test snapshots (6/6 byte-identical); tool-gated e2e (--ignored) clean vs real Verilator 5.046 + Yosys 0.64 (seed 42 reproduced_initial=false); anvil-mcp stdio smoke (initialize → minimize → anvil://audit/log).`
+  Commit: `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool`
 
 - ID: `AGENT-INTROSPECTION-MCP.6`
   Status: `pending`
@@ -144,18 +144,47 @@ recorded in
 | 4 | `AGENT-INTROSPECTION-MCP.4` | `done` | Read-only MCP server landed: `src/mcp/` + `anvil-mcp` bin (stdio JSON-RPC; generate/introspect/dump_config + resources). |
 | 5 | `AGENT-INTROSPECTION-MCP.5.1` | `done` | Shared downstream-tool invocation surface extracted to `src/downstream/`; `tool_matrix` rewired; behavior-preserving (snapshots 6/6). |
 | 6 | `AGENT-INTROSPECTION-MCP.5.2` | `done` | Controlled `validate` tool: `downstream::validate` (sandboxed temp dir + ram-guard + fixed allow-list) + MCP `validate` tool + `anvil://audit/log`; e2e clean vs Verilator+Yosys. |
-| 7 | `AGENT-INTROSPECTION-MCP.5.3` | `pending` | `minimize` delta-debugger shrinking `(seed, knobs)` to a smaller failing reproducer via the `.5.2` oracle. |
+| 7 | `AGENT-INTROSPECTION-MCP.5.3` | `done` | `minimize` delta-debugger: `downstream::minimize` (deterministic coordinate-descent over size bounds + optional-motif probs, budget-bounded, seed fixed) + MCP `minimize` tool + audit log; e2e clean vs real Verilator+Yosys. |
+| 8 | `AGENT-INTROSPECTION-MCP.6` | `pending` | Agent-workflow prompts (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`, `explain_artifact`). |
 
 Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
-leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and
-`.5.1`/`.5.2` are done. The remaining leaves proceed in order under PNT
-(`.5.3` minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
+leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and **all
+three are now done**, so the `.5` container is `done`. The remaining leaves
+proceed in order under PNT (`.6` prompts → `.7` book/USER_GUIDE closeout).
 User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 `.7` closeout by design — the lane is documented as a stable feature only once
 `.5`/`.6` complete it.
 
 ## Decisions
 
+- `2026-06-15`: **Landed `.5.3`** — the controlled `minimize` delta-debugger,
+  closing the `.5` container. `downstream::minimize(seed, &Config,
+  &MinimizeOptions) -> MinimizeReport` delta-debugs `(seed, knobs)` to a smaller
+  failing reproducer using `.5.2`'s `downstream::validate` as a **pure failure
+  oracle** (a candidate "reproduces" iff its `validate` run completes — guard
+  did not decline — and the verdict is not `ok`). Design decisions: (a) the
+  **seed is held fixed** — it pins the reproducer's identity; only knobs shrink;
+  (b) a **deterministic coordinate-descent** over two fixed-order registries —
+  integer size bounds bisected toward each knob's floor (floor tracks the
+  companion `min_*` so the range stays valid) and optional-motif probabilities
+  driven to `0.0` ("feature off"); sharing/reuse/library/constant knobs are
+  excluded because `0.0` there is not unambiguously simpler; (c) **bounded +
+  safe** — every candidate is re-checked with `Config::validate` before it can
+  reach the generator, and the search is hard-capped by
+  `max_oracle_calls` (default 200) + a `MINIMIZE_MAX_PASSES` fixpoint bound, a
+  decline unwinds cleanly; (d) **no monotonicity assumed** — the result is *a*
+  smaller reproducer, not a proven global minimum (the standard delta-debug
+  trade-off, documented). The MCP `minimize` tool reuses the shared
+  `parse_validate_tools`/`parse_yosys_mode_arg` helpers (so it cannot drift from
+  `validate`), fixes the sandbox to the OS temp dir, and audit-logs each call
+  (minimized `run_id`, seed, reductions, budget, surviving command lines). The
+  shrink logic is unit-tested portably via a **synthetic predicate oracle**
+  (ANVIL output is valid-by-construction, so no real tool can manufacture a
+  failing case to delta-debug); the real-oracle wiring is proven by the
+  `tools: []` no-repro test and the tool-gated e2e (`reproduced_initial=false`
+  on seed 42 — the honest valid-by-construction outcome). Default `anvil`
+  build / DUT byte-identical untouched (snapshots 6/6). User-facing docs remain
+  deferred to `.7`.
 - `2026-06-14`: **Landed `.5.2`** — the controlled `validate` tool.
   `downstream::validate(seed, &Config, &ValidateOptions)` regenerates the DUT
   artifact deterministically into a fresh per-run sandbox
@@ -268,6 +297,7 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.4` | `cargo fmt --all --check`; `cargo check --all-targets` (no dup-bin); `cargo clippy --all-targets -- -D warnings`; `cargo test --lib` (338/338, incl 12 mcp); `cargo test --test snapshots` (6/6 byte-identical); end-to-end `anvil-mcp` stdio smoke (initialize/tools.list/generate/resources) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.1` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib downstream::` (7/7); `cargo test --bin tool_matrix` (41 pass, 1 ignored); `cargo test --test snapshots` (6/6 byte-identical) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.2` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (12/12 + 1 gated) + `mcp::` (15/15); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator+Yosys (seed 42 `ok=true`); `anvil-mcp` stdio smoke (initialize → validate → `anvil://audit/log`) | passed |
+| `2026-06-15` | `AGENT-INTROSPECTION-MCP.5.3` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (20/20 + 1 gated, synthetic-oracle shrink proofs) + `mcp::` (18/18); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator 5.046 + Yosys 0.64 (seed 42 `reproduced_initial=false`); `anvil-mcp` stdio smoke (initialize → minimize → `anvil://audit/log`) | passed |
 
 ## Commit Log
 
@@ -278,7 +308,8 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Commit `aec51e2`; lands `src/introspect/` + `--introspect`. |
 | `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Commit `5db5ebc`; lands `src/mcp/` + `anvil-mcp` bin. |
 | `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Commit `64f0bbe`; lands `src/downstream/`, rewires `tool_matrix`. |
-| `AGENT-INTROSPECTION-MCP.5.2` | `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool` | Pending hash; lands `downstream::validate` + MCP `validate` tool + `anvil://audit/log`. |
+| `AGENT-INTROSPECTION-MCP.5.2` | `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool` | Commit `65db6c3`; lands `downstream::validate` + MCP `validate` tool + `anvil://audit/log`. |
+| `AGENT-INTROSPECTION-MCP.5.3` | `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool` | Pending hash; lands `downstream::minimize` + MCP `minimize` tool; closes the `.5` container. |
 
 ## Changelog
 
@@ -314,3 +345,15 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
   12 downstream + 15 mcp lib tests, tool-gated e2e clean vs real
   Verilator+Yosys, `anvil-mcp` stdio smoke clean, snapshots 6/6 byte-identical.
   Frontier advanced to `.5.3` (minimize).
+- `2026-06-15`: Landed `.5.3` — the controlled `minimize` delta-debugger,
+  closing the `.5` container. `downstream::minimize` (`MinimizeOptions` /
+  `MinimizeReport` / `KnobReduction`): a deterministic coordinate-descent that
+  bisects integer size bounds toward their floors and drives optional-motif
+  probabilities to `0.0`, to a fixpoint, using `.5.2`'s `validate` as a pure
+  failure oracle; seed held fixed; hard-bounded by `max_oracle_calls`; a
+  guard-decline unwinds cleanly. MCP `minimize` tool reuses the new shared
+  `parse_validate_tools`/`parse_yosys_mode_arg` helpers and audit-logs each
+  call. 20 downstream + 18 mcp lib tests (shrink logic proven via a synthetic
+  predicate oracle), tool-gated e2e clean vs real Verilator 5.046 + Yosys 0.64
+  (`reproduced_initial=false`), `anvil-mcp` stdio smoke clean, snapshots 6/6
+  byte-identical. Frontier advanced to `.6` (agent-workflow prompts).

@@ -5,6 +5,79 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Controlled `minimize` delta-debugger — `AGENT-INTROSPECTION-MCP.5.3`
+
+`.5.3` adds `downstream::minimize(seed, cfg, opts)` + the MCP `minimize`
+adapter, closing the agent bug-hunting loop (generate → validate → shrink to a
+minimal reproducer). Notes worth keeping:
+
+**Decision — `validate` is a pure failure *oracle*; minimize searches inputs
+only.** A candidate "reproduces" iff its `.5.2` `validate` run *completes* (the
+memory guard did not decline) and the verdict is **not** `ok`. The search never
+touches emitted RTL — it re-runs the existing rules-first generator + the vetted
+oracle on each candidate `(seed, knobs)`. So it is squarely *not*
+generate-then-filter / repair (the doctrine line `0004` draws): the agent drives
+a deterministic experiment over the *input* space; ANVIL stays the source of
+truth. A decline is treated as **inconclusive → does not reproduce**, so a
+half-run under memory pressure can never be mistaken for a passing shrink.
+
+**Decision — hold the seed fixed; shrink only knobs.** Changing the seed yields
+a *different* artifact, not a smaller version of the same one — it would change
+the reproducer's identity, not minimize it. The seed pins the reproducer; the
+knobs are the reducible surface. (The leaf title "delta-debug of `(seed,
+knobs)`" refers to the reproducer *tuple* that is shipped, not to mutating the
+seed.)
+
+**Decision — two reduction registries, deterministic order.** Integer **size
+bounds** (`max_depth`, `max_width`, `max_inputs`, `max_outputs`,
+`max_flops_per_module`, `max_mux_arms`, `max_gate_arity`, `max_coefficient`,
+`max_shift_amount`, `max_comparand`) are bisected toward each knob's floor; each
+floor tracks the companion `min_*` so the candidate range stays valid.
+**Optional-motif probabilities** (flop + the const/encoder/case/casez/for-fold/
+comb-mux/flop-mux motifs, the Phase 5/5b/6 param/aggregate/memory/fsm/multi-clock
+lanes, the duplication rates, the hierarchy routing probs) are driven to `0.0`
+("feature absent"). The two registries are swept to a fixpoint.
+
+**Rejected — zeroing sharing/reuse/library/constant knobs.** `share_prob`,
+`terminal_reuse_prob`, `library_prob`, `constant_prob` are *excluded* from the
+prob registry: their `0.0` is not unambiguously simpler (e.g. `share_prob=0`
+*increases* node count). Minimize only makes moves that are monotone
+simplifications — smaller bounds, or one fewer optional motif.
+
+**Decision — bisection is a bounded heuristic, not a proven minimum.** Downstream
+failures are not monotone in the knobs, so bisecting toward a floor can step over
+a reproducer below a non-reproducing midpoint. That is the accepted delta-debug
+trade-off: the acceptance bar is *a* smaller reproducer, deterministically and
+under a hard budget — not the global minimum. Every candidate is re-checked with
+`Config::validate` *before* the generator sees it (an invalid midpoint just
+raises the search floor — never a spawn), and the whole search is capped by
+`max_oracle_calls` (default 200) + a `MINIMIZE_MAX_PASSES` fixpoint bound.
+
+**Decision — capture `final_validation` from the last failing oracle call (no
+extra tool run).** Every accepted reduction came from a `validate` run that
+returned a failing `ValidateReport`; later candidates can only `Pass`/`Decline`
+(rejected). So the *last* failing report always lands on the minimized config —
+the production oracle closure stashes it via an `&mut Option<ValidateReport>`
+capture, and `minimize` attaches it as `final_validation`. No confirming re-run
+is spent, and the report shows exactly which tool still rejects the minimized
+artifact.
+
+**Test strategy — synthetic predicate oracle for the shrink logic.** ANVIL output
+is valid by construction, so no real tool can manufacture a failing case to
+delta-debug; a real reproduction would itself be the headline finding (a
+generator bug). The search core (`search_minimal`) is therefore generic over the
+oracle and unit-tested with a pure predicate (bisection finds the exact monotone
+boundary; unconstrained bounds collapse to floors; a depended-on knob is
+preserved; the budget and a guard-decline each stop the search). The
+*real-oracle wiring* is proven by the `tools: []` no-repro path and the
+tool-gated e2e, where seed 42 honestly returns `reproduced_initial = false`.
+
+**Refactor — shared `tools`/`yosys_mode` parsing.** `run_validate` and
+`run_minimize` both parse the same agent-facing `tools` allow-list and
+`yosys_mode`; the logic was lifted into `parse_validate_tools` /
+`parse_yosys_mode_arg` (one owner) so the two controlled tools cannot drift —
+the same full-factorization move `.5.1` made for the invocations themselves.
+
 ## 2026-06-14 — Controlled `validate` tool — `AGENT-INTROSPECTION-MCP.5.2`
 
 `.5.2` adds the first agent tool that runs external tools:

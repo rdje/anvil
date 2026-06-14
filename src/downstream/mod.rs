@@ -31,17 +31,18 @@
 //!
 //! ## Scope of `.5.1` vs `.5.2` / `.5.3`
 //!
-//! `.5.1` (this leaf) lands the *invocation primitives* only. The higher-level
+//! `.5.1` landed the *invocation primitives* only. The higher-level
 //! `validate(seed, knobs, tools)` orchestration — generate into a sandboxed
 //! temp dir, run these tools, ram-guard, audit-log the reproducible command
-//! line — is `.5.2`, and the `minimize` delta-debugger is `.5.3`. Both build
-//! on this surface; neither is present yet.
+//! line — is `.5.2` ([`validate`]), and the deterministic, bounded `minimize`
+//! delta-debugger ([`minimize`]) is `.5.3`. Both build on this surface, reusing
+//! the one hardened invocation set rather than forking a second.
 
 use crate::config::Config;
 use crate::introspect::content_run_id;
 use crate::mem_guard::{AbortReason, MemGuard, MemLimits};
 use crate::{emit, Generator};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -640,6 +641,596 @@ fn decline_message(reason: &AbortReason) -> String {
     format!("memory guard declined to spawn the next tool: {reason}")
 }
 
+// ---------------------------------------------------------------------------
+// AGENT-INTROSPECTION-MCP.5.3 — the controlled `minimize` delta-debugger.
+//
+// Given a `(seed, knobs)` whose DUT artifact a downstream tool *rejects*,
+// search for a smaller, simpler `(seed, knobs)` that — with the same seed —
+// still triggers a downstream-tool failure, so a bug filer ships the minimal
+// reproducer instead of the original sprawling config. The seed is held fixed
+// (it pins the artifact's identity); only the knobs are shrunk.
+//
+// Doctrine fit (decision `0004`): this is **not** generate-then-filter and it
+// never mutates or repairs emitted RTL. It drives a deterministic experiment
+// over the *input* `(seed, knobs)` space and re-runs the existing rules-first
+// generator + the `.5.2` `validate` oracle on each candidate — exactly the
+// "agent drives experiments, ANVIL stays the source of truth" split. Because
+// ANVIL output is valid by construction, a real downstream failure is a
+// generator bug; on clean output `minimize` honestly reports "did not
+// reproduce" and shrinks nothing.
+//
+// The search is a deterministic coordinate-descent: each structural size bound
+// is bisected toward its floor, and each optional-motif probability is tried at
+// `0.0` ("feature off"), repeated to a fixpoint. Every candidate is re-checked
+// with `Config::validate` before it can reach the generator, and the whole
+// search is hard-bounded by a maximum oracle-call budget. No monotonicity is
+// assumed, so the result is *a* smaller reproducer, not a proven global
+// minimum — the standard delta-debugging trade-off (bounded, deterministic,
+// good-enough) rather than an exhaustive search.
+// ---------------------------------------------------------------------------
+
+/// How [`minimize`] searches.
+#[derive(Debug, Clone)]
+pub struct MinimizeOptions {
+    /// How the failure oracle ([`validate`]) runs each candidate `(seed,
+    /// knobs)`. Reused verbatim from `.5.2`: the tool allow-list, Yosys mode,
+    /// memory ceilings, and the fixed sandbox root all come from here, so
+    /// `minimize` inherits the same guardrails as a single `validate` call.
+    pub validate: ValidateOptions,
+    /// Hard ceiling on oracle ([`validate`]) evaluations across the whole
+    /// search (including the initial confirmation). The search stops and
+    /// returns the best reproducer found so far once it is reached, so a
+    /// pathological config can never spawn an unbounded number of tool runs.
+    pub max_oracle_calls: u32,
+}
+
+impl Default for MinimizeOptions {
+    fn default() -> Self {
+        Self {
+            validate: ValidateOptions::default(),
+            max_oracle_calls: 200,
+        }
+    }
+}
+
+/// One knob the search reduced, recorded as `from -> to` (both as `f64` so a
+/// single shape carries both integer size bounds and `[0,1]` probabilities).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnobReduction {
+    pub knob: String,
+    pub from: f64,
+    pub to: f64,
+}
+
+/// The structured result of a [`minimize`] run.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MinimizeReport {
+    /// The (unchanged) seed that pins the reproducer.
+    pub seed: u64,
+    /// Whether the *original* `(seed, knobs)` reproduced a downstream-tool
+    /// failure at all. `false` ⇒ ANVIL's output was downstream-clean (the
+    /// expected, by-construction case), nothing was shrunk, and
+    /// `minimized_config` echoes the input.
+    pub reproduced_initial: bool,
+    /// The smallest reproducing config found (equals the input when
+    /// `reproduced_initial` is `false` or no reduction held).
+    pub minimized_config: Config,
+    /// Each knob the search reduced, in deterministic registry order.
+    pub reductions: Vec<KnobReduction>,
+    /// How many oracle ([`validate`]) evaluations the search actually spent.
+    pub oracle_calls: u32,
+    /// `true` iff the search stopped because `max_oracle_calls` was reached
+    /// (the reproducer is still valid, just possibly not fully reduced).
+    pub budget_exhausted: bool,
+    /// Set iff the memory guard declined an oracle run mid-search (only
+    /// possible when `validate.mem_limits` is armed); the search stopped early.
+    pub declined: Option<String>,
+    /// A [`ValidateReport`] proving the *minimized* config still fails. `Some`
+    /// only when `reproduced_initial`; it is the report of the final accepted
+    /// candidate, so the agent sees exactly which tool still rejects it.
+    pub final_validation: Option<ValidateReport>,
+}
+
+/// The oracle verdict for one candidate config.
+enum Verdict {
+    /// The downstream tools rejected it — the failure reproduces.
+    Fails,
+    /// The downstream tools accepted it (or no tool ran) — clean.
+    Passes,
+    /// The memory guard declined before a tool spawn; inconclusive, stop.
+    Declined(String),
+}
+
+/// One reducible integer size bound: a getter, a setter, and a floor (which may
+/// depend on a companion `min_*` knob so the range stays valid).
+struct IntKnob {
+    name: &'static str,
+    get: fn(&Config) -> u64,
+    set: fn(&mut Config, u64),
+    floor: fn(&Config) -> u64,
+}
+
+/// One reducible probability knob whose `0.0` value means "this optional
+/// structure is absent" (so driving it to `0.0` is an unambiguous
+/// simplification). Sharing / reuse / library knobs are deliberately *not*
+/// here: `0.0` there is not obviously simpler.
+struct ProbKnob {
+    name: &'static str,
+    get: fn(&Config) -> f64,
+    set: fn(&mut Config, f64),
+}
+
+/// The fixed, ordered registry of integer size bounds the search shrinks. Order
+/// is part of the deterministic contract. Each floor keeps that knob's own
+/// `Config::validate` constraint satisfied; cross-knob validity is re-checked
+/// on every candidate regardless.
+fn int_knobs() -> Vec<IntKnob> {
+    vec![
+        IntKnob {
+            name: "max_depth",
+            get: |c| c.max_depth as u64,
+            set: |c, v| c.max_depth = v as u32,
+            floor: |_| 1,
+        },
+        IntKnob {
+            name: "max_width",
+            get: |c| c.max_width as u64,
+            set: |c, v| c.max_width = v as u32,
+            floor: |c| c.min_width as u64,
+        },
+        IntKnob {
+            name: "max_inputs",
+            get: |c| c.max_inputs as u64,
+            set: |c, v| c.max_inputs = v as u32,
+            floor: |c| c.min_inputs as u64,
+        },
+        IntKnob {
+            name: "max_outputs",
+            get: |c| c.max_outputs as u64,
+            set: |c, v| c.max_outputs = v as u32,
+            floor: |c| c.min_outputs as u64,
+        },
+        IntKnob {
+            name: "max_flops_per_module",
+            get: |c| c.max_flops_per_module as u64,
+            set: |c, v| c.max_flops_per_module = v as u32,
+            floor: |_| 0,
+        },
+        IntKnob {
+            name: "max_mux_arms",
+            get: |c| c.max_mux_arms as u64,
+            set: |c, v| c.max_mux_arms = v as u32,
+            floor: |c| c.min_mux_arms as u64,
+        },
+        IntKnob {
+            name: "max_gate_arity",
+            get: |c| c.max_gate_arity as u64,
+            set: |c, v| c.max_gate_arity = v as u32,
+            floor: |c| c.min_gate_arity as u64,
+        },
+        IntKnob {
+            name: "max_coefficient",
+            get: |c| c.max_coefficient as u64,
+            set: |c, v| c.max_coefficient = v as u32,
+            floor: |c| c.min_coefficient as u64,
+        },
+        IntKnob {
+            name: "max_shift_amount",
+            get: |c| c.max_shift_amount as u64,
+            set: |c, v| c.max_shift_amount = v as u32,
+            floor: |_| 0,
+        },
+        IntKnob {
+            name: "max_comparand",
+            get: |c| c.max_comparand as u64,
+            set: |c, v| c.max_comparand = v as u32,
+            floor: |_| 0,
+        },
+    ]
+}
+
+/// The fixed, ordered registry of optional-motif probability knobs the search
+/// drives toward `0.0`. Every entry's `0.0` means the corresponding optional
+/// structure is simply not generated.
+fn prob_knobs() -> Vec<ProbKnob> {
+    vec![
+        ProbKnob {
+            name: "flop_prob",
+            get: |c| c.flop_prob,
+            set: |c, v| c.flop_prob = v,
+        },
+        ProbKnob {
+            name: "coefficient_prob",
+            get: |c| c.coefficient_prob,
+            set: |c, v| c.coefficient_prob = v,
+        },
+        ProbKnob {
+            name: "const_shift_amount_prob",
+            get: |c| c.const_shift_amount_prob,
+            set: |c, v| c.const_shift_amount_prob = v,
+        },
+        ProbKnob {
+            name: "const_comparand_prob",
+            get: |c| c.const_comparand_prob,
+            set: |c, v| c.const_comparand_prob = v,
+        },
+        ProbKnob {
+            name: "priority_encoder_prob",
+            get: |c| c.priority_encoder_prob,
+            set: |c, v| c.priority_encoder_prob = v,
+        },
+        ProbKnob {
+            name: "case_mux_prob",
+            get: |c| c.case_mux_prob,
+            set: |c, v| c.case_mux_prob = v,
+        },
+        ProbKnob {
+            name: "casez_mux_prob",
+            get: |c| c.casez_mux_prob,
+            set: |c, v| c.casez_mux_prob = v,
+        },
+        ProbKnob {
+            name: "for_fold_prob",
+            get: |c| c.for_fold_prob,
+            set: |c, v| c.for_fold_prob = v,
+        },
+        ProbKnob {
+            name: "comb_mux_prob",
+            get: |c| c.comb_mux_prob,
+            set: |c, v| c.comb_mux_prob = v,
+        },
+        ProbKnob {
+            name: "comb_mux_encoding_prob",
+            get: |c| c.comb_mux_encoding_prob,
+            set: |c, v| c.comb_mux_encoding_prob = v,
+        },
+        ProbKnob {
+            name: "flop_qfeedback_prob",
+            get: |c| c.flop_qfeedback_prob,
+            set: |c, v| c.flop_qfeedback_prob = v,
+        },
+        ProbKnob {
+            name: "flop_mux_encoding_prob",
+            get: |c| c.flop_mux_encoding_prob,
+            set: |c, v| c.flop_mux_encoding_prob = v,
+        },
+        ProbKnob {
+            name: "width_parameterization_prob",
+            get: |c| c.width_parameterization_prob,
+            set: |c, v| c.width_parameterization_prob = v,
+        },
+        ProbKnob {
+            name: "aggregate_prob",
+            get: |c| c.aggregate_prob,
+            set: |c, v| c.aggregate_prob = v,
+        },
+        ProbKnob {
+            name: "aggregate_array_prob",
+            get: |c| c.aggregate_array_prob,
+            set: |c, v| c.aggregate_array_prob = v,
+        },
+        ProbKnob {
+            name: "memory_prob",
+            get: |c| c.memory_prob,
+            set: |c, v| c.memory_prob = v,
+        },
+        ProbKnob {
+            name: "fsm_prob",
+            get: |c| c.fsm_prob,
+            set: |c, v| c.fsm_prob = v,
+        },
+        ProbKnob {
+            name: "multi_clock_prob",
+            get: |c| c.multi_clock_prob,
+            set: |c, v| c.multi_clock_prob = v,
+        },
+        ProbKnob {
+            name: "operand_duplication_rate",
+            get: |c| c.operand_duplication_rate,
+            set: |c, v| c.operand_duplication_rate = v,
+        },
+        ProbKnob {
+            name: "mux_arm_duplication_rate",
+            get: |c| c.mux_arm_duplication_rate,
+            set: |c, v| c.mux_arm_duplication_rate = v,
+        },
+        ProbKnob {
+            name: "hierarchy_sibling_route_prob",
+            get: |c| c.hierarchy_sibling_route_prob,
+            set: |c, v| c.hierarchy_sibling_route_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_registered_sibling_route_prob",
+            get: |c| c.hierarchy_registered_sibling_route_prob,
+            set: |c, v| c.hierarchy_registered_sibling_route_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_registered_sibling_mixed_support_prob",
+            get: |c| c.hierarchy_registered_sibling_mixed_support_prob,
+            set: |c, v| c.hierarchy_registered_sibling_mixed_support_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_registered_child_input_cone_prob",
+            get: |c| c.hierarchy_registered_child_input_cone_prob,
+            set: |c, v| c.hierarchy_registered_child_input_cone_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_child_input_cone_prob",
+            get: |c| c.hierarchy_child_input_cone_prob,
+            set: |c, v| c.hierarchy_child_input_cone_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_parent_cone_instance_prob",
+            get: |c| c.hierarchy_parent_cone_instance_prob,
+            set: |c, v| c.hierarchy_parent_cone_instance_prob = v,
+        },
+        ProbKnob {
+            name: "hierarchy_parent_flop_prob",
+            get: |c| c.hierarchy_parent_flop_prob,
+            set: |c, v| c.hierarchy_parent_flop_prob = v,
+        },
+    ]
+}
+
+/// Safety bound on fixpoint passes over the knob registries. The search
+/// converges in a handful of passes (every accepted move strictly shrinks a
+/// well-founded measure), so this only ever caps a pathological non-convergence
+/// alongside the real `max_oracle_calls` budget.
+const MINIMIZE_MAX_PASSES: u32 = 64;
+
+/// Mutable search state. The oracle is passed in by `&mut` at each call site so
+/// it never aliases this state (keeps the borrow checker happy and the state
+/// free of the closure's captures).
+struct Searcher {
+    /// The current smallest known-reproducing config.
+    best: Config,
+    /// Oracle calls spent so far.
+    calls: u32,
+    /// Hard ceiling on oracle calls.
+    max_calls: u32,
+    /// Set once the memory guard declines; the search then unwinds.
+    declined: Option<String>,
+}
+
+impl Searcher {
+    /// True once the search must stop spending oracle calls.
+    fn stop(&self) -> bool {
+        self.declined.is_some() || self.calls >= self.max_calls
+    }
+
+    /// Evaluate one *valid* candidate against the oracle, charging the budget.
+    /// Returns `None` when the budget is already spent (caller stops);
+    /// `Some(verdict)` otherwise. A `Declined` verdict latches `self.declined`.
+    fn eval<O>(&mut self, cand: &Config, oracle: &mut O) -> Result<Option<Verdict>>
+    where
+        O: FnMut(&Config) -> Result<Verdict>,
+    {
+        if self.stop() {
+            return Ok(None);
+        }
+        self.calls += 1;
+        let verdict = oracle(cand)?;
+        if let Verdict::Declined(ref msg) = verdict {
+            self.declined = Some(msg.clone());
+        }
+        Ok(Some(verdict))
+    }
+
+    /// Bisect one integer knob toward its floor, keeping any smaller value that
+    /// still reproduces. No monotonicity is assumed; this is a bounded
+    /// heuristic that returns *a* smaller reproducing value, updating
+    /// `self.best` in place. Returns whether it reduced the knob.
+    fn shrink_int<O>(&mut self, knob: &IntKnob, oracle: &mut O) -> Result<bool>
+    where
+        O: FnMut(&Config) -> Result<Verdict>,
+    {
+        let floor = (knob.floor)(&self.best);
+        // Invariant: `self.best` uses `hi` and reproduces.
+        let mut hi = (knob.get)(&self.best);
+        if hi <= floor {
+            return Ok(false);
+        }
+        let mut lo = floor;
+        let mut changed = false;
+        while lo < hi {
+            if self.stop() {
+                break;
+            }
+            let mid = lo + (hi - lo) / 2; // in [lo, hi-1]
+            let mut cand = self.best.clone();
+            (knob.set)(&mut cand, mid);
+            if cand.validate().is_err() {
+                // `mid` violates some cross-knob constraint — never feed it to
+                // the generator; raise the floor and keep searching.
+                lo = mid + 1;
+                continue;
+            }
+            match self.eval(&cand, oracle)? {
+                Some(Verdict::Fails) => {
+                    (knob.set)(&mut self.best, mid);
+                    changed = true;
+                    hi = mid;
+                }
+                Some(Verdict::Passes) => {
+                    lo = mid + 1;
+                }
+                Some(Verdict::Declined(_)) | None => break,
+            }
+        }
+        Ok(changed)
+    }
+
+    /// Try driving one probability knob to `0.0` (feature off). Accepts the
+    /// reduction iff the candidate still reproduces. Returns whether it changed.
+    fn try_prob_zero<O>(&mut self, knob: &ProbKnob, oracle: &mut O) -> Result<bool>
+    where
+        O: FnMut(&Config) -> Result<Verdict>,
+    {
+        if self.stop() || (knob.get)(&self.best) == 0.0 {
+            return Ok(false);
+        }
+        let mut cand = self.best.clone();
+        (knob.set)(&mut cand, 0.0);
+        if cand.validate().is_err() {
+            return Ok(false);
+        }
+        match self.eval(&cand, oracle)? {
+            Some(Verdict::Fails) => {
+                (knob.set)(&mut self.best, 0.0);
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+}
+
+/// The config-level outcome of the generic search (no `ValidateReport`, so the
+/// search core is testable with a synthetic oracle).
+struct SearchOutcome {
+    reproduced_initial: bool,
+    minimized: Config,
+    oracle_calls: u32,
+    budget_exhausted: bool,
+    declined: Option<String>,
+}
+
+/// The deterministic delta-debug search, generic over the failure `oracle` so
+/// the shrink logic is unit-testable without external tools. Confirms the
+/// initial config reproduces, then runs coordinate-descent (int bisection +
+/// prob-to-zero) to a fixpoint under the oracle-call budget. The seed is not a
+/// parameter here: it is held fixed inside the caller's `oracle` closure.
+fn search_minimal<O>(cfg: &Config, max_calls: u32, mut oracle: O) -> Result<SearchOutcome>
+where
+    O: FnMut(&Config) -> Result<Verdict>,
+{
+    let mut s = Searcher {
+        best: cfg.clone(),
+        calls: 0,
+        max_calls,
+        declined: None,
+    };
+
+    let reproduced_initial = match s.eval(cfg, &mut oracle)? {
+        Some(Verdict::Fails) => true,
+        Some(Verdict::Passes) | Some(Verdict::Declined(_)) | None => false,
+    };
+
+    if reproduced_initial {
+        let int_knobs = int_knobs();
+        let prob_knobs = prob_knobs();
+        let mut pass = 0;
+        while pass < MINIMIZE_MAX_PASSES && !s.stop() {
+            let mut changed = false;
+            for knob in &int_knobs {
+                changed |= s.shrink_int(knob, &mut oracle)?;
+                if s.stop() {
+                    break;
+                }
+            }
+            for knob in &prob_knobs {
+                changed |= s.try_prob_zero(knob, &mut oracle)?;
+                if s.stop() {
+                    break;
+                }
+            }
+            if !changed {
+                break;
+            }
+            pass += 1;
+        }
+    }
+
+    Ok(SearchOutcome {
+        reproduced_initial,
+        minimized: s.best,
+        oracle_calls: s.calls,
+        budget_exhausted: s.calls >= max_calls,
+        declined: s.declined,
+    })
+}
+
+/// Diff two configs across the knob registry, in deterministic order, emitting
+/// one [`KnobReduction`] per changed knob.
+fn knob_reductions(initial: &Config, minimized: &Config) -> Vec<KnobReduction> {
+    let mut out = Vec::new();
+    for k in int_knobs() {
+        let (a, b) = ((k.get)(initial), (k.get)(minimized));
+        if a != b {
+            out.push(KnobReduction {
+                knob: k.name.to_string(),
+                from: a as f64,
+                to: b as f64,
+            });
+        }
+    }
+    for k in prob_knobs() {
+        let (a, b) = ((k.get)(initial), (k.get)(minimized));
+        if a != b {
+            out.push(KnobReduction {
+                knob: k.name.to_string(),
+                from: a,
+                to: b,
+            });
+        }
+    }
+    out
+}
+
+/// Delta-debug `(seed, cfg)` to a smaller failing reproducer, using [`validate`]
+/// as the failure oracle.
+///
+/// A candidate "reproduces" iff its `validate` run *completes* (the memory guard
+/// did not decline) and its verdict is **not** `ok` — i.e. a downstream tool
+/// rejected the regenerated artifact. The seed is held fixed; only knobs shrink.
+/// Determinism: same `(seed, cfg, opts)` ⇒ same [`MinimizeReport`], because the
+/// generator, the oracle, and the search order are all deterministic. The whole
+/// search is bounded by `opts.max_oracle_calls`.
+///
+/// Returns `reproduced_initial = false` (and shrinks nothing) when the original
+/// artifact is downstream-clean — the expected outcome for ANVIL's
+/// valid-by-construction output, where a real failure would be a generator bug.
+pub fn minimize(seed: u64, cfg: &Config, opts: &MinimizeOptions) -> Result<MinimizeReport> {
+    cfg.validate()
+        .map_err(|e| anyhow!("initial config is invalid: {e}"))?;
+
+    // The oracle classifies a candidate and stashes the most recent *failing*
+    // report. The last `Fails` always lands on the final accepted candidate
+    // (later candidates can only `Pass`/`Decline`, which are rejected), so after
+    // the search this holds the minimized config's surviving failure — no extra
+    // tool run needed.
+    let mut last_failing: Option<ValidateReport> = None;
+    let outcome = search_minimal(cfg, opts.max_oracle_calls, |cand| {
+        let report = validate(seed, cand, &opts.validate)?;
+        if let Some(msg) = &report.declined {
+            return Ok(Verdict::Declined(msg.clone()));
+        }
+        if report.ok {
+            Ok(Verdict::Passes)
+        } else {
+            last_failing = Some(report);
+            Ok(Verdict::Fails)
+        }
+    })?;
+
+    let reductions = knob_reductions(cfg, &outcome.minimized);
+    let final_validation = if outcome.reproduced_initial {
+        last_failing
+    } else {
+        None
+    };
+
+    Ok(MinimizeReport {
+        seed,
+        reproduced_initial: outcome.reproduced_initial,
+        minimized_config: outcome.minimized,
+        reductions,
+        oracle_calls: outcome.oracle_calls,
+        budget_exhausted: outcome.budget_exhausted,
+        declined: outcome.declined,
+        final_validation,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -918,5 +1509,204 @@ mod tests {
         );
         assert!(report.tools.iter().any(|t| t.tool == "verilator"));
         assert!(report.tools.iter().any(|t| t.tool.starts_with("yosys")));
+    }
+
+    // ----- AGENT-INTROSPECTION-MCP.5.3: `minimize` -----
+    //
+    // The shrink logic is exercised with a *synthetic* oracle so the tests are
+    // portable (ANVIL output is downstream-clean by construction, so no real
+    // tool can manufacture a failing case to delta-debug). The real-oracle path
+    // is covered by the no-repro library test below and the tool-gated e2e.
+
+    /// Run `search_minimal` with a pure predicate oracle (`Fails` iff `pred`).
+    fn run_search(cfg: &Config, max_calls: u32, pred: fn(&Config) -> bool) -> SearchOutcome {
+        search_minimal(cfg, max_calls, |c| {
+            Ok(if pred(c) {
+                Verdict::Fails
+            } else {
+                Verdict::Passes
+            })
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn search_bisects_int_bounds_and_zeroes_optional_probs() {
+        // Predicate depends only on max_depth >= 3: every other size bound is
+        // free to bisect to its floor and every optional prob to 0.0.
+        let cfg = Config {
+            max_depth: 25,
+            max_width: 32,
+            min_width: 1,
+            fsm_prob: 0.5,
+            flop_prob: 0.15,
+            memory_prob: 0.0,
+            ..Config::default()
+        };
+        let out = run_search(&cfg, 10_000, |c| c.max_depth >= 3);
+        assert!(out.reproduced_initial);
+        // Bisection finds the exact monotone boundary for the depended-on knob.
+        assert_eq!(out.minimized.max_depth, 3);
+        // Unconstrained size bounds collapse to their floors.
+        assert_eq!(out.minimized.max_width, cfg.min_width);
+        assert_eq!(out.minimized.max_inputs, cfg.min_inputs);
+        assert_eq!(out.minimized.max_outputs, cfg.min_outputs);
+        assert_eq!(out.minimized.max_flops_per_module, 0);
+        // Optional-motif probabilities are driven off.
+        assert_eq!(out.minimized.fsm_prob, 0.0);
+        assert_eq!(out.minimized.flop_prob, 0.0);
+        assert!(out.declined.is_none());
+        // The minimized config is still a valid config.
+        assert!(out.minimized.validate().is_ok());
+    }
+
+    #[test]
+    fn search_keeps_a_knob_that_the_failure_depends_on() {
+        // The failure needs flop_prob > 0, so the search must NOT zero it.
+        let cfg = Config {
+            max_depth: 8,
+            flop_prob: 0.5,
+            ..Config::default()
+        };
+        let out = run_search(&cfg, 10_000, |c| c.flop_prob > 0.0 && c.max_depth >= 2);
+        assert!(out.reproduced_initial);
+        assert!(
+            out.minimized.flop_prob > 0.0,
+            "a knob the failure depends on must be preserved"
+        );
+        assert_eq!(out.minimized.max_depth, 2);
+    }
+
+    #[test]
+    fn search_reports_no_reproduction_for_a_clean_predicate() {
+        let cfg = Config::default();
+        let out = run_search(&cfg, 10_000, |_| false);
+        assert!(!out.reproduced_initial);
+        // Nothing was shrunk and only the one initial confirmation was spent.
+        assert_eq!(out.oracle_calls, 1);
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let min_json = serde_json::to_value(&out.minimized).unwrap();
+        assert_eq!(cfg_json, min_json);
+    }
+
+    #[test]
+    fn search_is_bounded_by_the_oracle_call_budget() {
+        let cfg = Config {
+            max_depth: 1000,
+            ..Config::default()
+        };
+        // A budget of exactly 1 is spent by the initial confirmation, leaving
+        // nothing for the shrink phase.
+        let out = run_search(&cfg, 1, |_| true);
+        assert!(out.reproduced_initial);
+        assert_eq!(out.oracle_calls, 1);
+        assert!(out.budget_exhausted);
+        assert_eq!(out.minimized.max_depth, 1000, "no budget left to shrink");
+    }
+
+    #[test]
+    fn search_stops_when_the_guard_declines_mid_search() {
+        let cfg = Config {
+            max_depth: 16,
+            ..Config::default()
+        };
+        // Reproduce on the initial config, then decline on the first candidate.
+        let mut seen = 0u32;
+        let out = search_minimal(&cfg, 10_000, |_| {
+            seen += 1;
+            Ok(if seen == 1 {
+                Verdict::Fails
+            } else {
+                Verdict::Declined("synthetic decline".to_string())
+            })
+        })
+        .unwrap();
+        assert!(out.reproduced_initial);
+        assert_eq!(out.declined.as_deref(), Some("synthetic decline"));
+        // The declined candidate was never accepted.
+        assert_eq!(out.minimized.max_depth, 16);
+    }
+
+    #[test]
+    fn minimize_reports_no_reproduction_on_clean_output() {
+        // No tools ⇒ validate is vacuously ok ⇒ nothing reproduces. Portable.
+        let cfg = Config {
+            seed: 42,
+            max_depth: 6,
+            ..Config::default()
+        };
+        let opts = MinimizeOptions {
+            validate: no_tools("min-clean"),
+            ..Default::default()
+        };
+        let report = minimize(42, &cfg, &opts).unwrap();
+        assert!(!report.reproduced_initial);
+        assert!(report.reductions.is_empty());
+        assert_eq!(report.oracle_calls, 1);
+        assert!(report.final_validation.is_none());
+        assert!(report.declined.is_none());
+        // The seed is preserved and the config is echoed unchanged.
+        assert_eq!(report.seed, 42);
+        assert_eq!(report.minimized_config.max_depth, 6);
+    }
+
+    #[test]
+    fn minimize_is_deterministic() {
+        let cfg = Config {
+            seed: 7,
+            ..Config::default()
+        };
+        let opts = MinimizeOptions {
+            validate: no_tools("min-det"),
+            ..Default::default()
+        };
+        let a = minimize(7, &cfg, &opts).unwrap();
+        let b = minimize(7, &cfg, &opts).unwrap();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn minimize_rejects_an_invalid_initial_config() {
+        let cfg = Config {
+            min_width: 9,
+            max_width: 1,
+            ..Config::default()
+        };
+        let opts = MinimizeOptions::default();
+        assert!(minimize(0, &cfg, &opts).is_err());
+    }
+
+    #[test]
+    #[ignore = "requires verilator + yosys on PATH"]
+    fn minimize_dut_seed_reports_no_reproduction_end_to_end() {
+        // ANVIL DUT output is downstream-clean by construction, so a normal
+        // seed has no failure to minimize: the honest end-to-end behaviour is
+        // `reproduced_initial = false`, shrinking nothing, while still proving
+        // the real-tool oracle wiring runs. (A real reproduction would require a
+        // genuine generator bug — which would itself be the headline finding.)
+        let cfg = Config {
+            seed: 42,
+            ..Config::default()
+        };
+        let opts = MinimizeOptions {
+            validate: ValidateOptions {
+                tools: vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys],
+                sandbox_root: test_root("min-e2e"),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let report = minimize(42, &cfg, &opts).unwrap();
+        assert!(
+            !report.reproduced_initial,
+            "valid-by-construction DUT output must not reproduce a tool failure: {report:?}"
+        );
+        assert!(report.reductions.is_empty());
+        assert!(report.declined.is_none());
+        // One oracle call: the initial confirmation against the real tools.
+        assert_eq!(report.oracle_calls, 1);
     }
 }

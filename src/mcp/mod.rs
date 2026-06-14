@@ -23,13 +23,14 @@
 //! - **Pure/safe tools only.** `generate`, `introspect`, `dump_config` — all
 //!   side-effect-free. No filesystem writes, no shell, no external tools.
 //!
-//! Scope of `.4`: the DUT lane, the three pure tools, resources over the
-//! cache, and two static catalogs (`knobs`, `lanes`). The controlled
-//! `validate` / `minimize` tools (which *do* run external tools, sandboxed)
-//! are `.5`.
+//! Scope: `.4` landed the DUT lane, the three pure tools, resources over the
+//! cache, and two static catalogs (`knobs`, `lanes`). `.5` adds the controlled
+//! tools that *do* run external tools, sandboxed: `validate` (`.5.2`) and the
+//! `minimize` delta-debugger (`.5.3`), both over [`crate::downstream`] and
+//! audit-logged to the `anvil://audit/log` resource.
 
 use crate::config::Config;
-use crate::downstream::{self, AcceptanceTool, ValidateOptions, YosysMode};
+use crate::downstream::{self, AcceptanceTool, MinimizeOptions, ValidateOptions, YosysMode};
 use crate::introspect;
 use crate::{emit, Generator};
 use serde_json::{json, Value};
@@ -142,12 +143,15 @@ impl McpServer {
                 "instructions":
                     "ANVIL agent-introspection. Pure tools: generate, introspect, \
                      dump_config (construction-truth derived from existing \
-                     metrics/config; no side effects). Controlled tool: validate \
+                     metrics/config; no side effects). Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
                      iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
-                     dir — a fixed allow-list, no arbitrary shell — and audit-logs \
-                     each call (see the anvil://audit/log resource). Artifacts and \
-                     static catalogs are exposed as resources."
+                     dir — a fixed allow-list, no arbitrary shell; minimize \
+                     delta-debugs a failing (seed, knobs) to a smaller reproducer \
+                     using validate as the oracle (deterministic, budget-bounded, \
+                     seed held fixed). Both audit-log each call (see the \
+                     anvil://audit/log resource). Artifacts and static catalogs \
+                     are exposed as resources."
             }),
         )
     }
@@ -184,6 +188,31 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        let minimize_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "RNG seed (held fixed; it pins the reproducer)." },
+                "config": { "type": "object",
+                            "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
+                "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog"] },
+                    "description": "Vetted downstream tools used as the failure oracle \
+                                    (default: verilator + yosys). A fixed allow-list."
+                },
+                "yosys_mode": {
+                    "type": "string",
+                    "enum": ["without-abc", "with-abc", "both"],
+                    "description": "Yosys synthesis mode when yosys is selected (default without-abc)."
+                },
+                "max_oracle_calls": {
+                    "type": "integer", "minimum": 1,
+                    "description": "Hard ceiling on validate evaluations (default 200). Bounds the search."
+                }
+            },
+            "additionalProperties": false
+        });
         json!({
             "tools": [
                 {
@@ -210,6 +239,16 @@ impl McpServer {
                                     on it; returns structured per-tool reports + an overall verdict. \
                                     Audit-logged; no arbitrary shell.",
                     "inputSchema": validate_schema,
+                },
+                {
+                    "name": "minimize",
+                    "description": "Delta-debug a failing (seed, config) to a smaller failing reproducer \
+                                    using validate as the failure oracle: shrink size bounds and disable \
+                                    optional motifs while a downstream tool still rejects the artifact. \
+                                    Deterministic, seed held fixed, budget-bounded; audit-logged. \
+                                    Reports reproduced_initial=false (and shrinks nothing) when the \
+                                    output is downstream-clean.",
+                    "inputSchema": minimize_schema,
                 },
             ]
         })
@@ -259,6 +298,10 @@ impl McpServer {
                 Ok(text) => ok(id, tool_text(&text)),
                 Err(e) => ok(id, tool_error(&e)),
             },
+            "minimize" => match self.run_minimize(seed, &cfg, &args) {
+                Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            },
             other => ok(id, tool_error(&format!("unknown tool: {other}"))),
         }
     }
@@ -271,35 +314,9 @@ impl McpServer {
     /// run and the Yosys mode; there is no arbitrary-path or arbitrary-command
     /// surface.
     fn run_validate(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
-        let tools = match args.get("tools") {
-            None | Some(Value::Null) => {
-                vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys]
-            }
-            Some(Value::Array(items)) => {
-                let mut selected = Vec::with_capacity(items.len());
-                for item in items {
-                    let name = item
-                        .as_str()
-                        .ok_or_else(|| "`tools` entries must be strings".to_string())?;
-                    let tool = AcceptanceTool::from_name(name).ok_or_else(|| {
-                        format!("unknown tool '{name}': allowed = verilator, yosys, iverilog")
-                    })?;
-                    selected.push(tool);
-                }
-                selected
-            }
-            Some(_) => return Err("`tools` must be an array of tool names".to_string()),
-        };
-        let yosys_mode = match args.get("yosys_mode").and_then(Value::as_str) {
-            None => YosysMode::WithoutAbc,
-            Some(s) => parse_yosys_mode(s).ok_or_else(|| {
-                format!("unknown yosys_mode '{s}': allowed = without-abc, with-abc, both")
-            })?,
-        };
-
         let opts = ValidateOptions {
-            tools,
-            yosys_mode,
+            tools: parse_validate_tools(args)?,
+            yosys_mode: parse_yosys_mode_arg(args)?,
             ..ValidateOptions::default()
         };
         let report = downstream::validate(seed, cfg, &opts).map_err(|e| e.to_string())?;
@@ -320,6 +337,67 @@ impl McpServer {
                 .collect::<Vec<_>>(),
             "ok": report.ok,
             "declined": report.declined,
+        }));
+
+        serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
+    }
+
+    /// The controlled `minimize` tool (`AGENT-INTROSPECTION-MCP.5.3`):
+    /// delta-debug the failing `(seed, cfg)` to a smaller failing reproducer,
+    /// using the sandboxed `validate` oracle on every candidate. Same
+    /// guardrails as `validate` (fixed tool allow-list, fixed OS-temp sandbox,
+    /// no arbitrary shell or path) plus a hard oracle-call budget so the search
+    /// is bounded. The reproducible call — the minimized config's content
+    /// address, the knob reductions, the spent budget, and the surviving tool
+    /// command lines — is audit-logged.
+    fn run_minimize(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
+        let max_oracle_calls = match args.get("max_oracle_calls") {
+            None | Some(Value::Null) => MinimizeOptions::default().max_oracle_calls,
+            Some(v) => {
+                let n = v
+                    .as_u64()
+                    .ok_or_else(|| "`max_oracle_calls` must be a positive integer".to_string())?;
+                if n == 0 {
+                    return Err("`max_oracle_calls` must be >= 1".to_string());
+                }
+                u32::try_from(n).map_err(|_| "`max_oracle_calls` is too large".to_string())?
+            }
+        };
+        let opts = MinimizeOptions {
+            validate: ValidateOptions {
+                tools: parse_validate_tools(args)?,
+                yosys_mode: parse_yosys_mode_arg(args)?,
+                ..ValidateOptions::default()
+            },
+            max_oracle_calls,
+        };
+        let report = downstream::minimize(seed, cfg, &opts).map_err(|e| e.to_string())?;
+
+        // Audit-log the reproducible call: the minimized config's content
+        // address, the seed, what was reduced, the budget spent, and — when the
+        // failure survived — the exact command line of every tool that still
+        // rejects the minimized artifact.
+        let minimized_run_id = introspect::content_run_id("dut", seed, &report.minimized_config);
+        let commands: Vec<String> = report
+            .final_validation
+            .as_ref()
+            .map(|r| r.tools.iter().map(|t| t.argv.join(" ")).collect())
+            .unwrap_or_default();
+        self.audit.push(json!({
+            "tool": "minimize",
+            "seed": seed,
+            "lane": "dut",
+            "reproduced_initial": report.reproduced_initial,
+            "minimized_run_id": minimized_run_id,
+            "reductions": report
+                .reductions
+                .iter()
+                .map(|r| r.knob.clone())
+                .collect::<Vec<_>>(),
+            "oracle_calls": report.oracle_calls,
+            "budget_exhausted": report.budget_exhausted,
+            "declined": report.declined,
+            "commands": commands,
         }));
 
         serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
@@ -494,6 +572,41 @@ fn parse_yosys_mode(s: &str) -> Option<YosysMode> {
     }
 }
 
+/// Parse the shared `tools` argument used by both `validate` and `minimize`
+/// into the fixed [`AcceptanceTool`] allow-list. Absent ⇒ the default
+/// `verilator + yosys`. Any off-allow-list name is a clean error, never a
+/// spawn. One owner so the two controlled tools cannot drift apart.
+fn parse_validate_tools(args: &Value) -> Result<Vec<AcceptanceTool>, String> {
+    match args.get("tools") {
+        None | Some(Value::Null) => Ok(vec![AcceptanceTool::Verilator, AcceptanceTool::Yosys]),
+        Some(Value::Array(items)) => {
+            let mut selected = Vec::with_capacity(items.len());
+            for item in items {
+                let name = item
+                    .as_str()
+                    .ok_or_else(|| "`tools` entries must be strings".to_string())?;
+                let tool = AcceptanceTool::from_name(name).ok_or_else(|| {
+                    format!("unknown tool '{name}': allowed = verilator, yosys, iverilog")
+                })?;
+                selected.push(tool);
+            }
+            Ok(selected)
+        }
+        Some(_) => Err("`tools` must be an array of tool names".to_string()),
+    }
+}
+
+/// Parse the shared `yosys_mode` argument used by both `validate` and
+/// `minimize`. Absent ⇒ `without-abc`; off-set ⇒ a clean error.
+fn parse_yosys_mode_arg(args: &Value) -> Result<YosysMode, String> {
+    match args.get("yosys_mode").and_then(Value::as_str) {
+        None => Ok(YosysMode::WithoutAbc),
+        Some(s) => parse_yosys_mode(s).ok_or_else(|| {
+            format!("unknown yosys_mode '{s}': allowed = without-abc, with-abc, both")
+        }),
+    }
+}
+
 fn ok(id: Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
@@ -557,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_has_the_pure_tools_and_validate() {
+    fn tools_list_has_the_pure_tools_and_controlled_tools() {
         let mut s = McpServer::new();
         let resp = s.handle(&req(1, "tools/list", json!({}))).unwrap();
         let names: Vec<&str> = resp["result"]["tools"]
@@ -568,7 +681,13 @@ mod tests {
             .collect();
         assert_eq!(
             names,
-            vec!["generate", "introspect", "dump_config", "validate"]
+            vec![
+                "generate",
+                "introspect",
+                "dump_config",
+                "validate",
+                "minimize"
+            ]
         );
     }
 
@@ -788,5 +907,62 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], true);
         assert!(tool_text_of(&resp).contains("unknown yosys_mode"));
+    }
+
+    #[test]
+    fn minimize_tool_no_repro_round_trips_and_audits() {
+        let mut s = McpServer::new();
+        // `tools: []` ⇒ the validate oracle is vacuously ok ⇒ nothing
+        // reproduces. Portable: needs no external tool present.
+        let resp = call(&mut s, 30, "minimize", json!({ "seed": 7, "tools": [] }));
+        assert_eq!(resp["result"]["isError"], false);
+        let report: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(report["seed"], 7);
+        assert_eq!(report["reproduced_initial"], false);
+        assert_eq!(report["reductions"].as_array().unwrap().len(), 0);
+        assert_eq!(report["oracle_calls"], 1);
+        assert!(report["final_validation"].is_null());
+
+        // The call was audit-logged as a minimize entry.
+        let log = s
+            .handle(&req(
+                31,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let entries = entries.as_array().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["tool"], "minimize");
+        assert_eq!(entries[0]["seed"], 7);
+        assert_eq!(entries[0]["reproduced_initial"], false);
+    }
+
+    #[test]
+    fn minimize_tool_rejects_unknown_tool_name() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            32,
+            "minimize",
+            json!({ "seed": 0, "tools": ["rm -rf /"] }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown tool"));
+    }
+
+    #[test]
+    fn minimize_tool_rejects_zero_budget() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            33,
+            "minimize",
+            json!({ "seed": 0, "tools": [], "max_oracle_calls": 0 }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("max_oracle_calls"));
     }
 }

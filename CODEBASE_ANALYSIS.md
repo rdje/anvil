@@ -311,6 +311,16 @@ src/
 │                     `ToolInvocation`s + an overall verdict. No arbitrary shell,
 │                     no agent-supplied path. Reuses `introspect::content_run_id`
 │                     for the shared content address.
+│                     `.5.3` adds the controlled `minimize(seed, &Config,
+│                     &MinimizeOptions) -> MinimizeReport` delta-debugger here: a
+│                     deterministic coordinate-descent (`search_minimal`, generic
+│                     over the failure oracle) that bisects integer size bounds
+│                     toward their floors and drives optional-motif probabilities
+│                     to `0.0`, to a fixpoint, using `validate` as a pure failure
+│                     oracle (seed held fixed; every candidate re-checked with
+│                     `Config::validate` before the generator; hard-capped by
+│                     `max_oracle_calls`). Reports `reduced` knobs +
+│                     `final_validation` (the surviving failure).
 ├── introspect/      Agent-introspection emission surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
 │                     introspection document specified in
@@ -345,9 +355,15 @@ src/
 │                     tool allow-list + `yosys_mode`, fixes the sandbox to the OS
 │                     temp dir, audit-logs each call) and the read-only
 │                     `anvil://audit/log` resource; the three original tools stay
-│                     pure (no FS/exec). Driven by the `anvil-mcp` bin; the whole
-│                     protocol surface is unit-tested in-process. Separate target
-│                     ⇒ default `anvil` build / `--artifact dut` unaffected.
+│                     pure (no FS/exec). `.5.3` adds the controlled `minimize`
+│                     tool (a thin adapter over `downstream::minimize` with the
+│                     same guardrails + an optional `max_oracle_calls`,
+│                     audit-logged); the shared `tools`/`yosys_mode` parsing is
+│                     factored into `parse_validate_tools`/`parse_yosys_mode_arg`
+│                     so `validate`/`minimize` cannot drift. Driven by the
+│                     `anvil-mcp` bin; the whole protocol surface is unit-tested
+│                     in-process. Separate target ⇒ default `anvil` build /
+│                     `--artifact dut` unaffected.
 ├── bin/
 │   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
 │   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines

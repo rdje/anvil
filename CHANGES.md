@@ -1,9 +1,106 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-INTROSPECTION-MCP.5.3 — controlled `minimize` tool
+
+**Landed as:** this commit (previous: `65db6c3`).
+
+**What changed (code)**
+
+`.5.3` adds the controlled `minimize` delta-debugger over the `.5.2` `validate`
+oracle — the closing capability of the agent bug-hunting loop: generate →
+validate → on a tool failure shrink `(seed, knobs)` to a minimal reproducer.
+
+- New `src/downstream/` search: `minimize(seed, &Config, &MinimizeOptions) ->
+  Result<MinimizeReport>`. It treats `.5.2`'s `downstream::validate` as a pure
+  failure oracle — a candidate "reproduces" iff its `validate` run *completes*
+  (the memory guard did not decline) and the verdict is **not** `ok` (a
+  downstream tool rejected the regenerated artifact). The seed is held fixed
+  (it pins the reproducer's identity); only the knobs shrink.
+- Deterministic coordinate-descent search: a fixed-order registry of integer
+  **size bounds** (`max_depth`, `max_width`, `max_inputs`, `max_outputs`,
+  `max_flops_per_module`, `max_mux_arms`, `max_gate_arity`, `max_coefficient`,
+  `max_shift_amount`, `max_comparand`) is bisected toward each knob's floor
+  (the floor tracks the companion `min_*` so the range stays valid), and a
+  fixed-order registry of **optional-motif probabilities** (flop, the
+  const/coefficient/encoder/case/casez/for-fold/comb-mux/flop-mux motifs, the
+  Phase 5/5b/6 width-param/aggregate/memory/fsm/multi-clock lanes, the
+  duplication rates, and the hierarchy routing probs) is driven to `0.0`
+  ("feature off"). Sharing/reuse/library/constant knobs are deliberately
+  excluded — `0.0` there is not unambiguously simpler. The two registries are
+  swept to a fixpoint.
+- Bounded + safe by construction: every candidate is re-checked with
+  `Config::validate` *before* it can reach the generator (an invalid bisection
+  midpoint just raises the search floor, never a spawn); the whole search is
+  hard-capped by `MinimizeOptions::max_oracle_calls` (default 200) plus a
+  `MINIMIZE_MAX_PASSES` safety bound; and a memory-guard decline unwinds the
+  search cleanly. No monotonicity is assumed, so the result is *a* smaller
+  reproducer, not a proven global minimum — the standard delta-debug trade-off.
+- `MinimizeReport` carries `reproduced_initial`, the `minimized_config`, the
+  per-knob `reductions` (`from -> to`), the spent `oracle_calls`,
+  `budget_exhausted`, any `declined` reason, and `final_validation` (the
+  surviving `ValidateReport` of the minimized config — captured from the last
+  failing oracle call, so no extra tool run is spent).
+- New MCP `minimize` tool in `src/mcp/mod.rs`: same guardrails as `validate`
+  (fixed `verilator`/`yosys`/`iverilog` allow-list, fixed OS-temp sandbox, no
+  arbitrary shell/path) plus an optional `max_oracle_calls`; it **audit-logs**
+  each call (the minimized config's content `run_id`, seed, what was reduced,
+  the budget spent, and — when the failure survives — the exact command line of
+  every tool that still rejects the minimized artifact) to `anvil://audit/log`.
+  The shared `tools`/`yosys_mode` parsing was factored into
+  `parse_validate_tools` / `parse_yosys_mode_arg` so `validate` and `minimize`
+  cannot drift apart (full-factorization).
+
+**Why**
+
+Decision `0004` names `minimize(failing_seed, knobs)` as the tool that closes
+the autonomous loop. It is *not* generate-then-filter and never mutates or
+repairs emitted RTL: it drives a deterministic experiment over the **input**
+`(seed, knobs)` space and re-runs the existing rules-first generator + the
+vetted `validate` oracle on each candidate — the "agent drives experiments,
+ANVIL stays the source of truth" split. Because ANVIL output is valid by
+construction, a real downstream failure is a generator bug; on clean output
+`minimize` honestly reports `reproduced_initial = false` and shrinks nothing.
+
+**Validation**
+
+- `cargo fmt --all --check`; `cargo check --all-targets`;
+  `cargo clippy --all-targets -- -D warnings` — all clean.
+- `cargo test --lib downstream::` 20/20 (+1 tool-gated `#[ignore]`): the shrink
+  logic is proven with a **synthetic** predicate oracle (bisection finds the
+  exact monotone boundary; unconstrained bounds collapse to floors; a
+  depended-on knob is preserved; budget and guard-decline both stop the
+  search), plus the real-oracle `tools: []` no-repro / determinism / invalid-
+  config paths.
+- `cargo test --lib mcp::` 18/18 (minimize round-trips + audits; rejects
+  off-allow-list tool names and a zero budget).
+- `cargo test --test snapshots` 6/6 **byte-identical** (DUT `--artifact dut`
+  contract preserved; this lane is beside the core).
+- Tool-gated e2e (`--ignored`) clean vs **real Verilator 5.046 + Yosys 0.64**:
+  `minimize` on seed 42 reports `reproduced_initial = false` (valid-by-
+  construction output, oracle wiring proven), alongside the `.5.2` validate
+  e2e.
+- `anvil-mcp` stdio smoke: initialize → `minimize` (tools `[]`) → read
+  `anvil://audit/log` — the call round-trips and is audit-logged.
+
+**Impact**
+
+Default `anvil` build / `--artifact dut` byte-identical (separate target,
+snapshots 6/6). The `minimize` MCP tool is opt-in via the `anvil-mcp` binary.
+User-facing docs (book + USER_GUIDE + README CLI surface) remain deferred to
+`.7` by design — the lane is documented as a stable feature once `.5`/`.6`
+complete it. Frontier advances to `.6` (agent-workflow prompts).
+
+**Files touched**
+
+`src/downstream/mod.rs` (minimize search + types + tests),
+`src/mcp/mod.rs` (minimize tool + shared parse helpers + tests),
+`docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.5.2 — controlled `validate` tool
 
-**Landed as:** this commit (previous: `64f0bbe`).
+**Landed as:** `65db6c3` (previous: `64f0bbe`).
 
 **What changed (code)**
 
