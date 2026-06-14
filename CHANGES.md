@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-INTROSPECTION-MCP.7 — book + USER_GUIDE + README closeout (tree closed)
+
+**Landed as:** this commit (previous: `b6f02ea`).
+
+**What changed (docs only)**
+
+`.7` is the user-facing closeout that documents the whole agent-introspection /
+MCP lane and **closes the `AGENT-INTROSPECTION-MCP` tree** (all leaves
+`.1`–`.7` done). No code touched.
+
+- New mdBook chapter `book/src/agent-mcp.md` ("Driving anvil from an AI Agent
+  (Introspection + MCP)"), added to `book/src/SUMMARY.md` under **Reference**.
+  It documents both entry points (`--introspect`, the `anvil-mcp` server), the
+  tools / resources / prompts, the end-to-end bug-hunting loop, and the lane's
+  guardrails — with examples captured from real runs (the `--introspect`
+  document for seed 42, the live `tools/list` / `resources/list` /
+  `prompts/get explain_artifact` output).
+- `USER_GUIDE.md` gains an "Agent introspection and the MCP server" section
+  showing `--introspect` and `anvil-mcp` invocation (including a by-hand stdio
+  smoke).
+- `README.md` "Current CLI truth" gains the `--introspect` and `anvil-mcp`
+  bullets; the crate-layout key paths gain `src/introspect/`, `src/downstream/`,
+  `src/mcp/`, and the `src/bin/anvil_mcp.rs` transport.
+
+**Why**
+
+The lane's design deferred all user-facing docs to this closeout so the feature
+is documented as stable only once `.5`/`.6` completed it. With the tools,
+resources, and prompts all landed, `.7` makes the lane visible on ANVIL's
+user-facing surfaces (book + USER_GUIDE + README) and closes the tree.
+
+**Validation**
+
+- `mdbook build book` — clean (HTML written).
+- `cargo test --test book_examples` — 3/3. The one genuinely-runnable new
+  example uses the book convention `cargo run --release -- --seed 42
+  --introspect` and is executed by `every_runnable_book_bash_block_succeeds`;
+  the two MCP-setup blocks (build `anvil-mcp`; `claude mcp add`) carry
+  `<!-- book-test: skip — … -->` sentinels with reasons (validated by
+  `skip_sentinels_have_reasons`).
+- `bash scripts/check_memory_architecture.sh`,
+  `bash knowledge-map/scripts/check_knowledge_map.sh`, `git diff --check` — all
+  clean.
+- Pure-docs leaf — no `src/` change, so the DUT byte-identical contract is
+  untouched (snapshots remain 6/6 from `.6`).
+
+**Impact**
+
+Documentation only. The lane is now fully documented and the
+`AGENT-INTROSPECTION-MCP` tree is **closed**; all 9 roadmap phases and every
+post-phase tree are `done`.
+
+**Files touched**
+
+- `book/src/agent-mcp.md` (new), `book/src/SUMMARY.md`, `USER_GUIDE.md`,
+  `README.md`
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md` (leaf `.7` →
+  done; tree closed)
+- `CHANGES.md`, `MEMORY.md`
+
+---
+
 ## 2026-06-15 — AGENT-INTROSPECTION-MCP.6 — agent-workflow prompts
 
-**Landed as:** this commit (previous: `381ec01`).
+**Landed as:** `b6f02ea` (previous: `381ec01`).
 
 **What changed (code)**
 

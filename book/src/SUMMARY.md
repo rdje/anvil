@@ -33,6 +33,7 @@
 # Reference
 
 - [Knobs and Reproducibility](knobs.md)
+- [Driving anvil from an AI Agent (Introspection + MCP)](agent-mcp.md)
 - [FAQ](faq.md)
 - [Architecture of the Rust Implementation](architecture.md)
 - [What We Explicitly Do Not Do](non-goals.md)

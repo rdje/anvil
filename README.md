@@ -81,11 +81,16 @@ Only the documents above are status authority. The mdBook is explicitly part of 
                             parent-local state
 - `src/gen/pool.rs`         `SignalPool` for terminal selection
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
+- `src/introspect/mod.rs`   versioned introspection document builder (`--introspect`)
+- `src/downstream/mod.rs`   shared hardened downstream-tool invocation surface
+                            (verilator/yosys/iverilog) + `validate` / `minimize`
+- `src/mcp/mod.rs`          read-mostly MCP server (tools / resources / prompts)
 
 ### Tests and examples
 - `tests/pipeline.rs`       end-to-end: generate → validate → emit
 - `examples/generate_one.rs` minimal library usage
 - `src/bin/tool_matrix.rs`  curated Verilator/Yosys/Icarus scenario-matrix harness
+- `src/bin/anvil_mcp.rs`    `anvil-mcp` stdio transport over `src/mcp`
 
 ### Design docs (mdBook, live)
 - `book/book.toml`
@@ -598,6 +603,24 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   RTL. They guard `anvil`'s own process from the inside, complementing
   `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
+- `anvil --introspect` prints the versioned agent-introspection JSON document
+  (schema `1.0`) for a single-artifact run instead of SystemVerilog
+  (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
+  projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
+  truth), with a content-addressed `run_id`. Requires a single-artifact stdout
+  run (no `--out`, `--count 1`); default-off ⇒ DUT byte-identical. Contract:
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`.
+- `anvil-mcp` is a separate default-off binary: a read-mostly MCP server (stdio
+  JSON-RPC 2.0) that drives the agent bug-hunting loop. It exposes pure tools
+  (`generate`/`introspect`/`dump_config`), controlled tools
+  (`validate`/`minimize`, run only through the hardened
+  `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded +
+  audit-logged), resources (artifact `.sv`/introspection, `knobs`/`lanes`
+  catalogs, `audit/log`), and five workflow prompts (`find_downstream_bug`,
+  `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`,
+  `explain_artifact`). It runs no generation path of its own; the default
+  `anvil` build and `--artifact dut` stay byte-identical. See
+  `book/src/agent-mcp.md`.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), while `relaxed` is the intentional off-switch where equivalent expressions may keep different `NodeId`s.
 - `anvil --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>` is the current-build implementation/proof-depth dial inside `node-id`; lower rungs are weaker enforcement of the same doctrine, not a different meaning of `node-id`.
 - `anvil --full-factorization` requests `--identity-mode node-id --factorization-level e-graph`; `anvil --no-full-factorization` requests `--identity-mode relaxed --factorization-level none`.

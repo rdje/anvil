@@ -1509,6 +1509,79 @@ GenerateBranches. In the current local evidence, it is clean across the
 5 reproducibility seeds and writes artifacts under
 `target/tmp/frontend-parity-signoff-verilator-json`.
 
+## Agent introspection and the MCP server
+
+ANVIL ships an opt-in, read-mostly surface so an AI agent can drive the
+bug-hunting loop (generate → validate → minimize → file a reproducer). It is
+**default-off**: it never changes the plain build or the `--artifact dut`
+byte-identical contract. Full chapter:
+`book/src/agent-mcp.md`. Wire contract:
+`docs/AGENT_INTROSPECTION_SCHEMA.md`. Architecture: decision `0004`.
+
+### `--introspect` (one-shot CLI)
+
+Add `--introspect` to a single-artifact run (no `--out`, `--count 1`) to print
+a versioned JSON introspection document instead of SystemVerilog:
+
+```bash
+# Construction-truth for one (seed, knobs), as JSON.
+anvil --seed 42 --introspect
+```
+
+The document is a thin, versioned envelope (`schema_version`, `anvil_version`,
+`lane`, a `request` echo with a content-addressed `run_id`, an `artifact`
+descriptor, the `introspection` payload, and `warnings`). Every payload section
+is the exact serde projection of an existing struct — `config` ← `Config`,
+`module_metrics` ← `Metrics`, `design_metrics` ← `DesignMetrics` — so it adds
+**zero** new computed truth. `run_id` is a hash of
+`(schema_version, anvil_version, lane, seed, knobs)`, so the document is
+reproducible. The `.sv` is referenced as a resource pointer, not inlined.
+
+Omit `--introspect` and you get SystemVerilog exactly as before. The flag
+rejects `--out` / `--count > 1` so the streamed directory-output path is never
+touched.
+
+### `anvil-mcp` (Model Context Protocol server)
+
+`anvil-mcp` is a separate binary speaking newline-delimited JSON-RPC 2.0 over
+stdio — the transport Claude Code and Cursor use:
+
+```bash
+cargo build --bin anvil-mcp
+
+# Register it with an agent, e.g. Claude Code:
+claude mcp add anvil -- /path/to/anvil/target/debug/anvil-mcp
+```
+
+It exposes three MCP primitives:
+
+- **Tools** — `generate`, `introspect`, `dump_config` (pure, side-effect-free),
+  plus the controlled `validate` and `minimize`. The controlled tools run only
+  ANVIL's vetted downstream invocations (`verilator` / `yosys` / `iverilog`, a
+  fixed allow-list), in a sandboxed temp dir, RAM-guarded, with no arbitrary
+  shell and an audit log of every call. `minimize` shrinks the input
+  `(seed, knobs)` (seed held fixed); it never mutates or repairs RTL.
+- **Resources** — `anvil://catalog/knobs`, `anvil://catalog/lanes`,
+  `anvil://audit/log`, and per-artifact `anvil://artifact/<run_id>/{sv,introspection}`.
+- **Prompts** — five packaged workflows: `find_downstream_bug`,
+  `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`,
+  `explain_artifact`. Each renders an ordered chain over the tools above. Fetch
+  one with `prompts/get` (with sample arguments) and the agent executes it.
+
+You can smoke-test it by hand by piping JSON-RPC lines in:
+
+```bash
+printf '%s\n' \
+ '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+ '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+ '{"jsonrpc":"2.0","id":3,"method":"prompts/list","params":{}}' \
+ | ./target/debug/anvil-mcp
+```
+
+The agent is an experiment driver and explainer, never a signoff oracle: a
+downstream tool rejecting valid-by-construction RTL is the bug signal; ANVIL's
+manifests, metrics, and the real tools' results stay the source of truth.
+
 ## Use as a library
 
 ```rust

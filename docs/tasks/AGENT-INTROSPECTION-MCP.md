@@ -3,10 +3,11 @@
 ## Metadata
 
 - Tree ID: `AGENT-INTROSPECTION-MCP`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Capability — agent-drivable introspection + MCP interface`
 - Created: `2026-06-14`
 - Last updated: `2026-06-15`
+- Closed: `2026-06-15` (all leaves `.1`–`.7` done)
 - Owner: repo-local workflow (owner-directed lane)
 
 ## Goal
@@ -56,9 +57,9 @@ recorded in
 ## Task Tree
 
 - ID: `AGENT-INTROSPECTION-MCP`
-  Status: `active`
+  Status: `done`
   Goal: `Agent-drivable introspection + MCP interface beside the core.`
-  Children: `.1`, `.2`, `.3`, `.4`, `.5`, `.6`, `.7`
+  Children: `.1`, `.2`, `.3`, `.4`, `.5`, `.6`, `.7` (all done)
 
 - ID: `AGENT-INTROSPECTION-MCP.1`
   Status: `done`
@@ -128,11 +129,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.6 - agent-workflow prompts`
 
 - ID: `AGENT-INTROSPECTION-MCP.7`
-  Status: `pending`
+  Status: `done`
   Goal: `Book chapter + USER_GUIDE section + CODEBASE_ANALYSIS update + closeout.`
   Acceptance: `mdBook documents the lane; USER_GUIDE shows invocation; live docs synced; tree closed.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `New mdBook chapter book/src/agent-mcp.md (added to SUMMARY.md under Reference) documents the whole lane (--introspect, anvil-mcp tools/resources/prompts, the bug-hunting loop, guardrails) with real captured examples; USER_GUIDE.md "Agent introspection and the MCP server" section shows --introspect + anvil-mcp invocation; README.md CLI-truth + key-paths updated (--introspect, anvil-mcp, src/introspect|downstream|mcp); CODEBASE_ANALYSIS mcp section synced (done in .6). mdbook build clean; cargo test --test book_examples 3/3 (runnable cargo run --release -- --seed 42 --introspect block proven; two MCP-setup blocks skip-sentinelled with reasons). Pure-docs leaf — no code changed, snapshots remain 6/6.`
+  Commit: `AGENT-INTROSPECTION-MCP.7 - book + USER_GUIDE + README closeout`
 
 ## Current Frontier
 
@@ -146,18 +147,41 @@ recorded in
 | 6 | `AGENT-INTROSPECTION-MCP.5.2` | `done` | Controlled `validate` tool: `downstream::validate` (sandboxed temp dir + ram-guard + fixed allow-list) + MCP `validate` tool + `anvil://audit/log`; e2e clean vs Verilator+Yosys. |
 | 7 | `AGENT-INTROSPECTION-MCP.5.3` | `done` | `minimize` delta-debugger: `downstream::minimize` (deterministic coordinate-descent over size bounds + optional-motif probs, budget-bounded, seed fixed) + MCP `minimize` tool + audit log; e2e clean vs real Verilator+Yosys. |
 | 8 | `AGENT-INTROSPECTION-MCP.6` | `done` | Agent-workflow prompts landed as first-class **MCP prompts** (`prompts/list` / `prompts/get`) in `src/mcp/`: `find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`, `explain_artifact` — each renders its ordered tool chain with sample-arg substitution; every chain proven runnable end-to-end through the server. |
-| 9 | `AGENT-INTROSPECTION-MCP.7` | `pending` | Book chapter + USER_GUIDE section + CODEBASE_ANALYSIS update + closeout (user-facing docs). |
+| 9 | `AGENT-INTROSPECTION-MCP.7` | `done` | User-facing closeout: new mdBook chapter `book/src/agent-mcp.md` (Reference) + USER_GUIDE section + README CLI-truth/key-paths sync, documenting the whole lane with real examples. `book_examples` gate 3/3. **Tree closed.** |
 
-Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
-leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and **all
-three are now done**, so the `.5` container is `done`. `.6` is now done — the
-five agent-workflow prompts ship as first-class MCP prompts. The final leaf
-`.7` (book + USER_GUIDE + README CLI surface + CODEBASE_ANALYSIS closeout)
-proceeds next under PNT — user-facing docs were deferred to `.7` by design, the
-lane is documented as a stable feature now that `.5`/`.6` complete it.
+**Tree closed `2026-06-15`.** All leaves `.1`–`.7` done. Owner **accepted** the
+`.1`/`.2` design (`2026-06-14`), unblocking the code leaves: `.3` introspection
+emission surface, `.4` read-only MCP server, `.5` (`.5.1`/`.5.2`/`.5.3`)
+controlled `validate`/`minimize` tools, `.6` agent-workflow prompts as MCP
+prompts, `.7` the user-facing book/USER_GUIDE/README closeout. The full
+acceptance is met: versioned introspection schema derived from existing facts;
+default-off MCP adapter exposing resources + pure tools + controlled tools +
+prompts with deterministic run ids; controlled tools run external tools only
+through the hardened `downstream` invocations (sandboxed + RAM-guarded +
+audit-logged); the five agent workflows packaged and proven runnable;
+DUT lane byte-identical throughout (snapshots 6/6); book + USER_GUIDE document
+the lane. Any further breadth (e.g. exposing `coverage_gaps` as an MCP tool, an
+HTTP transport, microdesign/frontend lanes over MCP) is optional post-closure
+work and does not reopen the tree.
 
 ## Decisions
 
+- `2026-06-15`: **Landed `.7` and closed the tree.** The user-facing closeout:
+  a new mdBook chapter `book/src/agent-mcp.md` (added to `SUMMARY.md` under
+  Reference) documents the whole lane — `--introspect`, the `anvil-mcp` server
+  (tools/resources/prompts), the bug-hunting loop, and the guardrails — with
+  examples captured from real runs (the `--introspect` document, the tool /
+  resource / prompt listings). A `USER_GUIDE.md` "Agent introspection and the
+  MCP server" section shows invocation; `README.md` gained the `--introspect`
+  and `anvil-mcp` CLI-truth bullets plus the `src/introspect`/`downstream`/`mcp`
+  key paths. Per the book doctrine, the one genuinely-runnable example uses
+  `cargo run --release -- --seed 42 --introspect` and is proven by the
+  `book_examples` gate; the two MCP-setup blocks (build `anvil-mcp`; `claude mcp
+  add`) carry skip sentinels with reasons (they invoke a different binary / an
+  external CLI). Pure-docs leaf — no `src/`/`tests/` change, so the DUT
+  byte-identical contract is untouched (snapshots remain 6/6 from `.6`). With
+  `.7` done, **all seven leaves are complete and the `AGENT-INTROSPECTION-MCP`
+  tree is closed**; the lane is now documented as a stable, default-off feature.
 - `2026-06-15`: **Landed `.6`** — the five agent-workflow prompts, packaged as
   first-class **MCP prompts** (the third MCP primitive beside tools +
   resources). Rationale: decision `0004` maps "Prompts (workflows)" onto ANVIL,
@@ -327,6 +351,7 @@ lane is documented as a stable feature now that `.5`/`.6` complete it.
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.2` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (12/12 + 1 gated) + `mcp::` (15/15); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator+Yosys (seed 42 `ok=true`); `anvil-mcp` stdio smoke (initialize → validate → `anvil://audit/log`) | passed |
 | `2026-06-15` | `AGENT-INTROSPECTION-MCP.5.3` | `cargo fmt/check/clippy -D warnings`; `cargo test --lib downstream::` (20/20 + 1 gated, synthetic-oracle shrink proofs) + `mcp::` (18/18); `cargo test --test snapshots` (6/6 byte-identical); tool-gated e2e `--ignored` vs real Verilator 5.046 + Yosys 0.64 (seed 42 `reproduced_initial=false`); `anvil-mcp` stdio smoke (initialize → minimize → `anvil://audit/log`) | passed |
 | `2026-06-15` | `AGENT-INTROSPECTION-MCP.6` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings` (factored the renderer fn-pointer into the `PromptRender` type alias for `type_complexity`); `cargo test --lib mcp::` (24/24, +6 prompt tests); `cargo test --lib` (370/370, 2 gated); `cargo test --test snapshots` (6/6 byte-identical); `anvil-mcp` stdio smoke (initialize advertises `prompts`; `prompts/list` lists the 5; `prompts/get` renders + substitutes args; required-arg → `-32602`) | passed |
+| `2026-06-15` | `AGENT-INTROSPECTION-MCP.7` | `mdbook build book` (clean); `cargo test --test book_examples` (3/3 — runnable `cargo run --release -- --seed 42 --introspect` block proven; two MCP-setup blocks skip-sentinelled with reasons); `bash scripts/check_memory_architecture.sh`; `bash knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check`. Pure-docs leaf — no code touched, snapshots remain 6/6. | passed |
 
 ## Commit Log
 
@@ -339,7 +364,8 @@ lane is documented as a stable feature now that `.5`/`.6` complete it.
 | `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Commit `64f0bbe`; lands `src/downstream/`, rewires `tool_matrix`. |
 | `AGENT-INTROSPECTION-MCP.5.2` | `AGENT-INTROSPECTION-MCP.5.2 - controlled validate tool` | Commit `65db6c3`; lands `downstream::validate` + MCP `validate` tool + `anvil://audit/log`. |
 | `AGENT-INTROSPECTION-MCP.5.3` | `AGENT-INTROSPECTION-MCP.5.3 - controlled minimize tool` | Commit `381ec01`; lands `downstream::minimize` + MCP `minimize` tool; closes the `.5` container. |
-| `AGENT-INTROSPECTION-MCP.6` | `AGENT-INTROSPECTION-MCP.6 - agent-workflow prompts` | Pending hash; lands the five MCP prompts (`prompts/list`/`prompts/get`) in `src/mcp/`. |
+| `AGENT-INTROSPECTION-MCP.6` | `AGENT-INTROSPECTION-MCP.6 - agent-workflow prompts` | Commit `b6f02ea`; lands the five MCP prompts (`prompts/list`/`prompts/get`) in `src/mcp/`. |
+| `AGENT-INTROSPECTION-MCP.7` | `AGENT-INTROSPECTION-MCP.7 - book + USER_GUIDE + README closeout` | Pending hash; lands `book/src/agent-mcp.md` + USER_GUIDE/README sync; **closes the tree**. |
 
 ## Changelog
 
@@ -399,3 +425,11 @@ lane is documented as a stable feature now that `.5`/`.6` complete it.
   byte-identical, `anvil-mcp` stdio smoke clean. Adds no new capability and
   computes no new truth (read-mostly doctrine preserved). Frontier advanced to
   `.7` (book + USER_GUIDE + README + CODEBASE_ANALYSIS closeout).
+- `2026-06-15`: Landed `.7` and **closed the tree**. User-facing closeout: new
+  mdBook chapter `book/src/agent-mcp.md` (Reference) documenting `--introspect`,
+  the `anvil-mcp` tools/resources/prompts, the bug-hunting loop, and the
+  guardrails, with real captured examples; `USER_GUIDE.md` "Agent introspection
+  and the MCP server" section; `README.md` CLI-truth + key-paths sync. `mdbook
+  build` clean; `book_examples` gate 3/3 (runnable `--introspect` block proven;
+  two MCP-setup blocks skip-sentinelled). Pure-docs — snapshots remain 6/6. All
+  seven leaves `.1`–`.7` done; `AGENT-INTROSPECTION-MCP` is `done`.
