@@ -4,7 +4,7 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 ## Snapshot
 - **Workspace:** single crate `anvil` (no Cargo workspace; flat layout).
 - **Edition:** 2021.
-- **Targets:** two binaries (`anvil` as Cargo's default run target, plus the auxiliary `tool_matrix` harness), one library (`anvil`), one example (`generate_one`), three integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`).
+- **Targets:** two binaries (`anvil` as Cargo's default run target, plus the auxiliary `tool_matrix` harness), one library (`anvil`), one example (`generate_one`), six integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`; `diff_sim` — the `DIFFERENTIAL-SIMULATION` cross-simulator harness proofs; `microdesign_parity` — the Phase-7 oracle-vs-tool parity proofs; `frontend_parity` — the Phase-8 frontend/elaboration parity proofs). The last three each also carry a tool-gated `#[ignore]` end-to-end gate that runs only when the real downstream tool is present.
 - **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** pinned to Rust 1.95 via `Cargo.toml` `rust-version = "1.95"`.
 - **Package description:** `Cargo.toml` describes ANVIL as a random by-construction generator of synthesizable SystemVerilog RTL; do not use SV/UVM-style constrained-random terminology for the crate purpose.
@@ -249,6 +249,35 @@ src/
 │                     oracle. Parity harness + repo-owned gate are
 │                     `.2c`. Never invoked by the DUT path ⇒ DUT lane
 │                     byte-identical (Phase 9 wires the selector).
+├── frontend/        Phase 8 source-level frontend/elaboration accept
+│   └── mod.rs        lane (`PHASE-8-FRONTEND-ACCEPT`). A **separate
+│                     generator path** from the DUT lane: a source-level
+│                     AST IR (`SourceUnit`/`Package`/`Module`/`Instance`/
+│                     `GenerateIf`/`ParamDecl`/`ParamBinding`) +
+│                     construction-time `elaborate()` evaluator (the
+│                     oracle) + un-elaborated `emit_sv` + elaborated-facts
+│                     `emit_manifest` + a hierarchy-aware parity comparator.
+│                     Reuses Phase 7's `ConstExpr`/`eval`/`expr_to_sv`.
+│                     Never invoked by the DUT path ⇒ DUT lane
+│                     byte-identical.
+├── umbrella/        Phase 9 multi-artifact selector + shared plumbing
+│   └── mod.rs        (`PHASE-9-MULTI-ARTIFACT-UMBRELLA`). `pub trait
+│                     ArtifactLane` + `LaneArtifact` carrier + `CheckPlan`
+│                     enum + `LaneError` + `DutLane`/`MicrodesignLane`/
+│                     `FrontendLane` impls. Only the plumbing unifies
+│                     (seed→artifact, byte-stable output, optional
+│                     manifest, downstream check plan); the three lanes'
+│                     rules-first generators stay decoupled. `main.rs`
+│                     selects via `--artifact <dut|microdesign|frontend>`
+│                     (default `dut`, byte-identical to the historical
+│                     no-flag path).
+├── diff_sim/        Cross-simulator semantic-agreement harness core
+│   └── mod.rs        (`DIFFERENTIAL-SIMULATION`). Used by
+│                     `bin/tool_matrix.rs`'s opt-in `--diff-sim` column:
+│                     normalizes fixed-width-hex traces from iverilog +
+│                     verilator and byte-compares them, proving emitted SV
+│                     is *semantically equivalent* across two independent
+│                     simulators, not merely accepted.
 ├── bin/
 │   └── tool_matrix.rs
 │                     Repo-owned downstream-tool matrix harness.
@@ -415,6 +444,21 @@ src/
 │                     are no longer reachable from the design top.
 │                     No-merge calls and pre-existing
 │                     under-instantiation are not reachability-pruned.
+│   ├── param.rs      Phase 5 parameterization helpers
+│   │                 (`PHASE-5-PARAMETERIZATION`): `WidthExpr` /
+│   │                 `ParamEnv` resolution behind the IR's
+│   │                 `Instance.param_bindings`, supporting rules-first
+│   │                 width-generic parameterizable leaves and per-instance
+│   │                 `#(.W(v))` overrides with resolved-width validation.
+│   └── aggregate.rs  Phase 5b synthesizable-aggregate layout
+│                     (`PHASE-5B-AGGREGATES`): the `Default`-able
+│                     `Module.aggregate_layout` annotation
+│                     (`AggregateLayout`/`AggregateKind`/`AggregateGroup`)
+│                     consulted only by the emitter for the packed-`struct`
+│                     (and `ArrayPacked`) boundary projection; flat IR /
+│                     validators / dedup untouched, so the projected twin
+│                     dedup-collapses and the default path stays
+│                     byte-identical.
 │
 ├── gen/
 │   ├── mod.rs        Generator struct (rng + cfg + next_module_index),

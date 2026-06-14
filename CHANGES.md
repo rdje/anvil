@@ -1,6 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — LIVE-DOC-CODEBASE-ALIGNMENT.1 — codebase-analysis snapshot sync (docs-only)
+
+**Landed as:** this commit (previous: `00e1317`).
+
+**What changed (docs-only)**
+
+Session-bootstrap deep-dive (per `SESSION_BOOTSTRAP.md` step 3) surfaced a
+completeness gap in `CODEBASE_ANALYSIS.md`'s authoritative workspace
+snapshot. No code change. Live-doc edits are exempt from task-tree
+*ownership-of-code*, but this slice is tracked by a dedicated
+`LIVE-DOC-CODEBASE-ALIGNMENT` tree (mirroring the closed `LIVE-DOC-*-ALIGNMENT`
+trees) for continuity and to satisfy the `commit-msg` leaf-id hook.
+
+- `CODEBASE_ANALYSIS.md` **Snapshot → Targets**: corrected "three
+  integration tests" to **six** and named them — the existing `pipeline`,
+  `book_examples`, `snapshots` plus the previously-unlisted `diff_sim`
+  (`DIFFERENTIAL-SIMULATION`), `microdesign_parity` (Phase 7), and
+  `frontend_parity` (Phase 8), noting the latter three each carry a
+  tool-gated `#[ignore]` end-to-end gate.
+- `CODEBASE_ANALYSIS.md` **Module map**: added the five real source
+  modules the ASCII tree omitted while it already listed the sibling
+  `microdesign/` lane — `ir/param.rs` (Phase 5), `ir/aggregate.rs`
+  (Phase 5b), `frontend/` (Phase 8 lane), `umbrella/` (Phase 9
+  `ArtifactLane` selector), and `diff_sim/` (cross-simulator harness
+  core). All five are declared in `src/lib.rs` and were already described
+  in this file's phase-coverage table; only the module-map tree lagged.
+
+**How verified.** `git ls-files 'src/**'` + `grep 'pub mod' src/lib.rs`
+confirm the 32-file `src/` tree; `ls tests/` confirms the six integration
+tests. Two read-only audits (codebase-vs-analysis, mdBook-vs-codebase)
+found no other drift: every documented module exists, all spot-checked
+symbols (`intern_gate`, `merge_equivalent_{gates,flops,fsms}`,
+`compact_node_ids`, `dedup_{modules,semantic_modules}`, `MemGuard`,
+`write_streamed_manifest`, `construct_2flop_synchronizer`, `ArtifactLane`)
+are present, and the book labels no delivered feature as "future".
+
+**ROADMAP status.** No numbered-phase label changed. All 9 phases remain
+`done`; all task trees in `docs/TASK_TREE.md` remain `done`; no active
+tree.
+
+**Validation.** Docs-only ⇒ no `cargo` build/test (build green at HEAD
+`00e1317`; no code/book touched). memory-architecture + knowledge-map
+pre-commit self-checks; `git diff --check`. Resource policy:
+`docs/decisions/0003-resource-safe-validation.md`.
+
+**Impact.** Documentation accuracy only. No behaviour, RTL, CLI, or
+reproducibility change.
+
+**Files touched:** `CODEBASE_ANALYSIS.md`, `docs/tasks/LIVE-DOC-CODEBASE-ALIGNMENT.md`
+(new), `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-wms-5 — WORKLOAD-MEMORY-SAFETY.5 closeout (tree CLOSED)
 
 **Landed as:** this commit (previous: `b825022`).
