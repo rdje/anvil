@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `WORKLOAD-MEMORY-SAFETY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Quality / signoff — resource-safe generation (ANVIL's own runtime)`
 - Created: `2026-06-14`
 - Last updated: `2026-06-14`
@@ -64,9 +64,9 @@ This tree guards `anvil`'s *own* process from the inside.
 ## Task Tree
 
 - ID: `WORKLOAD-MEMORY-SAFETY`
-  Status: `active`
+  Status: `done`
   Goal: `ANVIL's own runs stay inside a safe RAM envelope on huge workloads.`
-  Children: `WORKLOAD-MEMORY-SAFETY.1`, `WORKLOAD-MEMORY-SAFETY.2`, `WORKLOAD-MEMORY-SAFETY.3`, `WORKLOAD-MEMORY-SAFETY.4`, `WORKLOAD-MEMORY-SAFETY.5`
+  Children: `WORKLOAD-MEMORY-SAFETY.1`, `WORKLOAD-MEMORY-SAFETY.2`, `WORKLOAD-MEMORY-SAFETY.3`, `WORKLOAD-MEMORY-SAFETY.4`, `WORKLOAD-MEMORY-SAFETY.5` (all `done`)
 
 - ID: `WORKLOAD-MEMORY-SAFETY.1`
   Status: `done`
@@ -97,29 +97,42 @@ This tree guards `anvil`'s *own* process from the inside.
   Commit: `WORKLOAD-MEMORY-SAFETY.4 - internal RAM/RSS self-governor`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.5`
-  Status: `pending`
+  Status: `done`
   Goal: `Closeout: sync USER_GUIDE + book + CODEBASE_ANALYSIS + roadmap status, record deferred boundaries, close the tree.`
   Acceptance: `USER_GUIDE "Resource-safe runs" extended with the internal governor/bounded-output knobs; the relevant book chapter(s) describe the safe-envelope contract; CODEBASE_ANALYSIS reflects the new modules/knobs; tree closed with explicit deferred-boundary record.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — USER_GUIDE "Resource-safe runs" + book knobs.md governor entry + README CLI-truth + CODEBASE_ANALYSIS module map landed in the .4 commit (mandatory CLI-change doc sync per COMMIT.md); .5 adds the cohesive book "Bounded-memory generation (the resource envelope)" section in architecture.md tying .2/.3/.4 together, and records the deferred boundaries below. ROADMAP needs no numbered-phase edit (WMS is a quality tree tracked via docs/TASK_TREE.md, not a numbered phase; all 9 phases stay done). mdbook build clean. Docs-only.`
+  Commit: `WORKLOAD-MEMORY-SAFETY.5 - closeout: safe-envelope narrative + close tree`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout: deferred-boundary record + book safe-envelope narrative + roadmap status + close the tree. |
+**Frontier empty — tree `done`.** All five leaves (`.1`–`.5`) are
+`done`. `.2` streamed the directory-output manifest (peak metadata RAM
+O(1) in `--count`), `.3` added the rules-first per-module node budget
+(`max_nodes_per_module`), `.4` added the opt-in process RAM/RSS governor
+(`--max-rss-mb` / `--ram-abort-pct`, clean exit 99), and `.5` closed the
+tree with the cohesive book safe-envelope narrative and the deferred
+boundaries below. All mechanisms are byte-identical at their defaults.
 
-`.2` (stream the directory-output manifest), `.3` (real per-module node
-budget), and `.4` (internal RAM/RSS self-governor) are `done` — all
-byte-identical at the default. Peak metadata RAM is O(1) in `--count`,
-per-module node growth is boundable via `max_nodes_per_module`, and the
-process now has an opt-in RSS/host-% governor that aborts a bulk `--out`
-run cleanly (exit 99) before the host danger zone. The mandatory
-user-facing doc sync for `.4`'s new CLI surface (USER_GUIDE, book
-`knobs.md`, README CLI-truth, CODEBASE_ANALYSIS module map) was pulled
-into the `.4` commit per `COMMIT.md` (a CLI change must not leave docs
-drifting); `.5` adds the cohesive safe-envelope narrative + the explicit
-deferred boundaries and closes the tree.
+### Deferred boundaries (recorded at close)
+
+These are explicit, deliberate scope edges — not gaps. Each would be a
+new task-tree leaf if ever pursued; none reopens this tree:
+
+- **Intra-cone-worklist RSS sampling.** `.4` samples between finished
+  units, not inside a single cone's construction. A single module that
+  balloons *within one* `generate_module()` call is bounded
+  construction-time by `.3`'s `max_nodes_per_module`, not by the
+  governor. Sampling deep in the hot worklist drain was the `.1`
+  "stretch"; deferred to avoid touching the hot path for marginal gain.
+- **`count == 1` stdout path and the non-DUT lanes** (`microdesign` /
+  `frontend`) are unguarded by the governor: they emit one small artifact,
+  not a bulk loop. By design.
+- **JSON-lines manifest sidecar** (`.2` open question) — the
+  byte-identical incremental-array writer was deemed sufficient; an opt-in
+  JSONL sidecar for truly huge runs remains a possible future leaf.
+- **Soft node-budget feedback** (`.3` open question) — the budget is a
+  hard steer-to-terminal ceiling; feeding it into share/terminal-reuse
+  probabilities as a soft signal remains a possible future leaf.
 
 > Sequencing note (owner request, 2026-06-14): a separate
 > `CONE-DECOMPOSITION` tree (breaking the 5551-line `src/gen/cone.rs` into
@@ -190,6 +203,7 @@ deferred boundaries and closes the tree.
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.2` | `cargo check --all-targets` (clean, 6.1s); `cargo clippy --all-targets -- -D warnings` (clean after `io::Error::other` fix); `cargo fmt --all --check` (clean); `cargo test --lib manifest` 3/3 (`streamed_matches_reference`, `streamed_matches_reference_for_designs`, `propagates_element_error`); `cargo test --test snapshots` 6/6 (SV byte-identity); **gold-standard** old-vs-new `diff -r` byte-identical on both lanes (`--seed 42 --count 5` flat; `--seed 7 --count 3 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 4` wrapper design) for `manifest.json` + every `.sv`; full `cargo test` under `scripts/ram_guard.sh --threshold 88` (RAM stayed comfortable). | passed |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.3` | `cargo test --lib node_budget` 1/1 (`node_budget_caps_and_shrinks_module_but_stays_valid`: budget 48 shrinks arena vs unbounded, stays ≤ budget·6, both validate); `cargo test --test snapshots` 6/6 (default-path SV byte-identical with default `1000`→`0`); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; full `cargo test` under `scripts/ram_guard.sh --threshold 88`; `mdbook build book` clean. | passed |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.4` | `cargo check --all-targets` clean (ram-guarded); `cargo test --lib mem_guard` 11/11 (disabled-never-abort, RSS/host trip boundaries, unreadable-never-abort, RSS-before-host precedence, from-config enable/disable, message/Display); `cargo test --lib` config governor 2/2 (`validate_rejects_ram_abort_pct_above_100`, boundary/off-sentinel); `cargo test --bin anvil` governor round-trips 2/2; `cargo test --test snapshots` 6/6 (default SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean. Live debug-binary smokes: `--dump-config` shows both knobs `0`; default `--out` exit 0; `--max-rss-mb 100000` (under) exit 0 with byte-identical `.sv` vs off (diff -q); `--max-rss-mb 1` clean abort exit **99** with reason+seed+knobs stderr message; `--ram-abort-pct 101` rejected at validation (exit 1, distinct from 99). | passed |
+| `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.5` | Docs-only closeout: `book/src/architecture.md` "Bounded-memory generation (the resource envelope)" section ties `.2`/`.3`/`.4` together; deferred boundaries recorded; tree closed. `mdbook build book` clean; memory-architecture + knowledge-map self-checks (pre-commit). `git diff --check`. No code change ⇒ no `cargo test` required (full-suite RAM policy, `docs/decisions/0003-resource-safe-validation.md`). | passed (docs-only) |
 
 ## Commit Log
 
@@ -198,7 +212,8 @@ deferred boundaries and closes the tree.
 | `WORKLOAD-MEMORY-SAFETY.1` | `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design` | Tree genesis + design leaf. Hash `8f7fb34`. |
 | `WORKLOAD-MEMORY-SAFETY.2` | `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest` | `src/manifest.rs` + main.rs rewire. Hash `1c5ac85`. |
 | `WORKLOAD-MEMORY-SAFETY.3` | `WORKLOAD-MEMORY-SAFETY.3 - real per-module node budget` | cone.rs `node_budget_reached` + config default `1000`→`0`. Pending hash. |
-| `WORKLOAD-MEMORY-SAFETY.4` | `WORKLOAD-MEMORY-SAFETY.4 - internal RAM/RSS self-governor` | new `src/mem_guard.rs` + `max_rss_mb`/`ram_abort_pct` knobs + main.rs between-unit checkpoint + exit 99. Pending hash. |
+| `WORKLOAD-MEMORY-SAFETY.4` | `WORKLOAD-MEMORY-SAFETY.4 - internal RAM/RSS self-governor` | new `src/mem_guard.rs` + `max_rss_mb`/`ram_abort_pct` knobs + main.rs between-unit checkpoint + exit 99. Hash `b825022`. |
+| `WORKLOAD-MEMORY-SAFETY.5` | `WORKLOAD-MEMORY-SAFETY.5 - closeout: safe-envelope narrative + close tree` | docs-only: book architecture.md resource-envelope section + deferred boundaries; tree closed. Pending hash. |
 
 ## Changelog
 
@@ -206,3 +221,4 @@ deferred boundaries and closes the tree.
 - `2026-06-14`: Landed `.2` (streaming directory-output manifest, byte-identical, peak metadata RAM O(1) in `--count`). Frontier now `.3` (per-module node budget).
 - `2026-06-14`: Landed `.3` (real per-module node budget — `max_nodes_per_module` ghost knob wired up, sentinel `0`=unlimited default, byte-identical). Frontier now `.4`, but a separate `CONE-DECOMPOSITION` tree is prioritized ahead of it per owner request.
 - `2026-06-14`: `CONE-DECOMPOSITION` tree landed and closed; resumed here. Landed `.4` (opt-in internal RAM/RSS self-governor — `src/mem_guard.rs`, `--max-rss-mb` / `--ram-abort-pct`, sentinel `0`=off default-byte-identical, between-unit `--out` checkpoint, clean exit 99 with seed+knobs message). Frontier now `.5` (closeout).
+- `2026-06-14`: Landed `.5` (docs-only closeout — book architecture.md "Bounded-memory generation (the resource envelope)" section, deferred-boundary record). **Tree CLOSED — all five leaves `done`.**

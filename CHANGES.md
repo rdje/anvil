@@ -1,6 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-wms-5 — WORKLOAD-MEMORY-SAFETY.5 closeout (tree CLOSED)
+
+**Landed as:** this commit (previous: `b825022`).
+
+**What changed (docs-only)**
+
+Closeout of the `WORKLOAD-MEMORY-SAFETY` tree. No code change.
+
+- `book/src/architecture.md`: new "Bounded-memory generation (the
+  resource envelope)" section tying the three delivered mechanisms into
+  one cohesive contract — streamed directory output (`.2`), the
+  rules-first per-module node budget (`.3`), and the opt-in process
+  RAM/RSS governor (`.4`) — plus the division of labour vs the external
+  `scripts/ram_guard.sh`. All three are byte-identical at their defaults.
+- `docs/tasks/WORKLOAD-MEMORY-SAFETY.md`: tree + container + `.5` marked
+  `done`; frontier emptied; explicit **deferred boundaries** recorded
+  (intra-cone-worklist RSS sampling; `count==1` stdout + non-DUT lanes
+  unguarded by design; JSONL manifest sidecar; soft node-budget
+  feedback). `.4` commit hash `b825022` backfilled.
+- `docs/TASK_TREE.md`: row flipped `active` → `done`.
+- `MEMORY.md`: resume pointer — no active tree remains; all 9 numbered
+  phases + every tree are `done`.
+
+**ROADMAP status.** No numbered-phase label changed: `WORKLOAD-MEMORY-SAFETY`
+is a Quality/signoff tree tracked via `docs/TASK_TREE.md`, not a numbered
+roadmap phase. All 9 phases remain `done`.
+
+**Validation.** `mdbook build book` clean; memory-architecture +
+knowledge-map self-checks (pre-commit); `git diff --check`. Docs-only ⇒
+no `cargo test` (full-suite RAM policy, `docs/decisions/0003-resource-safe-validation.md`).
+
+**Impact.** Documentation/tracking only. No behaviour, RTL, CLI, or
+reproducibility change.
+
+**Files touched:** `book/src/architecture.md`,
+`docs/tasks/WORKLOAD-MEMORY-SAFETY.md`, `docs/TASK_TREE.md`, `MEMORY.md`,
+`CHANGES.md`.
+
 ## 2026-06-14-wms-4 — WORKLOAD-MEMORY-SAFETY.4 internal RAM/RSS self-governor
 
 **Landed as:** this commit (previous: `53bac04`).

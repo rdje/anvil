@@ -114,6 +114,49 @@ sibling routes, direct registered sibling routes, registered child-input
 D cones, and parent-output cones, and an explicit local-parent-state
 axis.
 
+## Bounded-memory generation (the resource envelope)
+
+`anvil` is designed so that even an enormous workload — a very large
+`--count`, or a single pathologically deep/wide `(seed, knobs)` — keeps
+the generator process inside a safe RAM envelope and, if a ceiling is
+crossed, fails *cleanly* rather than letting the OS OOM-kill it or reboot
+the host. Three layers cooperate, and **all three are byte-identical at
+their defaults** (they change nothing about emitted RTL unless explicitly
+opted into):
+
+1. **Streamed directory output** (`src/manifest.rs`). For `--out DIR`
+   runs the `manifest.json` array is written element-by-element, so peak
+   metadata memory is O(1) in `--count` instead of O(`--count`). The
+   `.sv` files were always streamed (generate → emit → write → drop). The
+   bytes on disk are byte-identical to the previous accumulate-then-print
+   path.
+2. **Per-module construction node budget** (`max_nodes_per_module`,
+   config-only; see [Knobs](knobs.md)). A rules-first ceiling on one
+   module's node arena: as the budget is approached, cone construction
+   steers to existing terminals instead of opening new sub-cones — it
+   never truncates a finished cone (that would emit invalid RTL). Sentinel
+   `0` = unlimited is the default.
+3. **Process RAM/RSS governor** (`src/mem_guard.rs`; `--max-rss-mb` /
+   `--ram-abort-pct`). The outermost backstop: between finished
+   modules/designs in the `--out` loop it samples this process's RSS
+   and/or the host's used-RAM%, and if a ceiling is crossed it stops the
+   run cleanly with a deterministic exit code (`99`, matching
+   `scripts/ram_guard.sh`) and a message naming the seed + effective
+   knobs. It declines to start more work; it never mutilates a built
+   module. The OS reads are best-effort and dep-free (Linux `/proc`; macOS
+   `ps` / `memory_pressure`), mirroring the external watchdog. Both knobs
+   default to the off sentinel `0`, so the guard is never even sampled by
+   default.
+
+The division of labour: the node budget bounds a *single module*
+construction-time; the governor bounds the *whole process* at run time;
+`scripts/ram_guard.sh` (a separate tool, `RESOURCE-SAFE-TOOLING`) bounds
+*external* jobs like cargo builds and `tool_matrix` sweeps from the
+outside. Together they make a single pathological artifact, a runaway
+`--count`, and a heavy build each survivable on a RAM-limited host. See
+[Knobs](knobs.md) for the knob entries and `USER_GUIDE.md`
+"Resource-safe runs" for the operator-facing recipes.
+
 ## Dependency direction
 
 ```text
