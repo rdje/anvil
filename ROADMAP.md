@@ -2162,6 +2162,30 @@ The previously separate quality/capability follow-ups are closed:
 lane on `2026-05-24`, and `MULTI-CLOCK-CDC` landed the opt-in
 multi-clock/2-flop-synchronizer lane on `2026-05-24`.
 
+## Post-phase capability lanes (owner-directed, 2026-06-15)
+
+After the `AGENT-INTROSPECTION-MCP` tree closed (`2026-06-15`), the
+project reached full task-tree exhaustion: every numbered phase and
+every post-phase tree was `done`. The owner then authorized three new
+post-phase capability lanes ("do these in any order"), now registered as
+task trees via `CAPABILITY-LANE-OWNERSHIP.1` and tracked in
+`docs/TASK_TREE.md`. None reopens a closed phase; each is open-ended
+capability-deepening that lands as task-tree leaves. Agent-chosen
+execution order is `2 → 3 → 1`:
+
+- `AGENT-MCP-EXPANSION` (`active`) — broaden the read-mostly agent/MCP
+  interface (coverage-gap MCP tool, non-DUT lanes over MCP, optional
+  HTTP transport); every lane invariant from decision `0004` preserved,
+  default `--artifact dut` byte-identical.
+- `SIGNOFF-AUTOMATION-EXPANSION` (`proposed`) — broaden downstream
+  signoff automation (richer adversarial knob sweeps, additional
+  simulator/frontend acceptance columns, new valid-by-construction
+  artifact families), warning-as-failure preserved.
+- `IDENTITY-DEEPENING` (`proposed`) — advance steering gap 2
+  (NodeId-as-identity): bounded hierarchical/module semantic identity
+  beyond canonical structural signatures and broader bounded sequential
+  equivalence, proof discipline and budgets unchanged.
+
 ## Non-goals
 
 - Testbenches, assertions, coverage — `anvil` generates DUT code only.

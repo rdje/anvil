@@ -1,9 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — CAPABILITY-LANE-OWNERSHIP.1 — register post-phase capability lanes
+
+**Landed as:** this commit (previous: `ac4cebf`).
+
+**What changed (docs / workflow only)**
+
+After `AGENT-INTROSPECTION-MCP` closed, the project hit full task-tree
+exhaustion (every phase + every post-phase tree `done`). The owner then
+authorized three new post-phase capability lanes ("do these in any
+order") and directed: task-tree track them, then ensure handoff
+readiness. This slice registers the ownership — no source code touched —
+mirroring the `ROADMAP-FOLLOWUP-OWNERSHIP` precedent.
+
+- New workflow tree `docs/tasks/CAPABILITY-LANE-OWNERSHIP.md` (`.1`
+  `done`) owns the registration activity itself.
+- Three new capability lane trees created under `docs/tasks/`:
+  - `AGENT-MCP-EXPANSION.md` — Lane 2, opened **`active`**, frontier at
+    `.1` (design/decision). Broadens the read-mostly agent/MCP interface
+    (coverage-gap MCP tool, non-DUT lanes over MCP, optional HTTP
+    transport) under every decision-`0004` invariant.
+  - `SIGNOFF-AUTOMATION-EXPANSION.md` — Lane 3, opened `proposed`.
+    Broadens downstream signoff automation.
+  - `IDENTITY-DEEPENING.md` — Lane 1, opened `proposed`. Advances
+    NodeId-as-identity (steering gap 2).
+- `docs/TASK_TREE.md` — four new rows in the Active Task Trees index.
+- `ROADMAP.md` — new "Post-phase capability lanes (owner-directed,
+  2026-06-15)" subsection records the three lanes as task-tree-owned, so
+  roadmap ↔ task-tree state stay locked together.
+
+Agent-chosen execution order is `2 → 3 → 1`: Lane 2 has the most finite,
+independently verifiable sub-deliverables and is the freshest code area;
+Lane 3 strengthens the bug-hunting north star and the proof tooling Lane
+1 leans on; Lane 1 is the deepest, most open-ended axis and is sequenced
+last.
+
+**Why**
+
+The non-negotiable doctrine forbids any code change without a task-tree
+leaf owning it first. Registering the three authorized lanes before any
+implementation edit makes the next code slice (`AGENT-MCP-EXPANSION.1`)
+legal to start, and keeps the whole authorized scope trackable across a
+session boundary (the owner intends a fresh session next).
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` — clean.
+- `bash knowledge-map/scripts/check_knowledge_map.sh` — clean (no fact
+  files changed; map stays in sync).
+- `cargo fmt --all --check`, `cargo check --all-targets`, `git diff
+  --check` — clean.
+- Pure docs/workflow leaf — no `src/` change, so the DUT byte-identical
+  contract is untouched (snapshots remain 6/6 from `.7`); full `cargo
+  test` not run per the resource policy (`docs/decisions/0003`).
+
+**Impact**
+
+Workflow/docs only. The project moves from full exhaustion to one
+`active` lane (`AGENT-MCP-EXPANSION`) plus two `proposed` lanes; no
+generated RTL or user-facing feature changed.
+
+**Files touched**
+
+- `docs/tasks/CAPABILITY-LANE-OWNERSHIP.md` (new),
+  `docs/tasks/AGENT-MCP-EXPANSION.md` (new),
+  `docs/tasks/SIGNOFF-AUTOMATION-EXPANSION.md` (new),
+  `docs/tasks/IDENTITY-DEEPENING.md` (new)
+- `docs/TASK_TREE.md`, `ROADMAP.md`
+- `CHANGES.md`, `MEMORY.md`
+
+---
+
 ## 2026-06-15 — AGENT-INTROSPECTION-MCP.7 — book + USER_GUIDE + README closeout (tree closed)
 
-**Landed as:** this commit (previous: `b6f02ea`).
+**Landed as:** `ac4cebf` (previous: `b6f02ea`).
 
 **What changed (docs only)**
 
