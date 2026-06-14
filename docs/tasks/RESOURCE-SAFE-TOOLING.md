@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `RESOURCE-SAFE-TOOLING`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Quality / workflow — resource-safe validation`
 - Created: `2026-06-14`
 - Last updated: `2026-06-14`
@@ -37,7 +37,7 @@ reboot level. Operationalizes the resource policy in
 ## Task Tree
 
 - ID: `RESOURCE-SAFE-TOOLING`
-  Status: `active`
+  Status: `done`
   Goal: `Provide a host-crash-safe job runner and document it.`
   Children: `RESOURCE-SAFE-TOOLING.1`, `RESOURCE-SAFE-TOOLING.2`
 
@@ -49,17 +49,16 @@ reboot level. Operationalizes the resource policy in
   Commit: `RESOURCE-SAFE-TOOLING.1 - add RAM watchdog runner`
 
 - ID: `RESOURCE-SAFE-TOOLING.2`
-  Status: `pending`
-  Goal: `Document the watchdog in USER_GUIDE.md (and book if user-facing) once its role in the validation workflow is settled.`
+  Status: `done`
+  Goal: `Document the watchdog in USER_GUIDE.md once its role in the validation workflow is settled.`
   Acceptance: `USER_GUIDE.md describes ram_guard.sh usage; no drift between script flags and docs.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `USER_GUIDE.md "Resource-safe runs on RAM-limited hosts" section documents scripts/ram_guard.sh (--threshold, -- CMD, exit 99) + complementary tactics (parallelism caps, focused targets, chunked --resume sweeps) consistent with the script and docs/decisions/0003; mdbook unaffected (USER_GUIDE is not in the book). git diff --check clean.`
+  Commit: `RESOURCE-SAFE-TOOLING.2 - document ram_guard in USER_GUIDE`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `RESOURCE-SAFE-TOOLING.2` | `pending` | Document the runner after first real use settles the recommended flags. |
+Empty — the tree is `done`. `.1` (ram_guard.sh) and `.2` (USER_GUIDE
+docs) are both complete.
 
 ## Decisions
 
@@ -85,13 +84,16 @@ reboot level. Operationalizes the resource policy in
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-14` | `RESOURCE-SAFE-TOOLING.1` | pass case (exit 0), abort case (exit 99, read 26% used), failure-propagation (exit 7); `git diff --check`; self-checks | passed |
+| `2026-06-14` | `RESOURCE-SAFE-TOOLING.2` | USER_GUIDE "Resource-safe runs" section added; `git diff --check` clean | passed (docs-only) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `RESOURCE-SAFE-TOOLING.1` | `RESOURCE-SAFE-TOOLING.1 - add RAM watchdog runner` | Pending hash; `.2` (docs) remains. |
+| `RESOURCE-SAFE-TOOLING.1` | `RESOURCE-SAFE-TOOLING.1 - add RAM watchdog runner` | Pending hash. |
+| `RESOURCE-SAFE-TOOLING.2` | `RESOURCE-SAFE-TOOLING.2 - document ram_guard in USER_GUIDE` | Pending hash; closes tree. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (ram_guard.sh); `.2` docs pending.
+- `2026-06-14`: Landed `.2` (USER_GUIDE ram_guard docs); tree CLOSED.

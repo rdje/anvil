@@ -257,6 +257,40 @@ IR enum gains one variant. No generated-output, knob, or CLI change
 `docs/tasks/AGGREGATE-ARRAY-PACKING.md` (new), `docs/TASK_TREE.md`,
 `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
 
+## 2026-06-14-ram-guard-docs — RESOURCE-SAFE-TOOLING.2 document ram_guard in USER_GUIDE
+
+**Landed as:** this commit
+
+**What changed**
+
+`USER_GUIDE.md`: added a "Resource-safe runs on RAM-limited hosts"
+section documenting `scripts/ram_guard.sh` (`--threshold`, `-- CMD`,
+exit `99` on abort) plus complementary tactics (cap build/test
+parallelism, prefer focused test targets, chunk sweeps with smaller
+`--modules-per-scenario` + `--resume`), pointing at
+`docs/decisions/0003-resource-safe-validation.md`. Closes the
+`RESOURCE-SAFE-TOOLING` tree (`.1` + `.2`).
+
+**Why it matters**
+
+Makes the host-crash-safe workflow discoverable to anyone running heavy
+jobs on this RAM-limited host, directly serving the owner's
+"never crash/reboot the host" directive.
+
+**Validation**
+
+Docs-only. `git diff --check` clean; memory-architecture + knowledge-map
+self-checks pass. USER_GUIDE is not part of the mdBook, so no book
+rebuild needed.
+
+**Impact**
+
+Documentation only.
+
+**Files touched:** `USER_GUIDE.md`,
+`docs/tasks/RESOURCE-SAFE-TOOLING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-ram-guard — RESOURCE-SAFE-TOOLING.1 add RAM watchdog runner
 
 **Landed as:** this commit

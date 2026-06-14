@@ -578,6 +578,26 @@ The current Phase 4 slice now has two planning lanes:
 - local parent flops in the composed parent layer are live when
   `hierarchy_parent_flop_prob` is non-zero
 
+## Resource-safe runs on RAM-limited hosts
+
+Large `cargo` builds/tests and `tool_matrix` sweeps can spike memory. On
+a RAM-limited host, wrap any heavy job in the repo's watchdog so it is
+aborted *before* the danger zone instead of risking an out-of-memory
+reboot:
+
+```bash
+# Abort the wrapped command if used RAM reaches the threshold (default 88%).
+scripts/ram_guard.sh -- cargo test
+scripts/ram_guard.sh --threshold 85 -- cargo run --bin tool_matrix -- --out ./tool-matrix
+```
+
+The guard exits `99` if it had to stop the job, otherwise it propagates
+the wrapped command's own status. Complementary tactics: cap build
+parallelism (`cargo test -j 2 -- --test-threads=2`), prefer focused test
+targets over the whole suite, and chunk big sweeps with a smaller
+`--modules-per-scenario` plus `--resume` (the matrix writes per-item
+checkpoints). See `docs/decisions/0003-resource-safe-validation.md`.
+
 ## Tool matrix sweeps
 
 For a broader repo-owned downstream-validation sweep, use the dedicated
