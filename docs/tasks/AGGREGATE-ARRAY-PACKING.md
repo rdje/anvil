@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `AGGREGATE-ARRAY-PACKING`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Phase 5b follow-on — synthesizable aggregates (packed array)`
 - Created: `2026-06-14`
 - Last updated: `2026-06-14`
@@ -92,31 +92,26 @@ Phase 5b.
   Commit: `AGGREGATE-ARRAY-PACKING.4 - array metric + downstream-clean proof`
 
 - ID: `AGGREGATE-ARRAY-PACKING.4b`
-  Status: `pending`
+  Status: `deferred`
   Goal: `Permanent tool_matrix array scenario + saw_array_packed_aggregate_design coverage fact (optional CI instrumentation).`
   Acceptance: `A depth-1-wrapper uniform-width scenario lights a new saw_array_packed_aggregate_design fact via summarize/merge, with a non-vacuous + a summarize unit test; NOT added to the hard Phase4Hierarchy gap-gate.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `n/a`
+  Commit: `n/a`
+  Deferral: `Optional CI tracking only. The knob is already exercised end-to-end by the pipeline test and proven downstream-clean directly (.4, 7/7 Verilator+Yosys), so it is not a dead knob. Deferred to avoid destabilizing the rigid Phase4Hierarchy scenario asserts; reopen as an rN slice if matrix CI coverage of the array kind is wanted.`
 
 - ID: `AGGREGATE-ARRAY-PACKING.5`
-  Status: `pending`
-  Goal: `Book + USER_GUIDE + knobs + ir.md + ROADMAP sync; close tree.`
-  Acceptance: `Progressive aggregate prose with a runnable --config example (struct→array); knobs.md aggregate_array_prob; ir.md marks ArrayPacked delivered; ROADMAP scope note updated; mdbook build + book_examples clean; tree closed with empty frontier.`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `Book + knobs + ir.md sync; close tree.`
+  Acceptance: `knobs.md documents aggregate_array_prob (+ metrics-map row) and corrects the stale "struct packed only" note; ir.md aggregates subsection marks ArrayPacked delivered; ROADMAP pointer already added at tree open; mdbook build clean; book-runnable contract preserved (prose-only, no bash block touched); tree closed.`
+  Verification: `mdbook build book clean; book changes are prose-only (git diff --stat book/ = ir.md + knobs.md, no runnable bash block), so the byte-identical book-runnable contract holds and the heavy --release book_examples rebuild was intentionally not triggered (resource policy). USER_GUIDE does not document config-only aggregate knobs, so no drift there.`
+  Commit: `AGGREGATE-ARRAY-PACKING.5 - book/docs sync + close`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `AGGREGATE-ARRAY-PACKING.5` | `pending` | Sync docs/book + close the core capability. |
-| 2 | `AGGREGATE-ARRAY-PACKING.4b` | `pending` | Optional CI instrumentation (matrix scenario + coverage fact). |
-
-`.1`–`.4` done — `ArrayPacked` variant, emitter rendering,
-`aggregate_array_prob` selection, distinguishing metric, and an
-authoritative Verilator+Yosys downstream-clean proof (7/7). The
-capability is fully delivered and downstream-clean; `.5` syncs the book
-+ docs, and `.4b` is optional matrix CI instrumentation.
+Empty — the tree is `done`. `.1`–`.5` are complete; `.4b` (optional
+tool_matrix CI instrumentation) is `deferred` with a recorded rationale.
+Reopen `.4b` as an `rN` slice only if matrix CI coverage of the
+`ArrayPacked` kind is later wanted.
 
 ## Decisions
 
@@ -165,6 +160,7 @@ capability is fully delivered and downstream-clean; `.5` syncs the book
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.2` | `cargo test --lib emit::sv` (26/26); `cargo test --test snapshots` (6/6 byte-identical); `cargo test --test pipeline packed_aggregate` (2/2, StructPacked unchanged); fmt + clippy (all under `scripts/ram_guard.sh --threshold 88`) | passed (guard never tripped) |
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.3` | `cargo test --lib aggregate` (14/14); `cargo test --test pipeline aggregate` (3/3); `cargo test --test snapshots` (6/6 byte-identical); `--dump-config` shows `aggregate_array_prob`; `cargo check --all-targets` + `cargo clippy --all-targets -D warnings` + fmt clean (all under `scripts/ram_guard.sh --threshold 88`) | passed (guard never tripped) |
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.4` | metric added; `cargo test --test pipeline array_packed_aggregate_selected_with_uniform_widths` (metric asserted); corpus 35/40 array + 10 struct fallback; 7/7 isolated array designs `verilator --lint-only --top-module` + `yosys "synth -noabc; check"` clean (matrix flags); check/clippy/fmt clean (under `scripts/ram_guard.sh`) | passed (Verilator 5.046 + Yosys 0.64 both clean on every array design) |
+| `2026-06-14` | `AGGREGATE-ARRAY-PACKING.5` | `mdbook build book` clean; `git diff --stat book/` = `ir.md` + `knobs.md` prose only (no runnable bash block); USER_GUIDE has no config-only aggregate knob coverage (no drift) | passed (book in lockstep; book-runnable contract byte-identical, heavy `--release` rebuild not needed) |
 
 ## Commit Log
 
@@ -174,6 +170,7 @@ capability is fully delivered and downstream-clean; `.5` syncs the book
 | `AGGREGATE-ARRAY-PACKING.2` | `AGGREGATE-ARRAY-PACKING.2 - emit ArrayPacked` | Emitter typedef + `[i]` aliases; StructPacked byte-identical; pending hash. |
 | `AGGREGATE-ARRAY-PACKING.3` | `AGGREGATE-ARRAY-PACKING.3 - aggregate_array_prob selection` | Knob + uniform-width selection + call-site roll; default-off byte-identical; pending hash. |
 | `AGGREGATE-ARRAY-PACKING.4` | `AGGREGATE-ARRAY-PACKING.4 - array metric + downstream-clean proof` | `num_array_packed_aggregate_modules` metric + 7/7 Verilator+Yosys clean on array designs; pending hash. |
+| `AGGREGATE-ARRAY-PACKING.5` | `AGGREGATE-ARRAY-PACKING.5 - book/docs sync + close` | knobs.md + ir.md synced; tree closed; `.4b` deferred; pending hash. |
 
 ## Changelog
 
@@ -188,3 +185,7 @@ capability is fully delivered and downstream-clean; `.5` syncs the book
   downstream-clean proof on array designs). Split the permanent matrix
   scenario/coverage-fact to `.4b` (optional, out of the hard gate).
   Frontier moves to `.5` (book/docs + close).
+- `2026-06-14`: Landed `.5` (knobs.md + ir.md book sync, prose-only).
+  `.4b` marked `deferred` (optional CI instrumentation). Tree CLOSED —
+  the packed-array aggregate capability is delivered, downstream-clean,
+  and documented.

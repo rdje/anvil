@@ -476,15 +476,31 @@ sessions.
   + a single aggregate port + boundary alias wires/assigns — the
   flat IR body, validators, CSE and the dedup signature are all
   untouched (a module and its projected twin dedup-collapse). The
-  scaffold is scoped to `struct packed`, to non-instantiated
-  modules, and skips Phase 5 parameterized modules; `union`/`array`
-  packing, parent-side aggregate connections and the
+  scaffold is scoped to non-instantiated modules and skips Phase 5
+  parameterized modules; parent-side aggregate connections and the
   param/aggregate cross-product are recorded follow-on sub-slices.
   Closed against the `Phase4Hierarchy` matrix gate
   (`phase5b_packed_aggregate` scenario, downstream-clean — Verilator
   + both Yosys). See `book/src/knobs.md` `aggregate_prob`,
   `docs/tasks/PHASE-5B-AGGREGATES.md`, and the `ROADMAP.md` Phase 5b
   exit criteria.
+
+  **Packed-array variant delivered (`AGGREGATE-ARRAY-PACKING`,
+  2026-06-14).** The opt-in `aggregate_array_prob` knob (default `0.0`
+  → byte-identical) selects the `AggregateKind::ArrayPacked` projection
+  for a **uniform-width** group: `typedef logic [N-1:0][W-1:0] <name>;`
+  with positional `<port>[i]` boundary aliases, which is
+  LRM-bit-equivalent to the field concatenation. It fires only when
+  every projected group is internally same-width; a mixed-width group
+  falls back to `struct packed`. This adds a second, distinct
+  synthesizable aggregate surface (indexed packed array vs named packed
+  struct) to stress parser/elaboration paths. Generated packed-array
+  designs were proven downstream-clean with the matrix's exact
+  invocations (Verilator `--lint-only --top-module` + Yosys
+  `synth -noabc; check`). `union` packing stays deferred — a union
+  aliases distinct ports, so it is not a faithful projection. See
+  `book/src/knobs.md` `aggregate_array_prob` and
+  `docs/tasks/AGGREGATE-ARRAY-PACKING.md`.
 - **Unpacked arrays** — `logic [W-1:0] mem [0:D-1]` — are the
   **memory-inference pattern**. Stresses memory-inference
   heuristics in synthesizers (SRAM vs flops, single-port vs

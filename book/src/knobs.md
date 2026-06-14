@@ -829,9 +829,26 @@ for cross-simulator trace agreement.
   boundary alias wires/assigns). A purely emitter-surface regrouping:
   the flat IR body, validators, CSE and the dedup signature are
   untouched (a module and its projected twin dedup-collapse).
-  Default-off is byte-identical for fixed seeds. Scaffold scope:
-  `struct packed` only; skips Phase 5 parameterized modules. See
+  Default-off is byte-identical for fixed seeds. Selects `struct packed`
+  by default; see `aggregate_array_prob` for the uniform-width
+  packed-array variant. Skips Phase 5 parameterized modules. See
   `book/src/ir.md` "Synthesizable aggregates".
+- `aggregate_array_prob` (default `0.0`) — conditional on a module
+  being aggregate-projected (the `aggregate_prob` roll fired), the
+  probability that a **uniform-width** projected group is rendered as a
+  packed *array* (`typedef logic [N-1:0][W-1:0] <name>;` with
+  positional `<port>[i]` boundary aliases) instead of a packed
+  `struct`. It only takes effect when **every** projected group is
+  internally same-width; a mixed-width group falls the whole layout
+  back to `struct packed`. A packed array is LRM-bit-equivalent to the
+  field concatenation, so this is the same kind of faithful,
+  semantically-empty regrouping as the struct projection — the flat IR
+  body, validators, CSE and the dedup signature are untouched.
+  `default = 0.0` keeps every output byte-identical (always
+  `struct packed`). Delivered and proven downstream-clean: generated
+  packed-array designs pass Verilator `--lint-only` and Yosys
+  `synth -noabc; check`. See `book/src/ir.md` "Synthesizable
+  aggregates".
 - `memory_prob` (Phase 6, default `0.0`) — per-module probability
   that the free-standing single-module lane builds a rules-first
   **inferrable-memory** leaf instead of an ordinary leaf: a
@@ -946,6 +963,7 @@ which are bugs worth investigating.
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction`, `child_input_bindings_from_parent_cone_instances_through_parent_flops`, `top_child_input_bindings_from_parent_cone_instances_through_parent_flops`, `parent_cone_instance_flop_child_input_binding_fraction`, `top_parent_cone_instance_flop_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances_through_parent_flops`, `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`, `top_parent_cone_instance_flop_output_fraction`, `hierarchy_parent_cone_instance_flop_output_fraction` |
 | `width_parameterization_prob` | `num_width_parameterized_modules`, `num_param_override_instances` (per-design metrics); matrix `saw_width_parameterized_design` |
 | `aggregate_prob`              | `num_packed_aggregate_modules` (per-design metric); matrix `saw_packed_aggregate_design` |
+| `aggregate_array_prob`        | `num_array_packed_aggregate_modules` (per-design metric; subset of `num_packed_aggregate_modules`) |
 | `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design` |
 | `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design` |
 

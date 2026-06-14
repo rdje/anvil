@@ -1,6 +1,52 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-array-packing-5 — AGGREGATE-ARRAY-PACKING.5 book/docs sync + close
+
+**Landed as:** this commit
+
+**What changed**
+
+Book/live-doc sync closing the packed-array aggregate capability
+(`AGGREGATE-ARRAY-PACKING.5`); prose-only, no code:
+
+- `book/src/knobs.md`: documented `aggregate_array_prob` in the
+  config-only knobs section (uniform-width selection, struct fallback,
+  byte-identical default, downstream-clean), corrected the now-stale
+  "scaffold scope: struct packed only" note on `aggregate_prob`, and
+  added a knob-effectiveness-map row
+  (`aggregate_array_prob → num_array_packed_aggregate_modules`).
+- `book/src/ir.md`: the "Synthesizable aggregates" subsection now marks
+  `ArrayPacked` delivered (packed-array typedef + positional aliases,
+  uniform-width-only, downstream-clean), and notes `union` packing
+  stays deferred (a union aliases distinct ports → not faithful).
+
+Tree closed: `.1`–`.5` done; `.4b` (optional `tool_matrix` CI
+instrumentation) `deferred` with rationale.
+
+**Why it matters**
+
+Keeps the mdBook in lockstep with the codebase — a delivered, opt-in
+knob is now documented, so there is no roadmap/code/book drift.
+
+**Validation**
+
+`mdbook build book` clean. Book changes are prose-only (`git diff --stat
+book/` = `ir.md` + `knobs.md`, no runnable bash block), so the
+byte-identical book-runnable contract holds and the heavy `--release`
+`book_examples` rebuild was intentionally not triggered (resource
+policy). `scripts/check_memory_architecture.sh` +
+`knowledge-map/scripts/check_knowledge_map.sh` pass; `git diff --check`
+clean.
+
+**Impact**
+
+Docs/book only.
+
+**Files touched:** `book/src/knobs.md`, `book/src/ir.md`,
+`docs/tasks/AGGREGATE-ARRAY-PACKING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-array-packing-4 — AGGREGATE-ARRAY-PACKING.4 array metric + downstream-clean proof
 
 **Landed as:** this commit
