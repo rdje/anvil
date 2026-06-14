@@ -1,6 +1,51 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-4 — CONE-DECOMPOSITION.4 extract cone/primitives.rs
+
+**Landed as:** this commit
+
+**What changed**
+
+Moved the contiguous core gate-maker block out of `src/gen/cone.rs` into a
+new `src/gen/cone/primitives.rs` submodule — a pure code move,
+byte-identical. (Removing the semantic block in `.3` made
+`make_constant`..`make_nary_mul` contiguous.)
+
+- `src/gen/cone/primitives.rs` (new): `make_constant`, `make_eq_const`,
+  `build_comparison_gate`, `make_mux`, `replicate_to_width`, `make_and`,
+  `make_mul`, `make_sub`, `make_nary_add`, `make_nary_mul` (~195 lines).
+  Imports `use super::{is_comparison_op, node_deps,
+  obvious_unsigned_compare_result};` (the root/semantic symbols they call,
+  all reachable via the cone-root re-exports).
+- `src/gen/cone.rs`: declares `mod primitives; pub(crate) use
+  primitives::*;`.
+
+The non-contiguous make-helpers (`or_reduce_terms`, `make_none_selected`,
+`make_width_adapter`, `ceil_log2`, `emit_terminal_constant`) stay put for
+now; they land with their adjacent terminals/motifs blocks in `.5`/`.7`.
+
+**Why it matters**
+
+`cone.rs` shrinks to 4048 lines (from 5551); the gate constructors are now
+a focused module.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean.
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor.
+
+**Files touched**
+
+`src/gen/cone/primitives.rs` (new), `src/gen/cone.rs`,
+`docs/tasks/CONE-DECOMPOSITION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-3 — CONE-DECOMPOSITION.3 extract cone/semantic.rs
 
 **Landed as:** this commit

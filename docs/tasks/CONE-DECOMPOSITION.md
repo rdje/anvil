@@ -117,11 +117,11 @@ green without acceptance), all tests pass, no IR/knob/output change.
   Commit: `CONE-DECOMPOSITION.3 - extract cone/semantic.rs`
 
 - ID: `CONE-DECOMPOSITION.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract cone/primitives.rs (IR-building gate makers + small helpers).`
-  Acceptance: `primitives moved (incl. pub(super) make_width_adapter re-exported); cargo check/clippy/fmt clean; lib + snapshots byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `primitives moved; cargo check/clippy/fmt clean; lib + snapshots byte-identical.`
+  Verification: `done — moved the contiguous core gate makers (make_constant, make_eq_const, build_comparison_gate, make_mux, replicate_to_width, make_and/_mul/_sub/_nary_add/_nary_mul) to src/gen/cone/primitives.rs; imports use super::{is_comparison_op, node_deps, obvious_unsigned_compare_result}. lib 307/307, snapshots 6/6, clippy/fmt clean. (Mux-assembly helpers or_reduce_terms/make_none_selected, the width-adapter make_width_adapter, ceil_log2, and emit_terminal_constant are non-contiguous and land with their adjacent terminals/motifs blocks in .5/.7.) See Verification Log.`
+  Commit: `CONE-DECOMPOSITION.4 - extract cone/primitives.rs`
 
 - ID: `CONE-DECOMPOSITION.5`
   Status: `pending`
@@ -148,14 +148,14 @@ green without acceptance), all tests pass, no IR/knob/output change.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CONE-DECOMPOSITION.4` | `pending` | Primitives (IR-building gate makers). |
-| 2 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection. |
-| 3 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
-| 4 | `CONE-DECOMPOSITION.7` | `pending` | Motifs + closeout. |
+| 1 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection (incl. the stragglers `make_width_adapter`, `emit_terminal_constant`). |
+| 2 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
+| 3 | `CONE-DECOMPOSITION.7` | `pending` | Motifs (incl. `or_reduce_terms`, `make_none_selected`, `is_comparison_op`) + closeout. |
 
-`.2` (extract `cone/snapshot.rs`) and `.3` (extract `cone/semantic.rs`,
-~1360 lines) are `done` — both byte-identical (lib + snapshots); the
-mechanic is validated end-to-end (full suite green at `.2`).
+`.2` (`cone/snapshot.rs`), `.3` (`cone/semantic.rs`, ~1360 lines), and
+`.4` (`cone/primitives.rs`) are `done` — all byte-identical (lib +
+snapshots); the mechanic was validated end-to-end (full suite green at
+`.2`). `cone.rs`: 5551 → 4048 lines so far.
 
 ## Open Questions
 
@@ -175,6 +175,7 @@ mechanic is validated end-to-end (full suite green at `.2`).
 | `2026-06-14` | `CONE-DECOMPOSITION.1` | Full function inventory of `src/gen/cone.rs` (grep of all top-level `fn`/`struct`/`enum`/`impl`); external-user audit (`src/gen/module.rs`, `src/gen/hierarchy.rs`, `src/ir/compact.rs`) for the symbols that must stay path-stable. Docs-only; design recorded here + in `DEVELOPMENT_NOTES.md`. memory-architecture + knowledge-map self-checks; `git diff --check`. | passed (docs-only) |
 | `2026-06-14` | `CONE-DECOMPOSITION.2` | `cargo check --all-targets` clean; `cargo test --lib` 307/307 (incl. the snapshot/rollback test + 42 cone tests); `cargo test --test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; FULL `cargo test` under `scripts/ram_guard.sh --threshold 88` (first-extraction milestone). One fix during the move: `ConstructionSnapshot` fields bumped private→`pub(crate)` so the root-resident cone tests can still inspect them after a snapshot/rollback round-trip. | passed |
 | `2026-06-14` | `CONE-DECOMPOSITION.3` | Moved `width_mask`..`obvious_unsigned_compare_result` (~1360 lines) to `src/gen/cone/semantic.rs` via `sed` extract + `perl` visibility bump; `mod semantic; pub(crate) use semantic::*;`. Two fixups: `use super::node_deps;` (the one root symbol the proofs call) and the `std::collections::HashMap` import migrated from the cone root into the test module (the lib no longer uses it; the tests reach it via `use super::*`). `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. (Full suite deferred to closeout `.7` per protocol.) | passed |
+| `2026-06-14` | `CONE-DECOMPOSITION.4` | Moved the contiguous gate-maker block (`make_constant`..`make_nary_mul`, ~195 lines) to `src/gen/cone/primitives.rs`; `mod primitives; pub(crate) use primitives::*;`. Imports: `use super::{is_comparison_op, node_deps, obvious_unsigned_compare_result};` + `crate::ir`/`crate::gen::pool`. `cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test --test snapshots` 6/6 (SV byte-identical); clippy/fmt clean. cone.rs 5551→4048. | passed |
 
 ## Commit Log
 
@@ -182,10 +183,12 @@ mechanic is validated end-to-end (full suite green at `.2`).
 | --- | --- | --- |
 | `CONE-DECOMPOSITION.1` | `CONE-DECOMPOSITION.1 - decomposition design` | Tree genesis + design. Hash `31571a5`. |
 | `CONE-DECOMPOSITION.2` | `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs` | Rollback machinery → `src/gen/cone/snapshot.rs`. Hash `362756d`. |
-| `CONE-DECOMPOSITION.3` | `CONE-DECOMPOSITION.3 - extract cone/semantic.rs` | ~1360-line proof machinery → `src/gen/cone/semantic.rs`. Pending hash. |
+| `CONE-DECOMPOSITION.3` | `CONE-DECOMPOSITION.3 - extract cone/semantic.rs` | ~1360-line proof machinery → `src/gen/cone/semantic.rs`. Hash `915850f`. |
+| `CONE-DECOMPOSITION.4` | `CONE-DECOMPOSITION.4 - extract cone/primitives.rs` | Core gate makers → `src/gen/cone/primitives.rs`. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (decomposition design, docs-only). Frontier `.2` (extract `cone/snapshot.rs`).
 - `2026-06-14`: Landed `.2` (extract `cone/snapshot.rs`, byte-identical; mechanic validated by full suite). Frontier `.3` (extract `cone/semantic.rs`).
 - `2026-06-14`: Landed `.3` (extract `cone/semantic.rs`, ~1360 lines, byte-identical via lib+snapshots). Frontier `.4` (extract `cone/primitives.rs`).
+- `2026-06-14`: Landed `.4` (extract `cone/primitives.rs`, core gate makers, byte-identical). Frontier `.5` (extract `cone/terminals.rs`).
