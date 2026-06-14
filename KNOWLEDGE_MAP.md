@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **17** facts · **72** question keys.
+> **18** facts · **79** question keys.
 
 ## Questions → fact
 
@@ -16,6 +16,7 @@
 - "can ANVIL generate N-flop CDC synchronizers" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "can ANVIL merge duplicate FSM blocks" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
 - "can ANVIL merge semantically equivalent modules" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
+- "can an AI agent drive ANVIL to find downstream tool bugs" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "can equivalent flops merge across clock domains" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "can hierarchy_module_dedup merge structurally different modules" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
 - "can same-shape cones over different inputs merge" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
@@ -39,11 +40,14 @@
 - "how many endpoint bits can semantic gate merge prove" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "how should project file paths be written in live docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "is SIGNOFF-SURFACE-EXPANSION closed" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
+- "is the ANVIL MCP server inside the generator core" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "repo-root-relative paths in ANVIL docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "should ANVIL docs use absolute paths" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
+- "should ANVIL expose an MCP server for AI agents" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "should I run the full cargo test suite for Knowledge Map docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "should I run the full cargo test suite for memory architecture docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "what RAM threshold stops a full suite" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
+- "what RTL-simulator MCP advice applies to ANVIL" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "what does --iverilog-compile do" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
 - "what does cdc_synchronizer_stages do" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
@@ -54,7 +58,9 @@
 - "what happens after module dedup rewrites instances" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "what happens to flop_domains when flops are merged or compacted" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "what happens to helper endpoints that cancel out" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
+- "what is ANVIL's agent / MCP interface architecture" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "what is ANVIL's task-tree doctrine" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "what is the ANVIL introspection API" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "what is the commit workflow" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
 - "what is the current post-phase frontier" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "what is the egraph truth table budget" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
@@ -77,10 +83,19 @@
 - "why does semantic module dedup require matching port ids" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "why does the semantic proof stop at 12 bits" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "why doesn't ANVIL merge duplicate memories" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
+- "why doesn't ANVIL need a stateful simulator-style session API" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "why don't identical truth-table shapes always share NodeIds" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 - "why not reset memories to make them mergeable" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 
 ## Facts (by id)
+
+### agent-introspection-mcp-lane
+_ANVIL exposes agent control + deep introspection as a default-off MCP adapter beside the generator core_
+
+- **answers:** should ANVIL expose an MCP server for AI agents | what is ANVIL's agent / MCP interface architecture | is the ANVIL MCP server inside the generator core | why doesn't ANVIL need a stateful simulator-style session API | can an AI agent drive ANVIL to find downstream tool bugs | what RTL-simulator MCP advice applies to ANVIL | what is the ANVIL introspection API
+- **date:** 2026-06-14 · **status:** current
+- **evidence:** `docs/decisions/0004-agent-introspection-mcp-lane.md; docs/tasks/AGENT-INTROSPECTION-MCP.md; DEVELOPMENT_NOTES.md`
+- **source:** [`docs/decisions/0004-agent-introspection-mcp-lane.md`](docs/decisions/0004-agent-introspection-mcp-lane.md)
 
 ### bounded-semantic-module-identity
 _Bounded pure-combinational module semantic identity can merge_

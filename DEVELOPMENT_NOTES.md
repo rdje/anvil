@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Agent introspection + MCP lane design — `AGENT-INTROSPECTION-MCP.1`
+
+Owner-directed new capability lane: make ANVIL agent-drivable (an LLM can
+generate, introspect, validate, and triage via MCP). Full architecture and
+the transferred-vs-dropped analysis of the RTL-simulator MCP reference
+advice live in `docs/decisions/0004-agent-introspection-mcp-lane.md`; the
+tree is `docs/tasks/AGENT-INTROSPECTION-MCP.md`. The load-bearing points:
+
+**Decision — MCP beside the core, never in the kernel.** The deterministic
+generator stays untouched; MCP is a thin read-mostly adapter over the
+existing library API (`Generator`/`Config`/`metrics`/`manifest`). Separate
+default-off target ⇒ the default `anvil` build and the `--artifact dut`
+byte-identical contract are unaffected. "Machine-controllable first,
+MCP-exposed second."
+
+**Decision — the introspection schema is *derived*, not a second source of
+truth.** It is assembled from the existing `metrics`/`DesignMetrics`,
+expected-facts manifests, and config echo — same anti-drift principle as
+the Knowledge Map. ANVIL *is* the oracle, so this is construction-truth
+(DepSet, motif/rule provenance, coverage facts), not inference from parsed
+SV.
+
+**Decision — determinism collapses the "service session" into a
+content-addressed cache.** Unlike a stateful RTL simulator, ANVIL artifacts
+are pure functions of `(seed, knobs, lane, version)`. A simple in-process
+stdio MCP server with a `(seed,knobs,lane,version)`-keyed cache suffices;
+no gRPC/service layer is needed for correctness or performance.
+
+**Rejected (simulator-specific, deliberately not copied).**
+- *Stateful session API* (`run_until`/`force_signal`/waveform DB/
+  signal-over-time/`explain_x`/sensitivity trees/stepping) — ANVIL has no
+  temporal session; this would invent state it does not have.
+- *MCP in the kernel* — couples the deterministic core to integration.
+- *LLM as signoff oracle / any output-mutating API path* — violates
+  rules-first / valid-by-construction; the agent drives experiments and
+  explains, ANVIL stays the source of truth.
+- *Raw-shell tool* — only fixed, vetted invocations; the `validate` tool
+  reuses the hardened `tool_matrix` invocations, sandboxed + ram-guarded,
+  with deterministic run ids + audit log.
+
+**Phasing.** `.1` design (this) → `.2` schema spec (docs) → `.3` emission
+surface (code) → `.4` read-only MCP server → `.5` controlled
+validate/minimize → `.6` prompts → `.7` book/closeout. Design-first: no
+code until `.1`/`.2` are accepted.
+
+---
+
 ## 2026-06-14 — Internal RAM/RSS self-governor — `WORKLOAD-MEMORY-SAFETY.4`
 
 Landed `.4`, the process-level backstop the `.1` design recorded: an

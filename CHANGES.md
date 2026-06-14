@@ -1,6 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.1 — agent/MCP lane design + decision record 0004 (docs-only)
+
+**Landed as:** this commit (previous: `5cd6f56`).
+
+**What changed (docs-only, no code)**
+
+Opened an owner-directed new capability lane: make ANVIL agent-drivable so
+an AI agent can generate, introspect, validate, and triage via MCP (Model
+Context Protocol). This is the `.1` design leaf — design + decision record
+only; no code (implementation leaves `.3`+ are gated on owner acceptance of
+the `.1`/`.2` design).
+
+- `docs/decisions/0004-agent-introspection-mcp-lane.md` (new, KM fact):
+  the architecture (MCP as a thin read-mostly adapter **beside** the
+  deterministic core; Resources/Tools/Prompts taxonomy mapped to ANVIL;
+  the introspection schema **derived** from existing
+  metrics/manifest/config, never a second source of truth), the
+  ANVIL-specific simplifications (determinism collapses the "service
+  session" into a content-addressed cache; ANVIL-is-the-oracle ⇒
+  construction-truth introspection), the **explicitly dropped**
+  simulator-specific pieces (no stateful session API, no MCP-in-kernel, no
+  AI-as-oracle, no raw-shell tool), the security model, and the phasing.
+  Distilled from the owner's RTL-simulator MCP reference discussion —
+  transferred where it applies, rejected where simulator-specific.
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md` (new): the task tree, `status
+  active`, `.1 done`, frontier advanced to `.2` (schema spec, docs).
+- `docs/TASK_TREE.md`: new `AGENT-INTROSPECTION-MCP` row (`active`).
+- `docs/decisions/INDEX.md`: 0004 row added.
+- `DEVELOPMENT_NOTES.md`: design note mirroring 0004's load-bearing points
+  and rejected alternatives.
+- `KNOWLEDGE_MAP.md`: regenerated (now 18 facts) to index 0004.
+
+**ROADMAP status.** No numbered-phase label changed (all 9 remain `done`).
+This is a new post-phase capability tree tracked via `docs/TASK_TREE.md`,
+not a numbered roadmap phase.
+
+**Validation.** Docs-only ⇒ no `cargo` build/test (no code/book touched;
+build green at HEAD `5cd6f56`). memory-architecture + knowledge-map
+pre-commit self-checks; `git diff --check`. Resource policy:
+`docs/decisions/0003-resource-safe-validation.md`.
+
+**Impact.** Planning/decision-record only. No behaviour, RTL, CLI, or
+reproducibility change. Opens design work; no implementation yet.
+
+**Files touched:** `docs/decisions/0004-agent-introspection-mcp-lane.md`
+(new), `docs/tasks/AGENT-INTROSPECTION-MCP.md` (new), `docs/TASK_TREE.md`,
+`docs/decisions/INDEX.md`, `DEVELOPMENT_NOTES.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14 — LIVE-DOC-CODEBASE-ALIGNMENT.1 — codebase-analysis snapshot sync (docs-only)
 
 **Landed as:** this commit (previous: `00e1317`).
