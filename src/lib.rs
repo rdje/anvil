@@ -16,6 +16,15 @@ pub mod config;
 /// + `differential_simulation_sequential`). The upcoming `.3b.2`
 /// adds a `tool_matrix --diff-sim` opt-in column.
 pub mod diff_sim;
+/// Hardened downstream-tool invocation surface
+/// (`AGENT-INTROSPECTION-MCP.5.1`). The single source of truth for the
+/// `verilator --lint-only` / `yosys synth` / `iverilog -g2012` acceptance
+/// command lines (plus warning-as-failure detection) that `tool_matrix` has
+/// used since Phase 1. Extracted from the binary so the controlled `validate`
+/// / `minimize` MCP tools (`.5.2` / `.5.3`, decision `0004`) can reuse the
+/// *existing hardened invocations* instead of forking a second, drift-prone
+/// set — the same full-factorization move that put [`diff_sim`] in the lib.
+pub mod downstream;
 pub mod emit;
 /// Phase 8 frontend / elaboration accept-corpus lane
 /// (`PHASE-8-FRONTEND-ACCEPT`). A **separate generator path** from

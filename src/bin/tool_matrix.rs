@@ -1,6 +1,14 @@
 use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
 };
+// AGENT-INTROSPECTION-MCP.5.1 — the hardened downstream-tool invocations now
+// live in the library (`anvil::downstream`) so the agent `validate`/`minimize`
+// tools reuse the same vetted command lines. This binary `use`s them instead
+// of defining them; the serialized `ToolInvocation` shape is unchanged.
+use anvil::downstream::{
+    run_iverilog_compile, run_iverilog_compile_design, run_verilator, run_verilator_design,
+    run_yosys, run_yosys_design, yosys_mode_slug, ToolInvocation, YosysMode,
+};
 use anvil::metrics::{DesignMetrics, Metrics};
 use anvil::{Config, Design, Generator, GeneratorCheckpoint};
 use anyhow::{bail, Context, Result};
@@ -10,7 +18,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
@@ -117,29 +124,11 @@ struct Cli {
     diff_sim: bool,
 }
 
-#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-enum YosysMode {
-    WithoutAbc,
-    WithAbc,
-    Both,
-}
-
 #[derive(Debug, Clone, Serialize)]
 struct Scenario {
     name: String,
     description: String,
     config: Config,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct ToolInvocation {
-    tool: String,
-    argv: Vec<String>,
-    success: bool,
-    exit_code: Option<i32>,
-    stdout_log: Option<String>,
-    stderr_log: Option<String>,
-    error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4839,284 +4828,6 @@ fn validate_design_files_against_prepared(prepared: &PreparedDesign) -> Result<(
     Ok(())
 }
 
-fn run_verilator(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
-    run_tool(
-        "verilator",
-        bin,
-        vec!["--lint-only".to_string(), sv_path.display().to_string()],
-        out_dir,
-        stem,
-    )
-}
-
-fn run_verilator_design(
-    bin: &str,
-    out_dir: &Path,
-    sv_paths: &[PathBuf],
-    top: &str,
-) -> Result<ToolInvocation> {
-    let mut argv = vec![
-        "--lint-only".to_string(),
-        "--top-module".to_string(),
-        top.to_string(),
-    ];
-    argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
-    run_tool("verilator", bin, argv, out_dir, top)
-}
-
-fn run_iverilog_compile(
-    bin: &str,
-    out_dir: &Path,
-    sv_path: &Path,
-    stem: &str,
-) -> Result<ToolInvocation> {
-    let (argv, output) = iverilog_module_argv(out_dir, sv_path, stem);
-    let invocation = run_tool("iverilog-compile", bin, argv, out_dir, stem)?;
-    if invocation.success {
-        let _ = std::fs::remove_file(output);
-    }
-    Ok(invocation)
-}
-
-fn run_iverilog_compile_design(
-    bin: &str,
-    out_dir: &Path,
-    sv_paths: &[PathBuf],
-    top: &str,
-) -> Result<ToolInvocation> {
-    let (argv, output) = iverilog_design_argv(out_dir, sv_paths, top);
-    let invocation = run_tool("iverilog-compile", bin, argv, out_dir, top)?;
-    if invocation.success {
-        let _ = std::fs::remove_file(output);
-    }
-    Ok(invocation)
-}
-
-fn iverilog_module_argv(out_dir: &Path, sv_path: &Path, stem: &str) -> (Vec<String>, PathBuf) {
-    let output = out_dir.join(format!("{stem}.iverilog.vvp"));
-    (
-        vec![
-            "-g2012".to_string(),
-            "-o".to_string(),
-            output.display().to_string(),
-            sv_path.display().to_string(),
-        ],
-        output,
-    )
-}
-
-fn iverilog_design_argv(out_dir: &Path, sv_paths: &[PathBuf], top: &str) -> (Vec<String>, PathBuf) {
-    let output = out_dir.join(format!("{top}.iverilog.vvp"));
-    let mut argv = vec![
-        "-g2012".to_string(),
-        "-s".to_string(),
-        top.to_string(),
-        "-o".to_string(),
-        output.display().to_string(),
-    ];
-    argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
-    (argv, output)
-}
-
-fn run_yosys(
-    mode: YosysMode,
-    bin: &str,
-    out_dir: &Path,
-    sv_path: &Path,
-    stem: &str,
-) -> Result<Vec<ToolInvocation>> {
-    let mut invocations = Vec::new();
-    for (tool_label, script) in yosys_invocations(mode, sv_path) {
-        invocations.push(run_tool(
-            tool_label,
-            bin,
-            vec!["-p".to_string(), script],
-            out_dir,
-            stem,
-        )?);
-    }
-    Ok(invocations)
-}
-
-fn run_yosys_design(
-    mode: YosysMode,
-    bin: &str,
-    out_dir: &Path,
-    sv_paths: &[PathBuf],
-    top: &str,
-) -> Result<Vec<ToolInvocation>> {
-    let mut invocations = Vec::new();
-    for (tool_label, script) in yosys_design_invocations(mode, sv_paths, top) {
-        invocations.push(run_tool(
-            tool_label,
-            bin,
-            vec!["-p".to_string(), script],
-            out_dir,
-            top,
-        )?);
-    }
-    Ok(invocations)
-}
-
-fn yosys_invocations(mode: YosysMode, sv_path: &Path) -> Vec<(&'static str, String)> {
-    let escaped = escape_for_double_quotes(sv_path);
-    match mode {
-        YosysMode::WithoutAbc => vec![(
-            "yosys-without-abc",
-            format!("read_verilog -sv \"{escaped}\"; synth -noabc; stat"),
-        )],
-        YosysMode::WithAbc => vec![(
-            "yosys-with-abc",
-            format!(
-                "read_verilog -sv \"{escaped}\"; synth -noabc; abc -fast; opt -fast; stat; check"
-            ),
-        )],
-        YosysMode::Both => vec![
-            (
-                "yosys-without-abc",
-                format!("read_verilog -sv \"{escaped}\"; synth -noabc; stat"),
-            ),
-            (
-                "yosys-with-abc",
-                format!(
-                    "read_verilog -sv \"{escaped}\"; synth -noabc; abc -fast; opt -fast; stat; check"
-                ),
-            ),
-        ],
-    }
-}
-
-fn yosys_design_invocations(
-    mode: YosysMode,
-    sv_paths: &[PathBuf],
-    top: &str,
-) -> Vec<(&'static str, String)> {
-    let escaped_files = escape_paths_for_double_quotes(sv_paths);
-    match mode {
-        YosysMode::WithoutAbc => vec![(
-            "yosys-without-abc",
-            format!(
-                "read_verilog -sv {escaped_files}; synth -top {top} -noabc; stat; check"
-            ),
-        )],
-        YosysMode::WithAbc => vec![(
-            "yosys-with-abc",
-            format!(
-                "read_verilog -sv {escaped_files}; synth -top {top} -noabc; abc -fast; opt -fast; stat; check"
-            ),
-        )],
-        YosysMode::Both => vec![
-            (
-                "yosys-without-abc",
-                format!(
-                    "read_verilog -sv {escaped_files}; synth -top {top} -noabc; stat; check"
-                ),
-            ),
-            (
-                "yosys-with-abc",
-                format!(
-                    "read_verilog -sv {escaped_files}; synth -top {top} -noabc; abc -fast; opt -fast; stat; check"
-                ),
-            ),
-        ],
-    }
-}
-
-fn run_tool(
-    tool_name: &str,
-    binary: &str,
-    argv: Vec<String>,
-    out_dir: &Path,
-    stem: &str,
-) -> Result<ToolInvocation> {
-    let output = Command::new(binary).args(&argv).output();
-    match output {
-        Ok(output) => {
-            let warning = first_tool_warning(
-                tool_name,
-                String::from_utf8_lossy(&output.stdout).as_ref(),
-                String::from_utf8_lossy(&output.stderr).as_ref(),
-            );
-            let success = output.status.success() && warning.is_none();
-            let stdout_log = write_tool_log_if_needed(
-                out_dir,
-                stem,
-                tool_name,
-                "stdout",
-                &output.stdout,
-                !success,
-            )?;
-            let stderr_log = write_tool_log_if_needed(
-                out_dir,
-                stem,
-                tool_name,
-                "stderr",
-                &output.stderr,
-                !success,
-            )?;
-            Ok(ToolInvocation {
-                tool: tool_name.to_string(),
-                argv: std::iter::once(binary.to_string()).chain(argv).collect(),
-                success,
-                exit_code: output.status.code(),
-                stdout_log,
-                stderr_log,
-                error: warning,
-            })
-        }
-        Err(err) => Ok(ToolInvocation {
-            tool: tool_name.to_string(),
-            argv: std::iter::once(binary.to_string()).chain(argv).collect(),
-            success: false,
-            exit_code: None,
-            stdout_log: None,
-            stderr_log: None,
-            error: Some(err.to_string()),
-        }),
-    }
-}
-
-fn first_tool_warning(tool_name: &str, stdout: &str, stderr: &str) -> Option<String> {
-    match tool_name {
-        "verilator" => stdout
-            .lines()
-            .chain(stderr.lines())
-            .map(str::trim_start)
-            .find(|line| line.starts_with("%Warning-"))
-            .map(ToOwned::to_owned),
-        tool_name if tool_name.starts_with("yosys") => stdout
-            .lines()
-            .chain(stderr.lines())
-            .map(str::trim_start)
-            .find(|line| line.starts_with("Warning:") || line.contains(": Warning:"))
-            .map(ToOwned::to_owned),
-        "iverilog-compile" => stdout
-            .lines()
-            .chain(stderr.lines())
-            .map(str::trim_start)
-            .find(|line| line.to_ascii_lowercase().contains("warning:"))
-            .map(ToOwned::to_owned),
-        _ => None,
-    }
-}
-
-fn write_tool_log_if_needed(
-    out_dir: &Path,
-    stem: &str,
-    tool_name: &str,
-    stream: &str,
-    bytes: &[u8],
-    always_write_on_failure: bool,
-) -> Result<Option<String>> {
-    if bytes.is_empty() && !always_write_on_failure {
-        return Ok(None);
-    }
-    let file_name = format!("{stem}.{tool_name}.{stream}.log");
-    let path = out_dir.join(&file_name);
-    std::fs::write(&path, bytes).with_context(|| format!("write {}", path.display()))?;
-    Ok(Some(file_name))
-}
-
 fn aggregate_metrics(modules: &[ModuleReport]) -> AggregateMetrics {
     let mut aggregate = AggregateMetrics::default();
     for module in modules {
@@ -7898,14 +7609,6 @@ fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
     }
 }
 
-fn yosys_mode_slug(mode: YosysMode) -> &'static str {
-    match mode {
-        YosysMode::WithoutAbc => "without-abc",
-        YosysMode::WithAbc => "with-abc",
-        YosysMode::Both => "both",
-    }
-}
-
 impl ToolSummary {
     fn yosys_failed(&self) -> usize {
         self.yosys_without_abc_failed + self.yosys_with_abc_failed
@@ -7918,21 +7621,6 @@ impl ToolSummary {
     fn any_failed(&self) -> bool {
         self.verilator_failed > 0 || self.yosys_failed() > 0 || self.iverilog_failed() > 0
     }
-}
-
-fn escape_for_double_quotes(path: &Path) -> String {
-    path.display()
-        .to_string()
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-}
-
-fn escape_paths_for_double_quotes(paths: &[PathBuf]) -> String {
-    paths
-        .iter()
-        .map(|path| format!("\"{}\"", escape_for_double_quotes(path)))
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 #[cfg(test)]
@@ -9001,48 +8689,6 @@ mod tests {
     }
 
     #[test]
-    fn yosys_mode_expands_to_expected_invocations() {
-        let path = Path::new("/tmp/example.sv");
-
-        let without = yosys_invocations(YosysMode::WithoutAbc, path);
-        assert_eq!(without.len(), 1);
-        assert_eq!(without[0].0, "yosys-without-abc");
-        assert!(without[0].1.contains("synth -noabc; stat"));
-
-        let with = yosys_invocations(YosysMode::WithAbc, path);
-        assert_eq!(with.len(), 1);
-        assert_eq!(with[0].0, "yosys-with-abc");
-        assert!(with[0]
-            .1
-            .contains("synth -noabc; abc -fast; opt -fast; stat; check"));
-        assert!(with[0].1.contains("abc -fast"));
-
-        let both = yosys_invocations(YosysMode::Both, path);
-        assert_eq!(both.len(), 2);
-        assert_eq!(both[0].0, "yosys-without-abc");
-        assert_eq!(both[1].0, "yosys-with-abc");
-    }
-
-    #[test]
-    fn hierarchy_yosys_mode_expands_to_expected_invocations() {
-        let paths = vec![PathBuf::from("/tmp/a.sv"), PathBuf::from("/tmp/b.sv")];
-
-        let without = yosys_design_invocations(YosysMode::WithoutAbc, &paths, "top_mod");
-        assert_eq!(without.len(), 1);
-        assert!(without[0].1.contains("read_verilog -sv"));
-        assert!(without[0].1.contains("\"/tmp/a.sv\" \"/tmp/b.sv\""));
-        assert!(without[0]
-            .1
-            .contains("synth -top top_mod -noabc; stat; check"));
-
-        let with = yosys_design_invocations(YosysMode::WithAbc, &paths, "top_mod");
-        assert_eq!(with.len(), 1);
-        assert!(with[0]
-            .1
-            .contains("synth -top top_mod -noabc; abc -fast; opt -fast; stat; check"));
-    }
-
-    #[test]
     fn iverilog_compile_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
 
@@ -9061,62 +8707,6 @@ mod tests {
         .expect("parse");
         assert!(with_flag.iverilog_compile);
         assert_eq!(with_flag.iverilog_bin, "/opt/homebrew/bin/iverilog");
-    }
-
-    #[test]
-    fn iverilog_compile_invocations_use_sv2012_and_design_top() {
-        let out_dir = PathBuf::from("/tmp/anvil-iverilog-argv");
-        let sv_path = PathBuf::from("/tmp/anvil-iverilog-argv/mod.sv");
-
-        let (module_argv, module_output) = iverilog_module_argv(&out_dir, &sv_path, "mod");
-        assert_eq!(
-            module_argv,
-            vec![
-                "-g2012",
-                "-o",
-                "/tmp/anvil-iverilog-argv/mod.iverilog.vvp",
-                "/tmp/anvil-iverilog-argv/mod.sv"
-            ]
-        );
-        assert_eq!(
-            module_output,
-            PathBuf::from("/tmp/anvil-iverilog-argv/mod.iverilog.vvp")
-        );
-
-        let paths = vec![
-            PathBuf::from("/tmp/anvil-iverilog-argv/leaf.sv"),
-            PathBuf::from("/tmp/anvil-iverilog-argv/top.sv"),
-        ];
-        let (design_argv, design_output) = iverilog_design_argv(&out_dir, &paths, "top_mod");
-        assert_eq!(
-            design_argv,
-            vec![
-                "-g2012",
-                "-s",
-                "top_mod",
-                "-o",
-                "/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp",
-                "/tmp/anvil-iverilog-argv/leaf.sv",
-                "/tmp/anvil-iverilog-argv/top.sv"
-            ]
-        );
-        assert_eq!(
-            design_output,
-            PathBuf::from("/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp")
-        );
-    }
-
-    #[test]
-    fn iverilog_compile_warning_detection_is_case_insensitive() {
-        assert_eq!(
-            first_tool_warning("iverilog-compile", "", "/tmp/m.sv:2: warning: example").as_deref(),
-            Some("/tmp/m.sv:2: warning: example")
-        );
-        assert_eq!(
-            first_tool_warning("iverilog-compile", "WARNING: noisy stdout", "").as_deref(),
-            Some("WARNING: noisy stdout")
-        );
-        assert!(first_tool_warning("iverilog-compile", "clean", "clean").is_none());
     }
 
     #[test]

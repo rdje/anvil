@@ -281,6 +281,24 @@ src/
 │                     verilator and byte-compares them, proving emitted SV
 │                     is *semantically equivalent* across two independent
 │                     simulators, not merely accepted.
+├── downstream/      Hardened downstream-tool invocation surface
+│   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
+│                     truth for the acceptance-tool command lines:
+│                     `run_verilator(_design)` (`--lint-only`),
+│                     `run_yosys(_design)` + `yosys_invocations(_design)`
+│                     (`synth` scripts, `YosysMode` without/with-abc/both),
+│                     `run_iverilog_compile(_design)` + the `*_argv` builders
+│                     (`-g2012`), the spawn core `run_tool` +
+│                     `first_tool_warning` (warning-as-failure), the
+│                     `ToolInvocation` report row, `yosys_mode_slug`, and the
+│                     double-quote escapers. Extracted verbatim from
+│                     `bin/tool_matrix.rs` (which now `use`s them) so the
+│                     `.5.2`/`.5.3` agent `validate`/`minimize` tools reuse the
+│                     existing hardened invocations instead of forking a second
+│                     source of truth (the `diff_sim` full-factorization
+│                     pattern). Behavior-preserving: serialized
+│                     `ToolInvocation` shape unchanged ⇒ banked matrix reports +
+│                     `--resume` checkpoints stay valid.
 ├── introspect/      Agent-introspection emission surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
 │                     introspection document specified in
@@ -320,7 +338,11 @@ src/
 │   │                from stdin, writes one response line per request, flushes
 │   │                per message. All logic lives in `mcp`; this is transport.
 │   └── tool_matrix.rs
-│                     Repo-owned downstream-tool matrix harness.
+│                     Repo-owned downstream-tool matrix harness. Its
+│                     Verilator/Yosys/iverilog invocation primitives now live
+│                     in `anvil::downstream` (`AGENT-INTROSPECTION-MCP.5.1`);
+│                     the binary `use`s them and keeps the scenario/coverage/
+│                     resume/report orchestration.
 │                     Builds a curated scenario set over
 │                     construction strategy, identity mode,
 │                     factorization level, and two stress profiles;

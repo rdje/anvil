@@ -1,9 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.5.1 — shared downstream-tool invocation surface
+
+**Landed as:** this commit (previous: `5db5ebc`).
+
+**What changed (code)**
+
+`.5` (controlled `validate` + `minimize` tools) was split into `.5.1`
+(this slice), `.5.2` (validate), and `.5.3` (minimize) per the
+`docs/TASK_TREE.md` splitting rules. `.5.1` is a pure, behavior-preserving
+refactor that gives the upcoming `validate`/`minimize` tools a single source of
+truth for the hardened downstream-tool invocations.
+
+- New library module `src/downstream/mod.rs` (`pub mod downstream` in
+  `src/lib.rs`) now **owns** the acceptance-tool invocation surface that had
+  lived inside the `tool_matrix` binary since Phase 1:
+  - the per-tool runners `run_verilator` / `run_verilator_design`,
+    `run_iverilog_compile` / `run_iverilog_compile_design`, `run_yosys` /
+    `run_yosys_design`;
+  - the argv / script builders `iverilog_module_argv`, `iverilog_design_argv`,
+    `yosys_invocations`, `yosys_design_invocations`, and the double-quote
+    escapers `escape_for_double_quotes` / `escape_paths_for_double_quotes`;
+  - the spawn core `run_tool` (capture + warning-as-failure + `.log` sidecars)
+    and `first_tool_warning` (per-tool warning detection);
+  - the `ToolInvocation` report row, the `YosysMode` enum, and `yosys_mode_slug`.
+- `src/bin/tool_matrix.rs` now imports these via
+  `use anvil::downstream::{…}` instead of defining them; its `--yosys-mode`
+  clap arg parses against the library-owned `YosysMode` (still
+  `clap::ValueEnum`). The `use std::process::Command;` import was dropped (no
+  longer used in the binary). ~418 lines net removed from the binary.
+- The four invocation-surface unit tests moved with the code into
+  `src/downstream/mod.rs`; three additional focused tests were added
+  (`yosys_mode_slug` round-trip, Verilator/Yosys warning detection, path
+  escaping) for 7 module tests total.
+
+**Why**
+
+Decision `0004` requires the agent lane's `validate`/`minimize` tools to run
+external tools **only via the existing hardened tool_matrix invocations** —
+never a second, drift-prone set. The library cannot import from a binary, so
+those invocations had to move into the library first. This is the same
+full-factorization move (`feedback_full_factorization.md`) that
+`DIFFERENTIAL-SIMULATION.3a` used to put `src/diff_sim/` in the library.
+Landing the extraction as its own leaf keeps `.5.2`/`.5.3` reviewable and the
+refactor independently verifiable.
+
+**Validation**
+
+- `cargo fmt --all --check` clean.
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D
+  warnings` clean.
+- `cargo test --lib downstream::` 7/7.
+- `cargo test --bin tool_matrix` 41 passed, 1 ignored (tool-gated).
+- `cargo test --test snapshots` 6/6 **byte-identical** — the DUT
+  byte-identical contract and the matrix report / `--resume` checkpoint wire
+  shapes are preserved (the serialized `ToolInvocation` JSON is unchanged).
+
+**Impact**
+
+Internal only. No CLI surface change, no user-visible behavior change, no
+change to generated RTL or to the `tool_matrix` report format. The
+`validate`/`minimize` agent tools do not exist yet (`.5.2`/`.5.3`); user-facing
+docs remain deferred to `.7` by design.
+
+**Files touched**
+
+`src/downstream/mod.rs` (new), `src/lib.rs`, `src/bin/tool_matrix.rs`,
+`docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.4 — read-only MCP server
 
-**Landed as:** this commit (previous: `aec51e2`).
+**Landed as:** `5db5ebc` (previous: `aec51e2`).
 
 **What changed (code)**
 

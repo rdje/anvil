@@ -5,6 +5,68 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Shared downstream-tool invocation surface — `AGENT-INTROSPECTION-MCP.5.1`
+
+`.5` (controlled `validate` + `minimize`) was split into `.5.1`/`.5.2`/`.5.3`.
+`.5.1` lands the lower-level dependency the other two rest on. Notes worth
+keeping:
+
+**Decision — extract the invocations into the library; do not duplicate, do
+not shell `tool_matrix`.** Decision `0004` says `validate` must run external
+tools "only through the existing hardened `tool_matrix` invocations." Three
+options were on the table:
+
+1. *Duplicate* the `verilator --lint-only` / `yosys synth` / `iverilog -g2012`
+   command lines (and the warning-as-failure logic) inside the MCP layer.
+   **Rejected** — that is exactly the "second source of truth that can drift"
+   the project's full-factorization doctrine (`feedback_full_factorization.md`)
+   and `0004` forbid; the two copies would diverge the first time one tool's
+   flags change.
+2. Have the MCP `validate` tool *shell the `tool_matrix` binary* and parse its
+   JSON report. **Rejected for `validate`** — `tool_matrix` is a scenario-sweep
+   harness that builds its corpus from built-in scenarios; it has no
+   "validate this one `(seed, knobs)` artifact" mode, so reusing it would
+   itself require a new binary mode, and shelling a sibling binary is a heavier,
+   less testable dependency than a library call.
+3. *Move* the invocation primitives into the library so both the binary and the
+   agent tools call one implementation. **Chosen** — this is the same move
+   `DIFFERENTIAL-SIMULATION.3a` made for `src/diff_sim/` ("the helpers live in
+   the library so the binary can `use anvil::diff_sim::{…}` — the
+   full-factorization-doctrine choice over duplicating them in the binary").
+
+So `src/downstream/mod.rs` now owns `ToolInvocation`, `run_tool`,
+`first_tool_warning`, the per-tool runners + argv/script builders, the
+double-quote escapers, `YosysMode`, and `yosys_mode_slug`; `tool_matrix`
+`use`s them.
+
+**Why it is safe (behavior-preserving).** The move changes *where* the code
+lives, not *what it does*. `ToolInvocation` keeps the identical
+`#[derive(Serialize, Deserialize)]` field set, so `tool_matrix_report.json`
+and the `--resume` checkpoint wire shapes are byte-for-byte unchanged and the
+banked Phase-1..9 reports stay valid. `YosysMode` keeps `clap::ValueEnum`
+(`clap` is already a library dependency), so `--yosys-mode` parses unchanged.
+The matrix's own tool tests (`summarize_tools_counts_yosys_modes_separately`,
+the resume tests, …) pass unchanged, and `tests/snapshots.rs` stays 6/6
+byte-identical (the DUT contract). `anyhow` is a library dependency, so the
+`Result<…>` signatures moved verbatim — no error-type translation.
+
+**Gotcha — `use std::process::Command;` became dead in the binary.** `run_tool`
+was the binary's only `Command::new` caller (the diff-sim simulator runners
+already live in `src/diff_sim/`), so after the move the import is unused and
+`clippy -D warnings` would reject it. Dropped it in the same edit.
+
+**Forward plan this sets up (`.5.2`/`.5.3`).** `validate(seed, knobs, tools)`
+(`.5.2`) will: regenerate the artifact deterministically into a *sandboxed*
+temp dir under a project-root/tmp scope (never an agent-supplied path — no
+arbitrary FS write), call the `downstream::run_*` functions there, wrap the
+run in the `mem_guard` envelope (and document the external `scripts/ram_guard.sh`
+guard), return the structured `ToolInvocation` rows + an overall verdict, and
+append an audit-log line recording the reproducible `(seed, knobs)` + the exact
+argv of every spawned tool. There is **no arbitrary-shell tool** — only the
+fixed, vetted `downstream` invocations. `minimize` (`.5.3`) will delta-debug
+`(seed, knobs)` toward a smaller failing reproducer using `.5.2`'s `validate`
+as a pure failure oracle, bounded and deterministic.
+
 ## 2026-06-14 — Read-only MCP server — `AGENT-INTROSPECTION-MCP.4`
 
 `.4` lands the MCP bridge: `src/mcp/mod.rs` (pure dispatch + cache) + the

@@ -89,9 +89,34 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.4 - read-only MCP server`
 
 - ID: `AGENT-INTROSPECTION-MCP.5`
-  Status: `pending`
+  Status: `active`
   Goal: `Add the controlled validate + minimize tools: external tools only via existing tool_matrix invocations, sandboxed + ram-guarded; minimize shrinks (seed, knobs); audit log + reproducible command line per call.`
-  Acceptance: `validate returns structured tool reports; minimize produces a smaller failing (seed, knobs); security guardrails enforced + tested.`
+  Children: `.5.1`, `.5.2`, `.5.3`
+  Split rationale (`2026-06-14`): the original `.5` leaf bundled three
+  independently-reviewable concerns — a cross-binary tool-invocation
+  extraction (a lower-level dependency that must land first), the sandboxed
+  `validate` orchestration, and the `minimize` delta-debugger — plus security
+  guardrails, so per `docs/TASK_TREE.md` "Splitting Rules" it is split rather
+  than landed as one over-broad slice.
+
+- ID: `AGENT-INTROSPECTION-MCP.5.1`
+  Status: `done`
+  Goal: `Extract the hardened downstream-tool invocation surface (verilator --lint-only / yosys synth / iverilog -g2012 acceptance command lines + warning-as-failure detection + the ToolInvocation report row + YosysMode) from the tool_matrix binary into a shared library module so the validate/minimize tools reuse the existing hardened invocations instead of forking a second, drift-prone set. Pure behavior-preserving refactor.`
+  Acceptance: `New src/downstream/mod.rs owns the invocations; src/bin/tool_matrix.rs uses them via use anvil::downstream::{…}; serialized ToolInvocation/report shape unchanged (banked reports + --resume valid); matrix tool tests + snapshots prove no drift; DUT byte-identical.`
+  Verification: `cargo fmt --all --check; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo test --lib downstream:: (7/7); cargo test --bin tool_matrix (41 pass, 1 ignored); cargo test --test snapshots (6/6 byte-identical).`
+  Commit: `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface`
+
+- ID: `AGENT-INTROSPECTION-MCP.5.2`
+  Status: `pending`
+  Goal: `The controlled validate tool over the .5.1 surface: generate (seed, knobs) into a sandboxed temp dir under a project-root/tmp scope, run the selected acceptance tools, ram-guard the run (reuse mem_guard / scripts/ram_guard.sh envelope), return structured ToolInvocation reports + an overall verdict, and audit-log the reproducible (seed, knobs) + exact command line per call; no arbitrary shell.`
+  Acceptance: `validate(seed, knobs, tools) returns structured per-tool reports + overall verdict; sandbox + ram-guard + audit-log guardrails enforced and unit-tested; tool-gated end-to-end smoke when tools are present.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `AGENT-INTROSPECTION-MCP.5.3`
+  Status: `pending`
+  Goal: `The minimize tool: deterministic delta-debug of (seed, knobs) to a smaller failing reproducer using .5.2's validate as the failure oracle; bounded work budget; audit-logged.`
+  Acceptance: `minimize produces a smaller failing (seed, knobs) for a seeded failing case; bounded + deterministic; guardrails tested.`
   Verification: `pending`
   Commit: `pending`
 
@@ -117,17 +142,39 @@ recorded in
 | 2 | `AGENT-INTROSPECTION-MCP.2` | `done` | Schema spec landed: `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
 | 3 | `AGENT-INTROSPECTION-MCP.3` | `done` | Emission surface landed: `src/introspect/` + `--introspect` flag; DUT byte-identical. |
 | 4 | `AGENT-INTROSPECTION-MCP.4` | `done` | Read-only MCP server landed: `src/mcp/` + `anvil-mcp` bin (stdio JSON-RPC; generate/introspect/dump_config + resources). |
-| 5 | `AGENT-INTROSPECTION-MCP.5` | `pending` | Controlled `validate` + `minimize` tools (external tools only via `tool_matrix`, sandboxed + ram-guarded). |
+| 5 | `AGENT-INTROSPECTION-MCP.5.1` | `done` | Shared downstream-tool invocation surface extracted to `src/downstream/`; `tool_matrix` rewired; behavior-preserving (snapshots 6/6). |
+| 6 | `AGENT-INTROSPECTION-MCP.5.2` | `pending` | Controlled `validate` tool over the `.5.1` surface (sandboxed temp dir + ram-guard + audit log; no arbitrary shell). |
+| 7 | `AGENT-INTROSPECTION-MCP.5.3` | `pending` | `minimize` delta-debugger shrinking `(seed, knobs)` to a smaller failing reproducer via the `.5.2` oracle. |
 
 Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
-leaves. `.3`/`.4` are done. `.5`–`.7` proceed in order under PNT (`.5`
-controlled validate/minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
+leaves. `.3`/`.4` are done; `.5` was split into `.5.1`/`.5.2`/`.5.3` and `.5.1`
+is done. The remaining leaves proceed in order under PNT (`.5.2` validate →
+`.5.3` minimize → `.6` prompts → `.7` book/USER_GUIDE closeout).
 User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 `.7` closeout by design — the lane is documented as a stable feature only once
 `.5`/`.6` complete it.
 
 ## Decisions
 
+- `2026-06-14`: **Split `.5` and landed `.5.1`** — the controlled-tools leaf
+  `.5` was split into `.5.1` (shared invocation surface), `.5.2` (validate),
+  `.5.3` (minimize) per the `docs/TASK_TREE.md` splitting rules (it bundled a
+  lower-level dependency + two independently-reviewable features). `.5.1`
+  extracted the hardened acceptance-tool invocations
+  (`verilator --lint-only` / `yosys synth` / `iverilog -g2012`, the
+  warning-as-failure detector, `ToolInvocation`, `YosysMode`,
+  `yosys_mode_slug`, and the double-quote escapers) out of
+  `src/bin/tool_matrix.rs` into a new library module `src/downstream/mod.rs`,
+  and rewired the binary to `use anvil::downstream::{…}`. This is the
+  full-factorization move (`feedback_full_factorization.md`) that `0004`
+  requires so the `.5.2`/`.5.3` tools reuse the **existing** vetted invocations
+  rather than forking a second source of truth — the same pattern
+  `DIFFERENTIAL-SIMULATION.3a` used for `src/diff_sim/`. Pure
+  behavior-preserving refactor: the serialized `ToolInvocation` JSON shape is
+  unchanged (banked matrix reports + `--resume` checkpoints stay valid), the
+  matrix's own tool tests pass unchanged, and `tests/snapshots.rs` stays 6/6
+  byte-identical (DUT contract preserved). No new CLI surface; user-facing docs
+  remain deferred to `.7`.
 - `2026-06-14`: **Owner accepted the `.1`/`.2` design** — code leaves
   `.3`–`.7` are unblocked; execution proceeds under continuous PNT.
 - `2026-06-14`: `.4` landed the read-only MCP server — `src/mcp/mod.rs` (pure
@@ -202,6 +249,7 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.2` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check`; `cargo check --all-targets` (no code touched) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.3` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib introspect` (6/6); `cargo test --test snapshots` (6/6 byte-identical); CLI smoke (module/design/guard/JSON) | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.4` | `cargo fmt --all --check`; `cargo check --all-targets` (no dup-bin); `cargo clippy --all-targets -- -D warnings`; `cargo test --lib` (338/338, incl 12 mcp); `cargo test --test snapshots` (6/6 byte-identical); end-to-end `anvil-mcp` stdio smoke (initialize/tools.list/generate/resources) | passed |
+| `2026-06-14` | `AGENT-INTROSPECTION-MCP.5.1` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib downstream::` (7/7); `cargo test --bin tool_matrix` (41 pass, 1 ignored); `cargo test --test snapshots` (6/6 byte-identical) | passed |
 
 ## Commit Log
 
@@ -210,7 +258,8 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
 | `AGENT-INTROSPECTION-MCP.1` | `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004` | Commit `9ac5ef3`; opens the tree. |
 | `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Commit `defc196`; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
 | `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Commit `aec51e2`; lands `src/introspect/` + `--introspect`. |
-| `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Pending hash; lands `src/mcp/` + `anvil-mcp` bin. |
+| `AGENT-INTROSPECTION-MCP.4` | `AGENT-INTROSPECTION-MCP.4 - read-only MCP server` | Commit `5db5ebc`; lands `src/mcp/` + `anvil-mcp` bin. |
+| `AGENT-INTROSPECTION-MCP.5.1` | `AGENT-INTROSPECTION-MCP.5.1 - shared downstream-tool invocation surface` | Pending hash; lands `src/downstream/`, rewires `tool_matrix`. |
 
 ## Changelog
 
@@ -229,3 +278,12 @@ User-facing docs (book + USER_GUIDE + README CLI surface) are deferred to the
   bin (stdio JSON-RPC; generate/introspect/dump_config tools + resources over
   a content-addressed cache; no external-tool exec; 12 lib tests; DUT
   byte-identical). Frontier advanced to `.5` (controlled validate/minimize).
+- `2026-06-14`: Split `.5` into `.5.1`/`.5.2`/`.5.3` and landed `.5.1` — the
+  hardened downstream-tool invocation surface moved from
+  `src/bin/tool_matrix.rs` into the new library module `src/downstream/mod.rs`
+  (`verilator --lint-only` / `yosys synth` / `iverilog -g2012` acceptance
+  command lines, warning-as-failure detection, `ToolInvocation`, `YosysMode`,
+  `yosys_mode_slug`, double-quote escapers; 7 lib tests). `tool_matrix` rewired
+  to `use anvil::downstream::{…}`; behavior-preserving (matrix tool tests pass,
+  snapshots 6/6 byte-identical). Frontier advanced to `.5.2` (controlled
+  validate tool).
