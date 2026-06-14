@@ -71,11 +71,11 @@ Phase 5b.
   Commit: `AGGREGATE-ARRAY-PACKING.1 - add ArrayPacked variant`
 
 - ID: `AGGREGATE-ARRAY-PACKING.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Emitter renders ArrayPacked (packed-array typedef + port[i] boundary aliases).`
   Acceptance: `A hand-built ArrayPacked layout emits logic [N-1:0][W-1:0] typedef, one aggregate port/side, and indexed alias wires/assigns; StructPacked output byte-identical; focused emitter test.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `cargo test --lib emit::sv 26/26 (incl. new emits_array_packed_aggregate_typedef_and_indexed_aliases + array_packed_single_bit_elements_emit_vector_typedef); cargo test --test snapshots 6/6 byte-identical; cargo test --test pipeline packed_aggregate 2/2 (StructPacked path unchanged); fmt + clippy clean. All under scripts/ram_guard.sh --threshold 88.`
+  Commit: `AGGREGATE-ARRAY-PACKING.2 - emit ArrayPacked`
 
 - ID: `AGGREGATE-ARRAY-PACKING.3`
   Status: `pending`
@@ -102,12 +102,13 @@ Phase 5b.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGGREGATE-ARRAY-PACKING.2` | `pending` | Emitter must handle the kind before anything produces it. |
-| 2 | `AGGREGATE-ARRAY-PACKING.3` | `pending` | Wire selection once emission is correct. |
-| 3 | `AGGREGATE-ARRAY-PACKING.4` | `pending` | Prove downstream-clean + coverage. |
-| 4 | `AGGREGATE-ARRAY-PACKING.5` | `pending` | Sync docs/book + close. |
+| 1 | `AGGREGATE-ARRAY-PACKING.3` | `pending` | Wire selection once emission is correct. |
+| 2 | `AGGREGATE-ARRAY-PACKING.4` | `pending` | Prove downstream-clean + coverage. |
+| 3 | `AGGREGATE-ARRAY-PACKING.5` | `pending` | Sync docs/book + close. |
 
-`.1` done — `AggregateKind::ArrayPacked` landed (additive variant).
+`.1` done — `AggregateKind::ArrayPacked` variant. `.2` done — emitter
+renders the packed-array typedef + positional `[i]` boundary aliases;
+`StructPacked` output byte-identical.
 
 ## Decisions
 
@@ -141,15 +142,19 @@ Phase 5b.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.1` | `cargo check --all-targets`; `cargo test --lib aggregate`; `cargo fmt --all --check`; `cargo clippy --lib -D warnings` (all under `scripts/ram_guard.sh --threshold 88`) | passed (check clean; aggregate 10/10; fmt+clippy clean; guard never tripped) |
+| `2026-06-14` | `AGGREGATE-ARRAY-PACKING.2` | `cargo test --lib emit::sv` (26/26); `cargo test --test snapshots` (6/6 byte-identical); `cargo test --test pipeline packed_aggregate` (2/2, StructPacked unchanged); fmt + clippy (all under `scripts/ram_guard.sh --threshold 88`) | passed (guard never tripped) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `AGGREGATE-ARRAY-PACKING.1` | `AGGREGATE-ARRAY-PACKING.1 - add ArrayPacked variant` | Opens the tree (file + index row + ROADMAP pointer) in the same commit; pending hash. |
+| `AGGREGATE-ARRAY-PACKING.2` | `AGGREGATE-ARRAY-PACKING.2 - emit ArrayPacked` | Emitter typedef + `[i]` aliases; StructPacked byte-identical; pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; designed the 5-leaf decomposition; landed
   `.1` (`AggregateKind::ArrayPacked` additive variant); frontier moves
   to `.2`.
+- `2026-06-14`: Landed `.2` (emitter ArrayPacked rendering); frontier
+  moves to `.3`.

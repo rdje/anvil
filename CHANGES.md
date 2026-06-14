@@ -1,6 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-array-packing-2 — AGGREGATE-ARRAY-PACKING.2 emit ArrayPacked
+
+**Landed as:** this commit
+
+**What changed**
+
+Made the emitter `AggregateKind`-aware so an `ArrayPacked` layout
+renders correctly (`AGGREGATE-ARRAY-PACKING.2`):
+
+- `src/emit/sv.rs`: `render_aggregate_typedef` now branches on kind —
+  `StructPacked` emits the existing `typedef struct packed { … }`;
+  `ArrayPacked` emits `typedef logic [N-1:0]<elem-width> <type>;` (a
+  packed array over a uniform-width group; a `debug_assert` guards
+  uniformity). New `aggregate_field_accessor` returns `.field` for a
+  struct and `[idx]` for an array; the input boundary-alias and
+  output boundary-drive loops use it (positional access for arrays).
+- Two focused emitter tests: a 2×8-bit array layout
+  (`typedef logic [1:0][7:0]`, `m_in[0]`/`assign m_out[1]=o1`) and a
+  1-bit-element layout (collapses to `typedef logic [2:0] …`).
+
+`StructPacked` output is byte-identical (the struct branch and the
+`.field` accessor are unchanged). Nothing constructs `ArrayPacked` yet
+(selection lands `.3`), so default output is unchanged.
+
+**Why it matters**
+
+`.2` makes the new aggregate surface emit valid, faithful SV before any
+generator path can produce it — keeping each leaf's build correct and
+the default path byte-identical.
+
+**Validation**
+
+All under `scripts/ram_guard.sh --threshold 88` (guard never tripped):
+`cargo test --lib emit::sv` 26/26 (incl. the 2 new tests);
+`cargo test --test snapshots` 6/6 byte-identical;
+`cargo test --test pipeline packed_aggregate` 2/2 (StructPacked path
+unchanged); `cargo fmt --all --check` + `cargo clippy --lib -D warnings`
+clean.
+
+**Impact**
+
+Emitter gains a kind branch. No generated-output change yet
+(default-off; no producer until `.3`).
+
+**Files touched:** `src/emit/sv.rs`,
+`docs/tasks/AGGREGATE-ARRAY-PACKING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-array-packing-1 — AGGREGATE-ARRAY-PACKING.1 add ArrayPacked variant
 
 **Landed as:** this commit

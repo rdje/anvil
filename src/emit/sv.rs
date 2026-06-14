@@ -5,8 +5,8 @@
 //! RST_N (async, active-low) drive every flop in the module.
 
 use crate::ir::{
-    AggregateGroup, Design, Direction, Flop, ForFoldKind, GateOp, InstanceId, Module, Node, NodeId,
-    Port, PortId,
+    AggregateGroup, AggregateKind, Design, Direction, Flop, ForFoldKind, GateOp, InstanceId,
+    Module, Node, NodeId, Port, PortId,
 };
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -82,10 +82,10 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
     // `aggregate_layout == None` (default-off) ⇒ byte-identical.
     if let Some(layout) = &m.aggregate_layout {
         if let Some(g) = &layout.inputs {
-            render_aggregate_typedef(&mut out, g, &m.inputs);
+            render_aggregate_typedef(&mut out, g, &m.inputs, &layout.kind);
         }
         if let Some(g) = &layout.outputs {
-            render_aggregate_typedef(&mut out, g, &m.outputs);
+            render_aggregate_typedef(&mut out, g, &m.outputs, &layout.kind);
         }
     }
     // Phase 5: optional single width `parameter`. Defaults to the
@@ -173,15 +173,15 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
     // aggregate at the end. Emitted only when a layout is present.
     if let Some(layout) = &m.aggregate_layout {
         if let Some(g) = &layout.inputs {
-            for (field, pid) in &g.fields {
+            for (idx, (field, pid)) in g.fields.iter().enumerate() {
                 let port = m.inputs.iter().find(|p| p.id == *pid).unwrap();
                 writeln!(
                     out,
-                    "    wire {} {} = {}.{};",
+                    "    wire {} {} = {}{};",
                     width_decl(port.width),
                     port.name,
                     g.port_name,
-                    field
+                    aggregate_field_accessor(&layout.kind, idx, field)
                 )
                 .unwrap();
             }
@@ -673,10 +673,19 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
 
     // Phase 5b: drive each grouped output's internal `logic` onto the
     // aggregate port field at the boundary. No-op when default-off.
-    if let Some(g) = m.aggregate_layout.as_ref().and_then(|l| l.outputs.as_ref()) {
-        for (field, pid) in &g.fields {
-            let port = m.outputs.iter().find(|p| p.id == *pid).unwrap();
-            writeln!(out, "    assign {}.{} = {};", g.port_name, field, port.name).unwrap();
+    if let Some(layout) = m.aggregate_layout.as_ref() {
+        if let Some(g) = layout.outputs.as_ref() {
+            for (idx, (field, pid)) in g.fields.iter().enumerate() {
+                let port = m.outputs.iter().find(|p| p.id == *pid).unwrap();
+                writeln!(
+                    out,
+                    "    assign {}{} = {};",
+                    g.port_name,
+                    aggregate_field_accessor(&layout.kind, idx, field),
+                    port.name
+                )
+                .unwrap();
+            }
         }
     }
 
@@ -811,22 +820,67 @@ fn width_decl(w: u32) -> String {
     }
 }
 
-/// Phase 5b: emit `typedef struct packed { … } <type>;` for one
-/// aggregate group. Field widths are looked up from `ports` (the
-/// module's `inputs` or `outputs`); field order is the group's
-/// emitted port order (the bit layout is internal to the projection).
-fn render_aggregate_typedef(out: &mut String, g: &AggregateGroup, ports: &[Port]) {
-    writeln!(out, "typedef struct packed {{").unwrap();
-    for (field, pid) in &g.fields {
-        let w = ports
+/// Phase 5b: emit the typedef for one aggregate group. Field widths are
+/// looked up from `ports` (the module's `inputs` or `outputs`); field
+/// order is the group's emitted port order (the bit layout is internal
+/// to the projection).
+///
+/// `StructPacked` renders `typedef struct packed { … } <type>;` over
+/// the per-field widths. `ArrayPacked` (AGGREGATE-ARRAY-PACKING) renders
+/// `typedef logic [N-1:0]<elem-width> <type>;` — a packed array over a
+/// uniform-width group (guaranteed by the annotate pass), bit-equivalent
+/// to the field concatenation; element access is positional.
+fn render_aggregate_typedef(
+    out: &mut String,
+    g: &AggregateGroup,
+    ports: &[Port],
+    kind: &AggregateKind,
+) {
+    let width_of = |pid: PortId| -> u32 {
+        ports
             .iter()
-            .find(|p| p.id == *pid)
+            .find(|p| p.id == pid)
             .map(|p| p.width)
-            .unwrap_or(1);
-        writeln!(out, "    logic {} {};", width_decl(w), field).unwrap();
+            .unwrap_or(1)
+    };
+    match kind {
+        AggregateKind::StructPacked => {
+            writeln!(out, "typedef struct packed {{").unwrap();
+            for (field, pid) in &g.fields {
+                writeln!(out, "    logic {} {};", width_decl(width_of(*pid)), field).unwrap();
+            }
+            writeln!(out, "}} {};", g.type_name).unwrap();
+        }
+        AggregateKind::ArrayPacked => {
+            let n = g.fields.len();
+            let w = g.fields.first().map(|(_, pid)| width_of(*pid)).unwrap_or(1);
+            debug_assert!(
+                g.fields.iter().all(|(_, pid)| width_of(*pid) == w),
+                "ArrayPacked requires a uniform-width group"
+            );
+            // `[N-1:0]` outer dim; `width_decl(w)` is `[W-1:0]` (w>1) or
+            // empty (w==1, a 1-bit element).
+            writeln!(
+                out,
+                "typedef logic [{}:0]{} {};",
+                n - 1,
+                width_decl(w),
+                g.type_name
+            )
+            .unwrap();
+        }
     }
-    writeln!(out, "}} {};", g.type_name).unwrap();
     writeln!(out).unwrap();
+}
+
+/// Boundary accessor for the `idx`-th field (named `field`) of an
+/// aggregate port of the given `kind`: `.field` for a packed struct,
+/// `[idx]` for a packed array.
+fn aggregate_field_accessor(kind: &AggregateKind, idx: usize, field: &str) -> String {
+    match kind {
+        AggregateKind::StructPacked => format!(".{field}"),
+        AggregateKind::ArrayPacked => format!("[{idx}]"),
+    }
 }
 
 /// Phase 5b: the `(input_member_ids, output_member_ids)` port ids that
@@ -1191,6 +1245,116 @@ mod tests {
         assert!(sv.contains("input  logic [3:0] a"));
         assert!(sv.contains("output logic [3:0] o"));
         assert!(sv.contains("assign o = a;"));
+    }
+
+    #[test]
+    fn emits_array_packed_aggregate_typedef_and_indexed_aliases() {
+        // AGGREGATE-ARRAY-PACKING.2: a uniform-width group annotated
+        // `ArrayPacked` renders a packed-array typedef + one aggregate
+        // port/side + positional (`[i]`) boundary aliases — distinct
+        // from the `StructPacked` `.field` accessor surface.
+        use crate::ir::{AggregateGroup, AggregateKind, AggregateLayout};
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a0", 8, Direction::In));
+        m.inputs.push(port(1, "a1", 8, Direction::In));
+        m.outputs.push(port(100, "o0", 8, Direction::Out));
+        m.outputs.push(port(101, "o1", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.drives.push((100, 0));
+        m.drives.push((101, 0));
+        m.aggregate_layout = Some(AggregateLayout {
+            kind: AggregateKind::ArrayPacked,
+            inputs: Some(AggregateGroup {
+                type_name: "m_in_t".into(),
+                port_name: "m_in".into(),
+                fields: vec![("a0".into(), 0), ("a1".into(), 1)],
+            }),
+            outputs: Some(AggregateGroup {
+                type_name: "m_out_t".into(),
+                port_name: "m_out".into(),
+                fields: vec![("o0".into(), 100), ("o1".into(), 101)],
+            }),
+        });
+        let sv = to_sv(&m);
+        // Packed-array typedefs (N=2 elements, each 8 bits), not structs.
+        assert!(
+            sv.contains("typedef logic [1:0][7:0] m_in_t;"),
+            "expected packed-array input typedef:\n{sv}"
+        );
+        assert!(
+            sv.contains("typedef logic [1:0][7:0] m_out_t;"),
+            "expected packed-array output typedef:\n{sv}"
+        );
+        assert!(
+            !sv.contains("struct packed"),
+            "array kind must not emit a struct:\n{sv}"
+        );
+        // One aggregate port per side replaces the folded members.
+        assert!(sv.contains("input  m_in_t m_in"));
+        assert!(sv.contains("output m_out_t m_out"));
+        assert!(
+            !sv.contains(" a0,") && !sv.contains(" a1,"),
+            "members must be folded out of the port list:\n{sv}"
+        );
+        // Positional boundary aliases (`[i]`), not `.field`.
+        assert!(
+            sv.contains("wire [7:0] a0 = m_in[0];"),
+            "input alias a0:\n{sv}"
+        );
+        assert!(
+            sv.contains("wire [7:0] a1 = m_in[1];"),
+            "input alias a1:\n{sv}"
+        );
+        assert!(
+            sv.contains("assign m_out[0] = o0;"),
+            "output drive o0:\n{sv}"
+        );
+        assert!(
+            sv.contains("assign m_out[1] = o1;"),
+            "output drive o1:\n{sv}"
+        );
+        assert!(
+            !sv.contains("m_in."),
+            "array access must be positional, not .field:\n{sv}"
+        );
+    }
+
+    #[test]
+    fn array_packed_single_bit_elements_emit_vector_typedef() {
+        // Uniform width W=1: `width_decl(1)` is empty, so the element
+        // dimension collapses and the typedef is a plain N-bit vector.
+        use crate::ir::{AggregateGroup, AggregateKind, AggregateLayout};
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a0", 1, Direction::In));
+        m.inputs.push(port(1, "a1", 1, Direction::In));
+        m.inputs.push(port(2, "a2", 1, Direction::In));
+        m.outputs.push(port(100, "o0", 1, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        m.drives.push((100, 0));
+        m.aggregate_layout = Some(AggregateLayout {
+            kind: AggregateKind::ArrayPacked,
+            inputs: Some(AggregateGroup {
+                type_name: "m_in_t".into(),
+                port_name: "m_in".into(),
+                fields: vec![("a0".into(), 0), ("a1".into(), 1), ("a2".into(), 2)],
+            }),
+            outputs: None,
+        });
+        let sv = to_sv(&m);
+        assert!(
+            sv.contains("typedef logic [2:0] m_in_t;"),
+            "1-bit elements collapse to an N-bit packed vector:\n{sv}"
+        );
+        assert!(
+            sv.contains("wire  a0 = m_in[0];"),
+            "1-bit alias has no width decl:\n{sv}"
+        );
     }
 
     #[test]
