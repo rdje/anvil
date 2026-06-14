@@ -68,11 +68,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004`
 
 - ID: `AGENT-INTROSPECTION-MCP.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Specify the stable, versioned introspection JSON schema, derived strictly from existing metrics/manifest/config; map each field to its existing source. Docs-only.`
   Acceptance: `Schema spec doc lists every field + provenance; confirms zero new computed truth; versioning policy stated.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `docs/AGENT_INTROSPECTION_SCHEMA.md landed; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; git diff --check.`
+  Commit: `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)`
 
 - ID: `AGENT-INTROSPECTION-MCP.3`
   Status: `pending`
@@ -113,12 +113,16 @@ recorded in
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGENT-INTROSPECTION-MCP.1` | `done` | Design + decision record landed this commit. |
-| 2 | `AGENT-INTROSPECTION-MCP.2` | `pending` | Schema spec (docs) is the contract the code leaves stand on; design-first. |
+| 1 | `AGENT-INTROSPECTION-MCP.1` | `done` | Design + decision record `0004` landed. |
+| 2 | `AGENT-INTROSPECTION-MCP.2` | `done` | Schema spec landed: `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
+| 3 | `AGENT-INTROSPECTION-MCP.3` | `gated` | First **code** leaf (introspection emission surface) — held pending owner acceptance of the `.1`/`.2` design. |
 
-`.3`–`.7` stay `pending`; `.1`/`.2` design may re-split `.3`–`.5` once the
+The whole `.1`/`.2` design is now landed (architecture record `0004` + schema
+spec). `.3`–`.7` stay `pending`; `.1`/`.2` may re-split `.3`–`.5` once the
 schema and transport are pinned. Implementation leaves (`.3`+) are **code**
-and require the design (`.1`/`.2`) to be accepted by the owner first.
+and require the design (`.1`/`.2`) to be accepted by the owner first — so the
+frontier is **design-complete and parked on owner acceptance**, not on a
+technical blocker.
 
 ## Decisions
 
@@ -131,6 +135,20 @@ and require the design (`.1`/`.2`) to be accepted by the owner first.
   existing facts; ANVIL needs no stateful simulator-style session.
 - `2026-06-14`: Design-first cadence — `.1`/`.2` are docs; no code until
   the schema/architecture is accepted.
+- `2026-06-14`: `.2` landed the introspection schema spec
+  (`docs/AGENT_INTROSPECTION_SCHEMA.md`). Key contract decisions: the schema
+  is a thin **versioned envelope** (`schema_version = "1.0"`, `anvil_version`,
+  `lane`, `request` determinism-tuple echo with content-addressed `run_id`,
+  `artifact` descriptor, `introspection` payload, `warnings`) whose payload
+  sections are the **exact serde projections** of existing structs — `config`
+  ← `Config`, `module_metrics` ← `Metrics`, `design_metrics` ←
+  `DesignMetrics`, `coverage` ← `tool_matrix::CoverageSummary`, the lane
+  manifests ← `microdesign`/`frontend::Manifest`, and `.sv` as a
+  fetch-on-demand resource. Invariant SCHEMA-DERIVED: the adapter computes
+  **zero** new truth; struct field lists stay owned by the code (no second
+  source of truth, per `0004`). Versioning: `MAJOR.MINOR`, additive
+  `#[serde(default)]` growth = MINOR, rename/retype/semantic change = MAJOR,
+  lockstep with `anvil_version`, determinism preserved across versions.
 
 ## Open Questions
 
@@ -152,14 +170,21 @@ and require the design (`.1`/`.2`) to be accepted by the owner first.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed |
+| `2026-06-14` | `AGENT-INTROSPECTION-MCP.2` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check`; `cargo check --all-targets` (no code touched) | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `AGENT-INTROSPECTION-MCP.1` | `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004` | Pending hash; opens the tree. |
+| `AGENT-INTROSPECTION-MCP.1` | `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004` | Commit `9ac5ef3`; opens the tree. |
+| `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Pending hash; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
 
 ## Changelog
 
 - `2026-06-14`: Created the tree; landed `.1` design + decision record 0004;
   frontier advanced to `.2` (schema spec).
+- `2026-06-14`: Landed `.2` — `docs/AGENT_INTROSPECTION_SCHEMA.md` (versioned
+  introspection schema, derived strictly from existing
+  metrics/manifest/config/coverage; zero new computed truth; versioning policy
+  with `schema_version = "1.0"`). Frontier is now design-complete; `.3` (first
+  code leaf) is parked on owner acceptance of the `.1`/`.2` design.

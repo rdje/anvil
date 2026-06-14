@@ -1,9 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.2 — introspection schema spec (docs-only)
+
+**Landed as:** this commit (previous: `9ac5ef3`).
+
+**What changed (docs-only, no code)**
+
+Landed the `.2` design leaf of the owner-directed agent/MCP lane: the stable,
+versioned **introspection schema** that the `.3` emission surface and the `.4`
+MCP server will stand on. New doc `docs/AGENT_INTROSPECTION_SCHEMA.md`.
+
+- The schema is a thin **versioned envelope** (`schema_version = "1.0"`,
+  `anvil_version`, `lane`, a `request` echo of the `(seed, knobs, lane)`
+  determinism tuple with a content-addressed `run_id`, an `artifact`
+  descriptor, the `introspection` payload, and `warnings`).
+- Every payload section is the **exact serde projection** of an existing
+  struct, mapped field-group → source: `config` ← `Config` (`src/config.rs`),
+  `module_metrics` ← `Metrics` and `design_metrics` ← `DesignMetrics`
+  (`src/metrics.rs`), `coverage` ← `tool_matrix::CoverageSummary`
+  (`src/bin/tool_matrix.rs`), `microdesign_manifest` / `frontend_manifest` ←
+  the lane `Manifest` structs (`src/microdesign`, `src/frontend`), and the
+  `.sv` as a fetch-on-demand resource (`emit::to_sv*`).
+- **Invariant SCHEMA-DERIVED**: the adapter computes zero new truth; the
+  struct field lists stay owned by the code, so the schema cannot become a
+  second source of truth that drifts (per decision `0004`).
+- **Versioning policy** stated: `MAJOR.MINOR`; additive `#[serde(default)]`
+  growth is MINOR/compatible, rename/retype/semantic change is MAJOR; lockstep
+  with `anvil_version`; determinism preserved across versions.
+
+**Why**
+
+`AGENT-INTROSPECTION-MCP.2` acceptance: a versioned schema spec listing every
+(envelope) field + (section) provenance, confirming zero new computed truth,
+with a versioning policy — the contract the code leaves (`.3`+) must conform
+to. Design-first: implementation leaves stay gated on owner acceptance.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` — `MEMORY.md` within line cap;
+  bootstrap pointers intact; `docs/decisions/` present.
+- `knowledge-map/scripts/check_knowledge_map.sh` — new fact card
+  `agent-introspection-schema` valid; `KNOWLEDGE_MAP.md` regenerated and
+  in sync (derive-and-diff clean).
+- `git diff --check` — no whitespace errors.
+- `cargo check --all-targets` — green (no source touched; sanity only).
+- No `.sv` generated and no snapshot risk: docs-only, DUT byte-identical.
+
+**Impact**
+
+Advances the only active task tree to **design-complete**. The introspection
+contract is now fixed and reviewable; the first code leaf (`.3`) is parked on
+owner acceptance, not on a technical blocker. No CLI, knob, generator, or
+book-facing behaviour changed.
+
+**Files touched**
+
+- `docs/AGENT_INTROSPECTION_SCHEMA.md` (new — the schema spec)
+- `docs/knowledge/agent-introspection-schema.md` (new — KM fact card)
+- `KNOWLEDGE_MAP.md` (regenerated)
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md` (`.2` → done; frontier; logs)
+- `docs/TASK_TREE.md` (active-tree row)
+- `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md` (live-doc sync)
+
+---
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.1 — agent/MCP lane design + decision record 0004 (docs-only)
 
-**Landed as:** this commit (previous: `5cd6f56`).
+**Landed as:** `9ac5ef3` (previous: `5cd6f56`).
 
 **What changed (docs-only, no code)**
 

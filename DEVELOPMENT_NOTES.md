@@ -5,6 +5,59 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Agent-introspection schema contract — `AGENT-INTROSPECTION-MCP.2`
+
+The `.2` leaf pins the introspection **schema** — the contract the `.3`
+emission surface and the `.4` MCP server must conform to. Full spec:
+`docs/AGENT_INTROSPECTION_SCHEMA.md`. Docs-only; no code. The load-bearing
+reasoning:
+
+**Decision — a thin versioned *envelope* around existing facts.** The
+top-level document carries `schema_version` (`"1.0"`), `anvil_version`
+(`env!("CARGO_PKG_VERSION")` = `0.1.0`), `lane`, a `request` echo of the
+`(seed, knobs, lane)` determinism tuple plus a content-addressed `run_id`, an
+`artifact` descriptor (`.sv`/manifest as fetch-on-demand `ResourceRef`s, not
+inlined), the `introspection` payload, and `warnings`. Only the envelope is
+new — and this doc is its single source of truth.
+
+**Decision — invariant SCHEMA-DERIVED: zero new computed truth.** Every
+payload section is the *exact `serde` projection* of a struct that already
+exists and already runs: `config` ← `Config` (`src/config.rs`),
+`module_metrics` ← `Metrics`, `design_metrics` ← `DesignMetrics`
+(`src/metrics.rs`, via `compute`/`compute_design`), `coverage` ←
+`CoverageSummary` incl. `coverage_gaps` (`src/bin/tool_matrix.rs`),
+`microdesign_manifest`/`frontend_manifest` ← the lane `Manifest` structs. A
+conforming emitter MUST `serde`-serialize the live value, never re-derive
+fields — so the schema can never become a second source of truth that drifts
+(the `0004` anti-drift principle, made mechanical).
+
+**Why not re-list every metric field in the spec.** Re-typing the ~60
+`Metrics` + ~140 `DesignMetrics` fields into the doc would *be* the forbidden
+second source of truth. So "lists every field + provenance" is satisfied at
+the correct granularity: every **envelope** field is listed explicitly (the
+doc owns them); every **embedded section** is mapped to the struct/file/
+producer that owns its fields, and the struct's *category groups* are
+enumerated so coverage is visible without mirroring. Leaf field lists stay in
+code, enumerated by `serde` at emit time.
+
+**Decision — `coverage` is a matrix-run property, not a single-artifact
+one.** A lone module cannot prove `saw_recursive_hierarchy_*`; the section is
+present only when the producing call ran `tool_matrix`, otherwise absent with
+a `warnings[]` note. Keeps provenance honest.
+
+**Decision — versioning policy.** `MAJOR.MINOR`. Additive growth via
+`#[serde(default)]` fields (already pervasive on `Config`/`Metrics`) is
+MINOR/compatible; rename, retype, unit change, semantic change, or section
+removal is MAJOR. `anvil_version` travels alongside so an agent separates
+"newer generator, same shape" from "newer shape". Emitters advertise the
+version(s) they produce and refuse an unsupported request explicitly; a bump
+never introduces wall-clock/host/random data, preserving determinism.
+
+**Status.** With `.1` (architecture) + `.2` (schema) landed, the lane design
+is complete; the first code leaf `.3` is parked on owner acceptance.
+
+---
+
 ## 2026-06-14 — Agent introspection + MCP lane design — `AGENT-INTROSPECTION-MCP.1`
 
 Owner-directed new capability lane: make ANVIL agent-drivable (an LLM can
