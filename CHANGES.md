@@ -1,6 +1,49 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-6 — CONE-DECOMPOSITION.6 extract cone/flops.rs
+
+**Landed as:** this commit
+
+**What changed**
+
+Moved the flop D-cone assembly + worklist-draining machinery out of
+`src/gen/cone.rs` into a new `src/gen/cone/flops.rs` submodule — a pure
+code move, byte-identical.
+
+- `src/gen/cone/flops.rs` (new, ~270 lines): `drain_flop_worklist` (the
+  public entry used by `module.rs`/`hierarchy.rs`), `drain_flop_one_hot`,
+  `drain_flop_encoded`, `assemble_flop_d_one_hot`, `assemble_flop_d_encoded`,
+  `build_flop_leaf`, `pick_reset_value`, plus the two small inline helpers
+  `ceil_log2` and `pick_mux_arm_count` that sit with the flop-mux encoders.
+  Extracted as two contiguous ranges in one `perl` delete pass.
+- `src/gen/cone.rs`: declares `mod flops; pub(crate) use flops::*;`. The
+  pool-only variant `drain_flop_worklist_pool_only` stays in the root with
+  the other pool-only builders. Root dropped the now-unused `Flop`/`Node`/
+  `ResetKind` IR imports (`Node` migrated into the test-module import,
+  which reaches it via `use super::*`).
+
+**Why it matters**
+
+`cone.rs` shrinks to 3260 lines (from 5551, a 41% reduction); flop
+construction is now a focused module.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean.
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor.
+
+**Files touched**
+
+`src/gen/cone/flops.rs` (new), `src/gen/cone.rs`,
+`docs/tasks/CONE-DECOMPOSITION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-5 — CONE-DECOMPOSITION.5 extract cone/terminals.rs
 
 **Landed as:** this commit
