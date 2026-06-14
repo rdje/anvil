@@ -342,6 +342,11 @@ pub struct DesignMetrics {
     /// emitter projection (`Module::aggregate_layout.is_some()`). 0 for
     /// every default-off / pre-Phase-5b design.
     pub num_packed_aggregate_modules: usize,
+    /// AGGREGATE-ARRAY-PACKING: of the packed-aggregate modules above,
+    /// how many use the `ArrayPacked` (packed-array) kind rather than
+    /// `StructPacked`. 0 unless `aggregate_array_prob > 0.0` selected a
+    /// uniform-width array projection.
+    pub num_array_packed_aggregate_modules: usize,
     /// Phase 6: number of `Design::modules` carrying an inferrable
     /// `Memory` block (`!Module::memories.is_empty()`). 0 for every
     /// default-off / pre-Phase-6 design.
@@ -979,6 +984,16 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .iter()
         .filter(|m| m.aggregate_layout.is_some())
         .count();
+    // AGGREGATE-ARRAY-PACKING: how many of those use the packed-array kind.
+    let num_array_packed_aggregate_modules = design
+        .modules
+        .iter()
+        .filter(|m| {
+            m.aggregate_layout
+                .as_ref()
+                .is_some_and(|l| l.kind == crate::ir::AggregateKind::ArrayPacked)
+        })
+        .count();
     // Phase 6 (PHASE-6-ADVANCED-MOTIFS.2.3) coverage input.
     let num_memory_modules = design
         .modules
@@ -998,6 +1013,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_width_parameterized_modules,
         num_param_override_instances,
         num_packed_aggregate_modules,
+        num_array_packed_aggregate_modules,
         num_memory_modules,
         num_fsm_modules,
         num_modules: design.modules.len(),

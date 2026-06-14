@@ -8491,6 +8491,13 @@ fn array_packed_aggregate_selected_with_uniform_widths() {
                 continue; // a non-uniform group legitimately stayed struct
             }
             saw_array += 1;
+            // The distinguishing metric counts this array projection.
+            let dm = anvil::metrics::compute_design(&design);
+            assert_eq!(
+                dm.num_array_packed_aggregate_modules, 1,
+                "metric must count the array-packed module (seed {seed}, {strategy:?})"
+            );
+            assert_eq!(dm.num_packed_aggregate_modules, 1);
             let sv = anvil::emit::to_sv_in_design(m, &design);
             assert!(
                 sv.contains("typedef logic ["),

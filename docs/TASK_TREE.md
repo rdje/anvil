@@ -95,7 +95,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `ENDPOINT-IDENTITY-BOUNDARY` | `done` | NodeId as identity / full-factorization mode | complete — `.1` proves and documents that same-shape semantic cones over different leaf endpoints do not merge. | [docs/tasks/ENDPOINT-IDENTITY-BOUNDARY.md](tasks/ENDPOINT-IDENTITY-BOUNDARY.md) |
 | `LIVE-DOC-BOOK-ALIGNMENT` | `done` | Live docs / mdBook ↔ codebase alignment | complete — `.1` corrected mdBook chapters that still labelled delivered Phase 5-9 motifs (memories, parameterization, Phase 7-9 lanes) as "future". | [docs/tasks/LIVE-DOC-BOOK-ALIGNMENT.md](tasks/LIVE-DOC-BOOK-ALIGNMENT.md) |
 | `RESOURCE-SAFE-TOOLING` | `active` | Quality / workflow — resource-safe validation | `.1` done (`scripts/ram_guard.sh` RAM watchdog); frontier `.2` (document the runner in USER_GUIDE). | [docs/tasks/RESOURCE-SAFE-TOOLING.md](tasks/RESOURCE-SAFE-TOOLING.md) |
-| `AGGREGATE-ARRAY-PACKING` | `active` | Phase 5b follow-on — synthesizable aggregates (packed array) | `.1`+`.2`+`.3` done (variant + emitter + `aggregate_array_prob` selection, end-to-end); frontier `.4` matrix proof → `.5` book/docs+close. Default-off byte-identical. | [docs/tasks/AGGREGATE-ARRAY-PACKING.md](tasks/AGGREGATE-ARRAY-PACKING.md) |
+| `AGGREGATE-ARRAY-PACKING` | `active` | Phase 5b follow-on — synthesizable aggregates (packed array) | `.1`–`.4` done (variant + emitter + selection + metric + 7/7 Verilator/Yosys downstream-clean); frontier `.5` book/docs+close, then optional `.4b` matrix CI instrumentation. Default-off byte-identical. | [docs/tasks/AGGREGATE-ARRAY-PACKING.md](tasks/AGGREGATE-ARRAY-PACKING.md) |
 
 ## Directory Layout
 

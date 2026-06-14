@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-array-packing-4 — AGGREGATE-ARRAY-PACKING.4 array metric + downstream-clean proof
+
+**Landed as:** this commit
+
+**What changed**
+
+- `src/metrics.rs`: new `DesignMetrics.num_array_packed_aggregate_modules`
+  counts modules whose `aggregate_layout.kind == ArrayPacked` (the
+  manifest now distinguishes array- from struct-packed projections).
+- `tests/pipeline.rs`: the end-to-end array test now asserts the metric
+  (`num_array_packed_aggregate_modules == 1`,
+  `num_packed_aggregate_modules == 1`) for the array case.
+
+**Downstream-clean proof (Verilator 5.046 + Yosys 0.64, present locally)**
+
+An array corpus was generated through the hierarchy design path with a
+`--config` of `aggregate_prob=1.0, aggregate_array_prob=1.0,
+min_width=max_width=8` (all under `scripts/ram_guard.sh`): 35/40 designs
+produced packed-array wrappers (`typedef logic [N-1:0][7:0] …`) and 10
+fell back to `struct packed` (mixed-width groups — the designed
+fallback). Seven isolated array-packed designs were then checked with
+the matrix's exact invocations — `verilator --lint-only --top-module
+<top> <files>` and `yosys "read_verilog -sv …; hierarchy -top <top>;
+synth -noabc; check"` — and **all 7/7 passed both tools cleanly**.
+
+**Why it matters**
+
+This establishes, with the project's own downstream tools, that the new
+packed-array surface is accepted (lint + synth) — the signoff bar — and
+that the struct fallback for non-uniform groups also works.
+
+**Scope note**
+
+The permanent `tool_matrix` array scenario + `saw_array_packed_aggregate_design`
+coverage fact is split to `AGGREGATE-ARRAY-PACKING.4b` and kept OUT of
+the hard Phase4Hierarchy gap-gate: that set has rigid exact-count /
+child-tuple / name-whitelist asserts, and per-design array selection
+depends on uniform output widths (~87% reach), so a hard gap-check could
+rarely flake. The knob is already exercised by the end-to-end pipeline
+test (not a dead knob); `.4b` adds CI tracking without gate fragility.
+
+**Validation**
+
+`cargo test --test pipeline array_packed_aggregate_selected_with_uniform_widths`
+(metric asserted); `cargo check --all-targets`; `cargo clippy --lib -D
+warnings`; `cargo fmt --all --check` — all clean under
+`scripts/ram_guard.sh --threshold 88`. Plus the 7/7 real-tool proof
+above.
+
+**Impact**
+
+One additive metric field. No knob/CLI/default-output change.
+
+**Files touched:** `src/metrics.rs`, `tests/pipeline.rs`,
+`docs/tasks/AGGREGATE-ARRAY-PACKING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-array-packing-3 — AGGREGATE-ARRAY-PACKING.3 aggregate_array_prob selection
 
 **Landed as:** this commit
