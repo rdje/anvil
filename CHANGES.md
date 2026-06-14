@@ -1,6 +1,48 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-cone-decomposition-2 — CONE-DECOMPOSITION.2 extract cone/snapshot.rs
+
+**Landed as:** this commit
+
+**What changed**
+
+First extraction of the cone.rs decomposition. The construction-snapshot
+rollback machinery moved out of `src/gen/cone.rs` into a new
+`src/gen/cone/snapshot.rs` submodule — a pure code move, byte-identical.
+
+- `src/gen/cone/snapshot.rs` (new): `ConstructionSnapshot` +
+  `take_construction_snapshot` + `rollback_construction_snapshot` +
+  (private) `prune_intern_tables_after_node_truncate`, moved verbatim.
+  Snapshot fields are `pub(crate)` so the root-resident cone tests can
+  still inspect them.
+- `src/gen/cone.rs`: declares `mod snapshot; pub(crate) use snapshot::*;`
+  (the re-export keeps the symbols reachable from the root and validates
+  the namespace mechanic for the rest of the tree).
+
+**Why it matters**
+
+Proves the `cone.rs`-root + `cone/`-sibling-dir + glob-re-export mechanic
+end-to-end before the larger extractions (`semantic`, `primitives`, …),
+with the full test suite as the byte-identical guard.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` 307/307; `cargo test
+--test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets --
+-D warnings` clean; `cargo fmt --all --check` clean; FULL `cargo test`
+under `scripts/ram_guard.sh --threshold 88` (first-extraction milestone).
+
+**Impact**
+
+No behavioural or generated-RTL change. Pure structural refactor.
+
+**Files touched**
+
+`src/gen/cone/snapshot.rs` (new), `src/gen/cone.rs`,
+`docs/tasks/CONE-DECOMPOSITION.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-cone-decomposition-1 — CONE-DECOMPOSITION.1 decomposition design
 
 **Landed as:** this commit

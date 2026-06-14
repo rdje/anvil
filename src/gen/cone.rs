@@ -17,64 +17,15 @@ use rand::Rng;
 use std::collections::HashMap;
 use tracing::{debug, instrument, trace, warn};
 
+// cone submodules (CONE-DECOMPOSITION). The `pub(crate) use <sub>::*`
+// re-exports keep every `crate::gen::cone::<symbol>` path stable for
+// external callers and give each submodule's `use super::*;` visibility
+// of its siblings — preserving the original single-file namespace.
+mod snapshot;
+pub(crate) use snapshot::*;
+
 /// Worklist of flops whose D-input cone has not yet been built.
 pub type FlopWorklist = Vec<FlopId>;
-
-#[derive(Clone, Copy)]
-struct ConstructionSnapshot {
-    nodes_len: usize,
-    flops_len: usize,
-    pool_len: usize,
-    worklist_len: usize,
-}
-
-fn take_construction_snapshot(
-    m: &Module,
-    pool: &SignalPool,
-    worklist: &FlopWorklist,
-) -> ConstructionSnapshot {
-    ConstructionSnapshot {
-        nodes_len: m.nodes.len(),
-        flops_len: m.flops.len(),
-        pool_len: pool.len(),
-        worklist_len: worklist.len(),
-    }
-}
-
-fn rollback_construction_snapshot(
-    m: &mut Module,
-    pool: &mut SignalPool,
-    worklist: &mut FlopWorklist,
-    snapshot: ConstructionSnapshot,
-) {
-    m.nodes.truncate(snapshot.nodes_len);
-    m.flops.truncate(snapshot.flops_len);
-    pool.truncate(snapshot.pool_len);
-    worklist.truncate(snapshot.worklist_len);
-    prune_intern_tables_after_node_truncate(m, snapshot.nodes_len as NodeId);
-}
-
-fn prune_intern_tables_after_node_truncate(m: &mut Module, cutoff: NodeId) {
-    if cutoff >= m.nodes.len() as NodeId
-        && m.gate_instances
-            .values()
-            .all(|ids| ids.last().map(|id| *id < cutoff).unwrap_or(true))
-        && m.const_instances
-            .values()
-            .all(|ids| ids.last().map(|id| *id < cutoff).unwrap_or(true))
-    {
-        return;
-    }
-
-    m.gate_instances.retain(|_, ids| {
-        ids.retain(|id| *id < cutoff);
-        !ids.is_empty()
-    });
-    m.const_instances.retain(|_, ids| {
-        ids.retain(|id| *id < cutoff);
-        !ids.is_empty()
-    });
-}
 
 /// Perform a probability-roll against a named knob and record the
 /// attempt + outcome in `m.knob_rolls`. Single place to add

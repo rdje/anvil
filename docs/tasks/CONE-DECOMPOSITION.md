@@ -103,11 +103,11 @@ green without acceptance), all tests pass, no IR/knob/output change.
   Commit: `CONE-DECOMPOSITION.1 - decomposition design`
 
 - ID: `CONE-DECOMPOSITION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract cone/snapshot.rs (rollback machinery) — validates the cone.rs-root + cone/ submodule mechanic.`
   Acceptance: `snapshot machinery moved; cargo check/clippy/fmt clean; lib + snapshots byte-identical; FULL cargo test green (first extraction milestone).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — moved ConstructionSnapshot + take/rollback/prune to src/gen/cone/snapshot.rs; mod snapshot + pub(crate) use snapshot::* in root; lib 307/307, snapshots 6/6, clippy/fmt clean, full suite green. Gotcha: snapshot fields needed pub(crate) so the root-resident cone tests can still inspect them. See Verification Log.`
+  Commit: `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs`
 
 - ID: `CONE-DECOMPOSITION.3`
   Status: `pending`
@@ -148,12 +148,15 @@ green without acceptance), all tests pass, no IR/knob/output change.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CONE-DECOMPOSITION.2` | `pending` | Smallest, self-contained chunk — validates the cone.rs-root + cone/ submodule + re-export mechanic before the big moves. |
-| 2 | `CONE-DECOMPOSITION.3` | `pending` | Largest pure chunk (semantic proofs); biggest readability win, lowest risk (pure `&Module` fns). |
-| 3 | `CONE-DECOMPOSITION.4` | `pending` | Primitives. |
-| 4 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection. |
-| 5 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
-| 6 | `CONE-DECOMPOSITION.7` | `pending` | Motifs + closeout. |
+| 1 | `CONE-DECOMPOSITION.3` | `pending` | Largest pure chunk (semantic proofs); biggest readability win, lowest risk (pure `&Module` fns). |
+| 2 | `CONE-DECOMPOSITION.4` | `pending` | Primitives. |
+| 3 | `CONE-DECOMPOSITION.5` | `pending` | Terminals/selection. |
+| 4 | `CONE-DECOMPOSITION.6` | `pending` | Flops. |
+| 5 | `CONE-DECOMPOSITION.7` | `pending` | Motifs + closeout. |
+
+`.2` (extract `cone/snapshot.rs`) is `done` — the `cone.rs`-root + `cone/`
+submodule + `pub(crate) use snapshot::*` re-export mechanic is validated
+end-to-end (full suite green).
 
 ## Open Questions
 
@@ -171,13 +174,16 @@ green without acceptance), all tests pass, no IR/knob/output change.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-14` | `CONE-DECOMPOSITION.1` | Full function inventory of `src/gen/cone.rs` (grep of all top-level `fn`/`struct`/`enum`/`impl`); external-user audit (`src/gen/module.rs`, `src/gen/hierarchy.rs`, `src/ir/compact.rs`) for the symbols that must stay path-stable. Docs-only; design recorded here + in `DEVELOPMENT_NOTES.md`. memory-architecture + knowledge-map self-checks; `git diff --check`. | passed (docs-only) |
+| `2026-06-14` | `CONE-DECOMPOSITION.2` | `cargo check --all-targets` clean; `cargo test --lib` 307/307 (incl. the snapshot/rollback test + 42 cone tests); `cargo test --test snapshots` 6/6 (SV byte-identical); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; FULL `cargo test` under `scripts/ram_guard.sh --threshold 88` (first-extraction milestone). One fix during the move: `ConstructionSnapshot` fields bumped private→`pub(crate)` so the root-resident cone tests can still inspect them after a snapshot/rollback round-trip. | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `CONE-DECOMPOSITION.1` | `CONE-DECOMPOSITION.1 - decomposition design` | Tree genesis + design. Pending hash. |
+| `CONE-DECOMPOSITION.1` | `CONE-DECOMPOSITION.1 - decomposition design` | Tree genesis + design. Hash `31571a5`. |
+| `CONE-DECOMPOSITION.2` | `CONE-DECOMPOSITION.2 - extract cone/snapshot.rs` | Rollback machinery → `src/gen/cone/snapshot.rs`. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (decomposition design, docs-only). Frontier `.2` (extract `cone/snapshot.rs`).
+- `2026-06-14`: Landed `.2` (extract `cone/snapshot.rs`, byte-identical; mechanic validated by full suite). Frontier `.3` (extract `cone/semantic.rs`).

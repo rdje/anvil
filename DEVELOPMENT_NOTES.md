@@ -51,6 +51,15 @@ snapshot.
 mechanic) → `semantic` (biggest readability win, pure fns) → `primitives`
 → `terminals` → `flops` → `motifs`.
 
+**`.2` execution note (reusable gotcha for later leaves).** When a struct
+moves to a submodule but the *tests stay in the root*, any test that reads
+the struct's fields breaks (`E0616 private field`). Fix: bump exactly the
+fields the tests touch to `pub(crate)` (done for `ConstructionSnapshot`).
+The same will apply wherever a moved type's internals are asserted by a
+root-resident test. Mechanic confirmed end-to-end: `mod snapshot;
+pub(crate) use snapshot::*;` keeps the symbols reachable from the root and
+re-exported, full suite byte-identical.
+
 ---
 
 ## 2026-06-14 — Per-module construction-time node budget — `WORKLOAD-MEMORY-SAFETY.3`
