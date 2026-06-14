@@ -5,6 +5,48 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Agent-introspection emission surface — `AGENT-INTROSPECTION-MCP.3`
+
+`.3` implements the read-only emission surface over the `.2` schema:
+`src/introspect/mod.rs` + a default-off `--introspect` CLI flag. Notes worth
+keeping:
+
+**Decision — `request.knobs` *is* the `config` section (one home).** The
+schema's `config` section and the envelope's `request.knobs` are the same
+effective `Config`; the emitter carries it once, in `request.knobs`. Avoiding a
+duplicate top-level `config` section is the more faithful reading of "no second
+source of truth" — there is exactly one home for the knobs.
+
+**Decision — `run_id` is a content address, not a nonce.** `content_run_id` is
+FNV-1a 64-bit over the canonical string `(schema_version ⏐ anvil_version ⏐ lane
+⏐ seed ⏐ serde_json(knobs))`. `serde_json::to_string(&Config)` is deterministic
+(declaration field order; BTreeMap-sorted nested maps), so identical inputs
+yield an identical `run_id` — exactly the content-addressed cache key `0004`
+relies on. The hash function is an implementation detail (the schema only
+requires purity + a hex string); it can change in a later leaf without touching
+the contract.
+
+**Decision — single-artifact stdout only; reject `--out` / `--count > 1`.**
+Introspection is a single-artifact view. Restricting `--introspect` to the
+`(None, 1)` stdout path keeps the streamed `--out` manifest path (and its
+governor checkpoints) completely untouched, so the default `--out` flow stays
+byte-identical and the surface's contract stays unambiguous. A guard bails with
+a clear message otherwise.
+
+**Decision — derive `Serialize` + `Deserialize` on the whole envelope.** The
+document round-trips through JSON (tested), which both proves the shape is
+well-formed and gives the future MCP server (`.4`) a typed consumer for free.
+`PartialEq` is *not* derived (`Config` does not implement it); tests compare via
+`serde_json::Value` instead, which also directly asserts the SCHEMA-DERIVED
+invariant (`request.knobs` == input `Config`; `module_metrics` == `compute`).
+
+**Scope held for later leaves.** DUT lane only; `coverage` (a `tool_matrix`-run
+property) and the `microdesign`/`frontend` lane-manifest sections are deferred
+to `.4`+ and flagged at runtime with a `warnings[]` note. Byte-identical DUT
+contract verified by snapshots 6/6.
+
+---
+
 ## 2026-06-14 — Agent-introspection schema contract — `AGENT-INTROSPECTION-MCP.2`
 
 The `.2` leaf pins the introspection **schema** — the contract the `.3`

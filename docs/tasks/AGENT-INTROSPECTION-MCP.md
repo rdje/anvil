@@ -75,11 +75,11 @@ recorded in
   Commit: `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)`
 
 - ID: `AGENT-INTROSPECTION-MCP.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement the introspection emission surface (anvil introspect / structured JSON dump) over the .2 schema. Additive, default-off-equivalent, DUT byte-identical.`
   Acceptance: `New surface emits the .2 schema from existing facts; snapshots 6/6; no change to existing stdout/manifest/CLI defaults.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `src/introspect/mod.rs (6 lib tests, all pass) + --introspect CLI flag; cargo fmt/check/clippy -D warnings clean; cargo test --test snapshots 6/6 byte-identical; CLI smoke (module + design + guard + JSON validity).`
+  Commit: `AGENT-INTROSPECTION-MCP.3 - introspection emission surface`
 
 - ID: `AGENT-INTROSPECTION-MCP.4`
   Status: `pending`
@@ -115,17 +115,30 @@ recorded in
 | --- | --- | --- | --- |
 | 1 | `AGENT-INTROSPECTION-MCP.1` | `done` | Design + decision record `0004` landed. |
 | 2 | `AGENT-INTROSPECTION-MCP.2` | `done` | Schema spec landed: `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
-| 3 | `AGENT-INTROSPECTION-MCP.3` | `gated` | First **code** leaf (introspection emission surface) — held pending owner acceptance of the `.1`/`.2` design. |
+| 3 | `AGENT-INTROSPECTION-MCP.3` | `done` | Emission surface landed: `src/introspect/` + `--introspect` flag; DUT byte-identical. |
+| 4 | `AGENT-INTROSPECTION-MCP.4` | `pending` | Read-only in-process MCP server (separate target) over the `.2`/`.3` surface. |
 
-The whole `.1`/`.2` design is now landed (architecture record `0004` + schema
-spec). `.3`–`.7` stay `pending`; `.1`/`.2` may re-split `.3`–`.5` once the
-schema and transport are pinned. Implementation leaves (`.3`+) are **code**
-and require the design (`.1`/`.2`) to be accepted by the owner first — so the
-frontier is **design-complete and parked on owner acceptance**, not on a
-technical blocker.
+Owner **accepted** the `.1`/`.2` design (`2026-06-14`), unblocking the code
+leaves. `.3` is done. `.4`–`.7` proceed in order under PNT (`.4` MCP server →
+`.5` controlled validate/minimize → `.6` prompts → `.7` book/USER_GUIDE
+closeout); `.1`/`.2` may still re-split `.4`–`.5` if the transport pins new
+sub-leaves.
 
 ## Decisions
 
+- `2026-06-14`: **Owner accepted the `.1`/`.2` design** — code leaves
+  `.3`–`.7` are unblocked; execution proceeds under continuous PNT.
+- `2026-06-14`: `.3` landed the emission surface — `src/introspect/mod.rs`
+  (typed envelope + pure `module_document` / `design_document` builders) and a
+  default-off `--introspect` CLI flag that, on a single-artifact stdout run,
+  prints the schema document instead of SV. Design points: (a) `run_id` is a
+  content address (FNV-1a 64-bit over `(schema_version, anvil_version, lane,
+  seed, knobs)`), not a nonce — deterministic, matching `0004`'s
+  content-addressed cache; (b) the surface is single-shot-only (rejects
+  `--out` / `--count > 1`) to keep the streamed `--out` path byte-identical
+  and never touched; (c) `coverage` + lane manifests are deferred (matrix-only
+  / `.4`+), recorded via a `warnings[]` note. DUT byte-identical verified by
+  snapshots 6/6.
 - `2026-06-14`: Architecture, the transferred-vs-dropped reference-advice
   analysis, the security model, and the determinism→content-addressed-cache
   simplification are recorded in
@@ -171,13 +184,15 @@ technical blocker.
 | --- | --- | --- | --- |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check` | passed |
 | `2026-06-14` | `AGENT-INTROSPECTION-MCP.2` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; `git diff --check`; `cargo check --all-targets` (no code touched) | passed |
+| `2026-06-14` | `AGENT-INTROSPECTION-MCP.3` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib introspect` (6/6); `cargo test --test snapshots` (6/6 byte-identical); CLI smoke (module/design/guard/JSON) | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `AGENT-INTROSPECTION-MCP.1` | `AGENT-INTROSPECTION-MCP.1 - design + decision record 0004` | Commit `9ac5ef3`; opens the tree. |
-| `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Pending hash; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
+| `AGENT-INTROSPECTION-MCP.2` | `AGENT-INTROSPECTION-MCP.2 - introspection schema spec (docs)` | Commit `defc196`; lands `docs/AGENT_INTROSPECTION_SCHEMA.md`. |
+| `AGENT-INTROSPECTION-MCP.3` | `AGENT-INTROSPECTION-MCP.3 - introspection emission surface` | Pending hash; lands `src/introspect/` + `--introspect`. |
 
 ## Changelog
 
@@ -188,3 +203,7 @@ technical blocker.
   metrics/manifest/config/coverage; zero new computed truth; versioning policy
   with `schema_version = "1.0"`). Frontier is now design-complete; `.3` (first
   code leaf) is parked on owner acceptance of the `.1`/`.2` design.
+- `2026-06-14`: Owner accepted the design; landed `.3` — `src/introspect/`
+  emission surface + default-off `--introspect` CLI flag (DUT byte-identical,
+  snapshots 6/6, 6 lib tests). Frontier advanced to `.4` (read-only MCP
+  server).

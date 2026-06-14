@@ -134,6 +134,14 @@ struct Cli {
     #[arg(long)]
     dump_config: bool,
 
+    /// Emit the agent-introspection JSON document
+    /// (`AGENT-INTROSPECTION-MCP.3`) to stdout instead of the
+    /// SystemVerilog, for a single-artifact run (no `--out`, `--count 1`).
+    /// The document is derived strictly from existing metrics/config (see
+    /// `docs/AGENT_INTROSPECTION_SCHEMA.md`); default off ⇒ byte-identical.
+    #[arg(long)]
+    introspect: bool,
+
     #[arg(long)]
     min_inputs: Option<u32>,
     #[arg(long)]
@@ -492,6 +500,16 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // AGENT-INTROSPECTION-MCP.3 — the introspection surface is a
+    // single-artifact stdout view; reject it for multi-artifact / --out runs
+    // so the contract stays unambiguous (and the default --out path stays
+    // byte-identical, never reaching this surface).
+    if cli.introspect && (cli.out.is_some() || cli.count != 1) {
+        anyhow::bail!(
+            "--introspect requires a single-artifact stdout run (omit --out and use --count 1)"
+        );
+    }
+
     info!(seed = cli.seed, count = cli.count, "🚀 anvil start");
     let mut gen = Generator::new(cfg.clone());
     let hierarchical = cfg.effective_hierarchy_depth_range().is_some();
@@ -502,21 +520,31 @@ fn main() -> anyhow::Result<()> {
                 let design = gen.generate_design();
                 anvil::ir::validate::validate_design(&design)
                     .map_err(|e| anyhow::anyhow!("{}", e))?;
-                let design_metrics = anvil::metrics::compute_design(&design);
-                print!("{}", anvil::emit::to_sv_design(&design));
-                if cli.metrics {
-                    eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
-                    for module in &design.modules {
-                        let metrics = anvil::metrics::compute(module);
-                        eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                if cli.introspect {
+                    let doc = anvil::introspect::design_document(cli.seed, &cfg, &design);
+                    println!("{}", doc.to_json_pretty()?);
+                } else {
+                    let design_metrics = anvil::metrics::compute_design(&design);
+                    print!("{}", anvil::emit::to_sv_design(&design));
+                    if cli.metrics {
+                        eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
+                        for module in &design.modules {
+                            let metrics = anvil::metrics::compute(module);
+                            eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                        }
                     }
                 }
             } else {
                 let m = gen.generate_module();
-                let metrics = anvil::metrics::compute(&m);
-                print!("{}", anvil::emit::to_sv(&m));
-                if cli.metrics {
-                    eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                if cli.introspect {
+                    let doc = anvil::introspect::module_document(cli.seed, &cfg, &m);
+                    println!("{}", doc.to_json_pretty()?);
+                } else {
+                    let metrics = anvil::metrics::compute(&m);
+                    print!("{}", anvil::emit::to_sv(&m));
+                    if cli.metrics {
+                        eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                    }
                 }
             }
         }

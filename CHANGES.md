@@ -1,9 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14 — AGENT-INTROSPECTION-MCP.3 — introspection emission surface
+
+**Landed as:** this commit (previous: `defc196`).
+
+**What changed (code)**
+
+Owner accepted the `.1`/`.2` design, unblocking the code leaves. `.3` lands the
+introspection **emission surface** — the first code over the `.2` schema.
+
+- New library module `src/introspect/mod.rs`: the typed envelope from
+  `docs/AGENT_INTROSPECTION_SCHEMA.md` (`IntrospectionDocument`, `RequestEcho`,
+  `ArtifactDescriptor`, `ResourceRef`, `IntrospectionPayload`,
+  `ModuleMetricsEntry`) plus pure builders `module_document(seed, &Config,
+  &Module)` and `design_document(seed, &Config, &Design)`. The DUT lane only
+  (`.3` scope).
+- **Invariant SCHEMA-DERIVED** asserted in code: `request.knobs` is the
+  effective `Config`; `module_metrics` / `design_metrics` are exactly
+  `metrics::compute` / `compute_design`; per-child entries are exact
+  `compute(&module)` projections. The only new fields are envelope metadata.
+- `run_id` is a **content address** — FNV-1a 64-bit over `(schema_version,
+  anvil_version, lane, seed, knobs)` — deterministic, not a nonce (matches the
+  `0004` content-addressed cache). `coverage` + lane manifests are deferred
+  (matrix-only / `.4`+), recorded via a `warnings[]` note.
+- New default-off `--introspect` CLI flag (`src/main.rs`): on a single-artifact
+  stdout run it prints the JSON document instead of the SV; it rejects `--out`
+  / `--count > 1` so the streamed `--out` path is never reached and stays
+  byte-identical. `lib.rs` exposes `pub mod introspect`.
+
+**Why**
+
+`AGENT-INTROSPECTION-MCP.3` acceptance: emit the `.2` schema from existing
+facts; snapshots 6/6; no change to existing stdout/manifest/CLI defaults. The
+agent loop (`generate → introspect → …`) needs a machine-shaped construction-
+truth view; this is the read-only emission half (the MCP transport is `.4`).
+
+**Validation**
+
+- `cargo fmt --all --check` — clean.
+- `cargo check --all-targets` — green.
+- `cargo clippy --all-targets -- -D warnings` — clean.
+- `cargo test --lib introspect` — 6/6 (schema_version/lane/kind; SCHEMA-DERIVED
+  equality vs `compute`/`compute_design`; deterministic + seed-sensitive
+  `run_id`; design payload; JSON round-trip; envelope keys present).
+- `cargo test --test snapshots` — 6/6 **byte-identical** (DUT contract intact).
+- CLI smoke: default `--seed 42` still emits SV; `--introspect` emits a valid
+  schema-v1.0 document for module and design; the `--out` guard fires; the
+  design JSON parses with `design_metrics` + per-child entries.
+
+**Impact**
+
+ANVIL gains a read-only, additive agent-introspection dump. Default build and
+`--artifact dut` byte-identical (snapshots 6/6). Frontier advances to `.4`
+(read-only in-process MCP server). No phase label changed.
+
+**Files touched**
+
+- `src/introspect/mod.rs` (new), `src/lib.rs` (`pub mod introspect`),
+  `src/main.rs` (`--introspect` flag + single-artifact dispatch)
+- `docs/tasks/AGENT-INTROSPECTION-MCP.md`, `docs/TASK_TREE.md`,
+  `CODEBASE_ANALYSIS.md` (module map + CLI), `CHANGES.md`, `MEMORY.md`,
+  `DEVELOPMENT_NOTES.md`
+
+---
+
 ## 2026-06-14 — AGENT-INTROSPECTION-MCP.2 — introspection schema spec (docs-only)
 
-**Landed as:** this commit (previous: `9ac5ef3`).
+**Landed as:** `defc196` (previous: `9ac5ef3`).
 
 **What changed (docs-only, no code)**
 

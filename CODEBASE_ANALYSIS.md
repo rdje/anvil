@@ -136,7 +136,10 @@ src/
 │                     sequential motifs, comb-mux / priority-encoder /
 │                     coefficient / constant-shift / const-comparand
 │                     motifs, construction strategy, factorization,
-│                     tracing, and metrics. Tracing:
+│                     tracing, metrics, and the opt-in `--introspect`
+│                     agent-introspection dump (`AGENT-INTROSPECTION-MCP.3`,
+│                     `src/introspect/`; single-artifact stdout only,
+│                     default-off ⇒ byte-identical). Tracing:
 │                     `init_tracing` wires a deterministic subscriber
 │                     from `--trace <level>` + `--trace-file`;
 │                     `TraceLevel` maps `low=INFO`, `medium=DEBUG`,
@@ -278,6 +281,25 @@ src/
 │                     verilator and byte-compares them, proving emitted SV
 │                     is *semantically equivalent* across two independent
 │                     simulators, not merely accepted.
+├── introspect/      Agent-introspection emission surface
+│   └── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
+│                     introspection document specified in
+│                     `docs/AGENT_INTROSPECTION_SCHEMA.md` out of facts ANVIL
+│                     already records (`Config` / `Metrics` /
+│                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
+│                     computed truth — every payload field is a serde
+│                     projection of an existing struct; the new fields are
+│                     only the envelope metadata (`schema_version` `"1.0"`,
+│                     `anvil_version`, `lane`, the `request` echo with a
+│                     content-addressed FNV-1a `run_id`, the `artifact`
+│                     `ResourceRef`s, `warnings`). Pure `module_document` /
+│                     `design_document` builders; read-only and additive,
+│                     reached only via the default-off `--introspect` CLI flag
+│                     on a single-artifact stdout run (rejects `--out` /
+│                     `--count > 1`), so the default build + the streamed
+│                     `--out` path stay byte-identical. `coverage` + the
+│                     `microdesign`/`frontend` lane-manifest sections are
+│                     deferred (matrix-only / `.4`+).
 ├── bin/
 │   └── tool_matrix.rs
 │                     Repo-owned downstream-tool matrix harness.

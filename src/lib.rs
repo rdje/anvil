@@ -30,6 +30,15 @@ pub mod emit;
 /// rejected.
 pub mod frontend;
 pub mod gen;
+/// Agent-introspection emission surface (`AGENT-INTROSPECTION-MCP.3`).
+/// Builds the versioned introspection document specified in
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` from facts ANVIL already records
+/// (`Config` / `Metrics` / `DesignMetrics`). Invariant SCHEMA-DERIVED:
+/// every payload field is a `serde` projection of an existing struct —
+/// the adapter computes zero new truth. Read-mostly, additive, and
+/// default-off (the `--introspect` CLI flag); the default `anvil` build
+/// stays byte-identical.
+pub mod introspect;
 pub mod ir;
 /// Streaming `manifest.json` writer (`WORKLOAD-MEMORY-SAFETY.2`).
 /// Writes the directory-output manifest array element-by-element so
