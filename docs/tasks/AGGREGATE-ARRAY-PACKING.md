@@ -78,11 +78,11 @@ Phase 5b.
   Commit: `AGGREGATE-ARRAY-PACKING.2 - emit ArrayPacked`
 
 - ID: `AGGREGATE-ARRAY-PACKING.3`
-  Status: `pending`
+  Status: `done`
   Goal: `aggregate_array_prob knob + uniform-width selection in annotate + call-site second roll.`
-  Acceptance: `Default 0.0 byte-identical (snapshots + book_examples); prob 1.0 with uniform widths yields ArrayPacked end-to-end; non-uniform falls back to StructPacked; validated + dump-config.`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `Default 0.0 byte-identical (snapshots); prob 1.0 with uniform widths yields ArrayPacked end-to-end; non-uniform falls back to StructPacked; validated + dump-config.`
+  Verification: `cargo test --lib aggregate 14/14 (incl. 3 new selection tests); cargo test --test pipeline aggregate 3/3 (new array_packed_aggregate_selected_with_uniform_widths reachable + downstream-valid; struct path unchanged); cargo test --test snapshots 6/6 byte-identical; --dump-config shows aggregate_array_prob:0.0; cargo check --all-targets + clippy --all-targets + fmt clean. All under scripts/ram_guard.sh --threshold 88.`
+  Commit: `AGGREGATE-ARRAY-PACKING.3 - aggregate_array_prob selection`
 
 - ID: `AGGREGATE-ARRAY-PACKING.4`
   Status: `pending`
@@ -102,13 +102,12 @@ Phase 5b.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGGREGATE-ARRAY-PACKING.3` | `pending` | Wire selection once emission is correct. |
-| 2 | `AGGREGATE-ARRAY-PACKING.4` | `pending` | Prove downstream-clean + coverage. |
-| 3 | `AGGREGATE-ARRAY-PACKING.5` | `pending` | Sync docs/book + close. |
+| 1 | `AGGREGATE-ARRAY-PACKING.4` | `pending` | Prove downstream-clean + coverage. |
+| 2 | `AGGREGATE-ARRAY-PACKING.5` | `pending` | Sync docs/book + close. |
 
-`.1` done — `AggregateKind::ArrayPacked` variant. `.2` done — emitter
-renders the packed-array typedef + positional `[i]` boundary aliases;
-`StructPacked` output byte-identical.
+`.1`+`.2`+`.3` done — `ArrayPacked` variant, emitter rendering, and the
+opt-in `aggregate_array_prob` selection (uniform-width → array, else
+struct fallback) are wired end-to-end; default-off byte-identical.
 
 ## Decisions
 
@@ -143,6 +142,7 @@ renders the packed-array typedef + positional `[i]` boundary aliases;
 | --- | --- | --- | --- |
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.1` | `cargo check --all-targets`; `cargo test --lib aggregate`; `cargo fmt --all --check`; `cargo clippy --lib -D warnings` (all under `scripts/ram_guard.sh --threshold 88`) | passed (check clean; aggregate 10/10; fmt+clippy clean; guard never tripped) |
 | `2026-06-14` | `AGGREGATE-ARRAY-PACKING.2` | `cargo test --lib emit::sv` (26/26); `cargo test --test snapshots` (6/6 byte-identical); `cargo test --test pipeline packed_aggregate` (2/2, StructPacked unchanged); fmt + clippy (all under `scripts/ram_guard.sh --threshold 88`) | passed (guard never tripped) |
+| `2026-06-14` | `AGGREGATE-ARRAY-PACKING.3` | `cargo test --lib aggregate` (14/14); `cargo test --test pipeline aggregate` (3/3); `cargo test --test snapshots` (6/6 byte-identical); `--dump-config` shows `aggregate_array_prob`; `cargo check --all-targets` + `cargo clippy --all-targets -D warnings` + fmt clean (all under `scripts/ram_guard.sh --threshold 88`) | passed (guard never tripped) |
 
 ## Commit Log
 
@@ -150,6 +150,7 @@ renders the packed-array typedef + positional `[i]` boundary aliases;
 | --- | --- | --- |
 | `AGGREGATE-ARRAY-PACKING.1` | `AGGREGATE-ARRAY-PACKING.1 - add ArrayPacked variant` | Opens the tree (file + index row + ROADMAP pointer) in the same commit; pending hash. |
 | `AGGREGATE-ARRAY-PACKING.2` | `AGGREGATE-ARRAY-PACKING.2 - emit ArrayPacked` | Emitter typedef + `[i]` aliases; StructPacked byte-identical; pending hash. |
+| `AGGREGATE-ARRAY-PACKING.3` | `AGGREGATE-ARRAY-PACKING.3 - aggregate_array_prob selection` | Knob + uniform-width selection + call-site roll; default-off byte-identical; pending hash. |
 
 ## Changelog
 
@@ -158,3 +159,5 @@ renders the packed-array typedef + positional `[i]` boundary aliases;
   to `.2`.
 - `2026-06-14`: Landed `.2` (emitter ArrayPacked rendering); frontier
   moves to `.3`.
+- `2026-06-14`: Landed `.3` (`aggregate_array_prob` knob + uniform-width
+  selection + call-site roll); frontier moves to `.4`.

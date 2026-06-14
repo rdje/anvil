@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-array-packing-3 — AGGREGATE-ARRAY-PACKING.3 aggregate_array_prob selection
+
+**Landed as:** this commit
+
+**What changed**
+
+Wired packed-array selection end-to-end behind a new opt-in knob
+(`AGGREGATE-ARRAY-PACKING.3`):
+
+- `src/config.rs`: new `aggregate_array_prob: f64` (serde default
+  `0.0`, in the `0.0..=1.0` validator, in `--dump-config`). Conditional
+  on the `aggregate_prob` roll, it picks a packed *array* over a packed
+  *struct* for uniform-width groups.
+- `src/ir/aggregate.rs`: `annotate_aggregate` is now a wrapper over new
+  `annotate_aggregate_with_kind(module, prefer_array)`. `prefer_array`
+  selects `ArrayPacked` only when **every** present projected group is
+  internally uniform-width (new `group_is_uniform_width` helper),
+  otherwise it falls back to `StructPacked`. Still non-rolling.
+- `src/gen/mod.rs`: the aggregate call site adds a second seeded roll
+  (`aggregate_array_prob`), guarded by `> 0.0` so the default draws
+  nothing extra from the RNG → byte-identical stream and output.
+- Tests: 3 annotate selection unit tests (uniform→array, false→struct,
+  non-uniform→struct fallback) + an end-to-end pipeline test proving a
+  uniform-width forced-on config yields a downstream-valid `ArrayPacked`
+  design and that `array_prob=0.0` stays `StructPacked`.
+
+**Why it matters**
+
+`ArrayPacked` is now generatable and reproducible from a seed+config,
+adding a second distinct synthesizable aggregate surface — while the
+default (`aggregate_array_prob = 0.0`) is byte-identical (always
+`StructPacked`).
+
+**Validation**
+
+All under `scripts/ram_guard.sh --threshold 88` (guard never tripped):
+`cargo test --lib aggregate` 14/14; `cargo test --test pipeline
+aggregate` 3/3; `cargo test --test snapshots` 6/6 byte-identical;
+`--dump-config` shows `aggregate_array_prob`; `cargo check
+--all-targets` + `cargo clippy --all-targets -D warnings` + `cargo fmt
+--all --check` clean.
+
+**Impact**
+
+New opt-in knob; default-off byte-identical. Book/USER_GUIDE
+documentation + downstream matrix proof land in `.4`/`.5`.
+
+**Files touched:** `src/config.rs`, `src/ir/aggregate.rs`,
+`src/gen/mod.rs`, `tests/pipeline.rs`,
+`docs/tasks/AGGREGATE-ARRAY-PACKING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-array-packing-2 — AGGREGATE-ARRAY-PACKING.2 emit ArrayPacked
 
 **Landed as:** this commit

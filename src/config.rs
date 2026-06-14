@@ -86,6 +86,10 @@ fn default_aggregate_prob() -> f64 {
     0.0
 }
 
+fn default_aggregate_array_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -570,6 +574,21 @@ pub struct Config {
     #[serde(default = "default_aggregate_prob")]
     pub aggregate_prob: f64,
 
+    /// AGGREGATE-ARRAY-PACKING. Conditional on a module being
+    /// aggregate-projected (the `aggregate_prob` roll fired), the
+    /// probability that a **uniform-width** projected group is rendered
+    /// as a packed *array* (`typedef logic [N-1:0][W-1:0] …`) instead
+    /// of a packed `struct`. Only takes effect when every projected
+    /// group is internally same-width; otherwise the layout falls back
+    /// to `StructPacked`. A packed array is LRM-bit-equivalent to the
+    /// field concatenation, so this is a faithful, semantically-empty
+    /// regrouping — the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected. `default = 0.0`
+    /// keeps every existing output byte-identical (always
+    /// `StructPacked`). See `docs/tasks/AGGREGATE-ARRAY-PACKING.md`.
+    #[serde(default = "default_aggregate_array_prob")]
+    pub aggregate_array_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -765,6 +784,7 @@ impl Default for Config {
             hierarchy_semantic_module_dedup: false,
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
+            aggregate_array_prob: default_aggregate_array_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
@@ -1115,6 +1135,7 @@ impl Config {
                 self.width_parameterization_prob,
             ),
             ("aggregate_prob", self.aggregate_prob),
+            ("aggregate_array_prob", self.aggregate_array_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("multi_clock_prob", self.multi_clock_prob),

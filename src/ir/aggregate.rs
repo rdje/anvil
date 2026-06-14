@@ -21,14 +21,20 @@
 //! guard means it is never invoked at all when the feature is off
 //! (byte-identical).
 //!
-//! **Scaffold scoping (`.2.1`).** Only `AggregateKind::StructPacked`
-//! is selected (the general, always-sound case for differing-width
-//! groups). Modules that already carry a Phase 5 `param_env` are
-//! skipped so the param/aggregate cross-product is out of scope for
-//! the scaffold (recorded as a `.2.1` decision); `aggregate_prob == 0`
-//! keeps both features off and byte-identical regardless.
+//! **Kind selection.** `StructPacked` is the always-sound default (the
+//! general case for differing-width groups). `ArrayPacked`
+//! (AGGREGATE-ARRAY-PACKING) is selected via
+//! `annotate_aggregate_with_kind(.., prefer_array = true)` when every
+//! projected group is internally uniform-width (a packed array is
+//! LRM-bit-equivalent to the field concatenation); a non-uniform group
+//! falls back to `StructPacked`. The per-module array preference is
+//! rolled at the `crate::gen` call site under the seeded
+//! `aggregate_array_prob` knob (default `0.0` → always `StructPacked`,
+//! byte-identical). Modules that already carry a Phase 5 `param_env`
+//! are skipped (the param/aggregate cross-product stays out of scope);
+//! `aggregate_prob == 0` keeps the whole feature off and byte-identical.
 
-use crate::ir::{AggregateGroup, AggregateKind, AggregateLayout, Module};
+use crate::ir::{AggregateGroup, AggregateKind, AggregateLayout, Module, Port};
 
 /// Minimum number of same-direction data ports for a group to be worth
 /// projecting as an aggregate (a 1-field struct adds no parser stress).
@@ -37,14 +43,26 @@ const MIN_AGGREGATE_FIELDS: usize = 2;
 /// Record a packed-aggregate emitter projection on `module` when an
 /// eligible same-direction data-port group exists. Idempotent; returns
 /// `true` iff a layout was set. Never mutates the flat IR body.
+///
+/// Back-compat wrapper: always selects `StructPacked` (byte-identical
+/// to pre-AGGREGATE-ARRAY-PACKING callers). Use
+/// [`annotate_aggregate_with_kind`] to request a packed array.
 pub fn annotate_aggregate(module: &mut Module) -> bool {
+    annotate_aggregate_with_kind(module, false)
+}
+
+/// As [`annotate_aggregate`], but `prefer_array` requests a packed-array
+/// (`ArrayPacked`) projection when **every** projected group is
+/// internally uniform-width; a non-uniform group (or
+/// `prefer_array == false`) falls back to `StructPacked`. Non-rolling
+/// and idempotent. (AGGREGATE-ARRAY-PACKING.3)
+pub fn annotate_aggregate_with_kind(module: &mut Module, prefer_array: bool) -> bool {
     // Idempotent / never double-annotate.
     if module.aggregate_layout.is_some() {
         return false;
     }
-    // `.2.1` scaffold scoping: leave Phase 5 parameterized modules to
-    // the param projection; the param/aggregate cross-product is a
-    // later sub-slice.
+    // Scaffold scoping: leave Phase 5 parameterized modules to the param
+    // projection; the param/aggregate cross-product is out of scope.
     if module.param_env.is_some() {
         return false;
     }
@@ -74,11 +92,42 @@ pub fn annotate_aggregate(module: &mut Module) -> bool {
         return false;
     }
 
+    // `ArrayPacked` is faithful only over a uniform-width group; require
+    // every present projected group to be internally same-width.
+    let in_uniform = match &inputs {
+        Some(g) => group_is_uniform_width(&module.inputs, g),
+        None => true,
+    };
+    let out_uniform = match &outputs {
+        Some(g) => group_is_uniform_width(&module.outputs, g),
+        None => true,
+    };
+    let kind = if prefer_array && in_uniform && out_uniform {
+        AggregateKind::ArrayPacked
+    } else {
+        AggregateKind::StructPacked
+    };
+
     module.aggregate_layout = Some(AggregateLayout {
-        kind: AggregateKind::StructPacked,
+        kind,
         inputs,
         outputs,
     });
+    true
+}
+
+/// True iff every field of `g` resolves to the same port width in
+/// `ports` (the precondition for a faithful `ArrayPacked` projection).
+fn group_is_uniform_width(ports: &[Port], g: &AggregateGroup) -> bool {
+    let mut width: Option<u32> = None;
+    for (_, pid) in &g.fields {
+        let pw = ports.iter().find(|p| p.id == *pid).map(|p| p.width);
+        match (width, pw) {
+            (None, Some(x)) => width = Some(x),
+            (Some(a), Some(b)) if a == b => {}
+            _ => return false,
+        }
+    }
     true
 }
 
@@ -126,6 +175,50 @@ mod tests {
         assert_eq!(
             o.fields,
             vec![("o0".to_string(), 100), ("o1".to_string(), 101)]
+        );
+    }
+
+    // ---- AGGREGATE-ARRAY-PACKING.3: kind selection ----
+
+    #[test]
+    fn prefer_array_with_uniform_widths_selects_array_packed() {
+        // comb_module ports are all width 8 → uniform → ArrayPacked.
+        let mut m = comb_module(2, 2);
+        assert!(annotate_aggregate_with_kind(&mut m, true));
+        assert_eq!(
+            m.aggregate_layout.as_ref().unwrap().kind,
+            AggregateKind::ArrayPacked
+        );
+    }
+
+    #[test]
+    fn prefer_array_false_stays_struct_packed() {
+        // The 1-arg wrapper / prefer_array=false path is byte-identical.
+        let mut m = comb_module(2, 2);
+        assert!(annotate_aggregate_with_kind(&mut m, false));
+        assert_eq!(
+            m.aggregate_layout.as_ref().unwrap().kind,
+            AggregateKind::StructPacked
+        );
+    }
+
+    #[test]
+    fn prefer_array_non_uniform_group_falls_back_to_struct() {
+        // A mixed-width input group is not a faithful array → the whole
+        // layout falls back to StructPacked even though outputs are
+        // uniform (kind is per-layout, all-or-nothing).
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 4, Direction::In));
+        m.outputs.push(port(100, "o0", 8, Direction::Out));
+        m.outputs.push(port(101, "o1", 8, Direction::Out));
+        assert!(annotate_aggregate_with_kind(&mut m, true));
+        assert_eq!(
+            m.aggregate_layout.as_ref().unwrap().kind,
+            AggregateKind::StructPacked
         );
     }
 

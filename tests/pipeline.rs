@@ -8439,6 +8439,98 @@ fn packed_aggregate_is_default_off_and_projects_when_forced_on() {
 }
 
 #[test]
+fn array_packed_aggregate_selected_with_uniform_widths() {
+    // AGGREGATE-ARRAY-PACKING.3 deliverable. With aggregate_prob = 1.0
+    // AND aggregate_array_prob = 1.0 over a uniform-width interface
+    // (min_width == max_width), the projected layout is ArrayPacked and
+    // the SV emits a packed-array typedef (not a struct). With
+    // aggregate_array_prob = 0.0 the same design stays StructPacked, so
+    // the new knob is a real gate, not inert.
+    use anvil::config::ConstructionStrategy;
+    let strategies = [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+        ConstructionStrategy::GraphFirst,
+    ];
+    // `min_width == max_width` makes interface *inputs* uniform, but an
+    // output driven by a comparison/reduction is 1-bit, so a layout with
+    // a mixed-width output group correctly falls back to StructPacked.
+    // ArrayPacked is therefore reachable but not universal; sweep a
+    // deterministic seed range and require it to occur (and every
+    // occurrence to be downstream-valid). Exhaustive uniform→array
+    // correctness is the deterministic annotate unit test's job.
+    let mut saw_array = 0usize;
+    for strategy in strategies {
+        for seed in 0..12u64 {
+            let cfg = Config {
+                seed,
+                aggregate_prob: 1.0,
+                aggregate_array_prob: 1.0,
+                min_inputs: 3,
+                max_inputs: 3,
+                min_outputs: 2,
+                max_outputs: 2,
+                min_width: 8,
+                max_width: 8,
+                flop_prob: 0.0,
+                construction_strategy: strategy,
+                ..Config::default()
+            };
+            cfg.validate().expect("uniform-width array config valid");
+            let design = Generator::new(cfg).generate_design();
+            anvil::ir::validate::validate_design(&design)
+                .expect("array-packed design must validate");
+            assert_eq!(design.modules.len(), 1);
+            let m = &design.modules[0];
+            let layout = m
+                .aggregate_layout
+                .as_ref()
+                .expect("forced-on module must be projected");
+            if layout.kind != anvil::ir::AggregateKind::ArrayPacked {
+                continue; // a non-uniform group legitimately stayed struct
+            }
+            saw_array += 1;
+            let sv = anvil::emit::to_sv_in_design(m, &design);
+            assert!(
+                sv.contains("typedef logic ["),
+                "ArrayPacked must emit a packed-array typedef (seed {seed}, {strategy:?}):\n{sv}"
+            );
+            assert!(
+                !sv.contains("struct packed"),
+                "ArrayPacked layout must not emit a struct typedef:\n{sv}"
+            );
+        }
+    }
+    assert!(
+        saw_array >= 1,
+        "array_prob=1.0 over a uniform-width interface must yield at least one \
+         downstream-valid ArrayPacked design across the seed sweep"
+    );
+
+    // Gate check: array_prob = 0.0 keeps the same shape StructPacked.
+    let struct_cfg = Config {
+        seed: 0,
+        aggregate_prob: 1.0,
+        aggregate_array_prob: 0.0,
+        min_inputs: 3,
+        max_inputs: 3,
+        min_outputs: 2,
+        max_outputs: 2,
+        min_width: 8,
+        max_width: 8,
+        flop_prob: 0.0,
+        ..Config::default()
+    };
+    let design = Generator::new(struct_cfg).generate_design();
+    assert_eq!(
+        design.modules[0].aggregate_layout.as_ref().unwrap().kind,
+        anvil::ir::AggregateKind::StructPacked,
+        "array_prob=0.0 must remain StructPacked"
+    );
+}
+
+#[test]
 fn packed_aggregate_organic_existence_is_not_inert() {
     // PHASE-5B-AGGREGATES.2.2(a). Unlike Phase 5 width-homogeneity
     // (which the unconstrained generator essentially never produced —

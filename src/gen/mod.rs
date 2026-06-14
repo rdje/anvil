@@ -202,6 +202,12 @@ impl Generator {
         }
         if self.cfg.aggregate_prob > 0.0 {
             let p = self.cfg.aggregate_prob.clamp(0.0, 1.0);
+            // AGGREGATE-ARRAY-PACKING.3: a second, conditional seeded
+            // roll selects a packed *array* over a packed `struct` when
+            // the projected group is uniform-width. Guarded by `> 0.0`
+            // so the default (`aggregate_array_prob == 0.0`) draws
+            // nothing extra from the RNG ⇒ byte-identical stream + output.
+            let array_p = self.cfg.aggregate_array_prob.clamp(0.0, 1.0);
             // `.2.1` scaffold scoping: only project modules that are
             // **not instantiated** by any other module. A projected
             // child would change its emitted port surface while the
@@ -221,7 +227,8 @@ impl Generator {
                     continue;
                 }
                 if self.rng.gen_bool(p) {
-                    crate::ir::aggregate::annotate_aggregate(module);
+                    let prefer_array = array_p > 0.0 && self.rng.gen_bool(array_p);
+                    crate::ir::aggregate::annotate_aggregate_with_kind(module, prefer_array);
                 }
             }
         }
