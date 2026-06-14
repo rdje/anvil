@@ -254,8 +254,8 @@ The important distinction is:
 - **whole modules** are usually arbitrary in behavior; but
 - **local motifs / blocks** may still be functionally correct by
   construction (for example a mux as a mux, a flop as a flop, a
-  priority encoder as a priority encoder, and future memories / FSM
-  templates in their own local sense).
+  priority encoder as a priority encoder, and the delivered memory /
+  FSM templates in their own local sense).
 
 ## Can `anvil` be used to stress downstream HDL tools?
 

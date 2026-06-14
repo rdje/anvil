@@ -1,6 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-book-drift-correction — LIVE-DOC-BOOK-ALIGNMENT.1 realign mdBook with delivered motifs
+
+**Landed as:** this commit
+
+**What changed**
+
+Live-doc/mdBook-only drift correction, owned by task-tree leaf
+`LIVE-DOC-BOOK-ALIGNMENT.1` (mirroring the existing `LIVE-DOC-*`
+alignment-tree precedent). No code, tests, or generated RTL changed.
+Brought the user-facing book back into lockstep with the delivered
+codebase, where several delivered Phase 5–9 capabilities were still
+labelled "future"/"not yet implemented":
+
+- `book/src/synthesizability.md`: retitled `## Memories (future,
+  advanced motifs)` → `## Memories (delivered, advanced motif)` and
+  rewrote the body to state the motif is delivered (Phase 6, opt-in
+  `memory_prob`, first-class `Memory` block + opaque `Node::MemRead`,
+  Yosys `$mem_v2` single-/simple-dual-port, state-by-instance).
+- `book/src/ir.md`: retitled `## Future extensions (durable roadmap,
+  not yet implemented)` → `## Extensions beyond the core scalar IR`
+  and rewrote the intro to state most extensions have landed
+  (Phase 5 / 5b / 6 / 7–9), with genuinely-future / not-pursued items
+  marked inline. Added the missing **Delivered (Phase 5, 2026-05-17)**
+  tag to the `### Parameters and generics (Phase 5)` subsection, which
+  was still written entirely as unbuilt future work.
+- `book/src/faq.md`: "future memories / FSM templates" → "the delivered
+  memory / FSM templates".
+- `book/src/core-idea.md` (protected file — justified below and in
+  `DEVELOPMENT_NOTES.md`): "Future motifs (FSMs, memories, …) should be
+  added by extending the recursion's choice set" → "Advanced motifs
+  (…) are added by …". Tense-only correction; the load-bearing design
+  principle (extend the recursion, never iterative scaffolding) is
+  preserved verbatim.
+- `MEMORY.md`: refreshed the resume pointer — backfilled the stale
+  `latest_commit` (`0d70120`/`.3` → `99a2682`/`.4`) and recorded this
+  doc-sync slice and current state.
+
+**Why it matters**
+
+The mdBook is the project's user-facing surface and is doctrinally
+required to reflect the codebase at all times with no drift. A reader
+reaching the book cold would have concluded memories, parameterization,
+and the Phase 7–9 artifact lanes were unimplemented when they are
+delivered and downstream-clean. This realigns the book with `ROADMAP.md`
+(all phases `done`) and the codebase.
+
+**Validation**
+
+- `mdbook build book` — clean (HTML backend).
+- Residual-staleness grep on the reframed files — clean.
+- `scripts/check_memory_architecture.sh` and
+  `knowledge-map/scripts/check_knowledge_map.sh` — pass.
+- `git diff --check` — clean.
+- No runnable book bash block was touched (all edits are prose/headers),
+  so the byte-identical book-runnable contract is preserved; full
+  `cargo test` was intentionally not run (no code changed, and full-suite
+  RAM risk per the resource-safe-validation policy).
+
+**Impact**
+
+User-facing book only. No CLI, knob, IR, or generated-output change.
+
+**Files touched:** `book/src/synthesizability.md`, `book/src/ir.md`,
+`book/src/faq.md`, `book/src/core-idea.md`, `MEMORY.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/LIVE-DOC-BOOK-ALIGNMENT.md` (new),
+`docs/TASK_TREE.md`.
+
 ## 2026-06-05-signoff-surface-expansion-4 — SIGNOFF-SURFACE-EXPANSION.4 close signoff frontier
 
 **Landed as:** this commit

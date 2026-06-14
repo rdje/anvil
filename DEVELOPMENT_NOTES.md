@@ -5,6 +5,35 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — mdBook drift correction (delivered motifs were labelled "future") — `LIVE-DOC-BOOK-ALIGNMENT.1`
+
+A live-doc/mdBook audit found the user-facing book still described
+several **delivered** capabilities as future work, violating the
+no-drift mandate (`book/src/synthesizability.md` "Memories (future…)";
+`book/src/ir.md` "Future extensions … not yet implemented" whose body
+already carried "Delivered" tags; the `### Parameters and generics
+(Phase 5)` subsection written entirely as unbuilt; `book/src/faq.md`
+"future memories / FSM"). All were corrected to present-tense
+delivered framing sourced from `ROADMAP.md` / the code's own docs.
+
+**Protected-file justification (`book/src/core-idea.md`).** COMMIT.md
+forbids casual edits to `core-idea.md` / `non-goals.md` /
+`why-not-grammar.md`. The single edit here changed "Future motifs
+(FSMs, memories, parameterized sub-designs) **should be** added by
+extending the recursion's choice set" → "Advanced motifs (…) **are**
+added by …". This is a tense-only factual correction (those motifs are
+delivered); the load-bearing design decision — *extend the recursion,
+never wrap it in iterative scaffolding* — is preserved verbatim. No
+design decision was altered, added, or removed.
+
+No code, IR, knob, or generated-output change. Validation: `mdbook
+build book` clean; memory-architecture + knowledge-map self-checks
+pass; `git diff --check` clean. Full `cargo test` intentionally skipped
+(no code changed; full-suite RAM risk per the resource-safe-validation
+policy in `docs/decisions/0003-resource-safe-validation.md`).
+
+---
+
 ## Core design decisions (recap)
 
 These are documented in detail in the mdBook. They are restated here only as anchors:

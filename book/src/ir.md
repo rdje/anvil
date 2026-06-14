@@ -397,15 +397,28 @@ glance — a module header full of `and_0…and_12; mux_0…mux_3;
 flop_0…flop_9` tells you the shape of the logic without further
 inspection.
 
-## Future extensions (durable roadmap, not yet implemented)
+## Extensions beyond the core scalar IR
 
-The IR is deliberately minimal today — typed scalar vectors plus
-flops, drawn from the synthesizable SV subset. Two major axes
-of extension are on the roadmap and will require structural IR
-changes when they land. Both are supported goals; order is not
-fixed.
+The core IR is deliberately minimal — typed scalar vectors plus
+flops, drawn from the synthesizable SV subset. Most of the
+structural extensions once tracked here as roadmap goals have
+since **landed**: Phase 5 parameterization, Phase 5b packed
+aggregates, Phase 6 memories and FSMs, and the Phase 7–9 non-DUT
+artifact lanes (oracle-backed micro-design, source-level
+frontend/elaboration accept, and the multi-artifact umbrella).
+The subsections below keep their original design rationale for the
+record and tag each with its delivered phase. A few items remain
+genuinely future or were deliberately not pursued, and are marked
+inline.
 
 ### Parameters and generics (Phase 5)
+
+**Delivered (Phase 5, 2026-05-17).** Modules can carry a width
+`parameter` and be instantiated at multiple widths via `#(.W(v))`,
+rules-first and downstream-clean. The original design sketch is
+retained below; the "future work" caveat now refers only to
+parameter-aware child selection and parameter-dependent parent
+generation, which remain open-ended post-Phase-5 work.
 
 Goal: emit modules that take `parameter` declarations and are
 reused at multiple widths / depths. Requires:

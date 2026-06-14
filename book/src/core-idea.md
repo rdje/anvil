@@ -11,8 +11,8 @@ is recursive by design, and recursion is its core principle.** Every
 non-trivial generation step in `anvil` is — or should be — a recursive
 descent over the typed circuit graph. The fanin-cone builder is
 recursive. Hierarchical module instantiation is the same recursion at a
-larger granularity. Future motifs (FSMs, memories, parameterized
-sub-designs) should be added by extending the recursion's choice set,
+larger granularity. Advanced motifs (FSMs, memories, parameterized
+sub-designs) are added by extending the recursion's choice set,
 not by introducing iterative scaffolding around it.
 
 When a contributor asks "should this be a loop or a recursion?", the

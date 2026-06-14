@@ -63,9 +63,11 @@ No sync-reset or no-reset variants are generated; per-flop clock or
 reset polarity doesn't exist in the IR. No other `always_ff` shapes
 are emitted.
 
-## Memories (future, advanced motifs)
+## Memories (delivered, advanced motif)
 
-When memories are added, they follow inferrable patterns only:
+Memories are a delivered Phase 6 motif behind the opt-in
+`memory_prob` knob (default `0.0` → byte-identical output). They
+follow inferrable patterns only:
 
 ```systemverilog
 reg [W-1:0] mem [0:DEPTH-1];
@@ -75,8 +77,15 @@ always_ff @(posedge clk) begin
 end
 ```
 
-The generator templates these; it does not construct them from
-arbitrary combinational logic.
+The generator templates these from a first-class `Memory` block
+whose registered read enters the gate graph only through an opaque
+`Node::MemRead` leaf; it does not construct them from arbitrary
+combinational logic. Yosys infers the emitted template as
+`$mem_v2` (single-port, or simple-dual-port with an independent
+read port). The stored contents are not reset-defined, so each
+memory stays state-by-instance under the factorization passes.
+See [Knobs and Reproducibility](knobs.md) (`memory_prob`) and
+[The Circuit IR](ir.md).
 
 ## Latches
 
