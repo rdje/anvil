@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (overwrite this block; do not append history)
-- latest_commit: `99a2682` - `SIGNOFF-SURFACE-EXPANSION.4 - close signoff frontier` (HEAD is now a docs-only book-drift-correction commit landing on top; its hash backfills next update).
-- active_work_unit: none. All 9 roadmap phases and every task tree are `done`; no active task-tree frontier remains. Latest closed leaf `LIVE-DOC-BOOK-ALIGNMENT.1` (2026-06-14) realigned the mdBook where delivered Phase 5–9 motifs were still labelled "future" (`synthesizability.md`/`ir.md`/`faq.md`/`core-idea.md`).
-- next_action: no open frontier — any new code capability must open a new roadmap-aligned task-tree leaf first. Optional task-tree-exempt follow-up: add dedicated mdBook chapters for the delivered Phase 5/5b/6/7-9 motifs (currently no Motif-Catalogue chapter for parameterization/aggregates/memory/FSM/CDC/artifact-lanes).
+- latest_commit: `95201a2` - `LIVE-DOC-BOOK-ALIGNMENT.1 - realign mdBook with delivered motifs` (the `RESOURCE-SAFE-TOOLING.1` ram-guard commit lands on top; its hash backfills next update).
+- active_work_unit: `RESOURCE-SAFE-TOOLING` — `.1` done (`scripts/ram_guard.sh`), frontier `.2` (document the runner in USER_GUIDE) pending. All 9 roadmap phases and every other task tree remain `done`.
+- next_action: owner directed "build new capability" (2026-06-14) — open a NEW roadmap-aligned capability task tree (candidate from deferred boundaries) BEFORE any `src/` change, then implement leaf-by-leaf with the book/roadmap/live-docs synced in the SAME slice. Also: `RESOURCE-SAFE-TOOLING.2` (ram-guard docs). Run heavy builds via `scripts/ram_guard.sh --`.
 - in_flight_uncommitted: none.
 - blockers: no active blocker. Full `cargo test` remains resource-risky on this host; monitor RAM and stop above 90% (>95% reboots). Prior monitored run stopped at 90.7% RAM per owner policy.
 

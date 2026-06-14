@@ -1,6 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-ram-guard — RESOURCE-SAFE-TOOLING.1 add RAM watchdog runner
+
+**Landed as:** this commit
+
+**What changed**
+
+Added `scripts/ram_guard.sh`, a reusable RAM watchdog that wraps an
+arbitrary command, polls used-RAM% (`memory_pressure` on macOS,
+`/proc/meminfo` on Linux), and aborts the wrapped process group before a
+configurable threshold (default 88%, below the 90% danger line and well
+below the ~95% reboot line). Exit `99` on abort; otherwise it propagates
+the wrapped command's own status. Owned by task-tree leaf
+`RESOURCE-SAFE-TOOLING.1`.
+
+**Why it matters**
+
+This host is RAM-limited: >90% used is dangerous and >95% reboots it.
+Heavy `cargo` builds/tests and `tool_matrix` sweeps can spike RAM. The
+guard makes those runs crash-safe by construction, operationalizing
+`docs/decisions/0003-resource-safe-validation.md`. Going forward, heavy
+jobs run as `scripts/ram_guard.sh -- <cmd>`.
+
+**Validation**
+
+- Pass case: `--threshold 99 -- bash -c 'exit 0'` → exit 0.
+- Abort case: `--threshold 1 -- sleep 8` → exit 99 (read 26% used).
+- Propagation: `--threshold 99 -- bash -c 'exit 7'` → exit 7.
+- `git diff --check` clean; memory-architecture + knowledge-map
+  self-checks pass. No code/IR/knob/generated-output change.
+
+**Impact**
+
+Workflow tooling only. No generator behaviour change.
+
+**Files touched:** `scripts/ram_guard.sh` (new),
+`docs/tasks/RESOURCE-SAFE-TOOLING.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-book-drift-correction — LIVE-DOC-BOOK-ALIGNMENT.1 realign mdBook with delivered motifs
 
 **Landed as:** this commit

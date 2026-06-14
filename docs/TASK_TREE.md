@@ -94,6 +94,7 @@ linear coverage slices inside a leaf still land under the `rN` naming +
 | `HIERARCHY-IDENTITY-BOUNDARY` | `done` | NodeId as identity / hierarchical module identity | complete — `.1` proves and documents that module dedup remains structural-only, not arbitrary semantic module equivalence. | [docs/tasks/HIERARCHY-IDENTITY-BOUNDARY.md](tasks/HIERARCHY-IDENTITY-BOUNDARY.md) |
 | `ENDPOINT-IDENTITY-BOUNDARY` | `done` | NodeId as identity / full-factorization mode | complete — `.1` proves and documents that same-shape semantic cones over different leaf endpoints do not merge. | [docs/tasks/ENDPOINT-IDENTITY-BOUNDARY.md](tasks/ENDPOINT-IDENTITY-BOUNDARY.md) |
 | `LIVE-DOC-BOOK-ALIGNMENT` | `done` | Live docs / mdBook ↔ codebase alignment | complete — `.1` corrected mdBook chapters that still labelled delivered Phase 5-9 motifs (memories, parameterization, Phase 7-9 lanes) as "future". | [docs/tasks/LIVE-DOC-BOOK-ALIGNMENT.md](tasks/LIVE-DOC-BOOK-ALIGNMENT.md) |
+| `RESOURCE-SAFE-TOOLING` | `active` | Quality / workflow — resource-safe validation | `.1` done (`scripts/ram_guard.sh` RAM watchdog); frontier `.2` (document the runner in USER_GUIDE). | [docs/tasks/RESOURCE-SAFE-TOOLING.md](tasks/RESOURCE-SAFE-TOOLING.md) |
 
 ## Directory Layout
 
