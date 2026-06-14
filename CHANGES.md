@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-14-workload-memory-safety-2 — WORKLOAD-MEMORY-SAFETY.2 stream the directory-output manifest
+
+**Landed as:** this commit
+
+**What changed**
+
+`--out DIR` runs no longer accumulate every per-artifact metadata object
+in RAM before writing `manifest.json`. The manifest array is now streamed
+element-by-element, so peak metadata memory is O(1) in `--count` instead
+of O(`--count`) — a million-module run no longer holds a million metrics
+objects live at once.
+
+- `src/manifest.rs` (new lib module): `write_streamed_manifest(w,
+  scalars, array_key, elements)` writes a top-level
+  `{ <scalars…>, "<array_key>": [ … ] }` object, streaming the array via
+  an `io::Result<Value>` iterator so only one element Value is live at a
+  time, into a `BufWriter` over the file.
+- `src/lib.rs`: registered `pub mod manifest`.
+- `src/main.rs`: both directory-output lanes (flat `modules` and
+  hierarchical `designs`) rewired to build each element lazily inside a
+  `std::iter::from_fn` closure (generate → emit `.sv` → build metadata
+  Value → stream → drop) instead of pushing into a `Vec` and
+  `to_string_pretty`-ing at the end.
+
+**Byte-identical contract.** `manifest.json` is byte-for-byte identical
+to the previous output. The surrounding framing is derived directly from
+serde (serialise with the array key bound to a unique placeholder string,
+split around it — capturing serde's sorted key order, `seed`/`config`
+rendering, commas, indentation), and each element is `to_string_pretty`'d
+then re-indented by its constant base depth. The `.sv` files were already
+streamed and are unchanged.
+
+**Why it matters**
+
+Closes the clearest unbounded-O(`--count`) growth vector in ANVIL's own
+runtime (`WORKLOAD-MEMORY-SAFETY` goal): a huge `--count … --out` sweep
+can no longer balloon process memory on the metadata `Vec` and push a
+RAM-limited host toward the reboot zone.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D
+  warnings` clean; `cargo fmt --all --check` clean.
+- `cargo test --lib manifest` 3/3: `streamed_matches_reference` (flat,
+  counts 0/1/2/5/17), `streamed_matches_reference_for_designs` (nested),
+  `propagates_element_error` — all prove byte-identity against serde
+  itself / error propagation.
+- `cargo test --test snapshots` 6/6 (SV byte-identity guard intact).
+- **Gold-standard byte-identity:** old (git-stash) vs new `diff -r`
+  across both lanes — `--seed 42 --count 5` (flat) and `--seed 7
+  --count 3 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances
+  4` (wrapper design) — came back **byte-identical** for `manifest.json`
+  and every `.sv`.
+- Full `cargo test` run under `scripts/ram_guard.sh --threshold 88`
+  (host RAM stayed comfortable; result recorded in the task tree).
+
+**Impact**
+
+No user-visible behaviour or output change (`manifest.json` byte-identical,
+no new flag). Internal peak-memory profile for `--out` runs improved from
+O(`--count`) to O(1) in metadata.
+
+**Files touched**
+
+`src/manifest.rs` (new), `src/lib.rs`, `src/main.rs`,
+`docs/tasks/WORKLOAD-MEMORY-SAFETY.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-14-workload-memory-safety-1 — WORKLOAD-MEMORY-SAFETY.1 audit + bounded-memory design
 
 **Landed as:** this commit

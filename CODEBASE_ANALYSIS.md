@@ -127,7 +127,12 @@ src/
 ├── main.rs           CLI entry point. Parses `Cli`, loads/merges
 │                     `Config`, validates it, runs `Generator`, and
 │                     writes stdout or per-file output with
-│                     `manifest.json`. CLI surface covers structure,
+│                     `manifest.json`. The directory-output manifest is
+│                     written by `manifest::write_streamed_manifest`
+│                     element-by-element (generate → emit `.sv` → build
+│                     one metadata Value → stream → drop), so peak
+│                     metadata memory is O(1) in `--count` rather than
+│                     O(`--count`) (`WORKLOAD-MEMORY-SAFETY.2`). CLI surface covers structure,
 │                     sequential motifs, comb-mux / priority-encoder /
 │                     coefficient / constant-shift / const-comparand
 │                     motifs, construction strategy, factorization,
@@ -139,7 +144,7 @@ src/
 │                     enabling `trace_verbose!`.
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
-│                     Also exposes the `metrics` module. Trace
+│                     Also exposes the `metrics` and `manifest` modules. Trace
 │                     infrastructure: static TRACE_DEBUG: AtomicBool,
 │                     set_trace_debug(bool), trace_debug_enabled(),
 │                     and the `trace_verbose!` macro (exported) which
@@ -173,6 +178,21 @@ src/
 │                     parent-output support.
 │                     Serde-serializable; embedded in `manifest.json`
 │                     and printed with the `--metrics` flag.
+│
+├── manifest.rs       Streaming `manifest.json` writer
+│                     (`WORKLOAD-MEMORY-SAFETY.2`).
+│                     `write_streamed_manifest(w, scalars, array_key,
+│                     elements)` writes a top-level
+│                     `{ <scalars…>, "<array_key>": [ … ] }` object,
+│                     streaming the array element-by-element so only one
+│                     element Value is live at a time (peak metadata
+│                     memory O(1) in artifact count). Byte-identical to
+│                     the previous accumulate-then-`to_string_pretty`
+│                     path: the surrounding framing is derived from serde
+│                     via a placeholder split and each element is
+│                     serde-pretty-printed then re-indented by its base
+│                     depth. `streamed_matches_reference` proves the
+│                     byte-identity against serde itself.
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy.
@@ -721,6 +741,7 @@ In `ir::validate::validate_design`:
 - `src/gen/module.rs` — 4 inline unit tests covering primary-input width shrinking, the "do not shrink full-width non-slice uses" guard, instance-input binding width preservation, and the orphan-gate consumer audit for instance inputs.
 - `src/emit/sv.rs` — 17 inline unit tests pinning emitter output on hand-built IRs: module header + endmodule + port declarations + passthrough assign, conditional omission of clk/rst_n when zero flops, canonical `always_ff @(posedge clk or negedge rst_n)` header with active-low reset branch, operator and constant rendering, Slice / Concat rendering, scalar-slice emission without illegal `[0:0]` on scalar `logic`, constant-slice folding to legal literals, Mux ternary form, both procedural case surfaces, the procedural bounded `for` surface, explicit unconnected child-output emission (`.port()`), and the exact hierarchy control-port doctrine for comb-only wrappers, direct sequential wrappers, and grandparent wrappers.
 - `src/metrics.rs` — 20 inline unit tests for empty-module, per-kind gate, flop-shape metrics, constant-vs-variable shift-rhs classification, and hierarchy design metrics for reuse, under-instantiation, parent-side composition, direct sibling helper routes, parent-cone helper-instance output support, stateful parent-output helper mixed-support output metrics, budgeted parent-cone helper allocation, unregistered helper child-input mixed-support metrics, registered helper-sourced child-input D cones, direct registered sibling helper routes, stateful parent-composed helper child-input routes, stateful parent-composed helper child-input mixed-support metrics, direct registered sibling mixed-support metrics, bounded recursive tree shape, per-depth branching profiles, and profiled on-demand interface realization.
+- `src/manifest.rs` — 3 inline unit tests (`WORKLOAD-MEMORY-SAFETY.2`): `streamed_matches_reference` and `streamed_matches_reference_for_designs` prove the streamed manifest is byte-identical to `serde_json::to_string_pretty` of the fully-assembled object across element counts (0/1/2/5/17 and nested designs), and `propagates_element_error` proves a per-element error aborts the write.
 - `src/microdesign/mod.rs` — 7 inline unit tests. `.2a`:
   `eval_matches_known_values` (operator precedence, shift/bitwise,
   comparisons/logicals→1/0, truncating div/mod toward zero,

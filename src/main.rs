@@ -506,71 +506,99 @@ fn main() -> anyhow::Result<()> {
         }
         (Some(dir), n) => {
             std::fs::create_dir_all(dir)?;
+            // Stream the manifest array element-by-element so peak
+            // metadata memory stays O(1) in `--count` instead of
+            // O(`--count`) (`WORKLOAD-MEMORY-SAFETY.2`). The `.sv` files
+            // were already streamed (generate → emit → write → drop);
+            // the leak was the accumulate-then-`to_string_pretty`
+            // metadata `Vec`. Output is byte-identical — proven by
+            // `anvil::manifest`'s `streamed_matches_reference` test.
+            let seed = cli.seed;
+            let metrics_to_stderr = cli.metrics;
+            let mut scalars = serde_json::Map::new();
+            scalars.insert("seed".to_string(), serde_json::json!(seed));
+            scalars.insert("config".to_string(), serde_json::to_value(&cfg)?);
+            let manifest_file =
+                std::io::BufWriter::new(std::fs::File::create(dir.join("manifest.json"))?);
             if hierarchical {
-                let mut designs = Vec::new();
-                for design_index in 0..n {
-                    let design = gen.generate_design();
-                    anvil::ir::validate::validate_design(&design)
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
-                    let design_metrics = anvil::metrics::compute_design(&design);
-                    let mut modules = Vec::new();
-                    for module in &design.modules {
-                        let metrics = anvil::metrics::compute(module);
-                        let fname = format!("{}.sv", module.name);
-                        std::fs::write(
-                            dir.join(&fname),
-                            anvil::emit::to_sv_in_design(module, &design),
-                        )?;
-                        modules.push(serde_json::json!({
-                            "file": fname,
-                            "name": module.name,
-                            "metrics": metrics,
-                        }));
-                        if cli.metrics {
-                            eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
+                let mut design_index = 0usize;
+                anvil::manifest::write_streamed_manifest(
+                    manifest_file,
+                    &scalars,
+                    "designs",
+                    std::iter::from_fn(|| {
+                        if design_index >= n {
+                            return None;
                         }
-                    }
-                    designs.push(serde_json::json!({
-                        "index": design_index,
-                        "top": design.top,
-                        "metrics": design_metrics,
-                        "modules": modules,
-                    }));
-                    if cli.metrics {
-                        eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
-                    }
-                }
-                std::fs::write(
-                    dir.join("manifest.json"),
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "seed": cli.seed,
-                        "config": cfg,
-                        "designs": designs,
-                    }))?,
+                        let idx = design_index;
+                        design_index += 1;
+                        Some((|| -> std::io::Result<serde_json::Value> {
+                            let design = gen.generate_design();
+                            anvil::ir::validate::validate_design(&design)
+                                .map_err(|e| std::io::Error::other(e.to_string()))?;
+                            let design_metrics = anvil::metrics::compute_design(&design);
+                            let mut modules = Vec::new();
+                            for module in &design.modules {
+                                let metrics = anvil::metrics::compute(module);
+                                let fname = format!("{}.sv", module.name);
+                                std::fs::write(
+                                    dir.join(&fname),
+                                    anvil::emit::to_sv_in_design(module, &design),
+                                )?;
+                                modules.push(serde_json::json!({
+                                    "file": fname,
+                                    "name": module.name,
+                                    "metrics": metrics,
+                                }));
+                                if metrics_to_stderr {
+                                    if let Ok(s) = serde_json::to_string_pretty(&metrics) {
+                                        eprintln!("{s}");
+                                    }
+                                }
+                            }
+                            if metrics_to_stderr {
+                                if let Ok(s) = serde_json::to_string_pretty(&design_metrics) {
+                                    eprintln!("{s}");
+                                }
+                            }
+                            Ok(serde_json::json!({
+                                "index": idx,
+                                "top": design.top,
+                                "metrics": design_metrics,
+                                "modules": modules,
+                            }))
+                        })())
+                    }),
                 )?;
             } else {
-                let mut manifest = Vec::new();
-                for i in 0..n {
-                    let m = gen.generate_module();
-                    let metrics = anvil::metrics::compute(&m);
-                    let fname = format!("mod_{}_{:04}.sv", cli.seed, i);
-                    std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
-                    manifest.push(serde_json::json!({
-                        "file": fname,
-                        "name": m.name,
-                        "metrics": metrics,
-                    }));
-                    if cli.metrics {
-                        eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
-                    }
-                }
-                std::fs::write(
-                    dir.join("manifest.json"),
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "seed": cli.seed,
-                        "config": cfg,
-                        "modules": manifest,
-                    }))?,
+                let mut i = 0usize;
+                anvil::manifest::write_streamed_manifest(
+                    manifest_file,
+                    &scalars,
+                    "modules",
+                    std::iter::from_fn(|| {
+                        if i >= n {
+                            return None;
+                        }
+                        let idx = i;
+                        i += 1;
+                        Some((|| -> std::io::Result<serde_json::Value> {
+                            let m = gen.generate_module();
+                            let metrics = anvil::metrics::compute(&m);
+                            let fname = format!("mod_{}_{:04}.sv", seed, idx);
+                            std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
+                            if metrics_to_stderr {
+                                if let Ok(s) = serde_json::to_string_pretty(&metrics) {
+                                    eprintln!("{s}");
+                                }
+                            }
+                            Ok(serde_json::json!({
+                                "file": fname,
+                                "name": m.name,
+                                "metrics": metrics,
+                            }))
+                        })())
+                    }),
                 )?;
             }
         }

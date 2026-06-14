@@ -31,6 +31,12 @@ pub mod emit;
 pub mod frontend;
 pub mod gen;
 pub mod ir;
+/// Streaming `manifest.json` writer (`WORKLOAD-MEMORY-SAFETY.2`).
+/// Writes the directory-output manifest array element-by-element so
+/// peak metadata memory is O(1) in `--count` instead of O(`--count`),
+/// byte-identical to the previous accumulate-then-`to_string_pretty`
+/// path. See `src/manifest.rs`.
+pub mod manifest;
 pub mod metrics;
 /// Phase 7 oracle-backed micro-design lane (`PHASE-7-ORACLE-MICRODESIGN`).
 /// A **separate generator path** from the DUT lane: a source-level

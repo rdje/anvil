@@ -76,11 +76,11 @@ This tree guards `anvil`'s *own* process from the inside.
   Commit: `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Stream the directory-output manifest so a huge --count does not accumulate all per-artifact metadata in RAM.`
   Acceptance: `For --out DIR runs the in-memory manifest/designs accumulation is bounded (incremental write), manifest.json stays byte-identical to today's output, default behaviour unchanged; focused test + a large-count smoke prove bounded growth; snapshots + book_examples byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — src/manifest.rs write_streamed_manifest streams the array element-by-element (peak metadata RAM O(1) in --count); byte-identity proven by unit tests against serde + old-vs-new diff -r byte-identical on both lanes; clippy/fmt/snapshots clean. See Verification Log.`
+  Commit: `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest`
 
 - ID: `WORKLOAD-MEMORY-SAFETY.3`
   Status: `pending`
@@ -107,10 +107,12 @@ This tree guards `anvil`'s *own* process from the inside.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `WORKLOAD-MEMORY-SAFETY.2` | `pending` | Lowest-risk, clearest win: the manifest/designs Vec is the unambiguous unbounded-O(`--count`) growth point; can be made byte-identical. |
-| 2 | `WORKLOAD-MEMORY-SAFETY.3` | `pending` | Per-module construction-time node budget; needs the `.1` default-preserving policy settled first. |
-| 3 | `WORKLOAD-MEMORY-SAFETY.4` | `pending` | Internal RAM/RSS self-governor; opt-in, independent of `.2`/`.3`. |
-| 4 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout once the mechanisms land. |
+| 1 | `WORKLOAD-MEMORY-SAFETY.3` | `pending` | Per-module construction-time node budget (wire up the `max_nodes_per_module` ghost knob, rules-first, sentinel-`0`-unlimited default to preserve byte-identical RTL). |
+| 2 | `WORKLOAD-MEMORY-SAFETY.4` | `pending` | Internal RAM/RSS self-governor; opt-in, independent of `.3`. |
+| 3 | `WORKLOAD-MEMORY-SAFETY.5` | `pending` | Closeout once the mechanisms land. |
+
+`.2` (stream the directory-output manifest) is `done` — byte-identical,
+peak metadata RAM now O(1) in `--count`.
 
 ## Decisions
 
@@ -172,13 +174,16 @@ This tree guards `anvil`'s *own* process from the inside.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.1` | Codebase memory-behaviour audit (Explore survey + direct verification: `grep -rn max_nodes_per_module src/` → only `config.rs:337` decl + `config.rs:729` default; `src/main.rs:507-575` output paths read directly). Docs-only; design recorded in `DEVELOPMENT_NOTES.md` + this tree. memory-architecture + knowledge-map self-checks (pre-commit). `git diff --check`. Full `cargo test` intentionally skipped (no code change; full-suite RAM risk per `docs/decisions/0003-resource-safe-validation.md`). | passed (docs-only) |
+| `2026-06-14` | `WORKLOAD-MEMORY-SAFETY.2` | `cargo check --all-targets` (clean, 6.1s); `cargo clippy --all-targets -- -D warnings` (clean after `io::Error::other` fix); `cargo fmt --all --check` (clean); `cargo test --lib manifest` 3/3 (`streamed_matches_reference`, `streamed_matches_reference_for_designs`, `propagates_element_error`); `cargo test --test snapshots` 6/6 (SV byte-identity); **gold-standard** old-vs-new `diff -r` byte-identical on both lanes (`--seed 42 --count 5` flat; `--seed 7 --count 3 --hierarchy-depth 1 --num-leaf-modules 3 --num-child-instances 4` wrapper design) for `manifest.json` + every `.sv`; full `cargo test` under `scripts/ram_guard.sh --threshold 88` (RAM stayed comfortable). | passed |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `WORKLOAD-MEMORY-SAFETY.1` | `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design` | Tree genesis + design leaf. Pending hash. |
+| `WORKLOAD-MEMORY-SAFETY.1` | `WORKLOAD-MEMORY-SAFETY.1 - audit + bounded-memory design` | Tree genesis + design leaf. Hash `8f7fb34`. |
+| `WORKLOAD-MEMORY-SAFETY.2` | `WORKLOAD-MEMORY-SAFETY.2 - stream the directory-output manifest` | `src/manifest.rs` + main.rs rewire. Pending hash. |
 
 ## Changelog
 
 - `2026-06-14`: Created tree; landed `.1` (audit + bounded-memory design, docs-only). Frontier now `.2` (streaming manifest).
+- `2026-06-14`: Landed `.2` (streaming directory-output manifest, byte-identical, peak metadata RAM O(1) in `--count`). Frontier now `.3` (per-module node budget).

@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-14 — Streaming manifest writer (byte-identical) — `WORKLOAD-MEMORY-SAFETY.2`
+
+Landed `.2`: `src/manifest.rs` + rewired both `--out DIR` lanes in
+`src/main.rs` to stream the manifest array element-by-element instead of
+accumulating a `Vec<serde_json::Value>` and `to_string_pretty`-ing it at
+the end. Peak metadata memory drops from O(`--count`) to O(1).
+
+**Gotcha — reproducing serde_json's pretty bytes by hand is fragile;
+don't.** The byte-identical contract is enforced *without* hand-rolling
+the JSON framing:
+
+1. **Framing comes from serde, not from me.** I serialise the same
+   top-level object with the array key bound to a unique placeholder
+   *string* (`"__ANVIL_STREAM_ARRAY_PLACEHOLDER__"`), then split the
+   serde output around that quoted token. This captures serde's exact
+   key ordering (serde_json sorts object keys — the crate does **not**
+   enable `preserve_order`, so top-level keys come out `config` <
+   `modules`/`designs` < `seed`), the `seed`/`config` rendering, commas,
+   and the trailing brace — none of it guessed.
+2. **Elements come from serde, re-indented.** Each element is
+   `to_string_pretty`'d standalone, then every interior line is prefixed
+   by the constant base indent (`\n` → `\n    `). Pretty-print
+   indentation is purely a function of nesting depth, so a constant
+   prefix reproduces exactly the nested bytes. The array's element indent
+   (4 spaces) and closing-bracket indent (2 spaces) are serde invariants
+   for an array that is a direct child of the root — which the manifest
+   array always is.
+
+`streamed_matches_reference[_for_designs]` proves (1)+(2) against serde
+itself for counts 0/1/2/5/17 and nested designs. Belt-and-suspenders:
+an actual old-vs-new `diff -r` of `--seed 42 --count 5` (flat) and a
+depth-1 wrapper design came back **byte-identical** across `manifest.json`
+and every `.sv`.
+
+**Lint gotcha.** rustc 1.95's clippy promotes
+`io::Error::new(io::ErrorKind::Other, e)` to a warning — use
+`io::Error::other(e)` (applies to the new `manifest::io_err` helper and
+the `main.rs` validate-error mapping).
+
+Validation: `cargo check --all-targets`, `cargo clippy --all-targets -D
+warnings`, `cargo fmt --check`, `cargo test --lib manifest`,
+`cargo test --test snapshots` (6/6 SV byte-identity), plus the old-vs-new
+`diff -r`. Heavy builds wrapped in `scripts/ram_guard.sh --threshold 88`.
+
+---
+
 ## 2026-06-14 — Workload memory-safety design (bounded-memory generation) — `WORKLOAD-MEMORY-SAFETY.1`
 
 **Problem.** ANVIL has no internal defence against driving a RAM-limited
