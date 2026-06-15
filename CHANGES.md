@@ -1,6 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006
+
+**Landed as:** this commit (previous: `96d1203`). Docs / design leaf — no
+source change.
+
+**What changed**
+
+Opens Lane 3 (`SIGNOFF-AUTOMATION-EXPANSION`) — promoted `proposed`→`active`
+now that Lane 2 (`AGENT-MCP-EXPANSION`) is closed — and records its first
+design/decision.
+
+- **Inventory** of the current signoff surface: 4 acceptance columns (Verilator
+  lint, Yosys without-abc, Yosys with-abc, Icarus `iverilog -g2012` compile) +
+  the opt-in `--diff-sim` semantic-agreement column, **all DUT-lane only**;
+  ~112 `saw_*` coverage facts + axis sets; phase1–4 / share / structured /
+  hierarchy gates; the non-DUT lanes are exercised only by separate parity
+  gates, not the matrix acceptance columns.
+- **Decision `0006`** (`docs/decisions/0006-signoff-automation-first-increment.md`,
+  indexed + Knowledge-Map front-matter): the first increment is **richer
+  adversarial knob-sweep coverage** — promote currently-unswept-but-existing
+  generator knobs (operand/mux-arm duplication, `width_parameterization_prob`,
+  `aggregate_prob`/`aggregate_array_prob`, memory×fsm interplay) into **explicit
+  first-class `tool_matrix` scenario axes + `saw_*` coverage facts** (+ a focused
+  gate), so they fire by construction not by chance — closing ROADMAP steering
+  gap 3's hidden-bias hole. Chosen on the test "a day-one failure must be a real
+  downstream signal, not noise": a newly-swept legal knob combo tripping
+  Verilator/Yosys is the north-star signal; a new aggressive-synth/techmap
+  column produces non-actionable noise (the `with-abc` softening precedent);
+  formal/SVA has no spec to prove (structure-first non-goal); the frontend
+  stub-child corpora are not end-to-end synthesizable. New-tool-column and
+  non-DUT-acceptance paths are preserved as future leaves (nothing retired).
+- **Tree split:** added `.2` (implement the first knob-sweep batch); frontier →
+  `.2`.
+
+**Why**
+
+"Broaden signoff automation" is open-ended; per the tree, `.1` must pick one
+concrete, evidenced increment (on bug-surfacing value per implementation +
+validation cost) before any code edit. The pick maximizes value per cost at low
+risk and directly addresses a named ROADMAP steering gap.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` (incl. `0006` indexed) +
+  `knowledge-map` regen/check — clean.
+- No source change ⇒ no `cargo` gate (design/decision leaf; decision `0003`).
+
+**Impact**
+
+- No code, no behavior change; `--artifact dut` byte-identical. Sets the Lane 3
+  direction and the `.2` implementation target.
+
+**Files touched**
+
+- `docs/decisions/0006-signoff-automation-first-increment.md` (new),
+  `docs/decisions/INDEX.md`, `docs/tasks/SIGNOFF-AUTOMATION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md` (+ regenerated
+  `KNOWLEDGE_MAP.md`)
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.5 — closeout: book/USER_GUIDE/README sync + close tree
 
 **Landed as:** this commit (previous: `ce395de`). Docs / live-doc closeout —
