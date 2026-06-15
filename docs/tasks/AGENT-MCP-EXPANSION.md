@@ -107,8 +107,8 @@ bugs — the `project_anvil_north_star` purpose — while the default
 
 - ID: `AGENT-MCP-EXPANSION.4`
   Status: `pending`
-  Goal: `Optional HTTP transport for anvil-mcp beside stdio (stdio remains the default), driving the same McpServer::handle dispatcher behind an explicit opt-in flag; bind loopback-only by default. Per decision 0005.`
-  Acceptance: `An HTTP transport drives the same McpServer::handle dispatcher; stdio default unchanged; loopback-only default bind; per-call downstream guardrails (allow-list/sandbox/RAM-guard/audit) unchanged; transport-level test.`
+  Goal: `Optional HTTP transport for anvil-mcp beside stdio (stdio remains the default), driving the same McpServer::handle dispatcher behind an explicit opt-in flag (bias: --http <addr> on the existing bin); bind loopback-only by default. OWNER DECISION 2026-06-15: implement as a HAND-ROLLED minimal HTTP/1.1 POST handler over std::net::TcpListener — NO new crate dependency (keep the dependency-light MCP design). Per decision 0005.`
+  Acceptance: `A hand-rolled std::net HTTP transport (no new Cargo dependency) drives the same McpServer::handle dispatcher over JSON-RPC POST; stdio default unchanged and byte-identical; loopback-only default bind; per-call downstream guardrails (allow-list/sandbox/RAM-guard/audit) unchanged; transport-level test (listener on 127.0.0.1:0, round-trip a request). Consider a .4a design leaf to pin the HTTP framing (Content-Length, error responses, connection handling) before .4b impl if warranted.`
   Verification: `pending`
   Commit: `pending`
 
@@ -198,8 +198,10 @@ bugs — the `project_anvil_north_star` purpose — while the default
   (`{"n_params":N}` / `{"n_params":N,"n_children":M}`) into the address, so
   same `(seed, lane, knobs)` ⇒ same `run_id` and differing scoped knobs ⇒
   distinct `run_id` (proven by `non_dut_lane_run_id_is_deterministic_and_knob_sensitive`).
-- `.4` decides: a sub-flag on `anvil-mcp` (`--http <addr>`) vs a separate
-  bin. Bias: a flag on the existing bin, loopback default.
+- (`.4` resolved by owner `2026-06-15`) Transport: a **hand-rolled minimal
+  HTTP/1.1 handler over `std::net`** (no new crate dependency), exposed via
+  a `--http <addr>` flag on the existing `anvil-mcp` bin, loopback-only
+  default; stdio stays the default. See the `.4` node + Decisions.
 
 ## Blockers
 
@@ -243,3 +245,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
   §5/§6.5 **and** served as a resource (§4). Corrected `.3a`'s
   ResourceRef-only stance to conform to the schema spec. `.3` container
   closed. DUT byte-identical (snapshots 6/6). Frontier advanced to `.4`.
+- `2026-06-15`: Owner decision for `.4` — implement the HTTP transport as a
+  **hand-rolled `std::net`** handler (no new crate dependency); fresh
+  session to follow for the network-code leaf. `.4` node + open question
+  updated; no code change.

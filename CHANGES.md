@@ -1,9 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION — record owner .4 HTTP-transport decision (handoff)
+
+**Landed as:** this commit (previous: `54ccb25`). Docs / workflow only — no
+source change.
+
+**What changed**
+
+Records the owner's `2026-06-15` decision for `AGENT-MCP-EXPANSION.4` (the
+optional HTTP transport) and prepares a clean handoff for a fresh session:
+
+- `.4` transport will be a **hand-rolled minimal HTTP/1.1 handler over
+  `std::net::TcpListener`** — **no new crate dependency** (keeps the
+  dependency-light MCP design) — exposed via `--http <addr>` on the existing
+  `anvil-mcp` bin, **loopback-only default**; stdio stays the default; same
+  `McpServer::handle` dispatcher; per-call `downstream` guardrails unchanged.
+- `docs/tasks/AGENT-MCP-EXPANSION.md` `.4` node + Open Questions + Changelog
+  updated with the decision; `MEMORY.md` `next_action` pins it. Owner
+  requested a fresh session for the `.4` network-code leaf.
+
+**Why**
+
+The HTTP transport touches the project's dependency surface (a deliberately
+lean, determinism-focused crate), so the hand-rolled-vs-crate choice is the
+owner's to make; recording it before the session boundary keeps `.4`
+turnkey for a fresh session (continuity-first).
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` + `knowledge-map` check — clean.
+- No source change ⇒ no `cargo` gate.
+
+**Files touched**
+
+- `docs/tasks/AGENT-MCP-EXPANSION.md`, `MEMORY.md`, `CHANGES.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.3b — non-DUT lanes (microdesign/frontend) over MCP
 
-**Landed as:** this commit (previous: `bfab27e`).
+**Landed as:** `54ccb25` (previous: `bfab27e`).
 
 **What changed**
 
