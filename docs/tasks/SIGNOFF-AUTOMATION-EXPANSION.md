@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Quality — downstream signoff automation breadth`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.2` split into `.2a` design + `.2b` impl per the `.3a`/`.3b` precedent; `.2a` done — exact knob batch / scenario shapes / fact names / gate fixed in `DEVELOPMENT_NOTES.md`; frontier → `.2b`)
+- Last updated: `2026-06-15` (`.2a` + `.2b` both done — first richer-knob-sweep increment delivered: new metric + `ScenarioSet::SignoffKnobSweep` + `--signoff-knob-sweep-gate` + 4 `saw_*` facts, banked clean at `/tmp/anvil-signoff-knob-sweep-r1`; `.2` container done; tree stays `active` with future leaves preserved)
 - Owner: repo-local workflow
 
 ## Goal
@@ -71,9 +71,9 @@ lanes; it is opened `proposed` and promoted to `active` after
   Commit: `SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006`
 
 - ID: `SIGNOFF-AUTOMATION-EXPANSION.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the first richer-knob-sweep batch (per decision 0006): promote the highest-bias unswept knobs into explicit tool_matrix scenario axes + saw_* coverage facts + a focused gate; default-off / byte-identical where a knob changes RTL; banked clean across Verilator + both Yosys modes.`
-  Children: `SIGNOFF-AUTOMATION-EXPANSION.2a`, `SIGNOFF-AUTOMATION-EXPANSION.2b`
+  Children: `SIGNOFF-AUTOMATION-EXPANSION.2a` (done), `SIGNOFF-AUTOMATION-EXPANSION.2b` (done)
 
 - ID: `SIGNOFF-AUTOMATION-EXPANSION.2a`
   Status: `done`
@@ -84,17 +84,18 @@ lanes; it is opened `proposed` and promoted to `active` after
   Commit: `SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design`
 
 - ID: `SIGNOFF-AUTOMATION-EXPANSION.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement the .2a design: add the new num_operator_gates_with_duplicate_operands metric (src/metrics.rs), the four focused scenarios + four saw_* facts + the --signoff-knob-sweep-gate / ScenarioSet::SignoffKnobSweep + gap wiring (src/bin/tool_matrix.rs), new cargo-portable proofs, live-doc/book sync, and bank a clean repo-owned report.`
   Acceptance: `The four saw_* facts (saw_operand_duplication, saw_mux_arm_duplication, saw_array_packed_aggregate_design, saw_memory_fsm_interplay_design) land + are required by the new gate; a repo-owned tool_matrix --signoff-knob-sweep-gate report proves all four true with clean Verilator + both-Yosys results and coverage_gaps = []; snapshots 6/6 byte-identical; fmt/check/clippy/focused-tests clean; USER_GUIDE/ROADMAP/book/README synced for the new gate + knob coverage.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Landed the new post-hoc Metrics field num_operator_gates_with_duplicate_operands (src/metrics.rs, RTL byte-identical) + a unit proof; ScenarioSet::SignoffKnobSweep + --signoff-knob-sweep-gate + build_signoff_knob_sweep_scenarios (4 focused scenarios × 3 strategies = 12) + the 4 saw_* facts (module-level for the two duplication DUTs via accumulate_module_coverage; design-level for the two wrapper designs) + the early-return focused gap arm + SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO=4 + 5 cargo-portable proofs in src/bin/tool_matrix.rs. Empirically calibrated (DEVELOPMENT_NOTES .2b): mux-dup keeps default flop_prob (forcing 0.0 collapses num_muxes_degenerate) and is a single-module DUT (wrapper leaves don't hit the path); memory×fsm uses memory_prob=0.5/fsm_prob=1.0/6 leaves. Banked downstream-clean at /tmp/anvil-signoff-knob-sweep-r1: 12 scenarios, 48 modules, coverage_gaps=[], all 4 facts true, 48/0 Verilator + 48/0 Yosys without-abc + 48/0 Yosys with-abc. snapshots 6/6 byte-identical (no DUT generator change); fmt/clippy(-D warnings)/lib 397/0 + tool_matrix 46/0 clean. Live docs + book synced (USER_GUIDE/README/ROADMAP/book knobs.md/CODEBASE_ANALYSIS).`
+  Verification: `cargo fmt --all --check; cargo clippy --all-targets -- -D warnings; cargo test --lib (397/0, incl. new metric proof); cargo test --bin tool_matrix (46/0, incl. 5 new proofs); cargo test --test snapshots (6/6 byte-identical); tool_matrix --signoff-knob-sweep-gate --yosys-mode both banked clean at /tmp/anvil-signoff-knob-sweep-r1`
+  Commit: `SIGNOFF-AUTOMATION-EXPANSION.2b — first signoff knob-sweep batch impl`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SIGNOFF-AUTOMATION-EXPANSION.2b` | `pending` | Implement the `.2a` design: four focused unswept-knob scenarios + four `saw_*` facts + the dedicated `--signoff-knob-sweep-gate` + the new operand-duplication metric, banked clean. |
+| — | (none active) | — | First increment delivered (`.1` decision + `.2a`/`.2b` knob-sweep gate, banked clean). The tree stays `active` because decision `0006` preserves higher-ceiling future leaves (a new acceptance column; non-DUT lanes under the acceptance columns; remaining unswept knobs/axes) — each to be scoped as its own design+impl pair when this lane is next picked. Per the lane order (`2 → 3 → 1`), the next lane is `IDENTITY-DEEPENING` (Lane 1, `proposed` → promote to `active`). |
 
 ## Decisions
 
@@ -141,10 +142,12 @@ lanes; it is opened `proposed` and promoted to `active` after
 - (`.2a` resolved) The first knob batch is the four genuinely-unswept knobs with
   one focused scenario each, the four `saw_*` facts named, and a dedicated
   `--signoff-knob-sweep-gate` (see `DEVELOPMENT_NOTES.md` `.2a` entry).
-- (`.2b` open) Seed calibration for `memory_fsm_interplay` (which `memory_prob`
-  in `(0,1)` + leaf count + seed deterministically realizes ≥1 memory leaf and
-  ≥1 FSM leaf), and the exact arithmetic/mux gate-weight shaping for the two
-  duplication scenarios — to be fixed empirically during impl.
+- (`.2b` resolved) Seed/knob calibration fixed empirically (see
+  `DEVELOPMENT_NOTES.md` `.2b`): `memory_fsm_interplay` uses
+  `memory_prob = 0.5` + `fsm_prob = 1.0` + 6 leaves; the duplication
+  scenarios are single-module DUTs with tiny pools and keep the default
+  `flop_prob` (forcing it to `0.0` collapses `num_muxes_degenerate`).
+  Banked clean at `/tmp/anvil-signoff-knob-sweep-r1`.
 
 ## Blockers
 
@@ -156,6 +159,7 @@ lanes; it is opened `proposed` and promoted to `active` after
 | --- | --- | --- | --- |
 | `2026-06-15` | `SIGNOFF-AUTOMATION-EXPANSION.1` | `scripts/check_memory_architecture.sh` (incl. `0006` indexed); `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; docs/decision + task-tree edits; no source change (design/decision leaf) | `clean` |
 | `2026-06-15` | `SIGNOFF-AUTOMATION-EXPANSION.2a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; `DEVELOPMENT_NOTES.md` design entry + task-tree edits; no source change (design leaf) | `clean` |
+| `2026-06-15` | `SIGNOFF-AUTOMATION-EXPANSION.2b` | `cargo fmt --all --check`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib` (397/0, incl. new metric proof); `cargo test --bin tool_matrix` (46/0, incl. 5 new proofs); `cargo test --test snapshots` (6/6 byte-identical); `tool_matrix --signoff-knob-sweep-gate --yosys-mode both` banked at `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules, 4 facts true, `coverage_gaps=[]`, 48/0 Verilator + both Yosys) | `clean` |
 
 ## Commit Log
 
@@ -163,6 +167,7 @@ lanes; it is opened `proposed` and promoted to `active` after
 | --- | --- | --- |
 | `SIGNOFF-AUTOMATION-EXPANSION.1` | `SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006` | Decision `0006`; first increment = richer knob-sweep coverage; `.2` added; frontier → `.2`. |
 | `SIGNOFF-AUTOMATION-EXPANSION.2a` | `SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design` | `.2` split into `.2a`+`.2b`; four unswept knobs + four `saw_*` facts + dedicated `--signoff-knob-sweep-gate` fixed; frontier → `.2b`. |
+| `SIGNOFF-AUTOMATION-EXPANSION.2b` | `SIGNOFF-AUTOMATION-EXPANSION.2b — first signoff knob-sweep batch impl` | New metric + `ScenarioSet::SignoffKnobSweep` + `--signoff-knob-sweep-gate` + 4 `saw_*` facts; banked clean (`r1`); `.2` container done. |
 
 ## Changelog
 
@@ -181,3 +186,12 @@ lanes; it is opened `proposed` and promoted to `active` after
   the memory-vs-fsm mutual-exclusivity gotcha), and the dedicated
   `--signoff-knob-sweep-gate`; design recorded in `DEVELOPMENT_NOTES.md`. No
   source change; frontier advanced to `.2b`.
+- `2026-06-15`: `.2b` done — implemented the `.2a` design (new metric in
+  `src/metrics.rs`; `ScenarioSet::SignoffKnobSweep` + `--signoff-knob-sweep-gate`
+  + 4 focus configs + 4 `saw_*` facts + early-return gap arm + 5 proofs in
+  `src/bin/tool_matrix.rs`). Banked downstream-clean at
+  `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules, 4 facts true,
+  `coverage_gaps = []`, 48/0 Verilator + both Yosys). DUT byte-identical
+  (snapshots 6/6). `.2` container done. The tree stays `active` with
+  higher-ceiling future leaves preserved (decision `0006`); per the lane order
+  the next lane is `IDENTITY-DEEPENING`.

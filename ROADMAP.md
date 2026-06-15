@@ -124,6 +124,19 @@ instead of leaving them implicit.
    exercised without hidden bias from whichever implementation path is
    currently easiest.
 
+   Progress (`SIGNOFF-AUTOMATION-EXPANSION.2b`, `2026-06-15`): the first
+   batch of previously-implicit knobs is now promoted into explicit
+   first-class matrix axes under `tool_matrix --signoff-knob-sweep-gate`
+   — `operand_duplication_rate`, `mux_arm_duplication_rate`,
+   `aggregate_array_prob`, and the memory×fsm interplay — each with one
+   focused scenario per construction strategy and a `saw_*` coverage
+   fact so it fires by construction, not by chance. Banked
+   downstream-clean at `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios,
+   48 modules, `coverage_gaps = []`, `48/0` Verilator + both Yosys).
+   Remaining knobs/axes and the higher-ceiling paths (new acceptance
+   columns; non-DUT lanes under the acceptance columns) stay named
+   future leaves of that lane — nothing retired.
+
 4. **Structure-first, not whole-module specification-first**
    ANVIL optimizes for structural legitimacy, synthesizability,
    complexity, factorization pressure, and downstream-tool ingestibility

@@ -1,9 +1,87 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.2b — first signoff knob-sweep batch impl
+
+**Landed as:** this commit (previous: `92a04c8`). Code leaf —
+task-tree-owned by `SIGNOFF-AUTOMATION-EXPANSION.2b`.
+
+**What changed**
+
+Implements the `.2a` design: promotes four previously-unswept generator
+knobs into explicit first-class `tool_matrix` axes under a new focused
+gate, closing ROADMAP steering gap 3's hidden-bias hole for them.
+
+- **New metric** (`src/metrics.rs`): `num_operator_gates_with_duplicate_operands`
+  — post-hoc count of `Add`/`Mul` gates whose operand list repeats a
+  `NodeId`. RTL byte-identical (metrics are never emitted). Unit-proved.
+- **New scenario set + gate** (`src/bin/tool_matrix.rs`):
+  `ScenarioSet::SignoffKnobSweep` + the opt-in `--signoff-knob-sweep-gate`
+  flag (mutually exclusive with the phase gates; auto-enables
+  coverage-gap failure; `SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO = 4`)
+  + `build_signoff_knob_sweep_scenarios` — four focused scenarios across
+  all three construction strategies (12 total):
+  - `signoff_operand_duplication` — single-module DUT, arith-only tiny
+    pool, `operand_duplication_rate = 1.0` → `saw_operand_duplication`.
+  - `signoff_mux_arm_duplication` — single-module DUT, 2-arm comb-mux
+    tiny pool, `mux_arm_duplication_rate = 1.0` → `saw_mux_arm_duplication`
+    (via `num_muxes_degenerate`).
+  - `signoff_array_packed_aggregate` — depth-1 wrapper, `aggregate_prob =
+    aggregate_array_prob = 1.0`, uniform width →
+    `saw_array_packed_aggregate_design` (closes the deferred
+    `AGGREGATE-ARRAY-PACKING.4b` matrix instrumentation).
+  - `signoff_memory_fsm_interplay` — depth-1 wrapper, `memory_prob = 0.5`
+    + `fsm_prob = 1.0`, 6 leaves → `saw_memory_fsm_interplay_design`
+    (a memory module and an FSM module in one design; the single-knob
+    `phase6_*` axes can't prove this because per-leaf selection is
+    mutually exclusive).
+- **Four `saw_*` facts** wired into `CoverageSummary` (module-level for
+  the two duplication DUTs, design-level for the two wrapper designs),
+  `merge_coverage`, and `compute_coverage_gaps` (a focused early-return
+  arm requiring exactly the four facts, so it does not inherit the
+  broad-motif richness the phase gates require). New `MatrixReport`
+  field `signoff_knob_sweep_gate`. Five cargo-portable proofs.
+
+**Why**
+
+Decision `0006` chose "richer adversarial knob-sweep coverage" as the
+first signoff-automation increment; `.2a` fixed the batch/shapes/facts.
+These four knobs existed in `Config` but fired only by chance inside
+motif-heavy profiles — never as explicit axes — exactly the hidden bias
+ROADMAP gap 3 warns about.
+
+**Validation**
+
+`cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo test --lib` 397/0 (incl. the new metric proof);
+`cargo test --bin tool_matrix` 46/0 (incl. 5 new proofs);
+`cargo test --test snapshots` 6/6 byte-identical (no DUT generator-core
+change). Banked downstream-clean: `tool_matrix --signoff-knob-sweep-gate
+--yosys-mode both` → `/tmp/anvil-signoff-knob-sweep-r1` with 12
+scenarios, 48 modules, all four facts `true`, `coverage_gaps = []`,
+`48/0` Verilator + `48/0` Yosys without-abc + `48/0` Yosys with-abc.
+Empirical calibration notes in `DEVELOPMENT_NOTES.md` (`.2b`): mux-dup
+keeps the default `flop_prob` (forcing `0.0` collapses the degenerate
+mux) and is a single-module DUT (wrapper leaves don't hit the path).
+
+**Impact**
+
+Default-off / byte-identical: the four knobs change RTL only when set
+`> 0`; the default sweep, the snapshot guard, and every existing gate
+are untouched. Single source of downstream truth stays `tool_matrix` +
+`downstream`. Nothing retired. The `.2` container is done; the tree
+stays `active` with higher-ceiling future leaves preserved.
+
+**Files touched**
+
+`src/metrics.rs`, `src/bin/tool_matrix.rs`, `README.md`, `USER_GUIDE.md`,
+`ROADMAP.md`, `book/src/knobs.md`, `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SIGNOFF-AUTOMATION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design
 
-**Landed as:** this commit (previous: `edf79d6`). Docs / design leaf — no
+**Landed as:** `92a04c8` (previous: `edf79d6`). Docs / design leaf — no
 source change.
 
 **What changed**

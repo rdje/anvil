@@ -5,6 +5,63 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — First signoff knob-sweep batch impl — `SIGNOFF-AUTOMATION-EXPANSION.2b`
+
+Implemented the `.2a` design. Landed in `src/metrics.rs` (the new
+`num_operator_gates_with_duplicate_operands` post-hoc metric) and
+`src/bin/tool_matrix.rs` (the `ScenarioSet::SignoffKnobSweep` set, four
+focus configs + `build_signoff_knob_sweep_scenarios`, the
+`--signoff-knob-sweep-gate` flag, four `saw_*` facts, the early-return
+gap arm, and the new constant `SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO
+= 4`). Banked downstream-clean at `/tmp/anvil-signoff-knob-sweep-r1` (12
+scenarios, 48 modules, four facts `true`, `coverage_gaps = []`, `48/0`
+Verilator + both Yosys). Empirical findings the design entry could not
+have known without probing the real generator:
+
+- **`flop_prob` is load-bearing for the degenerate mux.** The
+  `num_muxes_degenerate` fact (`mux_arm_duplication_rate`) needs the
+  chained-ternary comb-mux assembly to collapse an arm and its running
+  tail to the same `NodeId` in a tiny pool. Forcing `flop_prob = 0.0`
+  (a pure-comb DUT) made `num_muxes_degenerate` collapse to ~0 across
+  seeds; leaving `flop_prob` at its default `0.15` produced 10–37
+  degenerate muxes per seed reliably. So the mux-dup scenario does **not**
+  override `flop_prob` — the richer (partly sequential) cone is what
+  exercises the duplication path. (Operand-dup is independent of
+  `flop_prob`: `pick_signals_with_dup_rate` builds the operand list
+  directly, so a tiny pool + arith-only weights lights it regardless.)
+- **Duplication facts only light in single-module DUTs, not wrapper
+  leaves.** Probing a depth-1 wrapper whose leaves carried the mux-dup
+  knobs produced **zero** degenerate muxes (the wrapper-lane leaf
+  builder does not hit the chained-ternary comb-mux path the same way),
+  while a single-module DUT lit it. So the two duplication scenarios are
+  single-module DUTs and the two aggregate/memory scenarios are depth-1
+  wrapper designs — the set is mixed (artifact_kind `"module"`, the
+  Default-set convention), and the design path's per-leaf
+  `accumulate_module_coverage` is irrelevant to them.
+- **Array-packed needs uniform widths + a calibrated seed.** With
+  `aggregate_array_prob = 1.0` and `min_width == max_width = 8`,
+  `num_array_packed_aggregate_modules > 0` on most seeds (some still
+  pick `StructPacked`); the gate's ≥4 units/scenario × 3 strategies
+  covers the tail.
+- **memory×fsm interplay confirmed at `memory_prob = 0.5`, `fsm_prob =
+  1.0`, 6 leaves:** 7/8 probed seeds realized both a memory module and
+  an FSM module (only an all-memory seed missed) — confirming the
+  `.2a` mutual-exclusivity analysis (memory rolled first, returns early).
+- **Gate isolation via early return.** `compute_coverage_gaps` has
+  unconditional broad-motif checks (priority encoder, comb/flop muxes,
+  case/casez, for-fold) that every other set satisfies. Rather than
+  guard ~10 checks, the `SignoffKnobSweep` arm checks its four facts and
+  `return`s before them; the two post-return `match scenario_set`
+  blocks (axis + `required_categories`/`required_knobs`) carry
+  unreachable `SignoffKnobSweep => {}` / `&[]` arms purely for
+  exhaustiveness.
+- **`num_muxes_degenerate` does materialize through generation**, despite
+  the chained-ternary muxing each data arm against the running tail
+  rather than against another arm: in a 1–2-signal pool the tail
+  collapses (via CSE) to the same `NodeId` as the next arm, so
+  `make_mux(a, a)` is reached and kept at rate 1.0. The metric is not a
+  hand-construction-only artifact.
+
 ## 2026-06-15 — First signoff knob-sweep batch design — `SIGNOFF-AUTOMATION-EXPANSION.2a`
 
 Design leaf (docs-only, no source change) concretizing the open question that

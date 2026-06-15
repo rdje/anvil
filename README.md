@@ -582,6 +582,20 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
 `case` / `casez`, bounded procedural `for`-fold, selectable
 `Slice` / `Concat`, and variable shifts.
 
+For the repo-owned signoff knob-sweep gate shape:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tool-matrix-signoff-knobs --signoff-knob-sweep-gate --yosys-mode both
+```
+
+That runs the focused richer-knob-sweep matrix
+(`SIGNOFF-AUTOMATION-EXPANSION.2b`) and fails on coverage gaps unless the
+report proves the four previously-unswept generator knobs fire by
+construction (operand/mux-arm duplication, array-packed aggregate, and
+the memory×fsm interplay), with clean Verilator + both Yosys modes —
+exercising adversarial axes that previously fired only by chance
+(ROADMAP steering gap 3).
+
 ## Current CLI truth
 - `anvil --artifact <dut|microdesign|frontend>` selects the artifact
   lane. `dut` is the default and preserves the historical no-flag DUT
@@ -664,6 +678,19 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   coverage, sibling-routed, registered sibling-routed, and registered
   parent-composed child-input bindings, and clean downstream tool
   results.
+- `tool_matrix --signoff-knob-sweep-gate` runs the repo-owned focused
+  richer-knob-sweep matrix (`SIGNOFF-AUTOMATION-EXPANSION.2b`) and fails
+  on coverage gaps unless the report proves the four previously-unswept
+  generator knobs fire by construction — `operand_duplication_rate`
+  (`saw_operand_duplication`), `mux_arm_duplication_rate`
+  (`saw_mux_arm_duplication`), `aggregate_array_prob`
+  (`saw_array_packed_aggregate_design`), and the memory×fsm interplay
+  (`saw_memory_fsm_interplay_design`) — with clean Verilator + both
+  Yosys modes. One focused scenario per knob across all three
+  construction strategies. Banked clean at
+  `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules,
+  `coverage_gaps = []`, `48/0` Verilator + both Yosys; closes ROADMAP
+  steering gap 3's hidden-bias hole for these knobs).
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

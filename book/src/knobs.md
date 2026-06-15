@@ -851,6 +851,7 @@ is accurate as of this commit.
 --phase2-share-gate
 --phase3-structured-gate
 --phase4-hierarchy-gate
+--signoff-knob-sweep-gate
 --skip-verilator, --skip-yosys
 --verilator-bin, --yosys-bin
 --yosys-mode <without-abc|with-abc|both>
@@ -1006,8 +1007,8 @@ which are bugs worth investigating.
 | `constant_prob`               | `num_constants` / `num_gates`                              |
 | `gate_*_weight`               | `gates_by_kind` bucket shares                              |
 | `max_ast_instances`           | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity` |
-| `mux_arm_duplication_rate`    | `num_muxes_degenerate`                                     |
-| `operand_duplication_rate`    | duplicate-operand count in emitted SV (0 at rate 0.0 by audit, rises with the knob) |
+| `mux_arm_duplication_rate`    | `num_muxes_degenerate`; matrix `saw_mux_arm_duplication` (`--signoff-knob-sweep-gate`) |
+| `operand_duplication_rate`    | `num_operator_gates_with_duplicate_operands` — count of `Add`/`Mul` gates with a repeated operand slot (0 at rate 0.0, rises with the knob); matrix `saw_operand_duplication` (`--signoff-knob-sweep-gate`) |
 | `identity_mode`               | `max_gate_ast_multiplicity`, `max_constant_ast_multiplicity`, `num_gates`, `semantic_gates_merged`, and `flops_merged`: `relaxed` disables the ladder entirely, so multiplicities rise, raw gate count rises, and both post-construction semantic merges drop to 0 |
 | `factorization_level`         | `num_gates` (typically shrinks as the ladder rises toward `e-graph`); `nested_associative_operand_count` — residual flattening opportunity at / above `associative`, decreasing once that layer lands; `flops_merged` becomes eligible at `cse` and above; `semantic_gates_merged` becomes eligible at `e-graph` |
 | `hierarchy_sibling_route_prob` | `child_input_bindings_from_instance_outputs`, `child_input_bindings_from_mixed_support`, `instance_output_child_input_binding_fraction`, `top_instance_output_child_input_binding_fraction` |
@@ -1019,9 +1020,9 @@ which are bugs worth investigating.
 | `hierarchy_parent_flop_prob` | `hierarchy_parent_local_flops`, `internal_module_occurrences_with_local_flops`, `top_local_flops`, `child_input_bindings_from_parent_flops`, `parent_flop_child_input_binding_fraction`, `top_parent_flop_child_input_binding_fraction`, `child_input_bindings_from_parent_cone_instances_through_parent_flops`, `top_child_input_bindings_from_parent_cone_instances_through_parent_flops`, `parent_cone_instance_flop_child_input_binding_fraction`, `top_parent_cone_instance_flop_child_input_binding_fraction`, `top_outputs_reaching_parent_cone_instances_through_parent_flops`, `hierarchy_outputs_reaching_parent_cone_instances_through_parent_flops`, `top_parent_cone_instance_flop_output_fraction`, `hierarchy_parent_cone_instance_flop_output_fraction` |
 | `width_parameterization_prob` | `num_width_parameterized_modules`, `num_param_override_instances` (per-design metrics); matrix `saw_width_parameterized_design` |
 | `aggregate_prob`              | `num_packed_aggregate_modules` (per-design metric); matrix `saw_packed_aggregate_design` |
-| `aggregate_array_prob`        | `num_array_packed_aggregate_modules` (per-design metric; subset of `num_packed_aggregate_modules`) |
-| `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design` |
-| `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design` |
+| `aggregate_array_prob`        | `num_array_packed_aggregate_modules` (per-design metric; subset of `num_packed_aggregate_modules`); matrix `saw_array_packed_aggregate_design` (`--signoff-knob-sweep-gate`) |
+| `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design`; with `fsm_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
+| `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design`; with `memory_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future

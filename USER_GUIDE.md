@@ -688,6 +688,17 @@ Useful options:
   helper allocation, stateful helper child-input mixed-support routing,
   and real parent-side
   composition above instance outputs.
+- `--signoff-knob-sweep-gate` to run the repo-owned focused
+  richer-knob-sweep matrix (`SIGNOFF-AUTOMATION-EXPANSION.2b`) and fail
+  unless the report proves the four previously-unswept generator knobs
+  fire **by construction**: `operand_duplication_rate` (an `Add`/`Mul`
+  gate with a duplicated operand), `mux_arm_duplication_rate` (a
+  degenerate `(sel)?(x):(x)` mux), `aggregate_array_prob` (a
+  packed-**array** aggregate module), and the memory×fsm interplay (a
+  memory module and an FSM module in one design). One focused scenario
+  per knob across all three construction strategies; all four must stay
+  downstream-clean (Verilator + both Yosys modes). Closes ROADMAP
+  steering gap 3's hidden-bias hole for these knobs.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

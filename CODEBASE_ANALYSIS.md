@@ -96,7 +96,22 @@ into four explicit gaps:
    now exists for the current Phase 1-4 surfaces; the remaining confidence
    gap is broader validation automation for future phases, richer knob
    sweeps, and the larger artifact-family space implied by the
-   signoff-grade goal.
+   signoff-grade goal. The first richer-knob-sweep increment landed as
+   `SIGNOFF-AUTOMATION-EXPANSION.2b`: `tool_matrix` gains a new
+   `ScenarioSet::SignoffKnobSweep` + the opt-in `--signoff-knob-sweep-gate`
+   flag + `build_signoff_knob_sweep_scenarios` (four focused
+   single-knob scenarios × three construction strategies) + four `saw_*`
+   coverage facts, backed by a new post-hoc `Metrics` field
+   `num_operator_gates_with_duplicate_operands` in `src/metrics.rs`
+   (RTL byte-identical — metrics are never emitted). It promotes four
+   previously-unswept knobs (`operand_duplication_rate`,
+   `mux_arm_duplication_rate`, `aggregate_array_prob`, memory×fsm
+   interplay) into explicit axes, banked downstream-clean at
+   `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules,
+   `coverage_gaps = []`, `48/0` Verilator + both Yosys). The focused
+   gate's `compute_coverage_gaps` arm early-returns after the four facts,
+   so it does not inherit the broad-motif richness the phase gates
+   require.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

@@ -88,6 +88,20 @@ pub struct Metrics {
     /// Should be 0 at `mux_arm_duplication_rate = 0.0`.
     pub num_muxes_degenerate: usize,
 
+    // --- Operator-gate operand duplication ----------------------
+    /// Number of `Add`/`Mul` operator gates whose operand list
+    /// repeats a `NodeId` (the same sub-expression occupies two or
+    /// more operand slots). Should be 0 at
+    /// `operand_duplication_rate = 0.0`, where operator-gate operand
+    /// lists are strictly distinct; non-zero only when
+    /// `operand_duplication_rate > 0.0` admits duplicates. Scoped to
+    /// `Add`/`Mul` to match that knob — `And`/`Or`/`Xor`/`Mux` keep
+    /// their 2-operand degenerate-shape rejection regardless of the
+    /// rate. Computed post-hoc over the finalized IR and never
+    /// emitted, so adding this metric is byte-identical for generated
+    /// RTL (`SIGNOFF-AUTOMATION-EXPANSION.2b`).
+    pub num_operator_gates_with_duplicate_operands: usize,
+
     // --- Concat shape -------------------------------------------
     /// Number of `Concat` gates whose operands are all the same
     /// `NodeId` — emitted as `{N{expr}}`.
@@ -715,6 +729,18 @@ pub fn compute(m: &Module) -> Metrics {
                     if operands[1] == operands[2] {
                         out.num_muxes_degenerate += 1;
                     }
+                }
+                // `operand_duplication_rate` (Add/Mul) telemetry: an
+                // operand `NodeId` repeated across two or more slots.
+                // Operand lists are small, so an O(n²) scan is cheaper
+                // than allocating a set.
+                if matches!(op, GateOp::Add | GateOp::Mul)
+                    && operands
+                        .iter()
+                        .enumerate()
+                        .any(|(i, slot)| operands[i + 1..].contains(slot))
+                {
+                    out.num_operator_gates_with_duplicate_operands += 1;
                 }
                 if matches!(op, GateOp::Concat) && !operands.is_empty() {
                     if operands.iter().all(|o| *o == operands[0]) {
@@ -3089,6 +3115,40 @@ mod tests {
         // Mux with equal data arms is the degenerate form.
         assert_eq!(met.num_muxes_2to1, 1);
         assert_eq!(met.num_muxes_degenerate, 1);
+    }
+
+    #[test]
+    fn metrics_count_operator_gates_with_duplicate_operands() {
+        // SIGNOFF-AUTOMATION-EXPANSION.2b: an Add whose two operand
+        // slots are the same NodeId counts once; a distinct-operand
+        // Mul does not. Mirrors the degenerate-mux metric for the
+        // `operand_duplication_rate` knob.
+        let mut m = Module {
+            name: "dup".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "b".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 });
+        // Add(a, a): a repeated operand slot.
+        let (dup_add, _) = m.intern_gate(GateOp::Add, vec![0, 0], 4, DepSet::from_port(0));
+        // Mul(a, b): distinct operands — must not count.
+        let dep = DepSet::union(&[&DepSet::from_port(0), &DepSet::from_port(1)]);
+        let (_, _) = m.intern_gate(GateOp::Mul, vec![0, 1], 4, dep);
+        let _ = dup_add;
+        let met = compute(&m);
+        assert_eq!(met.num_operator_gates_with_duplicate_operands, 1);
     }
 
     #[test]

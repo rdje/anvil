@@ -23,6 +23,7 @@ const PHASE1_MIN_TOTAL_MODULES: usize = 1000;
 const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
 const PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO: usize = 4;
+const SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -64,6 +65,14 @@ struct Cli {
     /// coverage.
     #[arg(long)]
     phase4_hierarchy_gate: bool,
+
+    /// Elevate the run to the repo-owned signoff knob-sweep gate
+    /// (`SIGNOFF-AUTOMATION-EXPANSION.2b`): run the focused
+    /// richer-knob-sweep matrix (operand/mux-arm duplication,
+    /// array-packed aggregate, memory×fsm interplay) and require its
+    /// four coverage facts.
+    #[arg(long)]
+    signoff_knob_sweep_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -394,6 +403,29 @@ struct CoverageSummary {
     saw_packed_aggregate_design: bool,
     saw_inferrable_memory_design: bool,
     saw_fsm_design: bool,
+    /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — at least one module carried
+    /// an `Add`/`Mul` operator gate with a duplicated operand slot
+    /// (`num_operator_gates_with_duplicate_operands > 0`). Proves the
+    /// `operand_duplication_rate` knob fired by construction.
+    saw_operand_duplication: bool,
+    /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — at least one module carried
+    /// a degenerate 2-to-1 mux whose two data arms are the same
+    /// `NodeId` (`num_muxes_degenerate > 0`). Proves the
+    /// `mux_arm_duplication_rate` knob fired by construction.
+    saw_mux_arm_duplication: bool,
+    /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — at least one design carried a
+    /// packed-array aggregate module
+    /// (`num_array_packed_aggregate_modules` positive). Proves the
+    /// `aggregate_array_prob` knob selected the `ArrayPacked` projection
+    /// (the deferred `AGGREGATE-ARRAY-PACKING.4b` matrix instrumentation).
+    saw_array_packed_aggregate_design: bool,
+    /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — at least one design carried a
+    /// memory module **and** an FSM module in the same design
+    /// (`num_memory_modules > 0 && num_fsm_modules > 0`). Proves the
+    /// memory×fsm interplay that the single-knob `phase6_*` axes cannot:
+    /// per-leaf memory-vs-FSM selection is mutually exclusive, so this
+    /// needs `memory_prob ∈ (0,1)` + `fsm_prob = 1.0`.
+    saw_memory_fsm_interplay_design: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -441,6 +473,14 @@ enum ScenarioSet {
     Phase2Share,
     Phase3Structured,
     Phase4Hierarchy,
+    /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — the focused richer-knob-sweep
+    /// gate. Promotes the four genuinely-unswept generator knobs
+    /// (`operand_duplication_rate`, `mux_arm_duplication_rate`,
+    /// `aggregate_array_prob`, and the memory×fsm interplay) into
+    /// explicit first-class scenario axes so they fire by construction,
+    /// not by chance (ROADMAP steering gap 3). Each is a depth-1 wrapper
+    /// design across all three construction strategies.
+    SignoffKnobSweep,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -484,6 +524,8 @@ struct MatrixReport {
     phase2_share_gate: bool,
     phase3_structured_gate: bool,
     phase4_hierarchy_gate: bool,
+    #[serde(default)]
+    signoff_knob_sweep_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -630,6 +672,7 @@ fn main() -> Result<()> {
         phase2_share_gate: cli.phase2_share_gate,
         phase3_structured_gate: cli.phase3_structured_gate,
         phase4_hierarchy_gate: cli.phase4_hierarchy_gate,
+        signoff_knob_sweep_gate: cli.signoff_knob_sweep_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -737,6 +780,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         PHASE3_STRUCTURED_MIN_TOTAL_MODULES.div_ceil(scenario_count)
     } else if cli.phase4_hierarchy_gate {
         PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO
+    } else if cli.signoff_knob_sweep_gate {
+        SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -748,7 +793,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.phase1_gate
             || cli.phase2_share_gate
             || cli.phase3_structured_gate
-            || cli.phase4_hierarchy_gate,
+            || cli.phase4_hierarchy_gate
+            || cli.signoff_knob_sweep_gate,
         total_modules,
     }
 }
@@ -757,10 +803,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
     let enabled_gates = usize::from(cli.phase1_gate)
         + usize::from(cli.phase2_share_gate)
         + usize::from(cli.phase3_structured_gate)
-        + usize::from(cli.phase4_hierarchy_gate);
+        + usize::from(cli.phase4_hierarchy_gate)
+        + usize::from(cli.signoff_knob_sweep_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, and --phase4-hierarchy-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, and --signoff-knob-sweep-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -769,6 +816,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::Phase3Structured)
     } else if cli.phase4_hierarchy_gate {
         Ok(ScenarioSet::Phase4Hierarchy)
+    } else if cli.signoff_knob_sweep_gate {
+        Ok(ScenarioSet::SignoffKnobSweep)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -780,6 +829,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::Phase2Share => build_phase2_share_scenarios(base_seed)?,
         ScenarioSet::Phase3Structured => build_phase3_structured_scenarios(base_seed)?,
         ScenarioSet::Phase4Hierarchy => build_phase4_hierarchy_scenarios(base_seed)?,
+        ScenarioSet::SignoffKnobSweep => build_signoff_knob_sweep_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -2559,6 +2609,217 @@ fn phase6_fsm_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config 
         max_depth: 1,
         ..Config::default()
     }
+}
+
+fn signoff_operand_duplication_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // SIGNOFF-AUTOMATION-EXPANSION.2b anchor scenario for the
+    // `operand_duplication_rate` knob (ROADMAP steering gap 3 — make a
+    // previously-implicit knob fire by construction). Single-module DUT
+    // (no hierarchy): arithmetic-only gate weights so every operator
+    // gate is `Add`/`Mul`, a tiny terminal pool (1-2 inputs, no
+    // constants, reuse-only) and a 3-4 operand arity so the operand
+    // picker frequently re-draws the same `NodeId`, and
+    // `operand_duplication_rate = 1.0` so those duplicates are kept
+    // instead of re-rolled. Lights `saw_operand_duplication` via the
+    // post-hoc `num_operator_gates_with_duplicate_operands` metric;
+    // `flop_prob` stays at its default so the cone is large enough to
+    // hit the duplication path. Downstream-clean (`a + a` / `a * a`).
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        operand_duplication_rate: 1.0,
+        gate_arith_weight: 8,
+        gate_bitwise_weight: 0,
+        gate_struct_weight: 0,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        gate_shift_weight: 0,
+        min_inputs: 1,
+        max_inputs: 2,
+        constant_prob: 0.0,
+        terminal_reuse_prob: 1.0,
+        min_width: 2,
+        max_width: 4,
+        min_gate_arity: 3,
+        max_gate_arity: 4,
+        coefficient_prob: 0.0,
+        ..Config::default()
+    }
+}
+
+fn signoff_mux_arm_duplication_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // SIGNOFF-AUTOMATION-EXPANSION.2b anchor scenario for the
+    // `mux_arm_duplication_rate` knob. Single-module DUT: comb-mux-only
+    // structured gate weights, forced 2-arm encoded comb muxes
+    // (`comb_mux_prob = comb_mux_encoding_prob = 1.0`,
+    // `min_mux_arms = max_mux_arms = 2`), and a tiny 1-bit/2-bit
+    // terminal pool so the chained-ternary arm and its running tail
+    // collapse to the same `NodeId`, producing the degenerate
+    // `(sel)?(x):(x)` form once `mux_arm_duplication_rate = 1.0` permits
+    // it. Lights `saw_mux_arm_duplication` via `num_muxes_degenerate`;
+    // `flop_prob` stays at its default so the cone is rich enough.
+    // Downstream-clean (a redundant select Verilator/Yosys fold away).
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        mux_arm_duplication_rate: 1.0,
+        comb_mux_prob: 1.0,
+        comb_mux_encoding_prob: 1.0,
+        min_mux_arms: 2,
+        max_mux_arms: 2,
+        gate_struct_weight: 8,
+        gate_bitwise_weight: 0,
+        gate_arith_weight: 0,
+        gate_compare_weight: 0,
+        gate_reduce_weight: 0,
+        gate_shift_weight: 0,
+        min_inputs: 1,
+        max_inputs: 2,
+        constant_prob: 0.0,
+        terminal_reuse_prob: 1.0,
+        min_width: 1,
+        max_width: 2,
+        ..Config::default()
+    }
+}
+
+fn signoff_array_packed_aggregate_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+) -> Config {
+    // SIGNOFF-AUTOMATION-EXPANSION.2b anchor for `aggregate_array_prob`
+    // — the deferred `AGGREGATE-ARRAY-PACKING.4b` matrix instrumentation.
+    // Shaped like the `phase5b_packed_aggregate` anchor (depth-1
+    // wrapper, library child-sourcing, 4 leaves / 4 instances, all
+    // hierarchy-routing probabilities 0.0, combinational) but with
+    // `aggregate_array_prob = 1.0` on top of `aggregate_prob = 1.0` and
+    // a UNIFORM data-port width (`min_width == max_width`): `ArrayPacked`
+    // is a faithful projection only over a uniform-width group
+    // (`src/ir/aggregate.rs`), so a non-uniform group would fall back to
+    // `StructPacked`. Lights `saw_array_packed_aggregate_design` via
+    // `num_array_packed_aggregate_modules`.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 4,
+        aggregate_prob: 1.0,
+        aggregate_array_prob: 1.0,
+        min_width: 8,
+        max_width: 8,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
+}
+
+fn signoff_memory_fsm_interplay_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // SIGNOFF-AUTOMATION-EXPANSION.2b anchor for the memory×fsm
+    // interplay. Shaped like the `phase6_*` anchors (depth-1 wrapper,
+    // library child-sourcing, hierarchy-routing probabilities 0.0) but
+    // proves a memory module AND an FSM module coexist in ONE design —
+    // which the single-knob `phase6_inferrable_memory` / `phase6_fsm`
+    // axes cannot. Per-leaf memory-vs-FSM selection in
+    // `src/gen/module.rs` is mutually exclusive (memory is rolled first
+    // and returns early), so `memory_prob = 1.0` would yield no FSM
+    // leaf: this uses `memory_prob = 0.5` + `fsm_prob = 1.0` over 6
+    // leaves so roughly half roll memory and the rest fall through to
+    // the always-firing FSM roll. Lights
+    // `saw_memory_fsm_interplay_design` via `num_memory_modules > 0 &&
+    // num_fsm_modules > 0`.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 6,
+        num_child_instances: 6,
+        memory_prob: 0.5,
+        fsm_prob: 1.0,
+        min_width: 2,
+        max_width: 8,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
+}
+
+/// `SIGNOFF-AUTOMATION-EXPANSION.2b` — the focused richer-knob-sweep
+/// scenario set. Promotes the four genuinely-unswept generator knobs
+/// into explicit first-class axes, one focused scenario per knob across
+/// all three construction strategies (so the universal
+/// construction-strategy coverage check is satisfied). Two are
+/// single-module DUTs (`operand_duplication_rate`,
+/// `mux_arm_duplication_rate`) and two are depth-1 wrapper designs
+/// (`aggregate_array_prob`, memory×fsm interplay); the matrix routes
+/// each per its config.
+fn build_signoff_knob_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut next_seed = base_seed;
+
+    for strategy in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ] {
+        let strategy_slug = strategy_slug(strategy);
+        let strategy_label = construction_strategy_name(strategy);
+        for (name_suffix, description_suffix, config) in [
+            (
+                "signoff_operand_duplication",
+                "operand_duplication_rate = 1.0 over an arithmetic-only tiny-pool DUT — promotes the previously-unswept Add/Mul operand-duplication knob to an explicit axis (lights saw_operand_duplication)",
+                signoff_operand_duplication_focus_config(strategy, next_seed),
+            ),
+            (
+                "signoff_mux_arm_duplication",
+                "mux_arm_duplication_rate = 1.0 over a 2-arm comb-mux tiny-pool DUT — promotes the previously-unswept degenerate-mux knob to an explicit axis (lights saw_mux_arm_duplication)",
+                signoff_mux_arm_duplication_focus_config(strategy, next_seed + 1),
+            ),
+            (
+                "signoff_array_packed_aggregate",
+                "depth-1 wrapper, aggregate_prob = aggregate_array_prob = 1.0 over uniform-width data ports — promotes the deferred array-packed-aggregate knob to an explicit axis (lights saw_array_packed_aggregate_design)",
+                signoff_array_packed_aggregate_focus_config(strategy, next_seed + 2),
+            ),
+            (
+                "signoff_memory_fsm_interplay",
+                "depth-1 wrapper, memory_prob = 0.5 + fsm_prob = 1.0 over 6 leaves — proves a memory module and an FSM module coexist in one design (lights saw_memory_fsm_interplay_design)",
+                signoff_memory_fsm_interplay_focus_config(strategy, next_seed + 3),
+            ),
+        ] {
+            scenarios.push(make_scenario(
+                &format!("{strategy_slug}_nodeid_egraph_{name_suffix}"),
+                &format!("{strategy_label} strategy, node-id + e-graph, {description_suffix}."),
+                config,
+            )?);
+        }
+        next_seed += 4;
+    }
+
+    Ok(scenarios)
 }
 
 fn phase4_hierarchy_structurally_duplicate_modules_focus_config(
@@ -6024,6 +6285,12 @@ fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> C
             scenario.config.memory_prob > 0.0 && design.metrics.num_memory_modules > 0;
         coverage.saw_fsm_design |=
             scenario.config.fsm_prob > 0.0 && design.metrics.num_fsm_modules > 0;
+        coverage.saw_array_packed_aggregate_design |= scenario.config.aggregate_array_prob > 0.0
+            && design.metrics.num_array_packed_aggregate_modules > 0;
+        coverage.saw_memory_fsm_interplay_design |= scenario.config.memory_prob > 0.0
+            && scenario.config.fsm_prob > 0.0
+            && design.metrics.num_memory_modules > 0
+            && design.metrics.num_fsm_modules > 0;
         coverage.saw_recursive_hierarchy |= design.metrics.realized_max_leaf_depth > 1;
         coverage.saw_per_depth_branching_metrics |=
             design.metrics.avg_child_instances_by_parent_depth.len() > 1;
@@ -6340,6 +6607,10 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_packed_aggregate_design |= src.saw_packed_aggregate_design;
     dst.saw_inferrable_memory_design |= src.saw_inferrable_memory_design;
     dst.saw_fsm_design |= src.saw_fsm_design;
+    dst.saw_operand_duplication |= src.saw_operand_duplication;
+    dst.saw_mux_arm_duplication |= src.saw_mux_arm_duplication;
+    dst.saw_array_packed_aggregate_design |= src.saw_array_packed_aggregate_design;
+    dst.saw_memory_fsm_interplay_design |= src.saw_memory_fsm_interplay_design;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
@@ -6508,6 +6779,8 @@ fn accumulate_module_coverage(coverage: &mut CoverageSummary, metrics: &Metrics)
     coverage.saw_casez_mux |= metrics.num_casez_mux_blocks > 0;
     coverage.saw_for_fold |= metrics.num_for_fold_blocks > 0;
     coverage.saw_variable_shift |= metrics.num_variable_shift_gates > 0;
+    coverage.saw_operand_duplication |= metrics.num_operator_gates_with_duplicate_operands > 0;
+    coverage.saw_mux_arm_duplication |= metrics.num_muxes_degenerate > 0;
     coverage.saw_flop_mux_one_hot |= metrics.flops_mux_one_hot > 0;
     coverage.saw_flop_mux_encoded |= metrics.flops_mux_encoded > 0;
     coverage.saw_semantic_gate_merge |= metrics.semantic_gates_merged > 0;
@@ -6560,6 +6833,37 @@ fn compute_coverage_gaps(
         if !coverage.construction_strategies.contains(strategy) {
             gaps.push(format!("missing construction strategy {strategy}"));
         }
+    }
+
+    // `SIGNOFF-AUTOMATION-EXPANSION.2b` — the focused richer-knob-sweep
+    // gate's sole contract is to prove the four promoted unswept knobs
+    // fire by construction. The broad motif/identity/category richness
+    // the other sets enforce below is intentionally out of scope here,
+    // so check exactly the four facts (plus the universal
+    // construction-strategy coverage above) and return.
+    if scenario_set == ScenarioSet::SignoffKnobSweep {
+        if !coverage.saw_operand_duplication {
+            gaps.push(
+                "matrix never proved operand_duplication_rate (an Add/Mul gate with a duplicated operand)".to_string(),
+            );
+        }
+        if !coverage.saw_mux_arm_duplication {
+            gaps.push(
+                "matrix never proved mux_arm_duplication_rate (a degenerate 2-to-1 mux with equal arms)".to_string(),
+            );
+        }
+        if !coverage.saw_array_packed_aggregate_design {
+            gaps.push(
+                "matrix never proved aggregate_array_prob (an array-packed aggregate module)"
+                    .to_string(),
+            );
+        }
+        if !coverage.saw_memory_fsm_interplay_design {
+            gaps.push(
+                "matrix never proved memory×fsm interplay (a memory module and an FSM module in one design)".to_string(),
+            );
+        }
+        return gaps;
     }
 
     match scenario_set {
@@ -6648,6 +6952,8 @@ fn compute_coverage_gaps(
                 );
             }
         }
+        // Unreachable: the focused knob-sweep gate returns above.
+        ScenarioSet::SignoffKnobSweep => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -6668,6 +6974,8 @@ fn compute_coverage_gaps(
             "shift",
             "structural",
         ],
+        // Unreachable: the focused knob-sweep gate returns above.
+        ScenarioSet::SignoffKnobSweep => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -7467,6 +7775,8 @@ fn compute_coverage_gaps(
             "hierarchy_parent_cone_instance_prob",
             "hierarchy_parent_flop_prob",
         ],
+        // Unreachable: the focused knob-sweep gate returns above.
+        ScenarioSet::SignoffKnobSweep => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -7599,13 +7909,21 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::Phase2Share => "phase2-share",
         ScenarioSet::Phase3Structured => "phase3-structured",
         ScenarioSet::Phase4Hierarchy => "phase4-hierarchy",
+        ScenarioSet::SignoffKnobSweep => "signoff-knob-sweep",
     }
 }
 
 fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
     match scenario_set {
         ScenarioSet::Phase4Hierarchy => "design",
-        ScenarioSet::Default | ScenarioSet::Phase2Share | ScenarioSet::Phase3Structured => "module",
+        // The knob-sweep set is mixed (two single-module DUTs + two
+        // depth-1 wrapper designs), like the Default set; report the
+        // coarse "module" label and let each per-scenario report carry
+        // its own module/design routing.
+        ScenarioSet::Default
+        | ScenarioSet::Phase2Share
+        | ScenarioSet::Phase3Structured
+        | ScenarioSet::SignoffKnobSweep => "module",
     }
 }
 
@@ -7640,6 +7958,7 @@ mod tests {
             phase2_share_gate: false,
             phase3_structured_gate: false,
             phase4_hierarchy_gate: false,
+            signoff_knob_sweep_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -7909,6 +8228,125 @@ mod tests {
         assert_eq!(plan.modules_per_scenario, 4);
         assert_eq!(plan.total_modules, 888);
         assert!(plan.fail_on_coverage_gap);
+    }
+
+    // ===============================================================
+    // SIGNOFF-AUTOMATION-EXPANSION.2b — cargo-portable proofs of the
+    // focused richer-knob-sweep gate wiring (scenario set, CLI flag,
+    // run-plan, per-knob config shaping, gap requirements). The
+    // downstream-clean bank is the repo-owned report, run separately
+    // with real tools.
+    // ===============================================================
+
+    #[test]
+    fn signoff_knob_sweep_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.signoff_knob_sweep_gate);
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--signoff-knob-sweep-gate",
+            "--out",
+            "/tmp/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.signoff_knob_sweep_gate);
+    }
+
+    #[test]
+    fn signoff_knob_sweep_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.signoff_knob_sweep_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::SignoffKnobSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::SignoffKnobSweep).expect("build");
+        // four knobs x three construction strategies.
+        assert_eq!(scenarios.len(), 12);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(plan.modules_per_scenario, 4);
+        assert_eq!(plan.total_modules, 48);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn signoff_knob_sweep_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.signoff_knob_sweep_gate = true;
+        cli.phase4_hierarchy_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    #[test]
+    fn signoff_knob_sweep_scenarios_force_each_unswept_knob() {
+        let scenarios = build_scenarios(0, ScenarioSet::SignoffKnobSweep).expect("build");
+        let mut strategies = BTreeSet::new();
+        let (mut operand, mut mux, mut array_agg, mut mem_fsm) = (0, 0, 0, 0);
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            let cfg = &scenario.config;
+            if scenario.name.ends_with("signoff_operand_duplication") {
+                operand += 1;
+                assert_eq!(cfg.operand_duplication_rate, 1.0);
+                assert!(cfg.gate_arith_weight > 0);
+                // single-module DUT, not a hierarchy design.
+                assert!(cfg.effective_hierarchy_depth_range().is_none());
+            } else if scenario.name.ends_with("signoff_mux_arm_duplication") {
+                mux += 1;
+                assert_eq!(cfg.mux_arm_duplication_rate, 1.0);
+                assert_eq!(cfg.min_mux_arms, 2);
+                assert_eq!(cfg.max_mux_arms, 2);
+                assert!(cfg.effective_hierarchy_depth_range().is_none());
+            } else if scenario.name.ends_with("signoff_array_packed_aggregate") {
+                array_agg += 1;
+                assert_eq!(cfg.aggregate_prob, 1.0);
+                assert_eq!(cfg.aggregate_array_prob, 1.0);
+                // uniform width is load-bearing for the ArrayPacked projection.
+                assert_eq!(cfg.min_width, cfg.max_width);
+                assert!(cfg.effective_hierarchy_depth_range().is_some());
+            } else if scenario.name.ends_with("signoff_memory_fsm_interplay") {
+                mem_fsm += 1;
+                // memory_prob strictly in (0,1) + fsm_prob = 1.0 so both
+                // leaf kinds coexist despite mutually-exclusive selection.
+                assert!(cfg.memory_prob > 0.0 && cfg.memory_prob < 1.0);
+                assert_eq!(cfg.fsm_prob, 1.0);
+                assert!(cfg.effective_hierarchy_depth_range().is_some());
+            } else {
+                panic!("unexpected signoff knob-sweep scenario {}", scenario.name);
+            }
+        }
+        assert_eq!((operand, mux, array_agg, mem_fsm), (3, 3, 3, 3));
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+    }
+
+    #[test]
+    fn signoff_knob_sweep_gaps_require_exactly_the_four_facts() {
+        // All three strategies present, but no fact lit → exactly the
+        // four knob-sweep gaps (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::SignoffKnobSweep, &coverage, None);
+        assert_eq!(gaps.len(), 4, "unexpected gaps: {gaps:?}");
+        assert!(gaps.iter().any(|g| g.contains("operand_duplication_rate")));
+        assert!(gaps.iter().any(|g| g.contains("mux_arm_duplication_rate")));
+        assert!(gaps.iter().any(|g| g.contains("aggregate_array_prob")));
+        assert!(gaps.iter().any(|g| g.contains("memory×fsm interplay")));
+
+        // All four facts lit → no gaps.
+        coverage.saw_operand_duplication = true;
+        coverage.saw_mux_arm_duplication = true;
+        coverage.saw_array_packed_aggregate_design = true;
+        coverage.saw_memory_fsm_interplay_design = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::SignoffKnobSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
     }
 
     #[test]
