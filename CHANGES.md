@@ -1,9 +1,86 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.1 — design/decision leaf + decision 0005
+
+**Landed as:** this commit (previous: `2c9d81c`).
+
+**What changed (docs / decision / workflow only — no source change)**
+
+`AGENT-MCP-EXPANSION.1` is the design/decision leaf that scopes the
+read-mostly agent/MCP breadth expansion before any code lands. It
+re-confirms the decision-`0004` lane invariants against the current code,
+locates the coverage-gap source, and decides the read-only exposure path
+for all three expansion items.
+
+- New decision record `docs/decisions/0005-agent-mcp-expansion-surface.md`
+  (with Knowledge Map `answers:` front-matter):
+  - **`.2` coverage gaps** → a **pure MCP tool that projects a recorded
+    `tool_matrix_report.json`** (inline or by path). Located the source:
+    `CoverageSummary` (`src/bin/tool_matrix.rs:286`) and
+    `compute_coverage_gaps` (`:6552`) are **bin-private**, but the
+    serialized `MatrixReport` already carries `coverage` + the
+    already-computed `coverage_gaps: Vec<String>` (`:488-489`). The tool
+    relays that recorded list via a `serde_json::Value` key projection
+    (never mirroring the ~150-field bin-private struct), so the single gap
+    computation stays in `tool_matrix`. A recompute-on-demand controlled
+    tool was rejected (second source of truth, heavy, against
+    read-mostly / no-new-truth).
+  - **`.3` non-DUT lanes** → route MCP `generate`/`introspect` through the
+    umbrella `ArtifactLane` dispatch keyed by a `lane` arg (default
+    `dut`). Split `.3` into `.3a` (design: the non-DUT introspection
+    projection must stay a serde projection of each lane's existing
+    manifest) + `.3b` (impl).
+  - **`.4` HTTP transport** → drive the same `McpServer::handle`
+    dispatcher behind an opt-in flag; **loopback-only default**; stdio
+    stays default; per-call `downstream` guardrails unchanged.
+- `docs/decisions/INDEX.md` — new `0005` row.
+- `docs/tasks/AGENT-MCP-EXPANSION.md` — `.1` marked `done`; `.2`
+  sharpened; `.3` becomes a container split into `.3a`/`.3b`; `.4` gets
+  the loopback note; frontier advanced to `.2` then `.3a`; decisions /
+  open-questions / verification / commit / changelog updated.
+- `docs/TASK_TREE.md` — `AGENT-MCP-EXPANSION` row reflects `.1` done +
+  frontier `.2`.
+- `KNOWLEDGE_MAP.md` — regenerated (19→20 facts, 87→96 question keys);
+  `0005` folds in via its `answers:` front-matter.
+
+**Why**
+
+Mirrors how the original MCP lane led with `.1` decision + `.2` schema
+spec: the coverage-gap source was matrix-only, so the read-only exposure
+path had to be decided (and the `.3` introspection-projection choice
+surfaced) before implementation. Per the task-tree doctrine, a design leaf
+must own the scope before any code edit.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` — all invariants hold (`0005`
+  indexed; `MEMORY.md` 20 lines ≤ cap).
+- `knowledge-map/scripts/gen_knowledge_map.sh` regen +
+  `scripts/check_knowledge_map.sh` — facts valid, ids unique, map in sync.
+- No source change ⇒ no `cargo` gate needed (design/decision leaf; per
+  decision `0003` resource-safe-validation, focused workflow checks
+  suffice). DUT byte-identical trivially (no `src/` touched).
+
+**Impact**
+
+- Unblocks the `.2` implementation (coverage-gaps pure-projection tool)
+  with the exposure path and invariants fully decided.
+- No user-visible or behavioral change; default `anvil` build and
+  `--artifact dut` untouched.
+
+**Files touched**
+
+- `docs/decisions/0005-agent-mcp-expansion-surface.md` (new)
+- `docs/decisions/INDEX.md`
+- `docs/tasks/AGENT-MCP-EXPANSION.md`
+- `docs/TASK_TREE.md`
+- `KNOWLEDGE_MAP.md` (regenerated)
+- `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`
+
 ## 2026-06-15 — CAPABILITY-LANE-OWNERSHIP.1 — register post-phase capability lanes
 
-**Landed as:** this commit (previous: `ac4cebf`).
+**Landed as:** `2c9d81c` (previous: `ac4cebf`).
 
 **What changed (docs / workflow only)**
 

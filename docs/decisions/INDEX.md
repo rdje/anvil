@@ -20,6 +20,7 @@ Decision records may also carry Knowledge Map front matter. A non-empty
 | [0002](0002-live-doc-path-portability.md) | Live docs and book use repo-root-relative project paths | 2026-06-04 | accepted | docs, portability |
 | [0003](0003-resource-safe-validation.md) | Full-suite validation is resource-monitored and not mandatory for workflow-doc memory and retrieval leaves | 2026-06-04 | accepted | validation, environment, safety |
 | [0004](0004-agent-introspection-mcp-lane.md) | Agent control + deep introspection exposed as a default-off MCP adapter beside the generator core | 2026-06-14 | accepted | mcp, agent, api, architecture, introspection |
+| [0005](0005-agent-mcp-expansion-surface.md) | Broaden the read-mostly agent/MCP surface by projecting recorded facts, routing non-DUT lanes, and adding an optional HTTP transport | 2026-06-15 | accepted | mcp, agent, coverage, transport, architecture, introspection |
 
 ## How To Add A Record
 

@@ -5,6 +5,50 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Agent/MCP expansion design — `AGENT-MCP-EXPANSION.1` (decision `0005`)
+
+`.1` is the design/decision leaf scoping the read-mostly agent/MCP breadth
+expansion. Full rationale is in
+`docs/decisions/0005-agent-mcp-expansion-surface.md`; the load-bearing
+engineering points:
+
+**Decision — coverage gaps are PROJECTED from a recorded report, not
+recomputed.** The coverage-gap computation (`CoverageSummary` +
+`compute_coverage_gaps`) is **private to the `tool_matrix` binary**
+(`src/bin/tool_matrix.rs:286,6552`) — neither `src/mcp/` nor `src/lib.rs`
+can call it. But the serialized `MatrixReport` already carries `coverage`
+and the already-computed `coverage_gaps: Vec<String>` (`:488-489`). So the
+`.2` MCP tool relays that recorded list rather than re-deriving it. This
+keeps the single gap computation in `tool_matrix` (no second source of
+truth), keeps the tool read-only (a file/inline read, no generation, no
+tool spawn, no recompute), and keeps SCHEMA-DERIVED intact.
+
+**Gotcha — do NOT mirror `CoverageSummary` into `src/mcp/`.** That struct
+already has ~150 fields and grows on nearly every hierarchy slice. The
+`.2` tool must project the recorded JSON via `serde_json::Value` key reads,
+so the MCP side is decoupled from the bin-private struct's churn.
+
+**Rejected alternative — a controlled `coverage_gaps` tool that runs a
+matrix subset on demand.** It would compute coverage state on demand (a
+second runtime path that can drift from `compute_coverage_gaps`), turn a
+read-only query into a heavy tool-spawning controlled action, and pull
+matrix logic into `src/mcp/`. It loses on every invariant the
+pure-projection path keeps.
+
+**Decision — `.3` split into `.3a`/`.3b`.** Routing the non-DUT lanes
+(`microdesign`, `frontend`) through the umbrella `ArtifactLane` dispatch is
+straightforward, but the non-DUT introspection document must stay a serde
+projection of each lane's existing manifest, and whether that projection
+already exists is unresolved — so design (`.3a`) precedes impl (`.3b`),
+mirroring the original lane's `.5.1/.5.2/.5.3` split.
+
+**Decision — `.4` HTTP transport reuses the pure dispatcher.**
+`McpServer::handle` is already transport-agnostic, so HTTP drives the same
+dispatcher behind an opt-in flag. Because HTTP would expose the controlled
+`validate`/`minimize` tools over a socket, the transport binds
+**loopback-only by default**; the per-call `downstream` guardrails are
+unchanged.
+
 ## 2026-06-15 — Agent-workflow prompts as MCP prompts — `AGENT-INTROSPECTION-MCP.6`
 
 `.6` ships the five agent-workflow prompts (`find_downstream_bug`,
