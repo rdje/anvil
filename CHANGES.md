@@ -1,9 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SV-VERSION-TARGETING.2a — SV-version impl design detail + .2 split
+
+**Landed as:** this commit (previous: `eab3f4f`). **Docs-only / design-detail
+leaf** — task-tree-owned by `SV-VERSION-TARGETING.2a`. **No source change.**
+Grounds the `.2b` implementation of decision `0009` in the real code and splits
+`.2` before any code lands.
+
+**What changed**
+
+- **`DEVELOPMENT_NOTES.md`** — new design-detail entry resolving decision
+  `0009`'s five open questions, each grounded by a fresh read of the touch-point
+  code (`src/config.rs`, `src/emit/sv.rs`, `src/introspect/mod.rs` +
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`, `src/downstream/mod.rs`,
+  `src/bin/tool_matrix.rs`, `src/main.rs`):
+  1. **Enum + default.** `SvVersion { Sv2012, Sv2017, Sv2023 }` with
+     `PartialOrd`/`Ord` (declaration order, so `target >= Sv2017` capability
+     checks read naturally) and **bare-year** CLI/serde value names
+     (`#[value(name = "2012")]` + `#[serde(rename = "2012")]`). **Default =
+     `Sv2012`** (`#[serde(default)]`): the honest floor — byte-identical to
+     today and makes down-gating *to the floor* a provable no-op. This finalizes
+     (and supersedes) decision `0009`'s "working name `Sv2017`"; the label is
+     free today since no version-distinctive construct exists.
+  2. **Threading.** The bound goes to the **emitter as a parameter, not onto the
+     IR** (keeps CSE keys / `canonical_module_signature` / Module-serde
+     untouched). New `to_sv_versioned` / versioned design entry points; the
+     existing entry points delegate with `SvVersion::default()`, so every
+     current caller (main, tests, umbrella, mcp, examples) is byte-identical.
+     `SvVersion::permits(introduced)` is the bound; in `.2b.1` it gates nothing
+     (whole subset ≤ 2012).
+  3. **Down-gating proof.** A cross-version byte-identity test over a corpus
+     (`Sv2012 == Sv2017 == Sv2023`), proving the current subset is a genuine
+     common floor. `tests/snapshots.rs` stays untouched.
+  4. **Introspection.** Serde-automatic via `RequestEcho.knobs: Config`; schema
+     **MINOR bump `1.1 → 1.2`** (`SCHEMA_VERSION` + schema doc changelog + the
+     five hardcoded `"1.1"` test assertions: 2 in `introspect`, 3 in `mcp`).
+  5. **Per-version axis.** Optional `--language 1800-20xx` selector on
+     `run_verilator*` (`None` = today's exact argv), Yosys `-sv`, Icarus
+     `-g2012` over the g2012-valid subset; a focused `--sv-version-gate` +
+     `ScenarioSet::SvVersionSweep` mirroring `--signoff-knob-sweep-gate`.
+- **`docs/tasks/SV-VERSION-TARGETING.md`** — `.2` converted to a container with
+  children `.2a` (done) + `.2b` (active); `.2b` pre-split into `.2b.1` (knob +
+  emitter capability bound, byte-identical) + `.2b.2` (per-version downstream
+  acceptance axis). Frontier, Decisions, Open Questions, Verification Log,
+  Commit Log, Changelog updated.
+- **`docs/TASK_TREE.md`** — `SV-VERSION-TARGETING` row frontier advanced to
+  `.2b.1`.
+
+**Why**
+
+Decision-before-code discipline: `.2` touches config + main CLI + emitter +
+introspection + schema doc + downstream + tool_matrix + six live docs + the
+book — more than one signoff-quality slice. Resolving the five open questions in
+a reviewable docs-only slice, and isolating the byte-identical knob/emitter
+surface (`.2b.1`) from the heavier tool-harness work (`.2b.2`), mirrors how
+`.3b` isolated the byte-identical `bisimulation_partition` refactor from the
+cross-module feature.
+
+**Validation**
+
+No source change ⇒ DUT byte-identical (per `0003-resource-safe-validation`,
+docs/design leaves need only the workflow self-checks). Baseline before the leaf:
+`cargo check --all-targets` clean, `cargo test` green. `bash
+scripts/check_memory_architecture.sh` + `bash
+knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+Documentation + task-tree only. No CLI, no generated output, no schema change
+yet (the `1.1 → 1.2` bump lands with the `.2b.1` field). Frontier = `.2b.1`.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/SV-VERSION-TARGETING.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009
 
-**Landed as:** this commit (previous: `edae1b0`). **Docs-only / design leaf** —
+**Landed as:** `eab3f4f` (previous: `edae1b0`). **Docs-only / design leaf** —
 task-tree-owned by `SV-VERSION-TARGETING.1`. **No source change.** Acts on owner
 roadmap steering (`2026-06-15`) that named three new capability lanes.
 

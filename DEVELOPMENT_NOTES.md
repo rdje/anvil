@@ -5,6 +5,103 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — SV-version targeting — implementation design detail — `SV-VERSION-TARGETING.2a`
+
+Design-detail leaf for `.2` (implement decision `0009`). **No source change.**
+Grounds the `.2b` implementation in the *real* `src/config.rs` / `src/emit/sv.rs`
+/ `src/introspect/mod.rs` / `src/downstream/mod.rs` / `src/bin/tool_matrix.rs`
+code and resolves decision `0009`'s five open questions before any code lands.
+`.2` is split here into `.2a` (this design detail) + `.2b` (impl), and `.2b` is
+pre-split into `.2b.1` (knob plumbing + emitter capability bound) + `.2b.2`
+(per-version downstream acceptance axis), per the split-before-implement
+discipline (the `.3b.1`/`.3b.2` precedent).
+
+- **1 — enum + the byte-identical floor default.** A `SvVersion` enum in
+  `src/config.rs` with variants `Sv2012`, `Sv2017`, `Sv2023`, deriving
+  `Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize,
+  Deserialize, clap::ValueEnum`. **`PartialOrd`/`Ord` in declaration order**
+  (`Sv2012 < Sv2017 < Sv2023`) is load-bearing: capability checks read
+  `target >= SvVersion::Sv2017`. CLI + serde value spellings are the **bare
+  years** via per-variant `#[value(name = "2012")]` (clap) + `#[serde(rename =
+  "2012")]` — a decimal-leading token is not a valid kebab identifier, so a
+  per-variant name is the clean spelling (the `IdentityMode` ValueEnum-alias
+  precedent). So `--sv-version 2017` parses and `--dump-config` prints
+  `"sv_version": "2012"`. **Default = `Sv2012`** (`#[serde(default =
+  "default_sv_version")]` so old config files still deserialize). Rationale:
+  ANVIL's entire current emitted subset (`logic`/`always_ff`/`always_comb`/
+  packed `struct`/packed arrays/`typedef`/`localparam`) is valid in IEEE
+  1800-2012, so (a) the default reproduces today's emission byte-for-byte, and
+  (b) down-gating *to the floor* is a provable **no-op** — the strongest
+  statement of the guarantee. This finalizes decision `0009`'s "working name
+  `Sv2017`": 2012 is the honest floor, and because no version-distinctive
+  construct exists yet all three targets are byte-equal today regardless, so the
+  label choice is free and 2012 is the most defensible.
+
+- **2 — where the bound lives + how it threads to the emitter.** The target is a
+  global **emission capability**, so it threads to the emitter as a parameter,
+  **not** onto the IR. Keeping `Module`/`Design` free of an emission-policy field
+  preserves CSE keys / `canonical_module_signature` / validators / every
+  Module-serialization surface untouched (a *standard target* is global emission
+  policy, unlike the per-module `aggregate_layout` *structural* annotation, so a
+  threaded parameter is the right tool and avoids any Module-serde ripple).
+  Add version-aware entry points; the existing ones delegate with the floor
+  default so **every current caller (main, tests, umbrella, mcp, examples) stays
+  byte-identical**:
+  - `pub fn to_sv(m) -> String` ⟶ `to_sv_versioned(m, SvVersion::default())`;
+    new `pub fn to_sv_versioned(m, v: SvVersion) -> String`.
+  - same for `to_sv_in_design` / `to_sv_design`.
+  - `to_sv_with_modules` gains an `sv_version: SvVersion` param threaded to the
+    construct sites; the bound is a `SvVersion::permits(introduced: SvVersion)
+    -> bool` predicate (`self >= introduced`). **In `.2b.1` it gates nothing**
+    (every emitted construct's introducing standard ≤ 2012), so output is
+    byte-identical for all three targets — the down-gating guarantee over the
+    existing subset, made explicit and testable. The mechanism is what `.3`
+    consults for the first up-opted construct.
+  - `src/main.rs`'s DUT stdout path + the umbrella DUT lane call the versioned
+    entry with `cfg.sv_version`.
+
+- **3 — the down-gating byte-identity proof (`.2b.1`).** A focused test asserts
+  that over a representative corpus `to_sv_versioned(m, Sv2012) ==
+  to_sv_versioned(m, Sv2017) == to_sv_versioned(m, Sv2023)` byte-for-byte —
+  proving the current subset is a genuine common floor and the bound removes
+  nothing today. `tests/snapshots.rs` is untouched (default path unchanged,
+  6/6 byte-identical).
+
+- **4 — introspection + dump-config.** Both are direct `serde` projections of
+  `Config` (`--dump-config` = `serde_json::to_string_pretty(&cfg)`;
+  `--introspect` carries `RequestEcho.knobs: Config`), so `sv_version` surfaces
+  for free. Schema **MINOR bump 1.1 → 1.2**: `SCHEMA_VERSION` in
+  `src/introspect/mod.rs:43`; the `schema_version` line + a `1.1 → 1.2` changelog
+  entry in `docs/AGENT_INTROSPECTION_SCHEMA.md`; and the five hardcoded `"1.1"`
+  test assertions (2 in `src/introspect/mod.rs`, 3 in `src/mcp/mod.rs`).
+  `.2b.1` also audits that no test pins the exact full `Config` JSON field set
+  (additive field is covered by the existing `#[serde(default)]` MINOR policy).
+
+- **5 — per-version downstream acceptance axis (`.2b.2`).**
+  `SvVersion::verilator_language_arg(self) -> &'static str` →
+  `"1800-2012"|"1800-2017"|"1800-2023"`. `run_verilator*` gains an **optional**
+  language selector: `None` = today's exact argv (byte-identical tool
+  invocation); `Some(std)` prepends `--language <std>`. The accepted spelling
+  (`--language` vs `--default-language`) is **probed against the installed
+  Verilator at `.2b.2`** before wiring — no aspirational flag. Yosys stays
+  `read_verilog -sv` (no finer selector → validates synthesizable-subset
+  acceptance). Icarus `-g2012` is its newest generation: for the *current
+  subset* (g2012-valid) the column runs for all three targets; a genuinely
+  beyond-g2012 construct (only at `.3`) gates the iverilog column to a recorded
+  no-op, never a failure. Harness shape: a focused `--sv-version-gate` +
+  `ScenarioSet::SvVersionSweep` mirroring `--signoff-knob-sweep-gate` — sweep the
+  three targets over a small scenario set, run Verilator in the matching
+  `--language` mode, light a coverage fact (`saw_sv_version_targeted_acceptance`
+  + per-version sub-facts) under `coverage_gaps` enforcement, bank clean.
+
+- **Why split.** `.2` touches `config` + `main` CLI + `emit` + `introspect` +
+  schema doc + (then) `downstream` + `tool_matrix` + six live docs + the book —
+  more than one signoff-quality slice. `.2b.1` (knob + emitter bound, default
+  byte-identical, snapshot-locked) isolates the surface every downstream consumer
+  sees from the heavier tool-harness work in `.2b.2`, exactly as `.3b` isolated
+  the byte-identical `bisimulation_partition` refactor from the cross-module
+  feature.
+
 ## 2026-06-15 — SV-version targeting — design — `SV-VERSION-TARGETING.1`
 
 Owner roadmap steering opened three new capability lanes; the recommended,

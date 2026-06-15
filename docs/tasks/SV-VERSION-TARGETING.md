@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — version-targeted synthesizable RTL (ROADMAP steering gaps 1 + 3)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15`
+- Last updated: `2026-06-15` (`.2a` design detail landed; `.2` split)
 - Owner: repo-local workflow
 - Note: opened `2026-06-15` by owner roadmap steering as the recommended
   highest-leverage capability lane (over the two registered-`proposed` siblings
@@ -68,9 +68,34 @@ byte-identical.
   Commit: `done`
 
 - ID: `SV-VERSION-TARGETING.2`
+  Status: `active`
+  Goal: `Implement the plumbing + down-gating + per-version acceptance axis over the existing subset (default byte-identical).`
+  Children: `SV-VERSION-TARGETING.2a`, `SV-VERSION-TARGETING.2b`
+
+- ID: `SV-VERSION-TARGETING.2a`
+  Status: `done`
+  Goal: `Design-detail leaf: resolve decision 0009's five open questions before code — the SvVersion enum spelling + the byte-identical floor default value, where the capability bound lives and how it threads to the emitter, the down-gating byte-identity proof shape, the introspection field + schema MINOR-bump procedure, and the per-version downstream acceptance axis shape (Verilator language selector, Yosys/Icarus handling, the gate shape). Split .2 into .2a + .2b and pre-split .2b into .2b.1 + .2b.2.`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving all five open questions grounded in the real src/config.rs / src/emit/sv.rs / src/introspect/mod.rs / src/downstream/mod.rs / src/bin/tool_matrix.rs code; the task tree split recorded; no source change; docs/workflow self-checks clean.`
+  Result: `SvVersion { Sv2012 < Sv2017 < Sv2023 } (PartialOrd/Ord) in src/config.rs, bare-year CLI/serde value names, default = Sv2012 (the honest floor; byte-identical; down-gating to the floor is a provable no-op — supersedes decision 0009's "working name Sv2017"). Bound threads to the emitter as a parameter (NOT onto the IR — keeps CSE keys / canonical_module_signature / Module-serde untouched): new to_sv_versioned / to_sv_in_design / to_sv_design versioned entry points, old ones delegate with SvVersion::default() so every caller stays byte-identical; SvVersion::permits(introduced) predicate is the bound, gating nothing in .2b.1 (whole subset <= 2012). Down-gating proof = a cross-version byte-identity test over a corpus. Introspection: serde-automatic; schema MINOR bump 1.1 -> 1.2 + 5 "1.1" test-assertion updates. Per-version axis (.2b.2): SvVersion::verilator_language_arg -> "1800-20xx", optional --language selector on run_verilator* (None = today's argv), Yosys stays -sv, Icarus -g2012 runs on the g2012-valid subset; focused --sv-version-gate + ScenarioSet::SvVersionSweep mirroring --signoff-knob-sweep-gate. .2b pre-split: .2b.1 knob+emitter bound (byte-identical), .2b.2 downstream acceptance axis.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SV-VERSION-TARGETING.2b`
+  Status: `active`
+  Goal: `Implement the .2a design: knob plumbing + emitter capability bound (.2b.1) and the per-version downstream acceptance axis (.2b.2).`
+  Children: `SV-VERSION-TARGETING.2b.1`, `SV-VERSION-TARGETING.2b.2`
+
+- ID: `SV-VERSION-TARGETING.2b.1`
   Status: `proposed`
-  Goal: `(Future) Implement the plumbing + down-gating + per-version acceptance axis over the existing subset: Config::sv_version enum + --sv-version CLI + dump-config/introspection field; thread the target into the emitter as a capability bound; the per-version downstream acceptance column; floor target byte-identical (snapshots 6/6); 2017/2023 targets downstream-clean over the current subset in the matching tool standard mode.`
-  Acceptance: `cargo fmt/check/clippy clean; default --sv-version byte-identical (snapshots 6/6); --dump-config + introspection expose the field (schema MINOR bump); per-version acceptance proven; book/USER_GUIDE/README/ROADMAP/knobs + KM updated; committed through COMMIT.md with the leaf id. Split into .2a design-detail + .2b impl if broad.`
+  Goal: `Config::sv_version (SvVersion enum) + --sv-version CLI + Overrides + apply_cli_overrides + validate; --dump-config + --introspect surface it (serde-automatic) with schema MINOR bump 1.1 -> 1.2 (+ schema doc + 5 test-assertion updates); SvVersion::permits capability bound threaded through new versioned emitter entry points (old entry points delegate with SvVersion::default()); src/main.rs DUT path + umbrella DUT lane pass cfg.sv_version; a cross-version byte-identity test proving the current subset is a 2012/2017/2023 common floor; USER_GUIDE/book(knobs+new surface)/README/knobs/KM docs.`
+  Acceptance: `cargo fmt/check/clippy --all-targets -D warnings clean; cargo test green; default --sv-version byte-identical (tests/snapshots.rs 6/6 untouched); cross-version byte-identity test passes; --dump-config + --introspect expose sv_version; schema_version = 1.2 everywhere; book/USER_GUIDE/README/knobs + KM updated; committed through COMMIT.md with the leaf id.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `SV-VERSION-TARGETING.2b.2`
+  Status: `proposed`
+  Goal: `Per-version downstream acceptance axis: optional --language selector on run_verilator* (None = today's exact argv; Some = --language 1800-20xx, spelling probed against the installed Verilator first); Yosys stays -sv; Icarus -g2012 over the g2012-valid subset; a focused --sv-version-gate + ScenarioSet::SvVersionSweep (mirroring --signoff-knob-sweep-gate) sweeping the three targets with the matching Verilator language mode + a saw_sv_version_targeted_acceptance coverage fact under coverage_gaps enforcement; banked clean; ROADMAP/README/USER_GUIDE/book + KM docs.`
+  Acceptance: `cargo fmt/check/clippy/test clean; the gate runs the three targets downstream-clean in the matching tool standard mode with coverage_gaps = []; banked-clean evidence recorded; default tool invocation byte-identical (selector None); docs + KM updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -85,11 +110,30 @@ byte-identical.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SV-VERSION-TARGETING.2` | `proposed` | Now eligible — `.1` design landed (decision `0009`). Implement the gate plumbing + down-gating + per-version acceptance over the existing subset, default byte-identical. |
+| 1 | `SV-VERSION-TARGETING.2b.1` | `proposed` | Now eligible — `.2a` design detail landed. Implement the knob plumbing + emitter capability bound + cross-version byte-identity proof + introspection MINOR bump, default byte-identical. |
+| 2 | `SV-VERSION-TARGETING.2b.2` | `proposed` | After `.2b.1`. The per-version downstream acceptance axis (Verilator `--language`, focused `--sv-version-gate`, banked clean). |
+| — | `SV-VERSION-TARGETING.2a` | `done` | Resolved decision `0009`'s five open questions; split `.2` → `.2a`/`.2b` and pre-split `.2b` → `.2b.1`/`.2b.2`. No source change. |
 | — | `SV-VERSION-TARGETING.1` | `done` | Landed decision `0009` — gate semantics, byte-identical default, valid-by-construction discipline, per-version downstream proof, first-increment scope, rejected alternatives. No source change. |
 
 ## Decisions
 
+- `2026-06-15` (`.2a`, design detail in `DEVELOPMENT_NOTES.md`): resolved decision
+  `0009`'s five open questions. (1) `SvVersion { Sv2012 < Sv2017 < Sv2023 }`
+  (`PartialOrd`/`Ord`), bare-year CLI/serde value names; **default = `Sv2012`**
+  (the honest floor — byte-identical and makes down-gating to the floor a provable
+  no-op; supersedes decision `0009`'s "working name `Sv2017`", a free label choice
+  while no version-distinctive construct exists). (2) The bound threads to the
+  **emitter as a parameter, not onto the IR** (keeps CSE keys /
+  `canonical_module_signature` / Module-serde untouched): new versioned entry
+  points, old ones delegate with `SvVersion::default()` (byte-identical callers);
+  `SvVersion::permits(introduced)` is the bound, gating nothing in `.2b.1`.
+  (3) Down-gating proof = a cross-version byte-identity test over a corpus.
+  (4) Introspection is serde-automatic; schema MINOR bump `1.1 → 1.2` + the five
+  `"1.1"` test-assertion updates. (5) Per-version axis = optional `--language`
+  selector on `run_verilator*` (`None` = today's argv), Yosys `-sv`, Icarus
+  `-g2012` over the g2012-valid subset, a focused `--sv-version-gate` +
+  `ScenarioSet::SvVersionSweep`. Split `.2` → `.2a`/`.2b`; pre-split `.2b` →
+  `.2b.1` (knob + emitter bound) / `.2b.2` (downstream acceptance axis).
 - `2026-06-15` (`.1`, decision [`0009`](../decisions/0009-sv-version-targeting.md)):
   Opened the lane `active` by owner roadmap steering. First leaf designs the
   `--sv-version <2012|2017|2023>` gate: down-gating guarantee + up-opting stress,
@@ -100,10 +144,12 @@ byte-identical.
 
 ## Open Questions
 
-- `.2` finalizes the enum spelling + the exact byte-identical floor default value,
-  the introspection field name, the Verilator language-selector spelling the
-  installed tool accepts, and whether the per-version axis is a new `tool_matrix`
-  gate or a `--sv-version`-parameterized run of the existing columns.
+- Resolved by `.2a` (see Decisions). Remaining for `.2b.2`: the exact Verilator
+  language-selector spelling the **installed** tool accepts (`--language
+  1800-2023` vs `--default-language`), probed against the real binary before
+  wiring.
+- `.3` (future): which version-distinctive synthesizable construct is the first
+  up-opt, and which downstream tool/mode proves it accepted.
 
 ## Blockers
 
@@ -113,16 +159,23 @@ byte-identical.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-15` | `SV-VERSION-TARGETING.2a` | Design-detail leaf, no source change (grounded by a fresh read of `src/config.rs`, `src/emit/sv.rs`, `src/introspect/mod.rs` + `docs/AGENT_INTROSPECTION_SCHEMA.md`, `src/downstream/mod.rs`, `src/bin/tool_matrix.rs`, `src/main.rs`). `DEVELOPMENT_NOTES.md` design-detail entry; task tree split recorded. Baseline `cargo check --all-targets` clean and `cargo test` green before the leaf; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.1` | Design/decision leaf, no source change (grounded in `src/emit/sv.rs` current subset + `src/downstream/mod.rs` fixed tool standards + confirming no existing `sv_version` knob). Decision `0009` with KM `answers:`; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SV-VERSION-TARGETING.2a` | `SV-VERSION-TARGETING.2a — SV-version impl design detail + .2 split` | Design-detail in `DEVELOPMENT_NOTES.md`; `.2` split into `.2a`/`.2b`, `.2b` pre-split into `.2b.1`/`.2b.2`. No source change. |
 | `SV-VERSION-TARGETING.1` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Decision record `0009`; opened the lane + registered the two sibling `proposed` lanes. No source change. |
 
 ## Changelog
 
+- `2026-06-15`: `.2a` design-detail landed (no source change): resolved decision
+  `0009`'s five open questions in `DEVELOPMENT_NOTES.md`; split `.2` into `.2a`
+  (done) + `.2b` (active), and pre-split `.2b` into `.2b.1` (knob + emitter
+  capability bound, byte-identical) + `.2b.2` (per-version downstream acceptance
+  axis). Frontier advances to `.2b.1`.
 - `2026-06-15`: Created task tree (owner-directed capability lane), opened
   `active`, landed `.1` (decision `0009`); split into `.2` (plumbing impl) +
   `.3` (first up-opted construct). Frontier advances to `.2`.
