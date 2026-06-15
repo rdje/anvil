@@ -428,6 +428,17 @@ instead of creating fresh logic.
   target. The knob is surfaced in `--dump-config` and the `--introspect`
   document (introspection schema `1.2`).
 
+  **Per-version downstream acceptance is proven, not assumed.** The
+  repo-owned `tool_matrix --sv-version-gate` sweeps all three targets
+  over a focused corpus (a combinational e-graph leaf, a sequential
+  motif leaf, and a recursive depth-2 hierarchy design per version) and
+  runs **Verilator in the matching `--language 1800-20xx` standard
+  mode** plus Yosys `-sv`, failing on any coverage gap unless every
+  target's corpus is accepted in its matching mode
+  (`saw_sv_version_<year>_targeted_acceptance`). Banked clean at
+  `/tmp/anvil-sv-version-gate-r1` (9 scenarios / 18 units /
+  `coverage_gaps = []` / 18/0 Verilator + both Yosys modes).
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`
@@ -932,6 +943,7 @@ is accurate as of this commit.
 --phase3-structured-gate
 --phase4-hierarchy-gate
 --signoff-knob-sweep-gate
+--sv-version-gate
 --skip-verilator, --skip-yosys
 --verilator-bin, --yosys-bin
 --yosys-mode <without-abc|with-abc|both>

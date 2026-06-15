@@ -1,9 +1,89 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SV-VERSION-TARGETING.2b.2b — repo-owned per-version acceptance gate
+
+**Landed as:** this commit (previous: `e3c2f4b`). Task-tree-owned by
+`SV-VERSION-TARGETING.2b.2b`. **Default matrix run byte-identical** (the
+Verilator `--language` selector is `None` unless `--sv-version-gate` is set;
+the matrix `to_sv*` emits target each scenario's `Config::sv_version`, which is
+the `Sv2012` floor for every non-gate scenario ⇒ byte-identical).
+
+**What changed (all in `src/bin/tool_matrix.rs`)**
+
+- **`--sv-version-gate` CLI flag + `ScenarioSet::SvVersionSweep`** (mirrors
+  `--signoff-knob-sweep-gate`): mutually exclusive with the other gates,
+  auto-enables coverage-gap failure, raises units/scenario to
+  `SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO = 2`.
+- **`build_sv_version_sweep_scenarios`** — for each IEEE 1800 target
+  (2012/2017/2023): a combinational e-graph leaf (`sv<year>_comb_egraph`), a
+  sequential motif leaf (`sv<year>_seq_motif`), and a recursive depth-2
+  hierarchy design (`sv<year>_hier_recursive`), each carrying that
+  `Config::sv_version`. 9 scenarios, all `Interleaved` (the gate's contract is
+  per-version acceptance, not strategy breadth).
+- **Per-version emission threading** — `prepare_module_with_paths` /
+  `prepared_design_from_design` now emit via `to_sv_versioned` /
+  `to_sv_in_design_versioned` at the scenario's `sv_version` (byte-identical at
+  the `Sv2012` floor every non-gate scenario uses). `sv_version` /
+  `verilator_language` are threaded through `run_scenario` →
+  `run_{module,design}_scenario` → `prepare_design` / `materialize_*` /
+  `run_{module,design}_tools` / `resume_existing_{module,design}`.
+- **Matching-mode Verilator** — new `verilator_language_for(scenario,
+  version_targeted)` returns `Some(sv_version.ieee_standard())` only under the
+  gate (the `.2b.2a` `run_verilator(_design)` `language` selector); `None`
+  everywhere else preserves today's byte-identical argv.
+- **Coverage facts** — `CoverageSummary` gains
+  `saw_sv_version_targeted_acceptance` (umbrella) + per-version
+  `saw_sv_version_{2012,2017,2023}_targeted_acceptance`, lit by
+  `light_sv_version_acceptance` from `summarize_{coverage,design_coverage}`
+  only when `version_targeted` AND Verilator ran-and-succeeded AND Yosys is
+  clean; merged in `merge_coverage`; enforced by an early-return block in
+  `compute_coverage_gaps` (before the strategy loop, so an Interleaved-only
+  sweep is valid). `MatrixReport.sv_version_gate` records the run mode.
+- **6 cargo-portable proofs** — flag parse/default, set-select + run-plan,
+  mutual-exclusion, per-version scenario shaping (9 = 3×{comb,seq,hier}),
+  `verilator_language_for` on/off the gate, and the gap requirements
+  (unlit → exactly the 4 version gaps with NO strategy gap from an empty
+  strategy set; lit → none).
+
+**Why**
+
+Closes the per-version downstream acceptance axis of decision `0009`: the
+matrix now *proves* each targeted standard's corpus is accepted in the matching
+tool standard mode (Verilator `--language 1800-20xx` + Yosys `-sv`), serving
+the north star (expose version-specific downstream-tool bugs) and making
+`sv_version` an explicit adversarial matrix axis (ROADMAP steering gap 3).
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0;
+`cargo test --bin tool_matrix` 52/0 (incl. 6 new); `tests/snapshots` 6/6
+byte-identical; `tests/sv_version` 2/2 (cross-version byte-identity unchanged);
+heavy `tests/pipeline.rs` re-run (touches `tool_matrix`). **Banked
+downstream-clean:** `cargo run --release --bin tool_matrix -- --sv-version-gate
+--yosys-mode both --out /tmp/anvil-sv-version-gate-r1` → exit 0, 9 scenarios /
+18 units / `coverage_gaps = []` / Verilator 18/0 / Yosys without-abc 18/0 /
+Yosys with-abc 18/0; report confirms each scenario's Verilator argv carries the
+matching `--language 1800-20xx` and all four `saw_sv_version_*` facts lit.
+
+**Impact**
+
+New repo-owned gate; the default `tool_matrix` run and every existing gate stay
+byte-identical (selector `None`, `Sv2012`-floor emits). `SV-VERSION-TARGETING.2`
+(plumbing + down-gating + per-version acceptance axis) is complete; the
+remaining lane frontier is `.3` (first version-distinctive up-opted construct,
+design-first).
+
+**Files touched:** `src/bin/tool_matrix.rs`, `README.md`, `USER_GUIDE.md`,
+`ROADMAP.md`, `book/src/knobs.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`,
+`CODEBASE_ANALYSIS.md`, `MEMORY.md`, `docs/tasks/SV-VERSION-TARGETING.md`,
+`docs/TASK_TREE.md`, `docs/knowledge/sv-version-targeted-acceptance-gate.md`,
+`KNOWLEDGE_MAP.md`.
+
 ## 2026-06-15 — SV-VERSION-TARGETING.2b.2a — per-version downstream acceptance proof
 
-**Landed as:** this commit (previous: `c9895ad`). Task-tree-owned by
+**Landed as:** `e3c2f4b` (previous: `c9895ad`). Task-tree-owned by
 `SV-VERSION-TARGETING.2b.2a`. **Default tool invocation byte-identical**
 (`language = None` reproduces today's exact argv).
 

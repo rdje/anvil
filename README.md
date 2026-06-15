@@ -692,6 +692,24 @@ exercising adversarial axes that previously fired only by chance
   `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules,
   `coverage_gaps = []`, `48/0` Verilator + both Yosys; closes ROADMAP
   steering gap 3's hidden-bias hole for these knobs).
+- `tool_matrix --sv-version-gate` runs the repo-owned per-version
+  acceptance matrix (`SV-VERSION-TARGETING.2b.2b`) and fails on coverage
+  gaps unless every targeted IEEE 1800 standard's corpus is accepted in
+  the matching tool standard mode. It sweeps the three targets
+  (2012/2017/2023) over a focused corpus (a combinational e-graph leaf,
+  a sequential motif leaf, and a recursive depth-2 hierarchy design per
+  version), runs **Verilator in the matching `--language 1800-20xx`
+  mode** (via the `.2b.2a` selector) plus Yosys `-sv`, and requires
+  `saw_sv_version_2012_targeted_acceptance`,
+  `saw_sv_version_2017_targeted_acceptance`,
+  `saw_sv_version_2023_targeted_acceptance`, and the umbrella
+  `saw_sv_version_targeted_acceptance`. Emission is byte-identical across
+  the three targets today (a 2012/2017/2023 common floor), so the gate's
+  value is the per-version downstream acceptance axis, not output
+  divergence (that arrives with the future up-opting leaf `.3`). Uses the
+  `Interleaved` strategy only (other gates own strategy breadth). Banked
+  clean at `/tmp/anvil-sv-version-gate-r1` (9 scenarios, 18 units,
+  `coverage_gaps = []`, `18/0` Verilator + both Yosys modes).
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

@@ -111,7 +111,25 @@ into four explicit gaps:
    `coverage_gaps = []`, `48/0` Verilator + both Yosys). The focused
    gate's `compute_coverage_gaps` arm early-returns after the four facts,
    so it does not inherit the broad-motif richness the phase gates
-   require.
+   require. The per-version acceptance gate landed the same way as
+   `SV-VERSION-TARGETING.2b.2b`: `tool_matrix` gains a new
+   `ScenarioSet::SvVersionSweep` + the opt-in `--sv-version-gate` flag +
+   `build_sv_version_sweep_scenarios` (per IEEE 1800 target ×
+   {comb leaf, seq leaf, recursive hierarchy design} = 9 `Interleaved`
+   scenarios), each carrying `Config::sv_version` and emitted via the
+   versioned `to_sv_versioned` / `to_sv_in_design_versioned` entry points;
+   `verilator_language_for` runs Verilator in the matching
+   `--language 1800-20xx` mode (via the `.2b.2a` `run_verilator(_design)`
+   selector) only under the gate; four `saw_sv_version_*_targeted_acceptance`
+   coverage facts (lit by `light_sv_version_acceptance` from
+   `summarize_{coverage,design_coverage}` when Verilator ran-and-succeeded
+   + clean Yosys) are enforced by an early-return arm in
+   `compute_coverage_gaps` *before* the construction-strategy loop (so an
+   Interleaved-only sweep is valid). `MatrixReport.sv_version_gate`
+   records the run. Banked downstream-clean at
+   `/tmp/anvil-sv-version-gate-r1` (9 scenarios, 18 units,
+   `coverage_gaps = []`, `18/0` Verilator + both Yosys). Default matrix
+   runs stay byte-identical (selector `None`, `Sv2012`-floor emits).
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

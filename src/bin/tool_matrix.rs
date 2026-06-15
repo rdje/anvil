@@ -1,5 +1,6 @@
 use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
+    SvVersion,
 };
 // AGENT-INTROSPECTION-MCP.5.1 — the hardened downstream-tool invocations now
 // live in the library (`anvil::downstream`) so the agent `validate`/`minimize`
@@ -24,6 +25,7 @@ const PHASE2_SHARE_MIN_TOTAL_MODULES: usize = 216;
 const PHASE3_STRUCTURED_MIN_TOTAL_MODULES: usize = 210;
 const PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO: usize = 4;
 const SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 2;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -73,6 +75,14 @@ struct Cli {
     /// four coverage facts.
     #[arg(long)]
     signoff_knob_sweep_gate: bool,
+
+    /// Elevate the run to the repo-owned per-version SystemVerilog gate
+    /// (`SV-VERSION-TARGETING.2b.2b`): sweep the three IEEE 1800 targets
+    /// (2012/2017/2023) over a focused corpus, run Verilator in the
+    /// matching `--language 1800-20xx` standard mode, and require a
+    /// per-version `saw_sv_version_*_targeted_acceptance` coverage fact.
+    #[arg(long)]
+    sv_version_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -426,6 +436,22 @@ struct CoverageSummary {
     /// per-leaf memory-vs-FSM selection is mutually exclusive, so this
     /// needs `memory_prob ∈ (0,1)` + `fsm_prob = 1.0`.
     saw_memory_fsm_interplay_design: bool,
+    /// `SV-VERSION-TARGETING.2b.2b` — at least one version-targeted
+    /// artifact was accepted by the downstream tools in the matching
+    /// standard mode (Verilator `--language 1800-20xx` + Yosys `-sv`).
+    /// The umbrella fact: true iff any of the three per-version
+    /// sub-facts below is true. Only lit under the `--sv-version-gate`
+    /// run (the only run that sets the Verilator `--language` selector).
+    saw_sv_version_targeted_acceptance: bool,
+    /// `SV-VERSION-TARGETING.2b.2b` — an IEEE 1800-2012-targeted artifact
+    /// was accepted by Verilator `--language 1800-2012` + Yosys `-sv`.
+    saw_sv_version_2012_targeted_acceptance: bool,
+    /// `SV-VERSION-TARGETING.2b.2b` — an IEEE 1800-2017-targeted artifact
+    /// was accepted by Verilator `--language 1800-2017` + Yosys `-sv`.
+    saw_sv_version_2017_targeted_acceptance: bool,
+    /// `SV-VERSION-TARGETING.2b.2b` — an IEEE 1800-2023-targeted artifact
+    /// was accepted by Verilator `--language 1800-2023` + Yosys `-sv`.
+    saw_sv_version_2023_targeted_acceptance: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -481,6 +507,17 @@ enum ScenarioSet {
     /// not by chance (ROADMAP steering gap 3). Each is a depth-1 wrapper
     /// design across all three construction strategies.
     SignoffKnobSweep,
+    /// `SV-VERSION-TARGETING.2b.2b` — the repo-owned per-version
+    /// acceptance gate. Sweeps the three IEEE 1800 emission targets
+    /// (2012/2017/2023) over a focused comb-leaf / seq-leaf / recursive
+    /// hierarchy-design corpus and runs Verilator in the matching
+    /// `--language 1800-20xx` standard mode (via the `.2b.2a` selector),
+    /// proving each version-targeted corpus is accepted in the matching
+    /// tool standard mode. Default `Sv2012` emission is byte-identical to
+    /// today; the gate's value is the per-version downstream acceptance
+    /// axis, not output divergence (divergence arrives with the future
+    /// up-opting leaf `.3`).
+    SvVersionSweep,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -526,6 +563,13 @@ struct MatrixReport {
     phase4_hierarchy_gate: bool,
     #[serde(default)]
     signoff_knob_sweep_gate: bool,
+    /// `SV-VERSION-TARGETING.2b.2b` — whether `--sv-version-gate` drove
+    /// this run. When `true`, every scenario carries a non-default
+    /// `sv_version` only via the sweep, Verilator ran in the matching
+    /// `--language` mode, and the `saw_sv_version_*_targeted_acceptance`
+    /// facts are enforced under `coverage_gaps`.
+    #[serde(default)]
+    sv_version_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -641,6 +685,13 @@ fn main() -> Result<()> {
             .with_context(|| format!("write diff-sim subset sentinel in {}", out_dir.display()))?;
     }
 
+    // `SV-VERSION-TARGETING.2b.2b` — only the per-version gate runs the
+    // downstream tools in the matching `--language 1800-20xx` standard
+    // mode and lights the per-version acceptance facts. Every other run
+    // leaves `version_targeted` false, so Verilator keeps today's
+    // byte-identical argv (`language: None`).
+    let version_targeted = scenario_set == ScenarioSet::SvVersionSweep;
+
     let mut scenario_reports = Vec::with_capacity(scenarios.len());
     let mut global_tool_summary = ToolSummary::default();
     let mut global_coverage = CoverageSummary::default();
@@ -652,6 +703,7 @@ fn main() -> Result<()> {
             &plan,
             out_dir,
             runtime_fingerprint.as_deref(),
+            version_targeted,
         )?;
         merge_tool_summary(&mut global_tool_summary, &report.tool_summary);
         merge_coverage(&mut global_coverage, &report.coverage);
@@ -673,6 +725,7 @@ fn main() -> Result<()> {
         phase3_structured_gate: cli.phase3_structured_gate,
         phase4_hierarchy_gate: cli.phase4_hierarchy_gate,
         signoff_knob_sweep_gate: cli.signoff_knob_sweep_gate,
+        sv_version_gate: cli.sv_version_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -782,6 +835,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO
     } else if cli.signoff_knob_sweep_gate {
         SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO
+    } else if cli.sv_version_gate {
+        SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -794,7 +849,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.phase2_share_gate
             || cli.phase3_structured_gate
             || cli.phase4_hierarchy_gate
-            || cli.signoff_knob_sweep_gate,
+            || cli.signoff_knob_sweep_gate
+            || cli.sv_version_gate,
         total_modules,
     }
 }
@@ -804,10 +860,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         + usize::from(cli.phase2_share_gate)
         + usize::from(cli.phase3_structured_gate)
         + usize::from(cli.phase4_hierarchy_gate)
-        + usize::from(cli.signoff_knob_sweep_gate);
+        + usize::from(cli.signoff_knob_sweep_gate)
+        + usize::from(cli.sv_version_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, and --signoff-knob-sweep-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, and --sv-version-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -818,6 +875,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::Phase4Hierarchy)
     } else if cli.signoff_knob_sweep_gate {
         Ok(ScenarioSet::SignoffKnobSweep)
+    } else if cli.sv_version_gate {
+        Ok(ScenarioSet::SvVersionSweep)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -830,6 +889,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::Phase3Structured => build_phase3_structured_scenarios(base_seed)?,
         ScenarioSet::Phase4Hierarchy => build_phase4_hierarchy_scenarios(base_seed)?,
         ScenarioSet::SignoffKnobSweep => build_signoff_knob_sweep_scenarios(base_seed)?,
+        ScenarioSet::SvVersionSweep => build_sv_version_sweep_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -2822,6 +2882,82 @@ fn build_signoff_knob_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
     Ok(scenarios)
 }
 
+/// `SV-VERSION-TARGETING.2b.2b` — bare-year slug for an `SvVersion`,
+/// used in scenario names (`sv2017_comb_egraph`).
+fn sv_version_year_slug(version: SvVersion) -> &'static str {
+    match version {
+        SvVersion::Sv2012 => "2012",
+        SvVersion::Sv2017 => "2017",
+        SvVersion::Sv2023 => "2023",
+    }
+}
+
+/// `SV-VERSION-TARGETING.2b.2b` — the repo-owned per-version acceptance
+/// matrix. For each of the three IEEE 1800 targets (2012/2017/2023) it
+/// emits a focused, deterministic corpus — a combinational e-graph leaf,
+/// a sequential motif leaf, and a recursive depth-2 hierarchy design —
+/// each carrying `Config::sv_version` set to that target. The caller
+/// (`--sv-version-gate`) runs Verilator in the matching
+/// `--language 1800-20xx` standard mode (via the `.2b.2a` selector), so
+/// the gate proves each version-targeted corpus is *accepted in the
+/// matching tool standard mode*, lighting the per-version
+/// `saw_sv_version_*_targeted_acceptance` facts.
+///
+/// All three artifact kinds use the `Interleaved` strategy: the gate's
+/// contract is per-version acceptance, not construction-strategy breadth
+/// (the other gates own that), so `compute_coverage_gaps` returns early
+/// for this set without the strategy/motif/category checks. Emission is
+/// byte-identical across the three targets today — the current subset is
+/// a 2012/2017/2023 common floor — so the gate's value is the downstream
+/// acceptance axis, not output divergence (that arrives with the future
+/// up-opting leaf `.3`).
+fn build_sv_version_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut next_seed = base_seed;
+    let strategy = ConstructionStrategy::Interleaved;
+    let strategy_label = construction_strategy_name(strategy);
+
+    for version in [SvVersion::Sv2012, SvVersion::Sv2017, SvVersion::Sv2023] {
+        let year = sv_version_year_slug(version);
+        let std = version.ieee_standard();
+
+        let mut comb = share_heavy_comb_only_config(strategy, next_seed, 0.9);
+        comb.sv_version = version;
+        scenarios.push(make_scenario(
+            &format!("sv{year}_comb_egraph"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph combinational leaf targeting IEEE {std}; proves the version-targeted combinational corpus is accepted by Verilator --language {std} + Yosys -sv."
+            ),
+            comb,
+        )?);
+
+        let mut seq = motif_heavy_sequential_config(strategy, next_seed + 1, 0.4);
+        seq.sv_version = version;
+        scenarios.push(make_scenario(
+            &format!("sv{year}_seq_motif"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph sequential motif leaf targeting IEEE {std}; proves the version-targeted sequential corpus is accepted in the matching tool standard mode."
+            ),
+            seq,
+        )?);
+
+        let mut hier =
+            phase4_recursive_canonical_module_signature_focus_config(strategy, next_seed + 2);
+        hier.sv_version = version;
+        scenarios.push(make_scenario(
+            &format!("sv{year}_hier_recursive"),
+            &format!(
+                "{strategy_label} strategy, recursive depth-2 hierarchy design targeting IEEE {std}; proves the version-targeted multi-file design path emits and is accepted in the matching tool standard mode."
+            ),
+            hier,
+        )?);
+
+        next_seed += 3;
+    }
+
+    Ok(scenarios)
+}
+
 fn phase4_hierarchy_structurally_duplicate_modules_focus_config(
     strategy: ConstructionStrategy,
     seed: u64,
@@ -3699,18 +3835,42 @@ fn phase4_recursive_registered_parent_cone_instance_multistage_focus_config(
     cfg
 }
 
+/// `SV-VERSION-TARGETING.2b.2b` — the Verilator `--language 1800-20xx`
+/// selector for a scenario. `Some(std)` only under the per-version gate
+/// (`version_targeted`), where downstream tools run in the matching
+/// standard mode; `None` for every other run, preserving today's
+/// byte-identical Verilator argv.
+fn verilator_language_for(scenario: &Scenario, version_targeted: bool) -> Option<&'static str> {
+    version_targeted.then(|| scenario.config.sv_version.ieee_standard())
+}
+
 fn run_scenario(
     scenario: &Scenario,
     cli: &Cli,
     plan: &RunPlan,
     out_root: &Path,
     runtime_fingerprint: Option<&str>,
+    version_targeted: bool,
 ) -> Result<ScenarioReport> {
     if scenario.config.effective_hierarchy_depth_range().is_some() {
-        return run_design_scenario(scenario, cli, plan, out_root, runtime_fingerprint);
+        return run_design_scenario(
+            scenario,
+            cli,
+            plan,
+            out_root,
+            runtime_fingerprint,
+            version_targeted,
+        );
     }
 
-    run_module_scenario(scenario, cli, plan, out_root, runtime_fingerprint)
+    run_module_scenario(
+        scenario,
+        cli,
+        plan,
+        out_root,
+        runtime_fingerprint,
+        version_targeted,
+    )
 }
 
 fn run_module_scenario(
@@ -3719,10 +3879,16 @@ fn run_module_scenario(
     plan: &RunPlan,
     out_root: &Path,
     runtime_fingerprint: Option<&str>,
+    version_targeted: bool,
 ) -> Result<ScenarioReport> {
     let scenario_dir = out_root.join(&scenario.name);
     std::fs::create_dir_all(&scenario_dir)
         .with_context(|| format!("create scenario directory {}", scenario_dir.display()))?;
+
+    // `SV-VERSION-TARGETING.2b.2b` — under the per-version gate, run
+    // Verilator in the scenario's matching `--language 1800-20xx` mode;
+    // otherwise keep today's byte-identical argv (`None`).
+    let verilator_language = verilator_language_for(scenario, version_targeted);
 
     let mut generator = Generator::new(scenario.config.clone());
     let mut modules = Vec::with_capacity(plan.modules_per_scenario);
@@ -3735,6 +3901,7 @@ fn run_module_scenario(
             &scenario_dir,
             module_index,
             runtime_fingerprint,
+            verilator_language,
         )? {
             modules.push(report);
             continue;
@@ -3749,13 +3916,14 @@ fn run_module_scenario(
             &generator_checkpoint,
             runtime_fingerprint,
             true,
+            verilator_language,
         )?);
     }
 
     write_scenario_manifest(&scenario_dir, scenario, &modules)?;
 
     let aggregate = aggregate_metrics(&modules);
-    let coverage = summarize_coverage(scenario, &modules);
+    let coverage = summarize_coverage(scenario, &modules, version_targeted);
     let tool_summary = summarize_tools(&modules);
 
     Ok(ScenarioReport {
@@ -3782,10 +3950,16 @@ fn run_design_scenario(
     plan: &RunPlan,
     out_root: &Path,
     runtime_fingerprint: Option<&str>,
+    version_targeted: bool,
 ) -> Result<ScenarioReport> {
     let scenario_dir = out_root.join(&scenario.name);
     std::fs::create_dir_all(&scenario_dir)
         .with_context(|| format!("create scenario directory {}", scenario_dir.display()))?;
+
+    // `SV-VERSION-TARGETING.2b.2b` — the scenario's emission target plus
+    // the matching-mode Verilator selector (active only under the gate).
+    let sv_version = scenario.config.sv_version;
+    let verilator_language = verilator_language_for(scenario, version_targeted);
 
     let mut generator = Generator::new(scenario.config.clone());
     let mut designs = Vec::with_capacity(plan.modules_per_scenario);
@@ -3797,12 +3971,14 @@ fn run_design_scenario(
             &scenario_dir,
             design_index,
             runtime_fingerprint,
+            sv_version,
+            verilator_language,
         )? {
             designs.push(report);
             continue;
         }
 
-        let prepared = prepare_design(&mut generator, &scenario_dir, design_index)?;
+        let prepared = prepare_design(&mut generator, &scenario_dir, design_index, sv_version)?;
         let generator_checkpoint = generator.checkpoint();
         designs.push(materialize_prepared_design(
             cli,
@@ -3810,13 +3986,14 @@ fn run_design_scenario(
             &generator_checkpoint,
             runtime_fingerprint,
             true,
+            verilator_language,
         )?);
     }
 
     write_design_scenario_manifest(&scenario_dir, scenario, &designs)?;
 
     let aggregate = aggregate_design_metrics(&designs);
-    let coverage = summarize_design_coverage(scenario, &designs);
+    let coverage = summarize_design_coverage(scenario, &designs, version_targeted);
     let tool_summary = summarize_design_tools(&designs);
 
     Ok(ScenarioReport {
@@ -3844,6 +4021,7 @@ fn resume_existing_module(
     scenario_dir: &Path,
     module_index: usize,
     runtime_fingerprint: Option<&str>,
+    verilator_language: Option<&str>,
 ) -> Result<Option<ModuleReport>> {
     if !cli.resume {
         return Ok(None);
@@ -3899,6 +4077,7 @@ fn resume_existing_module(
         &generator_checkpoint,
         runtime_fingerprint,
         false,
+        verilator_language,
     )
     .map(Some)
 }
@@ -3909,6 +4088,8 @@ fn resume_existing_design(
     scenario_dir: &Path,
     design_index: usize,
     runtime_fingerprint: Option<&str>,
+    sv_version: SvVersion,
+    verilator_language: Option<&str>,
 ) -> Result<Option<DesignReport>> {
     if !cli.resume {
         return Ok(None);
@@ -3929,7 +4110,7 @@ fn resume_existing_design(
         return Ok(Some(report));
     }
 
-    let prepared = prepare_design(generator, scenario_dir, design_index)?;
+    let prepared = prepare_design(generator, scenario_dir, design_index, sv_version)?;
     validate_checkpoint_against_prepared_design(&checkpoint.report, &prepared)?;
     validate_design_files_against_prepared(&prepared)?;
 
@@ -3949,7 +4130,7 @@ fn resume_existing_design(
             .collect();
         report
     } else {
-        run_design_tools(cli, &prepared)?
+        run_design_tools(cli, &prepared, verilator_language)?
     };
     write_design_checkpoint(
         cli,
@@ -4077,11 +4258,12 @@ fn prepare_design(
     generator: &mut Generator,
     scenario_dir: &Path,
     design_index: usize,
+    sv_version: SvVersion,
 ) -> Result<PreparedDesign> {
     let paths = design_paths(scenario_dir, design_index);
     let design = generator.generate_design();
     anvil::ir::validate::validate_design(&design).map_err(|err| anyhow::anyhow!("{err}"))?;
-    prepared_design_from_design(paths, design_index, &design, scenario_dir)
+    prepared_design_from_design(paths, design_index, &design, scenario_dir, sv_version)
 }
 
 fn prepared_design_from_design(
@@ -4089,6 +4271,7 @@ fn prepared_design_from_design(
     design_index: usize,
     design: &Design,
     scenario_dir: &Path,
+    sv_version: SvVersion,
 ) -> Result<PreparedDesign> {
     let metrics = anvil::metrics::compute_design(design);
     let hierarchy = hierarchy_facts_from_design(design, design_index, &metrics)?;
@@ -4097,7 +4280,10 @@ fn prepared_design_from_design(
         let metrics = anvil::metrics::compute(module);
         let file = format!("{}.sv", module.name);
         let sv_path = scenario_dir.join(&file);
-        let sv_text = anvil::emit::to_sv_in_design(module, design);
+        // `SV-VERSION-TARGETING.2b.2b` — emit at the scenario's target.
+        // Byte-identical to `to_sv_in_design` at the `Sv2012` floor every
+        // non-gate scenario uses (the current subset is a common floor).
+        let sv_text = anvil::emit::to_sv_in_design_versioned(module, design, sv_version);
         let sv_hash = hash_bytes(sv_text.as_bytes());
         modules.push(PreparedEmittedModule {
             file,
@@ -4151,12 +4337,15 @@ fn hierarchy_facts_from_design(
 
 fn prepare_module_with_paths(
     generator: &mut Generator,
-    _scenario: &Scenario,
+    scenario: &Scenario,
     paths: ModulePaths,
 ) -> Result<PreparedModule> {
     let module = generator.generate_module();
     let metrics = anvil::metrics::compute(&module);
-    let sv_text = anvil::emit::to_sv(&module);
+    // `SV-VERSION-TARGETING.2b.2b` — emit at the scenario's target.
+    // Byte-identical to `to_sv` at the `Sv2012` floor every non-gate
+    // scenario uses (the current subset is a 2012/2017/2023 common floor).
+    let sv_text = anvil::emit::to_sv_versioned(&module, scenario.config.sv_version);
     let sv_hash = hash_bytes(sv_text.as_bytes());
     Ok(PreparedModule {
         paths,
@@ -4173,6 +4362,7 @@ fn materialize_prepared_design(
     generator_checkpoint: &GeneratorCheckpoint,
     runtime_fingerprint: Option<&str>,
     write_sv: bool,
+    verilator_language: Option<&str>,
 ) -> Result<DesignReport> {
     if write_sv {
         for module in &prepared.modules {
@@ -4181,7 +4371,7 @@ fn materialize_prepared_design(
         }
     }
 
-    let report = run_design_tools(cli, prepared)?;
+    let report = run_design_tools(cli, prepared, verilator_language)?;
     write_design_checkpoint(
         cli,
         &prepared.paths.checkpoint_path,
@@ -4200,6 +4390,7 @@ fn materialize_prepared_module(
     generator_checkpoint: &GeneratorCheckpoint,
     runtime_fingerprint: Option<&str>,
     write_sv: bool,
+    verilator_language: Option<&str>,
 ) -> Result<ModuleReport> {
     if write_sv {
         std::fs::write(&prepared.paths.sv_path, &prepared.sv_text)
@@ -4211,6 +4402,7 @@ fn materialize_prepared_module(
         scenario_dir,
         &prepared.paths.sv_path,
         &prepared.paths.stem,
+        verilator_language,
     )?;
 
     // `DIFFERENTIAL-SIMULATION.3b.2` — opt-in diff-sim column.
@@ -4708,6 +4900,7 @@ fn run_module_tools(
     scenario_dir: &Path,
     sv_path: &Path,
     stem: &str,
+    verilator_language: Option<&str>,
 ) -> Result<(
     Option<ToolInvocation>,
     Vec<ToolInvocation>,
@@ -4721,7 +4914,7 @@ fn run_module_tools(
             scenario_dir,
             sv_path,
             stem,
-            None,
+            verilator_language,
         )?)
     };
 
@@ -4745,7 +4938,11 @@ fn run_module_tools(
     Ok((verilator, yosys, iverilog_compile))
 }
 
-fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport> {
+fn run_design_tools(
+    cli: &Cli,
+    prepared: &PreparedDesign,
+    verilator_language: Option<&str>,
+) -> Result<DesignReport> {
     let sv_paths: Vec<_> = prepared
         .modules
         .iter()
@@ -4779,7 +4976,7 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
             scenario_dir,
             &sv_paths,
             &prepared.top,
-            None,
+            verilator_language,
         )?)
     };
 
@@ -5135,7 +5332,23 @@ fn summarize_design_tools(designs: &[DesignReport]) -> ToolSummary {
     summary
 }
 
-fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> CoverageSummary {
+/// `SV-VERSION-TARGETING.2b.2b` — record that a `sv_version`-targeted
+/// artifact was accepted in the matching tool standard mode. Lights the
+/// per-version sub-fact plus the umbrella fact.
+fn light_sv_version_acceptance(coverage: &mut CoverageSummary, sv_version: SvVersion) {
+    coverage.saw_sv_version_targeted_acceptance = true;
+    match sv_version {
+        SvVersion::Sv2012 => coverage.saw_sv_version_2012_targeted_acceptance = true,
+        SvVersion::Sv2017 => coverage.saw_sv_version_2017_targeted_acceptance = true,
+        SvVersion::Sv2023 => coverage.saw_sv_version_2023_targeted_acceptance = true,
+    }
+}
+
+fn summarize_coverage(
+    scenario: &Scenario,
+    modules: &[ModuleReport],
+    version_targeted: bool,
+) -> CoverageSummary {
     let mut coverage = CoverageSummary::default();
     seed_scenario_coverage(&mut coverage, scenario);
 
@@ -5165,17 +5378,48 @@ fn summarize_coverage(scenario: &Scenario, modules: &[ModuleReport]) -> Coverage
         if module.metrics.max_cdc_synchronizer_stages >= 3 {
             coverage.saw_cdc_nflop_synchronizer = true;
         }
+        // `SV-VERSION-TARGETING.2b.2b` — only the per-version gate runs
+        // Verilator in the matching `--language` mode, so the acceptance
+        // fact is honest only when `version_targeted`. Require Verilator
+        // to have actually run and succeeded (plus clean Yosys) — that is
+        // the "accepted in the matching tool standard mode" signal.
+        if version_targeted
+            && module
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+            && all_yosys_invocations_ok(&module.yosys)
+        {
+            light_sv_version_acceptance(&mut coverage, scenario.config.sv_version);
+        }
     }
 
     coverage
 }
 
-fn summarize_design_coverage(scenario: &Scenario, designs: &[DesignReport]) -> CoverageSummary {
+fn summarize_design_coverage(
+    scenario: &Scenario,
+    designs: &[DesignReport],
+    version_targeted: bool,
+) -> CoverageSummary {
     let mut coverage = CoverageSummary::default();
     seed_scenario_coverage(&mut coverage, scenario);
 
     for design in designs {
         coverage.saw_hierarchy_design = true;
+        // `SV-VERSION-TARGETING.2b.2b` — version-targeted design accepted
+        // in the matching tool standard mode (see `summarize_coverage`).
+        if version_targeted
+            && design
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+            && all_yosys_invocations_ok(&design.yosys)
+        {
+            light_sv_version_acceptance(&mut coverage, scenario.config.sv_version);
+        }
         coverage.saw_multifile_design |= design.files.len() > 1;
         coverage.saw_reused_child_definition |= design.hierarchy.reused_child_definition;
         coverage.saw_underinstantiated_library |= design.hierarchy.underinstantiated_library;
@@ -6613,6 +6857,10 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_mux_arm_duplication |= src.saw_mux_arm_duplication;
     dst.saw_array_packed_aggregate_design |= src.saw_array_packed_aggregate_design;
     dst.saw_memory_fsm_interplay_design |= src.saw_memory_fsm_interplay_design;
+    dst.saw_sv_version_targeted_acceptance |= src.saw_sv_version_targeted_acceptance;
+    dst.saw_sv_version_2012_targeted_acceptance |= src.saw_sv_version_2012_targeted_acceptance;
+    dst.saw_sv_version_2017_targeted_acceptance |= src.saw_sv_version_2017_targeted_acceptance;
+    dst.saw_sv_version_2023_targeted_acceptance |= src.saw_sv_version_2023_targeted_acceptance;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
@@ -6831,6 +7079,40 @@ fn compute_coverage_gaps(
 ) -> Vec<String> {
     let mut gaps = Vec::new();
 
+    // `SV-VERSION-TARGETING.2b.2b` — the per-version acceptance gate's
+    // sole contract is to prove each targeted IEEE 1800 standard's corpus
+    // is accepted in the matching tool standard mode (Verilator
+    // `--language 1800-20xx` + Yosys `-sv`). Construction-strategy / motif
+    // / category breadth is intentionally out of scope (the other gates
+    // own it), so return before the strategy loop and check exactly the
+    // per-version acceptance facts.
+    if scenario_set == ScenarioSet::SvVersionSweep {
+        for (lit, std) in [
+            (
+                coverage.saw_sv_version_2012_targeted_acceptance,
+                "1800-2012",
+            ),
+            (
+                coverage.saw_sv_version_2017_targeted_acceptance,
+                "1800-2017",
+            ),
+            (
+                coverage.saw_sv_version_2023_targeted_acceptance,
+                "1800-2023",
+            ),
+        ] {
+            if !lit {
+                gaps.push(format!(
+                    "matrix never proved sv_version {std} targeted acceptance (Verilator --language {std} + Yosys -sv clean on a {std}-targeted artifact)"
+                ));
+            }
+        }
+        if !coverage.saw_sv_version_targeted_acceptance {
+            gaps.push("matrix never proved any sv_version targeted acceptance".to_string());
+        }
+        return gaps;
+    }
+
     for strategy in ["sequential", "shuffled", "interleaved"] {
         if !coverage.construction_strategies.contains(strategy) {
             gaps.push(format!("missing construction strategy {strategy}"));
@@ -6954,8 +7236,8 @@ fn compute_coverage_gaps(
                 );
             }
         }
-        // Unreachable: the focused knob-sweep gate returns above.
-        ScenarioSet::SignoffKnobSweep => {}
+        // Unreachable: the focused knob-sweep and sv-version gates return above.
+        ScenarioSet::SignoffKnobSweep | ScenarioSet::SvVersionSweep => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -6976,8 +7258,8 @@ fn compute_coverage_gaps(
             "shift",
             "structural",
         ],
-        // Unreachable: the focused knob-sweep gate returns above.
-        ScenarioSet::SignoffKnobSweep => &[],
+        // Unreachable: the focused knob-sweep and sv-version gates return above.
+        ScenarioSet::SignoffKnobSweep | ScenarioSet::SvVersionSweep => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -7777,8 +8059,8 @@ fn compute_coverage_gaps(
             "hierarchy_parent_cone_instance_prob",
             "hierarchy_parent_flop_prob",
         ],
-        // Unreachable: the focused knob-sweep gate returns above.
-        ScenarioSet::SignoffKnobSweep => &[],
+        // Unreachable: the focused knob-sweep and sv-version gates return above.
+        ScenarioSet::SignoffKnobSweep | ScenarioSet::SvVersionSweep => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -7912,20 +8194,22 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::Phase3Structured => "phase3-structured",
         ScenarioSet::Phase4Hierarchy => "phase4-hierarchy",
         ScenarioSet::SignoffKnobSweep => "signoff-knob-sweep",
+        ScenarioSet::SvVersionSweep => "sv-version-sweep",
     }
 }
 
 fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
     match scenario_set {
         ScenarioSet::Phase4Hierarchy => "design",
-        // The knob-sweep set is mixed (two single-module DUTs + two
-        // depth-1 wrapper designs), like the Default set; report the
+        // The knob-sweep and sv-version sets are mixed (single-module
+        // DUTs + hierarchy designs), like the Default set; report the
         // coarse "module" label and let each per-scenario report carry
         // its own module/design routing.
         ScenarioSet::Default
         | ScenarioSet::Phase2Share
         | ScenarioSet::Phase3Structured
-        | ScenarioSet::SignoffKnobSweep => "module",
+        | ScenarioSet::SignoffKnobSweep
+        | ScenarioSet::SvVersionSweep => "module",
     }
 }
 
@@ -7961,6 +8245,7 @@ mod tests {
             phase3_structured_gate: false,
             phase4_hierarchy_gate: false,
             signoff_knob_sweep_gate: false,
+            sv_version_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -8348,6 +8633,134 @@ mod tests {
         coverage.saw_array_packed_aggregate_design = true;
         coverage.saw_memory_fsm_interplay_design = true;
         let gaps = compute_coverage_gaps(ScenarioSet::SignoffKnobSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    // ===============================================================
+    // SV-VERSION-TARGETING.2b.2b — cargo-portable proofs of the
+    // repo-owned per-version acceptance gate wiring (CLI flag, scenario
+    // set, run-plan, per-version scenario shaping, Verilator-language
+    // selector, gap requirements). The downstream-clean bank is the
+    // repo-owned report, run separately with real Verilator + Yosys.
+    // ===============================================================
+
+    #[test]
+    fn sv_version_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.sv_version_gate);
+        let with_flag =
+            Cli::try_parse_from(["tool_matrix", "--sv-version-gate", "--out", "/tmp/x"])
+                .expect("parse");
+        assert!(with_flag.sv_version_gate);
+    }
+
+    #[test]
+    fn sv_version_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.sv_version_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::SvVersionSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::SvVersionSweep).expect("build");
+        // three versions x {comb leaf, seq leaf, hierarchy design}.
+        assert_eq!(scenarios.len(), 9);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(
+            plan.total_modules,
+            9 * SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn sv_version_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.sv_version_gate = true;
+        cli.signoff_knob_sweep_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    #[test]
+    fn sv_version_sweep_scenarios_target_each_version() {
+        let scenarios = build_scenarios(0, ScenarioSet::SvVersionSweep).expect("build");
+        let mut by_version: BTreeMap<SvVersion, (u32, u32, u32)> = BTreeMap::new();
+        for scenario in &scenarios {
+            // Every scenario uses the Interleaved strategy (the gate's
+            // contract is per-version acceptance, not strategy breadth).
+            assert_eq!(
+                scenario.config.construction_strategy,
+                ConstructionStrategy::Interleaved
+            );
+            let v = scenario.config.sv_version;
+            let entry = by_version.entry(v).or_default();
+            let year = sv_version_year_slug(v);
+            if scenario.name == format!("sv{year}_comb_egraph") {
+                entry.0 += 1;
+                assert!(scenario.config.effective_hierarchy_depth_range().is_none());
+            } else if scenario.name == format!("sv{year}_seq_motif") {
+                entry.1 += 1;
+                assert!(scenario.config.effective_hierarchy_depth_range().is_none());
+                assert!(scenario.config.flop_prob > 0.0);
+            } else if scenario.name == format!("sv{year}_hier_recursive") {
+                entry.2 += 1;
+                assert!(scenario.config.effective_hierarchy_depth_range().is_some());
+            } else {
+                panic!("unexpected sv-version scenario {}", scenario.name);
+            }
+        }
+        assert_eq!(by_version.len(), 3);
+        for version in [SvVersion::Sv2012, SvVersion::Sv2017, SvVersion::Sv2023] {
+            assert_eq!(
+                by_version.get(&version),
+                Some(&(1, 1, 1)),
+                "missing comb/seq/hier triple for {version:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn verilator_language_for_only_targets_under_the_gate() {
+        let scenario = make_scenario("sv2017_probe", "probe", {
+            let mut cfg = relaxed_default_config(ConstructionStrategy::Interleaved, 0);
+            cfg.sv_version = SvVersion::Sv2017;
+            cfg
+        })
+        .expect("scenario");
+        // Off the gate: today's byte-identical argv (no `--language`).
+        assert_eq!(verilator_language_for(&scenario, false), None);
+        // Under the gate: the scenario's matching standard mode.
+        assert_eq!(verilator_language_for(&scenario, true), Some("1800-2017"));
+    }
+
+    #[test]
+    fn sv_version_sweep_gaps_require_each_version_fact() {
+        // No fact lit → exactly the three per-version gaps + the umbrella
+        // gap. Crucially, an EMPTY construction-strategy set produces no
+        // strategy gaps: the version gate returns before the strategy
+        // loop (its contract is per-version acceptance only).
+        let coverage = CoverageSummary::default();
+        let gaps = compute_coverage_gaps(ScenarioSet::SvVersionSweep, &coverage, None);
+        assert_eq!(gaps.len(), 4, "unexpected gaps: {gaps:?}");
+        assert!(gaps.iter().any(|g| g.contains("1800-2012")));
+        assert!(gaps.iter().any(|g| g.contains("1800-2017")));
+        assert!(gaps.iter().any(|g| g.contains("1800-2023")));
+        assert!(gaps
+            .iter()
+            .any(|g| g.contains("any sv_version targeted acceptance")));
+
+        // All per-version facts (and the umbrella) lit → no gaps, even
+        // with no construction strategies recorded.
+        let mut lit = CoverageSummary::default();
+        light_sv_version_acceptance(&mut lit, SvVersion::Sv2012);
+        light_sv_version_acceptance(&mut lit, SvVersion::Sv2017);
+        light_sv_version_acceptance(&mut lit, SvVersion::Sv2023);
+        let gaps = compute_coverage_gaps(ScenarioSet::SvVersionSweep, &lit, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
     }
 
@@ -9370,6 +9783,7 @@ mod tests {
             &plan,
             &out_root,
             Some(TEST_RUNTIME_FINGERPRINT),
+            false,
         )
         .expect("run scenario");
 
@@ -9418,6 +9832,7 @@ mod tests {
             &plan,
             &out_root,
             Some(TEST_RUNTIME_FINGERPRINT),
+            false,
         )
         .expect("run scenario");
 
@@ -9446,11 +9861,11 @@ mod tests {
 
         let cli = test_cli_resume();
         let mut baseline = Generator::new(scenario.config.clone());
-        let prepared0 = prepare_design(&mut baseline, &scenario_dir, 0).unwrap();
+        let prepared0 = prepare_design(&mut baseline, &scenario_dir, 0, SvVersion::Sv2012).unwrap();
         for module in &prepared0.modules {
             fs::write(&module.sv_path, &module.sv_text).unwrap();
         }
-        let report0 = run_design_tools(&cli, &prepared0).unwrap();
+        let report0 = run_design_tools(&cli, &prepared0, None).unwrap();
         let checkpoint0 = baseline.checkpoint();
         write_design_checkpoint(
             &cli,
@@ -9462,7 +9877,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected1 = prepare_design(&mut baseline, &scenario_dir, 1).unwrap();
+        let expected1 = prepare_design(&mut baseline, &scenario_dir, 1, SvVersion::Sv2012).unwrap();
 
         let checkpoint = load_design_checkpoint(&prepared0.paths.checkpoint_path)
             .unwrap()
@@ -9478,7 +9893,7 @@ mod tests {
         .unwrap();
         assert!(report.is_some());
 
-        let actual1 = prepare_design(&mut resumed, &scenario_dir, 1).unwrap();
+        let actual1 = prepare_design(&mut resumed, &scenario_dir, 1, SvVersion::Sv2012).unwrap();
         assert_eq!(actual1.top, expected1.top);
         let actual_files: Vec<_> = actual1
             .modules
@@ -9516,8 +9931,8 @@ mod tests {
         cli.skip_yosys = true;
 
         let mut generator = Generator::new(scenario.config.clone());
-        let prepared = prepare_design(&mut generator, &scenario_dir, 0).unwrap();
-        let report = run_design_tools(&cli, &prepared).unwrap();
+        let prepared = prepare_design(&mut generator, &scenario_dir, 0, SvVersion::Sv2012).unwrap();
+        let report = run_design_tools(&cli, &prepared, None).unwrap();
 
         assert_eq!(report.metrics, prepared.metrics);
         assert_eq!(report.metrics.design, report.top);
@@ -9561,7 +9976,7 @@ mod tests {
         fs::create_dir_all(&scenario_dir).expect("create scenario dir");
 
         let mut generator = Generator::new(scenario.config.clone());
-        let prepared = prepare_design(&mut generator, &scenario_dir, 0).unwrap();
+        let prepared = prepare_design(&mut generator, &scenario_dir, 0, SvVersion::Sv2012).unwrap();
 
         assert_eq!(
             prepared.hierarchy.library_modules,
@@ -9608,8 +10023,8 @@ mod tests {
         cli.skip_yosys = true;
 
         let mut generator = Generator::new(scenario.config.clone());
-        let prepared = prepare_design(&mut generator, &scenario_dir, 0).unwrap();
-        let report = run_design_tools(&cli, &prepared).unwrap();
+        let prepared = prepare_design(&mut generator, &scenario_dir, 0, SvVersion::Sv2012).unwrap();
+        let report = run_design_tools(&cli, &prepared, None).unwrap();
 
         write_design_scenario_manifest(&scenario_dir, &scenario, std::slice::from_ref(&report))
             .unwrap();
@@ -9809,7 +10224,7 @@ mod tests {
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
-        let cov0 = summarize_coverage(&scenario, &modules);
+        let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_design_with_cross_simulator_agreement);
         // One DUT ran but failed ⇒ fact stays false.
         modules[1].diff_sim = Some(DiffSimReport {
@@ -9819,7 +10234,7 @@ mod tests {
             skip_reason: String::new(),
             mismatch_excerpt: Some("iverilog | verilator\nA | B\n".to_string()),
         });
-        let cov1 = summarize_coverage(&scenario, &modules);
+        let cov1 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov1.saw_design_with_cross_simulator_agreement);
         // Another DUT ran AND succeeded ⇒ fact fires.
         modules[2].diff_sim = Some(DiffSimReport {
@@ -9829,7 +10244,7 @@ mod tests {
             skip_reason: String::new(),
             mismatch_excerpt: None,
         });
-        let cov2 = summarize_coverage(&scenario, &modules);
+        let cov2 = summarize_coverage(&scenario, &modules, false);
         assert!(cov2.saw_design_with_cross_simulator_agreement);
     }
 
@@ -9978,24 +10393,24 @@ endmodule\n";
             yosys: vec![],
             diff_sim: None,
         }];
-        let cov0 = summarize_coverage(&scenario, &modules);
+        let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);
         assert!(!cov0.saw_cdc_2_flop_synchronizer);
 
         // Promote: num_clock_domains=2 lights saw_multi_clock_design.
         modules[0].metrics.num_clock_domains = 2;
-        let cov1 = summarize_coverage(&scenario, &modules);
+        let cov1 = summarize_coverage(&scenario, &modules, false);
         assert!(cov1.saw_multi_clock_design);
         assert!(!cov1.saw_cdc_2_flop_synchronizer);
 
         // Add a synchronizer chain → both facts light.
         modules[0].metrics.num_cdc_2_flop_synchronizers = 1;
-        let cov2 = summarize_coverage(&scenario, &modules);
+        let cov2 = summarize_coverage(&scenario, &modules, false);
         assert!(cov2.saw_multi_clock_design);
         assert!(cov2.saw_cdc_2_flop_synchronizer);
 
         modules[0].metrics.max_cdc_synchronizer_stages = 3;
-        let cov3 = summarize_coverage(&scenario, &modules);
+        let cov3 = summarize_coverage(&scenario, &modules, false);
         assert!(cov3.saw_cdc_nflop_synchronizer);
     }
 

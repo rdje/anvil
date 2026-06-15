@@ -185,7 +185,17 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    [`0009`](docs/decisions/0009-sv-version-targeting.md); this directly serves
    the north star (expose version-specific downstream-tool bugs) and adds an
    explicit `sv_version` adversarial axis (steering gap 3) plus version-targeted
-   breadth (steering gap 1).
+   breadth (steering gap 1). **Progress:** `.1` (decision `0009`) + `.2a`
+   (design detail) + `.2b.1` (`SvVersion` enum + `--sv-version` knob +
+   versioned emitter capability bound + introspection schema `1.2`) + `.2b.2a`
+   (downstream `--language 1800-20xx` selector + focused real-tool acceptance
+   proof) + `.2b.2b` (repo-owned `tool_matrix --sv-version-gate` +
+   `ScenarioSet::SvVersionSweep` + per-version `saw_sv_version_*_targeted_acceptance`
+   coverage facts, banked clean at `/tmp/anvil-sv-version-gate-r1`: 9 scenarios /
+   18 units / `coverage_gaps = []` / `18/0` Verilator + both Yosys) all **done**.
+   `.2` (plumbing + down-gating + per-version acceptance axis) is now complete;
+   the remaining frontier is `.3` (the first version-distinctive up-opted
+   construct, design-first). Default byte-identical throughout.
 2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
    synthesizable SV surfaces (function/task, interface/modport, nested
    generate), valid-by-construction; bigger and more open-ended.

@@ -712,6 +712,23 @@ Useful options:
   per knob across all three construction strategies; all four must stay
   downstream-clean (Verilator + both Yosys modes). Closes ROADMAP
   steering gap 3's hidden-bias hole for these knobs.
+- `--sv-version-gate` to run the repo-owned per-version acceptance
+  matrix (`SV-VERSION-TARGETING.2b.2b`) and fail unless every targeted
+  IEEE 1800 standard's corpus is **accepted in the matching tool
+  standard mode**. It sweeps the three targets (2012 / 2017 / 2023) over
+  a focused corpus — a combinational e-graph leaf, a sequential motif
+  leaf, and a recursive depth-2 hierarchy design per version — and runs
+  Verilator in the matching `--language 1800-20xx` standard mode (via
+  the `.2b.2a` selector) plus Yosys `-sv`. The report requires
+  `saw_sv_version_2012_targeted_acceptance`,
+  `saw_sv_version_2017_targeted_acceptance`,
+  `saw_sv_version_2023_targeted_acceptance`, and the umbrella
+  `saw_sv_version_targeted_acceptance`. Emission is byte-identical
+  across the three targets today (the current subset is a 2012/2017/2023
+  common floor), so the gate's value is the per-version downstream
+  acceptance axis, not output divergence — that arrives with the future
+  up-opting leaf. Other gates own construction-strategy / motif breadth,
+  so this gate uses the `Interleaved` strategy only.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — SV-version targeting — repo-owned per-version acceptance gate — `SV-VERSION-TARGETING.2b.2b`
+
+Second half of `.2b.2`: industrializes the `.2b.2a` focused proof into a
+coverage-gated `tool_matrix` lane, closing `.2` (plumbing + down-gating +
+per-version acceptance axis). All code is in `src/bin/tool_matrix.rs`.
+
+- **Gate shape mirrors `--signoff-knob-sweep-gate`.** New `--sv-version-gate`
+  → `ScenarioSet::SvVersionSweep`, mutually exclusive with the other gates,
+  auto-`fail_on_coverage_gap`, units/scenario floor
+  `SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO = 2`. Chose the established gate
+  precedent over a `--sv-version`-parameterized run of an existing set (decision
+  `0009`'s open question) because the per-version *coverage facts* need a
+  dedicated `compute_coverage_gaps` contract, exactly as the knob-sweep gate.
+- **Scenario set: per-version × {comb leaf, seq leaf, hierarchy design}.** Nine
+  `Interleaved` scenarios reusing the well-trodden downstream-clean recipes
+  (`share_heavy_comb_only_config`, `motif_heavy_sequential_config`,
+  `phase4_recursive_canonical_module_signature_focus_config`) with
+  `cfg.sv_version` set per target. The hierarchy design is load-bearing: it is
+  the only scenario that exercises the design-path emit
+  (`to_sv_in_design_versioned`) and the design-path Verilator-language threading
+  (`run_verilator_design` selector). Strategy breadth is **out of scope** (the
+  other gates own it), so `compute_coverage_gaps` returns for this set *before*
+  the construction-strategy loop — which is why an Interleaved-only sweep is
+  valid and the gap test asserts an empty strategy set yields no strategy gap.
+- **Threading.** A single `version_targeted: bool` (= `scenario_set ==
+  SvVersionSweep`) flows from `main` through `run_scenario` into the two
+  scenario runners; each derives `sv_version = scenario.config.sv_version` and
+  `verilator_language = verilator_language_for(scenario, version_targeted)`
+  (`Some(ieee_standard())` under the gate, else `None`). `sv_version` threads to
+  the emit sites; `verilator_language` threads to `run_{module,design}_tools`
+  and the resume paths. **The emit switch is byte-neutral today** —
+  `to_sv_versioned(m, Sv2012) == to_sv(m)` (`.2b.1`) and every non-gate scenario
+  is `Sv2012` — so the default/phase/signoff matrix runs stay byte-identical;
+  the gate's only observable effect is the Verilator `--language` argv (and the
+  emitted SV across the three targets is identical until the up-opting leaf
+  `.3`).
+- **Acceptance fact is honest-by-gating.** `light_sv_version_acceptance` lights
+  `saw_sv_version_<year>_targeted_acceptance` + the umbrella only when
+  `version_targeted` AND Verilator actually ran-and-succeeded AND Yosys is clean
+  — so the fact means "accepted in the matching `--language` mode," never "ran
+  at the tool's default language." Outside the gate the facts stay false (no
+  false positives leak into other sets). Verified: the banked report's per-
+  scenario Verilator argv carries the matching `--language 1800-20xx` and all
+  four facts are lit.
+- **Banked clean** at `/tmp/anvil-sv-version-gate-r1` (9 scenarios, 18 units,
+  `coverage_gaps = []`, Verilator 18/0, Yosys without-abc 18/0, with-abc 18/0).
+
 ## 2026-06-15 — SV-version targeting — per-version downstream acceptance proof — `SV-VERSION-TARGETING.2b.2a`
 
 First half of `.2b.2` (split here into `.2b.2a` downstream selector + focused
