@@ -370,7 +370,16 @@ src/
 │                     `explain_artifact`) over the *existing* tools/resources with
 │                     sample-arg substitution; `prompts/get` validates name +
 │                     string-arg type + required args (clean `-32602`). Prompts add
-│                     no capability and no new truth. Driven by the `anvil-mcp`
+│                     no capability and no new truth. `AGENT-MCP-EXPANSION.2` adds
+│                     the pure `coverage_gaps` tool (`project_coverage_gaps` /
+│                     `load_coverage_report` / `coverage_gaps_projection`): it
+│                     relays the already-computed `coverage_gaps` out of a recorded
+│                     `tool_matrix_report.json` (inline `report` OR `report_path`),
+│                     plus run metadata, tool pass/fail, and the dark `saw_*` facts
+│                     — a `serde_json::Value` key projection (never mirrors the
+│                     bin-private `CoverageSummary`), read-only (no generate / no
+│                     spawn / no recompute), so the single gap computation stays in
+│                     `tool_matrix` (decision `0005`). Driven by the `anvil-mcp`
 │                     bin; the whole protocol surface is unit-tested in-process.
 │                     Separate target ⇒ default `anvil` build / `--artifact dut`
 │                     unaffected.

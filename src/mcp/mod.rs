@@ -145,7 +145,11 @@ impl McpServer {
                 "instructions":
                     "ANVIL agent-introspection. Pure tools: generate, introspect, \
                      dump_config (construction-truth derived from existing \
-                     metrics/config; no side effects). Controlled tools: validate \
+                     metrics/config; no side effects); coverage_gaps projects the \
+                     already-computed coverage-gap list out of a recorded \
+                     tool_matrix_report.json (inline or by path) so the agent can \
+                     target unexercised surfaces — read-only, no recompute. \
+                     Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
                      iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
                      dir — a fixed allow-list, no arbitrary shell; minimize \
@@ -219,6 +223,22 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        let coverage_gaps_schema = json!({
+            "type": "object",
+            "properties": {
+                "report": {
+                    "type": "object",
+                    "description": "A recorded tool_matrix report (the parsed tool_matrix_report.json). \
+                                    Inline form — no filesystem access. Provide this OR report_path."
+                },
+                "report_path": {
+                    "type": "string",
+                    "description": "Path to a recorded tool_matrix_report.json. The file is read and \
+                                    parsed read-only, never executed. Provide this OR report."
+                }
+            },
+            "additionalProperties": false
+        });
         json!({
             "tools": [
                 {
@@ -256,6 +276,16 @@ impl McpServer {
                                     output is downstream-clean.",
                     "inputSchema": minimize_schema,
                 },
+                {
+                    "name": "coverage_gaps",
+                    "description": "Project the already-computed coverage-gap list from a recorded \
+                                    tool_matrix_report.json (inline `report` or `report_path`): returns \
+                                    the recorded coverage_gaps array, a gap_count, the dark `saw_*` \
+                                    coverage facts (recorded booleans that are still false), and the \
+                                    downstream tool pass/fail. Pure read — no generation, no tool spawn, \
+                                    no recompute; the single gap computation stays in tool_matrix.",
+                    "inputSchema": coverage_gaps_schema,
+                },
             ]
         })
     }
@@ -263,6 +293,16 @@ impl McpServer {
     fn tools_call(&mut self, id: Value, params: &Value) -> Value {
         let name = params.get("name").and_then(Value::as_str).unwrap_or("");
         let args = params.get("arguments").cloned().unwrap_or(json!({}));
+
+        // `coverage_gaps` (`AGENT-MCP-EXPANSION.2`) is a pure projection of a
+        // recorded tool_matrix report; it takes no `(seed, config)`, so it is
+        // dispatched before the knob parse those tools share.
+        if name == "coverage_gaps" {
+            return match project_coverage_gaps(&args) {
+                Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            };
+        }
 
         let (seed, cfg) = match config_from_args(&args) {
             Ok(pair) => pair,
@@ -613,6 +653,93 @@ fn parse_yosys_mode_arg(args: &Value) -> Result<YosysMode, String> {
     }
 }
 
+/// The pure `coverage_gaps` tool (`AGENT-MCP-EXPANSION.2`, decision `0005`):
+/// project the *already-computed* coverage-gap list out of a recorded
+/// `tool_matrix_report.json`. It relays facts `tool_matrix` recorded — it
+/// never regenerates an artifact, never spawns a downstream tool, and never
+/// recomputes coverage. The single gap computation stays in `tool_matrix`
+/// (`compute_coverage_gaps`), so this adapter cannot become a second source of
+/// truth. The report is supplied inline (`report`, zero filesystem) or by path
+/// (`report_path`, a plain read of the JSON file — never executed).
+fn project_coverage_gaps(args: &Value) -> Result<String, String> {
+    let report = load_coverage_report(args)?;
+    let projection = coverage_gaps_projection(&report)?;
+    serde_json::to_string_pretty(&projection).map_err(|e| format!("serialize projection: {e}"))
+}
+
+/// Resolve the recorded report `Value` from exactly one of `report` (inline) or
+/// `report_path` (a JSON file read). Reading a path is a side-effect-free read,
+/// not the controlled-tool "no arbitrary path/shell" surface (no process is
+/// spawned); the inline form needs no filesystem at all.
+fn load_coverage_report(args: &Value) -> Result<Value, String> {
+    let inline = args.get("report").filter(|v| !v.is_null());
+    let path = args
+        .get("report_path")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
+    match (inline, path) {
+        (Some(_), Some(_)) => {
+            Err("provide exactly one of `report` or `report_path`, not both".to_string())
+        }
+        (Some(report), None) => Ok(report.clone()),
+        (None, Some(path)) => {
+            let text = std::fs::read_to_string(path)
+                .map_err(|e| format!("cannot read report_path `{path}`: {e}"))?;
+            serde_json::from_str(&text)
+                .map_err(|e| format!("report_path `{path}` is not valid JSON: {e}"))
+        }
+        (None, None) => Err("provide a recorded tool_matrix report: either `report` \
+                             (inline JSON) or `report_path` (a path to tool_matrix_report.json)"
+            .to_string()),
+    }
+}
+
+/// Build the read-only projection of a recorded `MatrixReport`: the recorded
+/// `coverage_gaps` array plus run metadata, the downstream tool pass/fail, and
+/// the **dark** coverage facts — the recorded `saw_*` booleans that are still
+/// `false`. Every value is read straight from the recorded report via key
+/// lookup (never by mirroring the bin-private `CoverageSummary` struct, which
+/// grows on nearly every hierarchy slice), so this stays decoupled and adds no
+/// new computed truth.
+fn coverage_gaps_projection(report: &Value) -> Result<Value, String> {
+    let gaps = report
+        .get("coverage_gaps")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "not a tool_matrix report: missing a `coverage_gaps` array (run \
+             `tool_matrix --out DIR` and pass its tool_matrix_report.json)"
+                .to_string()
+        })?;
+    let gap_count = gaps.len();
+
+    // Dark coverage facts: recorded `saw_*` booleans that are still false.
+    // This is a filter over recorded values, not a new computation. Sorted for
+    // deterministic output regardless of the serde_json map backing.
+    let mut dark: Vec<String> = Vec::new();
+    if let Some(cov) = report.get("coverage").and_then(Value::as_object) {
+        for (key, val) in cov {
+            if key.starts_with("saw_") && val.as_bool() == Some(false) {
+                dark.push(key.clone());
+            }
+        }
+    }
+    dark.sort();
+
+    let pick = |k: &str| report.get(k).cloned().unwrap_or(Value::Null);
+    Ok(json!({
+        "scenario_set": pick("scenario_set"),
+        "scenario_count": pick("scenario_count"),
+        "total_modules": pick("total_modules"),
+        "artifact_kind": pick("artifact_kind"),
+        "yosys_mode": pick("yosys_mode"),
+        "coverage_gaps": gaps.clone(),
+        "gap_count": gap_count,
+        "clean": gap_count == 0,
+        "dark_coverage_facts": dark,
+        "tool_summary": pick("tool_summary"),
+    }))
+}
+
 // --- Agent-workflow prompts (`AGENT-INTROSPECTION-MCP.6`) --------------------
 //
 // MCP *prompts* are the third protocol primitive (beside tools + resources):
@@ -945,9 +1072,131 @@ mod tests {
                 "introspect",
                 "dump_config",
                 "validate",
-                "minimize"
+                "minimize",
+                "coverage_gaps"
             ]
         );
+    }
+
+    /// A recorded `tool_matrix_report.json` fragment with the exact shape the
+    /// projection reads: the computed `coverage_gaps`, the `coverage` object
+    /// (with both lit and dark `saw_*` facts), run metadata, and a tool summary.
+    fn sample_report() -> Value {
+        json!({
+            "scenario_set": "Phase4Hierarchy",
+            "scenario_count": 210,
+            "total_modules": 840,
+            "artifact_kind": "design",
+            "yosys_mode": "both",
+            "coverage_gaps": ["missing gate category shift", "matrix never produced a comb-only module"],
+            "coverage": {
+                "saw_hierarchy_design": true,
+                "saw_fsm_design": false,
+                "saw_inferrable_memory_design": false,
+                "construction_strategies": ["sequential", "shuffled"]
+            },
+            "tool_summary": {
+                "verilator_passed": 838,
+                "verilator_failed": 2
+            }
+        })
+    }
+
+    #[test]
+    fn coverage_gaps_projects_a_recorded_report_inline() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            40,
+            "coverage_gaps",
+            json!({ "report": sample_report() }),
+        );
+        assert_eq!(resp["result"]["isError"], false);
+        let out: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        // The recorded gap list is relayed verbatim (no recompute).
+        assert_eq!(
+            out["coverage_gaps"],
+            json!([
+                "missing gate category shift",
+                "matrix never produced a comb-only module"
+            ])
+        );
+        assert_eq!(out["gap_count"], 2);
+        assert_eq!(out["clean"], false);
+        assert_eq!(out["scenario_set"], "Phase4Hierarchy");
+        assert_eq!(out["total_modules"], 840);
+        assert_eq!(out["tool_summary"]["verilator_failed"], 2);
+        // Dark facts = recorded `saw_*` booleans that are still false, sorted;
+        // lit facts and non-`saw_` fields are excluded.
+        assert_eq!(
+            out["dark_coverage_facts"],
+            json!(["saw_fsm_design", "saw_inferrable_memory_design"])
+        );
+    }
+
+    #[test]
+    fn coverage_gaps_reads_a_recorded_report_from_path() {
+        let mut path = std::env::temp_dir();
+        path.push("anvil-mcp-coverage-gaps-test-report.json");
+        std::fs::write(&path, serde_json::to_string(&sample_report()).unwrap()).unwrap();
+
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            41,
+            "coverage_gaps",
+            json!({ "report_path": path.to_str().unwrap() }),
+        );
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(resp["result"]["isError"], false);
+        let out: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(out["gap_count"], 2);
+        assert_eq!(out["artifact_kind"], "design");
+    }
+
+    #[test]
+    fn coverage_gaps_reports_clean_when_no_gaps() {
+        let mut report = sample_report();
+        report["coverage_gaps"] = json!([]);
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 42, "coverage_gaps", json!({ "report": report }));
+        let out: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(out["gap_count"], 0);
+        assert_eq!(out["clean"], true);
+    }
+
+    #[test]
+    fn coverage_gaps_errors_on_missing_report() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 43, "coverage_gaps", json!({}));
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("provide a recorded tool_matrix report"));
+    }
+
+    #[test]
+    fn coverage_gaps_errors_on_both_inline_and_path() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            44,
+            "coverage_gaps",
+            json!({ "report": sample_report(), "report_path": "/tmp/x.json" }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("exactly one"));
+    }
+
+    #[test]
+    fn coverage_gaps_errors_when_report_is_not_a_matrix_report() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            45,
+            "coverage_gaps",
+            json!({ "report": json!({ "unrelated": true }) }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("missing a `coverage_gaps` array"));
     }
 
     #[test]

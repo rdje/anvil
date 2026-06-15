@@ -1,9 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.2 — coverage_gaps pure-projection MCP tool
+
+**Landed as:** this commit (previous: `6af0690`).
+
+**What changed**
+
+`AGENT-MCP-EXPANSION.2` adds the pure `coverage_gaps` tool to the
+read-only MCP server (`src/mcp/mod.rs`), implementing decision `0005`. An
+agent can now ask "what is not yet exercised?" and target generation at
+it — without ANVIL recomputing anything.
+
+- New free functions in `src/mcp/mod.rs`:
+  - `project_coverage_gaps(args)` — the tool entry point.
+  - `load_coverage_report(args)` — resolves the recorded report from
+    exactly one of `report` (inline JSON, zero filesystem) or
+    `report_path` (a plain read of a `tool_matrix_report.json`, never
+    executed); clean errors on neither/both.
+  - `coverage_gaps_projection(report)` — projects the recorded
+    `coverage_gaps` array + `gap_count` + `clean` flag + run metadata
+    (`scenario_set`/`scenario_count`/`total_modules`/`artifact_kind`/
+    `yosys_mode`) + `tool_summary` + the **dark `saw_*` facts** (recorded
+    coverage booleans still `false`, sorted). All via `serde_json::Value`
+    key lookups — it never mirrors the ~150-field bin-private
+    `CoverageSummary`, so the MCP side stays decoupled from that struct's
+    churn and the single gap computation stays in `tool_matrix`.
+- `tools_list` gains the `coverage_gaps` entry + a dedicated input schema;
+  `tools_call` dispatches it **before** the shared `(seed, config)` parse
+  (it takes neither); the `initialize` instructions list it as a pure
+  tool.
+- 6 new in-process `McpServer::handle` tests (inline projection, read from
+  path, clean-when-no-gaps, missing report, both-args error, not-a-report
+  error) + the existing tool-list assertion updated to include
+  `coverage_gaps`.
+
+**Why**
+
+Decision `0004` named `coverage_gaps` as a tool; `0005` (the `.1` design
+leaf) decided it must be a **pure projection of a recorded report** rather
+than an on-demand recompute, because `CoverageSummary`/
+`compute_coverage_gaps` are private to the `tool_matrix` binary and the
+report already records the computed gap list. This preserves read-mostly,
+no-new-computed-truth, single-source-of-truth, and DUT byte-identical.
+
+**Validation**
+
+- `cargo fmt --all --check` — clean.
+- `cargo check --all-targets` (RAM-guarded) — clean.
+- `cargo test --lib mcp::` — 30 pass (incl. the 6 new tests).
+- `cargo test --test snapshots` — 6 pass; **DUT byte-identical** (no
+  `src/gen`/`emit`/`ir` touched; the MCP adapter is beside the core).
+- `cargo clippy --all-targets -- -D warnings` (RAM-guarded) — clean.
+- Focused tests rather than the full suite, per the owner resource policy
+  (decision `0003`): the change is isolated to the read-only adapter, the
+  `mcp::` tests fully cover it, and the snapshot guard proves DUT bytes.
+
+**Impact**
+
+- New user-visible MCP tool. Per this tree's acceptance criteria, the
+  user-facing doc sync (`book/src/agent-mcp.md` + `USER_GUIDE.md` +
+  `README.md`) is batched into the `.5` closeout leaf — the same pattern
+  the original `AGENT-INTROSPECTION-MCP` tree used (`.4`/`.5`/`.6` code →
+  `.7` doc closeout).
+- Default `anvil` build and `--artifact dut` unchanged and byte-identical.
+
+**Files touched**
+
+- `src/mcp/mod.rs`
+- `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`
+- `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`
+- `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.1 — design/decision leaf + decision 0005
 
-**Landed as:** this commit (previous: `2c9d81c`).
+**Landed as:** `6af0690` (previous: `2c9d81c`).
 
 **What changed (docs / decision / workflow only — no source change)**
 

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability — agent/MCP interface breadth (post-AGENT-INTROSPECTION-MCP)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.1` design/decision leaf done; decision `0005`; frontier → `.2`; `.3` split into `.3a`/`.3b`)
+- Last updated: `2026-06-15` (`.2` coverage_gaps pure-projection tool done; frontier → `.3a`; `.1` design/decision leaf done with decision `0005`; `.3` split into `.3a`/`.3b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -76,11 +76,12 @@ bugs — the `project_anvil_north_star` purpose — while the default
   Commit: `AGENT-MCP-EXPANSION.1 — design/decision leaf + decision 0005`
 
 - ID: `AGENT-MCP-EXPANSION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Expose coverage gaps as a PURE MCP tool that projects a recorded tool_matrix_report.json (inline report OR report_path), returning the already-computed coverage_gaps + selected dark coverage facts + tool pass/fail. No recompute, no tool spawn. Per decision 0005.`
   Acceptance: `A new pure MCP tool returns the recorded coverage-gap set via a serde_json::Value key projection (NOT a mirror of the bin-private CoverageSummary struct); in-process protocol test (McpServer::handle); no new computed truth (gaps are relayed, not re-derived); read-only (no generation/tool spawn); DUT byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Landed the pure coverage_gaps tool in src/mcp/mod.rs: project_coverage_gaps / load_coverage_report / coverage_gaps_projection. Accepts inline report OR report_path; relays the recorded coverage_gaps array + gap_count + clean flag + run metadata + tool_summary + the dark saw_* facts (recorded false booleans, sorted). serde_json::Value key projection — does NOT mirror the bin-private CoverageSummary. Dispatched before the seed/config parse (takes neither). 6 new in-process McpServer::handle tests (inline, path, clean, missing, both-args, not-a-report). DUT byte-identical (snapshots 6/6); no src/gen|emit|ir touched. User-facing book/USER_GUIDE/README sync deferred to .5 closeout per tree acceptance (the AGENT-INTROSPECTION-MCP .7 precedent).`
+  Verification: `cargo fmt --check; cargo check --all-targets; cargo test --lib mcp:: (30 pass) + cargo test --test snapshots (6 pass, byte-identical); cargo clippy --all-targets -D warnings (all clean)`
+  Commit: `AGENT-MCP-EXPANSION.2 — coverage_gaps pure-projection MCP tool`
 
 - ID: `AGENT-MCP-EXPANSION.3`
   Status: `active`
@@ -119,8 +120,8 @@ bugs — the `project_anvil_north_star` purpose — while the default
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGENT-MCP-EXPANSION.2` | `pending` | Coverage-gaps pure-projection tool; design fully decided in `.1` (decision `0005`), implementable now. |
-| 2 | `AGENT-MCP-EXPANSION.3a` | `pending` | Non-DUT introspection projection design; precedes `.3b` impl. |
+| 1 | `AGENT-MCP-EXPANSION.3a` | `pending` | Non-DUT introspection projection design; precedes `.3b` impl. |
+| 2 | `AGENT-MCP-EXPANSION.3b` | `pending` | Route MCP generate/introspect through the umbrella lane dispatch, per `.3a`. |
 
 ## Decisions
 
@@ -165,13 +166,15 @@ bugs — the `project_anvil_north_star` purpose — while the default
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
-| `2026-06-15` | `AGENT-MCP-EXPANSION.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` regen + `scripts/check_knowledge_map.sh`; docs/decision + task-tree edits; no source change (design/decision leaf) | `clean` |
+| `2026-06-15` | `AGENT-MCP-EXPANSION.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; docs/decision + task-tree edits; no source change (design/decision leaf) | `clean` |
+| `2026-06-15` | `AGENT-MCP-EXPANSION.2` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo test --lib mcp::` (30 pass, incl. 6 new); `cargo test --test snapshots` (6 pass, byte-identical); `cargo clippy --all-targets -- -D warnings` | `clean` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `AGENT-MCP-EXPANSION.1` | `AGENT-MCP-EXPANSION.1 — design/decision leaf + decision 0005` | Decision `0005`; `.2` sharpened; `.3` split `.3a`/`.3b`; `.4` loopback note; frontier → `.2`. |
+| `AGENT-MCP-EXPANSION.2` | `AGENT-MCP-EXPANSION.2 — coverage_gaps pure-projection MCP tool` | Pure tool projecting a recorded `tool_matrix_report.json`; DUT byte-identical; frontier → `.3a`. |
 
 ## Changelog
 
@@ -181,3 +184,6 @@ bugs — the `project_anvil_north_star` purpose — while the default
   pure recorded-report projection; `.3` split into `.3a` (design) +
   `.3b` (impl); `.4` gets a loopback-default security note; frontier
   advanced to `.2` then `.3a`.
+- `2026-06-15`: `.2` done — pure `coverage_gaps` MCP tool landed in
+  `src/mcp/mod.rs` (projects a recorded `tool_matrix_report.json`; 6 new
+  in-process tests; DUT byte-identical); frontier advanced to `.3a`.

@@ -5,6 +5,31 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — coverage_gaps pure-projection tool — `AGENT-MCP-EXPANSION.2`
+
+`.2` implements the `.1`/`0005` decision: the `coverage_gaps` MCP tool
+relays the recorded gap list from a `tool_matrix_report.json` rather than
+recomputing. Implementation notes beyond the design entry below:
+
+- **Early dispatch.** `coverage_gaps` is matched in `tools_call` *before*
+  the shared `config_from_args` parse, because it takes neither `seed` nor
+  `config` — the other five tools do. Keeping it ahead of that parse avoids
+  threading an irrelevant `(seed, cfg)` through a pure file/inline read.
+- **`dark_coverage_facts` is a filter, not a computation.** The projection
+  also surfaces the recorded `saw_*` booleans that are still `false` — the
+  directly actionable "what's dark?" set the `close_coverage_gap` prompt
+  references. It is a filter over recorded values (sorted for deterministic
+  output regardless of the `serde_json` map backing), so it adds no new
+  truth.
+- **Why a `Value` key projection, not a typed struct.** Mirroring
+  `MatrixReport`/`CoverageSummary` into `src/mcp/` would couple the adapter
+  to a bin-private struct that grows on nearly every hierarchy slice (~150
+  fields today). Reading known keys off `serde_json::Value` keeps the
+  adapter robust to that churn and missing/renamed fields degrade to
+  `null`, not a hard parse failure (except the load-bearing
+  `coverage_gaps` array, whose absence is a clean "not a tool_matrix
+  report" error).
+
 ## 2026-06-15 — Agent/MCP expansion design — `AGENT-MCP-EXPANSION.1` (decision `0005`)
 
 `.1` is the design/decision leaf scoping the read-mostly agent/MCP breadth
