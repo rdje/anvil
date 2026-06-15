@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability — agent/MCP interface breadth (post-AGENT-INTROSPECTION-MCP)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.4` split into `.4a` design + `.4b` impl; `.4a` done — HTTP framing pinned; frontier → `.4b`; `.1`/`.2`/`.3`/`.3a`/`.3b`/`.4a` done; decision `0005`)
+- Last updated: `2026-06-15` (`.4b` HTTP transport impl done; `.4` container closed; frontier → `.5` closeout; `.1`/`.2`/`.3`/`.4` done; decision `0005`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -106,9 +106,10 @@ bugs — the `project_anvil_north_star` purpose — while the default
   Commit: `AGENT-MCP-EXPANSION.3b — non-DUT lanes (microdesign/frontend) over MCP`
 
 - ID: `AGENT-MCP-EXPANSION.4`
-  Status: `active`
+  Status: `done`
   Goal: `Optional HTTP transport for anvil-mcp beside stdio (stdio remains the default), driving the same McpServer::handle dispatcher behind an explicit opt-in flag (--http <addr> on the existing bin); bind loopback-only by default. OWNER DECISION 2026-06-15: implement as a HAND-ROLLED minimal HTTP/1.1 POST handler over std::net::TcpListener — NO new crate dependency (keep the dependency-light MCP design). Per decision 0005.`
   Children: `AGENT-MCP-EXPANSION.4a`, `AGENT-MCP-EXPANSION.4b`
+  Result: `Container complete — .4a (design) and .4b (impl) both done. anvil-mcp now offers an opt-in --http <addr> HTTP/1.1 POST transport (loopback default) beside the default stdio loop, driving the same McpServer::handle_line dispatcher; NO new Cargo dependency; default stdio path byte-identical.`
 
 - ID: `AGENT-MCP-EXPANSION.4a`
   Status: `done`
@@ -119,11 +120,12 @@ bugs — the `project_anvil_north_star` purpose — while the default
   Commit: `AGENT-MCP-EXPANSION.4a — hand-rolled HTTP transport framing design`
 
 - ID: `AGENT-MCP-EXPANSION.4b`
-  Status: `pending`
+  Status: `done`
   Goal: `Implementation leaf (per .4a): add src/mcp/http.rs (read_http_request / write_http_response / handle_http_connection / serve_http) re-exported from src/mcp/mod.rs; parse a single optional --http <addr> in src/bin/anvil_mcp.rs (bare port ⇒ 127.0.0.1:port loopback default; full IP:port honored with a non-loopback stderr warning) and dispatch to serve_http, else keep the unchanged stdio loop; same McpServer::handle_line dispatcher; per-call downstream guardrails unchanged.`
   Acceptance: `A hand-rolled std::net HTTP transport (no new Cargo dependency) drives the same McpServer::handle_line dispatcher over JSON-RPC POST; stdio default unchanged and byte-identical (snapshots 6/6); loopback-only default bind (bare port); per-call downstream guardrails (allow-list/sandbox/RAM-guard/audit) unchanged; in-process framing unit tests + a real-socket round-trip test (listener on 127.0.0.1:0).`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Landed exactly the .4a design. New src/mcp/http.rs: pure framing helpers read_http_request (over BufRead: request line + CRLF headers case-insensitively to the blank line, Content-Length-framed body) and write_http_response (over Write: 200 JSON / 204 no-body-no-Content-Length per RFC 7230 / 4xx bodyless), the Request enum (Post/Error(status,reason)/Eof), handle_http_connection (one request per connection, set_read_timeout, try_clone writer + BufReader reader, dispatch through the SAME McpServer::handle_line, Some→200/None→204), serve_http(SocketAddr) (bind + single-threaded sequential accept loop over ONE shared McpServer so cache+audit persist across calls; per-connection errors logged-and-swallowed), and resolve_http_addr (bare port ⇒ 127.0.0.1:port; IP:port honored + non_loopback flag). MAX_BODY_BYTES=16 MiB, READ_TIMEOUT=30s. mod.rs: mod http; + pub use http::{resolve_http_addr, serve_http}. src/bin/anvil_mcp.rs: hand-parses one optional --http <addr> (no clap), prints a non-loopback WARNING, dispatches to serve_http else the unchanged serve_stdio loop; --help/unknown-arg → usage + exit 2. NO new Cargo dependency (std::net/std::io/std::time). 15 new in-process tests (framing units + resolve_http_addr + 2 real-socket round-trips on 127.0.0.1:0 proving initialize→200 and a notification→204). Default stdio path byte-identical (snapshots 6/6). Real-binary curl smoke confirmed: initialize→200, tools/list→200, GET→405, notification→204. User-facing book/USER_GUIDE/README sync deferred to .5 closeout (the .2/.3b precedent).`
+  Verification: `cargo fmt --all --check; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo test --lib mcp:: (50 pass, incl. 15 new http) + cargo test --test snapshots (6 pass, byte-identical); real-binary curl smoke (200/200/405/204)`
+  Commit: `AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp`
 
 - ID: `AGENT-MCP-EXPANSION.5`
   Status: `pending`
@@ -136,8 +138,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGENT-MCP-EXPANSION.4b` | `pending` | Implement the hand-rolled `std::net` HTTP transport pinned by `.4a`, over the same `McpServer::handle_line`. |
-| 2 | `AGENT-MCP-EXPANSION.5` | `pending` | Closeout: sync book/USER_GUIDE/README to the expanded MCP surface (coverage_gaps + non-DUT lanes + HTTP). |
+| 1 | `AGENT-MCP-EXPANSION.5` | `pending` | Closeout: sync book/USER_GUIDE/README to the expanded MCP surface (coverage_gaps + non-DUT lanes + HTTP transport), then close the tree. |
 
 ## Decisions
 
@@ -273,6 +274,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | `2026-06-15` | `AGENT-MCP-EXPANSION.3a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; design/decision leaf, no source change | `clean` |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.3b` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo test --lib mcp::` (35 pass, incl. 5 new) + `cargo test --lib introspect::` (6 pass) + `cargo test --test snapshots` (6 pass, byte-identical); `cargo clippy --all-targets -- -D warnings` | `clean` |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.4a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; design/decision leaf, no source change | `clean` |
+| `2026-06-15` | `AGENT-MCP-EXPANSION.4b` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib mcp::` (50 pass, incl. 15 new http) + `cargo test --test snapshots` (6 pass, byte-identical); real-binary curl smoke (initialize→200, tools/list→200, GET→405, notification→204) | `clean` |
 
 ## Commit Log
 
@@ -283,6 +285,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | `AGENT-MCP-EXPANSION.3a` | `AGENT-MCP-EXPANSION.3a — non-DUT introspection projection design` | Design leaf; partially superseded by `.3b` (schema mandates inlined payload sections). |
 | `AGENT-MCP-EXPANSION.3b` | `AGENT-MCP-EXPANSION.3b — non-DUT lanes (microdesign/frontend) over MCP` | Umbrella-routed generate/introspect; manifest inlined (§6.5) + resource (§4); DUT byte-identical; `.3` container closed; frontier → `.4`. |
 | `AGENT-MCP-EXPANSION.4a` | `AGENT-MCP-EXPANSION.4a — hand-rolled HTTP transport framing design` | Split `.4` into `.4a` design + `.4b` impl; pinned HTTP framing/status-mapping/connection-model/loopback-default/code-placement; no source change; frontier → `.4b`. |
+| `AGENT-MCP-EXPANSION.4b` | `AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp` | `src/mcp/http.rs` + `--http <addr>` bin flag; same `handle_line` dispatcher; loopback default; NO new dep; 15 new tests; DUT byte-identical; `.4` container closed; frontier → `.5`. |
 
 ## Changelog
 
@@ -318,3 +321,12 @@ bugs — the `project_anvil_north_star` purpose — while the default
   surface). No new Cargo dependency; stdio default stays byte-identical.
   DEVELOPMENT_NOTES.md "Hand-rolled HTTP transport design" + this tree's
   Decisions record it. No source change; frontier advanced to `.4b`.
+- `2026-06-15`: `.4b` done — implemented the hand-rolled HTTP transport exactly
+  per `.4a`. New `src/mcp/http.rs` (framing helpers + `serve_http` + the accept
+  loop + `resolve_http_addr`, 15 in-process tests incl. 2 real-socket
+  round-trips) re-exported from `src/mcp/mod.rs`; `src/bin/anvil_mcp.rs` gains
+  the opt-in `--http <addr>` flag (loopback default) beside the unchanged stdio
+  loop. Same `McpServer::handle_line` dispatcher; NO new Cargo dependency; DUT
+  byte-identical (snapshots 6/6). fmt/check/clippy + 50 mcp tests + snapshots
+  clean; real-binary curl smoke (200/200/405/204). `.4` container closed.
+  Frontier advanced to `.5` (closeout).

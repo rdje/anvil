@@ -342,7 +342,7 @@ src/
 │                     deferred (matrix-only / `.4`+). `content_run_id` is `pub`
 │                     (`.5.2`) so `validate` shares the one content address.
 ├── mcp/             Read-only in-process MCP server
-│   └── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
+│   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
 │                     `Value → Option<Value>`) over the MCP stdio transport
 │                     (newline-delimited JSON). Exposes the deterministic
@@ -396,11 +396,31 @@ src/
 │                     `anvil-mcp` bin; the whole protocol surface is unit-tested
 │                     in-process. Separate target ⇒ default `anvil` build /
 │                     `--artifact dut` unaffected.
+│   └── http.rs      (`AGENT-MCP-EXPANSION.4b`). The optional hand-rolled
+│                     HTTP/1.1 POST transport beside stdio, re-exported as
+│                     `mcp::serve_http` + `mcp::resolve_http_addr`. Pure framing
+│                     helpers (`read_http_request` over `BufRead`,
+│                     `write_http_response` over `Write`), the `Request` enum,
+│                     `handle_http_connection` (one request per connection,
+│                     read-timeout, dispatch through the SAME
+│                     `McpServer::handle_line`, `Some`→`200`/`None`→`204`,
+│                     framing errors → `400`/`405`/`411`/`413`), and `serve_http`
+│                     (a single-threaded sequential accept loop over ONE shared
+│                     `McpServer`, so cache+audit persist across calls with no
+│                     lock). `resolve_http_addr` applies the loopback default
+│                     (bare port ⇒ `127.0.0.1:port`; `IP:port` honored +
+│                     non-loopback flag). NO new Cargo dependency (`std::net` /
+│                     `std::io` / `std::time`); 15 in-process tests incl. 2
+│                     real-socket round-trips. Default stdio path byte-identical.
 ├── bin/
-│   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
-│   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines
-│   │                from stdin, writes one response line per request, flushes
-│   │                per message. All logic lives in `mcp`; this is transport.
+│   ├── anvil_mcp.rs Thin transport shell over `mcp::McpServer` (the `anvil-mcp`
+│   │                target, `AGENT-INTROSPECTION-MCP.4`). Default: the stdio
+│   │                loop — reads JSON-RPC lines from stdin, writes one response
+│   │                line per request, flushes per message. With the opt-in
+│   │                `--http <addr>` flag (`AGENT-MCP-EXPANSION.4b`, hand-parsed,
+│   │                no clap) it dispatches to `mcp::serve_http` instead
+│   │                (loopback default + a non-loopback stderr warning). All
+│   │                logic lives in `mcp`; this is transport selection only.
 │   └── tool_matrix.rs
 │                     Repo-owned downstream-tool matrix harness. Its
 │                     Verilator/Yosys/iverilog invocation primitives now live

@@ -5,6 +5,48 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Hand-rolled HTTP transport impl — `AGENT-MCP-EXPANSION.4b`
+
+Landed the transport exactly as `.4a` pinned it: a new `src/mcp/http.rs`
+(`read_http_request` / `write_http_response` / `handle_http_connection` /
+`serve_http` / `resolve_http_addr`) re-exported from `src/mcp/mod.rs`, plus the
+opt-in `--http <addr>` flag on `src/bin/anvil_mcp.rs`. Engineering notes beyond
+the `.4a` design entry below:
+
+- **`read_exact` resolves through `BufRead`'s supertrait — drop the `Read`
+  import.** The body read is `reader.read_exact(&mut body)` where `reader: &mut
+  impl BufRead`. `read_exact` is a `Read` method, but a `BufRead` bound already
+  carries the `Read` impl, so the call resolves without `std::io::Read` in
+  scope; importing it tripped an `unused_imports` warning (which clippy
+  `-D warnings` would reject). `Read` is imported **only** in the test module,
+  where `TcpStream::read_to_string` needs it.
+- **`try_clone()` to read and write the same socket.** `handle_http_connection`
+  wraps the stream in a `BufReader` for line-oriented header parsing, but the
+  response needs the raw `Write` half. `stream.try_clone()` yields a second
+  handle to the same connection (both close when dropped), the standard pattern
+  for a read-buffered + separately-written socket without threading.
+- **204 No Content carries no `Content-Length` (RFC 7230).** A `204` must not
+  send a body or a `Content-Length`; emitting one trips strict clients. So the
+  `None` arm special-cases `204` (status line + `Connection: close` only) and
+  uses `Content-Length: 0` for the `4xx` framing errors. JSON-RPC-level errors
+  never reach this path — they ride inside a `200` body.
+- **One shared `McpServer`, no lock.** `serve_http` constructs a single
+  `McpServer` and threads `&mut server` through the sequential accept loop, so
+  the content-addressed cache + audit log persist across calls exactly as over
+  stdio — and because the loop is single-threaded, no `Mutex` is needed despite
+  the `&mut self` dispatcher.
+- **Bare-port loopback default via an all-digits check.** `resolve_http_addr`
+  treats an all-ASCII-digits arg as a port and binds `127.0.0.1:port`; anything
+  else is parsed as a full `SocketAddr` (an out-of-range bare port like `99999`
+  fails the `u16` parse and errors cleanly). `!addr.ip().is_loopback()` drives
+  the bin's stderr exposure warning.
+- **Validation.** `cargo fmt/check/clippy -D warnings` clean; `cargo test --lib
+  mcp::` 50 pass (35 prior + 15 new framing/resolve/round-trip tests, the last
+  two binding a real `TcpListener` on `127.0.0.1:0`); `cargo test --test
+  snapshots` 6/6 byte-identical (the stdio default path is untouched). A
+  real-binary `curl` smoke confirmed `initialize`→`200`, `tools/list`→`200`,
+  `GET`→`405`, notification→`204`. No new Cargo dependency.
+
 ## 2026-06-15 — Hand-rolled HTTP transport design — `AGENT-MCP-EXPANSION.4a`
 
 `.4a` is the design leaf that pins the framing for the optional HTTP

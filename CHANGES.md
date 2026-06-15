@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp
+
+**Landed as:** this commit (previous: `6101c15`).
+
+**What changed**
+
+`anvil-mcp` gains an opt-in HTTP/1.1 POST transport beside the default stdio
+loop, implementing the `.4a` design (owner decision `2026-06-15`). It drives
+the **same** `McpServer::handle_line` dispatcher, so tools/resources/prompts
+behave identically over both transports. **No new Cargo dependency.**
+
+- **`src/mcp/http.rs` (new)** — re-exported from `src/mcp/mod.rs` as
+  `mcp::serve_http` + `mcp::resolve_http_addr`:
+  - `read_http_request` (over `BufRead`): request line + CRLF headers (names
+    case-insensitive) to the blank line, then exactly `Content-Length` body
+    bytes = one JSON-RPC message. `POST`-only on any path. Body capped at
+    `MAX_BODY_BYTES = 16 MiB`.
+  - `write_http_response` (over `Write`): `Some(json)` ⇒ `200 OK` +
+    `application/json` + `Content-Length` + `Connection: close` + body; `None`
+    ⇒ `204 No Content` (no `Content-Length`, per RFC 7230) or a bodyless `4xx`.
+  - `Request` enum (`Post` / `Error(status, reason)` / `Eof`); status map
+    `200`/`204`/`400`/`405`/`411`/`413` — framing only, JSON-RPC errors stay
+    inside the `200` body.
+  - `handle_http_connection`: one request per connection, `set_read_timeout`
+    (30s) so a stalled client can't wedge the loop, `try_clone` writer +
+    `BufReader` reader, dispatch via `handle_line` (`Some`→`200`/`None`→`204`).
+  - `serve_http(SocketAddr)`: bind + a **single-threaded sequential accept
+    loop over one shared `McpServer`** (cache + audit persist across calls, as
+    over stdio; no lock needed); per-connection errors logged-and-swallowed.
+  - `resolve_http_addr`: bare port ⇒ `127.0.0.1:port` (loopback default); full
+    `IP:port` honored, returning a `non_loopback` flag.
+- **`src/bin/anvil_mcp.rs`** — hand-parses one optional `--http <addr>` (no
+  clap), prints a prominent stderr **WARNING** on a non-loopback bind (the
+  controlled `validate`/`minimize` tools become network-reachable), and
+  dispatches to `serve_http`; without `--http` it runs the unchanged
+  `serve_stdio` loop. `--help`/unknown-arg → usage + exit `2`.
+
+**Why**
+
+Decision `0005` / `MEMORY.md`: an optional networked transport lets an agent
+drive the read-mostly MCP surface over HTTP. The hand-rolled `std::net` design
+(owner decision) keeps the dependency-light posture (`0004` already rejected
+`tokio`/`rmcp`); loopback-default + unchanged per-call `downstream` guardrails
+preserve the security contract.
+
+**Validation**
+
+- `cargo fmt --all --check`; `cargo check --all-targets`;
+  `cargo clippy --all-targets -- -D warnings` — all clean.
+- `cargo test --lib mcp::` — 50 pass (35 prior + 15 new: framing units,
+  `resolve_http_addr`, and 2 real-socket round-trips binding `127.0.0.1:0`
+  proving `initialize`→`200` and a notification→`204`).
+- `cargo test --test snapshots` — 6/6 byte-identical (stdio default untouched).
+- Real-binary `curl` smoke: `initialize`→`200`, `tools/list`→`200`,
+  `GET`→`405`, notification→`204`; stderr banner printed.
+
+**Impact**
+
+- New opt-in transport; **default stdio path byte-identical**, `--artifact dut`
+  unaffected. Closes the `.4` container; frontier → `.5` (user-facing doc
+  closeout).
+
+**Files touched**
+
+- `src/mcp/http.rs` (new), `src/mcp/mod.rs`, `src/bin/anvil_mcp.rs`,
+  `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.4a — hand-rolled HTTP transport framing design
 
 **Landed as:** this commit (previous: `bc70aee`). Docs / design leaf — no

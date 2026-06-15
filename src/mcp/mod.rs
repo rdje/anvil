@@ -37,6 +37,12 @@ use crate::{emit, Generator};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
+/// Optional hand-rolled HTTP/1.1 transport beside the default stdio loop
+/// (`AGENT-MCP-EXPANSION.4b`). It drives the same [`McpServer::handle_line`]
+/// dispatcher; see the module for the framing/security contract.
+mod http;
+pub use http::{resolve_http_addr, serve_http};
+
 /// Default `n_params` for the non-DUT lanes over MCP, matching the
 /// `--lane-n-params` CLI default (`AGENT-MCP-EXPANSION.3b`).
 const DEFAULT_LANE_N_PARAMS: usize = 5;
