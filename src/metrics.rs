@@ -235,6 +235,14 @@ pub struct Metrics {
     /// `Module::flops_merged`.
     pub flops_merged: u32,
 
+    /// Number of duplicate flops merged away by the opt-in bounded
+    /// bisimulation flop-merge pass (`IDENTITY-DEEPENING`). Non-zero only
+    /// when `bisimulation_flop_merge` is enabled under node-id / e-graph
+    /// and a greatest-fixpoint state correspondence proved two flops
+    /// sequentially equivalent beyond the exact reset-defined self-hold
+    /// class. Sourced from `Module::bisimulation_flops_merged`.
+    pub bisimulation_flops_merged: u32,
+
     /// Number of duplicate deterministic FSM blocks merged away by
     /// the post-construction endpoint-preserving state-sharing pass.
     /// Sourced from `Module::fsms_merged`.
@@ -854,6 +862,7 @@ pub fn compute(m: &Module) -> Metrics {
     out.peephole_rewrites_applied = m.peephole_rewrites_applied;
     out.nodes_compacted = m.nodes_compacted;
     out.flops_merged = m.flops_merged;
+    out.bisimulation_flops_merged = m.bisimulation_flops_merged;
     out.fsms_merged = m.fsms_merged;
     out.semantic_gates_merged = m.semantic_gates_merged;
     out.flatten_associative_applied = m.flatten_associative_applied;
@@ -3179,6 +3188,7 @@ mod tests {
         });
         m.nodes.push(Node::Constant { width: 4, value: 0 });
         m.flops_merged = 1;
+        m.bisimulation_flops_merged = 5;
         m.fsms_merged = 3;
         m.semantic_gates_merged = 2;
         let met = compute(&m);
@@ -3188,6 +3198,7 @@ mod tests {
         assert_eq!(met.flops_mux_none, 1);
         assert_eq!(met.flops_mux_one_hot, 1);
         assert_eq!(met.flops_merged, 1);
+        assert_eq!(met.bisimulation_flops_merged, 5);
         assert_eq!(met.fsms_merged, 3);
         assert_eq!(met.semantic_gates_merged, 2);
     }

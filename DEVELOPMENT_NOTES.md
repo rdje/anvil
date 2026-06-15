@@ -5,6 +5,70 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Bisimulation flop merge — impl — `IDENTITY-DEEPENING.2b`
+
+Implemented the `.2a` design in `src/ir/compact.rs`: the new
+`merge_bisimilar_flops` pass, the shared `finalize_flop_merge` refactor, the
+quotient-aware proof threading, the default-off `Config::bisimulation_flop_merge`
+knob (threaded onto `Module`), and the `Metrics::bisimulation_flops_merged`
+counter. Findings and decisions the design entry could not fully pin until the
+code existed:
+
+- **SOUNDNESS FIX — resetless flops must be excluded from refinement.** The
+  `.2a` bucketing keyed on `(width, reset_kind, reset_val, domain)` but did not
+  call out that `reset_kind = None` flops have **no base case**: without a reset
+  there is no provable equal initial state, so a bisimulation correspondence
+  cannot be established. Two resetless self-hold flops would otherwise quotient
+  to the same `FlopQ{rep}` signature and *wrongly merge* — violating the
+  recorded `reset-defined-self-hold-flop-identity` boundary (the exact pass keeps
+  them apart precisely via concrete `FlopQ` endpoint identity, which quotienting
+  erases). Fix: only `reset_kind != None` buckets are refinable; resetless flops
+  are pinned as singletons. Regression-locked by
+  `merge_bisimilar_flops_keeps_resetless_mutual_swap_distinct`.
+- **Quotient threading, not duplication.** Rather than copy the proof engine, a
+  single `Option<&HashMap<FlopId, FlopId>>` quotient param is threaded directly
+  through `collect_leaf_endpoints` / `structural_node_sig_id` /
+  `evaluate_node_under_assignment` / `semantic_proof_eligibility` /
+  `semantic_cone_proof_with_limits` / `cone_proof`. `None` (every exact / cleanup
+  / FSM / gate caller) returns the concrete id ⇒ **byte-identical**; only the
+  bisimulation pass passes `Some(class_rep_map)`. `canonical_flop_endpoint` is the
+  one substitution point. `semantic_cone_proof` (no-limits MERGE wrapper) became
+  test-only (`#[cfg(test)]`) since `cone_proof` now inlines the limits to thread
+  the quotient.
+- **Global-bucket refinement, deterministic grouping.** The partition is over all
+  flops (buckets in `BTreeMap` key order, classes in ascending `FlopId`,
+  representative = min id). Grouping members by quotient signature uses a
+  **stable linear scan** (first-equal-signature group), never a `HashMap` over
+  signatures — a `HashMap` iteration would leak nondeterminism into emitted RTL.
+  `ResetKind` is `Hash`/`Eq` but not `Ord`, so `reset_kind_discriminant` maps it
+  to a `u8` for the bucket key.
+- **Memo-clear gotcha honored.** Fresh `structural_memo` / `structural_ctx` /
+  `endpoint_memo` / `semantic_memo` are allocated **per refinement iteration**
+  (they are `NodeId`-keyed and assume fixed endpoint identity; the class map
+  changes between iterations, so reuse would be unsound). Shared across all
+  classes *within* one iteration (the quotient is fixed there), which keeps
+  structural sig ids mutually comparable.
+- **Pass ordering + finalize reuse.** `merge_bisimilar_flops` runs AFTER
+  `merge_equivalent_flops` (exact classes already collapsed) and BEFORE the FSM
+  merge + compaction in `generate_leaf_module`. Both flop passes now build an
+  `old_to_canonical_old` map and call the extracted `finalize_flop_merge`
+  (renumber → `q_node_remap` → node/drive/instance/flop rewire → domain remap →
+  rebuild tables). The exact pass stays byte-identical (verified: snapshots 6/6).
+- **Downstream-clean bank (decision: focused test + manual smoke, lowest cost).**
+  The mutual swap of two equal-reset registers correctly collapses to a single
+  self-holding register (holding the reset value forever). Emitted SV is clean
+  across **Verilator `--lint-only -Wall`** (0 warnings), **Yosys without-abc**,
+  **Yosys with-abc**, and **Icarus `iverilog -g2012`**. Re-bank via
+  `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers`
+  then lint `/tmp/anvil-bisim-merged.sv`. The random generator rarely produces an
+  exact bisimilar pair the exact pass has not already merged, so a dedicated
+  `tool_matrix` scenario set was *not* the lowest-cost proof (mirrors the
+  signoff-knob-sweep cost reasoning) — the rules-first hand fixture is.
+- **Schema MINOR bump.** Adding `Metrics::bisimulation_flops_merged` surfaces a
+  new key in the `--introspect` `module_metrics` projection, which the schema's
+  own §7 policy classifies as a backward-compatible MINOR bump:
+  `SCHEMA_VERSION` 1.0 → 1.1 (introspect + MCP tests + schema doc updated).
+
 ## 2026-06-15 — Bisimulation flop merge — grounded design detail — `IDENTITY-DEEPENING.2a`
 
 Design-detail leaf, no source change. Grounded decision `0007` in the real merge

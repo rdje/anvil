@@ -551,7 +551,19 @@ src/
 │   │                 the old 10-bit work envelope. Then
 │   │                 `merge_equivalent_flops(&mut Module)` applies
 │   │                 the analogous endpoint-aware proof discipline
-│   │                 to flop state elements, and
+│   │                 to flop state elements. The opt-in
+│   │                 `merge_bisimilar_flops(&mut Module)`
+│   │                 (`IDENTITY-DEEPENING.2b`, gated on
+│   │                 `Module::bisimulation_flop_merge` +
+│   │                 node-id / e-graph) then runs a bounded
+│   │                 greatest-fixpoint partition refinement that merges
+│   │                 flops proven sequentially equivalent up to a state
+│   │                 correspondence (e.g. mutually-recursive registers):
+│   │                 it threads a `FlopQ -> class rep` quotient through
+│   │                 the same proof functions and reuses the shared
+│   │                 `finalize_flop_merge` rewrite the exact pass now
+│   │                 also calls; resetless flops are excluded (no reset
+│   │                 base case); default-off / byte-identical.
 │   │                 `merge_equivalent_fsms(&mut Module)` applies it
 │   │                 to deterministic generated FSM blocks with
 │   │                 matching selector proof, encoding, transition
@@ -572,6 +584,7 @@ src/
 │   │                 `gen::module::generate_leaf_module`; counts are
 │   │                 surfaced as `Metrics::semantic_gates_merged`,
 │   │                 `Metrics::flops_merged`,
+│   │                 `Metrics::bisimulation_flops_merged`,
 │   │                 `Metrics::fsms_merged`, and
 │   │                 `Metrics::nodes_compacted`.
 │   └── validate.rs   Module invariant checker: operands and drive

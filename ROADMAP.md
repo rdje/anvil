@@ -85,8 +85,14 @@ instead of leaving them implicit.
    helper endpoints cancel out and tiny 12-endpoint-bit proofs that fit
    the current node/work budget, together with
    conservative post-drain flop merging and deterministic generated-FSM
-   merging over the same endpoint-preserving proof discipline; broader
-   sequential equivalence, memory-state merging beyond the current
+   merging over the same endpoint-preserving proof discipline, plus the
+   opt-in `bisimulation_flop_merge` pass (`IDENTITY-DEEPENING.2b`) that
+   merges flops proven sequentially equivalent *up to a state
+   correspondence* — e.g. mutually-recursive registers — via bounded
+   greatest-fixpoint bisimulation over that same proof budget (default-off
+   / byte-identical, node-id / e-graph only, resetless flops excluded);
+   broader *whole-module* sequential equivalence, retimed-state
+   equivalence, memory-state merging beyond the current
    instance-local proof boundary, and hierarchy equivalence beyond
    canonical structural module signatures are still open work. Current
    inferrable memories deliberately remain state-by-instance because
@@ -2194,10 +2200,15 @@ execution order is `2 → 3 → 1`:
   signoff automation (richer adversarial knob sweeps, additional
   simulator/frontend acceptance columns, new valid-by-construction
   artifact families), warning-as-failure preserved.
-- `IDENTITY-DEEPENING` (`proposed`) — advance steering gap 2
+- `IDENTITY-DEEPENING` (`active`) — advance steering gap 2
   (NodeId-as-identity): bounded hierarchical/module semantic identity
   beyond canonical structural signatures and broader bounded sequential
-  equivalence, proof discipline and budgets unchanged.
+  equivalence, proof discipline and budgets unchanged. `.1` chose the
+  first extension (decision `0007`); `.2` (`= .2a` design + `.2b` impl)
+  **delivered** the opt-in bounded **bisimulation flop merge**
+  (`merge_bisimilar_flops`, default-off / byte-identical, banked
+  downstream-clean across Verilator + both Yosys + Icarus). `.3`
+  (whole-module sequential equivalence) is the named future leaf.
 
 ## Non-goals
 

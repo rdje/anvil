@@ -626,6 +626,51 @@ instead of creating fresh logic.
   module, `null` for unsupported modules) and
   `num_semantically_duplicate_module_pairs` (proof-equal pairs still
   present after any enabled dedup pass).
+- `bisimulation_flop_merge` — opt-in `bool`, default `false`
+  (`IDENTITY-DEEPENING`). When `true`, finalization runs a bounded
+  **bisimulation** flop merge after the exact `merge_equivalent_flops`
+  pass. It merges flops proven sequentially equivalent *up to a state
+  correspondence* — for example two **mutually-recursive registers**
+  (`D_f = Q_g`, `D_g = Q_f`, equal reset), a class the exact
+  reset-defined self-hold rule provably cannot prove because each D-cone
+  keys a different concrete `FlopQ` endpoint. The pass is a
+  greatest-fixpoint partition refinement: bucket flops by `(width,
+  reset_kind, reset_val, clock_domain)`, then keep two flops in one class
+  iff their D-cones — with every `FlopQ` rewritten to its current class
+  representative — are proven equal by the same bounded
+  12-bit / 128-node / 131072-work proof used elsewhere, until the
+  partition is stable. At the fixpoint the partition is a bisimulation,
+  sound by reset-base-case coinduction.
+
+  It is active only when `identity_mode = node-id` and the effective
+  `factorization_level` is `e-graph`; `identity_mode = relaxed` keeps it
+  inert even if the knob is true. **Resetless flops are excluded** (no
+  reset means no provable equal initial state, so the base case fails) —
+  this preserves the documented resetless-self-hold boundary. Over-budget
+  D-cones take the structural fallback; nothing is guessed, and the exact
+  self-hold / same-endpoint / FSM classes are **generalized, not
+  retired**. `default = false` keeps every existing output
+  byte-identical.
+
+  This knob is **config/library-only — there is no
+  `--bisimulation-flop-merge` CLI flag** (it mirrors
+  `hierarchy_module_dedup` / `hierarchy_semantic_module_dedup`). Set it
+  through a `Config` value or a config file:
+
+  ```rust,ignore
+  use anvil::Config;
+  use anvil::config::{FactorizationLevel, IdentityMode};
+
+  let cfg = Config {
+      seed: 42,
+      identity_mode: IdentityMode::NodeId,
+      factorization_level: FactorizationLevel::EGraph,
+      bisimulation_flop_merge: true,
+      ..Config::default()
+  };
+  ```
+
+  The merge count is surfaced as `Metrics::bisimulation_flops_merged`.
 - The legacy exact wrapper knobs and the bounded recursive range knobs
   are intentionally **mutually exclusive**. They are two different
   planning lanes, not shorthand for the same behavior.
@@ -709,6 +754,7 @@ Config {
     hierarchy_parent_flop_prob: 0.0,
     hierarchy_module_dedup: false,
     hierarchy_semantic_module_dedup: false,
+    bisimulation_flop_merge: false,
     multi_clock_prob: 0.0,
     cdc_synchronizer_stages: 2,
     min_hierarchy_depth: 0,

@@ -190,6 +190,18 @@ shift. Examples:
 - Under `identity_mode=node-id`, equivalent state cones can collapse too;
   `flops_merged` tells you how much sequential sharing the post-drain
   pass found.
+- With `bisimulation_flop_merge=true` in a JSON config or library
+  `Config` (opt-in, `default=false`), ANVIL additionally merges flops
+  proven sequentially equivalent *up to a state correspondence* — for
+  example two mutually-recursive registers (`D_f=Q_g`, `D_g=Q_f`, equal
+  reset) — via a bounded greatest-fixpoint bisimulation, a class the
+  exact flop merge provably cannot prove. Active only under
+  `identity_mode=node-id` with effective `factorization_level=e-graph`;
+  resetless flops are excluded (no reset base case); over-budget cones
+  fall back to structural identity. `bisimulation_flops_merged` records
+  the extra sharing. There is no CLI flag (mirrors
+  `hierarchy_module_dedup`); set it through a `Config` value or config
+  file.
 - Under `identity_mode=node-id`, duplicate deterministic FSM blocks can
   collapse when their selector proof, encoding, transition table, and
   Moore-output table match; `fsms_merged` records that sharing.

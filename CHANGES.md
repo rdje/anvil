@@ -1,9 +1,104 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — IDENTITY-DEEPENING.2b — implement bounded bisimulation flop merge
+
+**Landed as:** this commit (previous: `1d0a8d0`). Code leaf — task-tree-owned by
+`IDENTITY-DEEPENING.2b`. Closes the `.2` container.
+
+**What changed**
+
+Implements the `.2a` design: the opt-in bounded **bisimulation flop merge**
+(`merge_bisimilar_flops`), which lifts the mutually-recursive-register /
+swapped-feedback no-merge boundary the exact pass provably cannot prove.
+
+- **New pass `src/ir/compact.rs::merge_bisimilar_flops`.** A greatest-fixpoint
+  partition refinement (Kanellakis–Smolka): bucket flops by `(width,
+  reset_kind, reset_val, clock_domain)`; keep two flops in one class iff their
+  D-cones — with every `FlopQ` endpoint rewritten to its current class
+  representative (the quotient signature) — are proven equal by the existing
+  bounded 12-bit / 128-node / 131072-work endpoint proof; split until stable.
+  At the fixpoint the partition is a bisimulation, sound by reset-base-case
+  coinduction. Runs AFTER the exact `merge_equivalent_flops` and BEFORE the FSM
+  merge + compaction.
+- **Shared `finalize_flop_merge` refactor.** The post-`old_to_canonical_old`
+  rewire/renumber/remap tail of `merge_equivalent_flops` is extracted into a
+  partition-agnostic `finalize_flop_merge(m, old_to_canonical_old, removed)`
+  that both flop passes call. The exact pass stays **byte-identical** (verified:
+  snapshots 6/6).
+- **Quotient-aware proof threading.** A single `Option<&HashMap<FlopId,
+  FlopId>>` quotient param is threaded through `collect_leaf_endpoints` /
+  `structural_node_sig_id` / `evaluate_node_under_assignment` /
+  `semantic_proof_eligibility` / `semantic_cone_proof_with_limits` /
+  `cone_proof` via the one substitution point `canonical_flop_endpoint`. `None`
+  (every exact / cleanup / FSM / gate caller) is the concrete identity ⇒
+  byte-identical; only the bisimulation pass passes `Some(class_rep_map)`. Fresh
+  memos per refinement iteration (the class map changes between iterations, so
+  reuse would be unsound).
+- **Soundness fix beyond `.2a`: resetless flops excluded.** `reset_kind = None`
+  flops have no base case (no provable equal initial state), so the bisimulation
+  cannot soundly fire — they are pinned as singletons. This preserves the
+  documented resetless-self-hold boundary (the exact pass keeps them apart via
+  concrete `FlopQ` endpoint identity, which quotienting would erase).
+- **Knob + metric.** Default-off `Config::bisimulation_flop_merge` (serde
+  default `false`, no CLI flag — mirrors `hierarchy_module_dedup`) threaded onto
+  `Module` at all five config-threaded construction sites and gated additionally
+  on node-id / e-graph. New `Module::bisimulation_flops_merged` →
+  `Metrics::bisimulation_flops_merged`.
+- **Schema MINOR bump 1.0 → 1.1.** The new `Metrics` field surfaces a key in the
+  `--introspect` `module_metrics` projection; per the schema's own §7 policy
+  this is a backward-compatible MINOR bump (`SCHEMA_VERSION`, introspect + MCP
+  tests, and `docs/AGENT_INTROSPECTION_SCHEMA.md` updated).
+
+**Why**
+
+`IDENTITY-DEEPENING` steering-gap-2 advancement: a sound, bounded
+sequential-equivalence merge class beyond exact reset-defined self-hold, with
+banked downstream-clean evidence (`feedback_full_factorization`;
+`feedback_never_retire_strategies` — the exact self-hold / same-endpoint / FSM
+classes are generalized, not retired).
+
+**Validation**
+
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all
+  --check` — clean.
+- `cargo test --lib` — 403 pass, incl. 6 new rules-first bisim gate tests
+  (mutual-swap merges / exact pass cannot / default-off / resetless excluded /
+  relaxed off-switch / e-graph required / non-bisimilar split), the
+  metrics-plumbing test, and the introspect + MCP `schema_version` tests.
+- `cargo test --test snapshots` — 6/6 byte-identical (knob default-off).
+- Representative `cargo test --test pipeline` reproducibility test green; the
+  full pipeline suite is heavy/slow and exercises only the byte-identical
+  default path (not run end-to-end per the owner resource policy).
+- **Downstream-clean bank** on the merged mutual-swap output (which correctly
+  collapses to one self-holding register): Verilator `--lint-only -Wall`
+  (0 warnings), Yosys without-abc, Yosys with-abc, Icarus `iverilog -g2012` —
+  all clean. Re-bank: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib
+  merge_bisimilar_flops_merges_mutual_swap_registers`, then lint
+  `/tmp/anvil-bisim-merged.sv`.
+- KM regenerated (24 facts / 134 keys) + KM/mem-arch self-checks clean.
+
+**Impact**
+
+Default build / `--artifact dut` byte-identical (opt-in knob, default-off).
+New opt-in capability: provable mutually-recursive-register merging.
+`IDENTITY-DEEPENING.2` container closed; frontier advances to `.3`
+(whole-module sequential equivalence, design leaf first).
+
+**Files touched**
+
+`src/ir/compact.rs`, `src/ir/types.rs`, `src/config.rs`, `src/metrics.rs`,
+`src/gen/module.rs`, `src/gen/hierarchy.rs`, `src/introspect/mod.rs`,
+`src/mcp/mod.rs`, `book/src/factorization.md`, `book/src/knobs.md`,
+`USER_GUIDE.md`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, `DEVELOPMENT_NOTES.md`,
+`ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `docs/knowledge/bisimulation-flop-merge.md`
+(new), `docs/knowledge/reset-defined-self-hold-flop-identity.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/IDENTITY-DEEPENING.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — IDENTITY-DEEPENING.2a — bisimulation flop merge design detail
 
-**Landed as:** this commit (previous: `43e2a2d`). Design-detail leaf —
+**Landed as:** `1d0a8d0` (previous: `43e2a2d`). Design-detail leaf —
 task-tree-owned by `IDENTITY-DEEPENING.2a`. **No source change** (task-tree +
 `DEVELOPMENT_NOTES` + `CHANGES`/`MEMORY` only).
 

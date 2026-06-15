@@ -244,6 +244,17 @@ pub struct Module {
     /// `identity_mode == Relaxed`, the effective level is forced
     /// to `None`.
     pub factorization_level: crate::config::FactorizationLevel,
+    /// Opt-in bounded bisimulation flop merge (`IDENTITY-DEEPENING`,
+    /// decision `0007`). When `true` — and only under
+    /// `identity_mode = node-id` with effective `factorization_level`
+    /// `e-graph` — the post-drain finalization runs
+    /// `crate::ir::compact::merge_bisimilar_flops`, a greatest-fixpoint
+    /// partition refinement that merges flops proven sequentially
+    /// equivalent up to a state correspondence (e.g. mutually-recursive
+    /// registers) beyond the exact reset-defined self-hold class.
+    /// `default = false` keeps emitted RTL byte-identical; mirrors
+    /// `Config::bisimulation_flop_merge`. See `Config` for the knob.
+    pub bisimulation_flop_merge: bool,
 
     // --- Block-build live counters ------------------------------
     /// Number of priority-encoder block instances successfully
@@ -316,6 +327,16 @@ pub struct Module {
     /// equivalence engine.
     /// Surfaced via `Metrics::flops_merged`.
     pub flops_merged: u32,
+
+    /// Number of duplicate flops merged away by the opt-in bounded
+    /// bisimulation flop-merge pass
+    /// (`crate::ir::compact::merge_bisimilar_flops`,
+    /// `IDENTITY-DEEPENING`). Non-zero only when
+    /// `bisimulation_flop_merge` is enabled under node-id / e-graph and a
+    /// greatest-fixpoint state correspondence (beyond exact reset-defined
+    /// self-hold) proved two flops sequentially equivalent. Zero by
+    /// default. Surfaced via `Metrics::bisimulation_flops_merged`.
+    pub bisimulation_flops_merged: u32,
 
     /// Number of duplicate deterministic FSM blocks merged away during
     /// the post-construction endpoint-preserving state-sharing pass.

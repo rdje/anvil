@@ -574,6 +574,25 @@ pub struct Config {
     #[serde(default)]
     pub hierarchy_semantic_module_dedup: bool,
 
+    /// When `true`, finalization runs the opt-in bounded bisimulation
+    /// flop-merge pass (`crate::ir::compact::merge_bisimilar_flops`,
+    /// `IDENTITY-DEEPENING`, decision `0007`) after the exact
+    /// `merge_equivalent_flops` pass. It is a greatest-fixpoint partition
+    /// refinement that merges flops proven sequentially equivalent *up to
+    /// a state correspondence* — for example mutually-recursive registers
+    /// whose D-cones reference each other's `Q` — a class the exact
+    /// reset-defined self-hold rule provably cannot prove. It is effective
+    /// only under `identity_mode = node-id` with effective
+    /// `factorization_level` `e-graph`; `identity_mode = relaxed` remains
+    /// the semantic off-switch. Resetless flops are excluded (no reset
+    /// base case). Proofs reuse the same 12-bit / 128-node / 131072-work
+    /// budget as the semantic gate merge; over-budget cones fall back to
+    /// structural identity. `default = false` keeps every existing output
+    /// byte-identical. Parallel to `hierarchy_module_dedup` /
+    /// `hierarchy_semantic_module_dedup`.
+    #[serde(default)]
+    pub bisimulation_flop_merge: bool,
+
     /// Phase 5 (parameterization). Probability that a finalized module
     /// is given a single width `parameter` by the post-construction
     /// `crate::ir::param::parameterize_module` pass. The module body
@@ -820,6 +839,7 @@ impl Default for Config {
             hierarchy_parent_flop_prob: default_hierarchy_parent_flop_prob(),
             hierarchy_module_dedup: false,
             hierarchy_semantic_module_dedup: false,
+            bisimulation_flop_merge: false,
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
             aggregate_array_prob: default_aggregate_array_prob(),

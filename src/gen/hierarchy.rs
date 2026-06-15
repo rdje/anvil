@@ -341,6 +341,7 @@ fn generate_parent_module(
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        bisimulation_flop_merge: g.cfg.bisimulation_flop_merge,
         planned_interface_profile: external_profile.cloned(),
         ..Module::default()
     };

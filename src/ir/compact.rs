@@ -266,6 +266,7 @@ fn structural_node_sig_id(
     node_id: NodeId,
     memo: &mut HashMap<NodeId, StructuralSigId>,
     ctx: &mut StructuralSignatureCtx,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> StructuralSigId {
     if let Some(&sig_id) = memo.get(&node_id) {
         return sig_id;
@@ -290,7 +291,7 @@ fn structural_node_sig_id(
             value: *value,
         }),
         Node::FlopQ { flop, width } => ctx.intern(StructuralNodeShape::FlopQ {
-            flop: *flop,
+            flop: canonical_flop_endpoint(*flop, quotient),
             width: *width,
         }),
         Node::MemRead { mem, width } => ctx.intern(StructuralNodeShape::MemRead {
@@ -309,7 +310,7 @@ fn structural_node_sig_id(
         } => {
             let operand_sigs = operands
                 .iter()
-                .map(|&operand| structural_node_sig_id(m, operand, memo, ctx))
+                .map(|&operand| structural_node_sig_id(m, operand, memo, ctx, quotient))
                 .collect();
             ctx.intern(StructuralNodeShape::Gate {
                 op: *op,
@@ -331,10 +332,27 @@ fn bitmask(width: u32) -> u128 {
     }
 }
 
+/// Canonicalize a `FlopQ` leaf id under an optional bisimulation quotient.
+///
+/// The exact flop/gate/FSM identity passes — and the cleanup prover — call
+/// every proof function with `quotient = None`, which returns the id
+/// unchanged, so their proofs stay byte-identical. Only
+/// [`merge_bisimilar_flops`] supplies `Some(class_rep_map)`, rewriting each
+/// `FlopQ` endpoint to its current partition-class representative so two
+/// flops' D-cones are compared *up to the current state correspondence*
+/// (`IDENTITY-DEEPENING`, decision `0007`).
+fn canonical_flop_endpoint(flop: FlopId, quotient: Option<&HashMap<FlopId, FlopId>>) -> FlopId {
+    match quotient {
+        Some(map) => map.get(&flop).copied().unwrap_or(flop),
+        None => flop,
+    }
+}
+
 fn collect_leaf_endpoints(
     m: &Module,
     node_id: NodeId,
     memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> BTreeSet<LeafEndpoint> {
     if let Some(endpoints) = memo.get(&node_id) {
         return endpoints.clone();
@@ -355,7 +373,7 @@ fn collect_leaf_endpoints(
             width: *width,
         }]),
         Node::FlopQ { flop, width } => BTreeSet::from([LeafEndpoint::FlopQ {
-            flop: *flop,
+            flop: canonical_flop_endpoint(*flop, quotient),
             width: *width,
         }]),
         Node::MemRead { mem, width } => BTreeSet::from([LeafEndpoint::MemRead {
@@ -370,7 +388,7 @@ fn collect_leaf_endpoints(
         Node::Gate { operands, .. } => {
             let mut out = BTreeSet::new();
             for &operand in operands {
-                out.extend(collect_leaf_endpoints(m, operand, memo));
+                out.extend(collect_leaf_endpoints(m, operand, memo, quotient));
             }
             out
         }
@@ -424,12 +442,13 @@ fn semantic_proof_eligibility(
     node_id: NodeId,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
     limits: SemanticProofLimits,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> Option<(Vec<LeafEndpoint>, usize)> {
     if m.nodes[node_id as usize].width() > 128 {
         return None;
     }
 
-    let endpoints: Vec<LeafEndpoint> = collect_leaf_endpoints(m, node_id, endpoint_memo)
+    let endpoints: Vec<LeafEndpoint> = collect_leaf_endpoints(m, node_id, endpoint_memo, quotient)
         .into_iter()
         .collect();
     let support_bits: u32 = endpoints.iter().map(|endpoint| endpoint.width()).sum();
@@ -461,6 +480,7 @@ fn evaluate_node_under_assignment(
     assignment: u128,
     endpoint_offsets: &HashMap<LeafEndpoint, u32>,
     memo: &mut HashMap<NodeId, u128>,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> u128 {
     if let Some(&value) = memo.get(&node_id) {
         return value;
@@ -490,7 +510,7 @@ fn evaluate_node_under_assignment(
         }
         Node::FlopQ { flop, width } => {
             let endpoint = LeafEndpoint::FlopQ {
-                flop: *flop,
+                flop: canonical_flop_endpoint(*flop, quotient),
                 width: *width,
             };
             let offset = endpoint_offsets[&endpoint];
@@ -523,7 +543,14 @@ fn evaluate_node_under_assignment(
             let operand_values: Vec<u128> = operands
                 .iter()
                 .map(|&operand| {
-                    evaluate_node_under_assignment(m, operand, assignment, endpoint_offsets, memo)
+                    evaluate_node_under_assignment(
+                        m,
+                        operand,
+                        assignment,
+                        endpoint_offsets,
+                        memo,
+                        quotient,
+                    )
                 })
                 .collect();
             match op {
@@ -654,12 +681,17 @@ fn evaluate_node_under_assignment(
     value
 }
 
+/// Test-only convenience wrapper: the MERGE-limit semantic proof over the
+/// concrete (non-quotient) endpoint identity. Production `cone_proof`
+/// inlines `semantic_cone_proof_with_limits` so it can thread the
+/// bisimulation quotient; the budget regression tests use this short form.
+#[cfg(test)]
 fn semantic_cone_proof(
     m: &Module,
     node_id: NodeId,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
 ) -> Option<SemanticConeProof> {
-    semantic_cone_proof_with_limits(m, node_id, endpoint_memo, MERGE_SEMANTIC_LIMITS)
+    semantic_cone_proof_with_limits(m, node_id, endpoint_memo, MERGE_SEMANTIC_LIMITS, None)
 }
 
 fn semantic_cone_proof_with_limits(
@@ -667,9 +699,10 @@ fn semantic_cone_proof_with_limits(
     node_id: NodeId,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
     limits: SemanticProofLimits,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> Option<SemanticConeProof> {
     let (endpoints, assignment_count) =
-        semantic_proof_eligibility(m, node_id, endpoint_memo, limits)?;
+        semantic_proof_eligibility(m, node_id, endpoint_memo, limits, quotient)?;
     let mut endpoint_offsets: HashMap<LeafEndpoint, u32> = HashMap::new();
     let mut next_offset = 0u32;
     for endpoint in &endpoints {
@@ -686,6 +719,7 @@ fn semantic_cone_proof_with_limits(
             assignment as u128,
             &endpoint_offsets,
             &mut memo,
+            quotient,
         ));
     }
 
@@ -743,7 +777,7 @@ fn cleanup_exact_proof_eligible(
         return false;
     }
 
-    let endpoints = collect_leaf_endpoints(m, node_id, endpoint_memo);
+    let endpoints = collect_leaf_endpoints(m, node_id, endpoint_memo, None);
     if endpoints.len() > MAX_SEMANTIC_EXACT_ENDPOINTS {
         return false;
     }
@@ -823,15 +857,16 @@ fn semantic_exact_value(
         memo.insert(node_id, None);
         return None;
     }
-    let exact = semantic_cone_proof_with_limits(m, node_id, endpoint_memo, CLEANUP_SEMANTIC_LIMITS)
-        .and_then(|proof| {
-            let first = *proof.outputs.first()?;
-            proof
-                .outputs
-                .iter()
-                .all(|&value| value == first)
-                .then_some(first)
-        });
+    let exact =
+        semantic_cone_proof_with_limits(m, node_id, endpoint_memo, CLEANUP_SEMANTIC_LIMITS, None)
+            .and_then(|proof| {
+                let first = *proof.outputs.first()?;
+                proof
+                    .outputs
+                    .iter()
+                    .all(|&value| value == first)
+                    .then_some(first)
+            });
     memo.insert(node_id, exact);
     exact
 }
@@ -843,13 +878,20 @@ fn cone_proof(
     structural_ctx: &mut StructuralSignatureCtx,
     endpoint_memo: &mut HashMap<NodeId, BTreeSet<LeafEndpoint>>,
     semantic_memo: &mut HashMap<NodeId, Option<SemanticConeProof>>,
+    quotient: Option<&HashMap<FlopId, FlopId>>,
 ) -> ConeProof {
     if let Some(proof) = semantic_memo.get(&node_id) {
         if let Some(proof) = proof {
             return ConeProof::Semantic(proof.clone());
         }
     } else {
-        let proof = semantic_cone_proof(m, node_id, endpoint_memo);
+        let proof = semantic_cone_proof_with_limits(
+            m,
+            node_id,
+            endpoint_memo,
+            MERGE_SEMANTIC_LIMITS,
+            quotient,
+        );
         semantic_memo.insert(node_id, proof);
         if let Some(Some(proof)) = semantic_memo.get(&node_id) {
             return ConeProof::Semantic(proof.clone());
@@ -861,6 +903,7 @@ fn cone_proof(
         node_id,
         structural_memo,
         structural_ctx,
+        quotient,
     ))
 }
 
@@ -909,6 +952,7 @@ pub fn merge_equivalent_gates(m: &mut Module) -> u32 {
                 &mut structural_ctx,
                 &mut endpoint_memo,
                 &mut semantic_memo,
+                None,
             ),
         };
         if is_gate {
@@ -1033,6 +1077,26 @@ pub fn merge_equivalent_flops(m: &mut Module) -> u32 {
         }
     }
 
+    finalize_flop_merge(m, old_to_canonical_old, removed)
+}
+
+/// Shared tail of every flop-merge pass.
+///
+/// Given `old_to_canonical_old` — each old `FlopId` mapped to the
+/// canonical old `FlopId` it collapses into, with every canonical (and
+/// every un-merged) flop mapping to itself — and the `removed` duplicate
+/// count, this renumbers the surviving flops densely, rewires every Q
+/// consumer / virtual flop dep / explicit clock-domain entry to the
+/// canonical state element, and rebuilds the instance dedup tables.
+///
+/// The tail is partition-agnostic: it does not care *why* two flops were
+/// proven equal, only which one survives. Both
+/// [`merge_equivalent_flops`] (exact signature partition) and
+/// [`merge_bisimilar_flops`] (bisimulation partition) build an
+/// `old_to_canonical_old` map and hand it here. Extracting it keeps the
+/// exact pass byte-identical while letting the bisimulation pass reuse the
+/// same proven rewrite (`IDENTITY-DEEPENING.2a` design).
+fn finalize_flop_merge(m: &mut Module, old_to_canonical_old: Vec<FlopId>, removed: u32) -> u32 {
     if removed == 0 {
         return 0;
     }
@@ -1146,7 +1210,224 @@ fn flop_d_signature(
         structural_ctx,
         endpoint_memo,
         semantic_memo,
+        None,
     ))
+}
+
+/// Bucket-size cap for the bisimulation partition refinement.
+///
+/// Only `(width, reset_kind, reset_val, clock_domain)` buckets with at most
+/// this many flops are refined; larger buckets fall back to the exact
+/// [`merge_equivalent_flops`] pass only. This bounds the `O(k² · iters)`
+/// refinement (`iters ≤ k`) on pathological modules without ever silently
+/// dropping a candidate — the over-cap bucket simply keeps the conservative
+/// (exact-only) result. The cap is deliberately generous: a generated leaf
+/// rarely holds this many flops sharing one exact `(width, reset, domain)`
+/// shape, so it almost never triggers
+/// (`docs/decisions/0007-identity-deepening-first-extension.md`).
+const N_BISIM_FLOPS: usize = 64;
+
+/// Stable, total discriminant for `ResetKind` so it can key the bisimulation
+/// bucket map deterministically (`ResetKind` is `Hash`/`Eq` but not `Ord`).
+fn reset_kind_discriminant(kind: ResetKind) -> u8 {
+    match kind {
+        ResetKind::None => 0,
+        ResetKind::Sync => 1,
+        ResetKind::Async => 2,
+    }
+}
+
+/// Merge flops proven sequentially equivalent by bounded bisimulation.
+///
+/// This is the first `IDENTITY-DEEPENING` extension (decision `0007`): a
+/// **default-off, opt-in** greatest-fixpoint partition refinement that lifts
+/// the recorded mutually-recursive-register / non-exact-feedback no-merge
+/// boundary (`reset-defined-self-hold-flop-identity`) at the flop level. It
+/// strictly generalizes — and never retires — the exact self-hold and
+/// same-endpoint D-cone classes already merged by
+/// [`merge_equivalent_flops`].
+///
+/// Gating (all required):
+///
+/// - the opt-in `Module::bisimulation_flop_merge` knob (default `false`, so
+///   emitted RTL stays byte-identical unless explicitly requested);
+/// - `identity_mode = node-id` with effective `factorization_level`
+///   `e-graph` (the same rung that already gates semantic gate merge);
+/// - at least two flops, all with a settled D-cone.
+///
+/// Algorithm (Kanellakis–Smolka coarsest stable partition):
+///
+/// 1. **Base case.** Bucket flops by `(width, reset_kind, reset_val,
+///    clock_domain)`. Different buckets are never identified — a reset-value
+///    mismatch fails the `t = 0` base case and a domain mismatch is unsound.
+///    **Resetless flops (`reset_kind = None`) are pinned as singletons**:
+///    with no reset there is no provable equal initial state, so a
+///    state correspondence has no base case and bisimulation cannot soundly
+///    fire (this preserves the `reset-defined-self-hold-flop-identity`
+///    boundary — the exact pass keeps resetless self-holds apart via
+///    concrete `FlopQ` endpoint identity, which quotienting would erase).
+/// 2. **Refinement step.** Within a refinable bucket, keep two flops in one
+///    class iff their D-cones — with every `FlopQ` endpoint rewritten to its
+///    *current class representative* (the quotient signature) — are proven
+///    equal by the existing bounded endpoint-preserving proof over the
+///    quotient endpoint set. Split classes whose members disagree; repeat
+///    until no class splits.
+/// 3. **Soundness (coinduction).** At the fixpoint the partition is a
+///    bisimulation: reset makes every class's members equal at `t = 0`, and
+///    the stable quotient transition preserves equality, so corresponding
+///    `Q`s are equal for all time. Merging them is observationally sound.
+///
+/// Over-budget D-cones (beyond the 12-bit / 128-node / 131072-work
+/// `MERGE_SEMANTIC_LIMITS`) take the structural fallback inside `cone_proof`;
+/// a candidate that cannot be discharged simply stays split (never a guess).
+///
+/// Returns the number of removed duplicate flops; the surviving rewrite is
+/// the shared [`finalize_flop_merge`].
+pub fn merge_bisimilar_flops(m: &mut Module) -> u32 {
+    use crate::config::{FactorizationLevel, IdentityMode};
+
+    if !m.bisimulation_flop_merge {
+        return 0;
+    }
+    if m.flops.len() < 2 {
+        return 0;
+    }
+    if m.identity_mode != IdentityMode::NodeId
+        || m.effective_factorization_level() < FactorizationLevel::EGraph
+    {
+        return 0;
+    }
+    // Every flop must have a settled D-cone (mirrors `merge_equivalent_flops`).
+    if m.flops.iter().any(|flop| flop.d.is_none()) {
+        return 0;
+    }
+
+    // Base case: bucket by (width, reset_kind, reset_val, clock_domain).
+    let mut buckets: BTreeMap<(u32, u8, u128, u32), Vec<FlopId>> = BTreeMap::new();
+    for flop in &m.flops {
+        let key = (
+            flop.width,
+            reset_kind_discriminant(flop.reset_kind),
+            flop.reset_val,
+            m.flop_domain(flop.id),
+        );
+        buckets.entry(key).or_default().push(flop.id);
+    }
+
+    // Initial partition. A bucket is refinable only when it is reset-defined
+    // (discriminant != 0), has at least two flops, and is within the cap;
+    // every other flop is pinned to its own singleton class (never merged
+    // here). `classes` is built in BTreeMap key order, each class in
+    // ascending `FlopId` order, so the whole pass is deterministic.
+    let mut classes: Vec<Vec<FlopId>> = Vec::new();
+    let mut has_refinable = false;
+    for ((_, reset_disc, _, _), bucket) in &buckets {
+        let reset_defined = *reset_disc != reset_kind_discriminant(ResetKind::None);
+        if reset_defined && bucket.len() >= 2 && bucket.len() <= N_BISIM_FLOPS {
+            has_refinable = true;
+            classes.push(bucket.clone());
+        } else {
+            for &flop in bucket {
+                classes.push(vec![flop]);
+            }
+        }
+    }
+    if !has_refinable {
+        return 0;
+    }
+
+    // Greatest-fixpoint refinement: split until no class splits.
+    loop {
+        // `rep_map` covers ALL flops: each flop -> the min `FlopId` in its
+        // class (its quotient class representative).
+        let mut rep_map: HashMap<FlopId, FlopId> = HashMap::new();
+        for class in &classes {
+            let rep = *class.iter().min().expect("partition class is non-empty");
+            for &flop in class {
+                rep_map.insert(flop, rep);
+            }
+        }
+
+        // GOTCHA (decision 0007 / `.2a`): the structural / endpoint /
+        // semantic memos are `NodeId`-keyed and assume a FIXED endpoint
+        // identity. The class map changes between iterations, so a stale
+        // memo would be unsound — rebuild all four fresh each iteration.
+        let mut structural_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
+        let mut structural_ctx = StructuralSignatureCtx::default();
+        let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+        let mut semantic_memo: HashMap<NodeId, Option<SemanticConeProof>> = HashMap::new();
+
+        let mut next_classes: Vec<Vec<FlopId>> = Vec::with_capacity(classes.len());
+        let mut any_split = false;
+
+        for class in &classes {
+            if class.len() < 2 {
+                next_classes.push(class.clone());
+                continue;
+            }
+
+            // Quotient D-signature per member (every `FlopQ` -> class rep).
+            let signed: Vec<(FlopId, ConeProof)> = class
+                .iter()
+                .map(|&flop_id| {
+                    let d = m.flops[flop_id as usize]
+                        .d
+                        .expect("d present (checked above)");
+                    let proof = cone_proof(
+                        m,
+                        d,
+                        &mut structural_memo,
+                        &mut structural_ctx,
+                        &mut endpoint_memo,
+                        &mut semantic_memo,
+                        Some(&rep_map),
+                    );
+                    (flop_id, proof)
+                })
+                .collect();
+
+            // Deterministic, order-stable grouping by signature equality:
+            // members keep their ascending-`FlopId` order; each joins the
+            // first existing group with an equal signature, else opens a new
+            // one. (No `HashMap` over signatures — that would leak iteration
+            // order into the emitted RTL.)
+            let mut groups: Vec<(ConeProof, Vec<FlopId>)> = Vec::new();
+            for (flop_id, proof) in signed {
+                if let Some(slot) = groups.iter_mut().find(|(sig, _)| *sig == proof) {
+                    slot.1.push(flop_id);
+                } else {
+                    groups.push((proof, vec![flop_id]));
+                }
+            }
+
+            if groups.len() > 1 {
+                any_split = true;
+            }
+            for (_, members) in groups {
+                next_classes.push(members);
+            }
+        }
+
+        classes = next_classes;
+        if !any_split {
+            break;
+        }
+    }
+
+    // Collapse each converged class onto its representative (min `FlopId`).
+    let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
+    let mut removed = 0u32;
+    for class in &classes {
+        let rep = *class.iter().min().expect("partition class is non-empty");
+        for &flop in class {
+            if flop != rep {
+                old_to_canonical_old[flop as usize] = rep;
+                removed += 1;
+            }
+        }
+    }
+
+    finalize_flop_merge(m, old_to_canonical_old, removed)
 }
 
 /// Merge duplicate generated FSM blocks after their selector cones are known.
@@ -1192,6 +1473,7 @@ pub fn merge_equivalent_fsms(m: &mut Module) -> u32 {
                 &mut structural_ctx,
                 &mut endpoint_memo,
                 &mut semantic_memo,
+                None,
             ),
             sel_width: fsm.sel_width,
             transitions: fsm.transitions.clone(),
@@ -2553,6 +2835,111 @@ mod tests {
         assert_eq!(m.flops.len(), 2);
     }
 
+    // ----- IDENTITY-DEEPENING.2b: bounded bisimulation flop merge -----
+
+    #[test]
+    fn merge_bisimilar_flops_merges_mutual_swap_registers() {
+        // The mutual swap (D_f = Q_g, D_g = Q_f, equal reset) is exactly
+        // the recorded mutually-recursive-register no-merge boundary that
+        // the exact pass provably cannot prove: each flop's D-cone keys a
+        // *different* concrete FlopQ endpoint.
+        let mut exact = mutual_swap_flop_fixture(ResetKind::Async, 0);
+        assert_eq!(
+            merge_equivalent_flops(&mut exact),
+            0,
+            "exact pass cannot prove mutually-recursive registers equivalent"
+        );
+        assert_eq!(exact.flops.len(), 2);
+
+        // Bisimulation (knob on) identifies them: reset gives the t=0 base
+        // case, and the quotient transition (FlopQ -> class rep) is stable.
+        let mut m = mutual_swap_flop_fixture(ResetKind::Async, 0);
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            1,
+            "bisimulation should merge the mutually-recursive register pair"
+        );
+        assert_eq!(m.flops.len(), 1);
+
+        compact_node_ids(&mut m);
+        validate(&m).expect("merged mutual-swap registers should validate");
+
+        // Downstream-bank reproduction hook (IDENTITY-DEEPENING.2b): the
+        // mutual swap of two equal-reset registers collapses to one
+        // self-holding register, which is downstream-clean across Verilator,
+        // both Yosys modes, and Icarus. Default no-op; re-bank with
+        //   ANVIL_DUMP_BISIM_SV=1 cargo test --lib \
+        //     merge_bisimilar_flops_merges_mutual_swap_registers
+        // then lint /tmp/anvil-bisim-merged.sv with the three tools.
+        if std::env::var("ANVIL_DUMP_BISIM_SV").is_ok() {
+            std::fs::write("/tmp/anvil-bisim-merged.sv", crate::emit::to_sv(&m)).unwrap();
+        }
+    }
+
+    #[test]
+    fn merge_bisimilar_flops_is_default_off() {
+        let mut m = mutual_swap_flop_fixture(ResetKind::Async, 0);
+        m.bisimulation_flop_merge = false; // the default
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            0,
+            "default-off knob must not merge (byte-identical contract)"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_bisimilar_flops_keeps_resetless_mutual_swap_distinct() {
+        // No reset => no provable equal initial state => the bisimulation
+        // base case fails, so the mutual swap must NOT merge. This
+        // preserves the reset-defined-self-hold-flop-identity boundary.
+        let mut m = mutual_swap_flop_fixture(ResetKind::None, 0);
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            0,
+            "resetless mutually-recursive state has no base case"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_bisimilar_flops_respects_relaxed_identity() {
+        let mut m = mutual_swap_flop_fixture(ResetKind::Async, 0);
+        m.identity_mode = IdentityMode::Relaxed;
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            0,
+            "relaxed identity is the real off-switch"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_bisimilar_flops_requires_egraph_level() {
+        let mut m = mutual_swap_flop_fixture(ResetKind::Async, 0);
+        m.factorization_level = FactorizationLevel::Cse;
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            0,
+            "bisimulation requires effective e-graph (parity with semantic gate merge)"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
+    #[test]
+    fn merge_bisimilar_flops_keeps_non_bisimilar_flops_distinct() {
+        // f: D = Q_g ; g: D = a (primary input). Same width/reset/domain,
+        // but their transitions differ under every state correspondence, so
+        // refinement must split them and merge nothing.
+        let mut m = non_bisimilar_flop_fixture();
+        assert_eq!(
+            merge_bisimilar_flops(&mut m),
+            0,
+            "flops with genuinely different transitions must not merge"
+        );
+        assert_eq!(m.flops.len(), 2);
+    }
+
     #[test]
     fn merge_equivalent_flops_keeps_self_hold_reset_mismatches_distinct() {
         let mut m = self_hold_flop_fixture(8, 8, 0, 1, ResetKind::Async);
@@ -3479,6 +3866,139 @@ mod tests {
             reset_kind: ResetKind::Async,
             kind: FlopKind::QFeedback,
             mux: FlopMux::OneHot(vec![]),
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    /// Two equal-reset flops whose D-cones are each other's `Q`
+    /// (`D_f = Q_g`, `D_g = Q_f`). Both `Q`s are observed by an output.
+    /// This is the mutually-recursive-register class the exact pass cannot
+    /// prove but bounded bisimulation can. Built with the bisimulation knob
+    /// enabled under node-id / e-graph; tests toggle the gating fields.
+    fn mutual_swap_flop_fixture(reset_kind: ResetKind, reset_val: u128) -> Module {
+        let mut m = Module {
+            name: "mutual_swap".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            bisimulation_flop_merge: true,
+            ..Module::default()
+        };
+        m.outputs.push(Port {
+            id: 0,
+            name: "y0".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y1".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+        // Real clock/reset ports so the merged self-hold register emits a
+        // proper `always_ff` block (downstream-clean smoke evidence).
+        m.inputs.push(Port {
+            id: 2,
+            name: "clk".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 3,
+            name: "rst_n".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.clock = Some(2);
+        m.reset = Some(3);
+
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 0 = Q_f
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 1 = Q_g
+        m.drives.push((0, 0)); // y0 observes Q_f
+        m.drives.push((1, 1)); // y1 observes Q_g
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(1), // D_f = Q_g
+            q: 0,
+            reset_val,
+            reset_kind,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 8,
+            d: Some(0), // D_g = Q_f
+            q: 1,
+            reset_val,
+            reset_kind,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    /// Two equal-reset flops with genuinely different transitions:
+    /// `D_f = Q_g` but `D_g = a` (a primary input). No state correspondence
+    /// makes them bisimilar, so refinement must split them.
+    fn non_bisimilar_flop_fixture() -> Module {
+        let mut m = Module {
+            name: "non_bisim".into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            bisimulation_flop_merge: true,
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 8,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y0".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+        m.outputs.push(Port {
+            id: 2,
+            name: "y1".into(),
+            width: 8,
+            dir: Direction::Out,
+        });
+
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1 = Q_f
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 2 = Q_g
+        m.drives.push((1, 1)); // y0 observes Q_f
+        m.drives.push((2, 2)); // y1 observes Q_g
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(2), // D_f = Q_g
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 8,
+            d: Some(0), // D_g = a (primary input)
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
         });
 
         rebuild_instance_tables(&mut m);

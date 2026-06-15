@@ -8,6 +8,9 @@
 - Created: `2026-06-15`
 - Last updated: `2026-06-15`
 - Owner: repo-local workflow
+- Note: `.2` (bisimulation flop merge) **delivered** (`.2a` design + `.2b`
+  impl). `.3` (whole-module sequential equivalence) remains the named
+  future design leaf; tree stays `active` until `.3` lands or is deferred.
 
 ## Goal
 
@@ -83,9 +86,10 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the bounded bisimulation flop merge designed in decision 0007.`
   Children: `IDENTITY-DEEPENING.2a`, `IDENTITY-DEEPENING.2b`
+  Result: `Both children done. The opt-in merge_bisimilar_flops pass is live (default-off / byte-identical), banked downstream-clean across Verilator + both Yosys modes + Icarus.`
 
 - ID: `IDENTITY-DEEPENING.2a`
   Status: `done`
@@ -96,11 +100,12 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement merge_bisimilar_flops per the .2a design: the shared finalize_flop_merge refactor (byte-identical), the quotient-signature partition refinement, the default-off Config::bisimulation_flop_merge knob threaded onto Module, the Metrics::bisimulation_flops_merged counter, the rules-first gate scenario, and the downstream-clean bank.`
   Acceptance: `cargo fmt/check/clippy clean; cargo test --lib + focused compact tests green incl. the mutual-swap proof and the knob-off byte-identical regression; cargo test --test snapshots 6/6 byte-identical (knob default off); merged output banked clean across Verilator + both Yosys modes; live docs (book/src/factorization.md "broader sequential equivalence" + sequential.md, DEVELOPMENT_NOTES.md, ROADMAP gap 2, CODEBASE_ANALYSIS.md, USER_GUIDE/knobs for the new flag) + a Knowledge Map card updated; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Landed merge_bisimilar_flops + finalize_flop_merge refactor + quotient-aware proof threading (canonical_flop_endpoint) + default-off Config/Module bisimulation_flop_merge knob + Metrics::bisimulation_flops_merged. Discovered and fixed a soundness gap not in .2a: resetless flops have no base case and must be excluded from refinement (preserves the resetless-self-hold boundary). 6 rules-first gate tests (mutual-swap merge, exact-pass-cannot, default-off, resetless-excluded, relaxed off-switch, e-graph gate, non-bisimilar split). Schema MINOR bump 1.0->1.1 (new Metrics field). Banked downstream-clean: Verilator --lint-only -Wall 0 warnings + Yosys both modes + Icarus on the merged self-hold output.`
+  Verification: `done`
+  Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.3`
   Status: `proposed`
@@ -113,8 +118,8 @@ handoff.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `IDENTITY-DEEPENING.2b` | `pending` | The code leaf: implement `merge_bisimilar_flops` per the `.2a` grounded design (shared `finalize_flop_merge` refactor + quotient-signature partition refinement + default-off knob + metric + rules-first gate + downstream-clean bank). |
-| — | `IDENTITY-DEEPENING.3` | `proposed` | Not on the active frontier yet; module-level sequential equivalence activates after `.2` reaches handoff. |
+| 1 | `IDENTITY-DEEPENING.3` | `proposed` | Now eligible — `.2` reached handoff (delivered). Whole stateful-leaf-module bounded sequential equivalence (a design leaf first: soundness + budget + gate before any code). |
+| — | `IDENTITY-DEEPENING.2b` | `done` | Delivered the opt-in `merge_bisimilar_flops` pass, default-off / byte-identical, downstream-clean bank. |
 
 ## Decisions
 
@@ -160,6 +165,7 @@ handoff.
 | --- | --- | --- | --- |
 | `2026-06-15` | `IDENTITY-DEEPENING.1` | Design/decision leaf, no source change. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated to include decision `0007` answers. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.2a` | Design-detail leaf, no source change (grounded in a close read of `src/ir/compact.rs` `merge_equivalent_flops`/`flop_d_signature`/`cone_proof`/`semantic_cone_proof`, `src/config.rs` knob pattern, `src/metrics.rs` merge-count pattern). Self-checks clean. | `done` |
+| `2026-06-15` | `IDENTITY-DEEPENING.2b` | `cargo build` + `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 403 pass incl. 6 new bisim gate tests + the metrics-plumbing test + introspect/MCP schema_version tests; `cargo test --test snapshots` 6/6 byte-identical (knob default-off); representative `cargo test --test pipeline` reproducibility test green (full pipeline suite is heavy/slow and exercises only the byte-identical default path). Downstream-clean bank on the merged mutual-swap self-hold output: Verilator `--lint-only -Wall` 0 warnings, Yosys without-abc + with-abc, Icarus `iverilog -g2012` (re-bank: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers`). KM + mem-arch self-checks clean. | `done` |
 
 ## Commit Log
 
@@ -167,6 +173,7 @@ handoff.
 | --- | --- | --- |
 | `IDENTITY-DEEPENING.1` | `IDENTITY-DEEPENING.1 — promote Lane 1 + decision 0007` | Landed `43e2a2d`. Decision record `0007`; tree split into `.2`/`.3`. |
 | `IDENTITY-DEEPENING.2a` | `IDENTITY-DEEPENING.2a — bisimulation flop merge design detail` | Grounded `.2b` algorithm/API-reuse/names/budget/gate; `.2` split into `.2a`/`.2b`. |
+| `IDENTITY-DEEPENING.2b` | `IDENTITY-DEEPENING.2b — implement bounded bisimulation flop merge` | Landed `merge_bisimilar_flops` + `finalize_flop_merge` + quotient proof threading + default-off knob + metric + 6 gate tests + schema 1.0→1.1; downstream-clean bank. Closes `.2`. |
 
 ## Changelog
 
@@ -182,3 +189,12 @@ handoff.
   bucket cap + refinement-memo-clear gotcha, the pass ordering, and the
   rules-first mutual-swap gate scenario in the real `src/ir/compact.rs` code;
   frontier advances to `.2b`.
+- `2026-06-15`: `.2b` done — implemented `merge_bisimilar_flops` (opt-in,
+  default-off / byte-identical), the shared `finalize_flop_merge` refactor,
+  the quotient-aware proof threading (`canonical_flop_endpoint`), the
+  `Config`/`Module` `bisimulation_flop_merge` knob, and
+  `Metrics::bisimulation_flops_merged`. Found + fixed a soundness gap beyond
+  `.2a`: resetless flops have no base case and are excluded from refinement.
+  6 rules-first gate tests; schema MINOR bump 1.0→1.1; banked downstream-clean
+  (Verilator + both Yosys + Icarus). `.2` container closed. Frontier advances
+  to `.3` (whole-module sequential equivalence, design leaf first).

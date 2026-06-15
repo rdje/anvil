@@ -54,6 +54,7 @@ fn build_parameterizable_leaf(g: &mut Generator, index: u64) -> Module {
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        bisimulation_flop_merge: g.cfg.bisimulation_flop_merge,
         ..Module::default()
     };
 
@@ -129,6 +130,7 @@ fn build_memory_leaf(g: &mut Generator, index: u64) -> Module {
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        bisimulation_flop_merge: g.cfg.bisimulation_flop_merge,
         clock: Some(0),
         reset: Some(1),
         ..Module::default()
@@ -251,6 +253,7 @@ fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        bisimulation_flop_merge: g.cfg.bisimulation_flop_merge,
         clock: Some(0),
         reset: Some(1),
         ..Module::default()
@@ -404,6 +407,7 @@ pub(super) fn generate_leaf_module_with_interface_profile(
         operand_duplication_rate: g.cfg.operand_duplication_rate.clamp(0.0, 1.0),
         identity_mode: g.cfg.identity_mode,
         factorization_level: g.cfg.factorization_level,
+        bisimulation_flop_merge: g.cfg.bisimulation_flop_merge,
         planned_interface_profile: interface_profile.cloned(),
         ..Module::default()
     };
@@ -588,6 +592,18 @@ pub(super) fn finalize_generated_module(g: &mut Generator, m: &mut Module, pool:
     // compaction pass below removes.
     let flops_merged = crate::ir::compact::merge_equivalent_flops(m);
     m.flops_merged = flops_merged;
+
+    // Opt-in bounded bisimulation flop-merge pass (`IDENTITY-DEEPENING`,
+    // decision `0007`). Runs AFTER the exact `merge_equivalent_flops`
+    // (so exact signature classes are already collapsed) and BEFORE the
+    // FSM merge + compaction. Default-off / byte-identical: it fires only
+    // when `bisimulation_flop_merge` is enabled under node-id / e-graph,
+    // and proves flops sequentially equivalent up to a state
+    // correspondence (e.g. mutually-recursive registers) that the exact
+    // self-hold rule cannot. Extra duplicates become dead Q nodes the
+    // compaction pass below removes.
+    let bisimulation_flops_merged = crate::ir::compact::merge_bisimilar_flops(m);
+    m.bisimulation_flops_merged = bisimulation_flops_merged;
 
     // Deterministic FSM state-sharing pass: generated FSMs reset to
     // state 0 and carry explicit transition/output tables, so under

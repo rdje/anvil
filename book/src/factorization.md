@@ -364,9 +364,53 @@ What it deliberately does **not** do yet:
   D-cone forms;
 - merge cones that depend on different canonical leaf endpoints;
 - merge cross-domain state; or
-- merge wider sequentially-equivalent machines such as mutually-recursive
-  registers, retimed state, non-exact feedback forms, or state that only
-  converges after one or more cycles.
+- merge wider sequentially-equivalent machines such as retimed state or
+  state that only converges after one or more cycles. (The
+  mutually-recursive / non-exact-feedback class is now reachable through
+  the **opt-in** bisimulation pass below — section 8b — but stays off by
+  default.)
+
+### 8b. Opt-in bounded bisimulation flop merge (`bisimulation_flop_merge`, node-id / effective `e-graph`)
+
+The exact pass in section 8 keeps two flops apart whenever their D-cones
+reference *different* state, because each cone is keyed by its concrete
+`FlopQ` endpoints. That is exactly why two **mutually-recursive
+registers** — `D_f = Q_g`, `D_g = Q_f`, same reset — never merge there,
+even though equal reset makes them provably equal for all time. The
+**opt-in** `bisimulation_flop_merge` knob (`IDENTITY-DEEPENING`, decision
+`0007`) lifts that boundary soundly.
+
+When enabled — and only under `identity_mode = node-id` with effective
+`factorization_level = e-graph` — `generate_leaf_module` runs
+[`crate::ir::compact::merge_bisimilar_flops`] **after** the exact flop
+merge and **before** the FSM merge. It is a greatest-fixpoint partition
+refinement (Kanellakis–Smolka):
+
+1. **Base case.** Bucket flops by `(width, reset_kind, reset_val,
+   clock_domain)`; different buckets are never identified. **Resetless
+   flops are excluded** — with no reset there is no provable equal initial
+   state, so a state correspondence has no base case (this preserves the
+   resetless-self-hold boundary from section 8).
+2. **Refinement step.** Within a bucket, keep two flops in one class iff
+   their D-cones — with **every `FlopQ` endpoint rewritten to its current
+   class representative** — are proven equal by the *same* bounded
+   endpoint-preserving proof used everywhere else (12-bit support /
+   128-node / 131072-work budget; over-budget cones take the structural
+   fallback). Split classes whose members disagree; repeat until stable.
+3. **Soundness (coinduction).** At the fixpoint the partition is a
+   bisimulation: reset makes every class equal at `t = 0`, and the stable
+   quotient transition preserves equality, so corresponding `Q`s are equal
+   for all time — merging them is observationally sound.
+
+The exact self-hold (`D == Q`) and same-endpoint classes fall out as the
+identity-correspondence special cases, so this **generalizes** section 8
+rather than replacing it; nothing is retired. The merge count is exposed
+as `Metrics::bisimulation_flops_merged`. The knob is **default-off**, so
+emitted RTL is byte-identical unless explicitly requested, and
+`--identity-mode relaxed` remains the real off-switch. Worked example: the
+mutual swap of two equal-reset registers collapses to a single
+self-holding register, which is downstream-clean across Verilator, both
+Yosys modes, and Icarus.
 
 ### 9. Post-construction deterministic FSM merge (`identity_mode = node-id`, effective `>= Cse`)
 
@@ -421,11 +465,16 @@ Today, ANVIL is **part-way there**:
 - combinational expressions are canonicalized through the intern-time
   ladder described above;
 - endpoint-preserving duplicate flops merge once their D-cones exist;
+- the opt-in `bisimulation_flop_merge` pass additionally merges flops
+  proven sequentially equivalent *up to a state correspondence* (e.g.
+  mutually-recursive registers), via bounded greatest-fixpoint
+  bisimulation (section 8b);
 - deterministic duplicate FSM blocks merge when their selector proof and
   table/encoding/output signatures match; but
-- broader sequential equivalence, memory-state merging beyond the
-  current instance-local boundary, and hierarchy identity beyond
-  canonical structural module signatures are still open work.
+- whole-module sequential equivalence, retimed-state equivalence,
+  memory-state merging beyond the current instance-local boundary, and
+  hierarchy identity beyond canonical structural module signatures are
+  still open work.
 
 This remains deliberately user-controllable:
 
@@ -494,7 +543,8 @@ Each layer exposes a counter on `Module`, surfaced via `Metrics`:
 | ConstantFold | `fold_identities_applied: u64` | `Metrics::fold_identities_applied` |
 | Peephole | `peephole_rewrites_applied: u64` | `Metrics::peephole_rewrites_applied` |
 | Semantic gate merge | `semantic_gates_merged: u32` | `Metrics::semantic_gates_merged` |
-| Flop merge | `flops_merged: u32` | `Metrics::flops_merged` |
+| Flop merge (exact) | `flops_merged: u32` | `Metrics::flops_merged` |
+| Flop merge (bisimulation, opt-in) | `bisimulation_flops_merged: u32` | `Metrics::bisimulation_flops_merged` |
 | FSM merge | `fsms_merged: u32` | `Metrics::fsms_merged` |
 | Compaction | `nodes_compacted: u32` | `Metrics::nodes_compacted` |
 

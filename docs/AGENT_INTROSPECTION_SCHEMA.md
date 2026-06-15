@@ -100,7 +100,7 @@ document is self-identifying and reproducible:
 
 ---
 
-## 4. The introspection envelope (v1.0)
+## 4. The introspection envelope (v1.1)
 
 The top-level object. **Every field below is owned by this document.** Types
 use TypeScript-ish notation for brevity; the wire format is JSON.
@@ -225,7 +225,8 @@ shape; shift shape; sharing / fanout; flops; AST-instance saturation;
 operand-arity distribution; combinational depth; factorization-ladder
 telemetry (`fold_identities_applied`, `peephole_rewrites_applied`,
 `flatten_associative_applied`, `nodes_compacted`, `flops_merged`,
-`fsms_merged`, `semantic_gates_merged`, `nested_associative_operand_count`);
+`bisimulation_flops_merged`, `fsms_merged`, `semantic_gates_merged`,
+`nested_associative_operand_count`);
 per-knob probability-roll counters (`knob_roll_attempts`, `knob_roll_fires`);
 block-build counters.
 
@@ -315,7 +316,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.0"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.1"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -325,7 +326,13 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.0"`**.
+This document defines **`schema_version = "1.1"`**.
+
+- **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
+  surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
+  bounded bisimulation flop-merge count) in `module_metrics`. Backward
+  compatible — a `1.0` consumer simply ignores the new key. No envelope
+  field was removed, renamed, or retyped; determinism is preserved.
 
 ---
 
@@ -364,5 +371,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.0"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.1"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

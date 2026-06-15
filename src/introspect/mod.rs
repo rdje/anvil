@@ -37,8 +37,10 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`).
-pub const SCHEMA_VERSION: &str = "1.0";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.1` is the
+/// additive (backward-compatible) MINOR bump that surfaced the new
+/// `Metrics::bisimulation_flops_merged` field (`IDENTITY-DEEPENING.2b`).
+pub const SCHEMA_VERSION: &str = "1.1";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -367,7 +369,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.0");
+        assert_eq!(doc.schema_version, "1.1");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
