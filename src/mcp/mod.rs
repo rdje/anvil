@@ -32,9 +32,17 @@
 use crate::config::Config;
 use crate::downstream::{self, AcceptanceTool, MinimizeOptions, ValidateOptions, YosysMode};
 use crate::introspect;
+use crate::umbrella::{self, ArtifactLane};
 use crate::{emit, Generator};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+
+/// Default `n_params` for the non-DUT lanes over MCP, matching the
+/// `--lane-n-params` CLI default (`AGENT-MCP-EXPANSION.3b`).
+const DEFAULT_LANE_N_PARAMS: usize = 5;
+/// Default `n_children` for the frontend lane over MCP, matching the
+/// `--lane-n-children` CLI default.
+const DEFAULT_LANE_N_CHILDREN: usize = 2;
 
 /// MCP protocol version this server speaks (the stable stdio revision used by
 /// Claude Code / Cursor at the time of writing).
@@ -53,6 +61,11 @@ struct CachedArtifact {
     sv: String,
     /// The full introspection document (schema-conformant), as a JSON value.
     document: Value,
+    /// The lane's expected-facts manifest JSON, for the non-DUT lanes
+    /// (`AGENT-MCP-EXPANSION.3b`). `None` for the DUT lane (it has no
+    /// semantic manifest — its check plan is synth-acceptance, not parity).
+    /// Served read-only as the `anvil://artifact/<run_id>/manifest` resource.
+    manifest: Option<String>,
 }
 
 /// The read-only MCP server: a JSON-RPC dispatcher plus a content-addressed
@@ -177,6 +190,32 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        // generate/introspect accept a `lane` arg (`AGENT-MCP-EXPANSION.3b`):
+        // `dut` (default) takes `config`; the non-DUT lanes take scoped knobs
+        // (`n_params`/`n_children`) instead. `dump_config`/`validate`/
+        // `minimize` stay DUT-only on `knob_schema`/`validate_schema`.
+        let generate_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "RNG seed (deterministic output)." },
+                "lane": {
+                    "type": "string",
+                    "enum": ["dut", "microdesign", "frontend"],
+                    "description": "Artifact lane (default dut). microdesign/frontend take \
+                                    n_params/n_children instead of config."
+                },
+                "config": { "type": "object",
+                            "description": "DUT lane only: full effective Config (as emitted by \
+                                            dump_config). Omit for defaults." },
+                "n_params": { "type": "integer", "minimum": 0,
+                              "description": "microdesign/frontend lanes: parameter/localparam count \
+                                              (default 5)." },
+                "n_children": { "type": "integer", "minimum": 0,
+                                "description": "frontend lane: child-instance count (default 2)." }
+            },
+            "additionalProperties": false
+        });
         let validate_schema = json!({
             "type": "object",
             "properties": {
@@ -243,15 +282,19 @@ impl McpServer {
             "tools": [
                 {
                     "name": "generate",
-                    "description": "Generate a DUT artifact for (seed, config) and cache it; \
-                                    returns its content-addressed run_id and resource URIs.",
-                    "inputSchema": knob_schema,
+                    "description": "Generate an artifact for (seed, lane, knobs) and cache it; \
+                                    returns its content-addressed run_id and resource URIs. \
+                                    lane=dut (default) uses config; lane=microdesign/frontend use \
+                                    n_params/n_children and also expose a manifest resource.",
+                    "inputSchema": generate_schema,
                 },
                 {
                     "name": "introspect",
                     "description": "Return the versioned introspection document (schema 1.0) for \
-                                    (seed, config): config echo + metrics, derived from existing facts.",
-                    "inputSchema": knob_schema,
+                                    (seed, lane, knobs): config echo + metrics (dut), or the lane \
+                                    manifest resource pointer (microdesign/frontend). Derived from \
+                                    existing facts.",
+                    "inputSchema": generate_schema,
                 },
                 {
                     "name": "dump_config",
@@ -300,6 +343,34 @@ impl McpServer {
         if name == "coverage_gaps" {
             return match project_coverage_gaps(&args) {
                 Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            };
+        }
+
+        // Lane routing (`AGENT-MCP-EXPANSION.3b`): `generate`/`introspect`
+        // accept a `lane` arg (default `dut`). The non-DUT lanes
+        // (`microdesign`/`frontend`) take scoped knobs (`n_params`/
+        // `n_children`), not the DUT `Config`, so they branch before the
+        // shared `config_from_args` parse. The default `dut` lane falls
+        // through to the unchanged DUT path below ⇒ byte-identical.
+        let lane = args
+            .get("lane")
+            .and_then(Value::as_str)
+            .unwrap_or(introspect::LANE_DUT);
+        if (name == "generate" || name == "introspect") && lane != introspect::LANE_DUT {
+            let seed = args.get("seed").and_then(Value::as_u64).unwrap_or(0);
+            return match self.build_and_cache_lane(lane, seed, &args) {
+                Ok((run_id, doc)) => {
+                    let text = if name == "introspect" {
+                        serde_json::to_string_pretty(&doc)
+                    } else {
+                        serde_json::to_string_pretty(&lane_generate_summary(lane, &run_id, &doc))
+                    };
+                    match text {
+                        Ok(t) => ok(id, tool_text(&t)),
+                        Err(e) => ok(id, tool_error(&format!("serialize: {e}"))),
+                    }
+                }
                 Err(e) => ok(id, tool_error(&e)),
             };
         }
@@ -464,8 +535,56 @@ impl McpServer {
             top,
             sv,
             document,
+            manifest: None, // DUT lane carries no semantic manifest.
         });
         run_id
+    }
+
+    /// Build + cache a non-DUT lane artifact (`microdesign` / `frontend`)
+    /// and return `(run_id, introspection document)`
+    /// (`AGENT-MCP-EXPANSION.3b`). Routes through the umbrella
+    /// [`ArtifactLane`], whose `generate(seed)` IS the same rules-first
+    /// generator the Phase 7/8 parity gates validated — no second generator
+    /// path. The lane's manifest is cached and exposed as the
+    /// `anvil://artifact/<run_id>/manifest` resource; the introspection
+    /// document points at it (schema §6.6) rather than inlining it.
+    fn build_and_cache_lane(
+        &mut self,
+        lane: &str,
+        seed: u64,
+        args: &Value,
+    ) -> Result<(String, Value), String> {
+        let (artifact, knobs, kind) = generate_lane_artifact(lane, seed, args)?;
+        // Non-DUT lanes always carry a manifest (typed `Some` in the umbrella).
+        let manifest = artifact
+            .manifest
+            .clone()
+            .ok_or_else(|| format!("lane `{lane}` produced no manifest"))?;
+        // Parse the manifest once: the parsed facts are inlined in the payload
+        // (schema §6.5) and the raw string is served as the manifest resource.
+        let manifest_facts: Value = serde_json::from_str(&manifest)
+            .map_err(|e| format!("lane `{lane}` manifest is not valid JSON: {e}"))?;
+        let top = manifest_top(&manifest);
+        let run_id = introspect::content_run_id_for_knobs(lane, seed, &knobs.to_string());
+        let doc = introspect::manifest_lane_document(
+            lane,
+            kind,
+            seed,
+            &knobs,
+            top.as_deref(),
+            &run_id,
+            artifact.sv.len(),
+            &manifest_facts,
+            manifest.len(),
+        );
+        self.cache.entry(run_id.clone()).or_insert(CachedArtifact {
+            kind: kind.to_string(),
+            top: top.unwrap_or_default(),
+            sv: artifact.sv,
+            document: doc.clone(),
+            manifest: Some(manifest),
+        });
+        Ok((run_id, doc))
     }
 
     fn resources_list(&self) -> Value {
@@ -497,6 +616,15 @@ impl McpServer {
                 "name": format!("{} {} introspection", art.kind, art.top),
                 "mimeType": "application/json",
             }));
+            // Non-DUT lanes (`AGENT-MCP-EXPANSION.3b`) carry an expected-facts
+            // manifest, exposed as its own resource (schema §6.6).
+            if art.manifest.is_some() {
+                resources.push(json!({
+                    "uri": format!("anvil://artifact/{run_id}/manifest"),
+                    "name": format!("{} {} expected-facts manifest", art.kind, art.top),
+                    "mimeType": "application/json",
+                }));
+            }
         }
         json!({ "resources": resources })
     }
@@ -535,6 +663,16 @@ impl McpServer {
                         "application/json",
                         serde_json::to_string_pretty(&art.document).unwrap_or_default(),
                     ),
+                    Some(art) if part == "manifest" => match &art.manifest {
+                        Some(m) => ("application/json", m.clone()),
+                        None => {
+                            return err(
+                                id,
+                                INVALID_PARAMS,
+                                &format!("artifact `{other}` has no manifest (DUT lane)"),
+                            )
+                        }
+                    },
                     Some(_) => {
                         return err(id, INVALID_PARAMS, &format!("unknown artifact part in `{other}`"))
                     }
@@ -571,6 +709,84 @@ fn config_from_args(args: &Value) -> Result<(u64, Config), String> {
     cfg.seed = seed;
     cfg.validate().map_err(|e| e.to_string())?;
     Ok((seed, cfg))
+}
+
+/// Generate a non-DUT lane artifact through the umbrella
+/// [`ArtifactLane`] (`AGENT-MCP-EXPANSION.3b`). Returns the
+/// [`LaneArtifact`](umbrella::LaneArtifact), the scoped-knob echo (a
+/// deterministic JSON object fed to the content address + the introspection
+/// `request.knobs`), and the artifact `kind`. The lane impls IS the same
+/// rules-first generator the Phase 7/8 parity gates validated — no second
+/// generator path is introduced.
+fn generate_lane_artifact(
+    lane: &str,
+    seed: u64,
+    args: &Value,
+) -> Result<(umbrella::LaneArtifact, Value, &'static str), String> {
+    match lane {
+        introspect::LANE_MICRODESIGN => {
+            let n_params = parse_usize_arg(args, "n_params", DEFAULT_LANE_N_PARAMS)?;
+            let knobs = json!({ "n_params": n_params });
+            let artifact = umbrella::MicrodesignLane::new(n_params)
+                .generate(seed)
+                .map_err(|e| format!("microdesign lane error: {e:?}"))?;
+            Ok((artifact, knobs, "microdesign"))
+        }
+        introspect::LANE_FRONTEND => {
+            let n_params = parse_usize_arg(args, "n_params", DEFAULT_LANE_N_PARAMS)?;
+            let n_children = parse_usize_arg(args, "n_children", DEFAULT_LANE_N_CHILDREN)?;
+            let knobs = json!({ "n_params": n_params, "n_children": n_children });
+            let artifact = umbrella::FrontendLane::new(n_params, n_children)
+                .generate(seed)
+                .map_err(|e| format!("frontend lane error: {e:?}"))?;
+            Ok((artifact, knobs, "frontend"))
+        }
+        other => Err(format!(
+            "unknown lane '{other}': allowed = dut, microdesign, frontend"
+        )),
+    }
+}
+
+/// Parse an optional non-negative integer tool argument, defaulting when
+/// absent/null. A non-integer (or negative) value is a clean error, never a
+/// silent default.
+fn parse_usize_arg(args: &Value, key: &str, default: usize) -> Result<usize, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(default),
+        Some(v) => {
+            let n = v
+                .as_u64()
+                .ok_or_else(|| format!("`{key}` must be a non-negative integer"))?;
+            usize::try_from(n).map_err(|_| format!("`{key}` is too large"))
+        }
+    }
+}
+
+/// Read the `top` module name out of a lane's expected-facts manifest JSON.
+/// Both non-DUT manifests carry a `top: String`; absent/non-string ⇒ `None`.
+/// A plain key read of an already-built manifest — no recomputation.
+fn manifest_top(manifest_json: &str) -> Option<String> {
+    serde_json::from_str::<Value>(manifest_json)
+        .ok()?
+        .get("top")?
+        .as_str()
+        .map(str::to_string)
+}
+
+/// Build the `generate`-tool summary for a non-DUT lane artifact: the same
+/// shape the DUT `generate` returns, plus the `manifest` resource URI.
+fn lane_generate_summary(lane: &str, run_id: &str, doc: &Value) -> Value {
+    json!({
+        "run_id": run_id,
+        "lane": lane,
+        "kind": doc["artifact"]["kind"],
+        "top": doc["artifact"]["top"],
+        "resources": {
+            "sv": format!("anvil://artifact/{run_id}/sv"),
+            "introspection": format!("anvil://artifact/{run_id}/introspection"),
+            "manifest": format!("anvil://artifact/{run_id}/manifest"),
+        }
+    })
 }
 
 /// Build the DUT artifact and its introspection document for `(seed, cfg)`.
@@ -1197,6 +1413,140 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], true);
         assert!(tool_text_of(&resp).contains("missing a `coverage_gaps` array"));
+    }
+
+    #[test]
+    fn generate_microdesign_lane_round_trips_and_serves_manifest() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            50,
+            "generate",
+            json!({ "seed": 1, "lane": "microdesign" }),
+        );
+        assert_eq!(resp["result"]["isError"], false);
+        let summary: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(summary["lane"], "microdesign");
+        assert_eq!(summary["kind"], "microdesign");
+        let run_id = summary["run_id"].as_str().unwrap().to_string();
+        // The manifest resource is advertised and readable.
+        let manifest_uri = summary["resources"]["manifest"].as_str().unwrap();
+        assert_eq!(manifest_uri, format!("anvil://artifact/{run_id}/manifest"));
+        let read = s
+            .handle(&req(51, "resources/read", json!({ "uri": manifest_uri })))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let manifest: Value = serde_json::from_str(text).unwrap();
+        // The served manifest IS the lane's expected-facts manifest verbatim
+        // (same `top` the generator emitted) — no recomputation.
+        assert_eq!(manifest["top"], summary["top"]);
+        assert!(manifest.get("params").is_some());
+    }
+
+    #[test]
+    fn introspect_frontend_lane_points_at_manifest_resource() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            52,
+            "introspect",
+            json!({ "seed": 12345, "lane": "frontend", "n_params": 4, "n_children": 2 }),
+        );
+        assert_eq!(resp["result"]["isError"], false);
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.0");
+        assert_eq!(doc["lane"], "frontend");
+        assert_eq!(doc["artifact"]["kind"], "frontend");
+        assert_eq!(
+            doc["request"]["knobs"],
+            json!({ "n_params": 4, "n_children": 2 })
+        );
+        // Per schema §5/§6.5 the manifest is INLINED in the payload under
+        // `frontend_manifest` (small + stable), AND also pointed at by the
+        // `artifact.manifest` resource (§4). DUT-only payload is absent.
+        let run_id = doc["request"]["run_id"].as_str().unwrap();
+        assert_eq!(
+            doc["artifact"]["manifest"]["uri"],
+            format!("anvil://artifact/{run_id}/manifest")
+        );
+        let inlined = doc["introspection"]["frontend_manifest"].clone();
+        assert!(inlined.is_object(), "frontend_manifest must be inlined");
+        assert_eq!(inlined["top"], doc["artifact"]["top"]);
+        assert!(inlined.get("instances").is_some());
+        assert!(doc["introspection"].get("module_metrics").is_none());
+        // The inlined facts equal the served manifest resource (one source).
+        let manifest_uri = doc["artifact"]["manifest"]["uri"].as_str().unwrap();
+        let read = s
+            .handle(&req(59, "resources/read", json!({ "uri": manifest_uri })))
+            .unwrap();
+        let served: Value =
+            serde_json::from_str(read["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(inlined, served);
+    }
+
+    #[test]
+    fn non_dut_lane_run_id_is_deterministic_and_knob_sensitive() {
+        let mut s = McpServer::new();
+        let a = call(
+            &mut s,
+            53,
+            "introspect",
+            json!({ "seed": 7, "lane": "microdesign", "n_params": 5 }),
+        );
+        let b = call(
+            &mut s,
+            54,
+            "introspect",
+            json!({ "seed": 7, "lane": "microdesign", "n_params": 5 }),
+        );
+        let c = call(
+            &mut s,
+            55,
+            "introspect",
+            json!({ "seed": 7, "lane": "microdesign", "n_params": 6 }),
+        );
+        let id = |r: &Value| {
+            serde_json::from_str::<Value>(&tool_text_of(r)).unwrap()["request"]["run_id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(id(&a), id(&b)); // same (seed, lane, knobs) ⇒ same address
+        assert_ne!(id(&a), id(&c)); // differing scoped knobs ⇒ different address
+    }
+
+    #[test]
+    fn unknown_lane_is_a_tool_error() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 56, "generate", json!({ "seed": 1, "lane": "nope" }));
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown lane 'nope'"));
+    }
+
+    #[test]
+    fn default_dut_lane_generate_has_no_manifest_resource() {
+        // The default lane (omitted / "dut") is the unchanged DUT path: a
+        // module/design artifact with no manifest resource.
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 57, "generate", json!({ "seed": 7 }));
+        let summary: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(summary["lane"], "dut");
+        assert!(summary["resources"].get("manifest").is_none());
+        // Reading a manifest resource for a DUT artifact is a clean
+        // JSON-RPC error (the DUT lane has no manifest).
+        let run_id = summary["run_id"].as_str().unwrap();
+        let read = s
+            .handle(&req(
+                58,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/manifest") }),
+            ))
+            .unwrap();
+        assert!(read["error"].is_object());
+        assert!(read["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("has no manifest"));
     }
 
     #[test]

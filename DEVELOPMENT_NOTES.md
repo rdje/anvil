@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — non-DUT lanes over MCP — `AGENT-MCP-EXPANSION.3b`
+
+Implements the non-DUT (`microdesign`/`frontend`) generate/introspect path.
+Engineering notes beyond the `.3a` design entry below:
+
+- **Schema-conformance correction.** The `.3a` plan (ResourceRef-only, no
+  inline) was **wrong against the contract**: `AGENT_INTROSPECTION_SCHEMA.md`
+  §5/§6.5 already define inlined `microdesign_manifest`/`frontend_manifest`
+  payload sections at v1.0; §6.6's "resource, not inlined" applies only to
+  the bulk `.sv`. `.3b` conforms — it inlines the manifest in the payload
+  **and** sets the `artifact.manifest` ResourceRef (both from one
+  `emit_manifest` output). No schema-version bump. Lesson: a design leaf
+  must read the schema *spec*, not only the code.
+- **Why a `Value`, not the typed doc (byte-stability trap).** The non-DUT
+  document is a `serde_json::Value`, not `IntrospectionDocument`, because the
+  typed `RequestEcho.knobs` is a `Config` (non-DUT lanes have
+  `n_params`/`n_children`) and, critically, a `serde_json::Value::Object`
+  is a sorted `Map` — round-tripping the DUT `Config` through `to_value`
+  would **re-sort the keys** and change the `--introspect` DUT bytes. So the
+  typed DUT path is left 100% untouched; only the new non-DUT path is a
+  Value.
+- **`content_run_id` generalization.** Split into
+  `content_run_id_for_knobs(lane, seed, knobs_json)` with `content_run_id`
+  (the DUT `Config` specialization) delegating to it — the DUT canonical
+  string is unchanged, so DUT run_ids are byte-identical. Non-DUT lanes pass
+  a deterministic scoped-knob JSON so their content address is collision-free
+  across differing `n_params`/`n_children`.
+- **One manifest source.** `build_and_cache_lane` parses the lane's
+  `emit_manifest` string once: the parsed `Value` is inlined in the payload
+  and the raw string is served as the `…/manifest` resource. A test asserts
+  the inlined facts equal the served resource, so the two cannot drift.
+
 ## 2026-06-15 — non-DUT introspection projection — `AGENT-MCP-EXPANSION.3a`
 
 Design leaf deciding how the `microdesign`/`frontend` lanes introspect

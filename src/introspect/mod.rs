@@ -19,12 +19,16 @@
 //! unaffected (`introspect` never calls the generator differently — it
 //! consumes an already-generated `Module`/`Design`).
 //!
-//! Scope of this leaf (`.3`): the **DUT** lane (`module` and `design`
-//! artifacts). The `coverage` section is a `tool_matrix`-run property (a lone
-//! artifact cannot prove `saw_recursive_hierarchy_*`), so a single-artifact
-//! introspect omits it and records a `warnings[]` note, exactly as the schema
-//! (§5/§6.4) requires. The `microdesign`/`frontend` lane-manifest sections and
-//! the MCP transport are later leaves (`.4`+).
+//! Scope: `AGENT-INTROSPECTION-MCP.3` landed the **DUT** lane (`module` and
+//! `design` artifacts, typed [`IntrospectionDocument`]); `AGENT-MCP-EXPANSION.3b`
+//! added the non-DUT `microdesign`/`frontend` lanes via [`manifest_lane_document`]
+//! (built as a JSON `Value` so the DUT typed path stays byte-identical),
+//! inlining each lane's expected-facts manifest under the schema's
+//! `microdesign_manifest`/`frontend_manifest` payload key (§5/§6.5). The
+//! `coverage` section is a `tool_matrix`-run property (a lone artifact cannot
+//! prove `saw_recursive_hierarchy_*`), so a single-artifact introspect omits
+//! it and records a `warnings[]` note, exactly as the schema (§5/§6.4)
+//! requires.
 
 use crate::config::Config;
 use crate::emit;
@@ -36,8 +40,15 @@ use serde::{Deserialize, Serialize};
 /// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`).
 pub const SCHEMA_VERSION: &str = "1.0";
 
-/// The lane string for the DUT artifact lane (the only lane `.3` emits).
+/// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
+
+/// The lane string for the oracle-backed micro-design lane (Phase 7).
+pub const LANE_MICRODESIGN: &str = "microdesign";
+
+/// The lane string for the source-level frontend/elaboration accept lane
+/// (Phase 8).
+pub const LANE_FRONTEND: &str = "frontend";
 
 /// Recorded in `warnings[]` when a single-artifact introspect cannot carry
 /// the matrix-only `coverage` section (schema §6.4).
@@ -142,6 +153,19 @@ pub fn content_run_id(lane: &str, seed: u64, knobs: &Config) -> String {
     // `serde_json::to_string(Config)` is deterministic (declaration field
     // order; BTreeMap-sorted nested maps), so the canonical string is stable.
     let knobs_json = serde_json::to_string(knobs).unwrap_or_default();
+    content_run_id_for_knobs(lane, seed, &knobs_json)
+}
+
+/// The generalized content address over an already-canonical knobs string.
+/// `content_run_id` is the DUT specialization (`knobs_json =
+/// serde_json::to_string(&Config)`); the non-DUT lanes
+/// (`AGENT-MCP-EXPANSION.3b`) pass their own deterministic scoped-knob
+/// encoding (e.g. `{"n_params":5}`), so a `microdesign` run and a `dut` run
+/// with the same `seed` get distinct content addresses (the `lane` field
+/// already separates them, and differing scoped knobs now differ too). The
+/// DUT call path is byte-identical: it produces exactly the same canonical
+/// string this function always built.
+pub fn content_run_id_for_knobs(lane: &str, seed: u64, knobs_json: &str) -> String {
     let canonical = format!(
         "{SCHEMA_VERSION}\u{1f}{}\u{1f}{lane}\u{1f}{seed}\u{1f}{knobs_json}",
         anvil_version(),
@@ -233,6 +257,84 @@ pub fn design_document(seed: u64, cfg: &Config, design: &Design) -> Introspectio
         },
         warnings: vec![COVERAGE_ABSENT_NOTE.to_string()],
     }
+}
+
+/// The introspection payload key carrying a lane's inlined expected-facts
+/// manifest (schema §5 / §6.5). `None` for the DUT lane (it has no manifest).
+pub fn manifest_payload_key(lane: &str) -> Option<&'static str> {
+    match lane {
+        LANE_MICRODESIGN => Some("microdesign_manifest"),
+        LANE_FRONTEND => Some("frontend_manifest"),
+        _ => None,
+    }
+}
+
+/// Build the introspection document for a non-DUT, manifest-carrying lane
+/// (`microdesign` / `frontend`) as a JSON [`Value`](serde_json::Value)
+/// (`AGENT-MCP-EXPANSION.3b`, design `.3a`).
+///
+/// Per the schema contract (`docs/AGENT_INTROSPECTION_SCHEMA.md` §5 / §6.5,
+/// defined at v1.0), the lane's expected-facts **manifest** is **inlined** in
+/// the `introspection` payload under `microdesign_manifest` /
+/// `frontend_manifest` — these are "small and stable" and an exact serde
+/// projection of `microdesign::Manifest` / `frontend::Manifest`, so this adds
+/// zero new truth. (§6.6's "resource, not inlined" rule applies only to the
+/// bulk `.sv`.) The same manifest is *also* exposed as a fetch-on-demand
+/// `artifact.manifest` resource (the §4 slot), so an agent can read the
+/// inlined facts directly or fetch the raw bytes deliberately; both derive
+/// from the one `emit_manifest` output and cannot drift.
+///
+/// It is built as a `Value` rather than the typed [`IntrospectionDocument`]
+/// on purpose: the typed [`RequestEcho::knobs`] is a [`Config`], which the
+/// non-DUT lanes do not have (their knobs are `n_params`/`n_children`).
+/// Keeping the typed DUT path untouched preserves its byte-stability (a
+/// `Config` serializes in declaration order; a `serde_json::Value` object
+/// would re-sort the keys). The DUT-only payload sections
+/// (`module_metrics`/`design_metrics`/`modules`) are absent for non-DUT
+/// lanes. Envelope keys match [`IntrospectionDocument`] exactly.
+#[allow(clippy::too_many_arguments)]
+pub fn manifest_lane_document(
+    lane: &str,
+    kind: &str,
+    seed: u64,
+    knobs: &serde_json::Value,
+    top: Option<&str>,
+    run_id: &str,
+    sv_len: usize,
+    manifest_facts: &serde_json::Value,
+    manifest_len: usize,
+) -> serde_json::Value {
+    // Inline the manifest under the schema-defined payload key (§6.5).
+    let mut payload = serde_json::Map::new();
+    if let Some(key) = manifest_payload_key(lane) {
+        payload.insert(key.to_string(), manifest_facts.clone());
+    }
+    serde_json::json!({
+        "schema_version": SCHEMA_VERSION,
+        "anvil_version": anvil_version(),
+        "lane": lane,
+        "request": {
+            "seed": seed,
+            "lane": lane,
+            "knobs": knobs,
+            "run_id": run_id,
+        },
+        "artifact": {
+            "kind": kind,
+            "top": top,
+            "sv": {
+                "uri": format!("anvil://artifact/{run_id}/sv"),
+                "bytes": sv_len,
+            },
+            "sv_sha256": serde_json::Value::Null,
+            "manifest": {
+                "uri": format!("anvil://artifact/{run_id}/manifest"),
+                "bytes": manifest_len,
+            },
+        },
+        "introspection": serde_json::Value::Object(payload),
+        "warnings": [COVERAGE_ABSENT_NOTE],
+    })
 }
 
 #[cfg(test)]

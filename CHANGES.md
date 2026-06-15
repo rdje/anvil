@@ -1,9 +1,101 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.3b — non-DUT lanes (microdesign/frontend) over MCP
+
+**Landed as:** this commit (previous: `bfab27e`).
+
+**What changed**
+
+`AGENT-MCP-EXPANSION.3b` lets the read-only MCP server `generate`/
+`introspect` the non-DUT lanes (`microdesign`, `frontend`), not only DUT —
+routed through the umbrella `ArtifactLane` (the same rules-first generators
+the Phase 7/8 parity gates validated). Implements decision `0005` / design
+`.3a`.
+
+- `src/introspect/mod.rs`:
+  - `content_run_id` refactored into `content_run_id_for_knobs(lane, seed,
+    knobs_json)` with `content_run_id` as the DUT specialization — DUT
+    output is **byte-identical** (same canonical string); non-DUT lanes
+    feed scoped-knob JSON (`{"n_params":N}` / `{"n_params":N,
+    "n_children":M}`) into the content address.
+  - new `manifest_lane_document(...)` builds the non-DUT envelope as a
+    `serde_json::Value` (deliberately **not** the typed
+    `IntrospectionDocument`: its `RequestEcho.knobs` is a `Config`, and a
+    `Value` object would re-sort DUT keys — keeping the typed DUT path
+    untouched preserves its byte-stability). It **inlines** the lane
+    manifest under the schema's `microdesign_manifest`/`frontend_manifest`
+    payload key (§5/§6.5) and sets the `artifact.manifest` ResourceRef (§4);
+    `manifest_payload_key` maps lane → key.
+- `src/mcp/mod.rs`:
+  - `CachedArtifact` gains `manifest: Option<String>`; `build_and_cache_lane`
+    drives `umbrella::{MicrodesignLane,FrontendLane}`, parses the manifest
+    once (inlined facts + served bytes derive from one source), and caches.
+  - `generate`/`introspect` take a `lane` arg (default `dut`) and branch to
+    the non-DUT path **before** the shared DUT `config_from_args` parse;
+    they get a `generate_schema` advertising `lane`/`config`/`n_params`/
+    `n_children` (`dump_config`/`validate`/`minimize` stay DUT-only).
+  - `resources_read` serves `anvil://artifact/<run_id>/manifest`;
+    `resources_list` advertises it when present.
+  - helpers: `generate_lane_artifact`, `parse_usize_arg`, `manifest_top`,
+    `lane_generate_summary`; defaults `n_params=5`, `n_children=2` (match
+    the `--lane-n-params`/`--lane-n-children` CLI defaults).
+  - 5 new in-process `McpServer::handle` tests (microdesign generate +
+    manifest resource; frontend introspect with inlined `frontend_manifest`
+    == served manifest; non-DUT run_id determinism + knob sensitivity;
+    unknown-lane error; default-`dut` has no manifest resource).
+
+**Schema-conformance correction (caught during impl)**
+
+The `.3a` design planned to surface the manifest **only** as a ResourceRef
+("inlining would bump the schema / violate §6.6"). Reading the schema
+*spec* showed this was wrong: `docs/AGENT_INTROSPECTION_SCHEMA.md` §5/§6.5
+**already define** inlined `microdesign_manifest`/`frontend_manifest`
+payload sections **at v1.0** (§6.6's "resource, not inlined" covers only the
+bulk `.sv`). `.3b` therefore **conforms**: inlines the manifest **and** sets
+the `artifact.manifest` ResourceRef. Still **no `schema_version` bump**
+(the sections existed at v1.0). Correction recorded in decision `0005` and
+the task tree; the stale "later leaves (.4+)" introspect docstring fixed.
+
+**Why**
+
+Decision `0004` envisioned the agent driving all three artifact families;
+`0005`/`.3a` chose the umbrella route. `.3b` delivers it while preserving
+every invariant: read-mostly (generate/introspect already pure), no new
+computed truth (the manifest is the lane's existing serde projection), and
+DUT byte-identical.
+
+**Validation**
+
+- `cargo fmt --all --check` — clean.
+- `cargo check --all-targets` (RAM-guarded) — clean.
+- `cargo test --lib mcp::` — 35 pass (incl. 5 new); `cargo test --lib
+  introspect::` — 6 pass (DUT introspection byte-stable across the
+  `content_run_id` refactor).
+- `cargo test --test snapshots` — 6 pass; **DUT RTL byte-identical**.
+- `cargo clippy --all-targets -- -D warnings` — clean.
+- Focused tests per the owner resource policy (decision `0003`); the change
+  is confined to the read-only adapter + introspect surface.
+
+**Impact**
+
+- The agent can now `generate`/`introspect` microdesign + frontend over
+  MCP and fetch each lane's expected-facts manifest (inlined + as a
+  resource) — the bug-hunting loop covers all three lanes.
+- Per the tree's acceptance, the user-facing doc sync (book/USER_GUIDE/
+  README) is batched into the `.5` closeout.
+- Default `anvil` build and `--artifact dut` unchanged and byte-identical.
+
+**Files touched**
+
+- `src/introspect/mod.rs`, `src/mcp/mod.rs`
+- `docs/decisions/0005-agent-mcp-expansion-surface.md` (correction note)
+- `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`
+- `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.3a — non-DUT introspection projection design
 
-**Landed as:** this commit (previous: `edd716d`).
+**Landed as:** `bfab27e` (previous: `edd716d`).
 
 **What changed (docs / decision only — no source change)**
 

@@ -379,10 +379,23 @@ src/
 │                     — a `serde_json::Value` key projection (never mirrors the
 │                     bin-private `CoverageSummary`), read-only (no generate / no
 │                     spawn / no recompute), so the single gap computation stays in
-│                     `tool_matrix` (decision `0005`). Driven by the `anvil-mcp`
-│                     bin; the whole protocol surface is unit-tested in-process.
-│                     Separate target ⇒ default `anvil` build / `--artifact dut`
-│                     unaffected.
+│                     `tool_matrix` (decision `0005`). `AGENT-MCP-EXPANSION.3b`
+│                     routes `generate`/`introspect` over the non-DUT lanes via a
+│                     `lane` arg (default `dut`): `build_and_cache_lane` drives the
+│                     umbrella `MicrodesignLane`/`FrontendLane`, `CachedArtifact`
+│                     gains a `manifest`, `resources_read`/`resources_list` serve
+│                     `anvil://artifact/<run_id>/manifest`, and
+│                     `introspect::manifest_lane_document` builds the non-DUT
+│                     envelope as a `Value` (keeping the typed DUT path
+│                     byte-identical) that inlines the lane manifest under the
+│                     schema's `microdesign_manifest`/`frontend_manifest` payload
+│                     key (§5/§6.5) plus the `artifact.manifest` ResourceRef (§4);
+│                     `content_run_id` was refactored to `content_run_id_for_knobs`
+│                     so non-DUT scoped knobs (`n_params`/`n_children`) feed the
+│                     content address (DUT output unchanged). Driven by the
+│                     `anvil-mcp` bin; the whole protocol surface is unit-tested
+│                     in-process. Separate target ⇒ default `anvil` build /
+│                     `--artifact dut` unaffected.
 ├── bin/
 │   ├── anvil_mcp.rs Thin stdio loop over `mcp::McpServer` (the `anvil-mcp`
 │   │                target, `AGENT-INTROSPECTION-MCP.4`): reads JSON-RPC lines

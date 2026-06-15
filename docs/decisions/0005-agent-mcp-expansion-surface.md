@@ -174,6 +174,26 @@ expanded surface; close the tree.
   echoes the whole recorded `coverage` object. Bias: a thin, named
   projection plus the raw `coverage_gaps` array.
 
+## Correction (2026-06-15, during `.3b` implementation)
+
+The `.3a` design (recorded in the task tree) initially planned to surface
+the non-DUT lane manifest **only** via the `artifact.manifest` ResourceRef
+(not inlined), reasoning that inlining "would bump the schema / violate
+§6.6". Implementing `.3b` against the schema *spec* showed this misread the
+contract: `docs/AGENT_INTROSPECTION_SCHEMA.md` §5/§6.5 **already define**
+inlined `microdesign_manifest` / `frontend_manifest` payload sections **at
+v1.0** (they are "small and stable", an exact serde projection of each
+lane's `Manifest`); §6.6's "resource, not inlined" rule applies only to the
+**bulk `.sv`**. So `.3b` conforms to the schema: it **inlines** the manifest
+in the `introspection` payload under the schema key **and** sets the
+`artifact.manifest` ResourceRef (§4), both derived from the one
+`emit_manifest` output (no drift). This is still **no `schema_version`
+bump** — the sections existed at v1.0; populating them is conformance, not
+extension. Lesson: a design leaf must check the schema *spec*, not only the
+code, before deciding the wire shape. The high-level decision above
+(route through the umbrella; manifest stays a serde projection; default
+`dut` byte-identical) is unchanged.
+
 ## Links
 
 - Task-tree: `AGENT-MCP-EXPANSION.1` (this leaf); frontier advances to `.2`
