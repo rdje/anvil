@@ -1555,20 +1555,29 @@ claude mcp add anvil -- /path/to/anvil/target/debug/anvil-mcp
 
 It exposes three MCP primitives:
 
-- **Tools** — `generate`, `introspect`, `dump_config` (pure, side-effect-free),
-  plus the controlled `validate` and `minimize`. The controlled tools run only
-  ANVIL's vetted downstream invocations (`verilator` / `yosys` / `iverilog`, a
-  fixed allow-list), in a sandboxed temp dir, RAM-guarded, with no arbitrary
-  shell and an audit log of every call. `minimize` shrinks the input
-  `(seed, knobs)` (seed held fixed); it never mutates or repairs RTL.
+- **Tools** — the pure `generate`, `introspect`, `dump_config`, and
+  `coverage_gaps`, plus the controlled `validate` and `minimize`. `generate` /
+  `introspect` take an optional `lane` (`dut` — the default — `microdesign`, or
+  `frontend`), so the agent can drive all three artifact families; the non-DUT
+  lanes take scoped knobs (`n_params`, `n_children`) and carry an expected-facts
+  manifest. `coverage_gaps` projects the already-computed `coverage_gaps` out of
+  a recorded `tool_matrix_report.json` (inline `report` or `report_path`) so the
+  agent can target *unexercised* surfaces — read-only, no recompute, no spawn.
+  The controlled tools run only ANVIL's vetted downstream invocations
+  (`verilator` / `yosys` / `iverilog`, a fixed allow-list), in a sandboxed temp
+  dir, RAM-guarded, with no arbitrary shell and an audit log of every call.
+  `minimize` shrinks the input `(seed, knobs)` (seed held fixed); it never
+  mutates or repairs RTL.
 - **Resources** — `anvil://catalog/knobs`, `anvil://catalog/lanes`,
-  `anvil://audit/log`, and per-artifact `anvil://artifact/<run_id>/{sv,introspection}`.
+  `anvil://audit/log`, and per-artifact
+  `anvil://artifact/<run_id>/{sv,introspection,manifest}` (the `manifest` is
+  present only for the non-DUT lanes).
 - **Prompts** — five packaged workflows: `find_downstream_bug`,
   `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`,
   `explain_artifact`. Each renders an ordered chain over the tools above. Fetch
   one with `prompts/get` (with sample arguments) and the agent executes it.
 
-You can smoke-test it by hand by piping JSON-RPC lines in:
+You can smoke-test it by hand by piping JSON-RPC lines in over stdio:
 
 ```bash
 printf '%s\n' \
@@ -1577,6 +1586,24 @@ printf '%s\n' \
  '{"jsonrpc":"2.0","id":3,"method":"prompts/list","params":{}}' \
  | ./target/debug/anvil-mcp
 ```
+
+#### HTTP transport (opt-in)
+
+Besides stdio (the default), `anvil-mcp` can serve the same protocol over a
+minimal hand-rolled HTTP/1.1 POST transport with `--http <addr>` — one JSON-RPC
+request per `POST`, driving the exact same dispatcher (no extra dependencies).
+`<addr>` is a bare port (binds loopback, `127.0.0.1:<port>` — the safe default)
+or a full `IP:PORT`:
+
+```bash
+./target/debug/anvil-mcp --http 8765          # binds 127.0.0.1:8765 (loopback)
+curl -s -X POST http://127.0.0.1:8765/ -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The HTTP transport **binds loopback by default** because the controlled
+`validate` / `minimize` tools run real downstream tools; binding a non-loopback
+address (e.g. `0.0.0.0:8765`) exposes them to the network and prints a warning.
+The per-call guardrails are identical on both transports.
 
 The agent is an experiment driver and explainer, never a signoff oracle: a
 downstream tool rejecting valid-by-construction RTL is the bug signal; ANVIL's

@@ -1,6 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.5 — closeout: book/USER_GUIDE/README sync + close tree
+
+**Landed as:** this commit (previous: `ce395de`). Docs / live-doc closeout —
+no source change.
+
+**What changed**
+
+The `AGENT-MCP-EXPANSION` closeout: sync all three user-facing surfaces to
+everything landed since `AGENT-INTROSPECTION-MCP.7`, then **close the tree**.
+
+- **`book/src/agent-mcp.md`** — the entry-points table notes the server speaks
+  JSON-RPC over stdio *or* HTTP; the tools list/table add `coverage_gaps` (pure)
+  and note `generate`/`introspect` take a `lane` arg; the pure-tools sentence now
+  covers four tools; the resources block adds
+  `anvil://artifact/<run_id>/manifest`; two new subsections — "All three lanes,
+  not just DUT" (the `lane` arg + manifest) and "Transports: stdio (default) and
+  HTTP" (`--http <addr>`, loopback default, a security note, a `curl` example).
+  The HTTP server + `curl` blocks carry `<!-- book-test: skip -->` sentinels with
+  reasons (matching the existing `anvil-mcp` blocks), so no new runnable block is
+  introduced.
+- **`USER_GUIDE.md`** ("Agent introspection and the MCP server") — the
+  tools/resources bullets gain `coverage_gaps`, the `lane` arg + manifest, and
+  the `manifest` resource; a new "HTTP transport (opt-in)" subsection documents
+  `--http <addr>` with the loopback-default security note.
+- **`README.md`** ("Current CLI truth") — the `anvil-mcp` bullet now states
+  stdio|HTTP (`--http`, loopback-default, no new dependency), the
+  `coverage_gaps` pure tool, all-three-lanes `generate`/`introspect`, and the
+  `manifest` resource.
+
+**Why**
+
+The mdBook + USER_GUIDE + README are the user-facing surface; the tree's
+acceptance and the `.2`/`.3b` precedent deferred the user-facing sync of the new
+MCP surface (coverage_gaps, non-DUT lanes, HTTP transport) to this closeout so it
+lands once, coherently, against the whole expanded interface.
+
+**Validation**
+
+- `mdbook build book` — clean (HTML written, no errors).
+- `cargo test --test book_examples` — 3/3 green (`skip_sentinels_have_reasons`
+  confirms the new skip blocks carry reasons; `every_runnable_book_bash_block_succeeds`
+  preserved — no new runnable block, byte-identical runnable contract intact).
+
+**Impact**
+
+- Docs only; no code, no behavior change; `--artifact dut` byte-identical.
+- **`AGENT-MCP-EXPANSION` tree CLOSED** (all leaves `.1`–`.5` done). Per the lane
+  order `2 → 3 → 1`, `SIGNOFF-AUTOMATION-EXPANSION` is the next active lane.
+
+**Files touched**
+
+- `book/src/agent-mcp.md`, `USER_GUIDE.md`, `README.md`,
+  `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+  `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp
 
 **Landed as:** this commit (previous: `6101c15`).

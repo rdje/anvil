@@ -610,16 +610,20 @@ surfaces: priority encoder, comb/flop mux encodings, procedural
   truth), with a content-addressed `run_id`. Requires a single-artifact stdout
   run (no `--out`, `--count 1`); default-off ⇒ DUT byte-identical. Contract:
   `docs/AGENT_INTROSPECTION_SCHEMA.md`.
-- `anvil-mcp` is a separate default-off binary: a read-mostly MCP server (stdio
-  JSON-RPC 2.0) that drives the agent bug-hunting loop. It exposes pure tools
-  (`generate`/`introspect`/`dump_config`), controlled tools
-  (`validate`/`minimize`, run only through the hardened
-  `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded +
-  audit-logged), resources (artifact `.sv`/introspection, `knobs`/`lanes`
-  catalogs, `audit/log`), and five workflow prompts (`find_downstream_bug`,
-  `close_coverage_gap`, `minimize_reproducer`, `triage_tool_failures`,
-  `explain_artifact`). It runs no generation path of its own; the default
-  `anvil` build and `--artifact dut` stay byte-identical. See
+- `anvil-mcp` is a separate default-off binary: a read-mostly MCP server
+  (JSON-RPC 2.0 over **stdio** by default, or **HTTP** via the opt-in
+  `--http <addr>` flag — a hand-rolled loopback-default transport driving the
+  same dispatcher, no new dependency) that drives the agent bug-hunting loop. It
+  exposes pure tools (`generate`/`introspect`/`dump_config`/`coverage_gaps`,
+  where `generate`/`introspect` cover all three lanes via a `lane` arg defaulting
+  to `dut`, and `coverage_gaps` projects the recorded `tool_matrix_report.json`
+  gap list read-only), controlled tools (`validate`/`minimize`, run only through
+  the hardened `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
+  + audit-logged), resources (artifact `.sv`/introspection/`manifest`,
+  `knobs`/`lanes` catalogs, `audit/log`), and five workflow prompts
+  (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`,
+  `triage_tool_failures`, `explain_artifact`). It runs no generation path of its
+  own; the default `anvil` build and `--artifact dut` stay byte-identical. See
   `book/src/agent-mcp.md`.
 - `anvil --identity-mode <node-id|relaxed>` is the coarse NodeId semantics switch; `node-id` selects the full-factorization doctrine (`NodeId` = expression identity), while `relaxed` is the intentional off-switch where equivalent expressions may keep different `NodeId`s.
 - `anvil --factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>` is the current-build implementation/proof-depth dial inside `node-id`; lower rungs are weaker enforcement of the same doctrine, not a different meaning of `node-id`.

@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `AGENT-MCP-EXPANSION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Capability — agent/MCP interface breadth (post-AGENT-INTROSPECTION-MCP)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.4b` HTTP transport impl done; `.4` container closed; frontier → `.5` closeout; `.1`/`.2`/`.3`/`.4` done; decision `0005`)
+- Last updated: `2026-06-15` (CLOSED — `.5` closeout done; all leaves `.1`–`.5` done; decision `0005`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -63,9 +63,10 @@ bugs — the `project_anvil_north_star` purpose — while the default
 ## Task Tree
 
 - ID: `AGENT-MCP-EXPANSION`
-  Status: `active`
+  Status: `done`
   Goal: `Broaden the read-mostly agent/MCP interface with owner-gated breadth.`
   Children: `AGENT-MCP-EXPANSION.1`, `AGENT-MCP-EXPANSION.2`, `AGENT-MCP-EXPANSION.3`, `AGENT-MCP-EXPANSION.4`, `AGENT-MCP-EXPANSION.5`
+  Result: `CLOSED 2026-06-15 — all five leaves done. The read-mostly agent/MCP surface now also exposes the pure coverage_gaps tool (.2), drives the non-DUT microdesign/frontend lanes over MCP with their manifest as an inlined payload + resource (.3a/.3b), and offers an opt-in loopback-default --http transport beside stdio (.4a design + .4b impl), with all three user surfaces synced (.5). Every invariant held: thin read-mostly adapter, SCHEMA-DERIVED, hardened downstream-only controlled tools, default --artifact dut byte-identical, no new Cargo dependency. Decision 0005.`
 
 - ID: `AGENT-MCP-EXPANSION.1`
   Status: `done`
@@ -128,17 +129,20 @@ bugs — the `project_anvil_north_star` purpose — while the default
   Commit: `AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp`
 
 - ID: `AGENT-MCP-EXPANSION.5`
-  Status: `pending`
+  Status: `done`
   Goal: `Closeout — sync book/src/agent-mcp.md + USER_GUIDE.md + README.md to the expanded MCP surface; close the tree.`
   Acceptance: `mdBook builds clean; book_examples gate green; user-facing surfaces reflect the new tools/transport.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Synced all three user-facing surfaces to everything landed since AGENT-INTROSPECTION-MCP.7 — the coverage_gaps tool (.2), the non-DUT lanes + manifest resource (.3b), and the --http transport (.4b). book/src/agent-mcp.md: entry-points table notes stdio|HTTP; tools list/table add coverage_gaps (pure) + a lane note; resources add anvil://artifact/<run_id>/manifest; new "All three lanes" + "Transports: stdio (default) and HTTP" subsections (the HTTP server + curl blocks carry book-test: skip sentinels with reasons). USER_GUIDE.md "Agent introspection and the MCP server": tools/resources bullets updated + a new "HTTP transport (opt-in)" subsection. README.md "Current CLI truth" anvil-mcp bullet: stdio|HTTP, coverage_gaps, all-three-lanes, manifest resource. mdbook build clean; cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — byte-identical runnable contract preserved, no new runnable blocks). Tree closed.`
+  Verification: `mdbook build book (clean); cargo test --test book_examples (3/3 green)`
+  Commit: `AGENT-MCP-EXPANSION.5 — closeout: book/USER_GUIDE/README sync + close tree`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `AGENT-MCP-EXPANSION.5` | `pending` | Closeout: sync book/USER_GUIDE/README to the expanded MCP surface (coverage_gaps + non-DUT lanes + HTTP transport), then close the tree. |
+Tree **CLOSED** (`2026-06-15`) — all leaves `.1`–`.5` done. Per the lane order
+`2 → 3 → 1`, the next active lane is
+[`SIGNOFF-AUTOMATION-EXPANSION`](SIGNOFF-AUTOMATION-EXPANSION.md) (`proposed` →
+promote to `active`, start its `.1` design), then
+[`IDENTITY-DEEPENING`](IDENTITY-DEEPENING.md).
 
 ## Decisions
 
@@ -275,6 +279,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | `2026-06-15` | `AGENT-MCP-EXPANSION.3b` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo test --lib mcp::` (35 pass, incl. 5 new) + `cargo test --lib introspect::` (6 pass) + `cargo test --test snapshots` (6 pass, byte-identical); `cargo clippy --all-targets -- -D warnings` | `clean` |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.4a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; design/decision leaf, no source change | `clean` |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.4b` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo clippy --all-targets -- -D warnings`; `cargo test --lib mcp::` (50 pass, incl. 15 new http) + `cargo test --test snapshots` (6 pass, byte-identical); real-binary curl smoke (initialize→200, tools/list→200, GET→405, notification→204) | `clean` |
+| `2026-06-15` | `AGENT-MCP-EXPANSION.5` | `mdbook build book` (clean); `cargo test --test book_examples` (3/3 green: `skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds`); docs-only closeout | `clean` |
 
 ## Commit Log
 
@@ -286,6 +291,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | `AGENT-MCP-EXPANSION.3b` | `AGENT-MCP-EXPANSION.3b — non-DUT lanes (microdesign/frontend) over MCP` | Umbrella-routed generate/introspect; manifest inlined (§6.5) + resource (§4); DUT byte-identical; `.3` container closed; frontier → `.4`. |
 | `AGENT-MCP-EXPANSION.4a` | `AGENT-MCP-EXPANSION.4a — hand-rolled HTTP transport framing design` | Split `.4` into `.4a` design + `.4b` impl; pinned HTTP framing/status-mapping/connection-model/loopback-default/code-placement; no source change; frontier → `.4b`. |
 | `AGENT-MCP-EXPANSION.4b` | `AGENT-MCP-EXPANSION.4b — hand-rolled HTTP transport for anvil-mcp` | `src/mcp/http.rs` + `--http <addr>` bin flag; same `handle_line` dispatcher; loopback default; NO new dep; 15 new tests; DUT byte-identical; `.4` container closed; frontier → `.5`. |
+| `AGENT-MCP-EXPANSION.5` | `AGENT-MCP-EXPANSION.5 — closeout: book/USER_GUIDE/README sync + close tree` | Synced book/USER_GUIDE/README to coverage_gaps + non-DUT lanes + HTTP transport; mdbook clean; book_examples 3/3; **tree CLOSED**. |
 
 ## Changelog
 
@@ -330,3 +336,10 @@ bugs — the `project_anvil_north_star` purpose — while the default
   byte-identical (snapshots 6/6). fmt/check/clippy + 50 mcp tests + snapshots
   clean; real-binary curl smoke (200/200/405/204). `.4` container closed.
   Frontier advanced to `.5` (closeout).
+- `2026-06-15`: `.5` done — **tree CLOSED**. Synced all three user-facing
+  surfaces (`book/src/agent-mcp.md`, `USER_GUIDE.md`, `README.md`) to the
+  coverage_gaps tool, the non-DUT lanes + manifest resource, and the `--http`
+  transport. `mdbook build` clean; `cargo test --test book_examples` 3/3 green
+  (new HTTP/curl blocks carry `book-test: skip` sentinels with reasons — the
+  byte-identical runnable contract is preserved). All five leaves done; per the
+  lane order, `SIGNOFF-AUTOMATION-EXPANSION` is next.

@@ -23,7 +23,7 @@ never use these features, nothing changes.
 | Surface | What it is | Use it when |
 | --- | --- | --- |
 | `anvil --introspect` | A one-shot CLI flag that prints a structured JSON **introspection document** instead of SystemVerilog. | You want construction-truth for one `(seed, knobs)` from a script. |
-| `anvil-mcp` | A separate binary: a small [MCP][mcp] server (stdio JSON-RPC) exposing tools, resources, and workflow prompts. | You want an AI agent (Claude Code, Cursor, …) to drive the loop. |
+| `anvil-mcp` | A separate binary: a small [MCP][mcp] server (JSON-RPC over **stdio** by default, or **HTTP** with `--http`) exposing tools, resources, and workflow prompts. | You want an AI agent (Claude Code, Cursor, …) to drive the loop. |
 
 Both read the **same facts** ANVIL already records — metrics, the effective
 config, coverage. Neither computes anything new. (The full field-by-field
@@ -106,23 +106,61 @@ claude mcp add anvil -- /path/to/anvil/target/release/anvil-mcp
 Once connected, the agent sees three kinds of capability: **tools** (actions),
 **resources** (read-only data), and **prompts** (packaged workflows).
 
+### Transports: stdio (default) and HTTP
+
+`anvil-mcp` speaks the same JSON-RPC protocol over two transports:
+
+- **stdio** (the default) — newline-delimited JSON-RPC on stdin/stdout, the
+  transport Claude Code and Cursor register. Nothing extra to enable.
+- **HTTP** (opt-in, `--http <addr>`) — one JSON-RPC request per HTTP `POST`,
+  for agents or scripts that prefer a socket. It is a tiny hand-rolled HTTP/1.1
+  transport (no extra dependencies) driving the *exact same* dispatcher, so
+  every tool, resource, and prompt behaves identically.
+
+`<addr>` is either a **bare port** — which binds loopback (`127.0.0.1:<port>`),
+the safe default — or a full `IP:PORT`:
+
+<!-- book-test: skip — starts the long-lived anvil-mcp HTTP server, not the generator CLI -->
+```bash
+cargo build --release --bin anvil-mcp
+./target/release/anvil-mcp --http 8765        # binds 127.0.0.1:8765 (loopback)
+```
+
+Then POST JSON-RPC to it — each call is one request:
+
+<!-- book-test: skip — talks to a running anvil-mcp HTTP server over the network -->
+```bash
+curl -s -X POST http://127.0.0.1:8765/ \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+> **Security.** The controlled `validate` / `minimize` tools run real downstream
+> tools, so the HTTP transport **binds loopback by default**. Binding a
+> non-loopback address (e.g. `0.0.0.0:8765`) exposes those tools to anyone who
+> can reach the socket; `anvil-mcp` prints a warning when you do, and you should
+> only do it on a network you trust. The per-call guardrails (fixed allow-list,
+> sandboxed temp dir, RAM guard, audit log) apply on both transports.
+
 ### Tools
 
 ```
-generate · introspect · dump_config · validate · minimize
+generate · introspect · dump_config · coverage_gaps · validate · minimize
 ```
 
 | Tool | Pure? | What it does |
 | --- | --- | --- |
-| `generate` | ✅ pure | Build the `(seed, config)` DUT, cache it, return its `run_id` + resource URIs. |
-| `introspect` | ✅ pure | Return the schema-1.0 introspection document (config echo + metrics). |
+| `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
+| `introspect` | ✅ pure | Return the schema-1.0 introspection document (config echo + metrics) for that `lane`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
+| `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
 | `minimize` | controlled | Delta-debug a failing `(seed, config)` to a smaller reproducer, using `validate` as the failure oracle. |
 
-The first three are **side-effect-free**: no files, no shell, no external
-tools. The two *controlled* tools run real downstream tools, but only through
-ANVIL's existing hardened invocations:
+The four **pure** tools are read-only: no generation side effects, no shell, no
+external tools. (`coverage_gaps` may read a report file you point it at, but it
+*runs* nothing — it relays the gap list `tool_matrix` already computed, so the
+two can never drift.) The two *controlled* tools run real downstream tools, but
+only through ANVIL's existing hardened invocations:
 
 - a **fixed allow-list** of tool names (`verilator`, `yosys`, `iverilog`) — an
   unknown name is a clean error, never a spawn;
@@ -147,10 +185,29 @@ anvil://catalog/lanes          the artifact lanes (dut / microdesign / frontend)
 anvil://audit/log              the append-only validate/minimize audit trail
 anvil://artifact/<run_id>/sv             the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection  the introspection document
+anvil://artifact/<run_id>/manifest       the lane's expected-facts manifest (microdesign / frontend)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
 anvil://artifact/<run_id>/sv` always returns the same bytes.
+
+### All three lanes, not just DUT
+
+`generate` and `introspect` take an optional `lane` argument (`dut` —
+the default — `microdesign`, or `frontend`), so the agent can drive all three
+artifact families through the same tools. The non-DUT lanes take their own
+scoped knobs (`n_params`, and `n_children` for `frontend`) instead of the DUT
+`Config`, and each carries a deterministic **expected-facts manifest** — the
+same one the Phase 7/8 parity gates check. That manifest is both inlined in the
+introspection document (`microdesign_manifest` / `frontend_manifest`) and served
+as the `anvil://artifact/<run_id>/manifest` resource:
+
+```json
+{ "name": "generate", "arguments": { "lane": "microdesign", "seed": 7, "n_params": 4 } }
+```
+
+The DUT lane has no semantic manifest (its check plan is synthesis acceptance,
+not parity), so `anvil://artifact/<run_id>/manifest` is absent for `dut`.
 
 ### Prompts (workflows)
 
