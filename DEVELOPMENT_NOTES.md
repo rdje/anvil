@@ -5,6 +5,67 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Bisimulation flop merge — grounded design detail — `IDENTITY-DEEPENING.2a`
+
+Design-detail leaf, no source change. Grounded decision `0007` in the real merge
+machinery (`src/ir/compact.rs`) so `.2b` is a clean code-only slice. Key
+findings from reading `merge_equivalent_flops` / `flop_d_signature` /
+`cone_proof` / `semantic_cone_proof`:
+
+- **Why a NEW pass, not a tweak to `merge_equivalent_flops`.** The exact pass
+  builds a `FlopSignature { width, clock_domain, d: FlopDSignature, reset_val,
+  reset_kind }` and groups flops by it. The `d` field keys `FlopQ` endpoints
+  **concretely** (`cone_proof` → structural/semantic signature over the actual
+  `LeafEndpoint::FlopQ { flop }` set), which is exactly why `D = Q_g` and `D =
+  Q_f` get different signatures and never merge. Bisimulation needs a *quotient*
+  D-signature (FlopQ → class representative) under iterative refinement, which
+  is a different control structure (fixpoint loop), so `.2b` adds
+  `merge_bisimilar_flops` beside the exact pass and leaves the latter
+  byte-identical.
+- **Shared-finalize refactor.** Everything in `merge_equivalent_flops` after
+  `old_to_canonical_old` is built (the renumber → `q_node_remap` → node/drive/
+  instance rewire → `remap_explicit_flop_domains_after_merge` →
+  `rebuild_instance_tables` tail, lines ~1040–1103) is generic given a
+  canonical-map + removed-count. `.2b` extracts it into
+  `finalize_flop_merge(m, old_to_canonical_old, removed)` and calls it from both
+  passes. Verified the tail is partition-agnostic, so this keeps the exact pass
+  output identical.
+- **Quotient D-signature.** Within a `(width, reset_kind, reset_val,
+  clock_domain)` bucket, refine a partition: each iteration recomputes every
+  flop's D-cone signature via the existing `cone_proof`, but with
+  `LeafEndpoint::FlopQ { flop }` canonicalized to `class_rep(flop)` (a
+  `flop -> class` map threaded into `collect_leaf_endpoints` / the structural
+  signature / the semantic endpoint offsets). Flops whose quotient D-signatures
+  differ split out; repeat until no class splits (coarsest stable partition).
+  `D == Q` (self-hold) maps to "own class id" and falls out as the trivial
+  fixed point; same-endpoint cones fall out when the identity correspondence is
+  stable — both existing classes are special cases, not retired.
+- **GOTCHA: memos must be rebuilt per refinement iteration.** `structural_memo`
+  / `semantic_memo` / `endpoint_memo` are `NodeId`-keyed and assume a *fixed*
+  endpoint identity. The class map changes between refinement iterations, so the
+  same `NodeId` can have a different quotient signature across iterations —
+  reusing a stale memo would be unsound. `.2b` allocates fresh memos each
+  refinement pass (or keys them by a partition-generation counter).
+- **Budget.** Per D-cone check reuses `MERGE_SEMANTIC_LIMITS` (12-bit support /
+  128 nodes / 131072 work); over-budget cones take the structural fallback
+  (which must also be quotient-aware). A bucket-size cap `N_bisim_flops`
+  (default `64`) bounds the `O(k² · iterations)` refinement; larger buckets are
+  left to the exact pass only and `log`/metric-noted, never silently dropped.
+- **Ordering.** Run `merge_bisimilar_flops` AFTER `merge_equivalent_flops`
+  (exact classes already collapsed) and BEFORE `merge_equivalent_fsms` +
+  `compact_node_ids` in `generate_leaf_module`.
+- **Gate (rules-first).** A hand-built `compact.rs` test: flops `f`, `g` with
+  `D_f = Q_g`, `D_g = Q_f` (mutual swap), identical width/reset/domain, each
+  observed by an output. Assert `merge_equivalent_flops` removes `0` (the exact
+  pass provably cannot), then with the knob on `merge_bisimilar_flops` removes
+  `1`. Plus the knob-off `tests/snapshots.rs` 6/6 byte-identical regression.
+  `.2b` decides dedicated `tool_matrix` scenario vs focused test + manual
+  Verilator/Yosys smoke for the downstream-clean bank.
+- **Names pinned:** `Config::bisimulation_flop_merge: bool` (default `false`,
+  config.rs ~562/821 pattern), threaded onto `Module` beside `identity_mode`;
+  `Module::bisimulation_flops_merged: u32` → `Metrics::bisimulation_flops_merged`
+  (metrics.rs ~236/856 `flops_merged` plumbing).
+
 ## 2026-06-15 — IDENTITY-DEEPENING first extension chosen — `IDENTITY-DEEPENING.1` (decision 0007)
 
 Design/decision leaf, no source change. Picked the first sound identity

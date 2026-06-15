@@ -83,9 +83,22 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.2`
+  Status: `active`
+  Goal: `Implement the bounded bisimulation flop merge designed in decision 0007.`
+  Children: `IDENTITY-DEEPENING.2a`, `IDENTITY-DEEPENING.2b`
+
+- ID: `IDENTITY-DEEPENING.2a`
+  Status: `done`
+  Goal: `Design-detail leaf: ground decision 0007 in the real merge machinery (src/ir/compact.rs merge_equivalent_flops + cone_proof/semantic_cone_proof + the FlopSignature path), and pin the exact algorithm, API reuse, knob/metric/field names, budget caps, refinement-memo gotcha, pass ordering, and gate scenario for .2b — no source change.`
+  Acceptance: `DEVELOPMENT_NOTES.md records the grounded algorithm + the shared-finalize refactor + the quotient-signature mechanism + the bucket cap + the refinement-memo-clear gotcha + the rules-first gate scenario; no source change; docs/workflow self-checks clean.`
+  Result: `New pass merge_bisimilar_flops beside merge_equivalent_flops (NOT a modification of it), gated on a new Module flag mirrored from Config::bisimulation_flop_merge + node-id/e-graph; runs AFTER the exact flop merge, BEFORE FSM merge/compaction in generate_leaf_module. Bucket by (width, reset_kind, reset_val, clock_domain); greatest-fixpoint partition refinement keyed on a QUOTIENT D-signature (the existing cone_proof but with every LeafEndpoint::FlopQ{flop} canonicalized to its current class representative); reset-defined self-hold and same-endpoint cones fall out as special cases. Reuse MERGE_SEMANTIC_LIMITS (12-bit/128-node/131072-work) per D-cone check + a bucket-size cap N_bisim_flops (default 64) to bound O(k²·iters); over-budget cones take the structural fallback (quotient-aware). Extract the post-old_to_canonical_old rewire/renumber/remap/remap_explicit_flop_domains_after_merge/rebuild_instance_tables tail of merge_equivalent_flops into a shared finalize_flop_merge helper reused by both passes (keeps merge_equivalent_flops byte-identical). New Module::bisimulation_flops_merged -> Metrics::bisimulation_flops_merged. Refinement-memo gotcha: structural_memo/semantic_memo/endpoint_memo are NodeId-keyed and assume fixed endpoints, so they MUST be rebuilt each refinement iteration (the class map changes between iterations). Gate = a rules-first compact.rs test with flops f,g where D_f=Q_g, D_g=Q_f (mutual swap, same width/reset/domain, each observed by an output): assert merge_equivalent_flops removes 0 (exact pass can't), then merge_bisimilar_flops removes 1; plus knob-off snapshot 6/6 byte-identical; .2b decides dedicated tool_matrix scenario vs focused test + manual Verilator/Yosys smoke for the downstream-clean bank.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `IDENTITY-DEEPENING.2b`
   Status: `pending`
-  Goal: `Implement the bounded bisimulation flop merge: greatest-fixpoint partition refinement over flops (bucketed by width/reset_kind/reset_val/flop_domain) + bounded quotient D-cone equivalence proof (reusing the existing combinational budget) + a new default-off Config knob (working name bisimulation_flop_merge, requires node-id/e-graph) + a merge-count metric (working name bisimulation_flops_merged) + a focused downstream-clean gate.`
-  Acceptance: `Knob-off byte-identical (snapshots untouched); existing exact self-hold / same-endpoint / FSM merges still fire; a rules-first scenario with deliberately-duplicated mutually-recursive register pairs proves merge-count > 0 with the knob on AND the merged output clean across Verilator + both Yosys modes (banked report); soundness regression-protected; live docs (book/src/factorization.md, DEVELOPMENT_NOTES.md, ROADMAP gap 2, CODEBASE_ANALYSIS.md) + a Knowledge Map card updated. Split into .2a design-detail + .2b impl if it proves broad.`
+  Goal: `Implement merge_bisimilar_flops per the .2a design: the shared finalize_flop_merge refactor (byte-identical), the quotient-signature partition refinement, the default-off Config::bisimulation_flop_merge knob threaded onto Module, the Metrics::bisimulation_flops_merged counter, the rules-first gate scenario, and the downstream-clean bank.`
+  Acceptance: `cargo fmt/check/clippy clean; cargo test --lib + focused compact tests green incl. the mutual-swap proof and the knob-off byte-identical regression; cargo test --test snapshots 6/6 byte-identical (knob default off); merged output banked clean across Verilator + both Yosys modes; live docs (book/src/factorization.md "broader sequential equivalence" + sequential.md, DEVELOPMENT_NOTES.md, ROADMAP gap 2, CODEBASE_ANALYSIS.md, USER_GUIDE/knobs for the new flag) + a Knowledge Map card updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -100,7 +113,7 @@ handoff.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `IDENTITY-DEEPENING.2` | `pending` | First code leaf: implement the bounded bisimulation flop merge designed in `.1` (decision `0007`). Default-off / byte-identical; reuses the bounded combinational proof; banked downstream-clean gate. Split into `.2a`/`.2b` if broad. |
+| 1 | `IDENTITY-DEEPENING.2b` | `pending` | The code leaf: implement `merge_bisimilar_flops` per the `.2a` grounded design (shared `finalize_flop_merge` refactor + quotient-signature partition refinement + default-off knob + metric + rules-first gate + downstream-clean bank). |
 | — | `IDENTITY-DEEPENING.3` | `proposed` | Not on the active frontier yet; module-level sequential equivalence activates after `.2` reaches handoff. |
 
 ## Decisions
@@ -128,10 +141,14 @@ handoff.
 
 ## Open Questions
 
-- `.2` finalizes the knob name (`bisimulation_flop_merge`), the merge-count
-  metric name (`bisimulation_flops_merged`), the bucket-size cap
-  `N_bisim_flops`, and the exact scenario/gate shape (focused `cargo test` +
-  smoke vs a dedicated `tool_matrix` scenario set).
+- `.2a` pinned the names (`Config::bisimulation_flop_merge`,
+  `Metrics::bisimulation_flops_merged`) and the bucket cap (`N_bisim_flops`
+  default `64`). Remaining for `.2b`: whether the downstream-clean bank is a
+  dedicated `tool_matrix` scenario set or a focused `cargo test` + a manual
+  Verilator/Yosys smoke (decide by whichever proves the mutual-recursion merge
+  by construction at lowest cost, mirroring the `signoff-knob-sweep` precedent),
+  and the precise threading of the new `Module` flag from `Config` (alongside
+  `identity_mode`).
 
 ## Blockers
 
@@ -142,12 +159,14 @@ handoff.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-15` | `IDENTITY-DEEPENING.1` | Design/decision leaf, no source change. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated to include decision `0007` answers. | `done` |
+| `2026-06-15` | `IDENTITY-DEEPENING.2a` | Design-detail leaf, no source change (grounded in a close read of `src/ir/compact.rs` `merge_equivalent_flops`/`flop_d_signature`/`cone_proof`/`semantic_cone_proof`, `src/config.rs` knob pattern, `src/metrics.rs` merge-count pattern). Self-checks clean. | `done` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `IDENTITY-DEEPENING.1` | `IDENTITY-DEEPENING.1 — promote lane + decision 0007 (bisimulation flop equivalence)` | Decision record `0007`; tree split into `.2`/`.3`. |
+| `IDENTITY-DEEPENING.1` | `IDENTITY-DEEPENING.1 — promote Lane 1 + decision 0007` | Landed `43e2a2d`. Decision record `0007`; tree split into `.2`/`.3`. |
+| `IDENTITY-DEEPENING.2a` | `IDENTITY-DEEPENING.2a — bisimulation flop merge design detail` | Grounded `.2b` algorithm/API-reuse/names/budget/gate; `.2` split into `.2a`/`.2b`. |
 
 ## Changelog
 
@@ -157,3 +176,9 @@ handoff.
   (first extension = bounded bisimulation-based sequential flop equivalence),
   split the tree into `.2` (impl) + `.3` (future module-level sequential
   equivalence); frontier advances to `.2`.
+- `2026-06-15`: `.2a` done — split `.2` into `.2a` (design-detail, done) +
+  `.2b` (impl); grounded the bisimulation algorithm, the shared
+  `finalize_flop_merge` refactor, the quotient D-signature mechanism, the
+  bucket cap + refinement-memo-clear gotcha, the pass ordering, and the
+  rules-first mutual-swap gate scenario in the real `src/ir/compact.rs` code;
+  frontier advances to `.2b`.

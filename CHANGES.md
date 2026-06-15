@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — IDENTITY-DEEPENING.2a — bisimulation flop merge design detail
+
+**Landed as:** this commit (previous: `43e2a2d`). Design-detail leaf —
+task-tree-owned by `IDENTITY-DEEPENING.2a`. **No source change** (task-tree +
+`DEVELOPMENT_NOTES` + `CHANGES`/`MEMORY` only).
+
+**What changed**
+
+Splits `IDENTITY-DEEPENING.2` into `.2a` (design-detail, done) + `.2b` (impl,
+new frontier) and completes `.2a`: grounds decision `0007` in the real merge
+machinery so `.2b` is a clean code-only slice. From a close read of
+`src/ir/compact.rs` (`merge_equivalent_flops`, `flop_d_signature`,
+`cone_proof`/`semantic_cone_proof`, the `FlopSignature` path), `src/config.rs`
+(the `hierarchy_module_dedup` knob pattern), and `src/metrics.rs` (the
+`flops_merged` plumbing), `.2a` pins for `.2b`:
+
+- **New pass `merge_bisimilar_flops`** beside `merge_equivalent_flops` (NOT a
+  modification of it — the exact pass keys `FlopSignature.d` on *concrete*
+  `FlopQ` endpoints, which is exactly why `D=Q_g` / `D=Q_f` never merge; the
+  quotient refinement needs a fixpoint loop). Gated on a new `Module` flag
+  mirrored from `Config::bisimulation_flop_merge` + node-id/e-graph; ordered
+  AFTER the exact flop merge and BEFORE FSM merge + compaction.
+- **Quotient D-signature + greatest-fixpoint partition refinement** over flops
+  bucketed by `(width, reset_kind, reset_val, clock_domain)`: recompute each
+  D-cone signature via the existing `cone_proof` with `FlopQ{flop}` canonicalized
+  to `class_rep(flop)`; split where signatures differ; repeat to a coarsest
+  stable partition. Exact self-hold and same-endpoint classes fall out as
+  special cases (not retired).
+- **The refinement-memo gotcha:** `structural_memo`/`semantic_memo`/
+  `endpoint_memo` are `NodeId`-keyed and assume fixed endpoints, so they MUST be
+  rebuilt each refinement iteration (the class map changes between iterations).
+- **Shared `finalize_flop_merge` refactor** — extract the post-
+  `old_to_canonical_old` rewire/renumber/remap tail of `merge_equivalent_flops`
+  for reuse by both passes, keeping the exact pass byte-identical.
+- **Budget** = `MERGE_SEMANTIC_LIMITS` per D-cone check + a bucket cap
+  `N_bisim_flops` (default `64`); over-budget cones take the structural
+  fallback.
+- **Names** `Config::bisimulation_flop_merge` / `Metrics::bisimulation_flops_merged`.
+- **Gate** = a rules-first `compact.rs` mutual-swap test (`D_f=Q_g`, `D_g=Q_f`):
+  exact pass removes `0`, bisimulation pass removes `1`; plus knob-off snapshot
+  6/6 byte-identical; `.2b` decides the downstream-clean bank shape.
+
+**Why**
+
+Continuous PNT: `.1` chose the extension; a `.2a` design-detail leaf (the same
+`SIGNOFF-AUTOMATION-EXPANSION.2a`/`.2b` discipline) de-risks a sound merge into
+the 4477-line identity engine and keeps each commit reviewable. The full
+algorithm/rationale is in `DEVELOPMENT_NOTES.md` (2026-06-15 `.2a` entry).
+
+**Validation**
+
+No source change ⇒ no cargo gates required (resource-safe-validation policy for
+docs/design leaves). `bash scripts/check_memory_architecture.sh` +
+`bash knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+`.2b` is now a fully-specified code-only slice. No generated RTL, CLI, or default
+behavior changed.
+
+**Files touched**
+
+`docs/tasks/IDENTITY-DEEPENING.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — IDENTITY-DEEPENING.1 — promote Lane 1 + decision 0007 (bisimulation flop equivalence)
 
-**Landed as:** this commit (previous: `5de8e91`). Design/decision leaf —
+**Landed as:** `43e2a2d` (previous: `5de8e91`). Design/decision leaf —
 task-tree-owned by `IDENTITY-DEEPENING.1`. **No source change** (docs +
 decision record + task-tree + regenerated Knowledge Map only).
 
