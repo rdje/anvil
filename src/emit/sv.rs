@@ -4,6 +4,7 @@
 //! Synchronous-design discipline: a single CLK (posedge) and a single
 //! RST_N (async, active-low) drive every flop in the module.
 
+use crate::config::SvVersion;
 use crate::ir::{
     AggregateGroup, AggregateKind, Design, Direction, Flop, ForFoldKind, GateOp, InstanceId,
     Module, Node, NodeId, Port, PortId,
@@ -15,21 +16,48 @@ use tracing::{debug, info, instrument};
 
 #[instrument(level = "info", skip(m), fields(module = %m.name))]
 pub fn to_sv(m: &Module) -> String {
+    to_sv_versioned(m, SvVersion::default())
+}
+
+/// `SV-VERSION-TARGETING.2b.1` — emit a single module targeting a chosen
+/// IEEE 1800 standard. `sv_version` is the down-gating capability bound,
+/// threaded to the construct sites (`to_sv_with_modules`); the whole
+/// current emitted subset is 1800-2012-valid, so every target produces
+/// byte-identical output today (the down-gating guarantee over the current
+/// subset — `.3` is the first version-distinctive up-opt). `to_sv`
+/// delegates here with `SvVersion::default()`, so existing callers are
+/// byte-identical.
+#[instrument(level = "info", skip(m), fields(module = %m.name, sv_version = ?sv_version))]
+pub fn to_sv_versioned(m: &Module, sv_version: SvVersion) -> String {
     assert!(
         m.instances.is_empty(),
         "hierarchical modules require emit::to_sv_in_design or emit::to_sv_design"
     );
-    to_sv_with_modules(m, None)
+    to_sv_with_modules(m, None, sv_version)
 }
 
 #[instrument(level = "info", skip(m, design), fields(module = %m.name))]
 pub fn to_sv_in_design(m: &Module, design: &Design) -> String {
+    to_sv_in_design_versioned(m, design, SvVersion::default())
+}
+
+/// `SV-VERSION-TARGETING.2b.1` — version-aware counterpart of
+/// `to_sv_in_design`. See `to_sv_versioned`.
+#[instrument(level = "info", skip(m, design), fields(module = %m.name, sv_version = ?sv_version))]
+pub fn to_sv_in_design_versioned(m: &Module, design: &Design, sv_version: SvVersion) -> String {
     let modules = build_module_lookup(design);
-    to_sv_with_modules(m, Some(&modules))
+    to_sv_with_modules(m, Some(&modules), sv_version)
 }
 
 #[instrument(level = "info", skip(design), fields(top = %design.top))]
 pub fn to_sv_design(design: &Design) -> String {
+    to_sv_design_versioned(design, SvVersion::default())
+}
+
+/// `SV-VERSION-TARGETING.2b.1` — version-aware counterpart of
+/// `to_sv_design`. See `to_sv_versioned`.
+#[instrument(level = "info", skip(design), fields(top = %design.top, sv_version = ?sv_version))]
+pub fn to_sv_design_versioned(design: &Design, sv_version: SvVersion) -> String {
     let modules = build_module_lookup(design);
     let mut out = String::new();
     for (idx, module) in design.modules.iter().enumerate() {
@@ -37,7 +65,7 @@ pub fn to_sv_design(design: &Design) -> String {
             writeln!(out).unwrap();
             writeln!(out).unwrap();
         }
-        out.push_str(&to_sv_with_modules(module, Some(&modules)));
+        out.push_str(&to_sv_with_modules(module, Some(&modules), sv_version));
     }
     out
 }
@@ -50,7 +78,18 @@ fn build_module_lookup(design: &Design) -> BTreeMap<&str, &Module> {
         .collect()
 }
 
-fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> String {
+fn to_sv_with_modules(
+    m: &Module,
+    modules: Option<&BTreeMap<&str, &Module>>,
+    sv_version: SvVersion,
+) -> String {
+    // `sv_version` is the threaded down-gating capability bound
+    // (`SV-VERSION-TARGETING.2b.1`): construct-emission sites consult
+    // `sv_version.permits(introduced_standard)` before emitting a
+    // version-distinctive construct. Today every construct below is
+    // 1800-2012-valid, so the bound is real but vacuous and every target
+    // emits byte-identical text; the first up-opt site lands at `.3`.
+    //
     // Emitter is a dumb serialiser. It assumes all IR invariants —
     // including Rule 18 (no orphan gates) — were enforced upstream
     // during construction. The emitter walks `m.nodes` in order and
@@ -70,6 +109,7 @@ fn to_sv_with_modules(m: &Module, modules: Option<&BTreeMap<&str, &Module>>) -> 
         instances = m.instances.len(),
         inputs = m.inputs.len(),
         outputs = m.outputs.len(),
+        sv_version = ?sv_version,
         "✍️ emit SV"
     );
     let mut out = String::new();

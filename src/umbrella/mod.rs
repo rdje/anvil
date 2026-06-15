@@ -35,7 +35,7 @@
 //! `.2a` lands the regression test that enforces it from now on.
 
 use crate::config::Config;
-use crate::emit::to_sv_design;
+use crate::emit::to_sv_design_versioned;
 use crate::gen::Generator;
 
 /// What downstream-check shape a lane expects.
@@ -172,9 +172,13 @@ impl ArtifactLane for DutLane {
         // SV. Any deviation here would break every book example.
         let mut cfg = self.base_config.clone();
         cfg.seed = seed;
+        // Capture the emission target before `cfg` is moved into the
+        // generator; the DUT lane honours `--sv-version` like the CLI path
+        // (`SV-VERSION-TARGETING.2b.1`). Default `Sv2012` ⇒ byte-identical.
+        let sv_version = cfg.sv_version;
         let mut gen = Generator::new(cfg);
         let design = gen.generate_design();
-        let sv = to_sv_design(&design);
+        let sv = to_sv_design_versioned(&design, sv_version);
         Ok(LaneArtifact {
             lane: "dut".to_string(),
             seed,

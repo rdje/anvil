@@ -23,6 +23,7 @@ the knobs you're most likely to touch day-to-day:
 | `--share-prob`                | 0.3      | Probability of sharing an existing signal vs recursing. |
 | `--construction-strategy`     | interleaved | How module logic is constructed (see below).     |
 | `--factorization-level`       | e-graph  | Dial along the sharing chain: none / cse / operand-unique / commutative / associative / constant-fold / peephole / e-graph. |
+| `--sv-version`                | 2012     | Target IEEE 1800 standard: 2012 / 2017 / 2023 (down-gating capability gate; default reproduces today's output). |
 | `--max-ast-instances`         | 1        | How many times one AST may be named (1 = strict CSE). |
 | `--mux-arm-duplication-rate`  | 0.0      | Probability N-to-1 mux arms may share the same signal. |
 | `--operand-duplication-rate`  | 0.0      | Probability `Add`/`Mul` operand lists may repeat (0.0 = strict). |
@@ -393,6 +394,39 @@ instead of creating fresh logic.
   `1.0` = duplicates unrestricted — opt in to exercise
   `x + x = 2x` / `x * x = x²` shapes in downstream tools. See
   `book/src/structural-rules.md` Rule 8 + Rule 21c.
+
+### SystemVerilog version target
+
+- `sv_version` (`--sv-version <2012|2017|2023>`) — the IEEE 1800
+  standard the emitter targets, a **valid-by-construction capability
+  gate**. It is orthogonal to `identity_mode` / `factorization_level`
+  (which decide *what logic* is built and shared); `sv_version` decides
+  *which standard's syntax* the emitter is allowed to use.
+
+  Two construction-time effects, both rules-first (no
+  generate-then-filter):
+
+  - **Down-gating (a guarantee).** Targeting a lower standard, the
+    emitter never emits a construct introduced by a newer one, so output
+    is valid for a tool or flow pinned to that standard.
+  - **Up-opting (the stress value, future).** Targeting a higher
+    standard, the generator *may* deliberately emit that standard's
+    distinctive synthesizable constructs — each gated at construction
+    time on `target >= that_standard` and proven downstream-clean in the
+    matching tool standard mode before it is enabled. (The first
+    up-opted construct is a later slice; none ship yet.)
+
+  **Default `2012` is the honest floor.** ANVIL's entire current emitted
+  subset (`logic` / `always_ff` / `always_comb` / `case` / `casez` /
+  `for` / packed `struct` / packed arrays / `typedef` / `localparam`) is
+  valid in IEEE 1800-2012, so the default reproduces today's output
+  byte-for-byte, and — because no version-distinctive construct exists
+  yet — **all three targets emit byte-identical SystemVerilog today**
+  (down-gating to any of them removes nothing). This is the
+  reproducibility contract: changing `--sv-version` will only ever change
+  output once an up-opted construct lands, and then only for the higher
+  target. The knob is surfaced in `--dump-config` and the `--introspect`
+  document (introspection schema `1.2`).
 
 ### Hierarchy knobs (Phase 4+)
 

@@ -322,6 +322,80 @@ impl FactorizationLevel {
     }
 }
 
+/// Target IEEE 1800 SystemVerilog standard for emission
+/// (`SV-VERSION-TARGETING`, decision `0009`).
+///
+/// An opt-in capability gate with two construction-time effects, both
+/// rules-first (no generate-then-filter):
+/// - **down-gating** (a guarantee): the emitter never emits a construct
+///   newer than the target, so output stays valid for a tool/flow pinned
+///   to that standard;
+/// - **up-opting** (future, `SV-VERSION-TARGETING.3`): a higher target may
+///   deliberately emit that standard's distinctive synthesizable
+///   constructs, each gated on `target.permits(that_standard)` and proven
+///   downstream-clean in the matching tool standard mode.
+///
+/// `Ord` follows declaration order (`Sv2012 < Sv2017 < Sv2023`) so a
+/// capability check reads `target.permits(SvVersion::Sv2017)`.
+///
+/// **Default `Sv2012`** is the honest floor: ANVIL's entire current emitted
+/// subset (`logic` / `always_ff` / `always_comb` / packed `struct` / packed
+/// arrays / `typedef` / `localparam`) is valid in IEEE 1800-2012, so the
+/// default reproduces today's emission byte-for-byte and down-gating *to the
+/// floor* removes nothing. CLI / serde value spelling is the bare year
+/// (`--sv-version 2017`; `"sv_version": "2012"`).
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    clap::ValueEnum,
+)]
+pub enum SvVersion {
+    /// IEEE 1800-2012 — the current emitted floor subset (default).
+    #[default]
+    #[serde(rename = "2012")]
+    #[value(name = "2012")]
+    Sv2012,
+    /// IEEE 1800-2017.
+    #[serde(rename = "2017")]
+    #[value(name = "2017")]
+    Sv2017,
+    /// IEEE 1800-2023.
+    #[serde(rename = "2023")]
+    #[value(name = "2023")]
+    Sv2023,
+}
+
+impl SvVersion {
+    /// Whether emission targeting `self` permits a construct introduced by
+    /// `introduced` — the down-gating capability bound: a construct is legal
+    /// only when the target is at least the standard that introduced it.
+    /// Today every emitted construct's introducing standard is `Sv2012`, so
+    /// this is `true` for every target; the bound is real but vacuous until
+    /// the first up-opted construct (`SV-VERSION-TARGETING.3`).
+    pub fn permits(self, introduced: SvVersion) -> bool {
+        self >= introduced
+    }
+
+    /// The IEEE 1800 standard label (`"1800-2012"` / `"1800-2017"` /
+    /// `"1800-2023"`), e.g. for a downstream tool's language selector
+    /// (`SV-VERSION-TARGETING.2b.2`).
+    pub fn ieee_standard(self) -> &'static str {
+        match self {
+            SvVersion::Sv2012 => "1800-2012",
+            SvVersion::Sv2017 => "1800-2017",
+            SvVersion::Sv2023 => "1800-2023",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub seed: u64,
@@ -693,6 +767,19 @@ pub struct Config {
     #[serde(default)]
     pub identity_mode: IdentityMode,
 
+    /// Target IEEE 1800 SystemVerilog standard for emission
+    /// (`SV-VERSION-TARGETING`, decision `0009`). An opt-in capability
+    /// gate: **down-gating** guarantees the emitter never emits a
+    /// construct newer than the target; **up-opting** (future `.3`) lets a
+    /// higher target deliberately emit that standard's distinctive
+    /// synthesizable constructs. Default `Sv2012` is the honest floor — the
+    /// current emitted subset is 1800-2012-valid, so the default reproduces
+    /// today's emission byte-for-byte (`tests/snapshots.rs` untouched) and
+    /// down-gating to the floor removes nothing. Orthogonal to
+    /// `identity_mode` / `factorization_level`.
+    #[serde(default)]
+    pub sv_version: SvVersion,
+
     /// Target number of top-level units (operator gate / flop /
     /// comb-mux block) grown in the pool by the `GraphFirst`
     /// strategy. Only consulted when `construction_strategy ==
@@ -850,6 +937,7 @@ impl Default for Config {
             use_async_reset: true,
             construction_strategy: ConstructionStrategy::Interleaved,
             identity_mode: IdentityMode::NodeId,
+            sv_version: SvVersion::Sv2012,
             graph_first_pool_size: 32,
             mux_arm_duplication_rate: 0.0,
             operand_duplication_rate: 0.0,
@@ -1277,6 +1365,9 @@ impl Config {
         if let Some(v) = o.identity_mode {
             self.identity_mode = v;
         }
+        if let Some(v) = o.sv_version {
+            self.sv_version = v;
+        }
         if let Some(v) = o.graph_first_pool_size {
             self.graph_first_pool_size = v;
         }
@@ -1433,6 +1524,7 @@ pub struct Overrides {
     pub comb_mux_encoding_prob: Option<f64>,
     pub construction_strategy: Option<ConstructionStrategy>,
     pub identity_mode: Option<IdentityMode>,
+    pub sv_version: Option<SvVersion>,
     pub graph_first_pool_size: Option<u32>,
     pub coefficient_prob: Option<f64>,
     pub min_coefficient: Option<u32>,
@@ -1567,6 +1659,59 @@ mod tests {
             cfg.effective_factorization_level(),
             FactorizationLevel::None
         );
+    }
+
+    #[test]
+    fn sv_version_defaults_to_floor_and_orders_and_permits_correctly() {
+        // Default is the honest floor — the byte-identical contract.
+        assert_eq!(SvVersion::default(), SvVersion::Sv2012);
+        assert_eq!(Config::default().sv_version, SvVersion::Sv2012);
+
+        // Declaration order is the standard order, so `permits` is "target
+        // is at least the introducing standard".
+        assert!(SvVersion::Sv2012 < SvVersion::Sv2017);
+        assert!(SvVersion::Sv2017 < SvVersion::Sv2023);
+
+        // Down-gating bound: a 2012 target permits only 2012 constructs;
+        // a 2023 target permits everything; a construct's own standard is
+        // always permitted by itself.
+        assert!(SvVersion::Sv2012.permits(SvVersion::Sv2012));
+        assert!(!SvVersion::Sv2012.permits(SvVersion::Sv2017));
+        assert!(!SvVersion::Sv2012.permits(SvVersion::Sv2023));
+        assert!(SvVersion::Sv2017.permits(SvVersion::Sv2012));
+        assert!(SvVersion::Sv2017.permits(SvVersion::Sv2017));
+        assert!(!SvVersion::Sv2017.permits(SvVersion::Sv2023));
+        assert!(SvVersion::Sv2023.permits(SvVersion::Sv2012));
+        assert!(SvVersion::Sv2023.permits(SvVersion::Sv2023));
+
+        assert_eq!(SvVersion::Sv2012.ieee_standard(), "1800-2012");
+        assert_eq!(SvVersion::Sv2017.ieee_standard(), "1800-2017");
+        assert_eq!(SvVersion::Sv2023.ieee_standard(), "1800-2023");
+    }
+
+    #[test]
+    fn sv_version_serde_uses_bare_year_spelling_and_defaults_when_absent() {
+        // Bare-year spelling on the wire (dump-config / introspection).
+        assert_eq!(
+            serde_json::to_string(&SvVersion::Sv2017).unwrap(),
+            "\"2017\""
+        );
+        assert_eq!(
+            serde_json::from_str::<SvVersion>("\"2023\"").unwrap(),
+            SvVersion::Sv2023
+        );
+
+        // Backward-compat (`#[serde(default)]`): an old full config JSON
+        // that predates the field — every other key present, `sv_version`
+        // absent — still deserializes, falling back to the floor.
+        let mut v = serde_json::to_value(Config::default()).unwrap();
+        v.as_object_mut().unwrap().remove("sv_version");
+        assert!(
+            v.get("sv_version").is_none(),
+            "sv_version must be absent for this test to be meaningful"
+        );
+        let cfg: Config = serde_json::from_value(v).unwrap();
+        assert_eq!(cfg.sv_version, SvVersion::Sv2012);
     }
 
     #[test]

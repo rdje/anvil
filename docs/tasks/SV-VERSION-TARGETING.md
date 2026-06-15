@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — version-targeted synthesizable RTL (ROADMAP steering gaps 1 + 3)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.2a` design detail landed; `.2` split)
+- Last updated: `2026-06-15` (`.2b.1` knob + emitter capability bound landed)
 - Owner: repo-local workflow
 - Note: opened `2026-06-15` by owner roadmap steering as the recommended
   highest-leverage capability lane (over the two registered-`proposed` siblings
@@ -86,11 +86,12 @@ byte-identical.
   Children: `SV-VERSION-TARGETING.2b.1`, `SV-VERSION-TARGETING.2b.2`
 
 - ID: `SV-VERSION-TARGETING.2b.1`
-  Status: `proposed`
-  Goal: `Config::sv_version (SvVersion enum) + --sv-version CLI + Overrides + apply_cli_overrides + validate; --dump-config + --introspect surface it (serde-automatic) with schema MINOR bump 1.1 -> 1.2 (+ schema doc + 5 test-assertion updates); SvVersion::permits capability bound threaded through new versioned emitter entry points (old entry points delegate with SvVersion::default()); src/main.rs DUT path + umbrella DUT lane pass cfg.sv_version; a cross-version byte-identity test proving the current subset is a 2012/2017/2023 common floor; USER_GUIDE/book(knobs+new surface)/README/knobs/KM docs.`
-  Acceptance: `cargo fmt/check/clippy --all-targets -D warnings clean; cargo test green; default --sv-version byte-identical (tests/snapshots.rs 6/6 untouched); cross-version byte-identity test passes; --dump-config + --introspect expose sv_version; schema_version = 1.2 everywhere; book/USER_GUIDE/README/knobs + KM updated; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `Config::sv_version (SvVersion enum) + --sv-version CLI + Overrides + apply_cli_overrides; --dump-config + --introspect surface it (serde-automatic) with schema MINOR bump 1.1 -> 1.2 (+ schema doc + 5 test-assertion updates); SvVersion::permits capability bound threaded through new versioned emitter entry points (old entry points delegate with SvVersion::default()); DUT emit sites pass cfg.sv_version; a cross-version byte-identity test proving the current subset is a 2012/2017/2023 common floor; USER_GUIDE/book(knobs+new surface)/README/knobs docs.`
+  Acceptance: `cargo fmt/check/clippy --all-targets -D warnings clean; cargo test --lib green; default --sv-version byte-identical (tests/snapshots.rs 6/6 untouched); cross-version byte-identity test passes; --dump-config + --introspect expose sv_version; schema_version = 1.2 everywhere; book/USER_GUIDE/README/knobs updated; committed through COMMIT.md with the leaf id.`
+  Result: `SvVersion {Sv2012<Sv2017<Sv2023} (Ord, #[default] Sv2012, bare-year CLI/serde spelling) + permits()/ieee_standard() in src/config.rs; Config::sv_version (#[serde(default)]) + Overrides + apply + --sv-version CLI + 2 config unit tests. Emitter: to_sv_versioned/to_sv_in_design_versioned/to_sv_design_versioned in src/emit/sv.rs (+ re-exports in src/emit/mod.rs); old to_sv* delegate with SvVersion::default() ⇒ byte-identical; sv_version threaded into to_sv_with_modules (info! trace only), bound gates nothing yet (subset ≤2012). Threaded cfg.sv_version at all DUT emit sites: main (stdout + --out), introspect (sv_len), mcp (generate), umbrella (DutLane). Introspection schema 1.1→1.2 (SCHEMA_VERSION + schema doc changelog/version/self-check + 5 "1.1" test assertions). New tests/sv_version.rs (cross-version byte-identity over leaf + design spreads). Verified: cargo check/clippy(-D warnings)/fmt clean; cargo test --lib 405/0; snapshots 6/6; tests/sv_version 2/2; CLI smoke default==2012==2023 md5-equal, dump-config/introspect carry field + schema 1.2, bad value rejected. tool_matrix/downstream deferred to .2b.2.`
+  Verification: `done`
+  Commit: `done`
 
 - ID: `SV-VERSION-TARGETING.2b.2`
   Status: `proposed`
@@ -110,8 +111,8 @@ byte-identical.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SV-VERSION-TARGETING.2b.1` | `proposed` | Now eligible — `.2a` design detail landed. Implement the knob plumbing + emitter capability bound + cross-version byte-identity proof + introspection MINOR bump, default byte-identical. |
-| 2 | `SV-VERSION-TARGETING.2b.2` | `proposed` | After `.2b.1`. The per-version downstream acceptance axis (Verilator `--language`, focused `--sv-version-gate`, banked clean). |
+| 1 | `SV-VERSION-TARGETING.2b.2` | `proposed` | Now eligible — `.2b.1` landed the knob + emitter bound. Implement the per-version downstream acceptance axis (Verilator `--language`, focused `--sv-version-gate` + `ScenarioSet::SvVersionSweep`, banked clean), default tool invocation byte-identical. |
+| — | `SV-VERSION-TARGETING.2b.1` | `done` | Landed the `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points (`permits` capability bound) + introspection schema `1.1→1.2` + `tests/sv_version.rs` cross-version byte-identity proof. Default byte-identical (snapshots 6/6). |
 | — | `SV-VERSION-TARGETING.2a` | `done` | Resolved decision `0009`'s five open questions; split `.2` → `.2a`/`.2b` and pre-split `.2b` → `.2b.1`/`.2b.2`. No source change. |
 | — | `SV-VERSION-TARGETING.1` | `done` | Landed decision `0009` — gate semantics, byte-identical default, valid-by-construction discipline, per-version downstream proof, first-increment scope, rejected alternatives. No source change. |
 
@@ -159,6 +160,7 @@ byte-identical.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-15` | `SV-VERSION-TARGETING.2b.1` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0 (incl. 2 new config tests + bumped introspect/mcp schema assertions); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2 (cross-version byte-identity over leaf + design spreads). CLI smoke: `--seed 42` default == `--sv-version 2012` == `--sv-version 2023` md5-equal; `--dump-config` → `"sv_version": "2012"`; `--introspect` → `"schema_version": "1.2"` + `"sv_version": "2012"`; `--sv-version 2005` rejected with the possible-values list. Heavy `tests/pipeline.rs` not re-run (no generation-path change; emitter byte-identical + snapshot-locked); full `cargo test` baseline green at session start. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.2a` | Design-detail leaf, no source change (grounded by a fresh read of `src/config.rs`, `src/emit/sv.rs`, `src/introspect/mod.rs` + `docs/AGENT_INTROSPECTION_SCHEMA.md`, `src/downstream/mod.rs`, `src/bin/tool_matrix.rs`, `src/main.rs`). `DEVELOPMENT_NOTES.md` design-detail entry; task tree split recorded. Baseline `cargo check --all-targets` clean and `cargo test` green before the leaf; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.1` | Design/decision leaf, no source change (grounded in `src/emit/sv.rs` current subset + `src/downstream/mod.rs` fixed tool standards + confirming no existing `sv_version` knob). Decision `0009` with KM `answers:`; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 
@@ -166,11 +168,18 @@ byte-identical.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SV-VERSION-TARGETING.2b.1` | `SV-VERSION-TARGETING.2b.1 — --sv-version knob + emitter capability bound` | `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points + introspection schema `1.1→1.2` + `tests/sv_version.rs`. Default byte-identical (snapshots 6/6). |
 | `SV-VERSION-TARGETING.2a` | `SV-VERSION-TARGETING.2a — SV-version impl design detail + .2 split` | Design-detail in `DEVELOPMENT_NOTES.md`; `.2` split into `.2a`/`.2b`, `.2b` pre-split into `.2b.1`/`.2b.2`. No source change. |
 | `SV-VERSION-TARGETING.1` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Decision record `0009`; opened the lane + registered the two sibling `proposed` lanes. No source change. |
 
 ## Changelog
 
+- `2026-06-15`: `.2b.1` landed (first code slice, byte-identical): `SvVersion`
+  enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry
+  points (`permits` down-gating bound) threaded at all DUT emit sites,
+  introspection schema `1.1→1.2`, new `tests/sv_version.rs` cross-version
+  byte-identity proof. Frontier advances to `.2b.2` (per-version downstream
+  acceptance axis).
 - `2026-06-15`: `.2a` design-detail landed (no source change): resolved decision
   `0009`'s five open questions in `DEVELOPMENT_NOTES.md`; split `.2` into `.2a`
   (done) + `.2b` (active), and pre-split `.2b` into `.2b.1` (knob + emitter

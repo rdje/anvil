@@ -40,7 +40,7 @@ use serde::{Deserialize, Serialize};
 /// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.1` is the
 /// additive (backward-compatible) MINOR bump that surfaced the new
 /// `Metrics::bisimulation_flops_merged` field (`IDENTITY-DEEPENING.2b`).
-pub const SCHEMA_VERSION: &str = "1.1";
+pub const SCHEMA_VERSION: &str = "1.2";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -187,7 +187,7 @@ pub fn content_run_id_for_knobs(lane: &str, seed: u64, knobs_json: &str) -> Stri
 /// re-projects). Pure: byte-identical for the same `(seed, cfg, m)`.
 pub fn module_document(seed: u64, cfg: &Config, m: &Module) -> IntrospectionDocument {
     let metrics = compute(m);
-    let sv_len = emit::to_sv(m).len();
+    let sv_len = emit::to_sv_versioned(m, cfg.sv_version).len();
     let run_id = content_run_id(LANE_DUT, seed, cfg);
     IntrospectionDocument {
         schema_version: SCHEMA_VERSION.to_string(),
@@ -222,7 +222,7 @@ pub fn module_document(seed: u64, cfg: &Config, m: &Module) -> IntrospectionDocu
 /// `seed` and `cfg` are the request that produced `design`. Pure.
 pub fn design_document(seed: u64, cfg: &Config, design: &Design) -> IntrospectionDocument {
     let design_metrics = compute_design(design);
-    let sv_len = emit::to_sv_design(design).len();
+    let sv_len = emit::to_sv_design_versioned(design, cfg.sv_version).len();
     let run_id = content_run_id(LANE_DUT, seed, cfg);
     let modules = design
         .modules
@@ -369,7 +369,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.1");
+        assert_eq!(doc.schema_version, "1.2");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);

@@ -1,5 +1,6 @@
 use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
+    SvVersion,
 };
 use anvil::umbrella::{ArtifactLane, FrontendLane, MicrodesignLane};
 use anvil::{Config, Generator};
@@ -415,6 +416,15 @@ struct Cli {
     /// NodeIds for every AST.
     #[arg(long, value_enum)]
     identity_mode: Option<IdentityMode>,
+    /// Target IEEE 1800 SystemVerilog standard (`2012` / `2017` /
+    /// `2023`). Default `2012` is the honest floor: ANVIL's current
+    /// emitted subset is 1800-2012-valid, so the default reproduces
+    /// today's output byte-for-byte. Down-gating is a guarantee (never
+    /// emit a construct newer than the target); up-opting newer
+    /// standards' distinctive constructs lands in a later slice
+    /// (`SV-VERSION-TARGETING.3`). See `book/src/knobs.md`.
+    #[arg(long, value_enum)]
+    sv_version: Option<SvVersion>,
     /// Convenience alias for `--identity-mode node-id
     /// --factorization-level e-graph`: request the strongest
     /// currently-available identity/factorization mode.
@@ -525,7 +535,10 @@ fn main() -> anyhow::Result<()> {
                     println!("{}", doc.to_json_pretty()?);
                 } else {
                     let design_metrics = anvil::metrics::compute_design(&design);
-                    print!("{}", anvil::emit::to_sv_design(&design));
+                    print!(
+                        "{}",
+                        anvil::emit::to_sv_design_versioned(&design, cfg.sv_version)
+                    );
                     if cli.metrics {
                         eprintln!("{}", serde_json::to_string_pretty(&design_metrics)?);
                         for module in &design.modules {
@@ -541,7 +554,7 @@ fn main() -> anyhow::Result<()> {
                     println!("{}", doc.to_json_pretty()?);
                 } else {
                     let metrics = anvil::metrics::compute(&m);
-                    print!("{}", anvil::emit::to_sv(&m));
+                    print!("{}", anvil::emit::to_sv_versioned(&m, cfg.sv_version));
                     if cli.metrics {
                         eprintln!("{}", serde_json::to_string_pretty(&metrics)?);
                     }
@@ -604,7 +617,11 @@ fn main() -> anyhow::Result<()> {
                                 let fname = format!("{}.sv", module.name);
                                 std::fs::write(
                                     dir.join(&fname),
-                                    anvil::emit::to_sv_in_design(module, &design),
+                                    anvil::emit::to_sv_in_design_versioned(
+                                        module,
+                                        &design,
+                                        cfg.sv_version,
+                                    ),
                                 )?;
                                 modules.push(serde_json::json!({
                                     "file": fname,
@@ -656,7 +673,10 @@ fn main() -> anyhow::Result<()> {
                             let m = gen.generate_module();
                             let metrics = anvil::metrics::compute(&m);
                             let fname = format!("mod_{}_{:04}.sv", seed, idx);
-                            std::fs::write(dir.join(&fname), anvil::emit::to_sv(&m))?;
+                            std::fs::write(
+                                dir.join(&fname),
+                                anvil::emit::to_sv_versioned(&m, cfg.sv_version),
+                            )?;
                             if metrics_to_stderr {
                                 if let Ok(s) = serde_json::to_string_pretty(&metrics) {
                                     eprintln!("{s}");
@@ -836,6 +856,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         } else {
             cli.identity_mode
         },
+        sv_version: cli.sv_version,
         graph_first_pool_size: cli.graph_first_pool_size,
         coefficient_prob: cli.coefficient_prob,
         min_coefficient: cli.min_coefficient,

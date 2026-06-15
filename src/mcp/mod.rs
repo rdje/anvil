@@ -804,12 +804,12 @@ fn build_artifact(
     let mut gen = Generator::new(cfg.clone());
     if cfg.effective_hierarchy_depth_range().is_some() {
         let design = gen.generate_design();
-        let sv = emit::to_sv_design(&design);
+        let sv = emit::to_sv_design_versioned(&design, cfg.sv_version);
         let doc = introspect::design_document(seed, cfg, &design);
         (sv, "design".to_string(), design.top.clone(), doc)
     } else {
         let m = gen.generate_module();
-        let sv = emit::to_sv(&m);
+        let sv = emit::to_sv_versioned(&m, cfg.sv_version);
         let doc = introspect::module_document(seed, cfg, &m);
         (sv, "module".to_string(), m.name.clone(), doc)
     }
@@ -1460,7 +1460,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.1");
+        assert_eq!(doc["schema_version"], "1.2");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -1561,7 +1561,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.1");
+        assert_eq!(doc["schema_version"], "1.2");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -1616,7 +1616,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.1");
+        assert_eq!(doc["schema_version"], "1.2");
     }
 
     #[test]

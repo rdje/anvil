@@ -294,6 +294,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current emitted subset is 1800-2012-valid, so the default (and all three targets, today) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.2`). Up-opting newer constructs is a later slice. |
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

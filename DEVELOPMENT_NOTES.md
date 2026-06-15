@@ -5,6 +5,54 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — SV-version targeting — knob + emitter capability bound — `SV-VERSION-TARGETING.2b.1`
+
+First code slice of `.2b` (implement decision `0009` per the `.2a` design). Adds
+the `--sv-version` knob and threads it into the emitter as a down-gating
+capability bound. **Default-off / byte-identical**: snapshots 6/6 untouched, and
+the new `tests/sv_version.rs` proves every target is byte-identical over the
+current subset.
+
+- **`SvVersion` enum (`src/config.rs`).** `Sv2012 < Sv2017 < Sv2023` (`Ord`),
+  `#[derive(... Default ...)]` with `#[default] Sv2012`. Bare-year CLI/serde
+  spelling via per-variant `#[value(name = "2012")]` + `#[serde(rename =
+  "2012")]` (a decimal-leading token isn't a kebab identifier). `permits(self,
+  introduced) = self >= introduced` is the down-gating bound; `ieee_standard()
+  → "1800-20xx"` is staged for the `.2b.2` Verilator language axis.
+  `Config::sv_version` is `#[serde(default)]` (old config JSON without the key
+  reads back as the floor) + `Overrides`/`apply_cli_overrides`. No new
+  `validate` rule (an enum is always valid).
+- **Emitter (`src/emit/sv.rs`).** New `to_sv_versioned` /
+  `to_sv_in_design_versioned` / `to_sv_design_versioned`; the historical
+  `to_sv*` delegate with `SvVersion::default()`, so every existing caller
+  (snapshots, book examples, tests, MCP, umbrella) is byte-identical.
+  `to_sv_with_modules` gains the `sv_version` param (used in the `info!` trace —
+  no byte impact). The bound currently gates **nothing**: the whole subset is
+  1800-2012-valid, so down-gating to any target removes nothing — the explicit,
+  testable down-gating guarantee over the current subset. `.3`'s first up-opt
+  is the first site to call `sv_version.permits(...)` before emitting.
+- **Threaded the bound at every DUT emit site:** `src/main.rs` (stdout +
+  `--out` design/module paths), `src/introspect/mod.rs` (`sv_len`),
+  `src/mcp/mod.rs` (`generate`), `src/umbrella/mod.rs` (DutLane — captures
+  `sv_version` before `cfg` moves into the generator). All byte-identical at
+  the default. (`tool_matrix` deliberately deferred to `.2b.2`, which pairs the
+  version with the per-version downstream `--language` axis.)
+- **Introspection schema MINOR bump `1.1 → 1.2`.** `sv_version` surfaces for
+  free (serde projection of `Config` in `request.knobs`); bumped
+  `SCHEMA_VERSION` + the schema-doc changelog/version lines + the five `"1.1"`
+  test assertions (1 in `introspect`, 3 in `mcp`, plus the schema-doc self-check
+  prose). `--dump-config` shows `"sv_version": "2012"` automatically.
+- **Why threading is a *parameter*, not an IR field.** A standard target is
+  global emission policy, not a per-module structural fact — so it stays off
+  `Module`/`Design`, leaving CSE keys, `canonical_module_signature`, validators,
+  and every Module-serialization surface untouched (contrast the per-module
+  `aggregate_layout` *structural* annotation).
+- **Validation.** `cargo check --all-targets` / `cargo clippy --all-targets -D
+  warnings` / `cargo fmt --check` clean; `cargo test --lib` 405/0; `tests/
+  snapshots` 6/6; `tests/sv_version` 2/2; CLI smoke: default == `--sv-version
+  2012` == `2023` byte-for-byte, `--dump-config`/`--introspect` carry the field
+  + schema `1.2`, bad value rejected with the possible-values list.
+
 ## 2026-06-15 — SV-version targeting — implementation design detail — `SV-VERSION-TARGETING.2a`
 
 Design-detail leaf for `.2` (implement decision `0009`). **No source change.**

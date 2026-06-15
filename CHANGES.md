@@ -1,9 +1,86 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SV-VERSION-TARGETING.2b.1 — --sv-version knob + emitter capability bound
+
+**Landed as:** this commit (previous: `a18d51d`). Task-tree-owned by
+`SV-VERSION-TARGETING.2b.1`. First **code** slice of the lane; **default-off /
+byte-identical** (snapshots 6/6 untouched).
+
+**What changed**
+
+- **`SvVersion` enum + `Config::sv_version` (`src/config.rs`).** Variants
+  `Sv2012 < Sv2017 < Sv2023` (`Ord`), `#[default] Sv2012`, bare-year CLI/serde
+  spelling (`--sv-version 2017`; `"sv_version": "2012"`). `permits(introduced)
+  = self >= introduced` is the down-gating capability bound; `ieee_standard()`
+  → `"1800-20xx"` is staged for `.2b.2`. `#[serde(default)]` field +
+  `Overrides`/`apply_cli_overrides`; CLI `--sv-version` in `src/main.rs`. Two
+  new config unit tests (ordering/permits/default; bare-year serde +
+  backward-compat default-when-absent).
+- **Emitter capability bound (`src/emit/sv.rs` + `src/emit/mod.rs`).** New
+  `to_sv_versioned` / `to_sv_in_design_versioned` / `to_sv_design_versioned`;
+  the historical `to_sv*` delegate with `SvVersion::default()`, so every
+  existing caller is byte-identical. `to_sv_with_modules` threads `sv_version`
+  (used in the `info!` trace — no byte impact). The bound gates nothing today
+  (the whole subset is 1800-2012-valid), which **is** the down-gating guarantee
+  over the current subset; `.3`'s first up-opt is the first `permits(...)` site.
+- **Threaded at every DUT emit site:** `src/main.rs` (stdout + `--out`
+  paths), `src/introspect/mod.rs`, `src/mcp/mod.rs`, `src/umbrella/mod.rs`
+  (DutLane). `tool_matrix` deferred to `.2b.2`.
+- **Introspection schema MINOR bump `1.1 → 1.2`** (`src/introspect/mod.rs`
+  `SCHEMA_VERSION` + `docs/AGENT_INTROSPECTION_SCHEMA.md` version lines +
+  changelog + §10 self-check; the five `"1.1"` test assertions in
+  `introspect`/`mcp`). `sv_version` surfaces for free in `--dump-config` /
+  `--introspect` (serde projection of `Config`).
+- **New `tests/sv_version.rs`** — the down-gating byte-identity proof: over a
+  leaf-module spread (combinational, sequential, structured case/casez/for,
+  operator mix, memory, FSM) and a design spread (recursive + wrapper +
+  aggregate-enabled), emitting the same IR at `2012`/`2017`/`2023` is
+  byte-identical, and `to_sv*` equals the `Sv2012` floor.
+- **Docs:** README CLI-truth bullet; USER_GUIDE knob row; `book/src/knobs.md`
+  quick-ref row + a new "SystemVerilog version target" taxonomy subsection;
+  `CODEBASE_ANALYSIS.md` (config enum/knob, versioned emitter entry points,
+  schema `1.2`); `DEVELOPMENT_NOTES.md` impl entry.
+
+**Why**
+
+Implements the `.2a` design (decision `0009`): a valid-by-construction
+emission-target capability gate that guarantees standard-validity (down-gating)
+and adds an explicit `sv_version` adversarial axis (ROADMAP steering gap 3) +
+version-targeted breadth (gap 1). Keeping the default the honest 2012 floor and
+delegating the old entry points keeps every existing artifact byte-identical.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0;
+`tests/snapshots` 6/6 byte-identical; `tests/sv_version` 2/2. CLI smoke:
+`--seed 42` default == `--sv-version 2012` == `--sv-version 2023` byte-for-byte
+(md5-equal); `--dump-config` → `"sv_version": "2012"`; `--introspect` →
+`"schema_version": "1.2"` + `"sv_version": "2012"`; `--sv-version 2005` rejected
+with `[possible values: 2012, 2017, 2023]`. The heavy `tests/pipeline.rs`
+integration suite was not re-run for this slice (no generation-path change; the
+emitter change is byte-identical and snapshot-locked); the full `cargo test`
+baseline was green at session start.
+
+**Impact**
+
+New opt-in `--sv-version` capability; introspection schema `1.2`. Default
+emission, `--identity-mode`, factorization, and every existing knob are
+unchanged and byte-identical. Frontier → `.2b.2` (per-version downstream
+acceptance axis).
+
+**Files touched:** `src/config.rs`, `src/main.rs`, `src/emit/mod.rs`,
+`src/emit/sv.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`src/umbrella/mod.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+`tests/sv_version.rs`, `README.md`, `USER_GUIDE.md`, `book/src/knobs.md`,
+`CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+`docs/tasks/SV-VERSION-TARGETING.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-15 — SV-VERSION-TARGETING.2a — SV-version impl design detail + .2 split
 
-**Landed as:** this commit (previous: `eab3f4f`). **Docs-only / design-detail
+**Landed as:** `a18d51d` (previous: `eab3f4f`). **Docs-only / design-detail
 leaf** — task-tree-owned by `SV-VERSION-TARGETING.2a`. **No source change.**
 Grounds the `.2b` implementation of decision `0009` in the real code and splits
 `.2` before any code lands.

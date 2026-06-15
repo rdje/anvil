@@ -251,6 +251,14 @@ src/
 │                     max_ast_instances, mux_arm_duplication_rate,
 │                     operand_duplication_rate, identity_mode,
 │                     factorization_level.
+│                     SvVersion enum (clap::ValueEnum + serde, derives
+│                     PartialOrd/Ord; bare-year value spelling
+│                     "2012"/"2017"/"2023"): the opt-in --sv-version
+│                     emission-target capability gate (sv_version knob,
+│                     #[serde(default)] = Sv2012 floor). permits() is the
+│                     down-gating capability bound; ieee_standard() →
+│                     "1800-20xx" for a future per-version downstream axis
+│                     (SV-VERSION-TARGETING.2b.1, decision 0009).
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
@@ -344,7 +352,10 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.0"`,
+│                     only the envelope metadata (`schema_version` `"1.2"`
+│                     — MINOR-bumped 1.1→1.2 when `Config::sv_version`
+│                     joined the `request.knobs` echo,
+│                     SV-VERSION-TARGETING.2b.1),
 │                     `anvil_version`, `lane`, the `request` echo with a
 │                     content-addressed FNV-1a `run_id`, the `artifact`
 │                     `ResourceRef`s, `warnings`). Pure `module_document` /
@@ -858,8 +869,17 @@ src/
 │                     Cloneable for snapshot/rewind during retry.
 │
 └── emit/
-    ├── mod.rs        Re-exports to_sv, to_sv_in_design, to_sv_design.
+    ├── mod.rs        Re-exports to_sv, to_sv_in_design, to_sv_design and
+    │                 their `*_versioned(.., SvVersion)` counterparts.
     └── sv.rs         IR → String pretty-printer. Assumes invariants hold.
+                      `to_sv*` entry points delegate to `to_sv*_versioned`
+                      with `SvVersion::default()` (Sv2012), so existing
+                      callers are byte-identical; `sv_version` threads to
+                      `to_sv_with_modules` as the down-gating capability
+                      bound, consulted via `SvVersion::permits` at
+                      version-distinctive construct sites (none yet — the
+                      whole subset is 1800-2012-valid, so every target is
+                      byte-identical today; SV-VERSION-TARGETING.2b.1).
                       No validation. Fixed 4-space indent. Naming:
                       build_names walks m.nodes once, assigns each
                       Gate node a `<kind>_<per-kind-counter>` name

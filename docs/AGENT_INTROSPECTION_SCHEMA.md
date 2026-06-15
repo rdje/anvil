@@ -100,7 +100,7 @@ document is self-identifying and reproducible:
 
 ---
 
-## 4. The introspection envelope (v1.1)
+## 4. The introspection envelope (v1.2)
 
 The top-level object. **Every field below is owned by this document.** Types
 use TypeScript-ish notation for brevity; the wire format is JSON.
@@ -316,7 +316,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.1"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.2"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -326,13 +326,21 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.1"`**.
+This document defines **`schema_version = "1.2"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
   bounded bisimulation flop-merge count) in `module_metrics`. Backward
   compatible — a `1.0` consumer simply ignores the new key. No envelope
   field was removed, renamed, or retyped; determinism is preserved.
+- **`1.1` → `1.2` (`SV-VERSION-TARGETING.2b.1`).** Additive MINOR bump:
+  surfaced the new `Config::sv_version` field (the opt-in `--sv-version`
+  emission-target capability, an `SvVersion` enum serialized as the bare
+  year `"2012"`/`"2017"`/`"2023"`, `#[serde(default)]` = `"2012"`) in
+  `request.knobs`. Backward compatible — a `1.1` consumer ignores the new
+  key, and an absent key reads back as the `"2012"` floor. No envelope
+  field was removed, renamed, or retyped; the default-`dut` artifact stays
+  byte-identical, so determinism is preserved.
 
 ---
 
@@ -371,5 +379,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.1"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.2"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.
