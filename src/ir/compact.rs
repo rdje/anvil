@@ -1302,6 +1302,50 @@ pub fn merge_bisimilar_flops(m: &mut Module) -> u32 {
         return 0;
     }
 
+    // The coarsest stable bisimulation partition of `m`'s flops. `None` when
+    // no bucket is refinable (the exact pass already settled everything ⇒ no
+    // bisimulation merge). Factored into `bisimulation_partition` so the
+    // cross-module whole-module sequential-equivalence proof
+    // (`IDENTITY-DEEPENING.3b`) can reuse the identical refinement on a
+    // combined module without duplicating it.
+    let classes = match bisimulation_partition(m) {
+        Some(classes) => classes,
+        None => return 0,
+    };
+
+    // Collapse each converged class onto its representative (min `FlopId`).
+    let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
+    let mut removed = 0u32;
+    for class in &classes {
+        let rep = *class.iter().min().expect("partition class is non-empty");
+        for &flop in class {
+            if flop != rep {
+                old_to_canonical_old[flop as usize] = rep;
+                removed += 1;
+            }
+        }
+    }
+
+    finalize_flop_merge(m, old_to_canonical_old, removed)
+}
+
+/// Compute the coarsest stable bisimulation partition of `m`'s flops by
+/// greatest-fixpoint refinement (the core of [`merge_bisimilar_flops`],
+/// factored out so the cross-module whole-leaf-module sequential-equivalence
+/// proof can reuse the *identical* refinement on a combined module —
+/// `IDENTITY-DEEPENING.3b`).
+///
+/// Returns each equivalence class as an ascending-`FlopId` `Vec`, the classes
+/// in deterministic order. Returns `None` when no `(width, reset_kind,
+/// reset_val, domain)` bucket is reset-defined with at least two flops inside
+/// the `N_BISIM_FLOPS` cap — i.e. nothing the exact pass has not already
+/// settled, so [`merge_bisimilar_flops`] returns `0` without touching the
+/// module (preserving its byte-identical behaviour).
+///
+/// **Non-mutating.** Callers must ensure every flop has a settled D-cone.
+/// Resetless flops are pinned to singleton classes: with no reset there is no
+/// provable equal initial state, so a state correspondence has no base case.
+fn bisimulation_partition(m: &Module) -> Option<Vec<Vec<FlopId>>> {
     // Base case: bucket by (width, reset_kind, reset_val, clock_domain).
     let mut buckets: BTreeMap<(u32, u8, u128, u32), Vec<FlopId>> = BTreeMap::new();
     for flop in &m.flops {
@@ -1333,7 +1377,7 @@ pub fn merge_bisimilar_flops(m: &mut Module) -> u32 {
         }
     }
     if !has_refinable {
-        return 0;
+        return None;
     }
 
     // Greatest-fixpoint refinement: split until no class splits.
@@ -1372,7 +1416,7 @@ pub fn merge_bisimilar_flops(m: &mut Module) -> u32 {
                 .map(|&flop_id| {
                     let d = m.flops[flop_id as usize]
                         .d
-                        .expect("d present (checked above)");
+                        .expect("d present (caller checks settled D-cones)");
                     let proof = cone_proof(
                         m,
                         d,
@@ -1414,20 +1458,7 @@ pub fn merge_bisimilar_flops(m: &mut Module) -> u32 {
         }
     }
 
-    // Collapse each converged class onto its representative (min `FlopId`).
-    let mut old_to_canonical_old: Vec<FlopId> = (0..m.flops.len() as FlopId).collect();
-    let mut removed = 0u32;
-    for class in &classes {
-        let rep = *class.iter().min().expect("partition class is non-empty");
-        for &flop in class {
-            if flop != rep {
-                old_to_canonical_old[flop as usize] = rep;
-                removed += 1;
-            }
-        }
-    }
-
-    finalize_flop_merge(m, old_to_canonical_old, removed)
+    Some(classes)
 }
 
 /// Merge duplicate generated FSM blocks after their selector cones are known.

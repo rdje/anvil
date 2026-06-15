@@ -5,6 +5,29 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Factor `bisimulation_partition` — refactor — `IDENTITY-DEEPENING.3b.2a`
+
+First code slice of `.3b.2` (implement decision `0008`). Pure refactor of
+`src/ir/compact.rs`: the "bucket → refinable partition → greatest-fixpoint
+refinement" core of `merge_bisimilar_flops` is extracted into a **non-mutating**
+`bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>`. The cross-module
+whole-leaf-module equivalence check (`.3b.2b`) runs this *identical* refinement
+on a throwaway combined module, so it must not be duplicated.
+
+- **Byte-identical contract preserved exactly.** `bisimulation_partition` returns
+  `None` precisely when the original hit its `!has_refinable` early-`return 0`,
+  and `Some(classes)` with the identical final partition otherwise.
+  `merge_bisimilar_flops` keeps its guards (knob / `< 2` flops / node-id+e-graph /
+  settled-D) and its collapse + `finalize_flop_merge` tail unchanged, so when the
+  partition is `None` it returns `0` without touching the module and otherwise
+  collapses exactly as before. Verified: `tests/snapshots` 6/6 byte-identical and
+  all 6 `merge_bisimilar_flops_*` gate tests green.
+- **Why a separate slice.** Landing the refactor on its own — byte-identical,
+  snapshot-locked — isolates the risky cross-module logic in `.3b.2b` from any
+  chance of perturbing the proven flop-merge path (the `.2b` `finalize_flop_merge`
+  precedent: refactor first, feature second). The helper is the foundation the
+  combined-module `modules_bisimilar` check calls.
+
 ## 2026-06-15 — Cross-module sequential merge — design detail — `IDENTITY-DEEPENING.3b.1`
 
 Design-detail leaf for `.3b` (implement decision `0008`). No source change. This

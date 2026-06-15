@@ -563,7 +563,16 @@ src/
 │   │                 the same proof functions and reuses the shared
 │   │                 `finalize_flop_merge` rewrite the exact pass now
 │   │                 also calls; resetless flops are excluded (no reset
-│   │                 base case); default-off / byte-identical.
+│   │                 base case); default-off / byte-identical. Its
+│   │                 bucket -> refinable-partition -> greatest-fixpoint
+│   │                 refinement core is factored into the non-mutating
+│   │                 `bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>`
+│   │                 helper (`IDENTITY-DEEPENING.3b.2a`) so the
+│   │                 forthcoming cross-module whole-leaf-module
+│   │                 sequential-equivalence proof (`.3b.2b`) can reuse the
+│   │                 identical refinement on a combined module;
+│   │                 `merge_bisimilar_flops` keeps its collapse +
+│   │                 `finalize_flop_merge` tail and stays byte-identical.
 │   │                 `merge_equivalent_fsms(&mut Module)` applies it
 │   │                 to deterministic generated FSM blocks with
 │   │                 matching selector proof, encoding, transition

@@ -10,9 +10,10 @@
 - Owner: repo-local workflow
 - Note: `.2` (bisimulation flop merge) **delivered** (`.2a` design + `.2b`
   impl). `.3` (whole-module sequential equivalence): `.3a` (design/decision —
-  **done**, decision `0008`); `.3b` (impl) is now split into `.3b.1`
-  (design-detail — **done**) + `.3b.2` (impl — future). Tree stays `active`
-  until `.3b.2` lands or is deferred.
+  **done**, decision `0008`); `.3b` (impl): `.3b.1` (design-detail — **done**);
+  `.3b.2` (impl) is now split into `.3b.2a` (the byte-identical
+  `bisimulation_partition` refactor — **done**) + `.3b.2b` (the cross-module
+  feature — future). Tree stays `active` until `.3b.2b` lands or is deferred.
 
 ## Goal
 
@@ -136,9 +137,22 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.3b.2`
+  Status: `active`
+  Goal: `Implement the .3b.1 design in code.`
+  Children: `IDENTITY-DEEPENING.3b.2a`, `IDENTITY-DEEPENING.3b.2b`
+
+- ID: `IDENTITY-DEEPENING.3b.2a`
+  Status: `done`
+  Goal: `Factor the merge_bisimilar_flops refinement core into a non-mutating bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>> helper that the cross-module proof reuses, keeping merge_bisimilar_flops byte-identical.`
+  Acceptance: `cargo build/fmt/clippy clean; snapshots 6/6 byte-identical; the 6 bisim lib tests still pass; no behaviour change (pure refactor); committed through COMMIT.md with the leaf id.`
+  Result: `Extracted the "bucket -> refinable partition -> greatest-fixpoint refine" core of merge_bisimilar_flops (src/ir/compact.rs) into a new non-mutating bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>> (None preserves the original !has_refinable early-return; merge_bisimilar_flops keeps its guards + collapse + finalize_flop_merge tail). Pure refactor: cargo build clean; cargo fmt --check + clippy -D warnings clean; tests/snapshots 6/6 byte-identical; the 6 merge_bisimilar_flops_* lib gate tests still pass (default-off, mutual-swap merge, exact-cannot, resetless-excluded, relaxed off, e-graph gate, non-bisimilar split). CODEBASE_ANALYSIS updated. The helper is the byte-identical foundation the .3b.2b combined-module check calls.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `IDENTITY-DEEPENING.3b.2b`
   Status: `proposed`
-  Goal: `(Future) Implement the .3b.1 design: the factored bisimulation_partition helper (merge_bisimilar_flops byte-identical), the combined-module cross-module bisimulation check, the new dedup_sequential_modules pass beside dedup_semantic_modules, the default-off hierarchy_sequential_module_dedup knob (Config/Module/Design), the DesignMetrics sequential_module_proof_signatures + num_sequentially_duplicate_module_pairs pair, the rules-first cross-module merge gate, and the downstream-clean bank.`
-  Acceptance: `cargo fmt/check/clippy clean; the merge_bisimilar_flops refactor byte-identical (snapshots 6/6); rules-first gate (two sequentially-equivalent stateful leaf modules collapse to 1 with the knob on, both structural + combinational dedup leave 2); knob-off byte-identical; merged multi-module design downstream-clean (Verilator + both Yosys); live docs (book/src/factorization.md + hierarchy.md, DEVELOPMENT_NOTES, ROADMAP gap 2, CODEBASE_ANALYSIS, USER_GUIDE/knobs) + a Knowledge Map card updated; committed through COMMIT.md with the leaf id.`
+  Goal: `(Future) The cross-module feature on top of .3b.2a: modules_bisimilar(A,B) via combined-module materialization (reusing bisimulation_partition) + per-output-cone equality under the quotient; the new dedup_sequential_modules pass beside dedup_semantic_modules (flops-only leaf candidates, pre-filter + union-find, reuse the lex-survivor/rewrite/prune tail); the default-off hierarchy_sequential_module_dedup knob (Config/Module/Design); the DesignMetrics sequential_module_proof_signatures + num_sequentially_duplicate_module_pairs pair; wire-in at the gen/mod.rs finalization site; the rules-first cross-module merge gate; the downstream-clean bank; and the book/USER_GUIDE/ROADMAP/KM closeout.`
+  Acceptance: `cargo fmt/check/clippy clean; rules-first gate (two sequentially-equivalent stateful leaf modules collapse to 1 with the knob on, both structural + combinational dedup leave 2); knob-off byte-identical (snapshots 6/6); merged multi-module design downstream-clean (Verilator + both Yosys); live docs (book/src/factorization.md + hierarchy.md, DEVELOPMENT_NOTES, ROADMAP gap 2, CODEBASE_ANALYSIS, USER_GUIDE/knobs) + a Knowledge Map card updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -146,7 +160,8 @@ handoff.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `IDENTITY-DEEPENING.3b.2` | `proposed` | Now eligible — `.3b.1` design-detail landed. Implement the cross-module sequential-module merge: factored `bisimulation_partition` helper (refinement byte-identical) + combined-module check + `dedup_sequential_modules` pass + default-off `hierarchy_sequential_module_dedup` knob + metric pair + rules-first gate + downstream-clean bank. |
+| 1 | `IDENTITY-DEEPENING.3b.2b` | `proposed` | Now eligible — `.3b.2a` (the byte-identical `bisimulation_partition` refactor) landed. Build the cross-module feature on top of it: `modules_bisimilar` via combined-module materialization + per-output-cone equality + `dedup_sequential_modules` pass + default-off `hierarchy_sequential_module_dedup` knob + metric pair + wire-in + rules-first gate + downstream-clean bank + book/docs. |
+| — | `IDENTITY-DEEPENING.3b.2a` | `done` | Factored the `merge_bisimilar_flops` refinement core into a non-mutating `bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>` helper; byte-identical (snapshots 6/6 + 6 bisim tests); the foundation `.3b.2b` reuses on a combined module. |
 | — | `IDENTITY-DEEPENING.3b.1` | `done` | Ground decision `0008` in the real code: combined-module materialization (inputs unify by `(PortId,width)` for free), reuse the `merge_bisimilar_flops` refinement via a factored `bisimulation_partition`, the no-bijection soundness condition (interfaces + stable union partition + per-output-cone equality under the quotient), pre-filter + union-find grouping; pinned knob/metric names + gate. No source change. |
 | — | `IDENTITY-DEEPENING.3a` | `done` | Landed decision `0008` — soundness discipline, budget, control surface, downstream gate, first-cut scope, and the central `.3b` cross-module-proof challenge; no source change. |
 | — | `IDENTITY-DEEPENING.2b` | `done` | Delivered the opt-in `merge_bisimilar_flops` pass, default-off / byte-identical, downstream-clean bank. |
@@ -226,6 +241,7 @@ handoff.
 | `2026-06-15` | `IDENTITY-DEEPENING.2b` | `cargo build` + `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 403 pass incl. 6 new bisim gate tests + the metrics-plumbing test + introspect/MCP schema_version tests; `cargo test --test snapshots` 6/6 byte-identical (knob default-off); representative `cargo test --test pipeline` reproducibility test green (full pipeline suite is heavy/slow and exercises only the byte-identical default path). Downstream-clean bank on the merged mutual-swap self-hold output: Verilator `--lint-only -Wall` 0 warnings, Yosys without-abc + with-abc, Icarus `iverilog -g2012` (re-bank: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers`). KM + mem-arch self-checks clean. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.3a` | Design/decision leaf, **no source change** (grounded in a close read of `src/ir/dedup.rs` `dedup_semantic_modules` + `prune_modules_made_unreachable`, `src/metrics.rs` `semantic_module_proof_inner` + the module-proof budget constants, and `src/ir/compact.rs` `merge_bisimilar_flops` / `canonical_flop_endpoint` / `cone_proof` / `MERGE_SEMANTIC_LIMITS`). Decision `0008` written with KM `answers:` front-matter; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.3b.1` | Design-detail leaf, **no source change** (grounded in the full source of `src/ir/dedup.rs` `dedup_semantic_modules_once` + survivor/rewrite/prune tail, `src/metrics.rs` `SemanticModuleProof` / `semantic_module_proof_inner` / `semantic_module_proof_body` / `build_instance_semantic_views`, and `src/ir/compact.rs` `merge_bisimilar_flops` refinement loop + `cone_proof` quotient threading + `LeafEndpoint::PrimaryInput{port,width}`). Pinned the combined-module materialization, the factored `bisimulation_partition` reuse, the no-bijection coinduction soundness condition, the pre-filter + union-find grouping, and the finalized knob/metric names + gate in `DEVELOPMENT_NOTES.md`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean (no fact-file change ⇒ KM already in sync). | `done` |
+| `2026-06-15` | `IDENTITY-DEEPENING.3b.2a` | Pure refactor (`src/ir/compact.rs`): `cargo build` clean; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --test snapshots` 6/6 byte-identical; `cargo test --lib bisim` 6/6 pass (default-off, mutual-swap merge, exact-cannot, resetless-excluded, relaxed off, e-graph gate, non-bisimilar split). No behaviour change ⇒ DUT byte-identical. CODEBASE_ANALYSIS updated. | `done` |
 
 ## Commit Log
 
@@ -236,6 +252,7 @@ handoff.
 | `IDENTITY-DEEPENING.2b` | `IDENTITY-DEEPENING.2b — implement bounded bisimulation flop merge` | Landed `merge_bisimilar_flops` + `finalize_flop_merge` + quotient proof threading + default-off knob + metric + 6 gate tests + schema 1.0→1.1; downstream-clean bank. Closes `.2`. |
 | `IDENTITY-DEEPENING.3a` | `IDENTITY-DEEPENING.3a — whole-module sequential equivalence design` | Decision record `0008`; split `.3` into `.3a` (design, done) + `.3b` (impl, future). No source change. |
 | `IDENTITY-DEEPENING.3b.1` | `IDENTITY-DEEPENING.3b.1 — cross-module sequential merge design detail` | Grounded `.3b.2` algorithm/API-reuse/names/soundness/gate in the real code; split `.3b` into `.3b.1` (design-detail, done) + `.3b.2` (impl). No source change. |
+| `IDENTITY-DEEPENING.3b.2a` | `IDENTITY-DEEPENING.3b.2a — factor bisimulation_partition helper` | Factored the `merge_bisimilar_flops` refinement core into a non-mutating `bisimulation_partition` helper; byte-identical (snapshots 6/6 + 6 bisim tests); split `.3b.2` into `.3b.2a` (refactor, done) + `.3b.2b` (cross-module feature). |
 
 ## Changelog
 
@@ -272,6 +289,14 @@ handoff.
   excluded; resetless excluded). Grounded in the real `dedup_semantic_modules` /
   `merge_bisimilar_flops` machinery; no source change. Frontier advances to
   `.3b`.
+- `2026-06-15`: `.3b.2a` done — first code slice of `.3b.2`: factored the
+  `merge_bisimilar_flops` refinement core (`src/ir/compact.rs`) into a
+  non-mutating `bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>`
+  helper that `.3b.2b` reuses on a combined module; `merge_bisimilar_flops`
+  keeps its guards + collapse + `finalize_flop_merge` tail and stays
+  byte-identical (snapshots 6/6, 6 bisim tests, clippy/fmt clean). Split
+  `.3b.2` into `.3b.2a` (refactor, done) + `.3b.2b` (cross-module feature).
+  Frontier advances to `.3b.2b`.
 - `2026-06-15`: `.3b.1` done — split `.3b` into `.3b.1` (design-detail, done) +
   `.3b.2` (impl, future); `.3b` is now an `active` container. Resolved decision
   `0008`'s central impl challenge by a full read of the real code: **no new

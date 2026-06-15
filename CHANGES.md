@@ -1,9 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — IDENTITY-DEEPENING.3b.2a — factor bisimulation_partition helper
+
+**Landed as:** this commit (previous: `762cf46`). **Code leaf** — task-tree-owned
+by `IDENTITY-DEEPENING.3b.2a`. First (foundational, byte-identical) code slice of
+`.3b.2` (implement decision `0008`).
+
+**What changed**
+
+Pure refactor of `src/ir/compact.rs`: the "bucket → refinable partition →
+greatest-fixpoint refinement" core of `merge_bisimilar_flops` is extracted into a
+**non-mutating** helper
+
+```rust
+fn bisimulation_partition(m: &Module) -> Option<Vec<Vec<FlopId>>>
+```
+
+so the cross-module whole-leaf-module sequential-equivalence proof (`.3b.2b`) can
+run the *identical* refinement on a throwaway combined module without duplicating
+it. `merge_bisimilar_flops` now = its guards + `bisimulation_partition(m)` + its
+existing collapse + `finalize_flop_merge` tail.
+
+- **Byte-identical contract preserved.** `bisimulation_partition` returns `None`
+  exactly when the original hit its `!has_refinable` early-`return 0`, and
+  `Some(classes)` with the identical final partition otherwise. The guards
+  (knob / `< 2` flops / node-id + e-graph / settled-D) and the collapse tail are
+  unchanged, so the pass returns `0` without touching the module on `None` and
+  collapses exactly as before otherwise.
+
+**Why**
+
+`IDENTITY-DEEPENING.3b.2` foundation: isolate the byte-identical refactor from the
+risky cross-module logic in `.3b.2b`, so the proven flop-merge path cannot be
+perturbed by the new feature (the `.2b` `finalize_flop_merge` precedent — refactor
+first, feature second).
+
+**Validation**
+
+`cargo build` clean; `cargo fmt --all --check` clean; `cargo clippy --all-targets
+-- -D warnings` clean; `cargo test --test snapshots` **6/6 byte-identical**;
+`cargo test --lib bisim` **6/6** pass (default-off, mutual-swap merge,
+exact-cannot, resetless-excluded, relaxed off-switch, e-graph gate, non-bisimilar
+split). No behaviour change ⇒ DUT byte-identical.
+
+**Impact**
+
+No emitted-RTL change, no CLI/knob change. Adds the internal
+`bisimulation_partition` helper that `.3b.2b` reuses on a combined module.
+`MEMORY.md` next-action advances to `.3b.2b`.
+
+**Files touched**
+
+`src/ir/compact.rs`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+`docs/tasks/IDENTITY-DEEPENING.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — IDENTITY-DEEPENING.3b.1 — cross-module sequential merge design detail
 
-**Landed as:** this commit (previous: `ce46141`). **Docs-only / design-detail
+**Landed as:** `762cf46` (previous: `ce46141`). **Docs-only / design-detail
 leaf** — task-tree-owned by `IDENTITY-DEEPENING.3b.1`. **No source change** (no
 `src/`, `tests/`, or build edits); not a code commit.
 
