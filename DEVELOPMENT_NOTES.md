@@ -5,6 +5,74 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — SV-version targeting — soft-union up-opt mechanism (impl design-detail) — `SV-VERSION-TARGETING.3b.1`
+
+Design-detail leaf for `.3b`. Resolves the mechanism open question decision
+`0010` left for `.3b` ("projection shape: port-boundary union fold vs lower-risk
+internal-only `union soft` overlay") and pre-splits `.3b` → `.3b.1` (this design)
++ `.3b.2` (impl). Grounded in a fresh read of `src/ir/aggregate.rs`,
+`src/emit/sv.rs` (`render_gate` `Slice` arm at `sv.rs:1040`, gate decl/assign
+region), and `src/config.rs`. Docs-only.
+
+- **The aggregate-projection mechanism `0010` floated is rejected — a union is
+  not a concatenation.** The Phase 5b boundary-aggregate machinery
+  (`src/ir/aggregate.rs`) is sound *only* because a packed `struct`/array is
+  LRM-bit-equivalent to the **concatenation** of its members: the projection is a
+  bijective, semantically-empty, `canonical_module_signature`-invariant
+  regrouping (proven by `canonical_signature_is_invariant_under_projection`). A
+  packed `union` **overlays** members (width = `max`, all members alias the same
+  bits), so it is *not* concatenation-equivalent and a `union` `AggregateKind`
+  sibling would break that invariant. Rejected.
+- **The port-boundary union fold is also rejected for the first up-opt.** Folding
+  N input ports into one `union soft` boundary port changes the module
+  *interface* (N independent inputs → one aliased input) — a genuinely
+  behaviour-altering construction that would have to happen at generation time
+  (IR/interface + width-adaptation), a large blast radius. Deferred as possible
+  later breadth (nothing retired).
+- **Chosen mechanism: an emitter-level, `sv_version >= Sv2023`-gated, default-off
+  alternative rendering of a *proper low-bits* `Slice` gate as an internal
+  `union soft` overlay.** For a `GateOp::Slice { hi, lo: 0 }` over a non-constant,
+  multi-bit source of width `W` (with `hi < W-1`), instead of `src[hi:0]` emit:
+  ```systemverilog
+  typedef union soft { logic [W-1:0] w; logic [hi:0] n; } <u>_t;
+  <u>_t <u>;
+  assign <u>.w = <src>;
+  // the slice wire is then driven by:
+  assign <slice_wire> = <u>.n;
+  ```
+  This is **behaviour-preserving**: packed-union members are LSB-aligned, so
+  `<u>.n` (width `hi+1`) equals `<src>[hi:0]` — verified by the `.3a` probe
+  (`u.m1`, a 1-bit member of `u = 8'hA5`, read as `1` = bit 0; `verilator
+  --binary` → `y=a5`). It is genuinely 2023 (heterogeneous-width members are
+  legal only as `union soft`, IEEE 1800-2023 §7.3.1), Verilator-accepted, and
+  surgical (one extra decl + drive in the gate decl/assign region; `render_gate`
+  stays a pure expression and the member ref flows through the existing per-gate
+  name machinery, mirroring how `MemRead`/`FsmOut` emit a decl/block + an opaque
+  read name).
+- **Why a `Slice` low-bits overlay is the right first cut:** it is the *faithful*
+  use of a heterogeneous soft union (write the wide member, read the narrow one =
+  low-bits extraction), so it needs no new IR node and no interface change —
+  lowest blast radius while still emitting a real 2023 construct. `lo != 0`
+  slices do not qualify (union members are LSB-aligned, not arbitrary ranges); a
+  proper low-bits slice (`lo == 0`, `hi < W-1`) is required.
+- **`.3b.2` impl scope:** a default-off `Config` knob (working name
+  `soft_union_slice_prob`, default `0.0`) rolled rules-first at the slice-emission
+  decision; the `sv_version.permits(Sv2023)` gate AND the knob both required; the
+  emitter overlay path; `tests/sv_version.rs` extended to show **divergence** at
+  `Sv2023` when the knob fires (the byte-identity corpus stays byte-identical at
+  the default and across versions when the knob is off);
+  `tests/sv_version_downstream.rs` extended to prove `verilator --language
+  1800-2023` accepts/builds the overlay; a dedicated matrix up-opt scenario +
+  `saw_sv_version_2023_soft_union_upopt` fact that requires Verilator
+  matching-mode acceptance and records Yosys/Icarus as a no-op (not a failure);
+  book(knobs + sv-version)/USER_GUIDE/README/ROADMAP + a KM fact. Snapshots 6/6
+  must stay byte-identical (knob default-off).
+- **Open verification risk for `.3b.2`:** confirm the overlay is **Verilator
+  `--lint-only` warning-clean** (ANVIL folds warning→failure), since the `.3a`
+  probe's `-Wall` warnings were toy-unused-signal artifacts; the real emitted
+  overlay drives `w` and reads `n` (both used), so it should be clean — to be
+  banked, not assumed.
+
 ## 2026-06-16 — SV-version targeting — first up-opt design (soft packed union) — `SV-VERSION-TARGETING.3a`
 
 Design leaf for `.3`, the first version-distinctive *up-opted* construct. Splits

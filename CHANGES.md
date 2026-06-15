@@ -1,9 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SV-VERSION-TARGETING.3b.1 — soft-union up-opt mechanism (impl design-detail)
+
+**Landed as:** this commit (previous: `154b2a7`). Task-tree-owned by
+`SV-VERSION-TARGETING.3b.1`. **Docs-only design-detail leaf — no source change.**
+
+**What changed**
+
+- **`DEVELOPMENT_NOTES.md` design-detail entry** resolving the mechanism decision
+  `0010` left open for `.3b` ("port-boundary union fold vs internal-only `union
+  soft` overlay"), grounded in a fresh read of `src/ir/aggregate.rs`,
+  `src/emit/sv.rs` (`render_gate` `Slice` arm at `sv.rs:1040` + the gate
+  decl/assign region) and `src/config.rs`.
+- **Mechanism chosen:** an emitter-level, `sv_version >= Sv2023`-gated, default-off
+  **alternative rendering of a proper low-bits `Slice`** (`GateOp::Slice { hi, lo:
+  0 }` over a non-constant multi-bit source, `hi < W-1`) as an internal `union
+  soft` overlay — `typedef union soft { logic[W-1:0] w; logic[hi:0] n; } u;
+  assign u.w = src;` then drive the slice wire from `u.n`. It is
+  **behaviour-preserving** (packed-union members are LSB-aligned, so `u.n ==
+  src[hi:0]` — confirmed by the `.3a` `y=a5` probe), genuinely 2023, and surgical
+  (`render_gate` stays a pure expression; the overlay is a decl + drive in the
+  gate region, mirroring `MemRead`/`FsmOut`).
+- **Rejected** (recorded): an `AggregateKind` union sibling — the Phase 5b
+  boundary-aggregate machinery is sound only because a packed `struct`/array is
+  **concatenation**-bit-equivalent (a bijective, `canonical_module_signature`-
+  invariant regrouping), which a `union` (overlay, width `max`, aliased bits)
+  violates; and the port-boundary union fold — it changes the module interface
+  (generation-time, large blast radius), deferred as later breadth (nothing
+  retired).
+- **Tree split:** `.3b` → `.3b.1` (this design, done) + `.3b.2` (impl: the
+  default-off `soft_union_slice_prob` knob + the gated overlay + `tests/sv_version*`
+  + a matrix up-opt fact + book/KM). Frontier advances to `.3b.2`.
+
+**Why**
+
+`.3b` hid an unresolved policy choice behind implementation wording (a Splitting
+Rule trigger). Reading the real aggregate code showed `0010`'s tentative
+"aggregate projection" framing is unsound for a union; resolving the mechanism
+first keeps `.3b.2` a clean, low-risk, behaviour-preserving emitter slice.
+
+**Validation**
+
+Docs-only, no source change. Baseline `cargo check --all-targets` clean at
+session start. `bash scripts/check_memory_architecture.sh` +
+`bash knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+No behaviour change; default byte-identical. Fixes the `.3b.2` impl shape.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SV-VERSION-TARGETING.md`, `docs/TASK_TREE.md`,
+`MEMORY.md`, `CHANGES.md`.
+
 ## 2026-06-16 — SV-VERSION-TARGETING.3a — first up-opt design (soft packed union)
 
-**Landed as:** this commit (previous: `ef3d94e`). Task-tree-owned by
+**Landed as:** `154b2a7` (previous: `ef3d94e`). Task-tree-owned by
 `SV-VERSION-TARGETING.3a`. **Docs-only design leaf — no source change**, so the
 default build, every snapshot, and every gate are untouched.
 
