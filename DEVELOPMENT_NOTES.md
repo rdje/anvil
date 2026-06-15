@@ -5,6 +5,112 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Cross-module sequential merge — design detail — `IDENTITY-DEEPENING.3b.1`
+
+Design-detail leaf for `.3b` (implement decision `0008`). No source change. This
+grounds the `.3b.2` implementation in the **real** `src/ir/dedup.rs` /
+`src/metrics.rs` / `src/ir/compact.rs` code and resolves decision `0008`'s
+central open question (the "cross-module cone-proof signature"). The headline:
+**the cross-module proof needs no new engine, and no flop bijection.**
+
+- **NO new proof engine — materialize a temporary combined `Module`.**
+  `cone_proof` (`src/ir/compact.rs`) and `merge_bisimilar_flops` are
+  module-local (they walk one `Module`'s `nodes`/`flops`). But
+  `LeafEndpoint::PrimaryInput { port, width }` keys endpoints by `(port, width)`,
+  **not** by `NodeId`. So to compare two candidate modules `A`, `B`, build a
+  throwaway `combined: Module` = `A.nodes ++ B.nodes` (B's `NodeId`s offset by
+  `A.nodes.len()`, B's internal operand / `FlopQ` / drive references remapped by
+  the offset) and `A.flops ⊎ B.flops` (B's `FlopId`s offset, B's `flop.d`/`flop.q`
+  NodeIds + `flop_domains` remapped). Because the interface base case (below)
+  requires A and B to share input `PortId`s, B's `PrimaryInput{port,width}`
+  nodes keep their `port`, and A's and B's primary-input endpoints **unify for
+  free** inside `cone_proof` — no cross-module endpoint vocabulary, no
+  `(ModuleTag, FlopId)` map needed (the `.3a` decision allowed for one; reading
+  the code showed it is unnecessary). This is strictly less machinery than `0008`
+  anticipated.
+- **Reuse the `merge_bisimilar_flops` refinement via a factored
+  `bisimulation_partition`.** `merge_bisimilar_flops` (`src/ir/compact.rs`
+  1286–1431) already computes the coarsest stable partition (bucket by
+  `(width, reset_kind, reset_val, domain)`; resetless pinned singleton; refine to
+  fixpoint with the quotient `rep_map` threaded into
+  `cone_proof(.., Some(&rep_map))`; fresh memos per iteration) and *then*
+  collapses + `finalize_flop_merge`. `.3b.2` extracts the "bucket → refinable
+  partition → greatest-fixpoint refine → `rep_map`" core into a **non-mutating**
+  `bisimulation_partition(m: &Module) -> HashMap<FlopId, FlopId>` (or
+  `Vec<Vec<FlopId>>`). `merge_bisimilar_flops` then = `bisimulation_partition` +
+  its existing collapse/`finalize_flop_merge` tail, so it stays **byte-identical**
+  (snapshots 6/6). The module-equivalence check calls `bisimulation_partition`
+  on the `combined` module and uses the `rep_map` *without* collapsing.
+- **NO flop bijection required — the sound, sufficient condition.** Run
+  `bisimulation_partition(combined)` to a stable `rep_map`, then the verdict is:
+  - **(i) interface base case:** A and B have identical input-port and
+    output-port sets keyed by `(PortId, width)` (the same match
+    `semantic_module_proof_body` enforces; reuse `emitted_data_input_ports_in` +
+    `module.outputs`); AND
+  - **(ii) output equality under the quotient:** for every output port `p`,
+    `cone_proof(combined, driveA(p), Some(rep_map)) ==
+    cone_proof(combined, driveB(p)+offset, Some(rep_map))` (`ConeProof:
+    PartialEq`, already used at compact.rs:1396).
+  - **Soundness (coinduction), worked out and recorded.** Define
+    `R((sA, sB))` ≡ "every union class in `rep_map` holds equal values across
+    both modules' members." At `t = 0`, refinement only *sub-divides* the
+    reset-value buckets, so every class lies within one `(width, reset_kind,
+    reset_val, domain)` bucket ⇒ all members share `reset_val` ⇒ `R` holds. If
+    `R(t)` holds: for `f, g` in one class their quotient-substituted D-cones are
+    equal (partition stability) and their `FlopQ`/`PrimaryInput` operands are
+    class-equal/shared ⇒ `Q(t+1)` equal ⇒ `R(t+1)`. And under `R(t)`,
+    `driveA(p)` and `driveB(p)` — equal under `rep_map` by (ii) — evaluate
+    equally ⇒ outputs agree at every `t`. Hence for **every** input sequence A
+    and B emit identical output sequences ⇒ observably equivalent ⇒ merging the
+    two definitions is sound. A class containing only A-flops or only B-flops is
+    fine: equivalence is decided at the *observable* boundary (outputs), not by a
+    1:1 state map.
+- **Grouping that fits `dedup_semantic_modules_once`.** The combinational pass
+  groups by a derived-`Ord` `SemanticModuleProof` (its truth table) and merges
+  each group to the lex-smallest survivor. Bisimilarity is an equivalence
+  relation but pairwise (no cheap total canonical signature for the sequential
+  case in the first cut), so `.3b.2`'s `dedup_sequential_modules_once`:
+  1. selects eligible candidates (`has_local_flops()` **true**, but
+     `has_local_memories()`/`has_local_fsms()`/`param_env`/`aggregate_layout`
+     **false** and `instances.is_empty()` — flops-only leaf modules; skip the
+     top by name; skip any module with a resetless flop);
+  2. **pre-filters** into buckets keyed by `(sorted input (PortId,width), sorted
+     output (PortId,width), flop multiset {(width,reset_kind,reset_val,domain)},
+     output count)` — cheap, no cone proof — so the `O(modules²)` comparison only
+     runs on plausibly-equivalent groups;
+  3. within a bucket, runs pairwise `modules_bisimilar(A, B)` (the combined-module
+     check above) and **union-finds** the results into equivalence classes;
+  4. reuses `dedup_semantic_modules_once`'s exact tail: lex-smallest survivor,
+     `rewrite_instance_module_names`, iterate-to-fixpoint, then
+     `prune_modules_made_unreachable`. (First cut excludes instance-bearing
+     candidates, so `semantic_group_has_ancestor_relation` is vacuous among
+     candidates; keep an equivalent guard for parity/safety.)
+  New pass `dedup_sequential_modules(design)` lives in `src/ir/dedup.rs` beside
+  `dedup_semantic_modules`, invoked from the same finalization site in
+  `src/gen/mod.rs` (after structural + combinational dedup), gated on the new
+  knob + `identity_mode = node-id` + effective `e-graph`.
+- **Names finalized.** Knob `hierarchy_sequential_module_dedup` on
+  `Config`/`Module`/`Design` (serde default `false`, no CLI flag — mirrors
+  `hierarchy_semantic_module_dedup`); design-level
+  `DesignMetrics::sequential_module_proof_signatures` (a per-eligible-module
+  signature, parallel to `semantic_module_signatures`) +
+  `num_sequentially_duplicate_module_pairs` (parallel to
+  `num_semantically_duplicate_module_pairs`), reducible to zero by the pass.
+  Union flop cap `N_bisim_module_flops` (mirrors `N_BISIM_FLOPS = 64`) bounds the
+  combined-module refinement; over-cap pairs are skipped (no merge).
+- **Gate (rules-first, lowest cost — the `.2b` precedent).** Two stateful
+  flops-only leaf modules that are sequentially equivalent up to a non-identity
+  state correspondence (e.g. permuted / mutually cross-wired registers, same
+  reset) yet structurally distinct enough that both `dedup_modules` (signatures
+  differ) and `dedup_semantic_modules` (skips stateful) leave **2** modules;
+  with the knob on, the design collapses to **1** and the merged multi-module SV
+  is clean across Verilator + both Yosys modes. Plus knob-off snapshots 6/6
+  byte-identical, and the existing structural / combinational / flop / FSM merges
+  unchanged. The random generator rarely emits a distinct-but-equivalent stateful
+  pair the exact + bisim flop passes have not already collapsed intra-module, so
+  a dedicated `tool_matrix` scenario set is **not** the lowest-cost proof (same
+  reasoning as `.2b`) — a rules-first hand fixture is.
+
 ## 2026-06-15 — Whole-module sequential equivalence — design — `IDENTITY-DEEPENING.3a`
 
 Design/decision leaf for `.3` (whole stateful-leaf-module bounded sequential
