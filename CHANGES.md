@@ -1,9 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design
+
+**Landed as:** this commit (previous: `edf79d6`). Docs / design leaf — no
+source change.
+
+**What changed**
+
+Splits `SIGNOFF-AUTOMATION-EXPANSION.2` into `.2a` (design, docs-only) + `.2b`
+(impl) per the `.3a`/`.3b` precedent, and records the `.2a` design that resolves
+the open question decision `0006` left to `.2`: the exact first knob batch, the
+per-knob scenario shapes, the `saw_*` fact names, and the focused gate.
+
+- **Inventory refinement.** The matrix study shows `width_parameterization_prob`,
+  `aggregate_prob`, `memory_prob`, and `fsm_prob` *already* have dedicated
+  default-set scenarios + gated facts. The genuinely **unswept** knobs are
+  exactly four: `mux_arm_duplication_rate`, `operand_duplication_rate`,
+  `aggregate_array_prob` (the deferred `AGGREGATE-ARRAY-PACKING.4b` matrix-CI
+  instrumentation), and the memory×fsm **interplay**.
+- **Batch fixed (for `.2b`):** one focused scenario per knob —
+  `int_operand_duplication`, `int_mux_arm_duplication`,
+  `phase5b_array_packed_aggregate`, `memory_fsm_interplay` — each proving one
+  `saw_*` fact from one realized metric:
+  - `saw_operand_duplication` ← a **new** RTL-byte-identical metric
+    `num_operator_gates_with_duplicate_operands` (count of `Add`/`Mul` gates
+    whose operand list repeats a `NodeId`);
+  - `saw_mux_arm_duplication` ← existing `num_muxes_degenerate`;
+  - `saw_array_packed_aggregate_design` ← existing
+    `num_array_packed_aggregate_modules` (requires uniform widths so the
+    `ArrayPacked` projection is faithful);
+  - `saw_memory_fsm_interplay_design` ← `num_memory_modules > 0 &&
+    num_fsm_modules > 0`.
+- **Gotcha captured:** per-leaf memory-vs-FSM selection
+  (`src/gen/module.rs:368-386`) is mutually exclusive — `memory_prob` is rolled
+  first and returns early, so `memory_prob = 1.0` yields no FSM leaf;
+  interplay needs `memory_prob ∈ (0,1)` + `fsm_prob = 1.0` + a calibrated seed.
+- **Gate:** a dedicated opt-in `tool_matrix --signoff-knob-sweep-gate` +
+  `ScenarioSet::SignoffKnobSweep`, modeled on `--phase2/3-gate`, requiring the
+  four new facts in `compute_coverage_gaps` — kept separate from the default set
+  to keep the blast radius minimal and the bank self-contained.
+
+Full design + rationale: `DEVELOPMENT_NOTES.md` (`.2a` entry). Nothing retired;
+default-off / byte-identical where a knob changes RTL.
+
+**Why**
+
+Decision `0006` deliberately left the exact knob batch / scenario shapes / fact
+names / gate to `.2`. The batch crosses real policy choices (per-knob vs
+combined scenarios; provable-metric selection; a new metric vs a deferral; gate
+membership) and touches `src/metrics.rs` + ~6 regions of the 9.6k-line
+`src/bin/tool_matrix.rs`, so a design leaf (reviewable independently of the
+implementation) is the signoff-quality way to land it.
+
+**Validation**
+
+`scripts/check_memory_architecture.sh`; `knowledge-map` regen + check; docs-only
+(no source change → snapshots/build untouched).
+
+**Impact**
+
+Design-only. Frontier advances to `.2b` (implementation).
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SIGNOFF-AUTOMATION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006
 
-**Landed as:** this commit (previous: `96d1203`). Docs / design leaf — no
+**Landed as:** `edf79d6` (previous: `96d1203`). Docs / design leaf — no
 source change.
 
 **What changed**

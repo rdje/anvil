@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Quality — downstream signoff automation breadth`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (promoted `proposed`→`active` after `AGENT-MCP-EXPANSION` closed; `.1` done — decision `0006`; frontier → `.2`)
+- Last updated: `2026-06-15` (`.2` split into `.2a` design + `.2b` impl per the `.3a`/`.3b` precedent; `.2a` done — exact knob batch / scenario shapes / fact names / gate fixed in `DEVELOPMENT_NOTES.md`; frontier → `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -71,9 +71,22 @@ lanes; it is opened `proposed` and promoted to `active` after
   Commit: `SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006`
 
 - ID: `SIGNOFF-AUTOMATION-EXPANSION.2`
+  Status: `active`
+  Goal: `Implement the first richer-knob-sweep batch (per decision 0006): promote the highest-bias unswept knobs into explicit tool_matrix scenario axes + saw_* coverage facts + a focused gate; default-off / byte-identical where a knob changes RTL; banked clean across Verilator + both Yosys modes.`
+  Children: `SIGNOFF-AUTOMATION-EXPANSION.2a`, `SIGNOFF-AUTOMATION-EXPANSION.2b`
+
+- ID: `SIGNOFF-AUTOMATION-EXPANSION.2a`
+  Status: `done`
+  Goal: `Design leaf (docs-only): fix the exact first knob batch, the per-knob scenario shapes, the saw_* fact names + the metric each is proved from, the focused gate, and the gap wiring — resolving the open question 0006 left to .2.`
+  Acceptance: `A DEVELOPMENT_NOTES.md design entry naming the four genuinely-unswept knobs (operand_duplication_rate, mux_arm_duplication_rate, aggregate_array_prob, memory×fsm interplay), one focused scenario each, the four saw_* facts + their proving metric (incl. the new num_operator_gates_with_duplicate_operands metric and the memory-vs-fsm mutual-exclusivity gotcha), and the dedicated --signoff-knob-sweep-gate; no source change; docs/workflow validation clean.`
+  Result: `Refined 0006's inventory: width_parameterization_prob / aggregate_prob / memory_prob / fsm_prob already have dedicated default-set axes + gated facts; the genuinely unswept knobs are exactly four — mux_arm_duplication_rate (prove via existing num_muxes_degenerate), operand_duplication_rate (needs a new RTL-byte-identical metric num_operator_gates_with_duplicate_operands), aggregate_array_prob (the deferred AGGREGATE-ARRAY-PACKING.4b; prove via num_array_packed_aggregate_modules, needs uniform widths), and memory×fsm interplay (prove via num_memory_modules>0 && num_fsm_modules>0; needs memory_prob in (0,1) + fsm_prob=1.0 + calibrated seed because src/gen/module.rs:368-386 rolls memory before fsm and returns early). Four focused scenarios (int_operand_duplication, int_mux_arm_duplication, phase5b_array_packed_aggregate, memory_fsm_interplay) under a dedicated opt-in --signoff-knob-sweep-gate / ScenarioSet::SignoffKnobSweep (modeled on --phase2/3-gate), with the four saw_* facts required in compute_coverage_gaps for that set. Nothing retired; default-off / byte-identical. Full design in DEVELOPMENT_NOTES.md.`
+  Verification: `scripts/check_memory_architecture.sh; knowledge-map regen/check; docs-only (no source change)`
+  Commit: `SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design`
+
+- ID: `SIGNOFF-AUTOMATION-EXPANSION.2b`
   Status: `pending`
-  Goal: `Implement the first richer-knob-sweep batch (per decision 0006): add explicit tool_matrix scenario(s) that force the highest-bias unswept knobs (lead candidates: operand/mux-arm duplication rates, width_parameterization_prob, aggregate_prob/aggregate_array_prob, memory×fsm interplay), plus the matching saw_* coverage facts and a focused gate; default-off / byte-identical where a knob changes RTL; banked clean across Verilator + both Yosys modes.`
-  Acceptance: `New explicit scenario axis/axes + coverage facts land in src/bin/tool_matrix.rs; a repo-owned banked report proves the new saw_* facts true with clean Verilator + both-Yosys downstream results (coverage_gaps unaffected or extended intentionally); snapshots 6/6 byte-identical (no DUT generator-core change); fmt/check/clippy/focused-tests clean. Split into design + impl if it proves broad.`
+  Goal: `Implement the .2a design: add the new num_operator_gates_with_duplicate_operands metric (src/metrics.rs), the four focused scenarios + four saw_* facts + the --signoff-knob-sweep-gate / ScenarioSet::SignoffKnobSweep + gap wiring (src/bin/tool_matrix.rs), new cargo-portable proofs, live-doc/book sync, and bank a clean repo-owned report.`
+  Acceptance: `The four saw_* facts (saw_operand_duplication, saw_mux_arm_duplication, saw_array_packed_aggregate_design, saw_memory_fsm_interplay_design) land + are required by the new gate; a repo-owned tool_matrix --signoff-knob-sweep-gate report proves all four true with clean Verilator + both-Yosys results and coverage_gaps = []; snapshots 6/6 byte-identical; fmt/check/clippy/focused-tests clean; USER_GUIDE/ROADMAP/book/README synced for the new gate + knob coverage.`
   Verification: `pending`
   Commit: `pending`
 
@@ -81,7 +94,7 @@ lanes; it is opened `proposed` and promoted to `active` after
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SIGNOFF-AUTOMATION-EXPANSION.2` | `pending` | Implement the first richer-knob-sweep batch (decision `0006`): promote the highest-bias unswept knobs into explicit matrix axes + coverage facts, banked clean. |
+| 1 | `SIGNOFF-AUTOMATION-EXPANSION.2b` | `pending` | Implement the `.2a` design: four focused unswept-knob scenarios + four `saw_*` facts + the dedicated `--signoff-knob-sweep-gate` + the new operand-duplication metric, banked clean. |
 
 ## Decisions
 
@@ -107,15 +120,31 @@ lanes; it is opened `proposed` and promoted to `active` after
   non-DUT lanes under the acceptance columns) are **preserved as future
   leaves** (nothing retired). Split the tree: added `.2` (implement the first
   knob-sweep batch).
+- `2026-06-15` (`.2a`): Split `.2` into `.2a` (design, docs-only) + `.2b`
+  (impl) per the `.3a`/`.3b` precedent. Resolved 0006's open question: the
+  genuinely-unswept knobs are exactly four (`mux_arm_duplication_rate`,
+  `operand_duplication_rate`, `aggregate_array_prob`, memory×fsm interplay) —
+  the other 0006 candidates (`width_parameterization_prob`, `aggregate_prob`,
+  `memory_prob`, `fsm_prob`) already have dedicated default-set axes + gated
+  facts. One focused scenario per knob (not a combined-stress scenario) so each
+  fact is provable from one realized metric; a dedicated opt-in
+  `--signoff-knob-sweep-gate` (modeled on `--phase2/3-gate`) keeps the blast
+  radius minimal and the bank self-contained. Full design (incl. the new
+  `num_operator_gates_with_duplicate_operands` metric and the memory-vs-fsm
+  mutual-exclusivity gotcha) in `DEVELOPMENT_NOTES.md`.
 
 ## Open Questions
 
 - (`.1` resolved) The leading increment is the richer adversarial knob sweep
   (decision `0006`), not a new acceptance column or a new artifact family —
   those are preserved as future leaves.
-- (`.2` open) The exact first knob batch and scenario shapes (one focused
-  scenario per knob vs a small combined-stress scenario), and which `saw_*`
-  facts + gate assertions to add.
+- (`.2a` resolved) The first knob batch is the four genuinely-unswept knobs with
+  one focused scenario each, the four `saw_*` facts named, and a dedicated
+  `--signoff-knob-sweep-gate` (see `DEVELOPMENT_NOTES.md` `.2a` entry).
+- (`.2b` open) Seed calibration for `memory_fsm_interplay` (which `memory_prob`
+  in `(0,1)` + leaf count + seed deterministically realizes ≥1 memory leaf and
+  ≥1 FSM leaf), and the exact arithmetic/mux gate-weight shaping for the two
+  duplication scenarios — to be fixed empirically during impl.
 
 ## Blockers
 
@@ -126,12 +155,14 @@ lanes; it is opened `proposed` and promoted to `active` after
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-15` | `SIGNOFF-AUTOMATION-EXPANSION.1` | `scripts/check_memory_architecture.sh` (incl. `0006` indexed); `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; docs/decision + task-tree edits; no source change (design/decision leaf) | `clean` |
+| `2026-06-15` | `SIGNOFF-AUTOMATION-EXPANSION.2a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; `DEVELOPMENT_NOTES.md` design entry + task-tree edits; no source change (design leaf) | `clean` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `SIGNOFF-AUTOMATION-EXPANSION.1` | `SIGNOFF-AUTOMATION-EXPANSION.1 — design/decision leaf + decision 0006` | Decision `0006`; first increment = richer knob-sweep coverage; `.2` added; frontier → `.2`. |
+| `SIGNOFF-AUTOMATION-EXPANSION.2a` | `SIGNOFF-AUTOMATION-EXPANSION.2a — first signoff knob-sweep batch design` | `.2` split into `.2a`+`.2b`; four unswept knobs + four `saw_*` facts + dedicated `--signoff-knob-sweep-gate` fixed; frontier → `.2b`. |
 
 ## Changelog
 
@@ -143,3 +174,10 @@ lanes; it is opened `proposed` and promoted to `active` after
   closing ROADMAP gap 3's hidden bias; new-tool-column and non-DUT-acceptance
   paths preserved as future leaves). Split the tree: added `.2` (implement the
   first knob-sweep batch). No source change; frontier advanced to `.2`.
+- `2026-06-15`: `.2` split into `.2a` (design, docs-only) + `.2b` (impl) per
+  the `.3a`/`.3b` precedent. `.2a` done — fixed the four genuinely-unswept
+  knobs, one focused scenario each, the four `saw_*` facts + their proving
+  metric (incl. the new `num_operator_gates_with_duplicate_operands` metric and
+  the memory-vs-fsm mutual-exclusivity gotcha), and the dedicated
+  `--signoff-knob-sweep-gate`; design recorded in `DEVELOPMENT_NOTES.md`. No
+  source change; frontier advanced to `.2b`.

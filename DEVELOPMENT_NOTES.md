@@ -5,6 +5,112 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — First signoff knob-sweep batch design — `SIGNOFF-AUTOMATION-EXPANSION.2a`
+
+Design leaf (docs-only, no source change) concretizing the open question that
+decision [`0006`](docs/decisions/0006-signoff-automation-first-increment.md)
+deliberately left to `.2`: the exact knob batch, the scenario shapes, the
+`saw_*` fact names, the focused gate, and the gap wiring for the first
+richer-knob-sweep increment (implemented in `.2b`). Split from the original `.2`
+leaf per the `.3a`/`.3b` precedent because the batch crosses real policy choices
+(combined-stress vs per-knob scenarios; which facts/metrics; a new metric or a
+deferral; gate membership) and touches ~6 regions of the 9.6k-line
+`src/bin/tool_matrix.rs` plus `src/metrics.rs` — independently reviewable as
+design then implementation.
+
+### Which knobs are *genuinely* unswept (inventory refinement)
+
+`.1`/`0006` listed candidates loosely. The matrix study refines this: the
+single-knob axes for `width_parameterization_prob`, `aggregate_prob`,
+`memory_prob`, and `fsm_prob` **already exist** in the default scenario set
+(`phase5_width_parameterized`, `phase5b_packed_aggregate`,
+`phase6_inferrable_memory`, `phase6_fsm`) with gated `saw_*` facts
+(`saw_width_parameterized_design` / `saw_packed_aggregate_design` /
+`saw_inferrable_memory_design` / `saw_fsm_design`). The genuinely **unswept**
+knobs — fired only by chance inside motif-heavy profiles, never as explicit axes
+— are exactly four:
+
+1. `mux_arm_duplication_rate` — no scenario, no fact.
+2. `operand_duplication_rate` (Add/Mul) — no scenario, no fact, **and no metric**.
+3. `aggregate_array_prob` — no scenario, no fact (this is the deferred
+   `AGGREGATE-ARRAY-PACKING.4b` "optional matrix CI instrumentation"; `.2b`
+   closes that deferral).
+4. memory×fsm **interplay** — single-knob memory and FSM scenarios exist, but
+   nothing proves a memory leaf and an FSM leaf in the **same** design.
+
+`.2b` promotes exactly these four into explicit first-class axes + facts.
+
+### Scenario shapes — one focused scenario per knob
+
+Per-knob focused scenarios, not one combined-stress scenario: a day-one
+downstream failure must point at exactly one knob, and each fact must be
+provable from a single realized metric (no entangled attribution).
+
+- **`int_operand_duplication`** — single-module DUT, interleaved, comb-only,
+  arithmetic-favoring gate weights (Add/Mul present), `operand_duplication_rate
+  = 1.0`. (`operand_duplication_rate` covers Add/Mul only, per `Config` doc.)
+- **`int_mux_arm_duplication`** — single-module DUT, interleaved, comb-only,
+  comb-mux-favoring with `min_mux_arms = max_mux_arms = 2` (force 2-to-1 muxes),
+  `mux_arm_duplication_rate = 1.0`.
+- **`phase5b_array_packed_aggregate`** — depth-1 wrapper design shaped like the
+  `phase5b_packed_aggregate` anchor but with `aggregate_prob = 1.0` **and**
+  `aggregate_array_prob = 1.0`, and **uniform** data-port widths
+  (`min_width == max_width`). Uniformity is load-bearing: `ArrayPacked` is a
+  faithful projection only over a uniform-width group, so a non-uniform group
+  falls back to `StructPacked` (`src/ir/aggregate.rs`).
+- **`memory_fsm_interplay`** — depth-1 wrapper design with `memory_prob` strictly
+  in `(0,1)`, `fsm_prob = 1.0`, enough library leaves, and a calibrated seed.
+  **Gotcha (load-bearing):** per-leaf memory-vs-FSM selection in
+  `src/gen/module.rs:368-386` is *mutually exclusive* — `memory_prob` is rolled
+  first and on a hit immediately `return`s a memory leaf, so `memory_prob = 1.0`
+  produces **no** FSM leaf, ever. Interplay therefore needs a probabilistic
+  memory split so some leaves fall through to the FSM roll (which then fires at
+  `fsm_prob = 1.0`); the fixed seed + leaf count are calibrated so the realized
+  design provably carries ≥1 memory leaf **and** ≥1 FSM leaf. The gate enforces
+  the fact, so a miscalibrated seed fails loudly and is recalibrated (the
+  standard matrix calibration loop, cf. ROADMAP's "(2,2 calibrated)" notes).
+
+### Coverage facts — each provable from one realized metric
+
+- `saw_operand_duplication` ← `metrics.num_operator_gates_with_duplicate_operands
+  > 0` (module-level). Requires a **new** metric in `src/metrics.rs`: count of
+  `Add`/`Mul` `Node::Gate`s whose operand list repeats a `NodeId`. RTL
+  byte-identical — metrics are post-hoc over the finalized IR and never emitted.
+- `saw_mux_arm_duplication` ← `metrics.num_muxes_degenerate > 0` (module-level,
+  existing metric — the `(s)?(x):(x)` same-arm form, documented as "should be 0
+  at `mux_arm_duplication_rate = 0.0`").
+- `saw_array_packed_aggregate_design` ← `scenario.config.aggregate_array_prob >
+  0.0 && design.metrics.num_array_packed_aggregate_modules > 0` (design-level,
+  existing metric).
+- `saw_memory_fsm_interplay_design` ← `memory_prob > 0.0 && fsm_prob > 0.0 &&
+  num_memory_modules > 0 && num_fsm_modules > 0` (design-level, existing metrics).
+
+### The focused gate
+
+New opt-in `tool_matrix --signoff-knob-sweep-gate` + `ScenarioSet::SignoffKnobSweep`
++ `build_signoff_knob_sweep_scenarios` (the four focused scenarios). Modeled on
+`--phase2-share-gate` / `--phase3-structured-gate`: it auto-enables
+`--fail-on-coverage-gap`, is mutually exclusive with the other gate flags, and
+`compute_coverage_gaps` for this set requires the four new facts (and the
+shared comb-only/sequential basics those scenarios light). Kept as a
+**dedicated** scenario set rather than folded into the default set, to keep the
+blast radius minimal, leave the matrix's existing leaf/child/range shape-coverage
+sets unperturbed, and keep the banked report self-contained — mirroring the
+phase2/3/4 dedicated gates. No existing gate, scenario, fact, or metric is
+retired (`feedback_never_retire_strategies`).
+
+### Invariants preserved
+
+- **Rules-first / no generate-then-filter:** all four knobs are construction-time
+  decisions inside the generator; the matrix only *observes* the realized IR.
+- **Default-off / byte-identical:** each knob changes RTL only when set `> 0`;
+  the default sweep, the `insta` snapshot guard, and every existing gate are
+  untouched. The new operand-duplication metric is post-hoc ⇒ RTL byte-identical.
+- **Single downstream source of truth** stays `tool_matrix` + `downstream`:
+  `.2b` adds scenarios + facts + one gate, never a second runtime path.
+
+---
+
 ## 2026-06-15 — Hand-rolled HTTP transport impl — `AGENT-MCP-EXPANSION.4b`
 
 Landed the transport exactly as `.4a` pinned it: a new `src/mcp/http.rs`
