@@ -5,6 +5,83 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Whole-module sequential equivalence — design — `IDENTITY-DEEPENING.3a`
+
+Design/decision leaf for `.3` (whole stateful-leaf-module bounded sequential
+equivalence). No source change. Full rationale + soundness proof + rejected
+alternatives in decision
+[`0008`](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md);
+this entry records the contributor-facing engineering grounding that pins `.3b`.
+
+- **The approach: cross-module bisimulation, NOT reachable-product / BMC.** The
+  `.2` primitive (`merge_bisimilar_flops`) proves flops equivalent *within one
+  module* by greatest-fixpoint partition refinement over a quotient D-signature.
+  `.3` lifts that to **two modules**: form the disjoint union `M_A.flops ⊎
+  M_B.flops`, bucket by `(width, reset_kind, reset_val, domain)` (same key),
+  unify each module's `PrimaryInput{port, width}` endpoints across the two
+  modules by `(PortId, width)`, run the refinement to a fixpoint, then prove
+  every output-port cone equal under the resulting quotient. Bisimulation from a
+  reset base case is sound *for all time* (coinduction); reachable-product /
+  bounded model checking proves agreement only to depth `k` and is **unsound as a
+  merge proof** — rejected here exactly as decision `0007` rejected it at the
+  flop level.
+- **Generalizes the combinational module proof; added beside it.** A
+  pure-combinational module has zero flops ⇒ the union is empty, refinement is
+  trivial, and the verdict reduces to "every output cone equal over the input
+  endpoints" — exactly what `dedup_semantic_modules` proves today. So `.3` is a
+  strict superset. But to keep `dedup_semantic_modules` (and its whole-module
+  input-truth-table enumeration via `evaluate_semantic_module_node`)
+  **byte-identical**, `.3b` lands as a *separate* default-off pass that runs only
+  on flop-bearing leaf modules — the `.2b` precedent of placing
+  `merge_bisimilar_flops` next to `merge_equivalent_flops` rather than rewriting
+  it. Unifying the two proof engines is a possible later cleanup, never a first
+  step.
+- **Eligibility = flops-only leaf modules (first cut).** Today
+  `semantic_module_proof_inner` (`src/metrics.rs`) returns `None` on
+  `has_local_flops() || has_local_memories() || has_local_fsms() ||
+  param_env.is_some() || aggregate_layout.is_some()`. `.3b`'s new pass ACCEPTS
+  `has_local_flops()` (the whole point) but keeps every other skip — plus
+  `!instances.is_empty()` for the first cut. Memories (no reset base case,
+  `memory-identity-boundary`), FSM blocks (larger correspondence problem;
+  intra-module duplicates already merge via `merge_equivalent_fsms`), wrappers
+  (sequential analogue of the bounded-instance combinational wrapper case),
+  params, and aggregate projections all stay excluded as named boundaries —
+  nothing retired.
+- **Resetless flops excluded (carries the `.2b` fix forward).** A module with any
+  `reset_kind = None` flop has no provable equal initial state for that flop ⇒ no
+  cross-module bisimulation base case ⇒ the module is conservatively skipped.
+  This preserves `reset-defined-self-hold-flop-identity` at the module level too.
+- **CENTRAL `.3b` IMPL CHALLENGE: a cross-module cone-proof signature.**
+  `cone_proof` (`src/ir/compact.rs`) is **module-local** — it keys `LeafEndpoint`s
+  by the module's own `FlopId` / `PortId`. The new proof compares cones *across
+  two modules*, so `.3b`'s core work is a normalized cone proof whose endpoints
+  live in a **shared vocabulary**: `PrimaryInput` keyed by `(PortId, width)` and
+  `FlopQ` keyed by a **global union class id** (spanning both modules) rather than
+  a module-local `FlopId`. The `.2b` quotient param (`Option<&HashMap<FlopId,
+  FlopId>>` threaded via `canonical_flop_endpoint`) is the template; `.3b`
+  generalizes it to a union-class map keyed across two modules (e.g.
+  `(ModuleTag, FlopId) -> ClassId`). This is why `.3` is split: the soundness +
+  budget are settled here (`.3a`), the cross-module proof representation is the
+  dedicated impl (`.3b`).
+- **Budget reuse + caps.** Per-cone checks reuse `MERGE_SEMANTIC_LIMITS` (12-bit
+  support / 128 nodes / 131072 work) verbatim; the cross-module refinement is
+  `O(k² · iterations)`, `iterations <= k`, `k` = union flop count, capped by a
+  calibration cap `N_bisim_module_flops` (mirrors `N_bisim_flops = 64`); a
+  candidate-pair pre-filter (matching `(PortId, width)` interface + flop multiset
+  key + output count) keeps the `O(modules²)` comparison tight before any cone
+  proof. Over-budget ⇒ fail-closed (no merge), never a guess.
+- **Control + gate (working names, finalized at `.3b`).** Default-off
+  `Config::hierarchy_sequential_module_dedup` (node-id / e-graph), parallel to
+  `hierarchy_module_dedup` (structural) and `hierarchy_semantic_module_dedup`
+  (combinational); design-level metric pair `sequential_module_proof` signature +
+  `num_sequentially_duplicate_module_pairs` (parallel to
+  `semantic_module_signatures` / `num_semantically_duplicate_module_pairs`);
+  rules-first gate = two stateful leaf modules sequentially equivalent up to a
+  non-identity state correspondence (permuted / cross-wired registers, same reset)
+  that both `dedup_modules` and `dedup_semantic_modules` leave as 2, collapsing to
+  1 with the knob on, downstream-clean across Verilator + both Yosys modes; plus
+  knob-off snapshots 6/6 byte-identical.
+
 ## 2026-06-15 — Bisimulation flop merge — impl — `IDENTITY-DEEPENING.2b`
 
 Implemented the `.2a` design in `src/ir/compact.rs`: the new

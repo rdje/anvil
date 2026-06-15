@@ -1,9 +1,91 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — IDENTITY-DEEPENING.3a — whole-module sequential equivalence design
+
+**Landed as:** this commit (previous: `be45819`). **Docs-only / design leaf** —
+task-tree-owned by `IDENTITY-DEEPENING.3a`. **No source change** (no `src/`,
+`tests/`, or build edits); not a code commit.
+
+**What changed**
+
+Design/decision leaf for `IDENTITY-DEEPENING.3` (whole stateful-leaf-module
+bounded sequential equivalence). Splits `.3` into `.3a` (this design leaf) +
+`.3b` (future impl) and records the proof discipline, budget, control surface,
+and downstream gate **before any merge code lands** — the `.2a`/`.2b` precedent.
+
+- **New decision record `docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md`.**
+  The second `IDENTITY-DEEPENING` extension = a default-off, opt-in pass — added
+  *beside* `dedup_semantic_modules`, not a modification of it — that proves two
+  stateful (flops-only) leaf modules observationally equivalent via a
+  **cross-module bisimulation**: lift the `.2` greatest-fixpoint partition
+  refinement to the disjoint union `M_A.flops ⊎ M_B.flops` (bucket by `(width,
+  reset_kind, reset_val, domain)`, primary inputs unified by `(PortId, width)`),
+  refine to a stable cross-module state correspondence, then prove every
+  output-port cone equal under the resulting quotient — reusing the same
+  12-bit/128-node/131072-work combinational proof budget. Sound by reset
+  base-case coinduction across two machines; bounded by partition refinement
+  (`O(k² · iters)`, `iters <= k`) with a `N_bisim_module_flops` cap; default-off
+  / byte-identical under node-id / e-graph. Strictly generalizes the
+  pure-combinational `dedup_semantic_modules` (the zero-flop special case) and
+  the flop-level classes; retires nothing.
+- **First-cut scope + excluded boundaries recorded.** Eligible: stateful leaf
+  modules whose only state is local flops. Excluded as named future work (none
+  retired): memories (no reset base case, `memory-identity-boundary`), FSM blocks
+  (larger correspondence problem), wrappers/instances (sequential analogue of the
+  bounded combinational wrapper case), parameterized / aggregate-projected
+  modules, and resetless flops (no base case — carries the `.2b` fix forward).
+- **Central `.3b` impl challenge recorded.** `cone_proof` is module-local; `.3b`
+  must build a *cross-module* cone-proof signature in a shared `LeafEndpoint`
+  vocabulary — `PrimaryInput` keyed by `(PortId, width)`, `FlopQ` keyed by a
+  global union class id across both modules — generalizing the `.2b`
+  `canonical_flop_endpoint` quotient param to a two-module union-class map.
+- **Rejected (as the approach):** reachable-product / bounded model checking
+  (unsound — agreement only to depth `k`); unifying into `dedup_semantic_modules`
+  (byte-identical risk); structural/syntactic module resemblance
+  (`hierarchy-identity-boundary`).
+- **Live docs synced:** decision `INDEX.md` (`0008` row); `docs/tasks/IDENTITY-DEEPENING.md`
+  (`.3` split into `.3a` done + `.3b` proposed, frontier → `.3b`, decisions /
+  verification / commit-log / changelog); `docs/TASK_TREE.md` (`IDENTITY-DEEPENING`
+  row frontier → `.3b`); `DEVELOPMENT_NOTES.md` (grounded design rationale +
+  the `.3b` cross-module-proof challenge); `ROADMAP.md` steering gap 2 (the
+  whole-module step is now *designed but not yet implemented*);
+  `KNOWLEDGE_MAP.md` regenerated (picks up `0008`'s `answers:` keys).
+
+**Why**
+
+`IDENTITY-DEEPENING` steering-gap-2 advancement: settle the soundness + budget +
+gate for the next, larger identity step (the whole-module sequential-equivalence
+axis decision `0007` explicitly deferred) before code, so `.3b` implements a
+proven discipline, not a guess (`feedback_full_factorization`;
+`feedback_rules_first_generation`; `feedback_never_retire_strategies`).
+
+**Validation**
+
+Docs-only design leaf — no source change, so the code-hygiene gates are not
+load-bearing (no `src/`/`tests/` edits; `tests/snapshots.rs` untouched ⇒ DUT
+byte-identical). `bash scripts/check_memory_architecture.sh` and
+`bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md`
+regenerated deterministically and committed in sync. Per
+`0003-resource-safe-validation`, full `cargo test` is not required for a
+design/workflow-doc leaf.
+
+**Impact**
+
+No behavior change, no CLI/knob change, no emitted-RTL change. Establishes the
+proven design for `IDENTITY-DEEPENING.3b`. `MEMORY.md` next-action advances to
+`.3b`.
+
+**Files touched**
+
+`docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md`
+(new), `docs/decisions/INDEX.md`, `docs/tasks/IDENTITY-DEEPENING.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — IDENTITY-DEEPENING.2b — implement bounded bisimulation flop merge
 
-**Landed as:** this commit (previous: `1d0a8d0`). Code leaf — task-tree-owned by
+**Landed as:** `be45819` (previous: `1d0a8d0`). Code leaf — task-tree-owned by
 `IDENTITY-DEEPENING.2b`. Closes the `.2` container.
 
 **What changed**

@@ -9,8 +9,9 @@
 - Last updated: `2026-06-15`
 - Owner: repo-local workflow
 - Note: `.2` (bisimulation flop merge) **delivered** (`.2a` design + `.2b`
-  impl). `.3` (whole-module sequential equivalence) remains the named
-  future design leaf; tree stays `active` until `.3` lands or is deferred.
+  impl). `.3` (whole-module sequential equivalence) is now split into `.3a`
+  (design/decision — **done**, decision `0008`) + `.3b` (impl — future). Tree
+  stays `active` until `.3b` lands or is deferred.
 
 ## Goal
 
@@ -108,9 +109,22 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.3`
+  Status: `active`
+  Goal: `Whole stateful-leaf-module bounded sequential equivalence built on the .2 flop-bisimulation primitive + a bounded cross-module state-correspondence search, extending dedup_semantic_modules past today's pure-combinational boundary.`
+  Children: `IDENTITY-DEEPENING.3a`, `IDENTITY-DEEPENING.3b`
+
+- ID: `IDENTITY-DEEPENING.3a`
+  Status: `done`
+  Goal: `Design/decision leaf: fix the soundness discipline + budget + downstream gate for whole-leaf-module sequential equivalence, grounded in the real dedup_semantic_modules / merge_bisimilar_flops machinery, and split .3 — before any code.`
+  Acceptance: `A decision record naming the approach, its soundness argument, its budget, its default-off control surface, and its downstream gate; the first-cut scope + excluded boundaries; the central .3b impl challenge; no source change; docs/workflow self-checks clean.`
+  Result: `Decision 0008 — second extension = bounded whole-leaf-module sequential equivalence via CROSS-MODULE bisimulation (lift the .2 partition-refinement primitive to the disjoint union of two candidate modules' flops, primary inputs unified by (PortId,width); prove a stable cross-module state correspondence, then prove every output-port cone equal under the resulting quotient; reuse the 12-bit/128-node/131072-work combinational budget). Added BESIDE dedup_semantic_modules (not a modification), default-off / byte-identical, node-id/e-graph; first cut = flops-only leaf modules (memory/FSM/instance/param/aggregate modules excluded as named boundaries; resetless flops excluded — no base case, carrying the .2b fix forward). Strictly generalizes the pure-combinational dedup_semantic_modules (zero-flop special case) and the flop-level classes; retires nothing. Central .3b challenge recorded: a cross-module cone-proof signature (shared LeafEndpoint vocabulary — PrimaryInput by (PortId,width), FlopQ by global union class id). Tree split into .3a (this, done) + .3b (impl, future).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `IDENTITY-DEEPENING.3b`
   Status: `proposed`
-  Goal: `(Future) Whole stateful-leaf-module bounded sequential equivalence built on the .2 flop-bisimulation primitive + a bounded state-correspondence search, extending dedup_semantic_modules past today's pure-combinational boundary.`
-  Acceptance: `Design leaf first (soundness + budget + gate) before any code; named future leaf, not on the active frontier until .2 reaches handoff.`
+  Goal: `(Future) Implement the bounded whole-leaf-module sequential-equivalence pass per decision 0008: cross-module union partition refinement + cross-module cone-proof signature + bounded output-cone equality + the new default-off hierarchy_sequential_module_dedup knob + the design-level sequential_module_proof / num_sequentially_duplicate_module_pairs metric pair + the focused downstream-clean gate; default-off / byte-identical; banked clean across Verilator + both Yosys modes.`
+  Acceptance: `Design leaf (0008) landed first; rules-first cross-module merge gate (two sequentially-equivalent stateful leaf modules collapse to one definition with the knob on, both structural + combinational dedup leave 2); knob-off byte-identical (snapshots 6/6); merged multi-module design downstream-clean; live docs + KM card updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -118,7 +132,8 @@ handoff.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `IDENTITY-DEEPENING.3` | `proposed` | Now eligible — `.2` reached handoff (delivered). Whole stateful-leaf-module bounded sequential equivalence (a design leaf first: soundness + budget + gate before any code). |
+| 1 | `IDENTITY-DEEPENING.3b` | `proposed` | Now eligible — `.3a` design landed (decision `0008`). Implement the bounded whole-leaf-module sequential-equivalence pass (cross-module bisimulation + output-cone equality), default-off / byte-identical, downstream-clean bank. |
+| — | `IDENTITY-DEEPENING.3a` | `done` | Landed decision `0008` — soundness discipline, budget, control surface, downstream gate, first-cut scope, and the central `.3b` cross-module-proof challenge; no source change. |
 | — | `IDENTITY-DEEPENING.2b` | `done` | Delivered the opt-in `merge_bisimilar_flops` pass, default-off / byte-identical, downstream-clean bank. |
 
 ## Decisions
@@ -143,17 +158,37 @@ handoff.
   future), bounded model checking (unsound merge proof), retimed-state
   equivalence (not bisimilar), and memory-state merging
   (`memory-identity-boundary`, blocked).
+- `2026-06-15` (`.3a`, decision [`0008`](../decisions/0008-identity-deepening-whole-module-sequential-equivalence.md)):
+  Split `.3` into `.3a` (design, done) + `.3b` (impl, future). Second extension
+  = **bounded whole-leaf-module sequential equivalence via cross-module
+  bisimulation**. Rationale: the `.2` primitive proves flops equivalent *within
+  one module*; `dedup_semantic_modules` proves *whole modules* equivalent but
+  only stateless ones — the open frontier exactly between them is proving two
+  whole *stateful* leaf modules observationally equivalent. The pick lifts the
+  flop-level partition refinement to the disjoint union of two modules' flops
+  (primary inputs unified by `(PortId, width)`), finds a stable cross-module
+  state correspondence, then proves every output cone equal under the resulting
+  quotient. Soundness = reset base case + bisimulation step (coinduction), the
+  same discipline as `.2`, now across two machines. It strictly generalizes the
+  pure-combinational `dedup_semantic_modules` (zero-flop special case) without
+  retiring it, and is added **beside** it (not a modification — the `.2b`
+  precedent). First cut = flops-only leaf modules; memory/FSM/instance/param/
+  aggregate modules stay excluded as named boundaries. Rejected as the approach:
+  reachable-product / bounded model checking (unsound merge proof), unifying into
+  `dedup_semantic_modules` (byte-identical risk), and any structural/syntactic
+  module resemblance (`hierarchy-identity-boundary`).
 
 ## Open Questions
 
-- `.2a` pinned the names (`Config::bisimulation_flop_merge`,
-  `Metrics::bisimulation_flops_merged`) and the bucket cap (`N_bisim_flops`
-  default `64`). Remaining for `.2b`: whether the downstream-clean bank is a
-  dedicated `tool_matrix` scenario set or a focused `cargo test` + a manual
-  Verilator/Yosys smoke (decide by whichever proves the mutual-recursion merge
-  by construction at lowest cost, mirroring the `signoff-knob-sweep` precedent),
-  and the precise threading of the new `Module` flag from `Config` (alongside
-  `identity_mode`).
+- `.3b` finalizes: the knob name (`hierarchy_sequential_module_dedup`), the
+  design-level metric names (`sequential_module_proof` signature +
+  `num_sequentially_duplicate_module_pairs`), the union flop cap
+  `N_bisim_module_flops`, the exact cross-module cone-proof signature
+  representation (the central impl challenge — a shared `LeafEndpoint` vocabulary
+  keyed by `(PortId, width)` for inputs and a global union class id for `FlopQ`),
+  and the downstream-clean gate shape (focused `cargo test` + smoke vs a
+  dedicated `tool_matrix` scenario set), by whichever proves the cross-module
+  stateful merge by construction at lowest cost (mirrors the `.2b` precedent).
 
 ## Blockers
 
@@ -166,6 +201,7 @@ handoff.
 | `2026-06-15` | `IDENTITY-DEEPENING.1` | Design/decision leaf, no source change. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated to include decision `0007` answers. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.2a` | Design-detail leaf, no source change (grounded in a close read of `src/ir/compact.rs` `merge_equivalent_flops`/`flop_d_signature`/`cone_proof`/`semantic_cone_proof`, `src/config.rs` knob pattern, `src/metrics.rs` merge-count pattern). Self-checks clean. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.2b` | `cargo build` + `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 403 pass incl. 6 new bisim gate tests + the metrics-plumbing test + introspect/MCP schema_version tests; `cargo test --test snapshots` 6/6 byte-identical (knob default-off); representative `cargo test --test pipeline` reproducibility test green (full pipeline suite is heavy/slow and exercises only the byte-identical default path). Downstream-clean bank on the merged mutual-swap self-hold output: Verilator `--lint-only -Wall` 0 warnings, Yosys without-abc + with-abc, Icarus `iverilog -g2012` (re-bank: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers`). KM + mem-arch self-checks clean. | `done` |
+| `2026-06-15` | `IDENTITY-DEEPENING.3a` | Design/decision leaf, **no source change** (grounded in a close read of `src/ir/dedup.rs` `dedup_semantic_modules` + `prune_modules_made_unreachable`, `src/metrics.rs` `semantic_module_proof_inner` + the module-proof budget constants, and `src/ir/compact.rs` `merge_bisimilar_flops` / `canonical_flop_endpoint` / `cone_proof` / `MERGE_SEMANTIC_LIMITS`). Decision `0008` written with KM `answers:` front-matter; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 
 ## Commit Log
 
@@ -174,6 +210,7 @@ handoff.
 | `IDENTITY-DEEPENING.1` | `IDENTITY-DEEPENING.1 — promote Lane 1 + decision 0007` | Landed `43e2a2d`. Decision record `0007`; tree split into `.2`/`.3`. |
 | `IDENTITY-DEEPENING.2a` | `IDENTITY-DEEPENING.2a — bisimulation flop merge design detail` | Grounded `.2b` algorithm/API-reuse/names/budget/gate; `.2` split into `.2a`/`.2b`. |
 | `IDENTITY-DEEPENING.2b` | `IDENTITY-DEEPENING.2b — implement bounded bisimulation flop merge` | Landed `merge_bisimilar_flops` + `finalize_flop_merge` + quotient proof threading + default-off knob + metric + 6 gate tests + schema 1.0→1.1; downstream-clean bank. Closes `.2`. |
+| `IDENTITY-DEEPENING.3a` | `IDENTITY-DEEPENING.3a — whole-module sequential equivalence design` | Decision record `0008`; split `.3` into `.3a` (design, done) + `.3b` (impl, future). No source change. |
 
 ## Changelog
 
@@ -198,3 +235,15 @@ handoff.
   6 rules-first gate tests; schema MINOR bump 1.0→1.1; banked downstream-clean
   (Verilator + both Yosys + Icarus). `.2` container closed. Frontier advances
   to `.3` (whole-module sequential equivalence, design leaf first).
+- `2026-06-15`: `.3a` done — split `.3` into `.3a` (design/decision, done) +
+  `.3b` (impl, future); `.3` is now an `active` container. Landed decision
+  `0008` (second extension = bounded whole-leaf-module sequential equivalence
+  via cross-module bisimulation: lift the `.2` union partition refinement across
+  two candidate modules with primary inputs unified by `(PortId, width)`, prove
+  a stable cross-module state correspondence, then prove every output cone equal
+  under the quotient; reuse the 12-bit/128-node/131072-work combinational
+  budget; added beside `dedup_semantic_modules`, default-off / byte-identical,
+  node-id/e-graph; first cut flops-only — memory/FSM/instance/param/aggregate
+  excluded; resetless excluded). Grounded in the real `dedup_semantic_modules` /
+  `merge_bisimilar_flops` machinery; no source change. Frontier advances to
+  `.3b`.

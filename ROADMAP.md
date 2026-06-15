@@ -94,7 +94,20 @@ instead of leaving them implicit.
    broader *whole-module* sequential equivalence, retimed-state
    equivalence, memory-state merging beyond the current
    instance-local proof boundary, and hierarchy equivalence beyond
-   canonical structural module signatures are still open work. Current
+   canonical structural module signatures are still open work. The next
+   step on the whole-module axis is now **designed but not yet
+   implemented**: decision
+   [`0008`](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md)
+   (`IDENTITY-DEEPENING.3a`) fixes the soundness discipline, budget, and
+   downstream gate for bounded whole-leaf-module sequential equivalence —
+   a default-off pass *beside* `dedup_semantic_modules` that proves two
+   stateful (flops-only) leaf modules observationally equivalent via a
+   cross-module bisimulation (the `.2b` partition refinement lifted to the
+   disjoint union of the two modules' flops, primary inputs unified by
+   `(PortId, width)`) plus bounded output-cone equality under the quotient,
+   reusing the same 12-bit/128-node/131072-work budget. The implementation
+   is the named future leaf `IDENTITY-DEEPENING.3b`; memory / FSM / wrapper
+   / retimed-state module equivalence remain excluded boundaries. Current
    inferrable memories deliberately remain state-by-instance because
    their stored contents are not reset-defined, and current module dedup
    deliberately does not merge semantically-equivalent-but-structurally
