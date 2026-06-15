@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — SV-version targeting — first up-opt design (soft packed union) — `SV-VERSION-TARGETING.3a`
+
+Design leaf for `.3`, the first version-distinctive *up-opted* construct. Splits
+`.3` into `.3a` (this design) + `.3b` (impl). Docs-only; full rationale +
+rejected alternatives in decision [`0010`](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md).
+Grounded in a direct probe of the installed Verilator 5.046 / Yosys 0.64 /
+Icarus 13.0.
+
+- **The empirical finding that shaped everything: the installed tools do not
+  enforce 1800-version *acceptance*.** Verilator 5.046 accepts every supported
+  construct — and reserves keywords — identically across `--language 1800-2012`
+  / `1800-2017` / `1800-2023` (probed: `soft` and `implements` as identifiers
+  fail at *all three* modes). So **no construct exists for which 2012 rejects and
+  2023 accepts**. Yosys/Icarus expose no 1800 selector and parse a fixed
+  conservative subset. The up-opt's teeth are therefore (a) LRM correctness,
+  (b) ANVIL's construction-time down-gating guarantee, and (c) matching-mode
+  acceptance (`verilator --language 1800-2023`), **not** tool-side version
+  rejection. The design says this out loud rather than over-claim.
+- **First up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023
+  §7.3.1)**, a new default-off aggregate projection gated on `sv_version >=
+  Sv2023`, sibling of `AggregateKind::StructPacked`/`ArrayPacked`. Chosen because
+  it has **real down-gating teeth**: a *non-soft* packed union with
+  heterogeneous-width members is illegal pre-2023 and **all three tools reject
+  it** — Verilator's own diagnostic quotes the standard:
+  `Hard packed union members must have equal size (IEEE 1800-2023 7.3.1)`. The
+  soft form genuinely elaborates (`verilator --binary` → `y=a5`). The down-gate
+  fallback at `< 2023` is the existing packed `struct` projection ⇒ default
+  byte-identical.
+- **Downstream proof handling.** Verilator `--language 1800-2023` (accept +
+  `--binary`) is the primary proof; Yosys/Icarus reject the `union soft` syntax,
+  so for the up-opt scenario they are a **recorded no-op, not a failure** (the
+  Icarus-beyond-`-g2012` path `0009` already authorized, extended to Yosys). The
+  existing `--sv-version-gate` `saw_sv_version_2023_targeted_acceptance` fact
+  requires *Yosys-clean*, so the union scenario gets a **dedicated** up-opt fact
+  (working name `saw_sv_version_2023_soft_union_upopt`) requiring only Verilator
+  matching-mode acceptance — `.3b` work.
+- **`.3b` open questions** (resolved at `.3b`/`.3b.1`): port-boundary union fold
+  (union width = max member width, changes the input bit-budget) vs lower-risk
+  internal-only `union soft` overlay over an existing wide signal; the exact
+  `AggregateKind` variant + `render_aggregate_typedef` emit site + the
+  `permits(Sv2023)` gate; the new union-projection knob + default-off; the matrix
+  up-opt scenario/fact + Yosys/Icarus no-op recording; and the
+  `tests/sv_version.rs` update (byte-identity must now show **divergence** at 2023
+  when the knob fires).
+
 ## 2026-06-16 — SV-version targeting — repo-owned per-version acceptance gate — `SV-VERSION-TARGETING.2b.2b`
 
 Second half of `.2b.2`: industrializes the `.2b.2a` focused proof into a

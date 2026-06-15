@@ -25,6 +25,7 @@ Decision records may also carry Knowledge Map front matter. A non-empty
 | [0007](0007-identity-deepening-first-extension.md) | The first IDENTITY-DEEPENING extension is bounded bisimulation-based sequential flop equivalence (default-off, reusing the bounded combinational endpoint proof) | 2026-06-15 | accepted | identity, sequential, factorization, bisimulation, coinduction, flop-merge |
 | [0008](0008-identity-deepening-whole-module-sequential-equivalence.md) | The second IDENTITY-DEEPENING extension is bounded whole-leaf-module sequential equivalence via cross-module bisimulation (default-off, beside dedup_semantic_modules) | 2026-06-15 | accepted | identity, sequential, factorization, bisimulation, coinduction, module-dedup, hierarchy |
 | [0009](0009-sv-version-targeting.md) | ANVIL gains a --sv-version capability gate that targets a chosen IEEE 1800 standard valid-by-construction (default byte-identical) | 2026-06-15 | accepted | capability, sv-version, emission, downstream, valid-by-construction, north-star, breadth |
+| [0010](0010-sv-version-first-upopt-soft-packed-union.md) | ANVIL's first version-distinctive up-opt is a heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1), default-off / byte-identical | 2026-06-16 | accepted | capability, sv-version, up-opt, emission, downstream, soft-union, 2023, valid-by-construction, north-star |
 
 ## How To Add A Record
 

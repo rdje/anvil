@@ -193,9 +193,18 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `ScenarioSet::SvVersionSweep` + per-version `saw_sv_version_*_targeted_acceptance`
    coverage facts, banked clean at `/tmp/anvil-sv-version-gate-r1`: 9 scenarios /
    18 units / `coverage_gaps = []` / `18/0` Verilator + both Yosys) all **done**.
-   `.2` (plumbing + down-gating + per-version acceptance axis) is now complete;
-   the remaining frontier is `.3` (the first version-distinctive up-opted
-   construct, design-first). Default byte-identical throughout.
+   `.2` (plumbing + down-gating + per-version acceptance axis) is now complete.
+   `.3` (the first version-distinctive up-opted construct) is split into `.3a`
+   (design — **done**, decision
+   [`0010`](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md): the
+   first up-opt is a default-off heterogeneous-width packed `union soft` (IEEE
+   1800-2023 §7.3.1) gated on `sv_version >= Sv2023`, with the existing packed-
+   `struct` projection as the `< 2023` down-gate fallback ⇒ byte-identical
+   default; grounded in a probe showing the installed Verilator/Yosys/Icarus do
+   not enforce 1800-version acceptance, so the up-opt's teeth are LRM correctness
+   + construction-time down-gating + matching-mode acceptance) + `.3b` (impl, the
+   `union soft` projection). The remaining frontier is `.3b`. Default
+   byte-identical throughout.
 2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
    synthesizable SV surfaces (function/task, interface/modport, nested
    generate), valid-by-construction; bigger and more open-ended.

@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SV-VERSION-TARGETING.3a — first up-opt design (soft packed union)
+
+**Landed as:** this commit (previous: `ef3d94e`). Task-tree-owned by
+`SV-VERSION-TARGETING.3a`. **Docs-only design leaf — no source change**, so the
+default build, every snapshot, and every gate are untouched.
+
+**What changed**
+
+- **Decision `0010`** (`docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md`,
+  with Knowledge Map `answers:` front-matter): ANVIL's **first version-distinctive
+  up-opted construct** is a **heterogeneous-width packed `union soft` (IEEE
+  1800-2023 §7.3.1)** — a new default-off aggregate projection (sibling of
+  `AggregateKind::StructPacked`/`ArrayPacked`) gated at construction time on
+  `sv_version >= Sv2023`. The `< 2023` down-gate fallback is the existing packed
+  `struct` projection, so the default stays byte-identical.
+- **Empirical tool-reality finding** (probe of the installed Verilator 5.046 /
+  Yosys 0.64 / Icarus 13.0): the installed tools **do not enforce 1800-version
+  acceptance** — Verilator accepts every supported construct and reserves
+  keywords identically across `--language 1800-2012/2017/2023` (`soft` and
+  `implements` as identifiers fail at all three modes), and Yosys/Icarus expose
+  no 1800 selector. So no construct is "rejected at 2012, accepted at 2023"; the
+  up-opt's teeth are **LRM correctness + ANVIL's construction-time down-gating
+  guarantee + matching-mode acceptance** (`verilator --language 1800-2023`,
+  proven by a `--binary` build that produced `y=a5`). Real teeth confirmed: a
+  *non-soft* heterogeneous-width packed union is rejected by all three tools —
+  Verilator cites `Hard packed union members must have equal size (IEEE 1800-2023
+  7.3.1)`.
+- **Downstream-proof handling:** Verilator `--language 1800-2023` is the primary
+  proof; Yosys/Icarus reject the `union soft` syntax ⇒ **recorded no-op, not a
+  failure** (decision `0009`'s authorized path). The existing
+  `--sv-version-gate` `saw_sv_version_2023_targeted_acceptance` fact requires
+  Yosys-clean, so `.3b` adds a dedicated `saw_sv_version_2023_soft_union_upopt`
+  fact (Verilator-only).
+- **Tree split:** `SV-VERSION-TARGETING.3` → `.3a` (this design, done) + `.3b`
+  (impl, the `union soft` projection; pre-split into `.3b.1`/`.3b.2` when picked
+  if broad). Frontier advances to `.3b`.
+- Docs updated: decision `0010` + `INDEX.md`; `DEVELOPMENT_NOTES.md` design-detail
+  entry; `docs/tasks/SV-VERSION-TARGETING.md` (tree split, frontier, decisions,
+  open questions, verification/commit logs, changelog); `docs/TASK_TREE.md` row;
+  `ROADMAP.md` lane note; `MEMORY.md`; `KNOWLEDGE_MAP.md` regenerated.
+
+**Why**
+
+`SV-VERSION-TARGETING.3` is design-first by decision `0009`. Picking the first
+up-opt responsibly (no aspirational claims) required grounding the choice in the
+*installed* tools' real behaviour, which this leaf did, and naming a construct
+with genuine LRM/version teeth and proven synthesizability. Serves the north star
+(expose version-specific downstream-tool bugs) and ROADMAP steering gaps 1
+(breadth) + 3 (explicit adversarial axis).
+
+**Validation**
+
+Docs-only design leaf, no source change. Baseline `cargo check --all-targets`
+clean before the leaf. Direct acceptance probe of the installed Verilator 5.046 /
+Yosys 0.64 / Icarus 13.0 (22 candidate snippets across all three `--language`
+modes; `verilator --binary` `union soft` build → `y=a5`; non-soft heterogeneous
+packed union rejected by all three). `bash scripts/check_memory_architecture.sh`
++ `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md`
+regenerated and in sync.
+
+**Impact**
+
+No behavior change; default byte-identical. Sets up `.3b` (the first genuinely
+version-distinctive ANVIL emission).
+
+**Files touched**
+
+`docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md` (new),
+`docs/decisions/INDEX.md`, `DEVELOPMENT_NOTES.md`,
+`docs/tasks/SV-VERSION-TARGETING.md`, `docs/TASK_TREE.md`, `ROADMAP.md`,
+`MEMORY.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`.
+
 ## 2026-06-16 — SV-VERSION-TARGETING.2b.2b — repo-owned per-version acceptance gate
 
-**Landed as:** this commit (previous: `e3c2f4b`). Task-tree-owned by
+**Landed as:** `ef3d94e` (previous: `e3c2f4b`). Task-tree-owned by
 `SV-VERSION-TARGETING.2b.2b`. **Default matrix run byte-identical** (the
 Verilator `--language` selector is `None` unless `--sv-version-gate` is set;
 the matrix `to_sv*` emits target each scenario's `Config::sv_version`, which is

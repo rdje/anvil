@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — version-targeted synthesizable RTL (ROADMAP steering gaps 1 + 3)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (`.2b.2b` repo-owned per-version acceptance gate landed; `.2b.2`/`.2b`/`.2` closed; frontier → `.3`)
+- Last updated: `2026-06-16` (`.3a` design landed — decision `0010` names the first up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1); split `.3` → `.3a` done + `.3b` impl; frontier → `.3b`)
 - Owner: repo-local workflow
 - Note: opened `2026-06-15` by owner roadmap steering as the recommended
   highest-leverage capability lane (over the two registered-`proposed` siblings
@@ -118,9 +118,22 @@ byte-identical.
   Commit: `done`
 
 - ID: `SV-VERSION-TARGETING.3`
+  Status: `active`
+  Goal: `The first version-distinctive up-opted synthesizable construct, design-first then impl, gated on sv_version >= that_standard, proven downstream-clean in the matching tool standard mode.`
+  Children: `SV-VERSION-TARGETING.3a`, `SV-VERSION-TARGETING.3b`
+
+- ID: `SV-VERSION-TARGETING.3a`
+  Status: `done`
+  Goal: `Design leaf: pick the first up-opted construct (which construct, why genuinely version-distinctive + synthesizable + tool-accepted), the construction-time gate, the rules-first / default-off / byte-identical discipline, and the per-version downstream-proof handling — grounded in a real probe of the installed tools. Split .3 into .3a + .3b.`
+  Acceptance: `A decision record naming the first up-opt construct, its LRM/version teeth, its tool-acceptance evidence, the sv_version >= that_standard gate, the byte-identical default, the rejected alternatives, and the .3b impl shape; no source change; docs/workflow self-checks clean.`
+  Result: `Decision 0010. First up-opt = a heterogeneous-width packed union emitted as union soft (IEEE 1800-2023 §7.3.1), a new default-off aggregate projection (sibling of AggregateKind::StructPacked/ArrayPacked) gated on sv_version >= Sv2023. Down-gate fallback < 2023 = the existing packed struct projection ⇒ default byte-identical. Empirical finding (probe of Verilator 5.046 / Yosys 0.64 / Icarus 13.0): the installed tools do NOT enforce 1800-version acceptance (Verilator accepts/​reserves identically across --language 1800-2012/2017/2023; Yosys/Icarus have no 1800 selector + fixed subset), so the up-opt's teeth are LRM correctness + construction-time down-gating + matching-mode acceptance (verilator --language 1800-2023, proven by --binary y=a5), NOT tool-side rejection. Real down-gating teeth confirmed: a NON-soft heterogeneous-width packed union is rejected by all three tools (Verilator cites "Hard packed union members must have equal size (IEEE 1800-2023 7.3.1)"). Yosys/Icarus reject the union soft syntax ⇒ recorded no-op for the up-opt scenario (0009's authorized path); the existing saw_sv_version_2023_targeted_acceptance fact requires Yosys-clean, so .3b adds a dedicated saw_sv_version_2023_soft_union_upopt fact requiring only Verilator matching-mode acceptance. Tree split .3 → .3a (done) + .3b (impl).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SV-VERSION-TARGETING.3b`
   Status: `proposed`
-  Goal: `(Future) The first version-distinctive up-opted synthesizable construct (a construct introduced by 2017 or 2023 that a downstream tool accepts in its version mode), design-first, gated on sv_version >= that_standard, proven downstream-clean in the matching tool standard mode.`
-  Acceptance: `Design leaf first (which construct, why synthesizable + tool-accepted, the gate); then impl with a downstream-clean bank in the matching tool mode; default-off for lower versions / byte-identical; book + KM updated.`
+  Goal: `Implement the union soft up-opt: a default-off heterogeneous-width packed-union aggregate projection gated on sv_version >= Sv2023, proven Verilator matching-mode-clean (Yosys/Icarus recorded no-op). Pre-split into .3b.1 (design-detail) + .3b.2 (impl) when picked if broad (the .2b precedent).`
+  Acceptance: `New default-off union-projection knob + AggregateKind variant + render_aggregate_typedef emit site gated on sv_version.permits(Sv2023); default-off / byte-identical (tests/snapshots.rs 6/6 untouched); tests/sv_version.rs updated to show divergence at 2023 when the knob fires; tests/sv_version_downstream.rs proves verilator --language 1800-2023 accepts; a dedicated matrix up-opt scenario + saw_sv_version_2023_soft_union_upopt fact with Yosys/Icarus recorded no-op, banked clean; book(knobs/sv-version)/USER_GUIDE/README/ROADMAP + KM updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -128,7 +141,8 @@ byte-identical.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SV-VERSION-TARGETING.3` | `proposed` | The only remaining lane frontier: the first version-distinctive up-opted synthesizable construct (introduced by 2017 or 2023, accepted by a downstream tool in its version mode), design-first, gated on `sv_version >= that_standard`, proven downstream-clean in the matching mode. `.2` (plumbing + down-gating + per-version acceptance axis) is now fully closed. |
+| 1 | `SV-VERSION-TARGETING.3b` | `proposed` | Implement the `.3a` design: the default-off `union soft` heterogeneous-width packed-union aggregate projection gated on `sv_version >= Sv2023`, default-off / byte-identical, proven Verilator matching-mode-clean (`--language 1800-2023` + `--binary`) with Yosys/Icarus recorded no-op, plus a dedicated matrix up-opt fact + `tests/sv_version*.rs` updates + book/KM. Pre-split into `.3b.1`/`.3b.2` when picked if broad. |
+| — | `SV-VERSION-TARGETING.3a` | `done` | Landed decision `0010` — first up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1); the empirical tool-reality finding (installed tools don't enforce 1800-version acceptance); the `sv_version >= Sv2023` gate; default byte-identical (struct down-gate fallback); rejected alternatives; the `.3b` impl shape. No source change. |
 | — | `SV-VERSION-TARGETING.2b.2b` | `done` | Landed the repo-owned `tool_matrix --sv-version-gate` + `ScenarioSet::SvVersionSweep` (9 scenarios) + per-version emit threading + matching-mode Verilator (`verilator_language_for`) + `saw_sv_version_*_targeted_acceptance` coverage facts + `MatrixReport.sv_version_gate` + 6 proofs. Banked clean: `/tmp/anvil-sv-version-gate-r1` (9 scenarios / 18 units / `coverage_gaps=[]` / 18/0 Verilator + both Yosys). Default matrix byte-identical. |
 | — | `SV-VERSION-TARGETING.2b.2a` | `done` | Landed the `run_verilator(_design)` `language: Option<&str>` selector (`--language 1800-20xx`, spelling probed; `None` = byte-identical) + `tests/sv_version_downstream.rs` (`#[ignore]`) banked clean: Verilator accepts all 3 `--language` modes + Icarus `-g2012` accepts. |
 | — | `SV-VERSION-TARGETING.2b.1` | `done` | Landed the `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points (`permits` capability bound) + introspection schema `1.1→1.2` + `tests/sv_version.rs` cross-version byte-identity proof. Default byte-identical (snapshots 6/6). |
@@ -137,6 +151,28 @@ byte-identical.
 
 ## Decisions
 
+- `2026-06-16` (`.3a`, decision [`0010`](../decisions/0010-sv-version-first-upopt-soft-packed-union.md)):
+  the first up-opt is a **heterogeneous-width packed `union soft` (IEEE 1800-2023
+  §7.3.1)**, a new default-off aggregate projection gated on `sv_version >=
+  Sv2023` (sibling of `AggregateKind::StructPacked`/`ArrayPacked`); the `< 2023`
+  down-gate fallback is the existing packed `struct` projection ⇒ byte-identical
+  default. Grounded in a probe of the installed Verilator 5.046 / Yosys 0.64 /
+  Icarus 13.0: **the installed tools do not enforce 1800-version acceptance**
+  (Verilator accepts + reserves keywords identically across all `--language`
+  modes; Yosys/Icarus have no 1800 selector), so the up-opt's teeth are LRM
+  correctness + construction-time down-gating + matching-mode acceptance
+  (`verilator --language 1800-2023`, proven by `--binary`), not tool-side
+  rejection. Real teeth confirmed: a non-soft heterogeneous-width packed union is
+  rejected by all three tools (Verilator cites the standard). Yosys/Icarus reject
+  the `union soft` syntax ⇒ recorded no-op for the up-opt scenario; `.3b` adds a
+  dedicated `saw_sv_version_2023_soft_union_upopt` fact (Verilator-only) because
+  the existing `.2b.2b` facts require Yosys-clean. Rejected: 2012-floor constructs
+  with no down-gating teeth (`genvar`-in-for, unbased-unsized, signed cast,
+  default args, `parameter type` defaults), a 2017-distinctive construct (none
+  synthesizable found — first up-opt is 2023), Yosys+Icarus-rejected alternatives
+  with no cleaner 2023 story, claiming tool-side version rejection (aspirational),
+  generate-then-filter, non-byte-identical default. Split `.3` → `.3a` (done) +
+  `.3b` (impl).
 - `2026-06-15` (`.2a`, design detail in `DEVELOPMENT_NOTES.md`): resolved decision
   `0009`'s five open questions. (1) `SvVersion { Sv2012 < Sv2017 < Sv2023 }`
   (`PartialOrd`/`Ord`), bare-year CLI/serde value names; **default = `Sv2012`**
@@ -169,8 +205,15 @@ byte-identical.
   accepts both `--language <std>` and `--default-language <std>`; ANVIL uses
   `--language 1800-20xx` (the documented standard selector), now wired into the
   `.2b.2b` matrix gate.
-- `.3` (future): which version-distinctive synthesizable construct is the first
-  up-opt, and which downstream tool/mode proves it accepted.
+- Resolved by `.3a` (decision `0010`): the first up-opt is a heterogeneous-width
+  packed `union soft` (IEEE 1800-2023 §7.3.1), proven matching-mode-accepted by
+  Verilator `--language 1800-2023` (`--binary`); Yosys/Icarus are recorded
+  no-ops.
+- `.3b` (impl): the projection shape (port-boundary union fold vs lower-risk
+  internal-only `union soft` overlay), the exact `AggregateKind` variant +
+  `render_aggregate_typedef` emit site + `permits(Sv2023)` gate, the new
+  union-projection knob + default, the matrix up-opt scenario/fact +
+  Yosys/Icarus no-op recording, and the `tests/sv_version.rs` divergence update.
 
 ## Blockers
 
@@ -180,6 +223,7 @@ byte-identical.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `SV-VERSION-TARGETING.3a` | Design leaf, no source change (grounded in a fresh deep-dive of `src/emit/sv.rs`, `src/config.rs`, `src/ir/aggregate.rs`, `src/downstream/mod.rs`, `src/bin/tool_matrix.rs` + a direct acceptance probe of the installed Verilator 5.046 / Yosys 0.64 / Icarus 13.0: 22 candidate snippets across all three `--language` modes; `verilator --binary` build of a `union soft` overlay produced `y=a5`; the non-soft heterogeneous packed union is rejected by all three tools citing IEEE 1800-2023 §7.3.1). Baseline `cargo check --all-targets` clean before the leaf. Decision `0010` + `DEVELOPMENT_NOTES.md` design-detail entry + tree split recorded; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated. | `done` |
 | `2026-06-16` | `SV-VERSION-TARGETING.2b.2b` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0; `cargo test --bin tool_matrix` 52/0 (incl. 6 new sv-version proofs); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2; heavy `cargo test --test pipeline` re-run (touches `tool_matrix`). **Banked downstream-clean:** `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-r1` → exit 0; report: 9 scenarios / 18 units / `coverage_gaps = []` / Verilator 18/0 / Yosys without-abc 18/0 / with-abc 18/0; each scenario's Verilator argv carries the matching `--language 1800-20xx`; all four `saw_sv_version_*_targeted_acceptance` lit. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.2b.2a` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0; `cargo test --test snapshots` 6/6 (default tool argv byte-identical at `language=None`). Banked per-version acceptance: `cargo test --test sv_version_downstream -- --ignored` → 2 passed / 6.18s vs Verilator 5.046 (all 3 `--language` modes clean) + Icarus 13.0 (`-g2012`). Heavy `tests/pipeline.rs` not re-run (downstream argv byte-identical at the `None` default every committed caller uses). | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.2b.1` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0 (incl. 2 new config tests + bumped introspect/mcp schema assertions); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2 (cross-version byte-identity over leaf + design spreads). CLI smoke: `--seed 42` default == `--sv-version 2012` == `--sv-version 2023` md5-equal; `--dump-config` → `"sv_version": "2012"`; `--introspect` → `"schema_version": "1.2"` + `"sv_version": "2012"`; `--sv-version 2005` rejected with the possible-values list. Heavy `tests/pipeline.rs` not re-run (no generation-path change; emitter byte-identical + snapshot-locked); full `cargo test` baseline green at session start. | `done` |
@@ -190,6 +234,7 @@ byte-identical.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SV-VERSION-TARGETING.3a` | `SV-VERSION-TARGETING.3a — first up-opt design (soft packed union)` | Decision `0010` — first up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1), default-off / byte-identical (struct down-gate fallback); the installed-tool version-acceptance finding; the `sv_version >= Sv2023` gate; rejected alternatives. Split `.3` → `.3a`/`.3b`. No source change. |
 | `SV-VERSION-TARGETING.2b.2b` | `SV-VERSION-TARGETING.2b.2b — repo-owned per-version acceptance gate` | `tool_matrix --sv-version-gate` + `ScenarioSet::SvVersionSweep` (9 scenarios) + per-version emit threading + matching-mode Verilator + `saw_sv_version_*_targeted_acceptance` facts + `MatrixReport.sv_version_gate` + 6 proofs. Banked clean `/tmp/anvil-sv-version-gate-r1` (18/0). Closes `.2b.2`/`.2b`/`.2`. |
 | `SV-VERSION-TARGETING.2b.2a` | `SV-VERSION-TARGETING.2b.2a — per-version downstream acceptance proof` | `run_verilator(_design)` `language: Option<&str>` selector + `tests/sv_version_downstream.rs` (`#[ignore]`) banked clean (Verilator 3× `--language` + Icarus `-g2012`). Default byte-identical (`None`). |
 | `SV-VERSION-TARGETING.2b.1` | `SV-VERSION-TARGETING.2b.1 — --sv-version knob + emitter capability bound` | `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points + introspection schema `1.1→1.2` + `tests/sv_version.rs`. Default byte-identical (snapshots 6/6). |
@@ -198,6 +243,16 @@ byte-identical.
 
 ## Changelog
 
+- `2026-06-16`: `.3a` design landed (no source change): decision `0010` names the
+  first up-opt = a heterogeneous-width packed `union soft` (IEEE 1800-2023
+  §7.3.1), a default-off aggregate projection gated on `sv_version >= Sv2023`
+  with the existing packed-`struct` projection as the `< 2023` down-gate fallback
+  ⇒ byte-identical default. Recorded the empirical tool-reality finding (the
+  installed Verilator/Yosys/Icarus do not enforce 1800-version acceptance; the
+  up-opt's teeth are LRM + construction-time down-gating + matching-mode
+  acceptance) and the Yosys/Icarus recorded-no-op handling + the dedicated
+  `.3b` up-opt coverage fact. Split `.3` into `.3a` (done) + `.3b` (impl, the
+  `union soft` projection). Frontier advances to `.3b`.
 - `2026-06-16`: `.2b.2b` landed (default matrix byte-identical): repo-owned
   `tool_matrix --sv-version-gate` + `ScenarioSet::SvVersionSweep` (9 Interleaved
   scenarios = 3 targets × {comb leaf, seq leaf, recursive hierarchy design}) +
