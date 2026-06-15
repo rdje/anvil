@@ -1,9 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009
+
+**Landed as:** this commit (previous: `edae1b0`). **Docs-only / design leaf** —
+task-tree-owned by `SV-VERSION-TARGETING.1`. **No source change.** Acts on owner
+roadmap steering (`2026-06-15`) that named three new capability lanes.
+
+**What changed**
+
+Opens the owner-recommended highest-leverage capability lane and registers its
+two named siblings, all task-tree-owned (the design-before-code doctrine).
+
+- **New decision record `docs/decisions/0009-sv-version-targeting.md`.** An opt-in
+  `--sv-version <2012|2017|2023>` gate (`Config::sv_version`) that targets a
+  chosen IEEE 1800 standard valid-by-construction: **down-gating** (never emit a
+  construct newer than the target — a standard-validity guarantee) +
+  **up-opting** (deliberately emit a higher standard's distinctive synthesizable
+  constructs, each proven downstream-clean in the matching tool standard mode).
+  Default byte-identical (`tests/snapshots.rs` untouched); rules-first
+  construction-time bound (no generate-then-filter); a new per-version downstream
+  acceptance axis. First increment (`.2`) = plumbing + down-gating + per-version
+  acceptance over the existing subset; first up-opted construct = `.3`
+  (design-first). Grounded in the real `src/emit/sv.rs` subset +
+  `src/downstream/mod.rs` fixed tool standards (no existing `sv_version` knob).
+- **New task tree `docs/tasks/SV-VERSION-TARGETING.md`** (`active`; `.1` done,
+  `.2`/`.3` proposed).
+- **Two sibling lanes registered `proposed`** (so they are not overlooked):
+  `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (richer structured emission —
+  function/task, interface/modport, nested generate) and
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (behavioral/derived query
+  surface, `SCHEMA-DERIVED`).
+- **Live docs synced:** decision `INDEX.md` (`0009` row); `docs/TASK_TREE.md`
+  (3 new rows); `DEVELOPMENT_NOTES.md` (grounded rationale); `ROADMAP.md` (new
+  "Owner-directed capability lanes (2026-06-15)" section); `KNOWLEDGE_MAP.md`
+  regenerated (picks up `0009`'s `answers:`).
+
+**Why**
+
+Owner roadmap steering named `SV-VERSION-TARGETING` the highest-leverage next
+lane; it directly serves the north star (expose version-specific downstream-tool
+bugs via valid-by-construction output) and adds an explicit `sv_version`
+adversarial axis (steering gap 3) + version-targeted breadth (steering gap 1).
+Design-before-code: settle the gate semantics, byte-identical default, and
+per-version downstream proof before any emitter change.
+
+**Note on IDENTITY-DEEPENING.** The prior active lane `IDENTITY-DEEPENING` is at a
+clean checkpoint (`.3b.2a` committed `edae1b0`); its frontier `.3b.2b`
+(cross-module whole-module sequential equivalence) is **parked-but-fully-designed**
+(decision `0008` + the `.3b.1` design detail), not abandoned — resumable from its
+tree. The owner redirected priority to `SV-VERSION-TARGETING`.
+
+**Validation**
+
+Docs-only design leaf — no source change (no `src/`/`tests/`; `tests/snapshots.rs`
+untouched ⇒ DUT byte-identical). `bash scripts/check_memory_architecture.sh` +
+`bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md`
+regenerated in sync. Per `0003-resource-safe-validation`, full `cargo test` is not
+required for a design/workflow-doc leaf.
+
+**Impact**
+
+No behavior change, no CLI/knob change yet. Establishes the proven design + the
+task-tree ownership for `SV-VERSION-TARGETING.2` and registers two future lanes.
+`MEMORY.md` active lane repointed to `SV-VERSION-TARGETING`.
+
+**Files touched**
+
+`docs/decisions/0009-sv-version-targeting.md` (new),
+`docs/tasks/SV-VERSION-TARGETING.md` (new),
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (new),
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (new),
+`docs/decisions/INDEX.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`ROADMAP.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — IDENTITY-DEEPENING.3b.2a — factor bisimulation_partition helper
 
-**Landed as:** this commit (previous: `762cf46`). **Code leaf** — task-tree-owned
+**Landed as:** `edae1b0` (previous: `762cf46`). **Code leaf** — task-tree-owned
 by `IDENTITY-DEEPENING.3b.2a`. First (foundational, byte-identical) code slice of
 `.3b.2` (implement decision `0008`).
 

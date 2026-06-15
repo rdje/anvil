@@ -168,6 +168,36 @@ instead of leaving them implicit.
    and stronger by-construction invariants over post-hoc whole-module
    "meaningfulness" scoring.
 
+## Owner-directed capability lanes (2026-06-15)
+
+Beyond the closed numbered phases and the open post-phase identity lane
+(`IDENTITY-DEEPENING`), owner roadmap steering on `2026-06-15` named three
+new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
+
+1. **`SV-VERSION-TARGETING`** (`active`, recommended highest-leverage) — an
+   opt-in `--sv-version <2012|2017|2023>` gate (`Config::sv_version`) that
+   targets a chosen IEEE 1800 standard valid-by-construction: **down-gating**
+   (never emit a construct newer than the target — a standard-validity
+   guarantee) and **up-opting** (deliberately emit a higher standard's
+   distinctive synthesizable constructs, each proven downstream-clean in the
+   matching tool standard mode). Default byte-identical; rules-first; a new
+   per-version downstream acceptance axis. Decision
+   [`0009`](docs/decisions/0009-sv-version-targeting.md); this directly serves
+   the north star (expose version-specific downstream-tool bugs) and adds an
+   explicit `sv_version` adversarial axis (steering gap 3) plus version-targeted
+   breadth (steering gap 1).
+2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
+   synthesizable SV surfaces (function/task, interface/modport, nested
+   generate), valid-by-construction; bigger and more open-ended.
+3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`proposed`) — a behavioral / derived
+   query surface beyond today's structural/metric projection, kept
+   `SCHEMA-DERIVED` (no new oracle), extending `AGENT-INTROSPECTION-MCP` /
+   `AGENT-MCP-EXPANSION`.
+
+Nothing is retired; all three are tracked task trees, and the open
+`IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential
+equivalence) is parked-but-fully-designed, not abandoned.
+
 ## Phase 0 — Scaffolding (done)
 
 - Cargo project, module skeleton, CLI entry point.

@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **25** facts · **146** question keys.
+> **26** facts · **155** question keys.
 
 ## Questions → fact
 
@@ -13,6 +13,7 @@
 - "are microdesign and frontend lanes run through the tool_matrix acceptance columns" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "are the five post-phase follow-up trees still active" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "can ANVIL check frontend manifests with Verilator JSON" -> [verilator-json-frontend-parity](docs/knowledge/verilator-json-frontend-parity.md) · 2026-06-05
+- "can ANVIL emit 2023-only or 2017-only constructs" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "can ANVIL fold a gate to an input under egraph" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
 - "can ANVIL generate N-flop CDC synchronizers" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "can ANVIL merge duplicate FSM blocks" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
@@ -20,6 +21,7 @@
 - "can ANVIL merge non-exact feedback flops" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "can ANVIL merge semantically equivalent modules" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "can ANVIL merge whole stateful modules by sequential equivalence" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
+- "can ANVIL target a specific SystemVerilog version" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "can an AI agent drive ANVIL to find downstream tool bugs" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "can equivalent flops merge across clock domains" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "can hierarchy_module_dedup merge structurally different modules" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
@@ -35,6 +37,7 @@
 - "does ANVIL merge sequentially-equivalent modules" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "does ANVIL merge stateful modules by semantic equivalence" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "does ANVIL merge swapped-feedback flops" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "does ANVIL support IEEE 1800-2017 or 1800-2023" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "does Verilator expose frontend top localparams and package constants" -> [verilator-json-frontend-parity](docs/knowledge/verilator-json-frontend-parity.md) · 2026-06-05
 - "does a and b or not b simplify to a" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
 - "does anvil-mcp support an HTTP transport" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
@@ -57,7 +60,9 @@
 - "how does ANVIL prove a memory module and an FSM module in one design" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "how does ANVIL prove aggregate_array_prob selected an array-packed aggregate" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "how does ANVIL prove operand_duplication_rate fired" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
+- "how does ANVIL prove version-targeted RTL is accepted by downstream tools" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "how does ANVIL remove hidden bias from the adversarial knob sweep" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
+- "how does ANVIL target a chosen SystemVerilog standard" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "how does an ANVIL agent ask what coverage is not yet exercised" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how is the ANVIL introspection schema kept from drifting" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "how is the bisimulation flop merge proven sound and downstream-clean" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
@@ -66,6 +71,7 @@
 - "how many endpoint bits can semantic gate merge prove" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "how should project file paths be written in live docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "how would ANVIL prove two stateful modules equivalent" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
+- "is --sv-version default-off / byte-identical" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "is SIGNOFF-SURFACE-EXPANSION closed" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "is the ANVIL MCP server inside the generator core" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "is the ANVIL introspection schema versioned" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
@@ -80,10 +86,12 @@
 - "should I run the full cargo test suite for memory architecture docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "what RAM threshold stops a full suite" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "what RTL-simulator MCP advice applies to ANVIL" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
+- "what SystemVerilog version does ANVIL emit" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "what acceptance columns does tool_matrix run today" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "what budget bounds whole-module sequential equivalence" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "what does --iverilog-compile do" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
+- "what does --sv-version do" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "what does bisimulation_flop_merge do" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what does cdc_synchronizer_stages do" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "what does endpoint-preserving identity mean" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
@@ -132,6 +140,7 @@
 - "which generator knobs does the signoff knob-sweep gate cover" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "which metric proves mux_arm_duplication_rate fired" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "which saw_* facts does the signoff knob-sweep gate require" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
+- "why a SystemVerilog version capability gate" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "why are cross-domain duplicate flops kept distinct" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "why are resetless flops excluded from bisimulation merge" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "why can FSMs merge but memories stay opaque" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
@@ -341,6 +350,14 @@ _tool_matrix --signoff-knob-sweep-gate promotes four previously-unswept knobs in
 - **evidence:** `src/bin/tool_matrix.rs (ScenarioSet::SignoffKnobSweep, build_signoff_knob_sweep_scenarios, compute_coverage_gaps); src/metrics.rs (num_operator_gates_with_duplicate_operands); DEVELOPMENT_NOTES.md (SIGNOFF-AUTOMATION-EXPANSION.2b); /tmp/anvil-signoff-knob-sweep-r1/tool_matrix_report.json`
 - **reverify:** `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - **source:** [`docs/knowledge/signoff-knob-sweep-gate.md`](docs/knowledge/signoff-knob-sweep-gate.md)
+
+### sv-version-targeting
+_ANVIL gains a --sv-version capability gate that targets a chosen IEEE 1800 standard valid-by-construction (default byte-identical)_
+
+- **answers:** can ANVIL target a specific SystemVerilog version | what does --sv-version do | does ANVIL support IEEE 1800-2017 or 1800-2023 | how does ANVIL target a chosen SystemVerilog standard | is --sv-version default-off / byte-identical | how does ANVIL prove version-targeted RTL is accepted by downstream tools | what SystemVerilog version does ANVIL emit | can ANVIL emit 2023-only or 2017-only constructs | why a SystemVerilog version capability gate
+- **date:** 2026-06-15 · **status:** accepted
+- **evidence:** `docs/decisions/0009-sv-version-targeting.md; docs/tasks/SV-VERSION-TARGETING.md; src/emit/sv.rs; src/downstream/mod.rs; src/config.rs; ROADMAP.md`
+- **source:** [`docs/decisions/0009-sv-version-targeting.md`](docs/decisions/0009-sv-version-targeting.md)
 
 ### task-tree-and-commit-doctrine
 _Task-tree ownership before work and strict commit workflow_

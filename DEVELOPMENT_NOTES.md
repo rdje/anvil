@@ -5,6 +5,48 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — SV-version targeting — design — `SV-VERSION-TARGETING.1`
+
+Owner roadmap steering opened three new capability lanes; the recommended,
+highest-leverage one (`SV-VERSION-TARGETING`) is activated and designed here, the
+other two (`STRUCTURED-EMISSION-EXPANSION`, `SEMANTIC-INTROSPECTION-EXPANSION`)
+registered `proposed`. Design/decision leaf, no source change. Full rationale +
+rejected alternatives in decision
+[`0009`](docs/decisions/0009-sv-version-targeting.md); engineering grounding here.
+
+- **The gap (grounded).** No existing `sv_version` knob. The emitter
+  (`src/emit/sv.rs`) produces a conservative synthesizable subset
+  (`module`/`logic`/`always_ff`/`always_comb`, packed arrays, packed `struct`) —
+  a 2012/2017 common floor valid across 1800-2012/2017/2023. The downstream gates
+  (`src/downstream/mod.rs`) run at fixed implicit standards
+  (`verilator --lint-only` tool-default, `yosys read_verilog -sv`,
+  `iverilog -g2012`) with no version axis. So ANVIL can neither *guarantee*
+  avoidance of newer constructs nor *deliberately exercise* a newer standard.
+- **Two construction-time effects (both rules-first).** `--sv-version
+  <2012|2017|2023>` (`Config::sv_version`): **down-gating** = never emit a
+  construct newer than the target (a standard-validity guarantee for tools/flows
+  pinned to that standard); **up-opting** = deliberately emit a higher standard's
+  distinctive synthesizable constructs, each gated at construction time on
+  `sv_version >= that_standard`. The version is a construction-time capability
+  bound, never a post-hoc filter (`feedback_rules_first_generation`,
+  core principle 2).
+- **Byte-identical default.** The default value reproduces today's emission
+  byte-for-byte (`tests/snapshots.rs` untouched). Selecting a different version
+  is the only way to change output — opt-in like every ANVIL capability knob
+  (`feedback_never_retire_strategies`).
+- **No aspirational up-opts.** An up-opted construct lands only once proven
+  accepted in the matching downstream tool standard mode (Verilator
+  `--language 1800-20xx`; Yosys `-sv`; Icarus `-g2012` is its newest generation,
+  so beyond-`g2012` corpora gate the iverilog column to a recorded no-op rather
+  than a failure). Counterexamples retain seed + `sv_version` + knobs.
+- **First increment (`.2`).** Plumbing + down-gating + the per-version acceptance
+  axis over the *existing* subset (default byte-identical; introspection field +
+  schema MINOR bump). The first version-distinctive up-opted construct is `.3`,
+  design-first.
+- **North-star fit.** Adds an explicit `sv_version` adversarial axis (ROADMAP
+  steering gap 3) and version-targeted breadth (gap 1) — legal, standard-valid,
+  unusual RTL that stresses version-specific downstream parser/elaborator paths.
+
 ## 2026-06-15 — Factor `bisimulation_partition` — refactor — `IDENTITY-DEEPENING.3b.2a`
 
 First code slice of `.3b.2` (implement decision `0008`). Pure refactor of
