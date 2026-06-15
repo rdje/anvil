@@ -1,9 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.3a — non-DUT introspection projection design
+
+**Landed as:** this commit (previous: `edd716d`).
+
+**What changed (docs / decision only — no source change)**
+
+`AGENT-MCP-EXPANSION.3a` is the design leaf that resolves how the non-DUT
+lanes (`microdesign`, `frontend`) project introspection, so `.3b` can
+implement without an unresolved policy choice.
+
+- **Decided:** both non-DUT lanes already emit a deterministic
+  expected-facts manifest — `microdesign::emit_manifest` (over
+  `microdesign::Manifest {seed, top, params, localparams, widths,
+  generate, package_constants, const_exprs}`) and `frontend::emit_manifest`
+  (over `frontend::Manifest {seed, top, packages, top_params,
+  top_localparams, instances, generate_branches}`) — already carried on the
+  umbrella `LaneArtifact.manifest: Option<String>`.
+- The non-DUT introspection document **reuses the existing, currently-unused
+  `ArtifactDescriptor.manifest: Option<ResourceRef>` slot**
+  (`src/introspect/mod.rs:82`) to point at
+  `anvil://artifact/<run_id>/manifest`; the manifest content is served as an
+  MCP **resource** (schema §6.6: full manifests are fetched, not inlined).
+- Consequence: **no new per-lane projection logic and no schema-version
+  bump** — only previously-`None` fields populate and a new lane/`kind`
+  value appears. The DUT-only payload
+  (`module_metrics`/`design_metrics`/`modules`) stays absent for non-DUT
+  lanes. Invariant SCHEMA-DERIVED holds.
+- **Rejected:** inlining the manifest into the introspection payload (a new
+  `lane_manifest` field) — it would bump the schema and violate §6.6's
+  "structured queries, not bulk dumps".
+- `.3b` enriched with the implementation outline (manifest-carrying
+  builder; `CachedArtifact.manifest`; serve `…/manifest`; generalize
+  `build_artifact` on a `lane` arg default `dut`; non-DUT args carry
+  `lane` + scoped knobs `n_params`/`n_children`; feed those knobs into
+  `content_run_id`). New `.3b` open question flagged: the content-address
+  encoding of non-DUT scoped knobs.
+- Task tree (`.3a` done, frontier → `.3b`), `docs/TASK_TREE.md`,
+  `DEVELOPMENT_NOTES.md`, `MEMORY.md` updated.
+
+**Why**
+
+`.1`/decision `0005` set the direction (route through the umbrella, keep
+the manifest a serde projection); `.3a` pinned the exact mechanism. The
+key realization is that the introspection schema already reserved a
+`manifest: Option<ResourceRef>` slot for precisely this, so non-DUT
+introspection needs neither new computed truth nor a schema bump.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` + `knowledge-map` check — clean.
+- No source change ⇒ no `cargo` gate (design/decision leaf, decision
+  `0003`). DUT byte-identical trivially.
+
+**Impact**
+
+- Unblocks `.3b` (the umbrella-routed non-DUT MCP generate/introspect) with
+  the projection mechanism and schema-stability decided.
+- No user-visible or behavioral change.
+
+**Files touched**
+
+- `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`
+- `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION.2 — coverage_gaps pure-projection MCP tool
 
-**Landed as:** this commit (previous: `6af0690`).
+**Landed as:** `edd716d` (previous: `6af0690`).
 
 **What changed**
 

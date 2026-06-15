@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability — agent/MCP interface breadth (post-AGENT-INTROSPECTION-MCP)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.2` coverage_gaps pure-projection tool done; frontier → `.3a`; `.1` design/decision leaf done with decision `0005`; `.3` split into `.3a`/`.3b`)
+- Last updated: `2026-06-15` (`.3a` non-DUT introspection projection design done; frontier → `.3b`; `.2` coverage_gaps tool done; `.1` done with decision `0005`; `.3` split into `.3a`/`.3b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -89,16 +89,17 @@ bugs — the `project_anvil_north_star` purpose — while the default
   Children: `AGENT-MCP-EXPANSION.3a`, `AGENT-MCP-EXPANSION.3b`
 
 - ID: `AGENT-MCP-EXPANSION.3a`
-  Status: `pending`
+  Status: `done`
   Goal: `Design leaf: decide whether each non-DUT lane (microdesign, frontend) already exposes a manifest the introspection layer can project verbatim, or whether a thin per-lane projection must be defined — keeping the introspection document a serde projection of the existing manifest (no new computed truth). Record the chosen shape.`
   Acceptance: `A recorded decision (task-tree note and/or decision-record addendum) on the non-DUT introspection projection; no source change; docs/workflow validation clean.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Decided (see Decisions, 2026-06-15 .3a): both non-DUT lanes ALREADY emit a deterministic expected-facts manifest (microdesign::emit_manifest over microdesign::Manifest {seed,top,params,localparams,widths,generate,package_constants,const_exprs}; frontend::emit_manifest over frontend::Manifest {seed,top,packages,top_params,top_localparams,instances,generate_branches}), carried on the umbrella LaneArtifact.manifest: Option<String>. The non-DUT introspection document REUSES the existing, currently-unused ArtifactDescriptor.manifest: Option<ResourceRef> slot to point at anvil://artifact/<run_id>/manifest, and the manifest content is served as an MCP resource (schema §6.6 "full manifests are resources, not inlined"). No new per-lane projection logic; NO schema-version bump (only previously-None fields populate + a new lane/kind value). DUT-only payload (module_metrics/design_metrics/modules) stays absent for non-DUT lanes. Invariant SCHEMA-DERIVED holds. No source change.`
+  Verification: `scripts/check_memory_architecture.sh + knowledge-map check; design/decision leaf, no source change`
+  Commit: `AGENT-MCP-EXPANSION.3a — non-DUT introspection projection design`
 
 - ID: `AGENT-MCP-EXPANSION.3b`
   Status: `pending`
-  Goal: `Implementation leaf: route MCP generate/introspect through the umbrella ArtifactLane dispatch keyed by a lane arg (default dut), per the .3a-decided projection.`
-  Acceptance: `MCP generate/introspect work for microdesign + frontend via existing lane impls; in-process tests; default dut path unchanged and byte-identical.`
+  Goal: `Implementation leaf (per .3a): (1) add a manifest-carrying introspection builder reusing ArtifactDescriptor.manifest: Option<ResourceRef>; (2) extend MCP CachedArtifact with manifest: Option<String> and serve anvil://artifact/<run_id>/manifest; (3) generalize build_artifact to dispatch on a lane arg (default dut) through the umbrella MicrodesignLane/FrontendLane; (4) non-DUT MCP tool args carry lane + the lane's scoped knobs (n_params, n_children), not the DUT Config; (5) feed a deterministic canonical encoding of the lane knobs into content_run_id so non-DUT run_ids stay content-addressed.`
+  Acceptance: `MCP generate/introspect work for microdesign + frontend via existing lane impls (manifest served as a resource); in-process McpServer::handle tests; NO schema-version bump (document shape unchanged); default dut path unchanged and byte-identical (snapshots 6/6).`
   Verification: `pending`
   Commit: `pending`
 
@@ -120,8 +121,8 @@ bugs — the `project_anvil_north_star` purpose — while the default
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `AGENT-MCP-EXPANSION.3a` | `pending` | Non-DUT introspection projection design; precedes `.3b` impl. |
-| 2 | `AGENT-MCP-EXPANSION.3b` | `pending` | Route MCP generate/introspect through the umbrella lane dispatch, per `.3a`. |
+| 1 | `AGENT-MCP-EXPANSION.3b` | `pending` | Route MCP generate/introspect through the umbrella lane dispatch + serve the manifest as a resource, per the `.3a` design. |
+| 2 | `AGENT-MCP-EXPANSION.4` | `pending` | Optional loopback-default HTTP transport over the same `McpServer::handle`. |
 
 ## Decisions
 
@@ -146,15 +147,38 @@ bugs — the `project_anvil_north_star` purpose — while the default
   (c) HTTP transport drives the same `McpServer::handle` dispatcher behind
   an opt-in flag, loopback-only by default, stdio still default. All five
   `0004` lane invariants re-confirmed against current code.
+- `2026-06-15` (`.3a`): Non-DUT introspection projection decided. Both
+  non-DUT lanes already emit a deterministic expected-facts manifest
+  (`microdesign::emit_manifest` / `frontend::emit_manifest`, serde
+  projections of their `Manifest` structs), carried on the umbrella
+  `LaneArtifact.manifest: Option<String>`. The non-DUT introspection
+  document **reuses the existing, currently-unused
+  `ArtifactDescriptor.manifest: Option<ResourceRef>` slot** to point at
+  `anvil://artifact/<run_id>/manifest`, and the manifest content is served
+  as an MCP **resource** (schema §6.6: full manifests are fetched, not
+  inlined). This means **no new per-lane projection logic and no
+  schema-version bump** — only previously-`None` fields populate and a new
+  lane/`kind` value appears. The DUT-only payload
+  (`module_metrics`/`design_metrics`/`modules`) stays absent for non-DUT
+  lanes; their structured facts live in the manifest resource. Invariant
+  SCHEMA-DERIVED holds (the manifest is an existing serde projection;
+  introspect computes nothing). Rejected: inlining the manifest into the
+  introspection payload (a new `lane_manifest` field) — it would bump the
+  schema and violate §6.6's "structured queries, not bulk dumps".
 
 ## Open Questions
 
 - (`.1` resolved) Coverage is surfaced as a **pure projection of a
   recorded report**, not an on-demand recompute — see decision `0005`.
-- `.3a` decides: does each non-DUT lane already expose a manifest the
-  introspection layer can project verbatim, or must a thin per-lane
-  projection be defined? Bias: reuse the existing manifest; define nothing
-  new that can drift.
+- (`.3a` resolved) Each non-DUT lane already emits a verbatim-projectable
+  manifest; the introspection document reuses the existing
+  `ArtifactDescriptor.manifest` ResourceRef slot and serves the manifest
+  as a resource — no new projection, no schema bump. See Decisions
+  (`2026-06-15` `.3a`).
+- (`.3b` open) `content_run_id` keys on `(schema_version, anvil_version,
+  lane, seed, knobs_json)`; for non-DUT lanes the "knobs" are
+  `n_params`/`n_children`, not `Config`. `.3b` must feed a deterministic
+  canonical encoding of the scoped lane knobs into the content address.
 - `.4` decides: a sub-flag on `anvil-mcp` (`--http <addr>`) vs a separate
   bin. Bias: a flag on the existing bin, loopback default.
 
@@ -168,6 +192,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | --- | --- | --- | --- |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` regen + `knowledge-map/scripts/check_knowledge_map.sh`; docs/decision + task-tree edits; no source change (design/decision leaf) | `clean` |
 | `2026-06-15` | `AGENT-MCP-EXPANSION.2` | `cargo fmt --all --check`; `cargo check --all-targets`; `cargo test --lib mcp::` (30 pass, incl. 6 new); `cargo test --test snapshots` (6 pass, byte-identical); `cargo clippy --all-targets -- -D warnings` | `clean` |
+| `2026-06-15` | `AGENT-MCP-EXPANSION.3a` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/check_knowledge_map.sh`; design/decision leaf, no source change | `clean` |
 
 ## Commit Log
 
@@ -175,6 +200,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 | --- | --- | --- |
 | `AGENT-MCP-EXPANSION.1` | `AGENT-MCP-EXPANSION.1 — design/decision leaf + decision 0005` | Decision `0005`; `.2` sharpened; `.3` split `.3a`/`.3b`; `.4` loopback note; frontier → `.2`. |
 | `AGENT-MCP-EXPANSION.2` | `AGENT-MCP-EXPANSION.2 — coverage_gaps pure-projection MCP tool` | Pure tool projecting a recorded `tool_matrix_report.json`; DUT byte-identical; frontier → `.3a`. |
+| `AGENT-MCP-EXPANSION.3a` | `AGENT-MCP-EXPANSION.3a — non-DUT introspection projection design` | Reuse `ArtifactDescriptor.manifest` ResourceRef + serve manifest as a resource; no schema bump; frontier → `.3b`. |
 
 ## Changelog
 
@@ -187,3 +213,7 @@ bugs — the `project_anvil_north_star` purpose — while the default
 - `2026-06-15`: `.2` done — pure `coverage_gaps` MCP tool landed in
   `src/mcp/mod.rs` (projects a recorded `tool_matrix_report.json`; 6 new
   in-process tests; DUT byte-identical); frontier advanced to `.3a`.
+- `2026-06-15`: `.3a` done — non-DUT introspection projection decided
+  (reuse `ArtifactDescriptor.manifest` ResourceRef + serve manifest as a
+  resource; no schema bump; manifest stays an existing serde projection).
+  No source change; frontier advanced to `.3b`.

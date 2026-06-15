@@ -5,6 +5,32 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — non-DUT introspection projection — `AGENT-MCP-EXPANSION.3a`
+
+Design leaf deciding how the `microdesign`/`frontend` lanes introspect
+over MCP. Key engineering insight:
+
+- **The schema already reserved the slot.** `ArtifactDescriptor.manifest:
+  Option<ResourceRef>` (`src/introspect/mod.rs:82`) has been `None` since
+  `.3` (DUT lanes have no manifest). The non-DUT lanes already emit their
+  expected-facts manifest (`emit_manifest`, a serde projection of each
+  lane's `Manifest`), carried on `umbrella::LaneArtifact.manifest:
+  Option<String>`. So non-DUT introspection just *populates that slot* with
+  a `ResourceRef` to `anvil://artifact/<run_id>/manifest` and serves the
+  manifest as a resource — no new field, no schema bump, no computed truth.
+- **Why a resource, not inlined.** Decision `0004`/schema §6.6 mandates
+  "structured queries, not bulk dumps; full manifests are resources the
+  agent fetches deliberately." Inlining the manifest into the payload (a
+  `lane_manifest` field) was rejected: it bumps the schema and contradicts
+  §6.6.
+- **`.3b` gotcha — content address.** `content_run_id` keys on
+  `(schema_version, anvil_version, lane, seed, knobs_json)` where
+  `knobs_json` is `serde_json::to_string(Config)`. Non-DUT lanes have no
+  `Config` — their knobs are `n_params`/`n_children`. `.3b` must feed a
+  deterministic canonical encoding of those scoped knobs into the content
+  address (the `lane` field already separates lanes), or non-DUT run_ids
+  would collide across differing scoped knobs.
+
 ## 2026-06-15 — coverage_gaps pure-projection tool — `AGENT-MCP-EXPANSION.2`
 
 `.2` implements the `.1`/`0005` decision: the `coverage_gaps` MCP tool
