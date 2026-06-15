@@ -87,33 +87,45 @@ pub struct ToolInvocation {
 }
 
 /// Run `verilator --lint-only` on a single emitted module.
+///
+/// `language` is the optional `SV-VERSION-TARGETING.2b.2` per-version
+/// acceptance selector: `Some("1800-2017")` prepends `--language 1800-2017`
+/// (Verilator's IEEE 1800 standard selector) so the corpus is checked in its
+/// matching standard mode; `None` reproduces today's exact argv byte-for-byte.
 pub fn run_verilator(
     bin: &str,
     out_dir: &Path,
     sv_path: &Path,
     stem: &str,
+    language: Option<&str>,
 ) -> Result<ToolInvocation> {
-    run_tool(
-        "verilator",
-        bin,
-        vec!["--lint-only".to_string(), sv_path.display().to_string()],
-        out_dir,
-        stem,
-    )
+    let mut argv = vec!["--lint-only".to_string()];
+    if let Some(lang) = language {
+        argv.push("--language".to_string());
+        argv.push(lang.to_string());
+    }
+    argv.push(sv_path.display().to_string());
+    run_tool("verilator", bin, argv, out_dir, stem)
 }
 
 /// Run `verilator --lint-only --top-module <top>` on a multi-file design.
+///
+/// See [`run_verilator`] for the `language` per-version selector (`None` =
+/// today's exact argv).
 pub fn run_verilator_design(
     bin: &str,
     out_dir: &Path,
     sv_paths: &[PathBuf],
     top: &str,
+    language: Option<&str>,
 ) -> Result<ToolInvocation> {
-    let mut argv = vec![
-        "--lint-only".to_string(),
-        "--top-module".to_string(),
-        top.to_string(),
-    ];
+    let mut argv = vec!["--lint-only".to_string()];
+    if let Some(lang) = language {
+        argv.push("--language".to_string());
+        argv.push(lang.to_string());
+    }
+    argv.push("--top-module".to_string());
+    argv.push(top.to_string());
     argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
     run_tool("verilator", bin, argv, out_dir, top)
 }
@@ -585,9 +597,10 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
                         &sandbox,
                         std::slice::from_ref(&sv_path),
                         &top,
+                        None,
                     )?
                 } else {
-                    run_verilator(tool.binary(), &sandbox, &sv_path, &top)?
+                    run_verilator(tool.binary(), &sandbox, &sv_path, &top, None)?
                 });
             }
             AcceptanceTool::Yosys => {

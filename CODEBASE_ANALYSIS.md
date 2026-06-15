@@ -309,7 +309,10 @@ src/
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:
-│                     `run_verilator(_design)` (`--lint-only`),
+│                     `run_verilator(_design)` (`--lint-only`, plus an
+│                     optional `--language 1800-20xx` per-version selector —
+│                     `None` = today's exact argv, byte-identical;
+│                     SV-VERSION-TARGETING.2b.2a),
 │                     `run_yosys(_design)` + `yosys_invocations(_design)`
 │                     (`synth` scripts, `YosysMode` without/with-abc/both),
 │                     `run_iverilog_compile(_design)` + the `*_argv` builders

@@ -4721,6 +4721,7 @@ fn run_module_tools(
             scenario_dir,
             sv_path,
             stem,
+            None,
         )?)
     };
 
@@ -4778,6 +4779,7 @@ fn run_design_tools(cli: &Cli, prepared: &PreparedDesign) -> Result<DesignReport
             scenario_dir,
             &sv_paths,
             &prepared.top,
+            None,
         )?)
     };
 

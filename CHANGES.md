@@ -1,9 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — SV-VERSION-TARGETING.2b.2a — per-version downstream acceptance proof
+
+**Landed as:** this commit (previous: `c9895ad`). Task-tree-owned by
+`SV-VERSION-TARGETING.2b.2a`. **Default tool invocation byte-identical**
+(`language = None` reproduces today's exact argv).
+
+**What changed**
+
+- **Verilator language selector (`src/downstream/mod.rs`).** `run_verilator`
+  and `run_verilator_design` gain a `language: Option<&str>` param:
+  `Some("1800-2017")` prepends `--language 1800-2017` (Verilator's IEEE 1800
+  standard selector — the spelling probed and confirmed against the installed
+  Verilator 5.046, which documents both `--language` and `--default-language`);
+  `None` reproduces today's exact argv byte-for-byte. The four existing callers
+  (`validate()` ×2 in `downstream`, the per-module/per-design runs ×2 in
+  `tool_matrix`) pass `None`, so every banked report + the agent `validate`
+  tool are unchanged.
+- **Focused real-tool gate `tests/sv_version_downstream.rs` (`#[ignore]`).**
+  Over a leaf corpus (comb / seq / structured / memory / fsm) and a hierarchy
+  design, emits at each `SvVersion` and asserts Verilator `--language
+  1800-{2012,2017,2023}` is warning-clean, and Icarus `-g2012` accepts the
+  subset for every target. Tool-dependent ⇒ `#[ignore]`-gated (the diff-sim /
+  parity-gate precedent); the default `cargo test` doesn't need the tools.
+- **Docs:** `CODEBASE_ANALYSIS.md` (downstream language selector),
+  `DEVELOPMENT_NOTES.md` impl entry. (No user-facing CLI change in this
+  slice — the repo-owned `--sv-version-gate` is `.2b.2b`.)
+
+**Why**
+
+Proves decision `0009`'s "per-version acceptance" half: the version-targeted
+corpus is *accepted by a downstream tool in its matching standard mode*. Split
+from `.2b.2b` so the byte-identical downstream API change + its real-tool proof
+land separately from the heavier `tool_matrix` industrialization.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0;
+`tests/snapshots` 6/6 byte-identical (default path unchanged). **Banked
+per-version acceptance:** `cargo test --test sv_version_downstream -- --ignored`
+→ `2 passed` in 6.18s against Verilator 5.046 (all three `--language` modes,
+clean) + Icarus 13.0 (`-g2012`). Heavy `tests/pipeline.rs` not re-run (no
+generation-path change; the downstream argv is byte-identical at the `None`
+default that every committed caller uses).
+
+**Impact**
+
+Internal downstream API gains an optional per-version language selector; no
+user-facing CLI change yet. Default tool invocations byte-identical. Frontier →
+`.2b.2b` (repo-owned `--sv-version-gate` matrix + coverage fact).
+
+**Files touched:** `src/downstream/mod.rs`, `src/bin/tool_matrix.rs`,
+`tests/sv_version_downstream.rs`, `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SV-VERSION-TARGETING.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — SV-VERSION-TARGETING.2b.1 — --sv-version knob + emitter capability bound
 
-**Landed as:** this commit (previous: `a18d51d`). Task-tree-owned by
+**Landed as:** `c9895ad` (previous: `a18d51d`). Task-tree-owned by
 `SV-VERSION-TARGETING.2b.1`. First **code** slice of the lane; **default-off /
 byte-identical** (snapshots 6/6 untouched).
 

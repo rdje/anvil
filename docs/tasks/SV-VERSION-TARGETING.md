@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — version-targeted synthesizable RTL (ROADMAP steering gaps 1 + 3)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-15` (`.2b.1` knob + emitter capability bound landed)
+- Last updated: `2026-06-15` (`.2b.2a` per-version downstream acceptance proof landed)
 - Owner: repo-local workflow
 - Note: opened `2026-06-15` by owner roadmap steering as the recommended
   highest-leverage capability lane (over the two registered-`proposed` siblings
@@ -94,9 +94,22 @@ byte-identical.
   Commit: `done`
 
 - ID: `SV-VERSION-TARGETING.2b.2`
+  Status: `active`
+  Goal: `Per-version downstream acceptance axis.`
+  Children: `SV-VERSION-TARGETING.2b.2a`, `SV-VERSION-TARGETING.2b.2b`
+
+- ID: `SV-VERSION-TARGETING.2b.2a`
+  Status: `done`
+  Goal: `Downstream --language selector + a focused real-tool per-version acceptance proof: add language: Option<&str> to run_verilator(_design) (None = today's exact argv; Some = --language 1800-20xx, spelling probed against the installed Verilator first); an #[ignore]-gated test that runs Verilator at each --language mode (clean) + Icarus -g2012 on a representative corpus, banked clean.`
+  Acceptance: `cargo fmt/check/clippy(-D warnings)/test --lib clean; default tool invocation byte-identical (selector None; existing callers pass None); the #[ignore] gate banked clean against the installed Verilator + Icarus; CODEBASE_ANALYSIS + DEVELOPMENT_NOTES updated; committed through COMMIT.md with the leaf id.`
+  Result: `Probed Verilator 5.046: both --language and --default-language accept 1800-2012/2017/2023 and lint clean; chose --language <std> (the documented standard selector). run_verilator(_design) gained language: Option<&str> in src/downstream/mod.rs (Some prepends --language <std>; None = byte-identical argv); 4 callers (validate ×2, tool_matrix ×2) pass None. New tests/sv_version_downstream.rs (#[ignore]): leaf corpus (comb/seq/structured/memory/fsm) + hierarchy design × 3 versions; asserts Verilator --language clean + Icarus -g2012 accepts. Banked clean: 2 passed / 6.18s vs Verilator 5.046 + Icarus 13.0. cargo test --lib 405/0; snapshots 6/6; clippy/fmt clean.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SV-VERSION-TARGETING.2b.2b`
   Status: `proposed`
-  Goal: `Per-version downstream acceptance axis: optional --language selector on run_verilator* (None = today's exact argv; Some = --language 1800-20xx, spelling probed against the installed Verilator first); Yosys stays -sv; Icarus -g2012 over the g2012-valid subset; a focused --sv-version-gate + ScenarioSet::SvVersionSweep (mirroring --signoff-knob-sweep-gate) sweeping the three targets with the matching Verilator language mode + a saw_sv_version_targeted_acceptance coverage fact under coverage_gaps enforcement; banked clean; ROADMAP/README/USER_GUIDE/book + KM docs.`
-  Acceptance: `cargo fmt/check/clippy/test clean; the gate runs the three targets downstream-clean in the matching tool standard mode with coverage_gaps = []; banked-clean evidence recorded; default tool invocation byte-identical (selector None); docs + KM updated; committed through COMMIT.md with the leaf id.`
+  Goal: `Repo-owned per-version gate in src/bin/tool_matrix.rs: --sv-version-gate CLI flag + ScenarioSet::SvVersionSweep (mirror --signoff-knob-sweep-gate) sweeping the three targets, running Verilator in the matching --language mode (via the .2b.2a selector) + threading cfg.sv_version into the matrix to_sv* emits; a saw_sv_version_targeted_acceptance coverage fact (+ per-version sub-facts) under coverage_gaps enforcement; MatrixReport.sv_version_gate field; banked clean against real Verilator + Yosys; ROADMAP/README/USER_GUIDE/book + KM docs.`
+  Acceptance: `cargo fmt/check/clippy/test (incl. heavy tests/pipeline.rs once) clean; the gate runs the three targets downstream-clean in the matching tool standard mode with coverage_gaps = []; banked-clean evidence recorded; default matrix run byte-identical (selector None unless the gate is active); docs + KM updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -111,7 +124,8 @@ byte-identical.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SV-VERSION-TARGETING.2b.2` | `proposed` | Now eligible — `.2b.1` landed the knob + emitter bound. Implement the per-version downstream acceptance axis (Verilator `--language`, focused `--sv-version-gate` + `ScenarioSet::SvVersionSweep`, banked clean), default tool invocation byte-identical. |
+| 1 | `SV-VERSION-TARGETING.2b.2b` | `proposed` | Now eligible — `.2b.2a` landed the downstream `--language` selector + banked the focused per-version acceptance proof. Industrialize it into the repo-owned `--sv-version-gate` + `ScenarioSet::SvVersionSweep` + `saw_sv_version_targeted_acceptance` coverage fact, banked clean. |
+| — | `SV-VERSION-TARGETING.2b.2a` | `done` | Landed the `run_verilator(_design)` `language: Option<&str>` selector (`--language 1800-20xx`, spelling probed; `None` = byte-identical) + `tests/sv_version_downstream.rs` (`#[ignore]`) banked clean: Verilator accepts all 3 `--language` modes + Icarus `-g2012` accepts. |
 | — | `SV-VERSION-TARGETING.2b.1` | `done` | Landed the `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points (`permits` capability bound) + introspection schema `1.1→1.2` + `tests/sv_version.rs` cross-version byte-identity proof. Default byte-identical (snapshots 6/6). |
 | — | `SV-VERSION-TARGETING.2a` | `done` | Resolved decision `0009`'s five open questions; split `.2` → `.2a`/`.2b` and pre-split `.2b` → `.2b.1`/`.2b.2`. No source change. |
 | — | `SV-VERSION-TARGETING.1` | `done` | Landed decision `0009` — gate semantics, byte-identical default, valid-by-construction discipline, per-version downstream proof, first-increment scope, rejected alternatives. No source change. |
@@ -160,6 +174,7 @@ byte-identical.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-15` | `SV-VERSION-TARGETING.2b.2a` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0; `cargo test --test snapshots` 6/6 (default tool argv byte-identical at `language=None`). Banked per-version acceptance: `cargo test --test sv_version_downstream -- --ignored` → 2 passed / 6.18s vs Verilator 5.046 (all 3 `--language` modes clean) + Icarus 13.0 (`-g2012`). Heavy `tests/pipeline.rs` not re-run (downstream argv byte-identical at the `None` default every committed caller uses). | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.2b.1` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0 (incl. 2 new config tests + bumped introspect/mcp schema assertions); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2 (cross-version byte-identity over leaf + design spreads). CLI smoke: `--seed 42` default == `--sv-version 2012` == `--sv-version 2023` md5-equal; `--dump-config` → `"sv_version": "2012"`; `--introspect` → `"schema_version": "1.2"` + `"sv_version": "2012"`; `--sv-version 2005` rejected with the possible-values list. Heavy `tests/pipeline.rs` not re-run (no generation-path change; emitter byte-identical + snapshot-locked); full `cargo test` baseline green at session start. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.2a` | Design-detail leaf, no source change (grounded by a fresh read of `src/config.rs`, `src/emit/sv.rs`, `src/introspect/mod.rs` + `docs/AGENT_INTROSPECTION_SCHEMA.md`, `src/downstream/mod.rs`, `src/bin/tool_matrix.rs`, `src/main.rs`). `DEVELOPMENT_NOTES.md` design-detail entry; task tree split recorded. Baseline `cargo check --all-targets` clean and `cargo test` green before the leaf; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-15` | `SV-VERSION-TARGETING.1` | Design/decision leaf, no source change (grounded in `src/emit/sv.rs` current subset + `src/downstream/mod.rs` fixed tool standards + confirming no existing `sv_version` knob). Decision `0009` with KM `answers:`; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
@@ -168,12 +183,19 @@ byte-identical.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SV-VERSION-TARGETING.2b.2a` | `SV-VERSION-TARGETING.2b.2a — per-version downstream acceptance proof` | `run_verilator(_design)` `language: Option<&str>` selector + `tests/sv_version_downstream.rs` (`#[ignore]`) banked clean (Verilator 3× `--language` + Icarus `-g2012`). Default byte-identical (`None`). |
 | `SV-VERSION-TARGETING.2b.1` | `SV-VERSION-TARGETING.2b.1 — --sv-version knob + emitter capability bound` | `SvVersion` enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry points + introspection schema `1.1→1.2` + `tests/sv_version.rs`. Default byte-identical (snapshots 6/6). |
 | `SV-VERSION-TARGETING.2a` | `SV-VERSION-TARGETING.2a — SV-version impl design detail + .2 split` | Design-detail in `DEVELOPMENT_NOTES.md`; `.2` split into `.2a`/`.2b`, `.2b` pre-split into `.2b.1`/`.2b.2`. No source change. |
 | `SV-VERSION-TARGETING.1` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Decision record `0009`; opened the lane + registered the two sibling `proposed` lanes. No source change. |
 
 ## Changelog
 
+- `2026-06-15`: `.2b.2a` landed (byte-identical at default): split `.2b.2` into
+  `.2b.2a` (downstream `--language` selector + focused real-tool acceptance
+  proof) + `.2b.2b` (repo-owned matrix gate). `run_verilator(_design)` gained
+  the `language: Option<&str>` selector; `tests/sv_version_downstream.rs`
+  banked clean (Verilator 3× `--language` + Icarus `-g2012`). Frontier advances
+  to `.2b.2b`.
 - `2026-06-15`: `.2b.1` landed (first code slice, byte-identical): `SvVersion`
   enum + `Config::sv_version` + `--sv-version` CLI + versioned emitter entry
   points (`permits` down-gating bound) threaded at all DUT emit sites,

@@ -5,6 +5,41 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — SV-version targeting — per-version downstream acceptance proof — `SV-VERSION-TARGETING.2b.2a`
+
+First half of `.2b.2` (split here into `.2b.2a` downstream selector + focused
+proof, and `.2b.2b` the repo-owned `tool_matrix` gate). Proves decision
+`0009`'s "per-version acceptance" half: the version-targeted corpus is
+**accepted by a downstream tool in its matching standard mode**.
+
+- **Verilator `--language` selector probed against the real binary first.**
+  Verilator 5.046 `--help` lists both `--default-language <lang>` and
+  `--language <lang>` ("Default language standard to parse"); both accept
+  `1800-2012`/`2017`/`2023` and lint a generated module clean (exit 0, no
+  warning). Chose **`--language <std>`** (the documented standard selector).
+  No aspirational flag — the spelling is verified, per the `.2a` open question.
+- **`run_verilator` / `run_verilator_design` gain `language: Option<&str>`**
+  (`src/downstream/mod.rs`). `Some("1800-2017")` prepends `--language
+  1800-2017`; **`None` reproduces today's exact argv byte-for-byte**. The four
+  existing callers (`validate()` ×2, `tool_matrix` ×2) pass `None`, so every
+  banked report + the agent `validate` tool are unchanged. `SvVersion::
+  ieee_standard()` (added `.2b.1`) supplies the `"1800-20xx"` string.
+- **Focused real-tool gate `tests/sv_version_downstream.rs` (`#[ignore]`).**
+  Mirrors the diff-sim / parity-gate precedent (tool-dependent ⇒ default
+  `cargo test` doesn't need the tools). Over a leaf corpus (comb / seq /
+  structured / memory / fsm) and a hierarchy design, emits at each `SvVersion`
+  and asserts Verilator `--language 1800-{2012,2017,2023}` is warning-clean
+  (`ToolInvocation.success` already folds warning-as-failure), and that Icarus
+  `-g2012` accepts the subset for every target. **Banked clean** against
+  Verilator 5.046 + Icarus 13.0: `2 passed` in 6.18s.
+- **Why a focused `#[ignore]` gate, not the matrix yet.** It delivers the
+  per-version *acceptance proof* in a small, bankable slice; the heavier
+  repo-owned industrialization (a `--sv-version-gate` + `ScenarioSet::
+  SvVersionSweep` + a `saw_sv_version_targeted_acceptance` coverage fact under
+  `coverage_gaps` enforcement, threading the language into the matrix's
+  per-scenario Verilator run) is the follow-on `.2b.2b`. Splitting isolates the
+  byte-identical downstream API change from the matrix surgery.
+
 ## 2026-06-15 — SV-version targeting — knob + emitter capability bound — `SV-VERSION-TARGETING.2b.1`
 
 First code slice of `.2b` (implement decision `0009` per the `.2a` design). Adds
