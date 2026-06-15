@@ -22,6 +22,7 @@ Decision records may also carry Knowledge Map front matter. A non-empty
 | [0004](0004-agent-introspection-mcp-lane.md) | Agent control + deep introspection exposed as a default-off MCP adapter beside the generator core | 2026-06-14 | accepted | mcp, agent, api, architecture, introspection |
 | [0005](0005-agent-mcp-expansion-surface.md) | Broaden the read-mostly agent/MCP surface by projecting recorded facts, routing non-DUT lanes, and adding an optional HTTP transport | 2026-06-15 | accepted | mcp, agent, coverage, transport, architecture, introspection |
 | [0006](0006-signoff-automation-first-increment.md) | The first SIGNOFF-AUTOMATION-EXPANSION increment promotes unswept generator knobs into explicit matrix axes + coverage facts | 2026-06-15 | accepted | signoff, tool-matrix, coverage, adversarial, sweep, quality |
+| [0007](0007-identity-deepening-first-extension.md) | The first IDENTITY-DEEPENING extension is bounded bisimulation-based sequential flop equivalence (default-off, reusing the bounded combinational endpoint proof) | 2026-06-15 | accepted | identity, sequential, factorization, bisimulation, coinduction, flop-merge |
 
 ## How To Add A Record
 

@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — IDENTITY-DEEPENING.1 — promote Lane 1 + decision 0007 (bisimulation flop equivalence)
+
+**Landed as:** this commit (previous: `5de8e91`). Design/decision leaf —
+task-tree-owned by `IDENTITY-DEEPENING.1`. **No source change** (docs +
+decision record + task-tree + regenerated Knowledge Map only).
+
+**What changed**
+
+Executes the `IDENTITY-DEEPENING.1` design/decision leaf: promotes Lane 1
+(`IDENTITY-DEEPENING`) from `proposed` to `active`, picks the first concrete
+sound identity extension, fixes its proof discipline + budget + downstream gate,
+and splits the tree — all before any merge code lands (decision-first per the
+lane's `.1` contract).
+
+- **New decision record** `docs/decisions/0007-identity-deepening-first-extension.md`
+  (with Knowledge Map front-matter, 10 question keys): the first extension is
+  **bounded bisimulation-based sequential flop equivalence** — a default-off,
+  opt-in greatest-fixpoint partition refinement over flops (bucketed by
+  `width`/`reset_kind`/`reset_val`/`flop_domain`) that reuses the existing
+  bounded combinational endpoint proof to compare D-cones *up to a state
+  correspondence* (each `FlopQ` endpoint rewritten to its current class
+  representative). Soundness = reset base case + bisimulation step (coinduction);
+  it strictly generalizes the exact self-hold and same-endpoint D-cone classes
+  without retiring them, and lifts the recorded mutually-recursive-register /
+  non-exact-feedback no-merge boundary. Budget = the existing combinational proof
+  budget per D-cone check + `O(k² · iterations)` refinement with a bucket-size
+  cap. Gate = a rules-first duplicated-mutually-recursive-register scenario with
+  merge-count `> 0` and Verilator + both Yosys modes clean. Default-off /
+  byte-identical (knob off ⇒ snapshots untouched; `--identity-mode relaxed`
+  stays the off-switch).
+- **Rejected as first** (each kept as a named future leaf or correctly excluded,
+  none retired): whole stateful-module reachable-product equivalence (bigger
+  jump → `.3` future), bounded model checking (unsound merge proof),
+  retimed-state equivalence (not bisimilar), memory-state merging
+  (`memory-identity-boundary`, blocked), and structural/syntactic resemblance
+  (forbidden by the doctrinal bar).
+- **Tree split:** `.1` `done`; `.2` (`pending`, impl) added as the new frontier;
+  `.3` (`proposed`, future module-level sequential equivalence) added.
+- Indexed in `docs/decisions/INDEX.md`; `IDENTITY-DEEPENING` row in
+  `docs/TASK_TREE.md` updated (`proposed` → `active`, frontier = `.2`);
+  `KNOWLEDGE_MAP.md` regenerated (22 → 23 facts, 114 → 124 question keys).
+
+**Why**
+
+`MEMORY.md`'s recorded next action after `SIGNOFF-AUTOMATION-EXPANSION` reached
+handoff (lane order `2 → 3 → 1`). The lane's `.1` contract mandates a
+soundness-first design decision before any merge code. Bounded *module-level*
+semantic equivalence already exists for the pure-combinational case
+(`dedup_semantic_modules`); the genuinely open, high-value, soundly-bounded
+frontier per ROADMAP steering gap 2 is *sequential* — hence the flop-level
+bisimulation pick.
+
+**Validation**
+
+No source change ⇒ no cargo gates required (resource-safe-validation policy for
+docs/decision leaves). `bash scripts/check_memory_architecture.sh` clean (0007
+indexed); `bash knowledge-map/scripts/check_knowledge_map.sh` clean (facts
+valid, ids unique, map in sync after regeneration).
+
+**Impact**
+
+`IDENTITY-DEEPENING` is now `active` with a sound, bounded, downstream-gateable
+first increment designed and ready to implement at `.2`. No generated RTL, no
+CLI surface, and no default behavior changed.
+
+**Files touched**
+
+`docs/decisions/0007-identity-deepening-first-extension.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/IDENTITY-DEEPENING.md`,
+`docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-06-15 — SIGNOFF-AUTOMATION-EXPANSION.2b — first signoff knob-sweep batch impl
 
-**Landed as:** this commit (previous: `92a04c8`). Code leaf —
+**Landed as:** `5de8e91` (previous: `92a04c8`). Code leaf —
 task-tree-owned by `SIGNOFF-AUTOMATION-EXPANSION.2b`.
 
 **What changed**

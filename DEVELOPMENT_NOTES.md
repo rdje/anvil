@@ -5,6 +5,46 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — IDENTITY-DEEPENING first extension chosen — `IDENTITY-DEEPENING.1` (decision 0007)
+
+Design/decision leaf, no source change. Picked the first sound identity
+extension for Lane 1 and split the tree. Full rationale, soundness argument,
+budget, downstream gate, and rejected alternatives live in
+`docs/decisions/0007-identity-deepening-first-extension.md`; the contributor-side
+"why" worth keeping here:
+
+- **Why sequential, not module-level, first.** The two candidates the tree named
+  were (a) bounded semantic *module* equivalence beyond structural signatures and
+  (b) a broader bounded *sequential* class. Reading `src/ir/dedup.rs` showed (a)
+  is **already partly built**: `dedup_semantic_modules` proves bounded
+  whole-module truth-table equivalence for pure-combinational leaves and bounded
+  combinational wrappers (`bounded-semantic-module-identity`). So the genuinely
+  open, high-value, soundly-bounded frontier is sequential — and the recorded
+  no-merge boundary (`reset-defined-self-hold-flop-identity`) names exactly the
+  class to attack: *mutually-recursive registers and non-exact feedback*.
+- **Why bisimulation (greatest fixpoint), not BMC.** A merge must be a *proof for
+  all time*, not "agrees up to depth k". Bisimulation from a reset base case is
+  the textbook sound proof of sequential equivalence, and partition refinement
+  (Kanellakis–Smolka / Hopcroft) gives it for free with a clean termination bound
+  (≤ k iterations, k = bucket size). BMC is unsound as a *merge* proof and was
+  rejected outright.
+- **Why it reuses, not replaces, the combinational engine.** The bisimulation
+  step compares two D-cones *up to the current state correspondence*: rewrite
+  each `FlopQ` endpoint to its current class representative, then run the existing
+  bounded endpoint-preserving combinational proof over the quotient endpoint set.
+  Same 12-bit / 128-node / 131072-work budget; budget-exceeded ⇒ conservative
+  class split ⇒ no merge. The exact self-hold (`D==Q`) and same-endpoint classes
+  fall out as the identity-correspondence special cases — they are generalized,
+  not retired.
+- **Why a new default-off knob, not on-by-default at e-graph.** The existing flop
+  merge is on at `node-id`/`cse` and changes default output vs `relaxed`; adding
+  the *broader* class to it would change default-config snapshots. To keep
+  `tests/snapshots.rs` byte-identical by default and match the established opt-in
+  precedent (`hierarchy_module_dedup` / `hierarchy_semantic_module_dedup`), the
+  additional merges sit behind a new default-off `Config` knob (working name
+  `bisimulation_flop_merge`) that also requires `node-id`/`e-graph`. `.2`
+  finalizes the knob/metric names and the bucket-size cap empirically.
+
 ## 2026-06-15 — First signoff knob-sweep batch impl — `SIGNOFF-AUTOMATION-EXPANSION.2b`
 
 Implemented the `.2a` design. Landed in `src/metrics.rs` (the new
