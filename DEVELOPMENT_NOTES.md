@@ -5,6 +5,107 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-15 — Hand-rolled HTTP transport design — `AGENT-MCP-EXPANSION.4a`
+
+`.4a` is the design leaf that pins the framing for the optional HTTP
+transport before `.4b` writes the network code. The owner already fixed the
+high level in `bc70aee` (hand-rolled HTTP/1.1 over `std::net`, no new crate
+dependency, `--http <addr>` on the existing bin, loopback default, same
+dispatcher); `.4a` resolves the remaining framing/connection/concurrency
+choices so the impl is mechanical. `.4` was split into `.4a` (design) +
+`.4b` (impl), mirroring `.3a`/`.3b`.
+
+**Decision — reuse `McpServer::handle_line`, the transport-agnostic seam.**
+`handle_line(&mut self, &str) -> Option<String>` already does exactly what a
+transport needs: parse one JSON-RPC message, dispatch, serialize the
+response (or `None` for a notification). The HTTP transport calls the *same*
+method the stdio loop calls — there is no second protocol path, so tools,
+resources, prompts, error codes, and the content-addressed cache behave
+identically over both transports and stay covered by the existing in-process
+tests.
+
+**Decision — single-threaded, one shared `McpServer`, sequential accept
+loop.** `McpServer` is `&mut self` (it mutates the artifact `cache` and the
+`audit` log) and uses no sync primitives. Rather than wrap it in
+`Arc<Mutex<…>>` and spawn a thread per connection, the accept loop is
+single-threaded and reuses **one** `McpServer` across connections, serving
+requests sequentially. This (a) keeps the cache + audit log continuous across
+calls within a process — an agent `generate`s then `resources/read`s the
+artifact, exactly as over stdio — and (b) needs no locking. A `Mutex` around
+`handle` would serialize requests anyway, so threading would add lock churn
+and contention for no throughput gain in the local single-agent bug-hunting
+loop this serves. Robustness without threads: a per-connection **read
+timeout** keeps a stalled client from wedging the loop, and per-connection
+I/O errors are logged-and-swallowed so one bad client never terminates
+`serve_http`.
+
+**Decision — one request per connection, `Connection: close`.** No
+keep-alive, no pipelining. Each accepted connection carries exactly one
+JSON-RPC POST and is closed after the response. This removes the trickiest
+hand-rolled-HTTP failure modes (persistent-connection framing, request
+boundary tracking) at no real cost for an RPC workload, and it composes
+cleanly with the sequential accept loop.
+
+**Decision — minimal, liberal request parsing; strict, small status set.**
+Read the request line + headers (CRLF-delimited; header names matched
+case-insensitively) up to the blank line, then read exactly `Content-Length`
+body bytes as one JSON-RPC message (`handle_line` trims, and `serde_json`
+accepts arbitrary whitespace, so a pretty-printed body works too). The body
+size is capped at `MAX_BODY_BYTES = 16 MiB` as defense-in-depth against a
+giant-allocation request even though the default bind is loopback. The
+JSON-RPC ⇄ HTTP mapping is deliberately tiny:
+
+| Condition | HTTP status |
+| --- | --- |
+| `handle_line` → `Some(json)` | `200 OK` + `application/json` body |
+| `handle_line` → `None` (notification / blank) | `204 No Content`, no body |
+| method not `POST` | `405 Method Not Allowed` |
+| `POST` without `Content-Length` | `411 Length Required` |
+| malformed request line / unparseable `Content-Length` | `400 Bad Request` |
+| `Content-Length` > `MAX_BODY_BYTES` | `413 Payload Too Large` |
+
+JSON-RPC-level errors (unknown method, bad params) stay **inside** the
+`200 OK` body as JSON-RPC error objects — same as over stdio. HTTP status is
+only about transport framing, never about RPC semantics.
+
+**Decision — loopback-default address semantics on a hand-parsed flag.** The
+bin hand-parses a single optional `--http <addr>` from `std::env::args()`
+(no clap surface — the bin is a thin transport, and one optional flag does
+not justify pulling clap's derive into it; `--help`/unknown-arg still get a
+clear stderr message + nonzero exit). `<addr>` is interpreted so the *default
+is loopback*: a bare port (all digits) binds `127.0.0.1:<port>`; a full
+`IP:port` is parsed as a `SocketAddr` and honored as given, but binding a
+**non-loopback** IP prints a prominent stderr warning that the controlled
+`validate`/`minimize` tools are now reachable over the network (decision
+`0005`'s security note). Without `--http`, the bin runs the unchanged stdio
+loop — byte-identical, default-off.
+
+**Decision — framing helpers in the lib, loop callable from the bin.** Pure
+helpers `read_http_request(&mut impl BufRead) -> io::Result<HttpRequest|…>`
+and `write_http_response(&mut impl Write, status, body)` plus
+`handle_http_connection(stream, &mut McpServer)` and
+`serve_http(SocketAddr) -> io::Result<()>` live in a new `src/mcp/http.rs`
+re-exported from `src/mcp/mod.rs`, so the framing is unit-testable in-process
+over `Cursor`/byte buffers (the same lib-not-bin discipline as the rest of
+the MCP surface). `.4b`'s real-socket round-trip test binds a `TcpListener`
+on `127.0.0.1:0`, serves one connection in a thread, and asserts a real POST
+of `initialize` yields `200 OK` + the JSON-RPC `result`.
+
+**Rejected alternatives.** (1) *clap in the bin* — heavier than a one-flag
+hand-parse for a transport shell. (2) *HTTP keep-alive / pipelining* —
+needless framing complexity; one-shot connections are robust. (3)
+*thread-per-connection + `Arc<Mutex<McpServer>>`* — the workload is
+sequential and a whole-`handle` Mutex would serialize anyway, so threading is
+pure overhead here. (4) *a separate `anvil-mcp-http` bin* — a flag on the
+existing bin keeps the default build + stdio path untouched (decision
+`0005`). (5) *an async/`tokio` HTTP stack or an MCP SDK* — already rejected
+in `0004` for the stdio server; the same dependency-light doctrine applies.
+
+**No new Cargo dependency.** `std::net` (`TcpListener`/`TcpStream`/
+`SocketAddr`), `std::io` (`BufRead`/`Write`/`BufReader`), and `std::time`
+(`Duration` for the read timeout) cover everything. `Cargo.toml` is
+untouched, so the conservative-dependency posture holds.
+
 ## 2026-06-15 — non-DUT lanes over MCP — `AGENT-MCP-EXPANSION.3b`
 
 Implements the non-DUT (`microdesign`/`frontend`) generate/introspect path.

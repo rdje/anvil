@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-15 — AGENT-MCP-EXPANSION.4a — hand-rolled HTTP transport framing design
+
+**Landed as:** this commit (previous: `bc70aee`). Docs / design leaf — no
+source change.
+
+**What changed**
+
+`AGENT-MCP-EXPANSION.4` is split into `.4a` (design) + `.4b` (impl), mirroring
+`.3a`/`.3b`. `.4a` pins the hand-rolled HTTP/1.1 framing the owner decision
+left open, so `.4b` is a mechanical implementation:
+
+- **Flag / address:** one optional hand-parsed `--http <addr>` on the existing
+  `anvil-mcp` bin (no clap in the thin transport bin). A bare port ⇒ bind
+  `127.0.0.1:<port>` (the loopback default); a full `IP:port` ⇒ parsed as a
+  `SocketAddr` and honored, with a prominent **stderr warning** when the bound
+  IP is non-loopback (the controlled `validate`/`minimize` tools become
+  network-reachable — decision `0005`'s security note). Without `--http`, the
+  unchanged stdio loop runs ⇒ default-off, byte-identical.
+- **Request parse:** request line + headers (CRLF-delimited; header names
+  matched case-insensitively) to the blank line; require `POST` on any path;
+  require `Content-Length`; read exactly that many body bytes = one JSON-RPC
+  message; dispatch through the **same** `McpServer::handle_line(&body)`.
+  Body capped at `MAX_BODY_BYTES = 16 MiB`.
+- **Status mapping (tiny, framing-only):** `Some(json)` ⇒ `200 OK` +
+  `application/json`; `None` (notification/blank) ⇒ `204 No Content`;
+  non-`POST` ⇒ `405`; `POST` without `Content-Length` ⇒ `411`; malformed /
+  unparseable length ⇒ `400`; over cap ⇒ `413`. JSON-RPC-level errors stay
+  inside the `200` body as JSON-RPC error objects, exactly as over stdio.
+- **Connection model:** one request per connection, `Connection: close`.
+- **Concurrency / state:** a single-threaded sequential accept loop reusing
+  **one** `McpServer` (cache + audit persist across calls, as over stdio); no
+  `Mutex`/threads (honors the `&mut self` server); a per-connection read
+  timeout keeps a stalled client from wedging the loop; per-connection errors
+  are logged-and-swallowed and never terminate `serve_http`.
+- **Code placement:** pure framing helpers (`read_http_request` over
+  `BufRead`, `write_http_response` over `Write`) + `handle_http_connection` +
+  `serve_http(SocketAddr)` go in a new `src/mcp/http.rs` re-exported from
+  `src/mcp/mod.rs` (framing unit-testable in-process); the bin calls
+  `anvil::mcp::serve_http(addr)` under `--http`.
+- **`.4b` test surface:** in-memory framing unit tests + a real-socket
+  round-trip (`TcpListener` on `127.0.0.1:0`).
+- **No new Cargo dependency** (`std::net` / `std::io` / `std::time` only).
+
+Rejected: clap in the bin; HTTP keep-alive / pipelining;
+thread-per-connection + `Arc<Mutex<McpServer>>`; a separate `anvil-mcp-http`
+bin; an async/SDK HTTP stack (`0004` already rejected `tokio`/`rmcp`).
+
+**Why**
+
+Network framing carries genuine policy choices (connection model, error
+statuses, the `&mut self` concurrency model, loopback semantics) worth pinning
+and reviewing before the network code is written — the project's
+split-design-from-impl discipline (`.3a`/`.3b`, `.5.1/.5.2/.5.3`), and the
+`.4` node itself flagged considering a `.4a` design leaf.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` + `knowledge-map` check — clean.
+- No source change ⇒ no `cargo` gate (design/decision leaf; resource-safe
+  validation policy, decision `0003`).
+
+**Impact**
+
+- No code, no behavior change. `--artifact dut` byte-identical. Sets up `.4b`.
+
+**Files touched**
+
+- `docs/tasks/AGENT-MCP-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-15 — AGENT-MCP-EXPANSION — record owner .4 HTTP-transport decision (handoff)
 
 **Landed as:** this commit (previous: `54ccb25`). Docs / workflow only — no
