@@ -1,9 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5a — `module_reachability` impl design-detail
+
+**Landed as:** this commit (previous: `a715070`). **Docs-only** (no source
+change); DUT byte-identical. Opens `.5` — the **fourth** derived query,
+`module_reachability` (the last named query kind in decision `0011`): which
+modules in a `Design` are reachable from `design.top` via the instance graph.
+
+**What changed (why)**
+
+A design-detail (no-source) leaf that registers the `.5` ownership and pins the
+`.5b` implementation shape before any code, per the task-tree doctrine and the
+`.3a`/`.4a` precedent. Grounded in a fresh read of the real `Design { top,
+modules }` / `Module { instances }` / `Instance { module }` IR and the existing
+`analyze.rs` / `introspect/mod.rs` / `mcp/mod.rs` surface.
+
+- **`DEVELOPMENT_NOTES.md`** — a `module_reachability` design-detail entry
+  resolving five points: (1) result shape — a **fourth** parallel
+  `module_reachability: Vec<ModuleReachability>` vec on `DerivedAnalysis`
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the three prior
+  documents stay byte-identical), `ModuleReachability { module, reachable, depth:
+  Option<usize>, instantiates, instance_count }`; (2) derivation — a BFS from
+  `design.top` over the `Module.instances[].module` edges of a name→`Module`
+  index (min-depth, pure, deterministic — output sorted by module name); (3)
+  target addressing — a **module name** (`None` ⇒ all, unknown ⇒ `-32602`),
+  deliberately distinct from the prior queries' port-name / `"flop:<id>"`
+  targets; (4) module-vs-design semantics — the bare-module variant degenerates
+  to a one-node graph rooted at itself; (5) schema `1.6 → 1.7`. Plus the rejected
+  alternatives (tagged `results` enum, a summary struct, cone-through-instance
+  recursion, gen-time computation) and the `.5b` pre-split.
+- **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — registered `.5`
+  (container) + `.5a` (this leaf, done) + `.5b` (container) and pre-split `.5b` →
+  `.5b.1` (pure core, **new frontier**) + `.5b.2` (surface); metadata, task tree,
+  Current Frontier, Decisions, Verification Log, Commit Log, and Changelog
+  updated.
+- **`docs/TASK_TREE.md`** — the `SEMANTIC-INTROSPECTION-EXPANSION` row's frontier
+  updated to `.5b.1`.
+- **`MEMORY.md`** — resume pointer refreshed (backfilled the `.4b.2` hash
+  `a715070`; current state = `.5a` done, next action = `.5b.1`).
+
+**Validation**
+
+No source change ⇒ no `cargo` gate required for this leaf (baseline `cargo check
+--all-targets` is clean). `bash scripts/check_memory_architecture.sh` clean;
+`bash knowledge-map/scripts/check_knowledge_map.sh` in sync.
+
+**Impact**
+
+Opens the fourth derived-query lane; no behavioural or wire change yet (the code
+lands in `.5b.1`/`.5b.2`). DUT byte-identical.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4b.2 — `flop_reset_provenance` MCP surface + schema 1.6
 
-**Landed as:** this commit (previous: `3ee0417`). **Source + docs**; DUT
+**Landed as:** `a715070` (previous: `3ee0417`). **Source + docs**; DUT
 byte-identical. Closes `.4b` and `.4` — the **third** derived query,
 `flop_reset_provenance`, is delivered end-to-end. The `analyze` surface now
 answers three derived queries (`output_support` + `input_reach` +

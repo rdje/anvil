@@ -5,6 +5,163 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — `module_reachability` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.5a`
+
+Design-detail leaf for `.5` — the **fourth** derived query, `module_reachability`:
+*which modules in a design are reachable from the top via the instance graph, and
+how does each module sit in that graph?* Docs-only (no source). This is the last
+named query kind in decision `0011`; with it the lane's named set is delivered.
+Grounded in the real IR (`src/ir/types.rs`):
+
+```rust
+pub struct Design { pub top: String, pub modules: Vec<Module> }
+pub struct Module { /* … */ pub instances: Vec<Instance>, /* … */ }
+pub struct Instance { pub id: InstanceId, pub name: String, pub module: String,
+                      pub role: InstanceRole, /* … */ }   // `module` = child module NAME
+```
+
+The instance graph is already in the IR: each `Module` lists its child `Instance`s,
+and each `Instance.module` names the child module definition (resolved against
+`Design.modules` by name). `module_reachability` is the pure graph-reachability
+relation over those edges, rooted at `Design.top`. Same SCHEMA-DERIVED /
+structure-first ceiling (decisions `0004`/`0011`): reachability is a **relation**
+over the construction graph, never behaviour. It is the first query whose natural
+home is the **whole design** rather than one module's node graph (`output_support`
+/ `input_reach` walk the gate graph; `flop_reset_provenance` projects `Module.flops`
+— all three operate on the top module; this one traverses the module table).
+
+### Q1 — result shape: a FOURTH parallel result vec
+
+`DerivedAnalysis` gains a fourth `#[serde(default, skip_serializing_if =
+"Vec::is_empty")]` vec, continuing the parallel-vec pattern (`.3a` chose this over
+a tagged `results` enum so prior documents stay byte-identical; each new kind = one
+more skip-if vec, the `query` field discriminates — now scaled to four):
+
+```rust
+pub module_reachability: Vec<ModuleReachability>,   // populated only by module_reachability
+
+pub struct ModuleReachability {
+    pub module: String,              // the module name (the entity this entry is about)
+    pub reachable: bool,             // reachable from design.top via the instance graph
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depth: Option<usize>,        // min instance-graph distance from top (0 = top);
+                                     // present iff reachable, omitted otherwise
+    pub instantiates: Vec<String>,   // distinct child module NAMES directly instantiated
+                                     // (sorted, deduped) — this module's local out-edges
+    pub instance_count: usize,       // total direct child instances (m.instances.len())
+}
+```
+
+Field-name note: the primary key is `module`, not `target` — like `FlopProvenance`
+used `flop` (the prior two used `target`), the entity here is a module, named
+descriptively. `depth` is `Option<usize>` with `skip_serializing_if =
+"Option::is_none"`: a number (0 for the top) when reachable, omitted when not — the
+schema's "omit rather than null" convention, and an agent reads `reachable` first
+anyway. `instantiates` (the distinct direct child module names) is present for
+**every** module, reachable or not — it is a local structural fact, so the flat Vec
+carries the full out-edge structure and a consumer can reconstruct the entire
+instance graph + recompute reachability itself (the API-audience completeness rule:
+ship the complete structured relation). `instance_count ≥ instantiates.len()` when a
+module instantiates the same child more than once. No design-level summary struct
+(total/reachable/dead counts) — those are derivable from the Vec, so adding one
+would be a second source of truth; the flat Vec is complete. Additive MINOR schema
+bump `1.6 → 1.7`.
+
+### Q2 — derivation: a BFS over the design's instance edges
+
+`design_module_reachability(&Design, target)`:
+1. Build a `name → &Module` index over `design.modules`.
+2. BFS from `design.top`: min-depth, a `visited` depth map, a `VecDeque` frontier;
+   for each module follow its **distinct** child names (`instances[].module`) to
+   children present in the index, recording first-visit (= min) depth. A child name
+   with no matching `Module` def is a recorded out-edge that cannot be traversed
+   (defensive — a well-formed design has all defs; we never panic, mirroring the
+   `visit()` "missing node ⇒ 0" guard in the support walker).
+3. Emit one `ModuleReachability` per module in `design.modules`, **sorted by module
+   name** (deterministic, independent of the `modules`-vec / instance order — the
+   same determinism contract `flop_provenance` holds by sorting on flop id):
+   `reachable` = visited; `depth` = the BFS depth if reachable else `None`;
+   `instantiates` = distinct `instances[].module` (sorted, via `BTreeSet`);
+   `instance_count` = `instances.len()`.
+
+Pure: no IR field, no generator change (the `coverage_gaps` / `output_support`
+project-don't-recompute precedent). Cost is `O(modules + edges)` — a single linear
+BFS — well within a read-only analysis. Min-depth BFS is order-independent, and the
+output sort + `BTreeSet` aggregation make the document a byte-stable function of the
+design.
+
+### Q3 — target addressing: a module NAME
+
+`target` is a **module name** (not a port name or `"flop:<id>"`): the natural
+identifier for a module-level query.
+- `target = None` ⇒ one entry per module in `design.modules`, sorted by name.
+- `target = Some("<module name>")` ⇒ that one module's entry (it must exist in
+  `design.modules`).
+- an unknown module name ⇒ no entry ⇒ `-32602` at the MCP layer — the established
+  "unknown target vs known-but-empty" contract (every resolvable module yields
+  exactly one entry, even an unreachable one). The `run_analyze` empty-result guard
+  checks `analysis.module_reachability.is_empty()` for this kind.
+
+This is deliberately a *different* target vocabulary from the prior three queries,
+documented as such: `output_support` takes an output port name / `"flop:<id>"`;
+`input_reach` takes a source (input / `"flop:<id>"` Q / `"<inst>.<port>"`);
+`flop_reset_provenance` takes `"flop:<id>"`; `module_reachability` takes a module
+name.
+
+### Q4 — module-vs-design semantics
+
+`run_analyze` already routes design-vs-module on
+`cfg.effective_hierarchy_depth_range().is_some()` (a hierarchy config ⇒ a `Design`;
+otherwise a single `Module`). `design_module_reachability` is the real query.
+`module_module_reachability(&Module, target)` is the **degenerate one-node case**: a
+bare `Module` carries no child definitions to traverse (the same "no child defs"
+boundary the module variant of every other query hits — cf. the
+`"<instance>.port<id>"` fallback in `format_instance_leaf_module`). It emits exactly
+one entry — the module itself: `reachable = true`, `depth = Some(0)`, `instantiates`
+= its own distinct `instances[].module` names, `instance_count = instances.len()`.
+It does **not** fabricate entries for the named-but-undefined children (no `Module`
+to honestly report on). A non-hierarchical DUT leaf has no instances, so the runtime
+module-path answer is the honest `{module, reachable: true, depth: 0, instantiates:
+[], instance_count: 0}`. (`module_module_reachability` still handles a hand-built
+module-with-instances correctly, for test coverage and completeness.) `target` for
+the module variant: `None` or `Some(m.name)` ⇒ the one entry; anything else ⇒ none ⇒
+`-32602`.
+
+### `.5b` pre-split
+
+Per the `.3b`/`.4b` precedent:
+- **`.5b.1`** (pure core, **new frontier**): `QUERY_MODULE_REACHABILITY` +
+  `ModuleReachability` + the fourth `module_reachability` vec +
+  `design_module_reachability` / `module_module_reachability` (+ a shared
+  `module_reachability_with` helper if it factors cleanly). The 6 existing
+  `DerivedAnalysis` literals gain `module_reachability: Vec::new()`. **Not** added to
+  `supported_query_kinds()` yet — it joins the registry together with the
+  `run_analyze` dispatch in `.5b.2`, so no intermediate commit mislabels the
+  supported set. Lib-tested only; not wired to any emit path ⇒ DUT byte-identical
+  (snapshots 6/6).
+- **`.5b.2`** (surface): add the kind to `supported_query_kinds()` AND branch
+  `run_analyze` by kind (same commit) + the vec-aware `-32602` guard; schema
+  `1.6 → 1.7` (+ the `"1.6"` test-assertion bumps); the `analyze_schema` enum + the
+  tool/`instructions` descriptions; schema-doc §6.7 + a `1.6 → 1.7` changelog + the
+  row; book(`agent-mcp`) + USER_GUIDE + README; a KM card. Default-off / DUT
+  byte-identical.
+
+### Rejected
+
+- **A tagged `results` enum** — rejected at `.3a` and stays rejected: it would break
+  the byte shape of the three delivered documents. A fourth parallel skip-if vec is
+  additive and keeps the bump a clean MINOR.
+- **A separate reachability *summary* struct** (counts of total / reachable / dead
+  modules) — derivable from the flat Vec, so it would be a second source of truth.
+  The Vec is complete.
+- **Recursing the support/reach cone *through* child instances** (so `output_support`
+  crosses the instance boundary) — that is a different, larger feature (the cone
+  queries deliberately stop at the instance boundary, decision `0011` Q3);
+  `module_reachability` answers the orthogonal module-graph question and leaves the
+  per-module cone boundaries unchanged.
+- **Computing reachability at generation time / storing it in the IR** — rejected
+  (byte-identical contract); it is pure read-only post-hoc analysis.
+
 ## 2026-06-16 — Semantic introspection — `flop_reset_provenance` surface + schema 1.6 — `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`
 
 Wires the `.4b.1` core to the MCP surface, closing the third derived query
