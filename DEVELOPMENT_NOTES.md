@@ -5,6 +5,37 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — pure `input_reach` core — `SEMANTIC-INTROSPECTION-EXPANSION.3b.1`
+
+Implements the `.3a` design: the pure `input_reach` core in
+`src/introspect/analyze.rs` (the dual fan-out of `output_support`). Lib-tested
+only; not wired to the MCP surface (that is `.3b.2`). Two impl-time decisions
+worth recording beyond the `.3a` design:
+
+- **The registry stays at `output_support` until `.3b.2`.** `QUERY_INPUT_REACH`
+  + the `ReachResult` struct + the `reach_results` field + the
+  `module_input_reach`/`design_input_reach` builders all land here, but
+  `supported_query_kinds()` is **deliberately not** extended yet. That set is the
+  MCP gate `run_analyze` checks; adding `input_reach` to it before the
+  `run_analyze` dispatch branch exists (a `.3b.2` change) would let an
+  `input_reach` request fall through to the support-cone branch and silently
+  mislabel in the intermediate commit. Registry entry + dispatch land together in
+  `.3b.2` so the two never disagree. This is the "keep every commit coherent" rule
+  applied to a two-commit feature split.
+- **Reach = the transpose of support, computed by inversion — not a second
+  walker.** `input_reach_with` builds every target's `SupportCone` with the
+  *existing* `build_cone` machinery (outputs + each `"flop:<id>"` D-cone), then
+  buckets each target under the sources its cone lists. The flop/instance/mem-fsm
+  boundary rules therefore live in exactly one place; a forward consumers-BFS
+  would have had to re-implement all of them against a reverse adjacency. A flop
+  in a cone's `support_flops` is the flop's **Q**, so as a reach *source* it is
+  keyed `"flop:<id>"` — the same register-boundary spelling the `output_support`
+  D-cone *target* uses, with the direction set by the query kind. Gotcha for the
+  source universe: declared control ports (`clk`/`rst_n`) are enumerated too and
+  show **empty** combinational reach — the honest dual of `output_support`'s
+  "one cone per declared output, even undriven", and intentional under the
+  API-audience completeness steering.
+
 ## 2026-06-16 — Semantic introspection — `input_reach` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.3a`
 
 Design-detail leaf for `.3` — the **second** derived query, `input_reach`: the

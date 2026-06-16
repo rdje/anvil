@@ -1,6 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3b.1 — pure `input_reach` analysis core
+
+**Landed as:** this commit (previous: `05527b2`). **Source + docs**; DUT
+byte-identical (no IR/generator change, not wired to any emit path).
+
+**What changed (why)**
+
+The pure core of the second derived query, `input_reach` — the dual fan-OUT of
+the delivered `output_support` cone — implemented per the `.3a` design, in
+`src/introspect/analyze.rs` only. Lib-tested; **not** yet reachable over MCP
+(that surface wiring is `.3b.2`).
+
+- **`src/introspect/analyze.rs`** —
+  - `QUERY_INPUT_REACH = "input_reach"` (the second query-kind string).
+  - `ReachResult { target, reaches_outputs[], reaches_flops[], fanout_targets }`
+    — the dual of `SupportCone` (serde + `Default`; sorted vecs ⇒ deterministic).
+  - A **second** field on `DerivedAnalysis`: `reach_results: Vec<ReachResult>`
+    with `#[serde(default, skip_serializing_if = "Vec::is_empty")]`. This is the
+    `.3a` shape decision: a parallel vec, not a tagged enum, so an
+    `output_support` analysis serializes **without** the key — its document stays
+    byte-identical — while an `input_reach` analysis carries `results: []` +
+    populated `reach_results`. The `query` field is the discriminator.
+  - `module_input_reach(&Module, Option<&str>)` / `design_input_reach(&Design,
+    Option<&str>)` + the internal `input_reach_with` / `cone_support_keys` /
+    `source_universe` / `make_reach_result` helpers. The reach is computed by
+    **inverting** the support relation: build every target's `SupportCone`
+    (outputs + each `"flop:<id>"` D-cone) with the *existing* `build_cone`
+    machinery, then bucket each target under the sources its cone lists — so a
+    source `X` reaches target `T` iff `T`'s cone contains `X`, dual-consistency by
+    construction, with no second walker and no IR/generator change. A flop in a
+    cone's `support_flops` is the flop's **Q**, so as a reach source it is keyed
+    `"flop:<id>"` (the same register boundary the `output_support` D-cone target
+    uses; the query kind sets the direction). `target = None` ⇒ one `ReachResult`
+    per source over the canonical universe (declared inputs decl-order, then flop
+    Qs ascending id, then instance outputs sorted); a source that reaches nothing
+    (e.g. `clk`/`rst_n`) yields an empty result; an unresolvable explicit source
+    yields none (→ `-32602` at the `.3b.2` MCP layer).
+  - `supported_query_kinds()` is **deliberately unchanged** (still only
+    `output_support`): the registry entry + the `run_analyze` dispatch branch land
+    together in `.3b.2`, so no intermediate commit can mislabel an `input_reach`
+    request as a support query.
+- **`CODEBASE_ANALYSIS.md`** — the `analyze.rs` block amended with the
+  `input_reach` core, the inversion derivation, and the "not in the registry until
+  `.3b.2`" note.
+- **`DEVELOPMENT_NOTES.md`** — a `.3b.1` entry recording the two impl-time
+  decisions (registry-stays-until-dispatch; reach-by-inversion + the control-port
+  empty-reach gotcha).
+
+**Validation**
+
+- `cargo test --lib` **441 passed / 0 failed / 2 ignored** — 15 `introspect::analyze`
+  proofs, of which 7 are new and the transpose of the support-cone proofs
+  (transpose property; flop-Q-source + flop-D-side-source duals; design
+  instance-output source; `None`-all-sources incl. empty `clk`/`rst_n`;
+  unknown-source ⇒ none; determinism/sorted; `output_support` omits
+  `reach_results`).
+- `cargo test --test snapshots` **6/6 byte-identical** — DUT `.sv` unchanged.
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+  clean. `bash scripts/check_memory_architecture.sh` +
+  `bash knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+Resume by executing `SEMANTIC-INTROSPECTION-EXPANSION.3b.2` (the surface: add
+`input_reach` to `supported_query_kinds()` + branch `run_analyze`, bump schema
+`1.4 → 1.5`, extend the `analyze_schema` enum, and close out
+schema-doc/book/USER_GUIDE/KM). No code is in flight.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3a — `input_reach` impl design-detail
 
 **Landed as:** this commit (previous: `e635dd1`). **Docs-only** (no source, no

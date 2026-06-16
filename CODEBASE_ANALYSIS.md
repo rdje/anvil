@@ -449,6 +449,22 @@ src/
 │                     `-32602`). Invariant SCHEMA-DERIVED: no IR field, no
 │                     generator change — DUT byte-identical (not wired to any
 │                     emit path). 9 in-crate cone-correctness proofs.
+│                     `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` adds the dual
+│                     `input_reach` core: `QUERY_INPUT_REACH` + `ReachResult {
+│                     target, reaches_outputs[], reaches_flops[], fanout_targets
+│                     }` + a **second** `DerivedAnalysis.reach_results:
+│                     Vec<ReachResult>` field (`#[serde(default,
+│                     skip_serializing_if)]` ⇒ `output_support` docs stay
+│                     byte-identical) + `module_input_reach`/`design_input_reach`,
+│                     which **invert** the support relation (build every target's
+│                     cone, bucket `T` under each `X ∈ support(T)`) ⇒ dual-consistency
+│                     by construction. `target=None` ⇒ all sources (inputs, flop
+│                     Qs, instance outputs); `"flop:<id>"` source = the Q's
+│                     fan-out (direction set by the query kind); unknown source ⇒
+│                     no result. **Not yet in `supported_query_kinds()`** — the
+│                     registry entry + `run_analyze` dispatch land together in
+│                     `.3b.2`. 7 in-crate reach proofs (the transpose of the cone
+│                     proofs). DUT byte-identical.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
