@@ -217,10 +217,18 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
 2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
    synthesizable SV surfaces (function/task, interface/modport, nested
    generate), valid-by-construction; bigger and more open-ended.
-3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`proposed`) — a behavioral / derived
-   query surface beyond today's structural/metric projection, kept
-   `SCHEMA-DERIVED` (no new oracle), extending `AGENT-INTROSPECTION-MCP` /
-   `AGENT-MCP-EXPANSION`.
+3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
+   by explicit owner directive**: deep semantic introspection first-class +
+   everything MCP-queryable via a top-notch API). A first-class, versioned,
+   MCP-queryable, **SCHEMA-DERIVED derived-RELATION** query surface beyond
+   today's structural/metric projection: a `DerivedAnalysis` introspection
+   section (schema `1.3`) + a pure MCP `analyze` tool answering *what depends on
+   what* over the already-emitted IR by pure graph traversal — **relations, not
+   behaviour** (the decision `0004` no-shadow-simulator / structure-first
+   boundary, ROADMAP steering gap 4, is the permanent ceiling). Decision
+   [`0011`](docs/decisions/0011-semantic-introspection-derived-query-surface.md);
+   `.1` design **done**, first query = the output **support cone**; frontier
+   `.2` (impl). Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the open
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential

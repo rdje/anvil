@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.1 — activate lane + derived-query API design
+
+**Landed as:** this commit (previous: `59e09c4`). Task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.1`. **Docs-only design leaf — no source change.**
+Activates the lane **by explicit owner directive** (`2026-06-16`: "deep semantic
+introspection shall be first-class … everything shall be queryable via MCP through
+a top-notch API").
+
+**What changed**
+
+- **Decision `0011`** (`docs/decisions/0011-semantic-introspection-derived-query-surface.md`,
+  with Knowledge Map `answers:`): ANVIL gains a **first-class, versioned,
+  MCP-queryable, SCHEMA-DERIVED derived-RELATION introspection API** — a new
+  optional `DerivedAnalysis` introspection payload section (schema MINOR bump
+  `1.2 → 1.3`) + a new **pure** MCP `analyze` tool — answering *what depends on
+  what* over the already-emitted `Module`/`Design` by pure post-hoc graph
+  traversal. It exposes **relations** (support, reach, reachability, provenance),
+  **never behaviour** — the decision `0004` no-shadow-simulator / ROADMAP-gap-4
+  structure-first boundary is reaffirmed as the lane's permanent ceiling.
+- **API shape** ("top-notch, everything-queryable"): a fixed, extensible registry
+  of named derived-query *kinds* (the `PROMPTS`-registry pattern, not a free-form
+  query language), each pure + typed; large results served as `ResourceRef`s
+  (structured queries, not bulk dumps).
+- **First query (`.2`):** the transitive fan-in **support cone** of each output
+  (+ symmetric input fanout reach) — the set of primary inputs / flop Qs /
+  child-instance outputs an output structurally depends on, + cone size/depth,
+  derived by pure BFS/DFS over the existing node-operand graph + `drives`.
+- **Grounded in a survey** of the existing surface: `src/introspect/mod.rs`
+  (Config/Metrics/DesignMetrics serde projection), `src/mcp/mod.rs`
+  (generate/introspect/dump_config/coverage_gaps/validate/minimize + resources +
+  5 prompts), `src/metrics.rs` (rich on *counts/distributions* but silent on
+  *relations*) — confirming the derived-relation surface is genuinely absent and
+  SCHEMA-DERIVABLE.
+- **Rejected** (recorded): behavioral/simulation queries (`0004`), a free-form
+  query language, a second source of truth, inlining whole cones, gen-time
+  computation.
+- **Tree:** activated `SEMANTIC-INTROSPECTION-EXPANSION` (`proposed` → `active`);
+  split `.1` (this design, done) + `.2` (impl — support cone + schema `1.3` +
+  `analyze` tool) + future kinds (`.3`+: reset provenance, module reachability,
+  per-module depth). Updated `INDEX.md`, the task file, `docs/TASK_TREE.md` row,
+  `ROADMAP.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md`.
+
+**Why**
+
+The owner directed deep semantic introspection to be first-class and
+MCP-queryable. The existing surface is a complete *structural/metric projection*
+but silent on *derived relations*; this design adds that missing half through one
+clean, extensible, SCHEMA-DERIVED API — serving the north star (relational
+introspection helps agents localize/minimize downstream-tool failures).
+
+**Validation**
+
+Docs-only, no source change. Baseline `cargo check --all-targets` clean.
+`bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh`
+clean; `KNOWLEDGE_MAP.md` regenerated and in sync.
+
+**Impact**
+
+No behaviour change; default byte-identical. Sets up `.2` (the first live derived
+query + schema `1.3` + the MCP `analyze` tool).
+
+**Files touched**
+
+`docs/decisions/0011-semantic-introspection-derived-query-surface.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`.
+
 ## 2026-06-16 — SV-VERSION-TARGETING.3b.2a — live union soft low-bits-slice up-opt
 
-**Landed as:** this commit (previous: `eca5d8b`). Task-tree-owned by
+**Landed as:** `59e09c4` (previous: `eca5d8b`). Task-tree-owned by
 `SV-VERSION-TARGETING.3b.2a`. **The first version-distinctive up-opt now ships.**
 **Default-off / byte-identical** (`tests/snapshots.rs` 6/6 untouched).
 
