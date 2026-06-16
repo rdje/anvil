@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2a — combinational `function` impl design-detail
+
+**Landed as:** this commit (previous: `095e471`). **Docs-only** (no source
+change); DUT byte-identical. The design-detail leaf for `.2` — the first
+richer-structured surface (decision `0012`), the combinational `function
+automatic` emit-projection. Pins the `.2b` implementation shape before any code,
+grounded in the real emitter.
+
+**What changed (why)**
+
+`DEVELOPMENT_NOTES.md` gains a design-detail entry resolving the five `.2a`
+points against a fresh read of `src/emit/sv.rs` (`to_sv_with_modules` +
+`build_names`/`node_ref`/`render_gate`/`param_width_decl_w`), `src/ir/soft_union.rs`
++ `Module.soft_union_slice_gates` (the gen-time-annotation precedent), and the
+`aggregate_layout` projection:
+
+- **First-cut cone selection** — the **minimal cone**: wrap **one** selected
+  `Node::Gate` as a `function automatic` of its **direct operands** (operands are
+  already module-scope wires / literals ⇒ **zero** sharing/scoping hazard; the
+  richer multi-level-cone body, with private-internal gates as function locals, is
+  a recorded follow-up leaf, not the first cut). Candidate = a non-structured (not
+  `CaseMux`/`CasezMux`/`ForFold`), non-`soft_union`-marked `Gate` with `>= 1`
+  operand; selection rules-first at generation time.
+- **Mechanism** — gen-time annotation (the `soft_union.rs` precedent): a new
+  `src/ir/function_emit.rs` `annotate_function_emit_gates(m, rng, prob)` rolls
+  `gen_bool(prob)` per candidate into a new `Module.function_emit_gates:
+  BTreeSet<NodeId>` (an emitter-surface annotation only — flat IR / validators /
+  CSE / `canonical_module_signature` untouched), call-site-guarded on `prob > 0.0`
+  ⇒ default byte-identical.
+- **Rendering** — a `<wire>__f` `function automatic logic [W-1:0]` declaration
+  with **positional** params (so duplicate operands, e.g. `xor(n, n)`, get two
+  distinct params — no aliasing), body = `op` over the param names (a `render_gate`
+  positional variant), and the call site `assign <wire> = <wire>__f(<operand
+  refs>);` — behaviour-preserving by construction.
+- **Knob** — `Config::function_emit_prob` (default `0.0`) beside
+  `aggregate_prob`/`soft_union_slice_prob` ⇒ default byte-identical, snapshots
+  untouched.
+- **Downstream gate** — Verilator + both Yosys modes + Icarus warning-clean on a
+  new `saw_combinational_function_emit` coverage fact (+ a
+  `num_emitted_combinational_functions` metric), shape resolved in `.2b.2`.
+- Plus the rejected alternatives (multi-level cone body in the first cut; a pure
+  emit-time pass; node-id operand→param mapping) and the `.2b` pre-split.
+
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`: `.2a` marked done; `.2b` becomes a
+container pre-split into `.2b.1` (the live surface, **new frontier**) + `.2b.2`
+(the downstream gate + closeout); metadata / frontier / decisions / logs updated.
+`docs/TASK_TREE.md`: frontier `.2b.1`. `MEMORY.md`: resume pointer refreshed
+(backfilled the `.1` hash `095e471`; next = `.2b.1`).
+
+**Validation**
+
+No source change ⇒ no `cargo` gate required for this leaf (baseline `cargo check
+--all-targets` clean). `bash scripts/check_memory_architecture.sh` clean; `bash
+knowledge-map/scripts/check_knowledge_map.sh` in sync.
+
+**Impact**
+
+Pins the first structured-emission surface's implementation shape; no behavioural
+or wire change yet (the emitter work lands in `.2b.1`). DUT byte-identical.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.1 — activate lane + decision 0012
 
-**Landed as:** this commit (previous: `d7a7eef`). **Docs-only** (no source
+**Landed as:** `095e471` (previous: `d7a7eef`). **Docs-only** (no source
 change); DUT byte-identical. Activates the `STRUCTURED-EMISSION-EXPANSION` lane
 (by explicit owner directive, after `SEMANTIC-INTROSPECTION-EXPANSION` delivered
 all four query kinds) and lands its design/decision leaf.

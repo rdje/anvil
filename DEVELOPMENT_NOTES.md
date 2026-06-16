@@ -5,6 +5,147 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — combinational `function automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.2a`
+
+Design-detail leaf for `.2` — the first richer-structured surface (decision
+`0012`): a default-off, valid-by-construction combinational `function automatic`
+emit-projection. Docs-only (no source). Grounded in a fresh read of the real
+emitter + the two default-off emit-projection precedents:
+
+- **`src/emit/sv.rs`** — `to_sv_with_modules` emits, per `Node::Gate`, `assign
+  <names[idx]> = <render_gate(op, operands, m, &names)>;` (the gate-emission loop),
+  with the structured-gate (`CaseMux`/`CasezMux`/`ForFold`) and `soft_union`
+  overlay special-cases consulted first. Helpers: `build_names(m) ->
+  Vec<Option<String>>` (node id → wire name), `node_ref(id, m, &names)` (an operand
+  reference — a wire name, or a literal for a `Constant`), `render_gate(op,
+  operands, m, &names)` (the RHS expression), `param_width_decl_w(m, w)` (a
+  `[W-1:0]` width decl).
+- **`src/ir/soft_union.rs`** + `Module.soft_union_slice_gates: BTreeSet<NodeId>`
+  — the gen-time-annotation precedent: `annotate_soft_union_slices(m, rng, prob)`
+  collects qualifying candidates, rolls `rng.gen_bool(prob)` per candidate
+  (seeded; never `thread_rng`), inserts marks into a `Module` `BTreeSet<NodeId>`
+  that is "an emitter-surface annotation only — the flat IR body, validators, CSE
+  keys and `canonical_module_signature` are all untouched"; the call site guards on
+  `prob > 0.0` so the default (`0.0`) draws nothing ⇒ byte-identical stream +
+  output. The emitter consults the mark per node. This is the exact mechanism the
+  function-emit surface mirrors.
+
+### Q1 — first-cut cone selection: a single-gate "operand function" (the minimal cone)
+
+Decision `0012` describes the general shape (wrap a combinational cone, params =
+its support leaves). The **first concrete cut** is the *minimal* cone: wrap **one
+selected `Node::Gate`** as a `function automatic` of its **direct operands**. The
+operands are already module-scope wires (or literals) — every `NodeId` operand has
+a `build_names` wire (or `node_ref` literal) — so the call passes existing values
+and **nothing else in the module moves**. This sidesteps the sharing/scoping
+hazard of a multi-level cone (a cone-internal gate that is *also* referenced
+outside the cone cannot be moved into a function body without breaking the external
+reference); the single-gate form has **zero** such hazard because only the root's
+own `assign` RHS changes. A single-op function is still a genuine new structural
+surface (the tool must parse / elaborate / inline a `function automatic` decl +
+call). The richer **multi-gate-cone body** (private-internal gates as function
+locals, support leaves as params, dropping the private internals' module-scope
+assigns) is a recorded **follow-up leaf** once the basic surface is proven
+downstream-clean — it is the harder, sharing-aware version and stays out of the
+first cut.
+
+- **Candidate rule (rules-first):** a `Node::Gate` whose `op` is **not** a
+  structured gate (`CaseMux`/`CasezMux`/`ForFold` — those already have their own
+  procedural rendering) and is **not** already marked for the `soft_union` overlay
+  (disjoint from the existing per-node special-cases), and whose operand count is
+  `>= 1`. (Optionally restrict to `>= 2` operands so the function is non-trivial —
+  a `.2b` calibration knob; start permissive.) Selection is at construction time
+  (a gen-time annotation pass), never generate-then-filter.
+
+### Q2 — gen-time annotation (the `soft_union.rs` precedent), not an emit-time pass
+
+A new `src/ir/function_emit.rs` (or `src/emit/function_emit.rs`) carries
+`annotate_function_emit_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) ->
+usize`, mirroring `annotate_soft_union_slices`: collect candidate gate ids, roll
+`gen_bool(prob)` per candidate, insert into a new `Module.function_emit_gates:
+BTreeSet<NodeId>` (an **emitter-surface annotation only** — flat IR body /
+validators / CSE / `canonical_module_signature` untouched, default empty). The
+generator call site (beside the `soft_union` / `aggregate` rolls) guards on
+`function_emit_prob > 0.0`, so the default draws nothing from the RNG ⇒
+byte-identical stream + output. Rationale for gen-time (not pure emit-time): it
+matches the established precedent exactly, keeps the roll seeded/reproducible at
+the generation boundary, and leaves the emitter a pure projection of the mark.
+
+### Q3 — the `function automatic` signature + body rendering
+
+For a marked gate `g = op(o0, o1, …)` of width `W` (id `idx`, wire `names[idx]`):
+
+- **Declaration** (emitted near the top of the module body, before the gate
+  `assign`s — a new "function declarations" section, like the aggregate typedef
+  block): `function automatic logic [W-1:0] <names[idx]>__f(input logic [W0-1:0]
+  a0, input logic [W1-1:0] a1, …); <names[idx]>__f = <body>; endfunction`, where
+  `Wi = m.nodes[oi].width()` and the params are **positional** (`a0, a1, …`), one
+  per operand **position** (so a duplicated operand, e.g. `xor(n, n)`, gets two
+  distinct params bound to the same wire at the call — no aliasing ambiguity).
+- **Body**: `op` applied to the **positional param names**, produced by a
+  `render_gate`-parallel routine that renders the same RHS but substitutes `ai` for
+  each operand position instead of `node_ref(oi)`. (Implementation note for `.2b`:
+  either a small `render_gate_with_operand_names(op, &["a0","a1",…], …)` variant, or
+  reuse `render_gate` against a temporary name table mapping each operand id → its
+  positional param — but the temp-table approach breaks on duplicate operands, so
+  the positional-render variant is preferred.)
+- **Call site**: the gate's `assign <names[idx]> = <render_gate(...)>;` becomes
+  `assign <names[idx]> = <names[idx]>__f(<node_ref(o0)>, <node_ref(o1)>, …);`. The
+  operand refs are exactly today's `node_ref` outputs (wires / literals), so the
+  function is **behaviour-preserving by construction**.
+- Naming: `<wire>__f` mirrors the `soft_union` `<gate>__u` suffix convention;
+  `build_names` already guarantees unique gate wire names, so `__f` suffixes are
+  unique too. The function name is module-local (functions live in module scope).
+
+### Q4 — the `function_emit_prob` knob
+
+A new `Config::function_emit_prob: f64` (default `0.0`) beside `aggregate_prob` /
+`soft_union_slice_prob`, with a `default_function_emit_prob()` serde default
+(`0.0`). Default `0.0` ⇒ `annotate_function_emit_gates` is not called (call-site
+guard) ⇒ no RNG draw, nothing marked, `function_emit_gates` empty ⇒
+**byte-identical** (`tests/snapshots.rs` untouched). Surfaced in `--dump-config` /
+`--introspect` automatically (it is a `Config` field; the introspection schema is a
+serde projection of `Config`, so this is a `Config`-field MINOR bump — to be
+confirmed against the schema-version policy in `.2b`, like `sv_version`'s `1.1 →
+1.2`).
+
+### Q5 — the downstream gate
+
+A focused repo-owned gate proves the emitted functions are accepted
+**warning-clean** by Verilator + **both** Yosys modes + Icarus, gated on a new
+`saw_combinational_function_emit` coverage fact (the "prove the surface is
+accepted, not just produced" bar the prior breadth lanes hold — the
+`saw_sv_version_2023_soft_union_upopt` / `saw_packed_aggregate_design`
+precedent). Shape (a `tool_matrix` scenario or a dedicated bank) resolved in
+`.2b.2`; a `Metrics`/`DesignMetrics` count
+(`num_emitted_combinational_functions`, a structural scan of
+`function_emit_gates`) feeds the fact.
+
+### `.2b` pre-split
+
+Per the `soft_union` `.3b.2a`/`.3b.2b` + the SEMANTIC-INTROSPECTION `.Xb.1`/`.Xb.2`
+precedent, `.2b` pre-splits into:
+- **`.2b.1`** (the live surface, **new frontier**): `Config::function_emit_prob`
+  + `Module.function_emit_gates` + `src/ir/function_emit.rs`
+  (`annotate_function_emit_gates`) + the generator call-site roll + the emitter
+  `function automatic` decl/call rendering in `to_sv_with_modules` + lib proofs
+  (a marked gate emits a behaviour-preserving function + call; default-off
+  byte-identical; the mark leaves CSE / `canonical_module_signature` untouched).
+  Banked Verilator `--lint-only` clean on a forced-knob sample.
+- **`.2b.2`** (the repo-owned gate + closeout): the `saw_combinational_function_emit`
+  coverage fact + the `tool_matrix` scenario (Verilator + both Yosys + Icarus) +
+  the metric + book/USER_GUIDE/KM.
+
+### Rejected (at this design altitude)
+
+- **Multi-level cone body in the first cut** — rejected for the first cut (the
+  sharing/scoping hazard); a follow-up leaf, not a blocker.
+- **A pure emit-time selection pass** — rejected in favour of the gen-time
+  annotation (the `soft_union.rs` precedent: seeded, reproducible, emitter stays a
+  pure projection).
+- **Node-id operand→param name mapping** — rejected (breaks on duplicate
+  operands); positional params are used.
+
 ## 2026-06-16 — Semantic introspection — `module_reachability` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.5a`
 
 Design-detail leaf for `.5` — the **fourth** derived query, `module_reachability`:
