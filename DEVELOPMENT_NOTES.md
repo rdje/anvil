@@ -5,6 +5,46 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — picking the second surface (`generate for`) — `STRUCTURED-EMISSION-EXPANSION.3` (decision 0013)
+
+The owner steered the lane to its next surface (*"structured emission: next
+surface"* → `generate`). Two design points are worth recording beyond the
+decision record.
+
+**Why `generate for` and not `generate if` for the DUT lane.** ANVIL resolves
+*every* structural choice at construction time (seed-deterministic). So a
+`generate if` in the DUT lane would always have a **constant** predicate, and
+the elaborator would discard the untaken branch — the construct degenerates to
+"emit the taken branch with extra dead syntax around it." That is low
+DUT-stress value (the frontend lane already exercises `generate if` precisely
+because *there* the predicate is a real elaboration-time parameter expression).
+A `generate for` over a replication produces genuine repeated structure the
+elaborator must unroll — a real new elaboration surface. So the first generate
+cut is a loop, not a conditional.
+
+**The valid-by-construction source is the subtle part.** A faithful
+`generate for` needs N items that are **index-regular** — bit/lane `g` is a
+function of the genvar. ANVIL's emitted structure is mostly *not* index-regular:
+replicated child instances (hierarchy) have per-instance irregular connections;
+wide ops emit as a single `assign`. The one clean, already-present
+index-regular source is a **replication** `{N{x}}` (`GateOp::Concat` of one
+operand) — bit `g` is exactly `x` (or lane `g` of `x`). That makes it the
+function-emit analog: wrap an *existing, already-valid* node, behaviour-preserving
+by construction, default-off byte-identical. Pinning whether to also cover a
+`Concat` of N identical lanes, or to *construct* index-regular replicated
+instances rules-first, is the `.4a` open question — but the leading first cut is
+the pure `{N{x}}` projection, to stay strictly inside the emit-projection family
+(no new whole-module behaviour).
+
+**Evidence correction for `task`.** Decision `0012` deferred `task` citing weak
+Yosys synth support. An empirical probe this session (Verilator 5.046 `-Wall` +
+Yosys 0.64 both modes + Icarus `iverilog -g2012`) shows a **simple combinational
+void `task`** — an `always_comb`-called `task automatic` with a single
+`output`/`ref` — is accepted **clean** by all four tools. So the real caution is
+narrower: *multi-output / side-effecting / multi-statement* tasks are the risky
+ones, not combinational void tasks. `task` is therefore recorded as the
+**leading future** surface (`.5+`), not a weak also-ran — nothing is retired.
+
 ## 2026-06-16 — Structured emission — user-docs closeout + a config-overlay gotcha — `STRUCTURED-EMISSION-EXPANSION.2b.2c`
 
 The `.2b.2c` closeout is docs-only, but three choices are worth recording.

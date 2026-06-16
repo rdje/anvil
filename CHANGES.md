@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.3 — pick the second structured surface (`generate for` loop) + decision 0013
+
+**Landed as:** this commit (previous: `d6a8517`). **Docs-only / no source
+change** — a design/decision leaf. Owner steer (the *"structured emission: next
+surface"* selection) directed the lane to its next surface; this leaf picks the
+concrete one and writes its decision record, before any code.
+
+**What changed (why)**
+
+- **`docs/decisions/0013-structured-emission-second-surface-generate-loop.md`**
+  (new) + **`docs/decisions/INDEX.md`** row — decision `0013`: the **second**
+  richer-structured surface is a default-off, valid-by-construction **`generate
+  for` loop** emit-projection of an existing **replication** (leading source = a
+  `GateOp::Concat` of the `{N{x}}` form — an N-fold replication ANVIL already
+  builds, e.g. `assign concat_1 = {11{or_0}};`, which is *index-regular by
+  construction*), rendered as a single-level `genvar gi; generate for (gi=0;
+  gi<N; gi++) begin : <label> assign <wire>[gi] = <x>; end endgenerate` that
+  unrolls to exactly the inline replication. First cut = single-level (the
+  single-gate-function parallel); nested/multi-level generate = follow-up.
+- **Empirical grounding (this session, recorded in the decision + tree):** the
+  DUT emitter (`src/emit/sv.rs`) has **no** `generate`/`genvar` today; the
+  frontend lane (`src/frontend/mod.rs`) already emits `generate if`; and a
+  representative `generate for` lane unroll + a replication→`generate for`
+  projection are accepted **warning-clean** by Verilator 5.046 `-Wall
+  --lint-only` + both repo Yosys modes (`synth -noabc` and `abc -fast; opt
+  -fast; check`) + Icarus `iverilog -g2012`. A *simple combinational void*
+  `task` is **also** clean on this toolchain — so decision `0012`'s "weak task
+  synth" caution is, precisely, a multi-output/side-effecting caution; `task`
+  becomes the **leading future** surface (`.5+`), not retired.
+- **Chosen over** `task` (leading future), `interface`/`modport` (still weak /
+  version-inconsistent Yosys synth), and a constant-predicate `generate if`
+  (dead untaken branch ⇒ lower DUT value; the frontend lane already has it).
+- **Discipline:** rules-first (mark an already-valid replication node at
+  construction time; no generate-then-filter), default-off
+  `generate_loop_emit_prob` (proposed name; default `0.0`) ⇒ byte-identical /
+  snapshots untouched, no new IR node / no new whole-module behaviour (the
+  `soft_union`/aggregate/`function_emit` emit-projection precedent). Downstream
+  gate: Verilator + both Yosys modes + Icarus accept the loops warning-clean,
+  gated on a `saw_generate_loop_emit` fact.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** + **`docs/TASK_TREE.md`** —
+  `.3` marked done; `.4` (impl) added (pre-split `.4a` design-detail + `.4b`
+  impl); tree split `.3`/`.4`/`.5+`; frontier → `.4`; tree stays `active`.
+- **`docs/knowledge/...`** via **`KNOWLEDGE_MAP.md`** (regenerated 37→38 facts /
+  286→296 keys) — decision `0013` carries `answers:` front-matter, so it folds
+  into the map directly (no separate card needed for a design/decision leaf).
+- **`ROADMAP.md`** — the structured-emission block records `.3` done + the
+  `generate for` pick + frontier `.4`. **`MEMORY.md`** backfilled `d6a8517` and
+  refreshed (frontier now `.4`). **`DEVELOPMENT_NOTES.md`** — the `generate`
+  surface-selection rationale + the `task`-is-also-clean evidence.
+
+**Validation**
+
+- `bash knowledge-map/scripts/gen_knowledge_map.sh` (38 facts / 296 keys) +
+  `bash knowledge-map/scripts/check_knowledge_map.sh` ✅ (facts valid, ids
+  unique, map in sync); `bash scripts/check_memory_architecture.sh` ✅ (`0013`
+  indexed, all invariants hold); `mdbook build book` ✅.
+- Empirical tool-acceptance probe (Verilator `-Wall` + both Yosys modes +
+  Icarus) on `generate for` and a combinational void `task` — both clean.
+- No source touched ⇒ `cargo check/clippy/fmt/test` unaffected.
+
+**Impact**
+
+- The lane's next surface is decided and grounded; `.4` can implement the
+  `generate for` projection directly. No behaviour or output change.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2c — combinational `function automatic` user docs (book chapter + knob entries + KM card)
 
-**Landed as:** this commit (previous: `3c63f96`). **Docs-only / DUT
+**Landed as:** `d6a8517` (previous: `3c63f96`). **Docs-only / DUT
 byte-identical** — no `src/`, `tests/`, or `examples/` touched. The user-facing
 closeout of the combinational `function automatic` emit-projection
 (`STRUCTURED-EMISSION-EXPANSION.2b.2c`), owned by the existing `.2b.2c` leaf.

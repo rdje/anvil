@@ -260,10 +260,23 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    card `combinational-function-emit`; docs-only / DUT byte-identical). **The
    first structured surface (the combinational `function automatic`
    emit-projection) is now delivered end-to-end** — `.2`/`.2b`/`.2b.2` all
-   close. `task`, nested `generate`, `interface`/`modport` are future vetted
-   surfaces (`.3`+), each with its own decision; the tree stays `active` as an
-   open-ended lane with no current frontier (next surface awaits owner/PNT
-   selection of a `.3` design leaf). Serves ROADMAP steering gap 1 (richer
+   close. **`.3` design done `2026-06-16`** (decision
+   [`0013`](docs/decisions/0013-structured-emission-second-surface-generate-loop.md),
+   by owner steer *"structured emission: next surface"* → `generate`): the
+   **second** surface is a default-off, valid-by-construction **`generate for`
+   loop** emit-projection of an existing `{N{x}}` replication (index-regular by
+   construction), chosen over `task` (also clean for *simple combinational void*
+   tasks on the current toolchain — the leading **future** candidate, `.5+`, not
+   retired), `interface`/`modport` (still weak Yosys synth), and
+   constant-predicate `generate if` (dead untaken branch; the frontend lane
+   already exercises it). Empirically grounded clean across Verilator `-Wall` +
+   both Yosys modes + Icarus; the DUT emitter has no `generate`/`genvar` today,
+   the frontend lane has `generate if`. Rules-first / default-off
+   `generate_loop_emit_prob` (proposed) ⇒ byte-identical; downstream gate
+   `saw_generate_loop_emit`. **Frontier = `.4`** (impl; pre-split `.4a`
+   design-detail + `.4b` impl). `task` (leading), nested/multi-level `generate`,
+   `interface`/`modport` are future vetted surfaces (`.5`+), each with its own
+   decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer
    structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +

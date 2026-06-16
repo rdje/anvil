@@ -28,6 +28,7 @@ Decision records may also carry Knowledge Map front matter. A non-empty
 | [0010](0010-sv-version-first-upopt-soft-packed-union.md) | ANVIL's first version-distinctive up-opt is a heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1), default-off / byte-identical | 2026-06-16 | accepted | capability, sv-version, up-opt, emission, downstream, soft-union, 2023, valid-by-construction, north-star |
 | [0011](0011-semantic-introspection-derived-query-surface.md) | ANVIL gains a first-class, MCP-queryable, SCHEMA-DERIVED derived-relation introspection API; the first query is the transitive support cone of an output | 2026-06-16 | accepted | introspection, mcp, semantic, derived-query, schema-derived, agent, api, north-star |
 | [0012](0012-structured-emission-first-surface-combinational-function.md) | ANVIL's first richer-structured SV surface is a default-off, valid-by-construction combinational `function automatic` emit-projection of an existing cone | 2026-06-16 | accepted | capability, structured-emission, function, emission, downstream, valid-by-construction, rules-first, breadth, north-star |
+| [0013](0013-structured-emission-second-surface-generate-loop.md) | ANVIL's second richer-structured SV surface is a default-off, valid-by-construction `generate for` loop emit-projection of an existing replicated construction | 2026-06-16 | accepted | capability, structured-emission, generate, genvar, emission, downstream, valid-by-construction, rules-first, breadth, north-star |
 
 ## How To Add A Record
 
