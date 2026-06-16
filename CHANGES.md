@@ -1,9 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.3 — `generate for` loop user docs
+
+**Landed as:** this commit (previous: `2129035`). The user-facing closeout of
+the second structured surface — docs-only, DUT byte-identical (no `src/`
+touched). **With this leaf the `generate for` loop surface (decision `0013`) is
+delivered end-to-end and `.4b.3` / `.4b` / `.4` all close.**
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** — a new `## The second surface: a
+  generate for loop` section: the index-regular `{N{x}}` source rationale; a
+  **byte-verified seed-12 before/after** (the inline `assign concat_0 =
+  {5{slice_0}};` becomes a `genvar concat_0__gi; generate for (concat_0__gi = 0;
+  concat_0__gi < 5; concat_0__gi = concat_0__gi + 1) begin : concat_0__gen
+  assign concat_0[concat_0__gi] = slice_0; end endgenerate` block — everything
+  else byte-identical); the `{N{x}}` 1-bit-lane qualification rule (`W == N` ⇒
+  bit-faithful); the wider-lane part-select exclusion (a recorded follow-up;
+  nothing retired); the `function_emit` mutual exclusion; the `gi = gi + 1`
+  increment; the `num_emitted_generate_loops` metric (@ schema `1.9`) + the
+  `tool_matrix --generate-loop-gate` proof; a skip-sentinelled repro `bash`
+  block. The chapter intro now notes `generate` is live.
+- **`book/src/knobs.md`** — the `generate_loop_emit_prob` knob added to the
+  `### Structured emission` subsection beside `function_emit_prob` (config-file
+  only; the qualification rule; mutual exclusion; metric + gate).
+- **`USER_GUIDE.md`** — the `generate_loop_emit_prob` knob bullet after the
+  `function_emit_prob` one (intro pluralised to "surfaces … knobs").
+- **README "Current CLI truth"** — a `generate_loop_emit_prob` config-file knob
+  bullet after the `function_emit_prob` one.
+- **`docs/knowledge/generate-loop-emit.md`** (new KM how-to card, id
+  `generate-loop-emit`) — how-to question keys distinct from decision `0013`'s
+  conceptual keys + a validated `reverify` command (dump-config → set
+  `generate_loop_emit_prob=1.0` + a small comb shape → generate seed 12 → grep
+  `generate` → `verilator --lint-only`). KM regenerated 38→39 facts / 296→309
+  keys.
+
+**Validation**
+
+- Docs-only — **no `src/` touched** ⇒ `cargo check/clippy/fmt` unaffected.
+  `mdbook build book` clean (no broken-link warnings); `bash
+  knowledge-map/scripts/gen_knowledge_map.sh` (39 facts / 309 keys) +
+  `check_knowledge_map.sh` **OK** (map in sync); `bash
+  scripts/check_memory_architecture.sh` all invariants hold; `cargo test --test
+  book_examples` **3/3** (the new repro block correctly skip-sentinelled).
+- The book example is byte-verified against the release binary: seed-12
+  `generate_loop_emit_prob` 0.0→1.0 diff = exactly the `{5{slice_0}}` replication
+  becoming the `genvar`/`generate for` block; the example lints clean under
+  `verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus.
+
+**Impact**
+
+- The user-facing surface (book + knob reference + README/USER_GUIDE CLI truth +
+  KM) now documents the `generate for` loop emit-projection. The second
+  structured surface is delivered end-to-end; `STRUCTURED-EMISSION-EXPANSION`
+  stays `active` as an open-ended lane with no current frontier (`.5+` future
+  surfaces each their own decision). Nothing retired.
+
+**Files touched:** `book/src/structured-emission.md`, `book/src/knobs.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/generate-loop-emit.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.2b — `generate for` loop tool_matrix gate
 
-**Landed as:** this commit (previous: `678b682`). The repo-owned downstream gate
+**Landed as:** `2129035` (previous: `678b682`). The repo-owned downstream gate
 for the `generate for` loop surface — the harness-only proof axis. Closes
 `.4b.2`. Default-off / DUT byte-identical (harness-only; the generator is
 untouched, snapshots 6/6).

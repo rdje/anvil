@@ -750,6 +750,27 @@ exercising adversarial axes that previously fired only by chance
   emitted-function count is surfaced as
   `num_emitted_combinational_functions` in `--introspect` (schema
   `1.8`). Set it via `--config` JSON. See `book/src/structured-emission.md`.
+- `generate_loop_emit_prob` is a default-off config-file knob (no CLI
+  flag, like `function_emit_prob` / `soft_union_slice_prob`;
+  `STRUCTURED-EMISSION-EXPANSION.4b.1`, decision `0013`) — ANVIL's
+  **second richer-structured emission surface**. Per *qualifying* `{N{x}}`
+  replication (a `Concat` of `N >= 2` operands that are all the *same*
+  signal, with a **1-bit lane** — the common one-hot `{W{sel}}` mux-mask
+  idiom), it is the probability the emitter re-renders it as a single-level
+  `generate for` loop (`genvar <wire>__gi; generate for (<wire>__gi=0;
+  <wire>__gi<N; <wire>__gi=<wire>__gi+1) begin : <wire>__gen assign
+  <wire>[<wire>__gi] = <x>; end endgenerate`) instead of the inline
+  `assign <wire> = {N{x}};`. The unrolled loop is exactly `{N{x}}`, so it
+  is a behaviour-preserving **emit-time projection** (no new IR node / no
+  new computed truth — the `function_emit`/`soft_union`/aggregate
+  precedent), rules-first. A **wider lane** would need a part-select body
+  and stays inline (a recorded follow-up; nothing retired); the projection
+  is mutually exclusive with `function_emit_prob` on a gate; the increment
+  is the maximally-portable `gi = gi + 1`. Combinational only. Default
+  `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
+  emitted-loop count is surfaced as `num_emitted_generate_loops` in
+  `--introspect` (schema `1.9`). Set it via `--config` JSON. See
+  `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first

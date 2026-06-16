@@ -507,6 +507,38 @@ instead of creating fresh logic.
   Icarus; `saw_combinational_function_emit`). See
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
+- `generate_loop_emit_prob` (config-file only — no CLI flag, like
+  `function_emit_prob`; default `0.0` ⇒ byte-identical; validated
+  `0.0..=1.0`) — the **second richer-structured emission surface**
+  (decision `0013`). Probability, per *qualifying* `{N{x}}` replication,
+  that anvil re-renders it as a single-level `generate for` loop instead
+  of an inline `assign`:
+
+  ```systemverilog
+  genvar concat_0__gi;
+  generate
+      for (concat_0__gi = 0; concat_0__gi < 5; concat_0__gi = concat_0__gi + 1) begin : concat_0__gen
+          assign concat_0[concat_0__gi] = slice_0;   // was: assign concat_0 = {5{slice_0}};
+      end
+  endgenerate
+  ```
+
+  It is an **emit-time projection** of an already-valid replication — the
+  unrolled loop is exactly `{N{x}}`, so it is **behaviour-preserving** and
+  adds no new IR truth (the `function_emit_prob` precedent). Selection is
+  rules-first at construction time. A replication qualifies when it is a
+  `Concat` of `N ≥ 2` operands that are all the **same** signal **and**
+  the replicated lane is **1 bit** wide (⇒ result width `N`, so
+  `<wire>[gi] = x` is bit-faithful); a **wider lane** would need a
+  part-select body and stays inline (a recorded follow-up; nothing
+  retired). Mutually exclusive with `function_emit_prob` on a gate.
+  Combinational only. `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_generate_loops` metric in `--introspect` (schema `1.9`).
+  Proven downstream-clean by the repo-owned
+  `tool_matrix --generate-loop-gate` (Verilator + both Yosys modes +
+  Icarus; `saw_generate_loop_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full
+  walk-through.
 
 ### Hierarchy knobs (Phase 4+)
 

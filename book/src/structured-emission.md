@@ -10,10 +10,10 @@ By default that shape is deliberately flat: a `module`, one `assign`
 output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
-construction in a richer SystemVerilog surface — a `function`, and
-later a `task`, nested `generate`, or an `interface` — so the tools
-have more legal structural variety to ingest, and more places to trip
-over a real bug. (That bug-surfacing purpose is the
+construction in a richer SystemVerilog surface — today a `function`
+and a `generate for` loop, and later a `task`, nested `generate`, or an
+`interface` — so the tools have more legal structural variety to ingest,
+and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
 *shape*, never *behaviour*.)
 
@@ -177,3 +177,118 @@ it. Two repo-owned mechanisms back this surface:
 See the [Knobs reference](knobs.md#structured-emission) for the knob
 itself; the `tool_matrix --function-emit-gate` acceptance gate is
 documented in `USER_GUIDE.md` and `README.md`.
+
+## The second surface: a `generate for` loop
+
+The second structured surface is a **`generate for` loop**. A
+`generate` loop produces genuine *repeated* structure that an elaborator
+must unroll — a richer thing to ingest than a flat `assign`. But a
+faithful loop needs an **index-regular** source: bit (or lane) `g` of
+the result has to be a clean function of the loop variable, or the
+unrolled loop would not match what anvil already decided to build.
+
+anvil's one cleanly index-regular construction is a **replication** of
+the `{N{x}}` form — the `concat_0 = {5{slice_0}}` broadcast anvil
+routinely emits (it is the idiom for fanning a 1-bit select out across a
+mask in one-hot muxes). Bit `g` of `{N{x}}` is *exactly* `x`, so the
+replication re-renders as a loop with no change in meaning. It is
+governed by one config-file knob,
+[`generate_loop_emit_prob`](knobs.md#structured-emission) (default
+`0.0`), so with the knob off the output is byte-identical.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the
+default). The 5-bit replication `concat_0` is printed inline:
+
+```systemverilog
+    wire  slice_0;
+    wire [4:0] concat_0;
+
+    assign slice_0 = i_2;
+    assign concat_0 = {5{slice_0}};
+
+    assign o_0 = concat_0;
+```
+
+With `generate_loop_emit_prob = 1.0`, the *same* `concat_0` replication
+is projected to a single-level `generate for` loop over its 5 bits, and
+the inline `assign concat_0 = {5{slice_0}};` is suppressed. Nothing else
+in the module moves:
+
+```systemverilog
+    wire  slice_0;
+    wire [4:0] concat_0;
+
+    genvar concat_0__gi;
+    generate
+        for (concat_0__gi = 0; concat_0__gi < 5; concat_0__gi = concat_0__gi + 1) begin : concat_0__gen
+            assign concat_0[concat_0__gi] = slice_0;
+        end
+    endgenerate
+
+    assign slice_0 = i_2;
+
+    assign o_0 = concat_0;
+```
+
+The unrolled loop assigns `concat_0[0] … concat_0[4]` each to `slice_0`
+— exactly `{5{slice_0}}` — so the module's behaviour is unchanged. The
+only difference is a `generate` / `genvar` construct (the DUT lane's
+first) for the tools to parse, elaborate, and unroll.
+
+### What gets wrapped (and what doesn't)
+
+Like the function surface, selection is **rules-first**
+([by construction](by-construction.md)): at construction time anvil rolls
+`generate_loop_emit_prob` for each *qualifying* replication and marks the
+winners. A replication qualifies when it is a `{N{x}}` `Concat` — `N ≥ 2`
+operands that are all the **same** signal — **and** the replicated lane
+`x` is exactly **1 bit** wide. With a 1-bit lane the result width is
+exactly `N`, so the loop body `assign <wire>[gi] = x;` is bit-faithful.
+
+A *wider* lane (say `{4{byte}}` where `byte` is 8 bits) is still
+index-regular but would need a part-select body
+(`<wire>[gi*8 +: 8] = byte`); that is a recorded follow-up. Until then a
+wider replication stays inline — **nothing is retired**. The
+`generate for` and `function automatic` projections are also mutually
+exclusive on a gate (a replication marked for one is never also marked
+for the other).
+
+The loop increment is written `gi = gi + 1` — the most portable form,
+accepted identically by every repo tool (`gi++` is equally valid and is
+not foreclosed).
+
+### How anvil proves it
+
+The same two-mechanism proof as the function surface:
+
+- A `num_emitted_generate_loops` metric (a post-hoc count of the marked
+  replications) is surfaced in the
+  [introspection document](agent-mcp.md) (schema `1.9`).
+- The repo-owned `tool_matrix --generate-loop-gate` forces
+  `generate_loop_emit_prob = 1.0` over comb-only DUTs across all three
+  construction strategies and fails unless the emitted loops are accepted
+  **warning-clean** by Verilator and both Yosys modes (and Icarus when
+  enabled), gated on a `saw_generate_loop_emit` coverage fact. It is
+  banked clean (3 scenarios / 12 modules / `coverage_gaps = []`).
+
+The picked-second rationale (a `generate for` over `task` /
+`interface` / a constant-predicate `generate if`) is recorded in decision
+`0013`
+(`docs/decisions/0013-structured-emission-second-surface-generate-loop.md`).
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 12 --dump-config > base.json
+# edit base.json: set "generate_loop_emit_prob": 1.0 (a small comb-only shape makes the
+# one loop easy to read: "flop_prob": 0.0, "constant_prob": 0.0, "min_width": 4,
+# "max_width": 8, "min_inputs": 3, "max_inputs": 5, "min_outputs": 1, "max_outputs": 2,
+# "max_depth": 3)
+anvil --seed 12 --config base.json
+```
+
+Flip `generate_loop_emit_prob` back to `0.0` and the output is
+byte-identical to the default lane.

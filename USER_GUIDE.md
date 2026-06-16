@@ -328,8 +328,8 @@ The `--sv-version 2023` target unlocks the first version-distinctive
   and are a recorded no-op. Set it in a `--config` JSON, e.g.
   `{ "seed": 1, "soft_union_slice_prob": 1.0, "sv_version": "2023", … }`.
 
-The richer-structured **emission** surface has its own config-file knob
-(no CLI flag, like `soft_union_slice_prob`):
+The richer-structured **emission** surfaces have their own config-file
+knobs (no CLI flag, like `soft_union_slice_prob`):
 
 - `function_emit_prob` (default `0.0`) — the probability, per
   *qualifying* combinational `Gate`, that anvil re-renders it as a
@@ -352,6 +352,26 @@ The richer-structured **emission** surface has its own config-file knob
   surface is proven downstream-clean by `tool_matrix --function-emit-gate`
   (see the matrix section below). Full walk-through:
   `book/src/structured-emission.md`.
+- `generate_loop_emit_prob` (default `0.0`) — the probability, per
+  *qualifying* `{N{x}}` replication, that anvil re-renders it as a
+  single-level `generate for` loop instead of an inline `assign`
+  (decision `0013`, the **second** richer-structured emission surface).
+  It is an **emit-time projection** of an already-valid replication — the
+  unrolled loop is exactly `{N{x}}`, so it is behaviour-preserving and
+  adds no new IR truth (the `function_emit_prob` precedent). A replication
+  qualifies when it is a `Concat` of `N ≥ 2` operands that are all the
+  **same** signal **and** the replicated lane is **1 bit** wide (⇒ result
+  width `N`, so `<wire>[gi] = x` is bit-faithful); a **wider lane** would
+  need a part-select body and stays inline (a recorded follow-up; nothing
+  retired). Mutually exclusive with `function_emit_prob` on a gate; the
+  loop increment is the maximally-portable `gi = gi + 1`. Combinational
+  only. `default = 0.0` is byte-identical; the emitted-loop count is
+  surfaced as `num_emitted_generate_loops` in `--introspect` (schema
+  `1.9`). Set it in a `--config` JSON, e.g.
+  `{ "seed": 12, "generate_loop_emit_prob": 1.0, "flop_prob": 0.0, … }`.
+  The surface is proven downstream-clean by
+  `tool_matrix --generate-loop-gate` (see the matrix section below). Full
+  walk-through: `book/src/structured-emission.md`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

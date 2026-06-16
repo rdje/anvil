@@ -6,9 +6,20 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.4b.2b` landed — the repo-owned `tool_matrix
-  --generate-loop-gate`; `.4b.2` closes; frontier → `.4b.3` (the user-facing
-  closeout).** `src/bin/tool_matrix.rs` gains `--generate-loop-gate` +
+- Last updated: `2026-06-16` (**`.4b.3` landed — the user-facing closeout; the
+  SECOND structured surface (the `generate for` loop) is delivered end-to-end;
+  `.4b.3` / `.4b` / `.4` all close; the lane returns to no-active-frontier
+  (open-ended).** Docs-only / DUT byte-identical: a `## The second surface: a
+  generate for loop` section in `book/src/structured-emission.md` (byte-verified
+  seed-12 before/after; the `{N{x}}` 1-bit-lane rule; the wider-lane exclusion;
+  the `function_emit` mutual exclusion; the `gi = gi + 1` form; metric + gate) +
+  the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` /
+  `USER_GUIDE.md` / README + the KM how-to card `generate-loop-emit` (39 facts /
+  309 keys). `mdbook build` + `check_knowledge_map` + `check_memory_architecture`
+  + `cargo test --test book_examples` 3/3 green. Prior: **`.4b.2b` landed — the
+  repo-owned `tool_matrix --generate-loop-gate`; `.4b.2` closes; frontier →
+  `.4b.3` (the user-facing closeout).** `src/bin/tool_matrix.rs` gains
+  `--generate-loop-gate` +
   `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` +
   `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` +
   `MatrixReport.generate_loop_gate` + 5 proofs + 6 fixture updates; README +
@@ -202,9 +213,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the second structured surface (the generate for loop emit-projection) per decision 0013: the generate_loop_emit_prob knob + the rules-first replication-node selection + the emitter rendering (genvar + generate for + call-site suppression of the inline replication assign) + the downstream-clean gate (saw_generate_loop_emit) + book/USER_GUIDE/KM. Default-off / DUT byte-identical.`
   Children: `STRUCTURED-EMISSION-EXPANSION.4a`, `STRUCTURED-EMISSION-EXPANSION.4b`
+  Result: `Done (closed by .4b.3, 2026-06-16). The second structured surface — the generate for loop emit-projection of a {N{x}} 1-bit-lane replication (decision 0013) — is delivered end-to-end: .4a (design-detail) + .4b.1 (live surface: generate_loop_emit_prob knob + Module.generate_loop_gates + src/ir/generate_loop.rs + the to_sv_with_modules rendering + 9 lib proofs) + .4b.2a (num_emitted_generate_loops metric + introspection schema 1.9) + .4b.2b (the repo-owned tool_matrix --generate-loop-gate, banked /tmp/anvil-generate-loop-gate-r1) + .4b.3 (book/knobs/USER_GUIDE/README/KM closeout). Default-off / DUT byte-identical throughout (snapshots 6/6). Nothing retired.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4a`
   Status: `done`
@@ -215,9 +227,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the .4a design: the generate_loop_emit_prob knob + Module.generate_loop_gates + src/ir/generate_loop.rs + the emitter rendering + lib proofs (.4b.1) + the repo-owned tool_matrix --generate-loop-gate + the num_emitted_generate_loops metric + saw_generate_loop_emit (.4b.2) + book/USER_GUIDE/README/KM closeout (.4b.3). Default-off / DUT byte-identical (snapshots untouched).`
   Children: `STRUCTURED-EMISSION-EXPANSION.4b.1`, `STRUCTURED-EMISSION-EXPANSION.4b.2`, `STRUCTURED-EMISSION-EXPANSION.4b.3`
+  Result: `Done (closed by .4b.3, 2026-06-16). All of .4b.1 (live surface), .4b.2 (.4b.2a metric + schema 1.9 + .4b.2b the tool_matrix gate), and .4b.3 (docs closeout) complete. The generate for loop emit-projection is delivered end-to-end and downstream-clean (banked /tmp/anvil-generate-loop-gate-r1). Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.1`
   Status: `done`
@@ -250,27 +263,28 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.3`
-  Status: `pending`
+  Status: `done`
   Goal: `The user-facing closeout: extend the How It Works book chapter book/src/structured-emission.md with the generate for loop surface (byte-verified before/after; the {N{x}} 1-bit-lane rule; the wider-lane exclusion; the gi=gi+1 form) + the generate_loop_emit_prob knob entry in book/src/knobs.md / USER_GUIDE.md / README "Current CLI truth" (config-file-only knob) + a Knowledge Map how-to card if warranted (decision 0013 already carries answers:). Default-off / DUT byte-identical (docs-only).`
   Acceptance: `book builds (mdbook build book); USER_GUIDE + README updated; KM regenerated + check_knowledge_map clean; self-checks clean; cargo test --test book_examples 3/3; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. book/src/structured-emission.md gains a "## The second surface: a generate for loop" section (the index-regular {N{x}} source rationale; a BYTE-VERIFIED seed-12 before/after — the inline assign concat_0 = {5{slice_0}}; becomes the genvar/generate for block, everything else byte-identical; the 1-bit-lane qualification rule + the wider-lane part-select exclusion [nothing retired] + the function_emit mutual exclusion; the gi = gi + 1 increment note; the num_emitted_generate_loops metric @ schema 1.9 + the tool_matrix --generate-loop-gate proof; a skip-sentinelled repro bash block) + the chapter intro updated to note generate is now live. The generate_loop_emit_prob knob entry added to book/src/knobs.md (the ### Structured emission subsection, beside function_emit_prob), USER_GUIDE.md (after the function_emit_prob config-knob bullet; intro pluralised), and the README "Current CLI truth" (a config-file-only knob bullet after the function_emit_prob bullet). New Knowledge Map how-to card docs/knowledge/generate-loop-emit.md (id generate-loop-emit) with how-to question keys distinct from decision 0013's conceptual keys + a validated reverify command (dump-config -> set generate_loop_emit_prob=1.0 + small comb shape -> generate seed 12 -> grep "generate" -> verilator --lint-only). KM regenerated (38 -> 39 facts, 296 -> 309 question keys). The book example is byte-verified downstream-clean (Verilator -Wall with the matching filename + both Yosys + Icarus). Docs-only / DUT byte-identical (no source touched). With this leaf, .4b.3 / .4b / .4 all close: the second structured surface (the generate for loop emit-projection) is delivered end-to-end. The tree stays active as an open-ended lane with no current frontier; future surfaces (task / nested generate / interface/modport) are .5+, each its own decision when picked. Nothing retired.`
+  Verification: `mdbook build book clean (HTML written, no broken-link warnings); bash knowledge-map/scripts/gen_knowledge_map.sh (39 facts / 309 keys) + bash knowledge-map/scripts/check_knowledge_map.sh OK (facts valid, ids unique, map in sync); bash scripts/check_memory_architecture.sh all invariants hold (0013 indexed); cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — the new repro block correctly skip-sentinelled). Docs-only: no src/ touched, so cargo check/clippy/fmt unaffected; the seed-12 before/after was byte-verified against the release binary (generate_loop_emit_prob 0.0 vs 1.0 diff = exactly the {5{slice_0}} replication becoming the genvar/generate for block) and the example lints clean under verilator --lint-only -Wall (matching filename) + both Yosys + Icarus.`
+  Commit: `done`
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.4b.3`** (the user-facing
-closeout — the book chapter extension + the `generate_loop_emit_prob` knob entry
-in `book/src/knobs.md` / `USER_GUIDE.md` / README + a KM card). `.4b.2` is now
-**done** (`.4b.2a` metric + schema `1.8→1.9` + `.4b.2b` the repo-owned
-`tool_matrix --generate-loop-gate`, banked clean). `.4b.1` (live surface) + `.4a`
-+ `.4` + `.3` are done. The first structured surface (the combinational
-`function automatic`, `.1`+`.2`) is delivered end-to-end. Future surfaces
-(`task` [leading], nested/multi-level `generate`, `interface`/`modport`) are
-`.5+`, each its own decision. Nothing retired.
+**No active frontier.** The `STRUCTURED-EMISSION-EXPANSION` tree stays `active`
+as an open-ended capability lane, but **both delivered surfaces are complete
+end-to-end**: the **first** (the combinational `function automatic`
+emit-projection, `.1`+`.2`) and the **second** (the `generate for` loop
+emit-projection of a `{N{x}}` 1-bit-lane replication, `.3`+`.4`, decision
+`0013`) — `.4b.3` (`2026-06-16`) closed the second surface's user-facing
+closeout, so `.4b`/`.4` close. Future surfaces (`task` [leading],
+nested/multi-level `generate`, `interface`/`modport`) are `.5+`, each its own
+decision when picked. Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `generate for` loop surface (byte-verified before/after; the `{N{x}}` 1-bit-lane rule; the wider-lane exclusion; the `gi = gi + 1` form) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted. Docs-only / DUT byte-identical. With this leaf the `generate for` loop surface (decision `0013`) is delivered end-to-end and the `STRUCTURED-EMISSION-EXPANSION` lane returns to no-active-frontier (open-ended; `.5+` future surfaces each their own decision). |
+| — | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `done` | The user-facing closeout of the SECOND surface: a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` (byte-verified seed-12 before/after — the inline `{5{slice_0}}` becomes the `genvar`/`generate for` block; the `{N{x}}` 1-bit-lane rule; the wider-lane part-select exclusion; the `function_emit` mutual exclusion; the `gi = gi + 1` form; metric + gate) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` (the `### Structured emission` subsection), `USER_GUIDE.md`, and the README "Current CLI truth" (config-file-only knob) + the Knowledge Map how-to card `generate-loop-emit` (KM 38→39 facts / 296→309 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `done` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (one comb-only `generate_loop_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` coverage fact + early-return gap enforcement + 5 cargo-portable proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). Templated on `--function-emit-gate`. Default-off / DUT byte-identical (snapshots 6/6). |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `done` | The metric `Metrics::num_emitted_generate_loops` (`= m.generate_loop_gates.len()`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.8 → 1.9`. Lib proof; `cargo test --lib` 478 + snapshots 6/6 + mdbook all green; end-to-end introspect default `0` / forced `50`. Precedented (`1.7→1.8` `num_emitted_combinational_functions`). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.1` | `done` | Live surface delivered: `Config::generate_loop_emit_prob` + `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` (`annotate_generate_loop_gates`, the `{N{x}}` 1-bit-lane replication candidate predicate excluding function-emit marks) + the two guarded gen-time call-site rolls (after function_emit) + the `to_sv_with_modules` `generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block section + the assign-loop inline-replication suppression + 9 lib proofs. Increment form `gi = gi + 1` (the portable form; `gi++` not retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6; lib 477); forced `generate_loop_emit_prob=1.0` sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-gl-r1/`, 5 seeds, 62–168 loops each). |
@@ -360,6 +374,7 @@ in `book/src/knobs.md` / `USER_GUIDE.md` / README + a KM card). `.4b.2` is now
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.3` | **User-facing closeout, docs-only** (a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` + the intro update + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` `### Structured emission` + `USER_GUIDE.md` + README "Current CLI truth" + new KM card `docs/knowledge/generate-loop-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**39 facts / 309 keys**, was 38 / 296) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0013` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-12 `generate_loop_emit_prob` 0.0→1.0 diff = exactly the `{5{slice_0}}` replication becoming the `genvar`/`generate for` block (rest byte-identical); the example lints clean under `verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus. With this leaf `.4b.3`/`.4b`/`.4` all close — the second structured surface is delivered end-to-end. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--generate-loop-gate` + `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios`/`generate_loop_focus_config` + `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` + `MatrixReport.generate_loop_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **63 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-generate-loop-gate-r1` (`--generate-loop-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **8 emitting a generate loop** / `coverage_gaps = []` / `saw_generate_loop_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_generate_loops` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.8→1.9` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.8→1.9` changelog entry + the defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--introspect` ref; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **478 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.9`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.9"` + metric `0`; forced `generate_loop_emit_prob=1.0` ⇒ `1.9` + `50`. `mdbook build book` OK. Historical "landed at schema X" attributions left intact (`num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.1` | **Live emitter change** (`src/config.rs` `generate_loop_emit_prob` knob + `src/ir/types.rs` `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` annotate pass + `src/ir/mod.rs` registration + `src/gen/mod.rs` two call-site rolls after function_emit + `src/emit/sv.rs` `generate for` block rendering + assign-loop suppression; `DEVELOPMENT_NOTES.md` + `CODEBASE_ANALYSIS.md` updated). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **477 passed** / 2 ignored (incl. 9 new `generate_loop` proofs; introspect `schema_version` 1.8 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `generate_loop_emit_prob=1.0` sweep (5 seeds 1–5, 62–168 loops each, banked `/tmp/anvil-gl-r1/`): Verilator `--lint-only` **5/5 rc=0 / 0 warnings** (repo bar), **`-Wall` ON-vs-OFF delta = 0** (the change adds no new warnings; residual `-Wall UNUSEDSIGNAL` is pre-existing, identical ON and OFF), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5**. Increment form `gi = gi + 1` (the portable form; `gi++` not retired). No schema bump (default-off prob-knob precedent; the `.4b.2` metric bumps `1.8→1.9`). | `done` |
@@ -377,6 +392,7 @@ in `book/src/knobs.md` / `USER_GUIDE.md` / README + a KM card). `.4b.2` is now
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.4b.3` | `STRUCTURED-EMISSION-EXPANSION.4b.3 — generate-for loop user docs` | Docs-only closeout: a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` (byte-verified seed-12 before/after; the `{N{x}}` 1-bit-lane rule; wider-lane exclusion; `function_emit` mutual exclusion; `gi = gi + 1`) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `generate-loop-emit` (39 facts / 309 keys). Closes `.4b.3` / `.4b` / `.4` — the second structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `STRUCTURED-EMISSION-EXPANSION.4b.2b — generate-loop tool_matrix gate` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (comb-only `generate_loop_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` fact + early-return gap enforcement + 5 proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Default-off / DUT byte-identical (snapshots 6/6). Closes `.4b.2`; frontier → `.4b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `STRUCTURED-EMISSION-EXPANSION.4b.2a — generate-loop emit metric + introspection schema 1.9` | `Metrics::num_emitted_generate_loops` (= `generate_loop_gates.len()`) + introspection schema MINOR bump `1.8 → 1.9` (the metric bumps; the `.4b.1` knob rode the version). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 478); end-to-end introspect default `0` / forced `50`. Pre-split `.4b.2` → `.4b.2a`/`.4b.2b`; frontier → `.4b.2b`. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.1` | `STRUCTURED-EMISSION-EXPANSION.4b.1 — generate-for loop emit-projection (live surface)` | Live emitter change: `generate_loop_emit_prob` knob + `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` gen-time mark (`{N{x}}` 1-bit-lane replication candidate excluding function-emit marks) + two generator call-site rolls (after function_emit) + `to_sv_with_modules` `generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block section + assign-loop inline-replication suppression + 9 lib proofs. Increment form `gi = gi + 1` (portable; `gi++` not retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6, lib 477); forced sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-gl-r1/`, 5 seeds). Pre-split `.4b` → `.4b.1`/`.4b.2`/`.4b.3`; frontier → `.4b.2`. |
@@ -392,6 +408,33 @@ in `book/src/knobs.md` / `USER_GUIDE.md` / README + a KM card). `.4b.2` is now
 
 ## Changelog
 
+- `2026-06-16`: **`.4b.3` landed — the user-facing closeout; the second
+  structured surface (the `generate for` loop) is delivered end-to-end; `.4b.3` /
+  `.4b` / `.4` all close.** Docs-only / DUT byte-identical. `book/src/structured-emission.md`
+  gains a `## The second surface: a generate for loop` section: the index-regular
+  `{N{x}}` source rationale, a **byte-verified seed-12 before/after** (the inline
+  `assign concat_0 = {5{slice_0}};` becomes the `genvar concat_0__gi; generate
+  for (… = … + 1) begin : concat_0__gen assign concat_0[concat_0__gi] = slice_0;
+  end endgenerate` block — everything else byte-identical), the `{N{x}}`
+  1-bit-lane qualification rule (`W == N` ⇒ bit-faithful), the wider-lane
+  part-select exclusion (a recorded follow-up; nothing retired), the
+  `function_emit` mutual exclusion, the `gi = gi + 1` increment, and the
+  `num_emitted_generate_loops` metric (@ schema `1.9`) + the `tool_matrix
+  --generate-loop-gate` proof, plus a skip-sentinelled repro `bash` block; the
+  chapter intro now notes `generate` is live. The `generate_loop_emit_prob` knob
+  is added to `book/src/knobs.md` (the `### Structured emission` subsection,
+  beside `function_emit_prob`), `USER_GUIDE.md` (after the `function_emit_prob`
+  bullet; intro pluralised), and the README "Current CLI truth" (a config-file
+  knob bullet). New Knowledge Map how-to card `docs/knowledge/generate-loop-emit.md`
+  (id `generate-loop-emit`) with how-to question keys + a validated `reverify`
+  command; KM regenerated 38→39 facts / 296→309 keys. The book example is
+  byte-verified downstream-clean (Verilator `-Wall` with the matching filename +
+  both Yosys + Icarus). `mdbook build` + `check_knowledge_map` +
+  `check_memory_architecture` + `cargo test --test book_examples` 3/3 green.
+  Docs-only ⇒ no `src/` touched. **The tree stays `active` as an open-ended lane
+  with no current frontier**; future surfaces (`task` [leading], nested/multi-level
+  `generate`, `interface`/`modport`) are `.5+`, each its own decision. Nothing
+  retired.
 - `2026-06-16`: **`.4b.2b` landed — the repo-owned `tool_matrix
   --generate-loop-gate`; `.4b.2` closes.** `src/bin/tool_matrix.rs` gains the
   `--generate-loop-gate` flag + `ScenarioSet::GenerateLoopSweep` +
