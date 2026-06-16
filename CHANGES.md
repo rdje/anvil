@@ -1,9 +1,91 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4a — `generate for` loop impl design-detail + `.4` split
+
+**Landed as:** this commit (previous: `c57d5b4`). **Docs-only / no source
+change** — a design-detail leaf. Grounds decision `0013`'s `generate for` loop
+surface in the real emitter before any `.4b` code, and splits the `.4` impl node
+into `.4a` (this leaf, design-detail) + `.4b` (impl, frontier).
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** (new design-detail entry, newest at top) — resolves
+  all five `.4a` points, grounded in a fresh read of the real code:
+  - **The index-regular source already exists in the emitter.** `render_gate`'s
+    `Concat` arm (`src/emit/sv.rs:1159`) already detects the replication form —
+    `operands.len() >= 2 && operands.iter().all(|id| *id == operands[0])` ⇒ it
+    renders `{N{<x>}}` (the `{11{or_0}}` one-hot-mask broadcast its own comment
+    calls out). That predicate **is** the `generate for` source; the loop is a
+    pure re-projection of an already-valid node.
+  - **(1) Selection rule:** first cut = a `{N{x}}` replication `Concat` with a
+    **1-bit lane** (`m.nodes[operands[0]].width() == 1` ⇒ result width `W == N`,
+    so `assign <wire>[gi] = <x>;` is byte-faithful) — the common one-hot
+    `{W{sel}}` idiom. Wider-lane part-select (`<wire>[gi*LW +: LW]`) is a recorded
+    follow-up; nothing retired. Mutually exclusive with function-emit (which
+    accepts `Concat`): run the generate-loop annotation **after** function-emit and
+    exclude `m.function_emit_gates` (the soft_union→function_emit "later pass
+    excludes earlier marks" precedent).
+  - **(2) Gen-time annotation** (the `function_emit.rs`/`soft_union.rs`
+    precedent): new `src/ir/generate_loop.rs annotate_generate_loop_gates(m, rng,
+    prob)` + `Module.generate_loop_gates: BTreeSet<NodeId>` (emitter-surface
+    annotation only — flat IR / validators / CSE / `canonical_module_signature`
+    untouched; `param_env` modules skipped); two guarded call-site rolls in
+    `generate_module` + `generate_design`.
+  - **(3) Rendering:** a defensive `generate_loop_gate(m, idx)` accessor + a new
+    generate-block section (after the function-decl section) emitting
+    `genvar <wire>__gi; generate for (<wire>__gi = 0; <wire>__gi < N;
+    <wire>__gi++) begin : <wire>__gen assign <wire>[<wire>__gi] = <x>; end
+    endgenerate`, plus a per-gate assign-loop `continue` that suppresses the inline
+    `{N{x}}`. `gi++` is the `.3`-probed form; `gi = gi + 1` is the portable
+    fallback.
+  - **(4) Knob:** `Config::generate_loop_emit_prob` (default `0.0`,
+    `default_generate_loop_emit_prob()` serde default + `Default` + the
+    `0.0..=1.0` validation list) — config-file-only (no CLI flag, the
+    `function_emit_prob`/`soft_union_slice_prob` precedent) ⇒ default
+    byte-identical, snapshots untouched. No introspection schema bump for the knob
+    (rides `request.knobs` via `#[serde(default)]`); a `num_emitted_generate_loops`
+    metric in `.4b` would bump schema MINOR `1.8 → 1.9` (the `.2b.2a` precedent).
+  - **(5) Downstream gate:** `tool_matrix --generate-loop-gate` +
+    `ScenarioSet::GenerateLoopSweep` (the `--function-emit-gate` parallel) +
+    `ModuleReport.emitted_generate_loop` SV-text detection +
+    `saw_generate_loop_emit` (Verilator + both Yosys, full plan — a `generate
+    for` is universally synthesizable, unlike the Verilator-only `union soft`
+    up-opt) + early-return gap enforcement. **Flagged the load-bearing gate-shape
+    risk:** the forced corpus must actually emit `{N{x}}` 1-bit replications (the
+    one-hot mux-mask idiom) for the loops to fire — `.4b` confirms via banked
+    forced-sweep evidence and broadens the config if needed.
+  - **`.4b` impl shape** recorded (single slice, or pre-split
+    `.4b.1`/`.4b.2`/`.4b.3` if too broad — the `.2b` precedent).
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — split `.4` into an `active`
+  container with children `.4a` (done) + `.4b` (pending); frontier `.4` → `.4b`;
+  resolved the `.4a` open question + added a `.4b` gate-shape open question;
+  Verification Log + Commit Log + Changelog + metadata updated.
+- **`docs/TASK_TREE.md`** — STRUCTURED-EMISSION-EXPANSION row updated (frontier
+  `.4` → `.4b`; `.4a` done).
+
+**Validation**
+
+- Docs-only — **no `src/` touched** ⇒ `cargo check`/`clippy`/`fmt`/`test`
+  unaffected. `bash scripts/check_memory_architecture.sh` ✅;
+  `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh`
+  ✅ (no card change — decision `0013` already carries `answers:`);
+  `mdbook build book` ✅; `cargo test --test book_examples` 3/3 ✅.
+
+**Impact**
+
+- No behavioural / RTL change. The `generate for` loop surface (decision `0013`)
+  is now design-pinned and grounded in real code; `.4b` is the next executable
+  leaf (the live surface + gate + closeout). Default-off / DUT byte-identical
+  contract preserved. Nothing retired.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.3 — pick the second structured surface (`generate for` loop) + decision 0013
 
-**Landed as:** this commit (previous: `d6a8517`). **Docs-only / no source
+**Landed as:** `c57d5b4` (previous: `d6a8517`). **Docs-only / no source
 change** — a design/decision leaf. Owner steer (the *"structured emission: next
 surface"* selection) directed the lane to its next surface; this leaf picks the
 concrete one and writes its decision record, before any code.

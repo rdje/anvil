@@ -6,7 +6,23 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.3` landed — picked the SECOND structured
+- Last updated: `2026-06-16` (**`.4a` landed — the `generate for` loop impl
+  design-detail; `.4` split into `.4a` (done) + `.4b` (impl pending); frontier →
+  `.4b`.** Design-detail leaf, no source change (a `DEVELOPMENT_NOTES.md` entry +
+  the tree split). Grounded decision `0013` in the real emitter — `render_gate`'s
+  existing `{N{x}}` replication predicate (`Concat`, all-same-NodeId, `sv.rs:1159`)
+  is the index-regular source; the `function_emit.rs`/`soft_union.rs` gen-time
+  `annotate_*` + `Module` `BTreeSet<NodeId>` marker is the mechanism — and resolved
+  all five `.4a` points: first-cut selection = a `{N{x}}` **1-bit-lane**
+  replication `Concat` (excluding function-emit marks, run after function-emit);
+  gen-time `src/ir/generate_loop.rs annotate_generate_loop_gates` +
+  `Module.generate_loop_gates`; a `genvar <wire>__gi` / `generate for` block +
+  assign-loop `continue` suppression; `Config::generate_loop_emit_prob`
+  config-file-only default `0.0` byte-identical (a `num_emitted_generate_loops`
+  metric in `.4b` bumps schema `1.8→1.9`); `tool_matrix --generate-loop-gate` /
+  `saw_generate_loop_emit` (full Verilator + both Yosys plan). Flagged the
+  gate-shape replication-availability risk for `.4b`. Self-checks clean. Prior:
+  **`.3` landed — picked the SECOND structured
   surface, a `generate for` loop emit-projection; decision `0013`.** By owner
   steer (*"structured emission: next surface"* → `generate`): a default-off,
   valid-by-construction `generate for` loop projecting an existing `{N{x}}`
@@ -152,26 +168,41 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4`
+  Status: `active`
+  Goal: `Implement the second structured surface (the generate for loop emit-projection) per decision 0013: the generate_loop_emit_prob knob + the rules-first replication-node selection + the emitter rendering (genvar + generate for + call-site suppression of the inline replication assign) + the downstream-clean gate (saw_generate_loop_emit) + book/USER_GUIDE/KM. Default-off / DUT byte-identical.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.4a`, `STRUCTURED-EMISSION-EXPANSION.4b`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.4a`
+  Status: `done`
+  Goal: `Design-detail leaf (no source): ground decision 0013's generate for loop surface in the real src/emit/sv.rs to_sv_with_modules + the {N{x}} replication source (the render_gate Concat predicate) + the function_emit.rs / soft_union.rs gen-time-annotation precedents + src/config.rs. Pin: (1) the replication-node selection rule (which Concats qualify; index-regularity); (2) gen-time annotation (Module.generate_loop_gates) vs emit-time; (3) the genvar / generate for rendering + inline-assign suppression; (4) the generate_loop_emit_prob knob semantics (default 0.0 byte-identical); (5) the saw_generate_loop_emit downstream-gate shape. DEVELOPMENT_NOTES design-detail entry + the .4b impl shape.`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the five points grounded in real code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Result: `Done. DEVELOPMENT_NOTES design-detail entry resolves all five points, grounded in a fresh read of src/emit/sv.rs (render_gate's Concat replication predicate at sv.rs:1159 — operands.len() >= 2 && operands.iter().all(same NodeId) ⇒ {N{x}}; the to_sv_with_modules function-decl section template; build_names/node_ref/param_width_decl_w), src/ir/function_emit.rs + src/ir/soft_union.rs (the gen-time-annotation precedent + the function_emit_gate defensive re-check), src/gen/mod.rs (the two guarded call-site rolls), src/config.rs (default_function_emit_prob / validation list), and src/ir/mod.rs (pub mod registration). (1) First-cut selection = a {N{x}} replication Concat with a 1-BIT LANE (operands all the same NodeId, lane width == 1 ⇒ W == N ⇒ assign <wire>[gi] = <x> is byte-faithful); the common one-hot {W{sel}} broadcast idiom. Wider-lane part-select = recorded follow-up (nothing retired). Mutual exclusion with function_emit (which accepts Concat): run generate-loop annotation AFTER function_emit, exclude m.function_emit_gates (the soft_union→function_emit "later pass excludes earlier marks" precedent). (2) Gen-time annotation: new src/ir/generate_loop.rs annotate_generate_loop_gates(m, rng, prob) + Module.generate_loop_gates: BTreeSet<NodeId> (emitter-surface annotation only — flat IR / validators / CSE / canonical_module_signature untouched; param_env modules skipped); two guarded call-site rolls (generate_module + generate_design). (3) Rendering: a generate_loop_gate(m, idx) defensive accessor + a new generate-block section after the function-decl section emitting genvar <wire>__gi; generate for (<wire>__gi=0; <gi> < N; <gi>++) begin : <wire>__gen assign <wire>[<gi>] = <x>; end endgenerate; the per-gate assign loop continues past a marked gate to suppress the inline {N{x}} assign. gi++ probed clean; gi=gi+1 fallback. (4) Config::generate_loop_emit_prob (default 0.0, default_generate_loop_emit_prob serde default + Default + 0.0..=1.0 validation), config-file-only (no CLI flag, the function_emit_prob precedent) ⇒ default byte-identical, snapshots untouched; no introspection schema bump for the knob (rides request.knobs); a num_emitted_generate_loops metric in .4b would bump 1.8→1.9 (the .2b.2a precedent). (5) Downstream gate = tool_matrix --generate-loop-gate + ScenarioSet::GenerateLoopSweep (comb-only function-emit-gate parallel) + ModuleReport.emitted_generate_loop SV-text detection + saw_generate_loop_emit fact (Verilator + both Yosys, full plan — a generate for is universally synthesizable, unlike the Verilator-only union soft up-opt) + early-return gap enforcement; flagged the load-bearing gate-shape risk (the corpus must actually emit {N{x}} 1-bit replications — the one-hot mux-mask idiom — verified via the banked forced sweep). .4b impl shape recorded (single slice, or pre-split .4b.1 live / .4b.2 gate+metric / .4b.3 closeout if too broad). Rejected: wider-lane part-select first cut, pure emit-time pass, new IR Generate node, changing the default.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.4b`
   Status: `pending`
-  Goal: `Implement the second structured surface (the generate for loop emit-projection) per decision 0013: the generate_loop_emit_prob knob + the rules-first replication-node selection + the emitter rendering (genvar + generate for + call-site suppression of the inline replication assign) + the downstream-clean gate (saw_generate_loop_emit) + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split into .4a (design-detail, grounded in the real to_sv_with_modules + the {N{x}} replication source) + .4b (impl) when picked.`
-  Acceptance: `Each landed leaf rules-first, opt-in / default byte-identical, proven downstream-clean (Verilator + both Yosys + Icarus); live docs + book + KM updated; committed through COMMIT.md with the leaf id.`
+  Goal: `Implement the .4a design: Config::generate_loop_emit_prob (default 0.0) + Module.generate_loop_gates + src/ir/generate_loop.rs (annotate_generate_loop_gates + the {N{x}} 1-bit-lane replication candidate predicate excluding function_emit marks) + the two guarded gen-time call-site rolls (after function_emit) + the to_sv_with_modules generate_loop_gate accessor + render_generate_loop_block + generate-block section + assign-loop inline-replication suppression + lib proofs + the repo-owned tool_matrix --generate-loop-gate + ModuleReport.emitted_generate_loop + saw_generate_loop_emit + num_emitted_generate_loops metric (schema 1.8→1.9) + book/USER_GUIDE/KM. Default-off / DUT byte-identical (snapshots untouched). Pre-split into .4b.1 (live surface) + .4b.2 (gate + metric) + .4b.3 (docs closeout) at pick time if too broad for one signoff-quality commit (the .2b precedent).`
+  Acceptance: `Each landed leaf rules-first, opt-in / default byte-identical, proven downstream-clean (Verilator + both Yosys + Icarus, saw_generate_loop_emit lit + coverage_gaps=[]); snapshots 6/6 byte-identical; live docs + book + KM updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.4`** (implement the second
-structured surface — the `generate for` loop emit-projection, decision `0013`),
-pre-split into `.4a` (design-detail, grounded in the real `to_sv_with_modules` +
-the `{N{x}}` replication source) + `.4b` (impl) when picked. `.3` (decision
-`0013`, the design leaf) is **done (`2026-06-16`)**. The first structured surface
-(the combinational `function automatic`, `.1`+`.2`) is delivered end-to-end.
-Future surfaces (`task` [leading], nested/multi-level `generate`,
-`interface`/`modport`) are `.5+`, each its own decision. Nothing retired.
+**Active frontier: `STRUCTURED-EMISSION-EXPANSION.4b`** (implement the second
+structured surface — the `generate for` loop emit-projection, decision `0013`,
+grounded by the `.4a` design-detail). `.4` is now an `active` container split
+into `.4a` (design-detail — **done `2026-06-16`**) + `.4b` (impl — `pending`).
+`.3` (decision `0013`, the design leaf) is **done (`2026-06-16`)**. The first
+structured surface (the combinational `function automatic`, `.1`+`.2`) is
+delivered end-to-end. Future surfaces (`task` [leading], nested/multi-level
+`generate`, `interface`/`modport`) are `.5+`, each its own decision. Nothing
+retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.4` | `pending` | Implement the `generate for` loop emit-projection (decision `0013`): the `generate_loop_emit_prob` knob + the rules-first replication-node selection (the `{N{x}}` `Concat` source) + the `to_sv_with_modules` `genvar`/`generate for`/call-site-suppression rendering + the downstream-clean `saw_generate_loop_emit` gate + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split `.4a` (design-detail) + `.4b` (impl) when picked. |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.4b` | `pending` | Implement the `.4a` design: `Config::generate_loop_emit_prob` + `Module.generate_loop_gates` + `src/ir/generate_loop.rs` (`annotate_generate_loop_gates`, the `{N{x}}` 1-bit-lane replication candidate predicate excluding function-emit marks) + the two guarded gen-time call-site rolls (after function_emit) + the `to_sv_with_modules` `generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block section + the assign-loop inline-replication suppression + lib proofs + the repo-owned `tool_matrix --generate-loop-gate` (`ScenarioSet::GenerateLoopSweep` + `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` + `num_emitted_generate_loops` metric, schema `1.8→1.9`) + book/USER_GUIDE/KM. Default-off / DUT byte-identical (snapshots untouched). Pre-split `.4b.1` (live surface) + `.4b.2` (gate + metric) + `.4b.3` (docs closeout) at pick time if too broad for one signoff-quality commit (the `.2b` precedent). |
+| — | `STRUCTURED-EMISSION-EXPANSION.4a` | `done` | Design-detail (no source): grounded decision `0013` in the real emitter (`render_gate`'s `Concat` replication predicate at `sv.rs:1159` — `operands.len() >= 2 && all-same-NodeId ⇒ {N{x}}`; the `to_sv_with_modules` function-decl-section template) + the `function_emit.rs`/`soft_union.rs` gen-time-annotation precedent + `src/config.rs`/`src/gen/mod.rs`. Pinned all five points: (1) selection = a `{N{x}}` replication `Concat` with a **1-bit lane** (⇒ `W == N`, `assign <wire>[gi] = <x>` byte-faithful), mutually exclusive with function-emit (excludes `m.function_emit_gates`, run after function_emit); (2) gen-time `annotate_generate_loop_gates` + `Module.generate_loop_gates`; (3) the `genvar <wire>__gi` / `generate for` rendering + the assign-loop `continue` suppression; (4) `Config::generate_loop_emit_prob` (default `0.0`, config-file-only, byte-identical); (5) `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit` (full Verilator + both Yosys plan). Flagged the gate-shape risk (the corpus must emit `{N{x}}` 1-bit replications — the one-hot mux-mask idiom). `.4b` impl shape recorded. |
 | — | `STRUCTURED-EMISSION-EXPANSION.3` | `done` | Decision `0013`: picked the second surface — a default-off, valid-by-construction `generate for` loop emit-projection of an existing `{N{x}}` replication (over `task` [leading future], `interface`/`modport`, and `generate if`), with its discipline, opt-in `generate_loop_emit_prob`, and downstream gate. Empirically grounded (Verilator `-Wall` + both Yosys + Icarus accept `generate for` clean; the DUT emitter has no generate today; the frontend lane has `generate if`). Split `.3`/`.4`/future. No source change. |
 | — | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | `done` | The user-facing closeout of the FIRST surface: a new `How It Works` book chapter `book/src/structured-emission.md` (byte-verified seed-42 before/after; single-gate rule; `Slice`/structured exclusions; duplicate-operand positional params; combinational-only; why-first rationale; metric + gate) + the `function_emit_prob` knob entry in `book/src/knobs.md` (new `### Structured emission` subsection), `USER_GUIDE.md`, and the README "Current CLI truth" (config-file-only knob) + the Knowledge Map how-to card `combinational-function-emit`. Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. |
 | — | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | `done` | The repo-owned `tool_matrix --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios` (one comb-only `function_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_function` SV-text detection + `saw_combinational_function_emit` coverage fact + early-return gap enforcement + 5 cargo-portable proofs. Banked clean `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608 emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). Templated on `--signoff-knob-sweep-gate` + the soft_union detection precedent. Default-off / DUT byte-identical (snapshots 6/6). |
@@ -236,7 +267,18 @@ Future surfaces (`task` [leading], nested/multi-level `generate`,
   (`generate for`, decision `0013`, owner steer).
 - The exact `generate for` index-regular source (`{N{x}}` replication leading) +
   selection mechanism (gen-time annotation vs emit-time) + genvar/loop rendering
-  + the exact knob name — deferred to `.4a` (design-detail) per decision `0013`.
+  + the exact knob name — **resolved by `.4a`** (design-detail): first-cut source =
+  a `{N{x}}` replication `Concat` with a **1-bit lane** (`render_gate`'s existing
+  replication predicate, `sv.rs:1159`); **gen-time annotation**
+  (`Module.generate_loop_gates` + `src/ir/generate_loop.rs`); a `genvar <wire>__gi`
+  / `generate for` block + assign-loop `continue` suppression; knob
+  `generate_loop_emit_prob` (config-file-only, default `0.0`); gate
+  `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit`.
+- (`.4b`) Does the forced `generate_loop_emit_prob=1.0` comb-only gate corpus
+  actually emit `{N{x}}` 1-bit replications (the one-hot mux-mask broadcast idiom)
+  so the loops fire? Pinned as the load-bearing gate-shape risk at `.4a`; resolved
+  at `.4b` by the banked forced-sweep evidence (broaden the scenario config or add
+  a replication-rich scenario if a chosen seed/strategy yields none).
 
 ## Blockers
 
@@ -246,6 +288,7 @@ Future surfaces (`task` [leading], nested/multi-level `generate`,
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4a` | **Design-detail leaf, no source change** (a `DEVELOPMENT_NOTES.md` design-detail entry + the `.4` tree split; no `src/` touched). Grounded in a fresh read of `src/emit/sv.rs` (`render_gate`'s `Concat` replication predicate at `sv.rs:1159` + the `to_sv_with_modules` function-decl section + `build_names`/`node_ref`/`param_width_decl_w`), `src/ir/function_emit.rs` + `src/ir/soft_union.rs` (the gen-time-annotation precedent + `function_emit_gate` defensive re-check), `src/gen/mod.rs` (the two guarded call-site rolls), `src/config.rs` (`default_function_emit_prob` + the `0.0..=1.0` validation list), `src/ir/mod.rs` (`pub mod` registration). Resolved all five `.4a` points (selection = `{N{x}}` 1-bit-lane replication `Concat` excluding function-emit marks; gen-time `annotate_generate_loop_gates` + `Module.generate_loop_gates`; the `genvar <wire>__gi` / `generate for` rendering + assign-loop `continue` suppression; `Config::generate_loop_emit_prob` config-file-only default `0.0` byte-identical; `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit` full Verilator + both Yosys plan) + flagged the gate-shape replication-availability risk + recorded the `.4b` impl shape. `bash scripts/check_memory_architecture.sh` ✅; `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card change — `0013` already carries `answers:`); `mdbook build book` ✅; `cargo test --test book_examples` 3/3 ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.3` | **Design/decision leaf, no source change.** Decision `0013` (`docs/decisions/0013-structured-emission-second-surface-generate-loop.md`) + `INDEX.md` row + tree split (`.3` done + `.4` impl pending, pre-split `.4a`/`.4b`). Empirical tool-acceptance grounding (this session): a `generate for` lane unroll + a replication→`generate for` projection accepted warning-clean by **Verilator 5.046 `-Wall --lint-only`** + **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`) + **Icarus `iverilog -g2012`**; a simple combinational void `task` is *also* clean (recorded — `task` is the leading future surface); confirmed the DUT emitter (`src/emit/sv.rs`) has no `generate`/`genvar` today and the frontend lane (`src/frontend/mod.rs`) already emits `generate if`. `bash scripts/check_memory_architecture.sh` ✅ (`0013` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0013` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | **User-facing closeout, docs-only** (new `book/src/structured-emission.md` + `book/src/SUMMARY.md` link + `book/src/knobs.md` `### Structured emission` entry + `USER_GUIDE.md` knob section + README "Current CLI truth" bullet + new KM card `docs/knowledge/combinational-function-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**37 facts / 286 keys**, was 36 / 272) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0012` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-42 `function_emit_prob` 0.0→1.0 diff = exactly the `add_0__f` decl + the one `assign` rewritten to a call (rest byte-identical); the KM reverify recipe emits 10 functions, Verilator `--lint-only` CLEAN. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--function-emit-gate` + `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios`/`function_emit_focus_config` + `ModuleReport.emitted_combinational_function` + `saw_combinational_function_emit` + merge/early-return-gap + 5 proofs + 6 fixture updates). `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean (fixed a `clippy::explicit_counter_loop` via `.enumerate()`); `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **58 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --lib` **468 passed** / 2 ignored (unchanged); `cargo test --test snapshots` **6/6 byte-identical**. Repo-owned bank `/tmp/anvil-function-emit-gate-r1` (`--function-emit-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **608 emitted functions** / `coverage_gaps = []` / `saw_combinational_function_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. | `done` |
@@ -259,6 +302,7 @@ Future surfaces (`task` [leading], nested/multi-level `generate`,
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.4a` | `STRUCTURED-EMISSION-EXPANSION.4a — generate-for loop impl design-detail` | Design-detail leaf (no source): a `DEVELOPMENT_NOTES.md` entry grounding decision `0013`'s `generate for` loop surface in the real emitter (`render_gate`'s `Concat` replication predicate `sv.rs:1159`) + the `function_emit.rs`/`soft_union.rs` gen-time-annotation precedent, resolving all five `.4a` points (selection rule = `{N{x}}` 1-bit-lane replication excluding function-emit marks; gen-time `Module.generate_loop_gates`; `genvar`/`generate for` rendering + assign suppression; `generate_loop_emit_prob` config-file-only knob; `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit`) + the `.4b` impl shape. Split `.4` into `.4a` (done) + `.4b` (impl pending); frontier → `.4b`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.3` | `STRUCTURED-EMISSION-EXPANSION.3 — pick generate-for surface + decision 0013` | Design/decision leaf (no source): decision `0013` picks the second structured surface — a default-off, valid-by-construction `generate for` loop emit-projection of an existing `{N{x}}` replication (over `task` [leading future], `interface`/`modport`, `generate if`), empirically grounded clean across Verilator `-Wall` + both Yosys + Icarus. `INDEX.md` row; KM card `structured-emission-second-surface-generate-loop`; tree split `.3`/`.4`/`.5+`; frontier → `.4`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | `STRUCTURED-EMISSION-EXPANSION.2b.2c — combinational function emit user docs` | Docs-only closeout: new `How It Works` book chapter `book/src/structured-emission.md` (byte-verified before/after; single-gate rule; `Slice`/structured exclusions; duplicate-operand positional params; combinational-only) + `function_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `combinational-function-emit` (37 facts / 286 keys). Closes `.2b.2` / `.2b` / `.2` — the first structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | `STRUCTURED-EMISSION-EXPANSION.2b.2b — function-emit tool_matrix gate` | The repo-owned `tool_matrix --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios` (comb-only `function_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_function` SV-text detection + `saw_combinational_function_emit` fact + early-return gap enforcement + 5 proofs. Banked clean `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608 functions / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). Default-off / DUT byte-identical (snapshots 6/6). |
@@ -270,6 +314,39 @@ Future surfaces (`task` [leading], nested/multi-level `generate`,
 
 ## Changelog
 
+- `2026-06-16`: **`.4a` landed — the `generate for` loop impl design-detail;
+  `.4` split into `.4a` (done) + `.4b` (impl pending).** Design-detail leaf, no
+  source change (a `DEVELOPMENT_NOTES.md` entry + the tree split). Grounded
+  decision `0013` in the real emitter: `render_gate`'s existing `{N{x}}`
+  replication predicate (`Concat`, `operands.len() >= 2 && all-same-NodeId`,
+  `sv.rs:1159`) **is** the index-regular source the loop projects; the
+  `to_sv_with_modules` function-decl section is the structural template; the
+  `function_emit.rs`/`soft_union.rs` `annotate_*` + `Module` `BTreeSet<NodeId>`
+  marker + `function_emit_gate` defensive re-check are the mechanism mirrored.
+  Resolved all five `.4a` points — (1) first-cut selection = a `{N{x}}`
+  replication `Concat` with a **1-bit lane** (⇒ `W == N`, `assign <wire>[gi] =
+  <x>` byte-faithful; the common one-hot `{W{sel}}` broadcast idiom), mutually
+  exclusive with function-emit (which accepts `Concat`) by running the
+  generate-loop annotation **after** function-emit and excluding
+  `m.function_emit_gates` (the soft_union→function_emit "later pass excludes
+  earlier marks" precedent); wider-lane part-select = recorded follow-up, nothing
+  retired; (2) **gen-time annotation** `src/ir/generate_loop.rs
+  annotate_generate_loop_gates` + `Module.generate_loop_gates`; (3) a
+  `generate_loop_gate` accessor + a `genvar <wire>__gi; generate for (…;
+  …<gi>++) begin : <wire>__gen assign <wire>[<gi>] = <x>; end endgenerate` block
+  after the function-decl section + the per-gate assign-loop `continue` that
+  suppresses the inline `{N{x}}`; (4) `Config::generate_loop_emit_prob` (default
+  `0.0`, config-file-only — no CLI flag, the `function_emit_prob` precedent ⇒
+  byte-identical, snapshots untouched; a `num_emitted_generate_loops` metric in
+  `.4b` would bump schema `1.8→1.9`); (5) `tool_matrix --generate-loop-gate` +
+  `ScenarioSet::GenerateLoopSweep` + `ModuleReport.emitted_generate_loop` +
+  `saw_generate_loop_emit` (full Verilator + both Yosys plan — a `generate for`
+  is universally synthesizable, unlike the Verilator-only `union soft` up-opt).
+  Flagged the load-bearing gate-shape risk (the corpus must actually emit `{N{x}}`
+  1-bit replications) for `.4b`; recorded the `.4b` impl shape (single slice or
+  pre-split `.4b.1`/`.4b.2`/`.4b.3`). Self-checks clean (`mdbook build` +
+  `check_knowledge_map` + `check_memory_architecture` + `book_examples` 3/3).
+  Frontier → `.4b`.
 - `2026-06-16`: **`.3` landed — picked the second structured surface
   (`generate for`); decision `0013`.** Design/decision leaf, no source change.
   By explicit owner steer (*"structured emission: next surface"* → `generate`),

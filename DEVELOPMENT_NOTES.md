@@ -5,6 +5,201 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — `generate for` loop impl design-detail — `STRUCTURED-EMISSION-EXPANSION.4a`
+
+Design-detail leaf for `.4` — the second richer-structured surface (decision
+`0013`): a default-off, valid-by-construction **`generate for` loop**
+emit-projection of an existing `{N{x}}` replication. Docs-only (no source).
+Grounded in a fresh read of the real emitter + the two default-off
+emit-projection precedents (the same two `.2a` grounded the function surface
+in):
+
+- **`src/emit/sv.rs`** — `to_sv_with_modules`. The `{N{x}}` replication is
+  *already* recognised today inside `render_gate` (the `Concat` arm,
+  `src/emit/sv.rs:1159`): when a `GateOp::Concat` gate has `operands.len() >= 2`
+  **and** every operand is the **same `NodeId`** (`operands.iter().all(|id| *id ==
+  operands[0])`), it renders the canonical replication form
+  `format!("{{{}{{{}}}}}", operands.len(), a(0))` ⇒ `{N{<x>}}` (e.g. the
+  `{11{or_0}}` one-hot-mask broadcast its own comment calls out). That exact
+  predicate **is** the index-regular source the loop projects. Helpers reused:
+  `build_names(m)` (node id → wire name), `node_ref(id, m, &names)` (operand
+  reference), `param_width_decl_w(m, w)`; the function-emit section (a per-node
+  decl block before the gate `assign`s) is the structural template for a new
+  generate-block section.
+- **`src/ir/function_emit.rs`** + **`src/ir/soft_union.rs`** — the
+  gen-time-annotation precedent (`.2b.1` / `SV-VERSION-TARGETING.3b.2`):
+  `annotate_*` collects qualifying candidates, rolls `rng.gen_bool(prob)` per
+  candidate (seeded; never `thread_rng`), inserts marks into a
+  `Module` `BTreeSet<NodeId>` that is an **emitter-surface annotation only** (flat
+  IR body / validators / CSE / `canonical_module_signature` untouched); the
+  call site in **both** `generate_module` and `generate_design`
+  (`src/gen/mod.rs`) guards on `prob > 0.0`, so the default draws nothing ⇒
+  byte-identical stream + output; the emitter consults the mark per node and
+  re-checks the qualifying contract defensively (`function_emit_gate` /
+  `soft_union_slice_overlay`). This is the exact mechanism the generate-loop
+  surface mirrors.
+
+### Q1 — selection rule: a `{N{x}}` replication `Concat` with **1-bit lanes** (the minimal faithful loop)
+
+The candidate is the *same node the emitter already replication-renders*, narrowed
+to the cleanest first cut:
+
+- **Candidate rule (rules-first, mirrors `render_gate`'s replication predicate):**
+  a `Node::Gate` with `op == GateOp::Concat`, `operands.len() >= 2`, and
+  `operands.iter().all(|id| *id == operands[0])` (an N-fold replication of one
+  operand) — **and**, for the first cut, the replicated operand (the *lane*) is
+  **1 bit wide** (`m.nodes[operands[0]].width() == 1`). With a 1-bit lane the
+  result width `W == N == operands.len()`, and bit `g` of the result is exactly
+  the lane `x`, so the loop body `assign <wire>[gi] = <x>;` is **byte-faithful**
+  to `{N{x}}`. This is the common ANVIL idiom (`{W{sel_i}}` one-hot broadcasts),
+  so the surface is not rare.
+- **Why 1-bit lanes first.** A *wider* lane (`LW > 1`) is still index-regular but
+  needs a part-select body (`assign <wire>[gi*LW +: LW] = <x>;`) and genvar
+  arithmetic — verified clean too, but more emitter surgery for the same first-cut
+  value. Restricting to `LW == 1` keeps the first cut the *minimal faithful loop*
+  (the single-gate-function parallel from `.2a`). **Wider-lane part-select is a
+  recorded follow-up; nothing is retired** — a wider replication still emits the
+  inline `{N{x}}`.
+- **Mutual exclusion.** A replication `Concat` is *also* a function-emit candidate
+  (`function_emit` excludes only `CaseMux`/`CasezMux`/`ForFold`/`Slice`, not
+  `Concat`). The two emit-projections must be disjoint on a gate. Resolution
+  (the established "later pass excludes earlier marks" ordering — `function_emit`
+  runs after `soft_union` and excludes its marks): run the generate-loop
+  annotation **after** `function_emit` and have its candidate predicate **exclude
+  gates already in `m.function_emit_gates`** (and, defensively, `soft_union_slice_gates`
+  — moot since those are only `Slice`s). One-directional exclusion suffices because
+  `function_emit` has already run. The downstream gate sets only
+  `generate_loop_emit_prob = 1.0` (with `function_emit_prob = 0.0`), so the loops
+  fire uncontested there.
+
+### Q2 — gen-time annotation (`Module.generate_loop_gates`), not an emit-time pass
+
+A new **`src/ir/generate_loop.rs`** (registered `pub mod generate_loop;` in
+`src/ir/mod.rs` beside `function_emit` / `soft_union`) carries
+
+```rust
+pub fn annotate_generate_loop_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize
+```
+
+mirroring `annotate_function_emit_gates`: skip `m.param_env.is_some()` modules
+(symbolic widths out of scope, like the other passes), collect candidate ids
+(the Q1 predicate), roll `gen_bool(prob)` per candidate, insert into a new
+**`Module.generate_loop_gates: BTreeSet<NodeId>`** (default empty, `#[serde]`
+default; an emitter-surface annotation only). The generator call site lands in
+**both** `generate_module` and `generate_design` (beside the `soft_union` /
+`function_emit` rolls), **after** the function-emit roll, guarded on
+`self.cfg.generate_loop_emit_prob > 0.0` so the default path draws nothing from
+the RNG ⇒ byte-identical. Rationale for gen-time (not emit-time): matches the
+established precedent exactly, keeps the roll seeded/reproducible at the
+generation boundary, and leaves the emitter a pure projection of the mark.
+
+### Q3 — the `genvar` / `generate for` rendering + inline-assign suppression
+
+For a marked replication gate `g = {N{x}}` (id `idx`, wire `names[idx]`, lane
+operand `o0 = operands[0]`, `N = operands.len()`):
+
+- **Accessor** (defensive, mirrors `function_emit_gate`):
+  `generate_loop_gate(m, idx) -> Option<(NodeId /*lane operand*/, usize /*N*/)>`
+  returns `None` unless `idx ∈ m.generate_loop_gates` **and** the node still
+  satisfies the Q1 replication-with-1-bit-lane contract — a stale marker can
+  never produce an invalid loop.
+- **Generate-block section** (a new section emitted right after the function-decl
+  section, before the gate-`assign` loop — module items are order-independent, so
+  placement is cosmetic; the driven `<wire>` is already declared in the wire-decl
+  section above):
+
+  ```systemverilog
+  genvar <wire>__gi;
+  generate
+      for (<wire>__gi = 0; <wire>__gi < N; <wire>__gi++) begin : <wire>__gen
+          assign <wire>[<wire>__gi] = <x>;
+      end
+  endgenerate
+  ```
+
+  where `<wire> = names[idx]`, `<x> = node_ref(o0, m, &names)`, and `N` is a
+  literal. `build_names` guarantees unique gate wire names ⇒ the `<wire>__gi`
+  genvar and `<wire>__gen` loop label are unique too (no genvar redeclaration
+  across multiple loops; the `__gi`/`__gen` suffixes mirror the `__f` / `__u`
+  conventions). The `gi++` increment is the form the `.3` empirical probe verified
+  clean across all four tools; `gi = gi + 1` is the maximally-portable fallback if
+  any future tool objects (pin at `.4b`).
+- **Inline-assign suppression.** In the per-`Node::Gate` assign loop, add
+  `if generate_loop_gate(m, idx).is_some() { continue; }` **first** (defensive
+  precedence over the `soft_union` / `function_emit` arms, though all three are
+  disjoint by the Q1 annotation rule). Without it the gate would fall to the
+  `render_gate` `Concat` arm and emit the inline `assign <wire> = {N{x}};`; the
+  `continue` hands the drive of `<wire>` to the generate block. **Behaviour-
+  preserving by construction**: the unrolled loop is exactly `{N{x}}`.
+
+### Q4 — the `generate_loop_emit_prob` knob
+
+A new **`Config::generate_loop_emit_prob: f64`** (default `0.0`) beside
+`function_emit_prob` / `soft_union_slice_prob` / `aggregate_prob`, with a
+`default_generate_loop_emit_prob()` serde default, added to the `Default` impl and
+the `0.0..=1.0` validation list (`src/config.rs:~1363`). It is a
+**config-file-only knob — no `--generate-loop-emit-prob` CLI flag** (the
+`function_emit_prob` / `soft_union_slice_prob` precedent; set it via `--config`
+JSON). Default `0.0` ⇒ `annotate_generate_loop_gates` is not called (call-site
+guard) ⇒ no RNG draw, nothing marked, `generate_loop_gates` empty ⇒
+**byte-identical** (`tests/snapshots.rs` untouched). It surfaces in
+`--dump-config` / `--introspect` automatically (a `Config` field rides
+`request.knobs` via `#[serde(default)]`) ⇒ **no introspection schema bump for the
+knob** (the `.2b.1` `function_emit_prob` precedent). A `num_emitted_generate_loops`
+metric (`= m.generate_loop_gates.len()`, in the `.4b` gate/closeout) *would* bump
+the schema MINOR `1.8 → 1.9` (the `.2b.2a` `num_emitted_combinational_functions`
+precedent).
+
+### Q5 — the downstream gate (`saw_generate_loop_emit`)
+
+A repo-owned `tool_matrix --generate-loop-gate`, templated on
+`--function-emit-gate` (`.2b.2b`): a `ScenarioSet::GenerateLoopSweep` +
+`build_generate_loop_sweep_scenarios` forcing `generate_loop_emit_prob = 1.0` over
+a **comb-only single-module DUT** across all three construction strategies, a
+`ModuleReport.emitted_generate_loop` SV-text detection (`#[serde(default)]`, from
+`prepared.sv_text.contains("generate")` / `"genvar"` — the
+`emitted_combinational_function` / `emitted_soft_union_overlay` precedent), a
+`CoverageSummary.saw_generate_loop_emit` fact lit when an emitted-loop module is
+accepted by Verilator success **and** a non-empty clean Yosys vec (a `generate for`
+is universally synthesizable — like the function, *unlike* the Verilator-only
+`union soft` up-opt — so the gate runs the full Verilator + both Yosys (+ Icarus)
+plan), merged in `merge_coverage`, and an early-return arm in
+`compute_coverage_gaps` so no broad-motif richness leaks in. Bank clean at
+`/tmp/anvil-generate-loop-gate-r1` (the `.2b.2b` `/tmp/anvil-function-emit-gate-r1`
+parallel).
+
+- **Load-bearing gate-shape risk (flag for `.4b`):** the DUT corpus must actually
+  *produce* `{N{x}}` 1-bit-lane replications for the loop to fire — these come from
+  the one-hot mux-mask broadcast idiom (`{W{sel_i}} & data_i`, per the `render_gate`
+  comment). The forced sweep config must therefore select a construction shape that
+  emits those broadcasts (the share-heavy comb config / the mux-encoding path).
+  `.4b` must confirm the banked report shows `saw_generate_loop_emit = true` /
+  `emitted_generate_loop` on the modules and broaden the config (or add a
+  dedicated replication-rich scenario) if a chosen seed/strategy yields no
+  replications — the forced-sweep banked evidence is the proof, exactly as for
+  `.2b.1`'s `/tmp/anvil-fe-r2/`.
+
+### `.4b` impl shape (the single implementation slice)
+
+`Config::generate_loop_emit_prob` + `default_generate_loop_emit_prob()` + Default +
+validation; `Module.generate_loop_gates: BTreeSet<NodeId>`; new
+`src/ir/generate_loop.rs` (`annotate_generate_loop_gates` + the candidate predicate +
+lib proofs: marks a 1-bit-lane replication / skips a wider-lane replication / skips a
+non-replication Concat / skips a function-emit-marked gate / `param_env` skip /
+identity-and-node-count-untouched / end-to-end emit + default-off byte-identical);
+the two `src/gen/mod.rs` call-site rolls (after function-emit); the `src/emit/sv.rs`
+`generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block
+section + the assign-loop `continue`; a forced `generate_loop_emit_prob=1.0`
+Verilator `--lint-only` + both-Yosys + Icarus spot-check; then the `.4b` gate (or a
+pre-split `.4b.1` live surface + `.4b.2` gate/metric + `.4b.3` book/USER_GUIDE/KM
+closeout if the slice is too broad for one signoff-quality commit — decide at pick
+time, the `.2b` precedent). Default-off / DUT byte-identical throughout
+(`tests/snapshots.rs` untouched). **Rejected** (carried from `.2a` / decision
+`0013`): wider-lane part-select in the first cut, a pure emit-time pass, a new IR
+`Generate` node, and changing the default.
+
+---
+
 ## 2026-06-16 — Structured emission — picking the second surface (`generate for`) — `STRUCTURED-EMISSION-EXPANSION.3` (decision 0013)
 
 The owner steered the lane to its next surface (*"structured emission: next
