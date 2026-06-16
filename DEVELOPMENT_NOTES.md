@@ -5,6 +5,101 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — `flop_reset_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.4a`
+
+Design-detail leaf for `.4` — the **third** derived query, `flop_reset_provenance`:
+*which flops are reset-defined vs data-driven, and how is each one's next state
+built?* Docs-only (no source). Grounded in the real `Flop` type
+(`src/ir/types.rs`): `Flop { id, width, d: Option<NodeId>, q, reset_val: u128,
+reset_kind: ResetKind {None|Sync|Async}, kind: FlopKind {ZeroDefault|QFeedback},
+mux: FlopMux {None|OneHot(Vec<MuxArm>)|Encoded{sel,data}} }`. Every field this
+query reports already exists on the flop — so it is the **purest** derived query
+yet: a direct projection of `Module.flops`, not even a graph walk (unlike
+`output_support` / `input_reach`, which traverse the node graph). Same
+SCHEMA-DERIVED / structure-first ceiling (decision `0004`/`0011`); reset
+*provenance* is a relation (how the register's next state is constructed), never
+behaviour.
+
+### Q1 — result shape: a THIRD parallel result vec
+
+`DerivedAnalysis` gains a third `#[serde(default, skip_serializing_if =
+"Vec::is_empty")]` vec, continuing the established parallel-vec pattern (`.3a`
+chose this over a tagged enum to keep prior documents byte-identical; each new
+kind = one more skip-if vec, the `query` field discriminates):
+
+```rust
+pub flop_provenance: Vec<FlopProvenance>,   // populated only by flop_reset_provenance
+
+pub struct FlopProvenance {
+    pub flop: u32,                 // flop id (addressed "flop:<id>")
+    pub width: u32,
+    pub has_reset: bool,           // reset_kind != None
+    pub reset_kind: String,        // "none" | "sync" | "async"
+    pub reset_value: String,       // reset_val as a DECIMAL string (see below)
+    pub default_behavior: String,  // "zero" (ZeroDefault) | "hold" (QFeedback)
+    pub mux_kind: String,          // "none" | "one_hot" | "encoded"
+    pub mux_arms: usize,           // # mux arms (0 for None; OneHot arms / Encoded data len)
+    pub has_d: bool,               // d.is_some() — a dead/undriven flop has no D cone
+}
+```
+
+`reset_value` is a **decimal string**, not a number: `reset_val` is `u128`, and
+serializing 128-bit ints as JSON numbers is fragile (not all consumers/serde
+configs round-trip `u128`), whereas a string is exact, deterministic, and
+machine-parseable. `mux_arms` counts arms for `OneHot` (`arms.len()`) and data
+slots for `Encoded` (`data.len()`); `default_behavior` exposes the `FlopKind`
+semantics (what `D` becomes when no select is asserted). The enum→string mappings
+(`reset_kind`, `mux_kind`, `default_behavior`) keep the wire stable even if the
+Rust enum gains variants. Additive MINOR schema bump `1.5 → 1.6`.
+
+### Q2 — derivation: a direct projection of `Module.flops`
+
+No traversal: iterate `Module.flops`, read each flop's fields, map the enums to
+strings. Pure, O(flops), no IR field, no generator change (the `coverage_gaps` /
+`output_support` project-don't-recompute precedent). Determinism: emit flops in
+**ascending id** order (the `source_universe` flop ordering precedent).
+
+### Q3 — target addressing
+
+- `target = None` ⇒ a `FlopProvenance` for **every** flop (ascending id) — the
+  agent-audience completeness rule.
+- `target = Some("flop:<id>")` ⇒ that one flop (same `"flop:<id>"` spelling the
+  other two queries use; here it addresses the flop itself, not a D/Q direction).
+- An unknown `"flop:<id>"` (or any unrecognised string) ⇒ no result ⇒ `-32602` at
+  the MCP layer (the established contract). A module with **no flops** + `None` ⇒
+  an empty `flop_provenance` (a known-empty result, distinct from an unknown
+  target — but with `None` there is no target to be unknown, so it is simply the
+  honest "no flops" answer; `Some("flop:0")` on a flopless module ⇒ `-32602`).
+
+### Q4 — schema: additive MINOR `1.5 → 1.6`
+
+A new `#[serde(default, skip_serializing_if)]` field + the `FlopProvenance`
+struct + the `"flop_reset_provenance"` query kind. `output_support` /
+`input_reach` documents stay byte-identical (the new key is omitted on them); the
+`DerivedAnalysisDocument` envelope is reused unchanged. DUT `.sv` byte-identical
+(introspection is not in `tests/snapshots.rs`).
+
+### `.4b` impl shape (and the recommended pre-split)
+
+Pre-split `.4b` → **`.4b.1`** (pure core) + **`.4b.2`** (surface), per the `.3b`
+precedent:
+
+- **`.4b.1`:** in `src/introspect/analyze.rs` add `QUERY_FLOP_RESET_PROVENANCE =
+  "flop_reset_provenance"`, the `FlopProvenance` struct, the `flop_provenance`
+  field on `DerivedAnalysis`, and the pure builders `module_flop_provenance(&Module,
+  Option<&str>)` / `design_flop_provenance(&Design, Option<&str>)`. **Do NOT** add
+  the kind to `supported_query_kinds()` yet (registry + `run_analyze` dispatch land
+  together in `.4b.2`). Lib proofs: each `ResetKind`/`FlopKind`/`FlopMux` variant
+  maps correctly; `reset_value` string; `None` ⇒ all flops ascending; flopless
+  module ⇒ empty; `"flop:<id>"` target + unknown-target ⇒ none; determinism.
+  Snapshots 6/6 byte-identical.
+- **`.4b.2`:** add the kind to `supported_query_kinds()` + branch `run_analyze`
+  (the empty-result `-32602` guard checks `flop_provenance` for this kind);
+  `SCHEMA_VERSION` `1.5 → 1.6` (+ the `"1.5"` test-assertion updates); the
+  `analyze_schema` `enum` + tool/instructions text; schema-doc §6.7 + a `1.5 →
+  1.6` changelog + the row; book `agent-mcp` (row + worked example) + USER_GUIDE +
+  README + a KM card. Default-off / DUT byte-identical.
+
 ## 2026-06-16 — Semantic introspection — `input_reach` surface + schema 1.5 — `SEMANTIC-INTROSPECTION-EXPANSION.3b.2`
 
 Wires the `.3b.1` core to the agent-facing surface, closing the `input_reach`

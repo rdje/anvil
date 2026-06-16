@@ -1,6 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4a — `flop_reset_provenance` impl design-detail
+
+**Landed as:** this commit (previous: `b2e3ea7`). **Docs-only** (no source) — the
+design-detail leaf for `.4`, the third derived query `flop_reset_provenance`,
+before any implementation.
+
+**What changed (why)**
+
+`flop_reset_provenance` answers *which flops are reset-defined vs data-driven, and
+how is each one's next state built?* — a pure projection of `Module.flops`. It is
+the purest derived query yet: every field it reports already lives on the `Flop`
+(`reset_kind`, `reset_val`, `kind`, `mux`), so the derivation is a direct read, not
+even a graph walk.
+
+- **`DEVELOPMENT_NOTES.md`** — new `.4a` design-detail entry, grounded in the real
+  `Flop` type. (1) **Result shape:** a **third** parallel vec `flop_provenance:
+  Vec<FlopProvenance>` on `DerivedAnalysis` (`#[serde(default, skip_serializing_if
+  = "Vec::is_empty")]`, so `output_support` and `input_reach` documents stay
+  byte-identical), with `FlopProvenance { flop, width, has_reset, reset_kind,
+  reset_value, default_behavior, mux_kind, mux_arms, has_d }` — enums mapped to
+  strings for wire stability, `reset_value` a u128-safe **decimal string**. (2)
+  **Derivation:** a direct projection of `Module.flops` (ascending id), pure, no IR
+  /generator change. (3) **Addressing:** `None` ⇒ all flops; `Some("flop:<id>")` ⇒
+  one; unknown ⇒ `-32602`; flopless module + `None` ⇒ empty. (4) **Schema:**
+  additive MINOR `1.5 → 1.6`, envelope reused.
+- **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — registered `.4`
+  (container) + `.4a` (design, `done`) + `.4b`, pre-split `.4b` → `.4b.1` (pure
+  core, new **frontier**) + `.4b.2` (surface); root children list, Status,
+  frontier table, verification/commit logs, changelog updated.
+- **`docs/TASK_TREE.md`** + **`ROADMAP.md`** — the lane row/status reflect `.4`
+  in progress (frontier `.4b.1`).
+
+**Validation**
+
+- No source change ⇒ DUT byte-identical. Baseline `cargo check --all-targets`
+  clean; `bash scripts/check_memory_architecture.sh` +
+  `bash knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+Resume by executing `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` (the pure
+`flop_reset_provenance` core). No code is in flight.
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3b.2 — `input_reach` MCP surface + schema 1.5
 
 **Landed as:** this commit (previous: `42f3ea9`). **Source + docs**; DUT
