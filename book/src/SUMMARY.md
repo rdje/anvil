@@ -16,6 +16,7 @@
 - [Construction Strategies](construction-strategies.md)
 - [The Circuit IR](ir.md)
 - [The Factorization Pipeline](factorization.md)
+- [Structured Emission Surfaces](structured-emission.md)
 
 # Correctness Guarantees
 

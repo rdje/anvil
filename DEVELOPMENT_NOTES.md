@@ -5,6 +5,43 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — user-docs closeout + a config-overlay gotcha — `STRUCTURED-EMISSION-EXPANSION.2b.2c`
+
+The `.2b.2c` closeout is docs-only, but three choices are worth recording.
+
+**Placement.** The combinational `function automatic` surface got a *dedicated*
+"How It Works" chapter (`book/src/structured-emission.md`) rather than only a
+knob entry, because it is the **first** of a family of structured-emission
+surfaces (`task` / nested `generate` / `interface`/`modport` are `.3+`): the
+chapter gives that family a permanent home, and future surfaces extend it
+instead of scattering. The `function_emit_prob` *knob* still also lands in the
+canonical knob reference (`book/src/knobs.md`), `USER_GUIDE.md`, and the README
+"Current CLI truth" — next to its `soft_union_slice_prob`/`aggregate_prob`
+emit-projection siblings — so a reader looking up knobs finds it where the
+others live.
+
+**Accuracy correction.** The resume pointer and earlier tree notes referred
+loosely to an "`anvil --function-emit-prob`" knob entry. There is **no such CLI
+flag**: `function_emit_prob` is a config-file-only knob (serde `#[serde(default
+= "default_function_emit_prob")]`, no `--function-emit-prob` in `src/main.rs`),
+exactly like `soft_union_slice_prob` and `aggregate_prob`. The docs were written
+to the verified reality (set it via `--config` JSON), not the loose phrasing —
+signoff docs must match code, not memory.
+
+**Gotcha (non-obvious; pre-existing behaviour, surfaced while writing the repro
+block).** A *minimal* `--config` JSON does **not** behave like a knob overlay on
+the effective defaults. `--config '{"seed":42}'` (everything else left to serde
+struct defaults) emits **nothing** — the serde `Default` for structural fields
+like the width/input/output bounds is `0`, which is a different, degenerate
+config than the one `--dump-config` prints (the latter is the *effective* config
+after the builder fills real defaults). So the reliable way to flip one knob is
+`anvil --seed N --dump-config > base.json` → edit the field → `anvil --seed N
+--config base.json`. This is why the book's repro block uses that round-trip (and
+why it is skip-sentinelled — it edits a config file, so it is not a one-line
+generator example the `book_examples` harness can run unattended). A future
+"partial-config overlay" mode (merge onto effective defaults) would remove this
+sharp edge, but is out of scope here.
+
 ## 2026-06-16 — Structured emission — repo-owned `function automatic` emit gate — `STRUCTURED-EMISSION-EXPANSION.2b.2b`
 
 The repo-owned `tool_matrix --function-emit-gate` proves the combinational

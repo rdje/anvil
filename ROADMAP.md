@@ -253,9 +253,18 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    clean `/tmp/anvil-function-emit-gate-r1` [3 scenarios / 12 modules / 608
    emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys +
    Icarus compile]; default-off / DUT byte-identical, snapshots 6/6) + `.2b.2c`
-   (book/USER_GUIDE/KM/README closeout, **frontier**). `task`, nested `generate`, `interface`/`modport`
-   are future vetted surfaces (`.3`+), each with its own decision; serves ROADMAP
-   steering gap 1 (richer structured emission). Nothing retired.
+   (**done `2026-06-16`**: the user-facing closeout — a new `How It Works` book
+   chapter `book/src/structured-emission.md` with a byte-verified before/after
+   example + the `function_emit_prob` knob entry in `book/src/knobs.md`,
+   `USER_GUIDE.md`, and the README "Current CLI truth"; a Knowledge Map how-to
+   card `combinational-function-emit`; docs-only / DUT byte-identical). **The
+   first structured surface (the combinational `function automatic`
+   emit-projection) is now delivered end-to-end** — `.2`/`.2b`/`.2b.2` all
+   close. `task`, nested `generate`, `interface`/`modport` are future vetted
+   surfaces (`.3`+), each with its own decision; the tree stays `active` as an
+   open-ended lane with no current frontier (next surface awaits owner/PNT
+   selection of a `.3` design leaf). Serves ROADMAP steering gap 1 (richer
+   structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,

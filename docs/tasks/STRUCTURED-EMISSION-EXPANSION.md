@@ -6,8 +6,20 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.2b.2b` landed** — the repo-owned `tool_matrix
-  --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` +
+- Last updated: `2026-06-16` (**`.2b.2c` landed — the user-facing closeout; the
+  first structured surface is delivered end-to-end and `.2`/`.2b`/`.2b.2` all
+  close**. New `How It Works` book chapter `book/src/structured-emission.md`
+  (byte-verified seed-42 before/after; single-gate rule; `Slice`/structured
+  exclusions; duplicate-operand positional params; combinational-only) + the
+  `function_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` /
+  README "Current CLI truth" (documented accurately as a config-file-only knob)
+  + the Knowledge Map how-to card `combinational-function-emit` (KM 36→37 facts /
+  272→286 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map`
+  + `check_memory_architecture` + `cargo test --test book_examples` 3/3 all green.
+  The tree stays `active` as an open-ended lane with **no current frontier**;
+  future surfaces (`task`/nested `generate`/`interface`/`modport`) are `.3+`,
+  each its own decision when picked. Nothing retired. Prior: **`.2b.2b` landed** —
+  the repo-owned `tool_matrix --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` +
   `build_function_emit_sweep_scenarios` (comb-only `function_emit_prob=1.0` × 3
   strategies) + `ModuleReport.emitted_combinational_function` SV-text detection +
   `saw_combinational_function_emit` coverage fact + early-return gap enforcement +
@@ -64,9 +76,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the first structured surface (the combinational function automatic emit-projection) per decision 0012: the function_emit_prob knob + the rules-first cone selection + the emitter rendering (function automatic decl + call site) + the downstream-clean gate + book/USER_GUIDE/KM. Default-off / DUT byte-identical.`
   Children: `STRUCTURED-EMISSION-EXPANSION.2a`, `STRUCTURED-EMISSION-EXPANSION.2b`
+  Result: `Done (closed by .2b.2c, 2026-06-16). The combinational function automatic emit-projection is delivered end-to-end: the function_emit_prob knob + Module.function_emit_gates + the gen-time annotate_function_emit_gates selection + the to_sv_with_modules <wire>__f decl/positional-body/call rendering (.2b.1), the num_emitted_combinational_functions metric + introspection schema 1.8 (.2b.2a), the repo-owned tool_matrix --function-emit-gate downstream-clean gate (.2b.2b, banked /tmp/anvil-function-emit-gate-r1), and the book/USER_GUIDE/README/KM user-facing closeout (.2b.2c). Default-off / DUT byte-identical throughout (snapshots 6/6). Nothing retired.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2a`
   Status: `done`
@@ -77,9 +90,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the .2a design: the function_emit_prob knob, the rules-first single-gate selection (gen-time annotation src/ir/function_emit.rs + Module.function_emit_gates), the function automatic emitter rendering (decl + positional-param body + call site) in to_sv_with_modules, lib proofs (behaviour-preserving + selected-by-construction + default-off byte-identical + CSE/canonical-signature untouched), the downstream-clean gate (Verilator + both Yosys modes + Icarus + the saw_combinational_function_emit fact + a num_emitted_combinational_functions metric), and book/USER_GUIDE/KM closeout. Default-off / DUT byte-identical (snapshots untouched).`
   Children: `STRUCTURED-EMISSION-EXPANSION.2b.1`, `STRUCTURED-EMISSION-EXPANSION.2b.2`
+  Result: `Done (closed by .2b.2c, 2026-06-16). All of .2b.1 (live surface), .2b.2a (metric + schema 1.8), .2b.2b (the tool_matrix gate), and .2b.2c (docs closeout) complete. Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.1`
   Status: `done`
@@ -90,9 +104,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.2`
-  Status: `active`
+  Status: `done`
   Goal: `The repo-owned downstream gate + closeout for the combinational function automatic surface: a num_emitted_combinational_functions metric + a saw_combinational_function_emit coverage fact + a tool_matrix gate proving Verilator + both Yosys modes + Icarus accept the emitted functions warning-clean + book/USER_GUIDE/KM/README closeout. Default-off / DUT byte-identical. Pre-split (2026-06-16) into .2b.2a (metric + schema bump) + .2b.2b (the tool_matrix gate + coverage fact) + .2b.2c (docs closeout) — the metric is a Metrics field surfaced in introspection (schema MINOR bump, like 1.0->1.1 bisimulation_flops_merged); the tool_matrix gate is a large, fragile change (flag + ScenarioSet + config builder + coverage fact + detection + merge + gap enforcement + many ModuleReport/Cli test fixtures) that warrants its own focused slice; the book chapter + USER_GUIDE + KM + README CLI-truth entry are the user-facing closeout.`
   Children: `STRUCTURED-EMISSION-EXPANSION.2b.2a`, `STRUCTURED-EMISSION-EXPANSION.2b.2b`, `STRUCTURED-EMISSION-EXPANSION.2b.2c`
+  Result: `Done (closed by .2b.2c, 2026-06-16). .2b.2a (metric + introspection schema 1.8), .2b.2b (the repo-owned tool_matrix --function-emit-gate, banked clean), and .2b.2c (book/knobs/USER_GUIDE/README/KM closeout) all complete. Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.2a`
   Status: `done`
@@ -111,25 +126,29 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.2c`
-  Status: `pending`
+  Status: `done`
   Goal: `The user-facing closeout: a book chapter (or section) on structured emission / the combinational function automatic surface (under "How It Works" or "Reference") with examples; the USER_GUIDE function_emit_prob knob entry; the README "Current CLI truth" knob entry; and a Knowledge Map card if a durable how-to is warranted (decision 0012 already carries answers:). Default-off / DUT byte-identical (docs-only).`
   Acceptance: `book builds (mdbook build book); USER_GUIDE + README updated; KM regenerated + check_knowledge_map clean; self-checks clean; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. New "How It Works" book chapter book/src/structured-emission.md (added to SUMMARY.md after factorization.md): the concept (emit-time projection of an already-valid cone, the soft_union/aggregate precedent), a byte-verified seed-42 before/after example (function_emit_prob 0.0 -> 1.0 adds the add_0__f decl + rewrites only that gate's assign to a call; everything else byte-identical), the single-gate first-cut rule, the Slice/structured-selector exclusions (Slice = -Wall UNUSEDSIGNAL on a full-width param; nothing retired), duplicate-operand positional params (concat_0__f(case_mux_0, case_mux_0)), combinational-only (flop Q is a leaf), the why-this-surface-first rationale, and the metric + tool_matrix --function-emit-gate proof. A skip-sentinelled repro bash block (config-file edit; not the default one-liner). function_emit_prob knob entry added to the canonical knob reference book/src/knobs.md (new "### Structured emission" subsection after the SystemVerilog-version subsection), USER_GUIDE.md (after the soft_union_slice_prob config-knob section), and the README "Current CLI truth" (a dedicated config-file-knob bullet before the tool_matrix --function-emit-gate gate bullet) — all documenting it accurately as a config-file-only knob (no CLI flag, like soft_union_slice_prob/aggregate_prob; the .2b.2b gate README/USER_GUIDE entries already landed). New Knowledge Map how-to card docs/knowledge/combinational-function-emit.md (id combinational-function-emit) with how-to question keys distinct from decision 0012's conceptual keys + a validated reverify command (dump-config -> set function_emit_prob=1.0 + comb-only -> generate -> grep "function automatic" -> verilator --lint-only). KM regenerated (36 -> 37 facts, 272 -> 286 question keys). Docs-only / DUT byte-identical (no source touched). With this leaf, .2b.2 / .2b / .2 all close: the first structured surface (the combinational function automatic emit-projection) is delivered end-to-end. The tree stays active as an open-ended lane with no current frontier; future surfaces (task / nested generate / interface/modport) are .3+, each its own decision when picked. Nothing retired.`
+  Verification: `mdbook build book clean (HTML written, no broken-link warnings); bash knowledge-map/scripts/gen_knowledge_map.sh (37 facts / 286 keys) + bash knowledge-map/scripts/check_knowledge_map.sh OK (facts valid, ids unique, map in sync); bash scripts/check_memory_architecture.sh all invariants hold (0012 indexed); cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — the new repro block correctly skipped). Docs-only: no src/ touched, so cargo check/clippy/fmt unaffected; the seed-42 before/after and the seed-11 reverify were byte-verified against the release binary (function_emit_prob 0.0 vs 1.0 diff = exactly the add_0__f decl + the one assign; reverify emits 10 functions, Verilator clean).`
+  Commit: `done`
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.2b.2c`** (the user-facing
-closeout). `.2b.2` was pre-split (`2026-06-16`) into `.2b.2a` (metric + schema —
-**done**), `.2b.2b` (the `tool_matrix` gate — **done `2026-06-16`**), `.2b.2c`
-(docs closeout — frontier). `.1` (decision `0012`), `.2a` (design-detail),
-`.2b.1` (the live combinational `function automatic` surface), `.2b.2a` (the
-metric + schema `1.8`), and `.2b.2b` (the repo-owned `--function-emit-gate`,
-banked clean) are done. Nothing retired.
+**No current frontier — the first structured surface is delivered end-to-end.**
+`STRUCTURED-EMISSION-EXPANSION.2b.2c` (the user-facing closeout) is **done
+(`2026-06-16`)**, which closes `.2b.2`, `.2b`, and `.2`: the combinational
+`function automatic` emit-projection is complete from decision (`.1`) through
+live surface (`.2b.1`), metric + schema (`.2b.2a`), the repo-owned downstream
+gate (`.2b.2b`), and the book/knobs/USER_GUIDE/README/KM closeout (`.2b.2c`).
+The tree stays **`active`** as an open-ended lane: future structured surfaces
+(`task`, nested `generate`, `interface`/`modport`) are `.3+`, each requiring its
+own design/decision leaf when picked (the next PNT step in this lane would be a
+`.3` design leaf, or PNT moves to another roadmap lane). Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | `pending` | The user-facing closeout: a book chapter/section on the combinational `function automatic` surface (examples) + the USER_GUIDE `function_emit_prob` knob entry + the README "Current CLI truth" `anvil --function-emit-prob` knob entry + a KM card if warranted. (The README/USER_GUIDE `tool_matrix --function-emit-gate` *gate* entries already landed with `.2b.2b`; this leaf adds the `anvil`-side `function_emit_prob` *knob* user docs + the book chapter.) Docs-only / byte-identical. |
+| — | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | `done` | The user-facing closeout: a new `How It Works` book chapter `book/src/structured-emission.md` (byte-verified seed-42 before/after; single-gate rule; `Slice`/structured exclusions; duplicate-operand positional params; combinational-only; why-first rationale; metric + gate) + the `function_emit_prob` knob entry in `book/src/knobs.md` (new `### Structured emission` subsection), `USER_GUIDE.md`, and the README "Current CLI truth" (documented accurately as a config-file-only knob, no CLI flag) + the Knowledge Map how-to card `combinational-function-emit` (KM 36→37 facts / 272→286 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. |
 | — | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | `done` | The repo-owned `tool_matrix --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios` (one comb-only `function_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_function` SV-text detection + `saw_combinational_function_emit` coverage fact + early-return gap enforcement + 5 cargo-portable proofs. Banked clean `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608 emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). Templated on `--signoff-knob-sweep-gate` + the soft_union detection precedent. Default-off / DUT byte-identical (snapshots 6/6). |
 | — | `STRUCTURED-EMISSION-EXPANSION.2b.2a` | `done` | The metric `Metrics::num_emitted_combinational_functions` (= `m.function_emit_gates.len()`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.7 -> 1.8`. Lib proof; 468 lib tests + snapshots 6/6 + mdbook all green; end-to-end introspect default `0` / forced `1256`. Precedented (1.0->1.1 `bisimulation_flops_merged`). |
 | — | `STRUCTURED-EMISSION-EXPANSION.2b.1` | `done` | Live surface delivered: `Config::function_emit_prob` + `Module.function_emit_gates` + `src/ir/function_emit.rs` (`annotate_function_emit_gates`) + the gen-time call-site rolls + the `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call rendering + 9 lib proofs + a forced-knob downstream sweep. **`Slice` excluded** (a bit-select uses only a sub-range ⇒ `-Wall UNUSEDSIGNAL` on a full-width param; still emitted inline, nothing retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6). |
@@ -172,6 +191,7 @@ banked clean) are done. Nothing retired.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.2c` | **User-facing closeout, docs-only** (new `book/src/structured-emission.md` + `book/src/SUMMARY.md` link + `book/src/knobs.md` `### Structured emission` entry + `USER_GUIDE.md` knob section + README "Current CLI truth" bullet + new KM card `docs/knowledge/combinational-function-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**37 facts / 286 keys**, was 36 / 272) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0012` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-42 `function_emit_prob` 0.0→1.0 diff = exactly the `add_0__f` decl + the one `assign` rewritten to a call (rest byte-identical); the KM reverify recipe emits 10 functions, Verilator `--lint-only` CLEAN. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--function-emit-gate` + `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios`/`function_emit_focus_config` + `ModuleReport.emitted_combinational_function` + `saw_combinational_function_emit` + merge/early-return-gap + 5 proofs + 6 fixture updates). `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean (fixed a `clippy::explicit_counter_loop` via `.enumerate()`); `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **58 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --lib` **468 passed** / 2 ignored (unchanged); `cargo test --test snapshots` **6/6 byte-identical**. Repo-owned bank `/tmp/anvil-function-emit-gate-r1` (`--function-emit-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **608 emitted functions** / `coverage_gaps = []` / `saw_combinational_function_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_combinational_functions` + `src/introspect/mod.rs` `SCHEMA_VERSION` `1.7→1.8` + the 9 `schema_version` test assertions + the schema doc + README/USER_GUIDE/book current-output refs + the stale `CODEBASE_ANALYSIS` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **468 passed** / 2 ignored (new metric proof + all `schema_version` assertions green at `1.8`); `cargo test --test snapshots` **6/6 byte-identical** (default-off). End-to-end `--introspect`: default ⇒ `schema_version "1.8"` + metric `0`; forced `function_emit_prob=1.0` ⇒ `1.8` + `1256`. `mdbook build book` OK. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.1` | **Live emitter change** (`src/config.rs` knob + `src/ir/types.rs` `Module.function_emit_gates` + new `src/ir/function_emit.rs` annotate pass + `src/gen/mod.rs` two call-site rolls + `src/emit/sv.rs` `function automatic` decl/body/call rendering). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 467 passed / 2 ignored (incl. 9 new `function_emit` proofs; introspect `schema_version` 1.7 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `function_emit_prob=1.0` sweep (5 seeds 1/7/42/100/2024, 830–1299 functions each, `/tmp/anvil-fe-r2/`): Verilator `--lint-only` **5/5 CLEAN**, **0** `__f`-param `-Wall` warnings (`Slice` excluded; residual `-Wall UNUSEDSIGNAL` is pre-existing — OFF baseline has 20), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5 CLEAN**. | `done` |
@@ -183,6 +203,7 @@ banked clean) are done. Nothing retired.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.2b.2c` | `STRUCTURED-EMISSION-EXPANSION.2b.2c — combinational function emit user docs` | Docs-only closeout: new `How It Works` book chapter `book/src/structured-emission.md` (byte-verified before/after; single-gate rule; `Slice`/structured exclusions; duplicate-operand positional params; combinational-only) + `function_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `combinational-function-emit` (37 facts / 286 keys). Closes `.2b.2` / `.2b` / `.2` — the first structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.2b.2b` | `STRUCTURED-EMISSION-EXPANSION.2b.2b — function-emit tool_matrix gate` | The repo-owned `tool_matrix --function-emit-gate`: `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios` (comb-only `function_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_function` SV-text detection + `saw_combinational_function_emit` fact + early-return gap enforcement + 5 proofs. Banked clean `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608 functions / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). Default-off / DUT byte-identical (snapshots 6/6). |
 | `STRUCTURED-EMISSION-EXPANSION.2b.2a` | `STRUCTURED-EMISSION-EXPANSION.2b.2a — emit metric + introspection schema 1.8` | `Metrics::num_emitted_combinational_functions` (= `function_emit_gates.len()`) + introspection schema MINOR bump `1.7 → 1.8` (the metric bumps; the `.2b.1` knob rode the version). Bumped all current-output schema refs (tests + schema doc + README + USER_GUIDE + 5 book example JSONs + the stale `CODEBASE_ANALYSIS` envelope line). Lib proof; default-off / DUT byte-identical (snapshots 6/6). |
 | `STRUCTURED-EMISSION-EXPANSION.2b.1` | `STRUCTURED-EMISSION-EXPANSION.2b.1 — combinational function automatic emit-projection (live surface)` | Live emitter change: `function_emit_prob` knob + `Module.function_emit_gates` + `src/ir/function_emit.rs` gen-time mark + two generator call-site rolls (after soft_union) + `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call rendering + 9 lib proofs. `Slice` excluded from the first cut (`-Wall UNUSEDSIGNAL` on a full-width param; still emitted inline, nothing retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6); forced sweep clean across Verilator + both Yosys + Icarus (`/tmp/anvil-fe-r2/`). |
@@ -192,6 +213,35 @@ banked clean) are done. Nothing retired.
 
 ## Changelog
 
+- `2026-06-16`: **`.2b.2c` landed — the user-facing closeout; the first
+  structured surface is delivered end-to-end.** Docs-only / DUT byte-identical.
+  A new `How It Works` book chapter `book/src/structured-emission.md` (added to
+  `book/src/SUMMARY.md` after `factorization.md`) teaches the combinational
+  `function automatic` surface: the emit-time-projection concept (the
+  `soft_union`/aggregate precedent), a **byte-verified seed-42 before/after**
+  (`function_emit_prob` 0.0→1.0 adds the `add_0__f` decl and rewrites *only*
+  that gate's `assign` to a call — everything else byte-identical), the
+  single-gate first-cut rule, the `Slice`/structured-selector exclusions
+  (`Slice` = `-Wall UNUSEDSIGNAL` on a full-width param; nothing retired),
+  duplicate-operand positional params (`concat_0__f(case_mux_0, case_mux_0)`),
+  combinational-only (a flop `Q` is a leaf), the why-this-surface-first
+  rationale, and the metric + `tool_matrix --function-emit-gate` proof, plus a
+  skip-sentinelled repro `bash` block. The `function_emit_prob` knob is added to
+  the canonical knob reference `book/src/knobs.md` (new `### Structured emission`
+  subsection), `USER_GUIDE.md` (after the `soft_union_slice_prob` config-knob
+  section), and the README "Current CLI truth" (a dedicated bullet before the
+  `tool_matrix --function-emit-gate` gate bullet) — all documenting it
+  **accurately as a config-file-only knob** (no CLI flag, like
+  `soft_union_slice_prob`/`aggregate_prob`; the `.2b.2b` gate README/USER_GUIDE
+  entries already landed). A new Knowledge Map how-to card
+  `docs/knowledge/combinational-function-emit.md` carries how-to question keys
+  distinct from decision `0012`'s conceptual keys + a validated `reverify`
+  command; KM regenerated 36→37 facts / 272→286 keys. `mdbook build` +
+  `check_knowledge_map` + `check_memory_architecture` +
+  `cargo test --test book_examples` 3/3 all green. Closes `.2b.2` / `.2b` /
+  `.2`; the tree stays `active` as an open-ended lane with **no current
+  frontier** (future `task`/nested `generate`/`interface`/`modport` surfaces are
+  `.3+`, each its own decision). Nothing retired.
 - `2026-06-16`: **`.2b.2b` landed — the repo-owned `tool_matrix --function-emit-gate`.**
   `src/bin/tool_matrix.rs` gains a new gate templated on `--signoff-knob-sweep-gate`
   (scaffolding) + the `union soft` up-opt (emitted-construct detection):

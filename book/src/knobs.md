@@ -472,6 +472,42 @@ instead of creating fresh logic.
   `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes — the
   up-opt scenario's two modules are the Yosys no-op).
 
+### Structured emission
+
+- `function_emit_prob` (config-file only — no CLI flag, like
+  `soft_union_slice_prob` / `aggregate_prob`; default `0.0` ⇒
+  byte-identical; validated `0.0..=1.0`) — the **first richer-structured
+  emission surface** (decision `0012`). Probability, per *qualifying*
+  combinational `Gate`, that anvil re-renders it as a
+  `function automatic` of its direct operands instead of an inline
+  `assign`:
+
+  ```systemverilog
+  function automatic logic [3:0] add_0__f(input logic [3:0] a0, input logic [3:0] a1);
+      add_0__f = a0 + a1;
+  endfunction
+  ...
+  assign add_0 = add_0__f(i_1, casez_mux_0);   // was: assign add_0 = i_1 + casez_mux_0;
+  ```
+
+  It is an **emit-time projection** of an already-valid cone — the call
+  evaluates to exactly the inline expression, so it is
+  **behaviour-preserving** and adds no new IR truth (the
+  `soft_union_slice_prob` / `aggregate_prob` precedent). Selection is
+  rules-first at construction time (no generate-then-filter). The first
+  cut wraps a **single gate over its direct operands** (zero
+  sharing/scoping hazard); structured selectors (`case` / `casez` /
+  `for`-fold) and `Slice` are **excluded** and still emit inline (a
+  full-width `Slice` param trips `-Wall UNUSEDSIGNAL`; nothing is
+  retired). Combinational only — a flop `Q` is a leaf parameter, never
+  recursed through. `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_combinational_functions` metric in `--introspect` (schema
+  `1.8`). Proven downstream-clean by the repo-owned
+  `tool_matrix --function-emit-gate` (Verilator + both Yosys modes +
+  Icarus; `saw_combinational_function_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full
+  walk-through.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

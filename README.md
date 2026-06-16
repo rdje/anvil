@@ -730,6 +730,26 @@ exercising adversarial axes that previously fired only by chance
   `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
   `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
   up-opt scenario's two modules are the Yosys no-op).
+- `function_emit_prob` is a default-off config-file knob (no CLI flag,
+  like `soft_union_slice_prob` / `aggregate_prob`;
+  `STRUCTURED-EMISSION-EXPANSION.2b.1`, decision `0012`) — ANVIL's
+  **first richer-structured emission surface**. Per *qualifying*
+  combinational `Gate`, it is the probability the emitter re-renders the
+  gate as a `function automatic` of its direct operands
+  (`assign add_0 = add_0__f(i_1, casez_mux_0);` + a matching
+  `function automatic` decl) instead of the inline `assign add_0 = i_1 +
+  casez_mux_0;`. It is a behaviour-preserving **emit-time projection** of
+  an already-valid cone (no new IR node / no new computed truth — the
+  `soft_union`/aggregate precedent), rules-first (selection at
+  construction time, no generate-then-filter). The first cut wraps a
+  single gate over its direct operands; structured selectors (`case` /
+  `casez` / `for`-fold) and `Slice` are excluded and still emit inline
+  (a full-width `Slice` param would trip `-Wall UNUSEDSIGNAL`; nothing
+  retired). Combinational only (a flop `Q` is a leaf parameter). Default
+  `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
+  emitted-function count is surfaced as
+  `num_emitted_combinational_functions` in `--introspect` (schema
+  `1.8`). Set it via `--config` JSON. See `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first

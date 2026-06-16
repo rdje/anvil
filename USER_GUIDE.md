@@ -328,6 +328,31 @@ The `--sv-version 2023` target unlocks the first version-distinctive
   and are a recorded no-op. Set it in a `--config` JSON, e.g.
   `{ "seed": 1, "soft_union_slice_prob": 1.0, "sv_version": "2023", … }`.
 
+The richer-structured **emission** surface has its own config-file knob
+(no CLI flag, like `soft_union_slice_prob`):
+
+- `function_emit_prob` (default `0.0`) — the probability, per
+  *qualifying* combinational `Gate`, that anvil re-renders it as a
+  `function automatic` of its direct operands instead of an inline
+  `assign` (decision `0012`, the **first** richer-structured emission
+  surface). It is an **emit-time projection** of an already-valid cone —
+  the call evaluates to exactly the inline expression, so it is
+  behaviour-preserving and adds no new IR truth (the
+  `soft_union_slice_prob` / `aggregate_prob` precedent). Selection is
+  rules-first at construction time (no generate-then-filter). The first
+  cut wraps a single gate over its direct operands; structured selectors
+  (`case` / `casez` / `for`-fold) and `Slice` are excluded and still
+  emit inline (a full-width `Slice` parameter would trip `-Wall
+  UNUSEDSIGNAL`; nothing is retired). Combinational only — a flop `Q` is
+  a leaf parameter, never recursed through. `default = 0.0` is
+  byte-identical; the emitted-function count is surfaced as
+  `num_emitted_combinational_functions` in `--introspect` (schema
+  `1.8`). Set it in a `--config` JSON, e.g.
+  `{ "seed": 42, "function_emit_prob": 1.0, "flop_prob": 0.0, … }`. The
+  surface is proven downstream-clean by `tool_matrix --function-emit-gate`
+  (see the matrix section below). Full walk-through:
+  `book/src/structured-emission.md`.
+
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
 before emission, so the emitted module interface matches the live logic

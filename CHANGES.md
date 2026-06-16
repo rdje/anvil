@@ -1,9 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2c — combinational `function automatic` user docs (book chapter + knob entries + KM card)
+
+**Landed as:** this commit (previous: `3c63f96`). **Docs-only / DUT
+byte-identical** — no `src/`, `tests/`, or `examples/` touched. The user-facing
+closeout of the combinational `function automatic` emit-projection
+(`STRUCTURED-EMISSION-EXPANSION.2b.2c`), owned by the existing `.2b.2c` leaf.
+With it, `.2b.2` / `.2b` / `.2` all close: the first richer-structured emission
+surface is delivered end-to-end.
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** (new) + **`book/src/SUMMARY.md`** — a new
+  "How It Works" chapter (after *The Factorization Pipeline*) teaching the
+  surface: the emit-time-projection concept (the `soft_union`/aggregate
+  precedent — re-render an *already-valid* cone in a richer shape, never
+  generate-then-filter), a **byte-verified seed-42 before/after**
+  (`function_emit_prob` `0.0`→`1.0` adds the `add_0__f` `function automatic`
+  decl and rewrites *only* that gate's `assign` to a call — every other line
+  byte-identical), the single-gate first-cut rule (wrap one `Gate` over its
+  direct operands ⇒ zero sharing/scoping hazard), the `Slice`/structured-selector
+  **exclusions** (a full-width `Slice` param trips `-Wall UNUSEDSIGNAL`; still
+  emitted inline, nothing retired), duplicate-operand **positional** params
+  (`concat_0__f(case_mux_0, case_mux_0)`), combinational-only (a flop `Q` is a
+  leaf parameter), the why-this-surface-first rationale (universally
+  downstream-clean / minimal blast radius / genuinely new shape), and the
+  `num_emitted_combinational_functions` metric + `tool_matrix --function-emit-gate`
+  proof. A repro `bash` block is skip-sentinelled (config-file edit; not the
+  default generator one-liner — keeps the `book_examples` harness green).
+- **`book/src/knobs.md`** — a new `### Structured emission` subsection (after the
+  SystemVerilog-version subsection) documenting `function_emit_prob` beside its
+  `soft_union_slice_prob`/`aggregate_prob` emit-projection siblings.
+- **`USER_GUIDE.md`** — a `function_emit_prob` config-knob entry after the
+  `soft_union_slice_prob` section.
+- **`README.md`** — a `function_emit_prob` bullet in "Current CLI truth" before
+  the `tool_matrix --function-emit-gate` gate bullet. **Documented accurately as
+  a config-file-only knob** (no CLI flag — verified against `src/config.rs` /
+  `src/main.rs`: `function_emit_prob` rides `--config` JSON like
+  `soft_union_slice_prob`/`aggregate_prob`; the resume pointer's loose
+  "`anvil --function-emit-prob`" phrasing was *not* copied verbatim).
+- **`docs/knowledge/combinational-function-emit.md`** (new KM card) +
+  **`KNOWLEDGE_MAP.md`** (regenerated, 36→37 facts / 272→286 keys) — a durable
+  *how-to* card with question keys distinct from decision `0012`'s conceptual
+  keys, plus a validated `reverify` command (dump-config → set
+  `function_emit_prob=1.0` + comb-only → generate → grep `function automatic` →
+  `verilator --lint-only`).
+- **`ROADMAP.md`** / **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** /
+  **`docs/TASK_TREE.md`** — `.2b.2c` marked done; `.2b.2`/`.2b`/`.2` rolled up;
+  the tree stays `active` as an open-ended lane with **no current frontier**
+  (future `task`/nested `generate`/`interface`/`modport` surfaces are `.3+`,
+  each its own decision). **`MEMORY.md`** backfilled `3c63f96` and refreshed.
+
+**Validation**
+
+- `mdbook build book` ✅ (HTML written, no broken-link warnings).
+- `bash knowledge-map/scripts/gen_knowledge_map.sh` (37 facts / 286 keys) +
+  `bash knowledge-map/scripts/check_knowledge_map.sh` ✅ (facts valid, ids
+  unique, map in sync).
+- `bash scripts/check_memory_architecture.sh` ✅ (all invariants hold).
+- `cargo test --test book_examples` ✅ 3/3 (`skip_sentinels_have_reasons` +
+  `every_runnable_book_bash_block_succeeds` — the new repro block correctly
+  skip-classified).
+- Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). The seed-42
+  before/after and the seed-11 `reverify` recipe were byte-verified against the
+  release binary (the diff is exactly the `add_0__f` decl + the one assign;
+  `reverify` emits 10 functions, Verilator clean).
+
+**Impact**
+
+- Users get a complete, example-rich, byte-accurate explanation of the first
+  structured-emission surface in the mdBook (the user-facing window into the
+  project), with the `function_emit_prob` knob findable in all three knob
+  references and a one-command KM reverify. No behaviour or output change.
+
 ## 2026-06-16 — LOCAL-REFERENCE-CACHE.1 — gitignore `.cache/` for the local SystemVerilog LRM reference
 
-**Landed as:** this commit (previous: `873803b`). **No code / no RTL change** —
+**Landed as:** `3c63f96` (previous: `873803b`). **No code / no RTL change** —
 a `.gitignore` + live-doc workflow tweak, owned by the new `LOCAL-REFERENCE-CACHE`
 workflow tree (the `commit-msg` hook requires a leaf id on every commit).
 
