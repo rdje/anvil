@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `SEMANTIC-INTROSPECTION-EXPANSION`
-- Status: `active` (two queries delivered: `output_support` `.1`/`.2` + `input_reach` `.3`, schema `1.5`; `.4` `flop_reset_provenance` open — `.4a` design **done**, frontier `.4b.1`)
+- Status: `active` (two queries delivered: `output_support` `.1`/`.2` + `input_reach` `.3`, schema `1.5`; `.4` `flop_reset_provenance` open — `.4a` design + `.4b.1` pure core **done**, frontier `.4b.2` surface)
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
 - Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design — decision `0011`; `.2a` design-detail; `.2b.1` the pure analysis core; `.2b.2` the agent-facing surface — schema `1.3` + the pure MCP `analyze` tool + the `DerivedAnalysisDocument` + docs/KM. **`.2` done — the first query (output support cone) is delivered end-to-end, DUT byte-identical.** `.3` (`input_reach`) opened: `.3a` design-detail **done** (DEVELOPMENT_NOTES entry: result shape = second `reach_results` vec, derivation = invert the support relation, source addressing + `"flop:<id>"` direction-by-query duality, schema `1.4 → 1.5`); `.3b` pre-split → `.3b.1` (pure core, **frontier**) + `.3b.2` (surface).)
@@ -148,11 +148,12 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Children: `SEMANTIC-INTROSPECTION-EXPANSION.4b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.4b.1`
-  Status: `pending`
+  Status: `done`
   Goal: `The pure flop_reset_provenance core in src/introspect/analyze.rs: QUERY_FLOP_RESET_PROVENANCE = "flop_reset_provenance", the FlopProvenance struct, the flop_provenance: Vec<FlopProvenance> field on DerivedAnalysis (#[serde(default, skip_serializing_if)]), and module_flop_provenance(&Module, Option<&str>) / design_flop_provenance(&Design, Option<&str>) — a direct projection of Module.flops (ascending id), enums → strings, reset_value a decimal string. Do NOT add to supported_query_kinds() yet (registry + run_analyze dispatch land together in .4b.2). Lib-tested only.`
   Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. each ResetKind/FlopKind/FlopMux variant mapped correctly + reset_value string + None ⇒ all flops ascending + flopless ⇒ empty + "flop:<id>" target + unknown ⇒ none + determinism; cargo test --test snapshots 6/6 byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. src/introspect/analyze.rs gains QUERY_FLOP_RESET_PROVENANCE, FlopProvenance { flop, width, has_reset, reset_kind, reset_value (decimal string), default_behavior, mux_kind, mux_arms, has_d }, the third DerivedAnalysis.flop_provenance field (#[serde(default, skip_serializing_if)] ⇒ output_support/input_reach byte-identical), module_flop_provenance/design_flop_provenance + the flop_provenance_with/flop_provenance_of helpers (project m.flops ascending id; ResetKind→none/sync/async, FlopKind→zero/hold, FlopMux→none/one_hot/encoded; reset_val.to_string()). The 4 existing DerivedAnalysis literals gained flop_provenance: Vec::new(). supported_query_kinds() unchanged (joins with dispatch in .4b.2). 5 new in-crate proofs (each variant; "flop:<id>" + unknown target; flopless ⇒ empty; serialization omits the other vecs; design top-module variant). Validation: cargo test --lib 448/0/2 (20 analyze proofs); cargo test --test snapshots 6/6 byte-identical; clippy -D warnings + fmt clean. DUT byte-identical.`
+  Verification: `done`
+  Commit: `done`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`
   Status: `pending`
@@ -163,18 +164,18 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 
 ## Current Frontier
 
-**Frontier = `SEMANTIC-INTROSPECTION-EXPANSION.4b.1`** (the pure
-`flop_reset_provenance` core). Two derived queries are already delivered
+**Frontier = `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`** (the
+`flop_reset_provenance` surface). Two derived queries are already delivered
 end-to-end — `output_support` (`.1`/`.2`) and `input_reach` (`.3`), schema `1.5`.
-`.4` opens the **third** query, `flop_reset_provenance` (per-flop reset/data
-provenance); `.4a` design-detail is **done**, `.4b` is pre-split → `.4b.1` (pure
-core, frontier) + `.4b.2` (surface). The last named kind, `module_reachability`,
-remains open-ended `.5+` breadth (none retired).
+`.4` opens the **third** query, `flop_reset_provenance`; `.4a` design + `.4b.1`
+pure core are **done** (lib-proven, DUT byte-identical); `.4b.2` is the surface
+wiring. The last named kind, `module_reachability`, remains open-ended `.5+`
+breadth (none retired).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | `pending` | The pure `flop_reset_provenance` core in `analyze.rs`: `FlopProvenance` + the third `flop_provenance` vec + `module_flop_provenance`/`design_flop_provenance` (a direct projection of `Module.flops`). Lib-tested only; not in the registry yet (joins with dispatch in `.4b.2`). DUT byte-identical. |
-| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` | `pending` | Surface: add the kind to `supported_query_kinds()` + branch `run_analyze` (same commit) + schema `1.5 → 1.6` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` | `pending` | Surface: add the kind to `supported_query_kinds()` + branch `run_analyze` (same commit) + schema `1.5 → 1.6` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | `done` | The pure `flop_reset_provenance` core in `analyze.rs`: `QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `flop_provenance` vec + `module_flop_provenance`/`design_flop_provenance` (a direct projection of `Module.flops`). 5 reach proofs; `cargo test --lib` 448/0/2; snapshots 6/6; clippy/fmt clean. DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.4a` | `done` | Design-detail (no source) for `flop_reset_provenance`: pinned the result shape (a third `flop_provenance: Vec<FlopProvenance>` vec — prior documents byte-identical), the derivation (a direct projection of `Module.flops`, no graph walk), `"flop:<id>"` addressing, and the schema bump `1.5 → 1.6`. Pre-split `.4b` → `.4b.1`/`.4b.2`. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.3b.2` | `done` | Surface: added `input_reach` to `supported_query_kinds()` + branched `run_analyze` by kind (same commit) + schema `1.4 → 1.5` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. 2 new MCP `input_reach` proofs; `cargo test --lib` 443/0/2; snapshots 6/6; book_examples 3/3; e2e `anvil-mcp` smoke clean. DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` | `done` | The pure `input_reach` core in `analyze.rs`: `QUERY_INPUT_REACH` + `ReachResult` + the second `reach_results` vec + `module_input_reach`/`design_input_reach` (invert the support relation). 7 reach proofs; snapshots 6/6; clippy/fmt clean. DUT byte-identical. |
@@ -248,6 +249,7 @@ remains open-ended `.5+` breadth (none retired).
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | Pure `flop_reset_provenance` core in `src/introspect/analyze.rs` (`QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `DerivedAnalysis.flop_provenance` field + `module_flop_provenance`/`design_flop_provenance` + `flop_provenance_with`/`flop_provenance_of`; the 4 existing `DerivedAnalysis` literals gained `flop_provenance: Vec::new()`; `supported_query_kinds()` unchanged). `cargo test --lib` **448 passed / 0 failed / 2 ignored** (20 `introspect::analyze` proofs incl. 5 new: each `ResetKind`/`FlopKind`/`FlopMux` variant + `reset_value` string + ascending-id ordering; `"flop:<id>"` + unknown target ⇒ none; flopless ⇒ empty; serialization omits the other vecs; design top-module variant). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. CODEBASE_ANALYSIS `analyze.rs` block amended. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.4a` | Design-detail leaf, **no source change** (grounded in the real `Flop` type in `src/ir/types.rs` — `ResetKind`/`FlopKind`/`FlopMux`/`reset_val` — plus `src/introspect/analyze.rs`/`mod.rs` + `src/mcp/mod.rs`). `DEVELOPMENT_NOTES.md` design-detail entry (the four points + the `.4b` pre-split: a third `flop_provenance` vec, a direct `Module.flops` projection, `"flop:<id>"` addressing, schema `1.5 → 1.6`). Tree `.4`/`.4a`/`.4b` registered + `.4b` pre-split → `.4b.1`/`.4b.2`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.3b.2` | Surface wiring: `input_reach` in `analyze::supported_query_kinds()` + the `run_analyze` query-kind dispatch + the vec-aware `-32602` guard (`src/mcp/mod.rs`); `analyze_schema` enum + tool/instructions descriptions; `SCHEMA_VERSION` `1.4 → 1.5` + doc comment (`src/introspect/mod.rs`); 6 `"1.4" → "1.5"` test assertions (2 `introspect`, 4 `mcp`); the stale MCP `introspect` "schema 1.0" description made version-agnostic. Docs: schema-doc §6.7 + `1.4 → 1.5` changelog + "defines 1.5"/checklist; book `agent-mcp` (analyze row + `input_reach` worked example + both JSON examples `1.4 → 1.5`); USER_GUIDE + README; new KM card `semantic-introspection-input-reach` + cross-link; `CODEBASE_ANALYSIS` (both analyze blocks); `ROADMAP` lane status. `cargo test --lib` **443 passed / 0 failed / 2 ignored** (incl. `mcp::tests::analyze_returns_input_reach_relation_and_caches_it` + `analyze_input_reach_unknown_source_is_invalid_params`). `cargo test --test snapshots` **6/6 byte-identical**. `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples` **3/3**; KM regenerated + `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean. End-to-end `anvil-mcp` stdio smoke: `analyze {query:"input_reach", seed:7}` → schema `1.5`, 37 `reach_results`, `results` empty; unknown source → `-32602`. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` | Pure `input_reach` core in `src/introspect/analyze.rs` (`QUERY_INPUT_REACH` + `ReachResult` + the second `DerivedAnalysis.reach_results` field + `module_input_reach`/`design_input_reach` + the `input_reach_with`/`cone_support_keys`/`source_universe`/`make_reach_result` helpers; `supported_query_kinds()` unchanged). `cargo test --lib` **441 passed / 0 failed / 2 ignored** (15 `introspect::analyze` proofs incl. 7 new: transpose-of-support; flop-Q + flop-D-side duals; design instance-output source; `None`-all-sources incl. empty clk/rst_n; unknown-source ⇒ none; determinism/sorted; `output_support` omits `reach_results`). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged; `reach_results` omitted from `output_support` docs). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. CODEBASE_ANALYSIS `analyze.rs` block amended. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
@@ -262,6 +264,7 @@ remains open-ended `.5+` breadth (none retired).
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1 — pure flop_reset_provenance core` | `src/introspect/analyze.rs`: `QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `flop_provenance` vec + `module_flop_provenance`/`design_flop_provenance` (a direct `Module.flops` projection). `supported_query_kinds()` unchanged (joins with dispatch in `.4b.2`). 5 reach proofs; DUT byte-identical (snapshots 6/6). |
 | `SEMANTIC-INTROSPECTION-EXPANSION.4a` | `SEMANTIC-INTROSPECTION-EXPANSION.4a — flop_reset_provenance impl design-detail` | Design-detail (no source): pinned the third query's result shape (a third `flop_provenance: Vec<FlopProvenance>` vec — prior documents byte-identical), the derivation (a direct `Module.flops` projection), `"flop:<id>"` addressing, and the schema `1.5 → 1.6` bump. Registered `.4`/`.4a`/`.4b`; pre-split `.4b` → `.4b.1`/`.4b.2`. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.3b.2` | `SEMANTIC-INTROSPECTION-EXPANSION.3b.2 — input_reach MCP surface + schema 1.5` | Registry + `run_analyze` dispatch + schema `1.4 → 1.5` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Closes `.3b`/`.3` — `input_reach` delivered end-to-end. 2 new MCP proofs; DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.3b.1 — pure input_reach analysis core` | `src/introspect/analyze.rs`: `QUERY_INPUT_REACH` + `ReachResult` + the second `reach_results` vec + `module_input_reach`/`design_input_reach` (invert the support relation). `supported_query_kinds()` unchanged (joins with dispatch in `.3b.2`). 7 reach proofs; DUT byte-identical (snapshots 6/6). |
@@ -274,6 +277,22 @@ remains open-ended `.5+` breadth (none retired).
 
 ## Changelog
 
+- `2026-06-16`: **`.4b.1` landed — the pure `flop_reset_provenance` core** (DUT
+  byte-identical). `src/introspect/analyze.rs` gains `QUERY_FLOP_RESET_PROVENANCE`,
+  the `FlopProvenance` struct, the **third** `DerivedAnalysis.flop_provenance`
+  field (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒
+  `output_support`/`input_reach` documents stay byte-identical), and the pure
+  `module_flop_provenance`/`design_flop_provenance` builders (+ the internal
+  `flop_provenance_with`/`flop_provenance_of`) — a direct projection of
+  `Module.flops` (ascending id) mapping `ResetKind`→`none/sync/async`,
+  `FlopKind`→`zero/hold`, `FlopMux`→`none/one_hot/encoded`, `reset_val` →
+  decimal string. The 4 existing `DerivedAnalysis` literals gained
+  `flop_provenance: Vec::new()`. `supported_query_kinds()` unchanged —
+  `flop_reset_provenance` joins it with the `run_analyze` dispatch in `.4b.2`. 5
+  new proofs (each variant; `"flop:<id>"` + unknown target; flopless ⇒ empty;
+  serialization omits the other vecs; design top-module variant). `cargo test
+  --lib` 448/0/2; snapshots 6/6 byte-identical; clippy/fmt clean. Frontier
+  advances to `.4b.2` (surface).
 - `2026-06-16`: **`.4a` design-detail landed** (no source change) — opened `.4`,
   the **third** derived query `flop_reset_provenance` (per-flop reset/data
   provenance: reset_kind/reset_value, ZeroDefault-vs-QFeedback default behavior,

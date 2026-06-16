@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4b.1 — pure `flop_reset_provenance` core
+
+**Landed as:** this commit (previous: `2b0de36`). **Source + docs**; DUT
+byte-identical (no IR/generator change; not wired to any emit path).
+
+**What changed (why)**
+
+The pure core of the third derived query, `flop_reset_provenance` — per-flop
+reset/data provenance — implemented per the `.4a` design, in
+`src/introspect/analyze.rs` only. It is the purest query yet: a direct projection
+of `Module.flops` (no graph walk). Lib-tested; **not** yet reachable over MCP
+(`.4b.2`).
+
+- **`src/introspect/analyze.rs`** —
+  - `QUERY_FLOP_RESET_PROVENANCE = "flop_reset_provenance"`.
+  - `FlopProvenance { flop, width, has_reset, reset_kind, reset_value,
+    default_behavior, mux_kind, mux_arms, has_d }` (serde + `Default`). The
+    enum-valued fields are mapped to **stable strings** (`reset_kind` →
+    `none`/`sync`/`async`, `default_behavior` → `zero`/`hold` from `FlopKind`,
+    `mux_kind` → `none`/`one_hot`/`encoded`); `reset_value` is a **decimal
+    string** (`reset_val` is `u128` — a string round-trips exactly on any JSON
+    consumer); `mux_arms` is the `OneHot` arm count / `Encoded` data-slot count;
+    `has_d` is `d.is_some()`.
+  - A **third** field on `DerivedAnalysis`: `flop_provenance: Vec<FlopProvenance>`
+    with `#[serde(default, skip_serializing_if = "Vec::is_empty")]`, continuing
+    the parallel-vec pattern so `output_support` and `input_reach` documents stay
+    byte-identical (the key is omitted on them). The 4 existing `DerivedAnalysis`
+    literals gained `flop_provenance: Vec::new()`.
+  - `module_flop_provenance(&Module, Option<&str>)` /
+    `design_flop_provenance(&Design, Option<&str>)` + the internal
+    `flop_provenance_with` / `flop_provenance_of` — project `m.flops` in ascending
+    id order; `target = None` ⇒ all flops; `Some("flop:<id>")` ⇒ that one;
+    anything else (or out-of-range id) ⇒ no result (→ `-32602` at the `.4b.2` MCP
+    layer); a flopless module + `None` ⇒ an honest empty `flop_provenance`.
+  - `supported_query_kinds()` is **deliberately unchanged** — the kind joins it
+    together with the `run_analyze` dispatch in `.4b.2`.
+- **`CODEBASE_ANALYSIS.md`** — the `analyze.rs` block amended with the
+  `flop_reset_provenance` core + the "not in the registry until `.4b.2`" note.
+
+**Validation**
+
+- `cargo test --lib` **448 passed / 0 failed / 2 ignored** — 20
+  `introspect::analyze` proofs, of which 5 are new: each
+  `ResetKind`/`FlopKind`/`FlopMux` variant mapped correctly + `reset_value` string
+  + ascending-id ordering; `"flop:<id>"` + unknown target ⇒ none; flopless ⇒
+  empty; serialization omits the other query vecs; the design top-module variant.
+- `cargo test --test snapshots` **6/6 byte-identical** — DUT `.sv` unchanged.
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+  clean. `bash scripts/check_memory_architecture.sh` +
+  `bash knowledge-map/scripts/check_knowledge_map.sh` clean.
+
+**Impact**
+
+Resume by executing `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` (the surface: add the
+kind to `supported_query_kinds()` + branch `run_analyze`, bump schema `1.5 →
+1.6`, extend `analyze_schema`, and close out schema-doc/book/USER_GUIDE/README/KM).
+No code is in flight.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`, `ROADMAP.md`,
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4a — `flop_reset_provenance` impl design-detail
 
 **Landed as:** this commit (previous: `b2e3ea7`). **Docs-only** (no source) — the

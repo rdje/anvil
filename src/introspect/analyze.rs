@@ -60,7 +60,9 @@
 //! [`DerivedAnalysis`] is a byte-stable function of its inputs — the same
 //! determinism contract the rest of the introspection surface holds.
 
-use crate::ir::{Design, InstanceId, Module, Node, NodeId, PortId};
+use crate::ir::{
+    Design, Flop, FlopKind, FlopMux, InstanceId, Module, Node, NodeId, PortId, ResetKind,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 
@@ -74,6 +76,14 @@ pub const QUERY_OUTPUT_SUPPORT: &str = "output_support";
 /// Served by [`module_input_reach`] / [`design_input_reach`] and dispatched by
 /// the MCP `analyze` tool (`.3b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_INPUT_REACH: &str = "input_reach";
+
+/// The query-kind string for the third derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.4`): per-flop **reset/data provenance** —
+/// is each flop reset-defined vs data-driven, and how is its next state built?
+/// A direct projection of [`Module::flops`](Module) (no graph walk). Served by
+/// [`module_flop_provenance`] / [`design_flop_provenance`]; registered +
+/// dispatched in `.4b.2`.
+pub const QUERY_FLOP_RESET_PROVENANCE: &str = "flop_reset_provenance";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
@@ -101,10 +111,17 @@ pub struct DerivedAnalysis {
     /// `output_support` document stays byte-identical — `skip_serializing_if`
     /// omits the key entirely on a support analysis (where it is always empty),
     /// so only an `input_reach` document carries it. Each query populates
-    /// exactly one of `results` / `reach_results`; the `query` field is the
-    /// discriminator.
+    /// exactly one of `results` / `reach_results` / `flop_provenance`; the
+    /// `query` field is the discriminator.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reach_results: Vec<ReachResult>,
+    /// The [`QUERY_FLOP_RESET_PROVENANCE`] payload: one [`FlopProvenance`] per
+    /// flop. A **third** parallel vec, same rationale as `reach_results`:
+    /// `skip_serializing_if` keeps the `output_support` / `input_reach`
+    /// documents byte-identical (the key is omitted unless this is a
+    /// `flop_reset_provenance` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flop_provenance: Vec<FlopProvenance>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -160,6 +177,39 @@ pub struct ReachResult {
     pub fanout_targets: usize,
 }
 
+/// The reset/data **provenance** of one flop — a direct projection of the
+/// `Flop` the generator already built ([`module_flop_provenance`]). It answers
+/// *is this register reset-defined or data-driven, and how is its next state
+/// constructed?* The enum-valued fields are mapped to stable strings so the
+/// wire shape survives an internal enum gaining variants.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlopProvenance {
+    /// The flop id (addressed `"flop:<id>"`).
+    pub flop: u32,
+    /// Register width in bits.
+    pub width: u32,
+    /// Whether the flop has a reset (`reset_kind != none`).
+    pub has_reset: bool,
+    /// `"none"` | `"sync"` | `"async"` (from `Flop::reset_kind`).
+    pub reset_kind: String,
+    /// The reset value as a **decimal string** (from `Flop::reset_val`, a
+    /// `u128`). A string, not a number, so 128-bit values round-trip exactly
+    /// across any JSON consumer. Only meaningful when `has_reset`.
+    pub reset_value: String,
+    /// What `D` becomes when no mux select is asserted: `"zero"`
+    /// (`FlopKind::ZeroDefault`) | `"hold"` (`FlopKind::QFeedback`).
+    pub default_behavior: String,
+    /// The D-mux structure: `"none"` (direct cone) | `"one_hot"` | `"encoded"`
+    /// (from `Flop::mux`).
+    pub mux_kind: String,
+    /// Number of mux arms: `0` for `none`, the arm count for `one_hot`, the
+    /// data-slot count for `encoded`.
+    pub mux_arms: usize,
+    /// Whether the flop has a `D` cone (`Flop::d.is_some()`); a dead/undriven
+    /// flop has none.
+    pub has_d: bool,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -182,6 +232,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             query: QUERY_OUTPUT_SUPPORT.to_string(),
             results: Vec::new(),
             reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -214,10 +265,96 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             query: QUERY_INPUT_REACH.to_string(),
             results: Vec::new(),
             reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
     input_reach_with(top, target, &fmt)
+}
+
+/// Compute the `flop_reset_provenance` analysis for a single [`Module`]: the
+/// per-flop reset/data provenance (a direct projection of [`Module::flops`](Module)).
+///
+/// `target = None` ⇒ a [`FlopProvenance`] per flop, in ascending id order.
+/// `target = Some("flop:<id>")` ⇒ that one flop; any other string (or an
+/// out-of-range id) ⇒ no result (→ `-32602` at the MCP layer). A module with no
+/// flops + `target = None` ⇒ an empty `flop_provenance` (the honest "no flops"
+/// answer, not an error).
+pub fn module_flop_provenance(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    flop_provenance_with(m, target)
+}
+
+/// Compute the `flop_reset_provenance` analysis for the **top** module of a
+/// [`Design`]. Returns an empty analysis when the named top module is absent.
+/// (Per-child-module flop provenance is a future extension; like the other
+/// queries this operates on the top module.)
+pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_FLOP_RESET_PROVENANCE.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+        };
+    };
+    flop_provenance_with(top, target)
+}
+
+/// Shared driver for [`module_flop_provenance`] / [`design_flop_provenance`]:
+/// project `m.flops` (ascending id) into [`FlopProvenance`]s, honouring the
+/// requested `target`.
+fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let mut flops: Vec<&Flop> = m.flops.iter().collect();
+    flops.sort_by_key(|f| f.id); // deterministic, independent of vec order
+
+    let mut flop_provenance = Vec::new();
+    match target {
+        None => flop_provenance.extend(flops.iter().map(|f| flop_provenance_of(f))),
+        Some(t) => {
+            // Only the `"flop:<id>"` form is a valid target here; anything else
+            // (or an out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t.strip_prefix("flop:").and_then(|r| r.parse::<u32>().ok()) {
+                if let Some(f) = flops.iter().find(|f| f.id == id) {
+                    flop_provenance.push(flop_provenance_of(f));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_FLOP_RESET_PROVENANCE.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance,
+    }
+}
+
+/// Project one [`Flop`] into its [`FlopProvenance`] (enums → stable strings).
+fn flop_provenance_of(f: &Flop) -> FlopProvenance {
+    let reset_kind = match f.reset_kind {
+        ResetKind::None => "none",
+        ResetKind::Sync => "sync",
+        ResetKind::Async => "async",
+    };
+    let default_behavior = match f.kind {
+        FlopKind::ZeroDefault => "zero",
+        FlopKind::QFeedback => "hold",
+    };
+    let (mux_kind, mux_arms) = match &f.mux {
+        FlopMux::None => ("none", 0),
+        FlopMux::OneHot(arms) => ("one_hot", arms.len()),
+        FlopMux::Encoded { data, .. } => ("encoded", data.len()),
+    };
+    FlopProvenance {
+        flop: f.id,
+        width: f.width,
+        has_reset: f.reset_kind != ResetKind::None,
+        reset_kind: reset_kind.to_string(),
+        reset_value: f.reset_val.to_string(),
+        default_behavior: default_behavior.to_string(),
+        mux_kind: mux_kind.to_string(),
+        mux_arms,
+        has_d: f.d.is_some(),
+    }
 }
 
 /// Shared driver: resolve the requested target(s) within `m` and build a cone
@@ -248,6 +385,7 @@ fn support_cones_with(
         query: QUERY_OUTPUT_SUPPORT.to_string(),
         results,
         reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
     }
 }
 
@@ -315,6 +453,7 @@ fn input_reach_with(
         query: QUERY_INPUT_REACH.to_string(),
         results: Vec::new(),
         reach_results,
+        flop_provenance: Vec::new(),
     }
 }
 
@@ -537,7 +676,9 @@ fn format_instance_leaf_design(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::types::{Direction, Flop, FlopKind, FlopMux, Instance, InstanceRole, ResetKind};
+    use crate::ir::types::{
+        Direction, Flop, FlopKind, FlopMux, Instance, InstanceRole, MuxArm, ResetKind,
+    };
     use crate::ir::{Design, Module, Node, Port};
 
     fn port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
@@ -1135,5 +1276,172 @@ mod tests {
         let reach = serde_json::to_value(module_input_reach(&m, None)).unwrap();
         assert!(reach.as_object().unwrap().contains_key("reach_results"));
         assert_eq!(reach["results"].as_array().unwrap().len(), 0);
+    }
+
+    /// `flop_reset_provenance` projects each flop's fields exactly, maps every
+    /// enum to its stable string, and emits flops in ascending id order.
+    #[test]
+    fn flop_provenance_projects_each_flop_field() {
+        let mut m = Module {
+            name: "fp".into(),
+            ..Module::default()
+        };
+        // flop 1 pushed before flop 0 to prove ascending-id ordering.
+        m.flops.push(Flop {
+            id: 1,
+            width: 4,
+            d: None, // ⇒ has_d false
+            q: 0,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 5,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::OneHot(vec![MuxArm { data: 0, sel: 1 }, MuxArm { data: 0, sel: 1 }]),
+        });
+
+        let a = module_flop_provenance(&m, None);
+        assert_eq!(a.query, QUERY_FLOP_RESET_PROVENANCE);
+        assert!(a.results.is_empty() && a.reach_results.is_empty());
+        assert_eq!(a.flop_provenance.len(), 2);
+
+        let f0 = &a.flop_provenance[0]; // ascending id ⇒ flop 0 first
+        assert_eq!(f0.flop, 0);
+        assert_eq!(f0.width, 8);
+        assert!(f0.has_reset);
+        assert_eq!(f0.reset_kind, "async");
+        assert_eq!(f0.reset_value, "5");
+        assert_eq!(f0.default_behavior, "zero");
+        assert_eq!(f0.mux_kind, "one_hot");
+        assert_eq!(f0.mux_arms, 2);
+        assert!(f0.has_d);
+
+        let f1 = &a.flop_provenance[1];
+        assert_eq!(f1.flop, 1);
+        assert!(!f1.has_reset);
+        assert_eq!(f1.reset_kind, "none");
+        assert_eq!(f1.default_behavior, "hold"); // QFeedback
+        assert_eq!(f1.mux_kind, "none");
+        assert_eq!(f1.mux_arms, 0);
+        assert!(!f1.has_d);
+    }
+
+    /// `target = "flop:<id>"` addresses one flop; an unknown target (bad id or
+    /// non-flop string) yields no result (→ `-32602` at the MCP layer). Also
+    /// covers the `sync` reset kind and the `encoded` mux arm count.
+    #[test]
+    fn flop_provenance_target_and_unknown_target() {
+        let mut m = Module {
+            name: "fp2".into(),
+            ..Module::default()
+        };
+        m.flops.push(Flop {
+            id: 3,
+            width: 1,
+            d: Some(0),
+            q: 1,
+            reset_val: 1,
+            reset_kind: ResetKind::Sync,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::Encoded {
+                sel: 0,
+                data: vec![0, 0, 0],
+            },
+        });
+
+        let one = module_flop_provenance(&m, Some("flop:3"));
+        assert_eq!(one.flop_provenance.len(), 1);
+        let f = &one.flop_provenance[0];
+        assert_eq!(f.flop, 3);
+        assert_eq!(f.reset_kind, "sync");
+        assert_eq!(f.reset_value, "1");
+        assert_eq!(f.mux_kind, "encoded");
+        assert_eq!(f.mux_arms, 3); // data.len()
+
+        assert!(module_flop_provenance(&m, Some("flop:9"))
+            .flop_provenance
+            .is_empty());
+        assert!(module_flop_provenance(&m, Some("nope"))
+            .flop_provenance
+            .is_empty());
+    }
+
+    /// A flopless module + `target = None` yields an empty (not errored)
+    /// provenance — the honest "no flops" answer.
+    #[test]
+    fn flopless_module_yields_empty_provenance() {
+        let m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        let a = module_flop_provenance(&m, None);
+        assert_eq!(a.query, QUERY_FLOP_RESET_PROVENANCE);
+        assert!(a.flop_provenance.is_empty());
+    }
+
+    /// A `flop_reset_provenance` analysis serializes `flop_provenance` and omits
+    /// `reach_results` (`skip_serializing_if`), keeping the other queries'
+    /// documents byte-identical.
+    #[test]
+    fn flop_provenance_document_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "fp3".into(),
+            ..Module::default()
+        };
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: None,
+            q: 0,
+            reset_val: 0,
+            reset_kind: ResetKind::None,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        let v = serde_json::to_value(module_flop_provenance(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("flop_provenance"));
+        assert!(obj.get("reach_results").is_none()); // skip_serializing_if
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+    }
+
+    /// The design variant projects the **top** module's flops.
+    #[test]
+    fn design_flop_provenance_projects_the_top_module() {
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.flops.push(Flop {
+            id: 0,
+            width: 2,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::QFeedback,
+            mux: FlopMux::None,
+        });
+        let child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let a = design_flop_provenance(&design, None);
+        assert_eq!(a.flop_provenance.len(), 1);
+        assert_eq!(a.flop_provenance[0].flop, 0);
+        assert_eq!(a.flop_provenance[0].default_behavior, "hold");
+        assert_eq!(a.flop_provenance[0].reset_kind, "async");
     }
 }

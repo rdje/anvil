@@ -244,9 +244,10 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    as the pure `src/introspect/analyze.rs` core + the pure MCP `analyze` tool +
    the `DerivedAnalysisDocument` (schema `1.5`) + book/USER_GUIDE/schema-doc/KM,
    DUT byte-identical. **`.4` in progress** — the third query
-   `flop_reset_provenance` (per-flop reset/data provenance; `.4a` design done,
-   frontier `.4b.1`); `module_reachability` remains open-ended `.5+` breadth, not
-   a blocker. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   `flop_reset_provenance` (per-flop reset/data provenance; `.4a` design +
+   `.4b.1` pure core done, frontier `.4b.2` surface); `module_reachability`
+   remains open-ended `.5+` breadth, not a blocker. Extends
+   `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential

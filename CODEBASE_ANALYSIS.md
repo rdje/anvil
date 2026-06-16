@@ -465,6 +465,17 @@ src/
 │                     `supported_query_kinds()` together with the `run_analyze`
 │                     dispatch and bumps the schema `1.4 → 1.5`. 7 in-crate reach
 │                     proofs (the transpose of the cone proofs). DUT byte-identical.
+│                     `.4b.1` adds the third query core `flop_reset_provenance`:
+│                     `QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance { flop,
+│                     width, has_reset, reset_kind, reset_value (decimal string),
+│                     default_behavior, mux_kind, mux_arms, has_d }` + a **third**
+│                     `DerivedAnalysis.flop_provenance` vec (`skip_serializing_if`)
+│                     + `module_flop_provenance`/`design_flop_provenance` — a
+│                     direct projection of `Module.flops` (ascending id; enums →
+│                     strings), no graph walk. `target=None` ⇒ all flops;
+│                     `"flop:<id>"` ⇒ one; unknown ⇒ none. Not in the registry
+│                     until `.4b.2` (registry + dispatch + schema `1.5 → 1.6`
+│                     land together). 5 in-crate proofs. DUT byte-identical.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
