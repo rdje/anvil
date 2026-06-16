@@ -1,6 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3a — `input_reach` impl design-detail
+
+**Landed as:** this commit (previous: `e635dd1`). **Docs-only** (no source, no
+behaviour change) — the design-detail leaf for `.3` (the second derived query,
+`input_reach`), grounded in real code, before any implementation.
+
+**What changed (why)**
+
+`input_reach` is the dual fan-OUT of the delivered `output_support` cone: given a
+source (input port / flop `Q` / child-instance output), which outputs and flop
+`D`-cones does it structurally reach? The leaf had four named open points; all are
+resolved, grounded in a fresh read of `src/introspect/analyze.rs`,
+`src/introspect/mod.rs`, and `src/mcp/mod.rs`:
+
+- **`DEVELOPMENT_NOTES.md`** — new design-detail entry resolving the four points.
+  (1) **Result shape:** a new `ReachResult { target, reaches_outputs[],
+  reaches_flops[], fanout_targets }` (the dual of `SupportCone`) + a **second
+  parallel vec** `reach_results: Vec<ReachResult>` on `DerivedAnalysis` with
+  `#[serde(default, skip_serializing_if = "Vec::is_empty")]`, so `output_support`
+  documents stay **byte-identical** (`reach_results` omitted there). Rejected: a
+  tagged-enum `results` (would break the existing `1.3`/`1.4` wire shape) and
+  shoehorning reach into `SupportCone` (semantically wrong field names). (2)
+  **Derivation:** **invert the support relation** — enumerate all targets
+  (outputs + `"flop:<id>"` D-cones), build each support cone via the **existing**
+  `module_support_cones` machinery, bucket target `T` under each `X ∈ support(T)`;
+  dual-consistency (`X reaches Y ⇔ Y's support ∋ X`) is then free and provable,
+  with no boundary-rule re-implementation and **no IR/generator change** (rejected:
+  a forward consumers BFS). (3) **Addressing:** `target = None` ⇒ all sources
+  (inputs decl-order, then flop Qs ascending id, then instance outputs sorted)
+  incl. empty results; `Some(input name)` / `Some("flop:<id>")` (the Q's fan-out) /
+  `Some("<inst>.<port>")`; the `"flop:<id>"` *direction-by-query* duality is
+  documented (same register boundary; `output_support` = its D fan-in,
+  `input_reach` = its Q fan-out); unknown source ⇒ `-32602`. (4) **Schema:**
+  additive MINOR `1.4 → 1.5`; the `DerivedAnalysisDocument` envelope is reused
+  unchanged; DUT byte-identical.
+- **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — `.3a` marked `done` (with
+  the resolved-points result); `.3b` converted to a container and **pre-split** →
+  `.3b.1` (pure core, the new **frontier**) + `.3b.2` (surface), per the `.2b`
+  precedent; frontier table, verification log, commit log, and changelog updated.
+- **`docs/TASK_TREE.md`** — the `SEMANTIC-INTROSPECTION-EXPANSION` row reflects the
+  `.3a`-done / `.3b.1`-frontier state.
+
+**Validation**
+
+- No source change ⇒ DUT byte-identical (introspection output is not in
+  `tests/snapshots.rs`). Baseline `cargo check --all-targets` clean;
+  `bash scripts/check_memory_architecture.sh` clean;
+  `bash knowledge-map/scripts/check_knowledge_map.sh` in sync.
+
+**Impact**
+
+Resume by executing `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` (the pure
+`input_reach` analysis core in `src/introspect/analyze.rs`). No code is in flight.
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3 — register `input_reach` lane + API-audience decision (handoff)
 
 **Landed as:** this commit (previous: `fcddc1c`). **Docs/workflow-only** (no

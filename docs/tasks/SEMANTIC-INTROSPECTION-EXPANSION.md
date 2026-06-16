@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `SEMANTIC-INTROSPECTION-EXPANSION`
-- Status: `active` (first query `output_support` delivered `.1`/`.2`; `.3` `input_reach` open, frontier `.3a`)
+- Status: `active` (first query `output_support` delivered `.1`/`.2`; `.3` `input_reach` open, frontier `.3b.1`)
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design — decision `0011`; `.2a` design-detail; `.2b.1` the pure analysis core; `.2b.2` the agent-facing surface — schema `1.3` + the pure MCP `analyze` tool + the `DerivedAnalysisDocument` + docs/KM. **`.2` done — the first query (output support cone) is delivered end-to-end, DUT byte-identical.** No active frontier; future query kinds are `.3+`.)
+- Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design — decision `0011`; `.2a` design-detail; `.2b.1` the pure analysis core; `.2b.2` the agent-facing surface — schema `1.3` + the pure MCP `analyze` tool + the `DerivedAnalysisDocument` + docs/KM. **`.2` done — the first query (output support cone) is delivered end-to-end, DUT byte-identical.** `.3` (`input_reach`) opened: `.3a` design-detail **done** (DEVELOPMENT_NOTES entry: result shape = second `reach_results` vec, derivation = invert the support relation, source addressing + `"flop:<id>"` direction-by-query duality, schema `1.4 → 1.5`); `.3b` pre-split → `.3b.1` (pure core, **frontier**) + `.3b.2` (surface).)
 - Owner: repo-local workflow
 - Note: registered `proposed` by owner roadmap steering (`2026-06-15`); **activated
   `2026-06-16` by explicit owner directive** ("deep semantic introspection shall
@@ -99,31 +99,48 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Children: `SEMANTIC-INTROSPECTION-EXPANSION.3a`, `SEMANTIC-INTROSPECTION-EXPANSION.3b`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.3a`
-  Status: `pending`
+  Status: `done`
   Goal: `Design-detail leaf (no source): ground input_reach in the real src/introspect/analyze.rs + mod.rs + mcp.rs. Pin: (1) the result shape — likely a new ReachResult { target, reaches_outputs[], reaches_flops[], ... } reusing DerivedAnalysis (decide whether DerivedAnalysis.results stays Vec<SupportCone> or generalizes to an enum/second vec — a schema-shape choice that drives the MINOR bump 1.4 -> 1.5 vs reuse); (2) the derivation — invert per-output/per-flop-D support (reuse the existing module_support_cones builder: input X reaches output Y iff X in support(Y)) vs a forward consumers BFS, choosing the pure/cheap one with no IR/generator change; (3) target addressing — input port NAME (absent => all inputs), plus "flop:<id>" (Q as a reach source) and child-instance-output sources, unknown target => -32602; (4) the schema-version decision (new query kind alone may not need a bump if the document shape is reused; a new result struct does). No source change; DEVELOPMENT_NOTES design-detail entry + the .3b impl shape.`
   Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the four points grounded in real code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Result: `Done. DEVELOPMENT_NOTES design-detail entry resolves all four points, grounded in a fresh read of analyze.rs/mod.rs/mcp.rs. (1) Result shape: a new ReachResult { target (the SOURCE), reaches_outputs[], reaches_flops[], fanout_targets } (dual of SupportCone, serde + Default + sorted vecs); DerivedAnalysis gains a SECOND parallel vec reach_results: Vec<ReachResult> with #[serde(default, skip_serializing_if = "Vec::is_empty")] (rejected: a tagged enum that would break the existing output_support wire shape; shoehorning reach into SupportCone). output_support documents stay byte-identical (reach_results omitted). (2) Derivation: INVERT the support relation — enumerate all targets (outputs + "flop:<id>" D-cones), build each via the existing module_support_cones machinery, bucket target T under each X in support(T); dual-consistency (X reaches Y iff Y's support ∋ X) is then free and provable, no boundary-rule re-implementation, no IR/generator change (rejected: a forward consumers BFS). (3) Addressing: target=None ⇒ all sources (inputs decl-order, then flop Qs ascending id, then instance outputs sorted) incl. empty results; Some(input name) / Some("flop:<id>" = the Q's fan-out) / Some("<inst>.<port>"); "flop:<id>" duality documented (same boundary, direction set by query kind); unknown source ⇒ no result ⇒ -32602. (4) Schema: additive MINOR 1.4 → 1.5 (new #[serde(default)] field + query kind), DerivedAnalysisDocument envelope reused unchanged, DUT byte-identical. Pre-split .3b → .3b.1 (pure core) + .3b.2 (surface) per the .2b precedent; the registry entry + dispatch land together in .3b.2 to keep every commit coherent.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3b`
+  Status: `active`
+  Goal: `Implement input_reach per the .3a design: the pure analysis (reusing analyze.rs), the "input_reach" query kind, the MCP analyze tool wiring, the schema 1.4 -> 1.5 bump, lib tests for exact reach correctness (dual of the output_support proofs) + determinism + unknown-target, and book/USER_GUIDE/schema-doc/KM closeout. Default-off / DUT byte-identical.`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.3b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.3b.2`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3b.1`
+  Status: `pending`
+  Goal: `The pure input_reach core in src/introspect/analyze.rs: add QUERY_INPUT_REACH = "input_reach", the ReachResult struct, the reach_results: Vec<ReachResult> field on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")]), and the pure builders module_input_reach(&Module, Option<&str>) / design_input_reach(&Design, Option<&str>) (enumerate all targets = outputs + "flop:<id>" D-cones → build each support cone via the existing machinery → invert: bucket target T under each X in support(T) → resolve the requested source). Do NOT add input_reach to supported_query_kinds() yet (that registry entry + run_analyze dispatch land together in .3b.2 to keep the intermediate commit coherent). Lib-tested only; not wired to any emit path.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. exact reach proofs (the transpose of the support-cone proofs: X reaches Y iff Y's support ∋ X) + flop-Q-as-source reach + design instance-output-as-source reach + target=None ⇒ one ReachResult per source incl. an empty one + determinism/sorted + unknown-source ⇒ no result; cargo test --test snapshots 6/6 byte-identical (analyze.rs is not in any output path; reach_results omitted from output_support docs ⇒ DUT byte-identical).`
   Verification: `pending`
   Commit: `pending`
 
-- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3b`
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3b.2`
   Status: `pending`
-  Goal: `Implement input_reach per the .3a design: the pure analysis (reusing analyze.rs), the "input_reach" query kind in supported_query_kinds(), the MCP analyze tool wiring (it already dispatches by query kind), any schema bump the .3a shape decision requires, lib tests for exact reach correctness (dual of the output_support proofs) + determinism + unknown-target, and book/USER_GUIDE/schema-doc/KM closeout. Default-off / DUT byte-identical.`
-  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. exact input_reach proofs (dual of the support-cone proofs) + determinism + unknown-target => -32602; snapshots 6/6 byte-identical; schema consistent (bump iff the .3a shape decision requires it); book/USER_GUIDE/schema-doc + a KM fact; committed through COMMIT.md with the leaf id. May pre-split into .3b.1 (pure core) + .3b.2 (surface) if broad, per the .2b precedent.`
+  Goal: `Wire input_reach to the surface: add "input_reach" to analyze::supported_query_kinds() AND branch run_analyze by query kind (support builders vs reach builders) in the same commit, updating the empty-result → -32602 guard to check the vec the query populates; bump SCHEMA_VERSION 1.4 -> 1.5 (+ the "1.4" test-assertion updates); add "input_reach" to the analyze_schema enum + refresh the tool description; schema-doc §6.7 + a 1.4 -> 1.5 changelog entry + the input_reach row; book(agent-mcp) input_reach row + worked example; USER_GUIDE tool enum + 1.4 -> 1.5; a KM fact. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib + introspect/mcp tests green; the pure MCP analyze tool returns the input_reach relation (cached), unknown source ⇒ -32602; schema_version = 1.5 everywhere + schema doc updated; book/USER_GUIDE/schema-doc + a KM fact; snapshots 6/6 byte-identical; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
 ## Current Frontier
 
-**Frontier = `SEMANTIC-INTROSPECTION-EXPANSION.3a`** (owner-directed `2026-06-16`:
-PNT into the next derived query, `input_reach`). The first-query milestone (`.1` +
-`.2`, the output support cone end-to-end) is delivered; `.3` opens the second
-query. The other future kinds (`flop_reset_provenance`, `module_reachability`)
-remain open-ended `.4+` breadth (not yet registered, not a blocker, none retired).
+**Frontier = `SEMANTIC-INTROSPECTION-EXPANSION.3b.1`** (the pure `input_reach`
+core). `.3a` design-detail is **done** (the `input_reach` shape/derivation/
+addressing/schema decisions are pinned, grounded in real code); `.3b` is
+pre-split → `.3b.1` (pure core, frontier) + `.3b.2` (surface). The first-query
+milestone (`.1` + `.2`, the output support cone end-to-end) is delivered. The
+other future kinds (`flop_reset_provenance`, `module_reachability`) remain
+open-ended `.4+` breadth (not yet registered, not a blocker, none retired).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.3a` | `pending` | Design-detail (no source) for `input_reach` — the dual fan-out of the delivered `output_support` cone: pin the result shape + schema-version decision, the derivation (invert per-output support vs forward BFS), and `target` addressing, grounded in the real `analyze.rs`. Then `.3b` impl. |
-| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.3b` | `pending` | Implement `input_reach` per `.3a`: the pure analysis + the `input_reach` query kind + MCP wiring + tests + docs/KM. Default-off / DUT byte-identical. |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.3b.1` | `pending` | The pure `input_reach` core in `analyze.rs`: `ReachResult` + the second `reach_results` vec + the `module_input_reach`/`design_input_reach` builders (invert the support relation). Lib-tested only; not wired to the registry yet (that lands with the dispatch in `.3b.2`). DUT byte-identical. |
+| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.3b.2` | `pending` | Surface: add `input_reach` to `supported_query_kinds()` + branch `run_analyze` by kind (same commit) + schema `1.4 → 1.5` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/KM. Default-off / DUT byte-identical. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.3a` | `done` | Design-detail (no source) for `input_reach`: pinned the result shape (a second `reach_results: Vec<ReachResult>` vec — `output_support` stays byte-identical), the derivation (invert the support relation, reusing `module_support_cones` ⇒ dual-consistency free + no IR change), `target`/source addressing (incl. the `"flop:<id>"` direction-by-query duality), and the schema bump `1.4 → 1.5`. Pre-split `.3b` → `.3b.1`/`.3b.2`. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.3` | `active` | Container: the second derived query `input_reach` (the dual fan-out of `output_support`). |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` | `done` | Wired the `.2b.1` analysis to the surface: schema `1.2 → 1.3` + the `DerivedAnalysisDocument` + the pure MCP `analyze` tool (dispatch + `tools/list` + the `anvil://artifact/<run_id>/analysis/<query>` resource, unknown query/target → `-32602`) + book(`agent-mcp`)/USER_GUIDE/schema-doc + a KM fact. DUT byte-identical (snapshots 6/6). |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | `done` | Landed the pure derived-relation analysis core (`src/introspect/analyze.rs`: the `DerivedAnalysis`/`SupportCone` types + `module_support_cones`/`design_support_cones`), a memoized combinational fan-in DFS over the existing IR graph; lib-tested for exact cone correctness + determinism + the flop/instance/mem-fsm boundaries + unknown-target. No IR/generator change → DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | `done` | Resolved decision `0011`'s three open questions (the `DerivedAnalysis`/`SupportCone` shape; `query`-kind enum + `target` addressing; cone-stops-at-instance-boundary + default-introspect-stays-lean). Split `.2` → `.2a`/`.2b`. No source change. |
@@ -192,6 +209,7 @@ remain open-ended `.4+` breadth (not yet registered, not a blocker, none retired
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.3a` | Design-detail leaf, **no source change** (grounded in a fresh read of `src/introspect/analyze.rs` — the `DerivedAnalysis`/`SupportCone` types, `module_support_cones`/`design_support_cones`, the `visit` fan-in DFS, `resolve_target`; `src/introspect/mod.rs` — `DerivedAnalysisDocument`/`derived_analysis_document`/`SCHEMA_VERSION`; `src/mcp/mod.rs` — `run_analyze` dispatch + `analyze_schema` enum + the `-32602` guard). `DEVELOPMENT_NOTES.md` design-detail entry (the four points + the `.3b` pre-split). `bash scripts/check_memory_architecture.sh` clean; `bash knowledge-map/scripts/check_knowledge_map.sh` in sync. Baseline `cargo check --all-targets` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` | Schema `1.2→1.3` (`src/introspect/mod.rs` `SCHEMA_VERSION` + the `DerivedAnalysisDocument`/`derived_analysis_document`) + the pure MCP `analyze` tool (`src/mcp/mod.rs` `run_analyze` + `analyze_schema` + `CachedArtifact.analyses` + the analysis resource in `resources_list`/`resources_read` + `tools/list` + `instructions`). `cargo test --lib` **427 passed / 0 failed / 2 ignored** (incl. `introspect::derived_analysis_document_reuses_envelope_and_carries_analysis` + the 5 `mcp::tests::analyze_*` proofs). `cargo test --test snapshots` **6/6 byte-identical** (default introspection-document shape unchanged ⇒ DUT `.sv` untouched). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples` **3/3**; Knowledge Map regenerated + `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean. End-to-end `anvil-mcp` stdio smoke: `analyze {seed:7}` → schema `1.3` `output_support` cone, unknown query → `-32602`. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | New pure module `src/introspect/analyze.rs` + `pub mod analyze;` in `src/introspect/mod.rs`. `cargo test --lib` **421 passed / 0 failed / 2 ignored** (incl. 9 new `introspect::analyze` proofs: exact combinational support; flop-boundary leaf not recursed + `"flop:<id>"` target; constant-not-support; opaque mem-read termination; absent-target ⇒ per-output cones; unknown-target ⇒ no cone; design child-instance-output name resolution; determinism + sorted; shared-fan-in counted once). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; baseline `cargo check --all-targets` clean. `bash scripts/check_memory_architecture.sh` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | Design-detail leaf, no source change (grounded in a fresh read of `src/introspect/mod.rs` `IntrospectionPayload`/`IntrospectionDocument`/`RequestEcho`/`content_run_id_for_knobs` + `src/mcp/mod.rs` pure-tool dispatch + `CachedArtifact`). `DEVELOPMENT_NOTES.md` design-detail entry + tree split. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
@@ -202,6 +220,7 @@ remain open-ended `.4+` breadth (not yet registered, not a blocker, none retired
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.3a` | `SEMANTIC-INTROSPECTION-EXPANSION.3a — input_reach impl design-detail` | Design-detail (no source): pinned the `input_reach` result shape (a second `reach_results: Vec<ReachResult>` vec — `output_support` stays byte-identical), the derivation (invert the support relation, reusing `module_support_cones`), the source addressing + `"flop:<id>"` direction-by-query duality, and the schema `1.4 → 1.5` bump. Pre-split `.3b` → `.3b.1`/`.3b.2`. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2 — the pure MCP analyze tool + schema 1.3` | Schema `1.2→1.3`; `DerivedAnalysisDocument` + the pure MCP `analyze` tool (DUT-only; unknown query/target → `-32602`; cached + served as `anvil://artifact/<run_id>/analysis/<query>`); schema-doc §6.7 + book + USER_GUIDE + KM fact. Closes `.2b`/`.2` — the first query is delivered end-to-end. DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1 — pure support-cone analysis core` | New `src/introspect/analyze.rs`: `DerivedAnalysis`/`SupportCone` + `module_support_cones`/`design_support_cones` (combinational fan-in DFS over the existing IR; FlopQ a register-boundary leaf, `"flop:<id>"` targets, instance-boundary stop, opaque mem/fsm termination). 9 in-crate proofs; DUT byte-identical (no IR/generator change). Split `.2b` → `.2b.1`/`.2b.2`. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | `SEMANTIC-INTROSPECTION-EXPANSION.2a — support-cone impl design-detail` | Resolved `0011`'s 3 open questions: the `DerivedAnalysis`/`SupportCone` shape; `output_support` query-kind + name `target`; default-introspect-stays-lean + cone-stops-at-instance-boundary; schema `1.2→1.3`. Split `.2` → `.2a`/`.2b`. No source change. |
@@ -210,6 +229,24 @@ remain open-ended `.4+` breadth (not yet registered, not a blocker, none retired
 
 ## Changelog
 
+- `2026-06-16`: **`.3a` design-detail landed** (no source change): resolved the
+  four `input_reach` design points grounded in real code and pre-split `.3b` →
+  `.3b.1` (pure core, **new frontier**) + `.3b.2` (surface). (1) Result shape: a
+  new `ReachResult` (the dual of `SupportCone`) + a **second parallel vec**
+  `reach_results: Vec<ReachResult>` on `DerivedAnalysis` with
+  `#[serde(default, skip_serializing_if = "Vec::is_empty")]`, so `output_support`
+  documents stay byte-identical (rejected: a tagged enum that would break the
+  existing wire shape; shoehorning reach into `SupportCone`). (2) Derivation:
+  **invert the support relation** (enumerate all targets = outputs + `"flop:<id>"`
+  D-cones, build each via the existing `module_support_cones` machinery, bucket
+  target `T` under each `X ∈ support(T)`) ⇒ dual-consistency is free and provable,
+  no boundary-rule re-implementation, no IR/generator change (rejected: a forward
+  consumers BFS). (3) Addressing: `None` ⇒ all sources (inputs decl-order, then
+  flop Qs, then instance outputs) incl. empty results; `Some(input)` /
+  `Some("flop:<id>")` = the Q's fan-out / `Some("<inst>.<port>")`; the
+  `"flop:<id>"` direction-by-query duality documented; unknown source ⇒ `-32602`.
+  (4) Schema: additive MINOR `1.4 → 1.5`, `DerivedAnalysisDocument` envelope
+  reused unchanged, DUT byte-identical. Frontier advances to `.3b.1`.
 - `2026-06-16`: **Re-entered `active` with a frontier** — owner directed PNT into
   the next derived query, **`input_reach`** (the dual fan-out of the delivered
   `output_support` cone), after `IDENTITY-DEEPENING.3b.2b` closed. Registered `.3`

@@ -5,6 +5,169 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — `input_reach` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.3a`
+
+Design-detail leaf for `.3` — the **second** derived query, `input_reach`: the
+dual fan-OUT of the delivered `output_support` cone. Docs-only (no source).
+Grounded in a fresh read of `src/introspect/analyze.rs` (the `DerivedAnalysis` /
+`SupportCone` types + the `module_support_cones` / `design_support_cones`
+builders + the `visit` fan-in DFS + the `resolve_target` resolver),
+`src/introspect/mod.rs` (the `DerivedAnalysisDocument` envelope +
+`derived_analysis_document` wrapper + `SCHEMA_VERSION`), and `src/mcp/mod.rs`
+(`run_analyze` dispatch + the `analyze_schema` enum + the unknown-target →
+`-32602` guard). API-audience steering (owner, `2026-06-16`,
+`feedback_api_for_agents_not_humans`): optimize for machine-friendly
+**completeness** (full reach sets, all-sources, explicit ids) over human-terse
+digests, within the unchanged SCHEMA-DERIVED / no-shadow-simulator ceiling.
+
+`input_reach` answers the symmetric question to `output_support`: given a
+**source** — a primary-input port, a flop `Q`, or a child-instance output —
+*which outputs and which flop `D`-cones does it structurally reach?* It is the
+exact transpose of the support relation, and the design pins it that way so the
+two queries cannot drift.
+
+### Q1 — result shape + the `DerivedAnalysis.results` vs second-vec decision
+
+A new `ReachResult` struct (the dual of `SupportCone`), serde + `Default`, with
+`BTreeSet → sorted Vec` for byte-stability, in the same `analyze.rs`:
+
+```rust
+pub struct ReachResult {
+    pub target: String,             // the reach SOURCE this result is about:
+                                    //   an input port name, "flop:<id>" (a Q), or "<inst>.<port>"
+    pub reaches_outputs: Vec<String>,// output port names the source reaches (sorted)
+    pub reaches_flops: Vec<u32>,     // flop ids whose D-cone the source reaches (sorted)
+    pub fanout_targets: usize,       // = reaches_outputs.len() + reaches_flops.len() (the dual of cone_nodes-ish summary)
+}
+```
+
+The per-result addressing field stays named `target` (not `source`) so **every**
+derived-query result shares one uniform "the entity this result is about" key
+regardless of direction — the module docs state that for `input_reach`, `target`
+is the reach *source*. (Rejected `source`: it would fork the result-document
+shape per query kind for no machine-parsing gain; a `query`-keyed field is the
+clean discriminator.)
+
+**The `DerivedAnalysis` shape choice (the leaf's named fork):** keep
+`results: Vec<SupportCone>` exactly as-is and add a **second parallel vec**
+
+```rust
+pub struct DerivedAnalysis {
+    pub query: String,
+    pub results: Vec<SupportCone>,                 // populated by output_support
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reach_results: Vec<ReachResult>,           // populated by input_reach
+}
+```
+
+A given query populates exactly one vec; the `query` field tells the agent which
+to read. Chosen over the two rejected alternatives:
+
+- **Generalize `results` to a tagged enum `Vec<AnalysisResult>`** — rejected: it
+  retags the *existing* `output_support` wire shape, breaking every `1.3`/`1.4`
+  consumer of that document (a MAJOR break for a purely additive feature).
+- **Shoehorn reach into `SupportCone`** — rejected: `support_inputs` / `cone_depth`
+  are semantically wrong for a fan-out relation; it would mislead an agent.
+
+The second-vec design keeps `output_support` documents **byte-identical**
+(`reach_results` is empty there ⇒ `skip_serializing_if` omits the key entirely),
+so no existing consumer is touched, while `input_reach` documents carry
+`results: []` + a populated `reach_results`. This is a clean additive change.
+
+### Q2 — the derivation: invert the support relation (reuse `module_support_cones`)
+
+`input_reach` is computed by **inverting the existing support cones**, not by a
+new forward traversal:
+
+1. Enumerate **all targets** of the artifact = every output port name **and**
+   every `"flop:<id>"` for `f in m.flops` (the D-cone targets).
+2. Build each target's `SupportCone` with the **existing** `analyze.rs`
+   machinery (`build_cone` / `visit` / the `fmt` instance-leaf closure) — no new
+   walker.
+3. Invert: a source `X` *reaches* target `T` **iff** `X ∈ support(T)`. Scan each
+   cone's `support_inputs` / `support_flops` / `support_instance_outputs` and
+   bucket the target under each support element.
+
+This is the leaf's "invert per-output/per-flop-D support" option, chosen over a
+"forward consumers BFS" because:
+
+- **Dual-consistency is free and provable.** By construction `X reaches Y ⇔ Y's
+  support ∋ X`, so the `.3b` lib proofs are literally the transpose of the
+  landed `output_support` proofs — there is no second place for the
+  flop-boundary / instance-boundary / mem-fsm-termination stopping rules to
+  drift. A forward BFS would have to *re-implement* every one of those boundary
+  rules against a reverse-adjacency it would also have to build.
+- **No IR field, no generator change** (the `coverage_gaps` /
+  `output_support` project-don't-recompute precedent) ⇒ DUT byte-identical.
+- **Cost is bounded by module size** and this is a read-only analysis tool, not
+  an output path; per the API-audience steering, completeness wins over
+  micro-optimizing the O(targets × cone) inversion. (A future shared
+  reverse-index is a noted optimization, not first-cut.)
+
+### Q3 — `target` (source) addressing + the `"flop:<id>"` duality
+
+- `target = None` ⇒ **all sources**, for completeness (API-audience steering):
+  one `ReachResult` per declared **input port** (declaration order), then one per
+  flop `Q` as `"flop:<id>"` (ascending id), then one per child-instance-output
+  node present in the IR (sorted resolved `"<inst>.<port>"` name). A source that
+  reaches nothing yields an **empty** `ReachResult` (dual of `output_support`'s
+  "known-but-undriven output ⇒ one empty cone").
+- `target = Some("<input port name>")` ⇒ that input's reach.
+- `target = Some("flop:<id>")` ⇒ that flop's **Q** reach (fan-out). **Addressing
+  duality, documented explicitly:** `"flop:<id>"` denotes the flop's *register
+  boundary*; the **query kind** sets the direction — `output_support` asks what
+  feeds its `D` (fan-in), `input_reach` asks what its `Q` reaches (fan-out). Same
+  spelling, opposite arrow.
+- `target = Some("<inst>.<port>")` ⇒ that child-instance output's reach (design
+  lane; resolved via the same `format_instance_leaf_design` naming).
+- An **unresolvable** source ⇒ no `ReachResult` ⇒ `-32602` at the MCP layer
+  (exactly the `output_support` precedent). A *resolvable* source always yields
+  exactly one result, even when empty, so empty `reach_results` for an explicit
+  target means "unknown source", never "known but reaches nothing".
+
+### Q4 — schema-version decision: additive MINOR `1.4 → 1.5`
+
+Adding the `reach_results` field (a new `#[serde(default,
+skip_serializing_if)]` wire field) + the `ReachResult` struct + the
+`"input_reach"` query kind is, per the §7 policy ("surfacing struct fields added
+with `#[serde(default)]`" / "a new embedded section"), an **additive MINOR bump
+`1.4 → 1.5`** — the same call the `.2b` analysis surface made even though its
+default document was unchanged. The `output_support` document stays
+byte-identical (`reach_results` omitted); only the `schema_version` string
+advances and the new field becomes advertised. DUT `.sv` stays byte-identical
+(introspection output is not in `tests/snapshots.rs`). The `DerivedAnalysisDocument`
+envelope and the `derived_analysis_document` wrapper are **reused unchanged** —
+the payload is still a single `analysis: DerivedAnalysis`.
+
+### `.3b` impl shape (and the recommended pre-split)
+
+Pre-split `.3b` → **`.3b.1`** (pure core) + **`.3b.2`** (surface), per the `.2b`
+precedent, because it spans two reviewable ownership areas:
+
+- **`.3b.1` — pure core (`src/introspect/analyze.rs`, lib-tested):** add
+  `QUERY_INPUT_REACH = "input_reach"`, the `ReachResult` struct, the
+  `reach_results` field on `DerivedAnalysis`, and the pure builders
+  `module_input_reach(&Module, Option<&str>)` / `design_input_reach(&Design,
+  Option<&str>)` (enumerate-targets → build-cones → invert → resolve-source).
+  **Do NOT yet add `input_reach` to `supported_query_kinds()`** — that registry
+  entry is the MCP gate, and adding it before `run_analyze` dispatches the kind
+  (a `.3b.2` change) would let an `input_reach` call fall through to the
+  support-cone branch and silently mislabel in the intermediate commit. Keep
+  each commit coherent: the registry entry + the dispatch land together in
+  `.3b.2`. Lib proofs: exact reach (the transpose of the support proofs);
+  flop-`Q`-as-source reach; instance-output-as-source reach (design);
+  `None` ⇒ all-sources incl. an empty `ReachResult`; determinism + sorted;
+  unknown-source ⇒ no result. Snapshots 6/6 byte-identical (not wired to any
+  emit path).
+- **`.3b.2` — surface:** add `input_reach` to `supported_query_kinds()`; branch
+  `run_analyze` by query kind (support builders vs reach builders) and update the
+  empty-result → `-32602` guard to check the vec the query populates; bump
+  `SCHEMA_VERSION` `1.4 → 1.5` (+ the `"1.4"` test-assertion updates); add
+  `"input_reach"` to the `analyze_schema` `enum` + refresh the tool description;
+  schema-doc §6.7 + a `1.4 → 1.5` changelog entry + the `input_reach` row; book
+  `agent-mcp` (an `input_reach` row + a worked example) + USER_GUIDE (the tool
+  enum + `1.4 → 1.5`) + a KM fact. Default-off / DUT byte-identical.
+
 ## 2026-06-16 — Sequential proof metric + schema 1.4 + downstream bank — `IDENTITY-DEEPENING.3b.2b.2a`
 
 The observability + evidence closeout half of the cross-module sequential merge.
