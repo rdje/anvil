@@ -294,7 +294,23 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current emitted subset is 1800-2012-valid, so the default (and all three targets, today) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.2`). Up-opting newer constructs is a later slice. |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.2`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
+
+The `--sv-version 2023` target unlocks the first version-distinctive
+**up-opt**, a config-file knob (no CLI flag, like `aggregate_prob`):
+
+- `soft_union_slice_prob` (default `0.0`) — per *proper low-bits* slice
+  (`a[hi:0]` over a wider source), the probability the emitter renders it
+  through an internal IEEE 1800-2023 `union soft` overlay
+  (`u.w = src; gate = u.n`) instead of a plain bit-select. It fires only
+  when **both** `soft_union_slice_prob > 0.0` **and** `--sv-version 2023`;
+  below 2023 a marked slice **down-gates** to the plain `a[hi:0]`.
+  Behaviour-preserving (packed-union members are LSB-aligned) and
+  genuinely 2023 (heterogeneous-width packed-union members are legal only
+  as `union soft`, §7.3.1). `default = 0.0` is byte-identical. Verilator
+  accepts it under `--language 1800-2023`; Yosys/Icarus reject the syntax
+  and are a recorded no-op. Set it in a `--config` JSON, e.g.
+  `{ "seed": 1, "soft_union_slice_prob": 1.0, "sv_version": "2023", … }`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

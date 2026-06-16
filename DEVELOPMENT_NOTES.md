@@ -5,6 +5,48 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — SV-version targeting — live `union soft` up-opt — `SV-VERSION-TARGETING.3b.2a`
+
+Implemented the `.3b.1` mechanism exactly. The first ANVIL emission that diverges
+across `--sv-version` targets. Engineering notes + gotchas worth carrying forward:
+
+- **The decision lives in the IR, the rendering in the emitter** (mirrors
+  `aggregate_layout`). A pure emitter cannot roll an RNG, so the per-gate choice
+  is a seeded `gen_bool` in `src/ir/soft_union.rs`, rolled at the `generate_module`
+  / `generate_design` call sites (guarded by `> 0.0` so the default draws nothing
+  ⇒ byte-identical stream), and recorded in `Module.soft_union_slice_gates`. The
+  emitter reads the marker + `SvVersion::permits(Sv2023)`.
+- **`Module` has no `serde` derive** (`Debug, Clone, Default` only), so adding a
+  field is free of snapshot/serde risk — snapshots compare the *emitted SV string*,
+  not a `Module` serialization. The marker is also kept out of
+  `canonical_module_signature` (identity-invariant, like `aggregate_layout`).
+- **`union soft` is not a concatenation** ⇒ it is *not* an `AggregateKind` (that
+  machinery is sound only for bit-equivalent regroupings). The up-opt is instead a
+  faithful *alternative rendering of a low-bits `Slice`*: `u.w = src; gate = u.n`
+  ≡ `src[hi:0]` because packed-union members are LSB-aligned. The qualifying gate
+  is `Slice { hi, lo: 0 }` over a non-constant source strictly wider than the
+  slice (so the two members differ — the 2023 *soft* requirement; an equal-width
+  member set is a plain `union packed`).
+- **Emission shape (probe-verified before writing the emitter):** an *anonymous*
+  `union soft { logic [W-1:0] w; logic [SW-1:0] n; } <gate>__u;` variable +
+  *continuous* `assign`s is Verilator `--lint-only --language 1800-2023`
+  warning-clean (no `-Wall` needed) and `--binary`-correct (`y=5` for `a=0xA5`).
+  No typedef needed; the `<gate>__u` name is unique because gate names are.
+- **Gotcha — the divergence proof can't be an integration test.** Hand-building a
+  `Module` needs the crate-private CSE bookkeeping fields (`gate_instances` /
+  `const_instances`), so `..Module::default()` is not constructible across the
+  crate boundary. The divergence/down-gate proof therefore lives in-crate
+  (`src/ir/soft_union.rs` tests); the integration file carries a pointer comment.
+- **Gotcha — `--config` JSON needs every non-`#[serde(default)]` field.** `Config`
+  requires `seed` and `max_nodes_per_module` (among others). The reliable recipe
+  to drive the knob from the CLI is `--dump-config > c.json`, patch the few keys
+  (`soft_union_slice_prob`, `sv_version`, `gate_struct_weight`, widths), then
+  `--config c.json`. Recorded in the KM fact's `reverify`.
+- **Where overlays come from:** the structured-gate surface
+  (`gen/cone/terminals.rs::pick_slice_gate`) emits `Slice { lo: 0..=3 }`, so only
+  ~25% are low-bits; cranking `gate_struct_weight` + wide widths makes them
+  plentiful (47/48 seeds produced overlays in the bank).
+
 ## 2026-06-16 — SV-version targeting — soft-union up-opt mechanism (impl design-detail) — `SV-VERSION-TARGETING.3b.1`
 
 Design-detail leaf for `.3b`. Resolves the mechanism open question decision

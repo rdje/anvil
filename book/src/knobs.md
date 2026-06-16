@@ -409,24 +409,48 @@ instead of creating fresh logic.
   - **Down-gating (a guarantee).** Targeting a lower standard, the
     emitter never emits a construct introduced by a newer one, so output
     is valid for a tool or flow pinned to that standard.
-  - **Up-opting (the stress value, future).** Targeting a higher
-    standard, the generator *may* deliberately emit that standard's
-    distinctive synthesizable constructs — each gated at construction
-    time on `target >= that_standard` and proven downstream-clean in the
-    matching tool standard mode before it is enabled. (The first
-    up-opted construct is a later slice; none ship yet.)
+  - **Up-opting (the stress value).** Targeting a higher standard, the
+    generator *may* deliberately emit that standard's distinctive
+    synthesizable constructs — each gated at construction time on
+    `target >= that_standard`, default-off, and proven downstream-clean in
+    the matching tool standard mode before it is enabled. **The first
+    up-opt now ships:** see `soft_union_slice_prob` below (a heterogeneous-
+    width IEEE 1800-2023 `union soft` overlay).
 
-  **Default `2012` is the honest floor.** ANVIL's entire current emitted
+- `soft_union_slice_prob` — the **first version-distinctive up-opt**
+  (decision `0010`). Probability, per *proper low-bits* slice
+  (`a[hi:0]` over a wider source), that ANVIL renders it through an
+  internal IEEE 1800-2023 `union soft` overlay
+
+  ```systemverilog
+  wire [3:0] slc;
+  union soft { logic [7:0] w; logic [3:0] n; } slc__u;
+  assign slc__u.w = a;     // write the wide member
+  assign slc = slc__u.n;   // read the narrow member == a[3:0]
+  ```
+
+  instead of the plain `assign slc = a[3:0];`. It is genuinely 2023
+  (heterogeneous-width packed-union members are legal *only* as
+  `union soft`, IEEE 1800-2023 §7.3.1 — a plain packed union requires
+  equal-width members) and **behaviour-preserving** (packed-union members
+  are LSB-aligned, so `slc__u.n == a[3:0]`). It fires only when **both**
+  `soft_union_slice_prob > 0.0` **and** the target permits 2023; below
+  2023 a marked slice **down-gates** to the plain `a[3:0]`. `default =
+  0.0` ⇒ byte-identical. Verilator accepts it under `--language
+  1800-2023`; Yosys/Icarus have no 1800 selector and reject the syntax, so
+  they are a recorded no-op for this construct.
+
+  **Default `2012` is the honest floor.** ANVIL's entire *default* emitted
   subset (`logic` / `always_ff` / `always_comb` / `case` / `casez` /
   `for` / packed `struct` / packed arrays / `typedef` / `localparam`) is
   valid in IEEE 1800-2012, so the default reproduces today's output
-  byte-for-byte, and — because no version-distinctive construct exists
-  yet — **all three targets emit byte-identical SystemVerilog today**
-  (down-gating to any of them removes nothing). This is the
-  reproducibility contract: changing `--sv-version` will only ever change
-  output once an up-opted construct lands, and then only for the higher
-  target. The knob is surfaced in `--dump-config` and the `--introspect`
-  document (introspection schema `1.2`).
+  byte-for-byte. With every up-opt knob off (the default), **all three
+  targets emit byte-identical SystemVerilog** (down-gating removes
+  nothing). Output diverges across targets *only* once an up-opt knob
+  (today: `soft_union_slice_prob`) fires **and** the target is high enough
+  — and then only for that higher target. The `sv_version` knob is
+  surfaced in `--dump-config` and the `--introspect` document
+  (introspection schema `1.2`).
 
   **Per-version downstream acceptance is proven, not assumed.** The
   repo-owned `tool_matrix --sv-version-gate` sweeps all three targets
@@ -997,6 +1021,19 @@ for cross-simulator trace agreement.
   packed-array designs pass Verilator `--lint-only` and Yosys
   `synth -noabc; check`. See `book/src/ir.md` "Synthesizable
   aggregates".
+- `soft_union_slice_prob` (default `0.0`) — the first version-distinctive
+  *up-opt* (decision `0010`). Per-*proper-low-bits-slice* probability that
+  the emitter renders `a[hi:0]` through an internal IEEE 1800-2023
+  `union soft` overlay (`u.w = src; gate = u.n`) instead of a plain
+  bit-select — **iff** `sv_version` is also `2023`. Below 2023 a marked
+  slice down-gates to the plain slice. Behaviour-preserving (packed-union
+  members are LSB-aligned, so `u.n == a[hi:0]`) and genuinely 2023
+  (heterogeneous-width packed-union members are legal only as
+  `union soft`). `default = 0.0` keeps every output byte-identical.
+  Delivered and proven downstream-clean: generator-produced overlays pass
+  Verilator `--language 1800-2023` (`tests/sv_version_downstream.rs`);
+  Yosys/Icarus reject the syntax (no 1800 selector) and are a recorded
+  no-op. See the "SystemVerilog version target" knob above.
 - `memory_prob` (Phase 6, default `0.0`) — per-module probability
   that the free-standing single-module lane builds a rules-first
   **inferrable-memory** leaf instead of an ordinary leaf: a
@@ -1113,6 +1150,7 @@ which are bugs worth investigating.
 | `width_parameterization_prob` | `num_width_parameterized_modules`, `num_param_override_instances` (per-design metrics); matrix `saw_width_parameterized_design` |
 | `aggregate_prob`              | `num_packed_aggregate_modules` (per-design metric); matrix `saw_packed_aggregate_design` |
 | `aggregate_array_prob`        | `num_array_packed_aggregate_modules` (per-design metric; subset of `num_packed_aggregate_modules`); matrix `saw_array_packed_aggregate_design` (`--signoff-knob-sweep-gate`) |
+| `soft_union_slice_prob`       | the emitted `union soft` overlay text (only with `sv_version = 2023`); proven by `tests/sv_version_downstream.rs` (Verilator `--language 1800-2023`); matrix `saw_sv_version_2023_soft_union_upopt` (`--sv-version-gate`, `SV-VERSION-TARGETING.3b.2b`) |
 | `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design`; with `fsm_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
 | `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design`; with `memory_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
 

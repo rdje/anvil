@@ -275,8 +275,32 @@ src/
 │                     emission-target capability gate (sv_version knob,
 │                     #[serde(default)] = Sv2012 floor). permits() is the
 │                     down-gating capability bound; ieee_standard() →
-│                     "1800-20xx" for a future per-version downstream axis
-│                     (SV-VERSION-TARGETING.2b.1, decision 0009).
+│                     "1800-20xx" for the per-version downstream axis
+│                     (SV-VERSION-TARGETING.2b, decision 0009). The first
+│                     up-opt (.3b.2a, decision 0010) adds the default-off
+│                     `soft_union_slice_prob` knob (serde-only, validated
+│                     0.0..=1.0): when > 0.0 AND sv_version permits 2023,
+│                     proper low-bits Slice gates render as an internal
+│                     `union soft` overlay (see `ir/soft_union.rs`).
+│
+├── ir/soft_union.rs  SV-VERSION-TARGETING.3b.2a first up-opt. Gen-time
+│                     `annotate_soft_union_slices(m, rng, prob)` pass
+│                     (rolled at the `gen/mod.rs` call site like
+│                     `aggregate_prob`; param-env modules skipped) marks
+│                     proper low-bits `GateOp::Slice{lo:0}` gates (over a
+│                     non-constant, strictly-wider source) into the new
+│                     emitter-surface `Module.soft_union_slice_gates`
+│                     (BTreeSet<NodeId>, not hashed into identity). The
+│                     emitter (`emit/sv.rs::soft_union_slice_overlay`)
+│                     realizes the IEEE-1800-2023 `union soft` overlay
+│                     (`u.w = src; gate = u.n`) ONLY under
+│                     `SvVersion::permits(Sv2023)`; below 2023 it
+│                     down-gates to the plain `src[hi:0]`. Behaviour-
+│                     preserving (LSB-aligned members), default-off
+│                     byte-identical (snapshots 6/6). Banked Verilator
+│                     `--language 1800-2023` clean
+│                     (`tests/sv_version_downstream.rs`); Yosys/Icarus
+│                     reject the syntax → recorded no-op.
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate

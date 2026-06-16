@@ -401,6 +401,20 @@ pub struct Module {
     /// regrouping; the flat IR body, validators, CSE keys and
     /// `canonical_module_signature` are all unaffected.
     pub aggregate_layout: Option<AggregateLayout>,
+    /// `SV-VERSION-TARGETING.3b.2` — the set of `Slice` gate `NodeId`s the
+    /// emitter should render via an internal IEEE-1800-2023 `union soft`
+    /// overlay (`u.w = src; <gate> = u.n`) instead of a plain `src[hi:0]`
+    /// bit-select, **iff** the emission target also permits 2023
+    /// (`SvVersion::permits(Sv2023)`); below 2023 it down-gates to the plain
+    /// slice. Populated by the post-construction `crate::ir::soft_union`
+    /// pass under the opt-in `Config::soft_union_slice_prob` knob. Empty
+    /// (the `Default`) ⇒ byte-identical to pre-`.3b` emission. The overlay
+    /// is behaviour-preserving (packed-union members are LSB-aligned, so
+    /// `u.n == src[hi:0]`), so the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected — like
+    /// `aggregate_layout`, this is an emitter-surface annotation only and
+    /// is deliberately not hashed into identity.
+    pub soft_union_slice_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

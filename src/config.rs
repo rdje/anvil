@@ -90,6 +90,10 @@ fn default_aggregate_array_prob() -> f64 {
     0.0
 }
 
+fn default_soft_union_slice_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -710,6 +714,24 @@ pub struct Config {
     #[serde(default = "default_aggregate_array_prob")]
     pub aggregate_array_prob: f64,
 
+    /// `SV-VERSION-TARGETING.3b.2` — the first version-distinctive *up-opt*.
+    /// Probability, per *proper low-bits* `Slice` gate
+    /// (`GateOp::Slice { hi, lo: 0 }` over a non-constant source narrower
+    /// than the source), that the emitter renders it via an internal IEEE
+    /// 1800-2023 `union soft` overlay (`u.w = src; gate = u.n`) **iff** the
+    /// emission target also permits 2023 (`sv_version >= 2023`); below 2023 a
+    /// marked gate down-gates to the plain `src[hi:0]` slice. The overlay is
+    /// behaviour-preserving (packed-union members are LSB-aligned, so
+    /// `u.n == src[hi:0]`) and genuinely 2023 (heterogeneous-width packed-union
+    /// members are legal only as `union soft`, §7.3.1). `default = 0.0` keeps
+    /// every existing output byte-identical; the marker is an emitter-surface
+    /// annotation only, so the flat IR body / validators / CSE keys /
+    /// `canonical_module_signature` are unaffected. Orthogonal to
+    /// `--sv-version`: needs *both* `> 0.0` *and* a 2023 target to change
+    /// output. See decision `0010` + `docs/tasks/SV-VERSION-TARGETING.md`.
+    #[serde(default = "default_soft_union_slice_prob")]
+    pub soft_union_slice_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -930,6 +952,7 @@ impl Default for Config {
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
             aggregate_array_prob: default_aggregate_array_prob(),
+            soft_union_slice_prob: default_soft_union_slice_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
@@ -1287,6 +1310,7 @@ impl Config {
             ),
             ("aggregate_prob", self.aggregate_prob),
             ("aggregate_array_prob", self.aggregate_array_prob),
+            ("soft_union_slice_prob", self.soft_union_slice_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("multi_clock_prob", self.multi_clock_prob),

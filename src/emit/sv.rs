@@ -334,6 +334,20 @@ fn to_sv_with_modules(
                     names[idx].as_ref().expect("gate name assigned")
                 )
                 .unwrap();
+                // `SV-VERSION-TARGETING.3b.2` — internal IEEE-1800-2023
+                // `union soft` overlay variable for a marked low-bits slice
+                // (the narrow member `n` aliases the low bits of the wide
+                // member `w`, so it equals `src[width-1:0]`).
+                if let Some((_, src_width)) = soft_union_slice_overlay(m, idx, sv_version) {
+                    writeln!(
+                        out,
+                        "    union soft {{ logic {} w; logic {} n; }} {}__u;",
+                        param_width_decl_w(m, src_width),
+                        param_width_decl_w(m, *width),
+                        names[idx].as_ref().expect("gate name assigned"),
+                    )
+                    .unwrap();
+                }
             }
             Node::InstanceOutput { width, .. } => {
                 writeln!(
@@ -375,6 +389,17 @@ fn to_sv_with_modules(
                     )
                     .unwrap();
                 }
+                continue;
+            }
+            // `SV-VERSION-TARGETING.3b.2` — a marked low-bits slice on a
+            // 2023 target is driven through the internal `union soft` overlay
+            // (`u.w = src; gate = u.n`) instead of `src[hi:0]`. Below 2023 the
+            // overlay is `None`, so this down-gates to the plain slice.
+            if let Some((src, _)) = soft_union_slice_overlay(m, idx, sv_version) {
+                let name = names[idx].as_ref().unwrap();
+                let src_ref = node_ref(src, m, &names);
+                writeln!(out, "    assign {name}__u.w = {src_ref};").unwrap();
+                writeln!(out, "    assign {name} = {name}__u.n;").unwrap();
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -1003,6 +1028,52 @@ fn node_ref(id: NodeId, m: &Module, names: &[Option<String>]) -> String {
         Node::Gate { .. } => names[id as usize]
             .clone()
             .expect("gate name assigned by build_names"),
+    }
+}
+
+/// `SV-VERSION-TARGETING.3b.2` — when `sv_version` permits IEEE 1800-2023 and
+/// the gate at `idx` was marked by the `crate::ir::soft_union` pass as a proper
+/// low-bits slice, return `(source NodeId, source bit-width)` so the caller
+/// renders the gate via an internal heterogeneous-width `union soft` overlay
+/// (`u.w = src; gate = u.n`) instead of a plain `src[hi:0]` bit-select.
+/// `None` ⇒ render the plain slice — the down-gated path below 2023, or an
+/// unmarked / non-qualifying gate. The qualifying contract is re-checked
+/// defensively so a stale marker can never produce an invalid overlay.
+fn soft_union_slice_overlay(
+    m: &Module,
+    idx: usize,
+    sv_version: SvVersion,
+) -> Option<(NodeId, u32)> {
+    if !sv_version.permits(SvVersion::Sv2023) {
+        return None;
+    }
+    if !m.soft_union_slice_gates.contains(&(idx as NodeId)) {
+        return None;
+    }
+    let Node::Gate {
+        op: GateOp::Slice { hi, lo },
+        operands,
+        width,
+        ..
+    } = &m.nodes[idx]
+    else {
+        return None;
+    };
+    if *lo != 0 {
+        return None;
+    }
+    let src = *operands.first()?;
+    let src_node = m.nodes.get(src as usize)?;
+    if matches!(src_node, Node::Constant { .. }) {
+        return None;
+    }
+    let src_width = src_node.width();
+    // Real narrowing into a strictly-narrower member (the 2023 *soft*
+    // requirement: members `w` and `n` have different widths).
+    if *width >= 1 && *hi + 1 == *width && *width < src_width {
+        Some((src, src_width))
+    } else {
+        None
     }
 }
 

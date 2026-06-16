@@ -4,6 +4,7 @@ pub mod aggregate;
 pub mod compact;
 pub mod dedup;
 pub mod param;
+pub mod soft_union;
 pub mod types;
 pub mod validate;
 

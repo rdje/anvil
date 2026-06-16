@@ -171,3 +171,11 @@ fn design_emission_is_byte_identical_across_sv_versions() {
         }
     }
 }
+
+// The `SV-VERSION-TARGETING.3b.2` up-opt divergence proof (a marked low-bits
+// slice renders the IEEE 1800-2023 `union soft` overlay only at a 2023 target,
+// down-gating to the plain slice below it) lives in `src/ir/soft_union.rs`'s
+// in-crate tests because it hand-builds a `Module` (whose CSE bookkeeping
+// fields are crate-private, so `..Module::default()` is not constructible from
+// an integration test). The real-tool acceptance of the overlay is in
+// `tests/sv_version_downstream.rs`.

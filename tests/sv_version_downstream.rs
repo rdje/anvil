@@ -168,6 +168,106 @@ fn verilator_accepts_each_sv_version_in_matching_language_mode() {
     }
 }
 
+/// `SV-VERSION-TARGETING.3b.2` — the first *up-opt*: the generator emits an
+/// internal IEEE 1800-2023 `union soft` overlay (over a proper low-bits `Slice`)
+/// when both `soft_union_slice_prob > 0.0` and the target permits 2023. This
+/// banks that the **generator-produced** overlay is accepted by Verilator in the
+/// matching `--language 1800-2023` mode, and confirms the down-gate: the same
+/// seed targeting 2012 emits no `union soft` and stays 1800-2012-clean.
+///
+/// Yosys/Icarus reject the `union soft` syntax (no 1800 selector, fixed
+/// subset), so they are a *recorded no-op* for the overlay — not exercised here
+/// (decision `0010`). The repo-owned matrix up-opt gate + the
+/// `saw_sv_version_2023_soft_union_upopt` coverage fact is the follow-on
+/// `SV-VERSION-TARGETING.3b.2b`.
+#[test]
+#[ignore = "requires Verilator; run with --ignored to bank the 2023 union-soft up-opt acceptance"]
+fn verilator_accepts_soft_union_slice_overlay_at_2023() {
+    if !tool_present("verilator", "--version") {
+        eprintln!("verilator not present — skipping soft-union up-opt gate");
+        return;
+    }
+
+    // A slice-heavy leaf config: high structured-gate weight + wide widths makes
+    // proper low-bits `Slice` gates plentiful; `soft_union_slice_prob = 1.0`
+    // marks every qualifying one.
+    let cfg_for = |seed: u64, v: SvVersion| Config {
+        seed,
+        soft_union_slice_prob: 1.0,
+        sv_version: v,
+        gate_struct_weight: 10,
+        gate_bitwise_weight: 1,
+        gate_arith_weight: 1,
+        min_width: 4,
+        max_width: 16,
+        max_depth: 5,
+        min_inputs: 3,
+        max_inputs: 6,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    };
+
+    let mut total_overlays = 0usize;
+    for seed in [1u64, 3, 7, 13, 25, 40, 48] {
+        // 2023: the overlay must be produced AND Verilator-clean in 1800-2023.
+        let cfg23 = cfg_for(seed, SvVersion::Sv2023);
+        cfg23.validate().expect("config valid");
+        let m23 = Generator::new(cfg23).generate_module();
+        let sv23 = anvil::emit::to_sv_versioned(&m23, SvVersion::Sv2023);
+        let overlays = sv23.matches("union soft").count();
+        assert!(
+            overlays > 0,
+            "seed {seed}: expected the generator to emit a `union soft` overlay"
+        );
+        total_overlays += overlays;
+
+        let dir = scratch_dir(&format!("soft-union-{seed}-2023"));
+        let path = dir.join(format!("{}.sv", m23.name));
+        std::fs::write(&path, &sv23).expect("write sv");
+        let inv = run_verilator(
+            "verilator",
+            &dir,
+            &path,
+            &m23.name,
+            Some(SvVersion::Sv2023.ieee_standard()),
+        )
+        .expect("verilator invocation");
+        assert!(
+            inv.success,
+            "verilator --language 1800-2023 rejected the union-soft overlay (seed {seed}, \
+             {overlays} overlays): {:?}\nargv: {:?}",
+            inv.error, inv.argv
+        );
+
+        // Down-gate: the same seed at 2012 emits no overlay and is 1800-2012-clean.
+        let cfg12 = cfg_for(seed, SvVersion::Sv2012);
+        let m12 = Generator::new(cfg12).generate_module();
+        let sv12 = anvil::emit::to_sv_versioned(&m12, SvVersion::Sv2012);
+        assert!(
+            !sv12.contains("union soft"),
+            "seed {seed}: the 2012 target must down-gate the overlay to a plain slice"
+        );
+        let dir12 = scratch_dir(&format!("soft-union-{seed}-2012"));
+        let path12 = dir12.join(format!("{}.sv", m12.name));
+        std::fs::write(&path12, &sv12).expect("write sv");
+        let inv12 = run_verilator(
+            "verilator",
+            &dir12,
+            &path12,
+            &m12.name,
+            Some(SvVersion::Sv2012.ieee_standard()),
+        )
+        .expect("verilator invocation");
+        assert!(
+            inv12.success,
+            "verilator --language 1800-2012 rejected the down-gated plain slice (seed {seed})"
+        );
+    }
+    assert!(total_overlays > 0, "no union-soft overlays were exercised");
+    eprintln!("soft-union up-opt banked clean: {total_overlays} overlays across 7 seeds");
+}
+
 #[test]
 #[ignore = "requires Icarus Verilog; run with --ignored to confirm the subset compiles at -g2012"]
 fn iverilog_g2012_accepts_the_subset_for_every_target() {

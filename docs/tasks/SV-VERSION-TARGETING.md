@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — version-targeted synthesizable RTL (ROADMAP steering gaps 1 + 3)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (`.3b.1` design-detail landed — resolved the mechanism: an emitter-level `sv_version >= Sv2023`-gated internal `union soft` overlay rendering of a proper low-bits `Slice`, **not** an `AggregateKind` sibling; split `.3b` → `.3b.1` done + `.3b.2` impl; frontier → `.3b.2`)
+- Last updated: `2026-06-16` (`.3b.2a` landed — the live first up-opt: `Config::soft_union_slice_prob` + `src/ir/soft_union.rs` + the `permits(Sv2023)`-gated emitter `union soft` overlay, default-off / byte-identical, banked Verilator `--language 1800-2023` clean; split `.3b.2` → `.3b.2a` done + `.3b.2b` matrix; frontier → `.3b.2b`)
 - Owner: repo-local workflow
 - Note: opened `2026-06-15` by owner roadmap steering as the recommended
   highest-leverage capability lane (over the two registered-`proposed` siblings
@@ -144,9 +144,22 @@ byte-identical.
   Commit: `done`
 
 - ID: `SV-VERSION-TARGETING.3b.2`
+  Status: `active`
+  Goal: `Implement the .3b.1 mechanism + industrialize it in the repo-owned matrix.`
+  Children: `SV-VERSION-TARGETING.3b.2a`, `SV-VERSION-TARGETING.3b.2b`
+
+- ID: `SV-VERSION-TARGETING.3b.2a`
+  Status: `done`
+  Goal: `Core capability: the default-off soft_union_slice_prob knob + the gen-time annotation pass + the permits(Sv2023)-gated internal union soft overlay rendering of a proper low-bits Slice, default-off / byte-identical, with the divergence/down-gate proofs + a banked Verilator --language 1800-2023 acceptance test. Defer the repo-owned matrix gate to .3b.2b. Split .3b.2 into .3b.2a + .3b.2b.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green; snapshots 6/6 byte-identical (knob default-off); a lib divergence proof (overlay only at Sv2023, down-gate below, byte-identical when off); tests/sv_version_downstream.rs (#[ignore]) banked clean vs verilator --language 1800-2023; book(knobs/sv-version)/USER_GUIDE/README/ROADMAP/CODEBASE_ANALYSIS + KM fact updated; committed through COMMIT.md with the leaf id.`
+  Result: `Config::soft_union_slice_prob (default 0.0, serde-only, validated 0.0..=1.0) in src/config.rs; new Module.soft_union_slice_gates: BTreeSet<NodeId> (emitter-surface marker, not hashed into canonical_module_signature; Module has no serde so zero snapshot impact); new src/ir/soft_union.rs annotate_soft_union_slices(m, rng, prob) gen-time pass (rolls per qualifying gate; skips param_env modules) wired into generate_module + generate_design like aggregate_prob; emit/sv.rs soft_union_slice_overlay helper + the union soft var decl + the u.w=src / gate=u.n assigns, gated on SvVersion::permits(Sv2023). 8 lib proofs (5 pass unit + param-env skip + emit divergence/down-gate) + the byte-identity corpus still green. Banked downstream-clean: tests/sv_version_downstream.rs::verilator_accepts_soft_union_slice_overlay_at_2023 → 159 overlays across 7 seeds, all Verilator --language 1800-2023 clean, 2012 down-gate confirmed. cargo check/clippy(-D warnings)/fmt clean; cargo test --lib 412/0 (2 ignored); snapshots 6/6 byte-identical; mdbook build clean; book_examples 3/3. Verilator-only proof (Yosys/Icarus reject union soft → recorded no-op, decision 0010); matrix gate + saw_sv_version_2023_soft_union_upopt fact deferred to .3b.2b.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SV-VERSION-TARGETING.3b.2b`
   Status: `proposed`
-  Goal: `Implement the .3b.1 mechanism: the default-off soft_union_slice_prob knob + the permits(Sv2023)-gated internal union soft overlay rendering of a proper low-bits Slice, default-off / byte-identical, proven Verilator matching-mode-clean with Yosys/Icarus recorded no-op, plus the matrix up-opt fact + tests/sv_version*.rs updates + book/KM.`
-  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green; snapshots 6/6 byte-identical (knob default-off); tests/sv_version.rs shows byte-identity at the default + across versions when off AND divergence at Sv2023 when the knob fires; tests/sv_version_downstream.rs (#[ignore]) banked clean vs verilator --language 1800-2023; the matrix up-opt scenario + saw_sv_version_2023_soft_union_upopt fact banked clean with Yosys/Icarus recorded no-op; book(knobs/sv-version)/USER_GUIDE/README/ROADMAP + KM fact updated; committed through COMMIT.md with the leaf id.`
+  Goal: `Industrialize the up-opt in the repo-owned tool_matrix: a dedicated --sv-version-gate up-opt scenario (soft_union_slice_prob = 1.0 + sv_version 2023 + a slice-heavy config) + a saw_sv_version_2023_soft_union_upopt coverage fact that requires Verilator --language 1800-2023 acceptance and records Yosys/Icarus as a no-op (the existing .2b.2b facts require Yosys-clean, so the union scenario needs its own fact), banked clean.`
+  Acceptance: `cargo check/clippy/fmt/test clean; the gate produces + verilator-accepts the overlay in 1800-2023 mode with Yosys/Icarus recorded no-op; saw_sv_version_2023_soft_union_upopt enforced under coverage_gaps; banked-clean evidence recorded; default matrix byte-identical; ROADMAP/README/USER_GUIDE/book + KM updated; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -154,7 +167,8 @@ byte-identical.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SV-VERSION-TARGETING.3b.2` | `proposed` | Implement the `.3b.1` mechanism: the default-off `soft_union_slice_prob` knob + the `permits(Sv2023)`-gated internal `union soft` overlay rendering of a proper low-bits `Slice` (`u.w = src; slice = u.n`), default-off / byte-identical, proven Verilator `--language 1800-2023` matching-mode-clean (`--binary`) with Yosys/Icarus recorded no-op, plus the matrix up-opt fact + `tests/sv_version*.rs` updates + book/KM. |
+| 1 | `SV-VERSION-TARGETING.3b.2b` | `proposed` | Industrialize the now-live up-opt into the repo-owned `tool_matrix --sv-version-gate`: a dedicated up-opt scenario + a `saw_sv_version_2023_soft_union_upopt` coverage fact requiring Verilator `--language 1800-2023` acceptance with Yosys/Icarus recorded no-op (the existing per-version facts require Yosys-clean, which the `union soft` scenario cannot satisfy). Banked clean. |
+| — | `SV-VERSION-TARGETING.3b.2a` | `done` | Landed the live first up-opt: `Config::soft_union_slice_prob` + `src/ir/soft_union.rs` gen-time pass + the `permits(Sv2023)`-gated emitter `union soft` overlay of a proper low-bits `Slice`; default-off / byte-identical (snapshots 6/6); banked Verilator `--language 1800-2023` clean (159 overlays / 7 seeds) with the 2012 down-gate proven. Split `.3b.2` → `.3b.2a`/`.3b.2b`. |
 | — | `SV-VERSION-TARGETING.3b.1` | `done` | Resolved `0010`'s mechanism open question: the up-opt is an emitter-level `sv_version >= Sv2023`-gated internal `union soft` overlay rendering of a proper low-bits `Slice` (behaviour-preserving, surgical), **not** an `AggregateKind` sibling (a union is not concatenation-equivalent) nor a port-boundary fold (changes the interface). Split `.3b` → `.3b.1`/`.3b.2`. No source change. |
 | — | `SV-VERSION-TARGETING.3a` | `done` | Landed decision `0010` — first up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1); the empirical tool-reality finding (installed tools don't enforce 1800-version acceptance); the `sv_version >= Sv2023` gate; default byte-identical (struct down-gate fallback); rejected alternatives; the `.3b` impl shape. No source change. |
 | — | `SV-VERSION-TARGETING.2b.2b` | `done` | Landed the repo-owned `tool_matrix --sv-version-gate` + `ScenarioSet::SvVersionSweep` (9 scenarios) + per-version emit threading + matching-mode Verilator (`verilator_language_for`) + `saw_sv_version_*_targeted_acceptance` coverage facts + `MatrixReport.sv_version_gate` + 6 proofs. Banked clean: `/tmp/anvil-sv-version-gate-r1` (9 scenarios / 18 units / `coverage_gaps=[]` / 18/0 Verilator + both Yosys). Default matrix byte-identical. |
@@ -165,6 +179,22 @@ byte-identical.
 
 ## Decisions
 
+- `2026-06-16` (`.3b.2a`, impl): landed the live first up-opt exactly per the
+  `.3b.1` mechanism. `Config::soft_union_slice_prob` (default `0.0`, serde-only,
+  validated `0.0..=1.0`); a new emitter-surface `Module.soft_union_slice_gates`
+  (`BTreeSet<NodeId>`, not hashed into identity — `Module` derives no serde so
+  there is zero snapshot impact); `src/ir/soft_union.rs::annotate_soft_union_slices`
+  gen-time pass rolled at the `generate_module` + `generate_design` call sites
+  (skips `param_env` modules); `emit/sv.rs::soft_union_slice_overlay` realizes the
+  `union soft` overlay only under `SvVersion::permits(Sv2023)`, down-gating to the
+  plain slice below. Default-off / byte-identical (snapshots 6/6). The divergence
+  proof lives in-crate (`src/ir/soft_union.rs` tests) because hand-building a
+  `Module` needs crate-private CSE fields; the real-tool acceptance is
+  `tests/sv_version_downstream.rs` (banked: 159 overlays / 7 seeds, Verilator
+  `--language 1800-2023` clean, 2012 down-gate proven). Verilator-only proof
+  (Yosys/Icarus reject `union soft` → recorded no-op per `0010`). Split `.3b.2`
+  → `.3b.2a` (done) + `.3b.2b` (the repo-owned matrix up-opt gate +
+  `saw_sv_version_2023_soft_union_upopt` fact).
 - `2026-06-16` (`.3b.1`, design-detail in `DEVELOPMENT_NOTES.md`): resolved the
   mechanism `0010` left open. The up-opt is an **emitter-level, `sv_version >=
   Sv2023`-gated, default-off alternative rendering of a proper low-bits `Slice`**
@@ -253,6 +283,7 @@ byte-identical.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `SV-VERSION-TARGETING.3b.2a` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 412/0 (2 ignored; incl. 8 new `soft_union` proofs); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2 (byte-identity corpus untouched). **Banked downstream-clean:** `cargo test --test sv_version_downstream -- --ignored verilator_accepts_soft_union_slice_overlay_at_2023` → ok, "159 overlays across 7 seeds" all Verilator `--language 1800-2023` clean + 2012 down-gate confirmed (vs Verilator 5.046). `mdbook build book` clean; `cargo test --test book_examples` 3/3 (81s). CLI smoke: a `--config` with `soft_union_slice_prob=1.0 + sv_version=2023` over a slice-heavy shape → 47/48 seeds emit `union soft`; same seeds at `sv_version=2012` emit none (down-gate). | `done` |
 | `2026-06-16` | `SV-VERSION-TARGETING.3b.1` | Design-detail leaf, no source change (grounded in a fresh read of `src/ir/aggregate.rs`, `src/emit/sv.rs` `render_gate` `Slice` arm at `sv.rs:1040` + the gate decl/assign region, `src/config.rs`). Established that the boundary-aggregate machinery's soundness rests on packed-`struct`/array = concatenation bit-equivalence (which a union violates), so the mechanism is an internal `union soft` overlay of a low-bits `Slice`, not an `AggregateKind` sibling. `DEVELOPMENT_NOTES.md` design-detail entry + tree split. Baseline `cargo check --all-targets` clean (session start). `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-16` | `SV-VERSION-TARGETING.3a` | Design leaf, no source change (grounded in a fresh deep-dive of `src/emit/sv.rs`, `src/config.rs`, `src/ir/aggregate.rs`, `src/downstream/mod.rs`, `src/bin/tool_matrix.rs` + a direct acceptance probe of the installed Verilator 5.046 / Yosys 0.64 / Icarus 13.0: 22 candidate snippets across all three `--language` modes; `verilator --binary` build of a `union soft` overlay produced `y=a5`; the non-soft heterogeneous packed union is rejected by all three tools citing IEEE 1800-2023 §7.3.1). Baseline `cargo check --all-targets` clean before the leaf. Decision `0010` + `DEVELOPMENT_NOTES.md` design-detail entry + tree split recorded; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated. | `done` |
 | `2026-06-16` | `SV-VERSION-TARGETING.2b.2b` | `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 405/0; `cargo test --bin tool_matrix` 52/0 (incl. 6 new sv-version proofs); `cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version` 2/2; heavy `cargo test --test pipeline` re-run (touches `tool_matrix`). **Banked downstream-clean:** `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-r1` → exit 0; report: 9 scenarios / 18 units / `coverage_gaps = []` / Verilator 18/0 / Yosys without-abc 18/0 / with-abc 18/0; each scenario's Verilator argv carries the matching `--language 1800-20xx`; all four `saw_sv_version_*_targeted_acceptance` lit. | `done` |
@@ -265,6 +296,7 @@ byte-identical.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SV-VERSION-TARGETING.3b.2a` | `SV-VERSION-TARGETING.3b.2a — live union soft low-bits-slice up-opt` | `Config::soft_union_slice_prob` + `src/ir/soft_union.rs` gen-time pass + `Module.soft_union_slice_gates` + the `permits(Sv2023)`-gated `emit/sv.rs` `union soft` overlay; default-off / byte-identical (snapshots 6/6); banked Verilator `--language 1800-2023` clean (159 overlays / 7 seeds, 2012 down-gate). Split `.3b.2` → `.3b.2a`/`.3b.2b`. Docs: book/USER_GUIDE/README/ROADMAP/CODEBASE_ANALYSIS + KM fact. |
 | `SV-VERSION-TARGETING.3b.1` | `SV-VERSION-TARGETING.3b.1 — soft-union up-opt mechanism (impl design-detail)` | Resolved `0010`'s mechanism open question: an emitter-level `sv_version >= Sv2023`-gated internal `union soft` overlay of a proper low-bits `Slice` (behaviour-preserving), not an `AggregateKind` sibling nor a port-boundary fold. Split `.3b` → `.3b.1`/`.3b.2`. No source change. |
 | `SV-VERSION-TARGETING.3a` | `SV-VERSION-TARGETING.3a — first up-opt design (soft packed union)` | Decision `0010` — first up-opt = heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1), default-off / byte-identical (struct down-gate fallback); the installed-tool version-acceptance finding; the `sv_version >= Sv2023` gate; rejected alternatives. Split `.3` → `.3a`/`.3b`. No source change. |
 | `SV-VERSION-TARGETING.2b.2b` | `SV-VERSION-TARGETING.2b.2b — repo-owned per-version acceptance gate` | `tool_matrix --sv-version-gate` + `ScenarioSet::SvVersionSweep` (9 scenarios) + per-version emit threading + matching-mode Verilator + `saw_sv_version_*_targeted_acceptance` facts + `MatrixReport.sv_version_gate` + 6 proofs. Banked clean `/tmp/anvil-sv-version-gate-r1` (18/0). Closes `.2b.2`/`.2b`/`.2`. |
@@ -275,6 +307,17 @@ byte-identical.
 
 ## Changelog
 
+- `2026-06-16`: `.3b.2a` landed — **the first version-distinctive up-opt now
+  ships and is downstream-proven**. `Config::soft_union_slice_prob` (default-off)
+  + `src/ir/soft_union.rs` gen-time pass + `Module.soft_union_slice_gates` marker
+  + the `permits(Sv2023)`-gated `emit/sv.rs` `union soft` overlay of a proper
+  low-bits `Slice` (`u.w = src; gate = u.n`, behaviour-preserving). Default-off /
+  byte-identical (snapshots 6/6); banked Verilator `--language 1800-2023` clean
+  (159 overlays / 7 seeds) with the 2012 down-gate proven; Yosys/Icarus recorded
+  no-op. Live docs synced in lockstep (book knobs + SV-version chapter,
+  USER_GUIDE, README, ROADMAP, CODEBASE_ANALYSIS, KM fact). Split `.3b.2` →
+  `.3b.2a` (done) + `.3b.2b` (the repo-owned matrix up-opt gate +
+  `saw_sv_version_2023_soft_union_upopt` fact). Frontier advances to `.3b.2b`.
 - `2026-06-16`: `.3b.1` design-detail landed (no source change): resolved the
   mechanism `0010` left open for `.3b`. The up-opt is an emitter-level
   `sv_version >= Sv2023`-gated, default-off internal `union soft` overlay

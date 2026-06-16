@@ -193,18 +193,27 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `ScenarioSet::SvVersionSweep` + per-version `saw_sv_version_*_targeted_acceptance`
    coverage facts, banked clean at `/tmp/anvil-sv-version-gate-r1`: 9 scenarios /
    18 units / `coverage_gaps = []` / `18/0` Verilator + both Yosys) all **done**.
-   `.2` (plumbing + down-gating + per-version acceptance axis) is now complete.
-   `.3` (the first version-distinctive up-opted construct) is split into `.3a`
-   (design — **done**, decision
-   [`0010`](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md): the
-   first up-opt is a default-off heterogeneous-width packed `union soft` (IEEE
-   1800-2023 §7.3.1) gated on `sv_version >= Sv2023`, with the existing packed-
-   `struct` projection as the `< 2023` down-gate fallback ⇒ byte-identical
-   default; grounded in a probe showing the installed Verilator/Yosys/Icarus do
-   not enforce 1800-version acceptance, so the up-opt's teeth are LRM correctness
-   + construction-time down-gating + matching-mode acceptance) + `.3b` (impl, the
-   `union soft` projection). The remaining frontier is `.3b`. Default
-   byte-identical throughout.
+   `.2` (plumbing + down-gating + per-version acceptance axis) is complete, and
+   the **first version-distinctive up-opt now ships** (decision
+   [`0010`](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md)): a
+   default-off `soft_union_slice_prob` knob renders a *proper low-bits* `Slice`
+   (`a[hi:0]`) through an internal IEEE 1800-2023 `union soft` overlay
+   (`u.w = src; gate = u.n`) — behaviour-preserving (packed-union members are
+   LSB-aligned) and genuinely 2023 (heterogeneous-width packed-union members are
+   legal only as `union soft`, §7.3.1) — fired only when both the knob is on
+   **and** the target permits 2023; below 2023 it down-gates to the plain slice.
+   `.3` is split into `.3a` (design — **done**), `.3b.1` (mechanism design-detail
+   — **done**: an emitter overlay of a low-bits `Slice`, **not** an
+   `AggregateKind` sibling, because a union is not concatenation-equivalent), and
+   `.3b.2` (impl) → `.3b.2a` (**done**: the `Config::soft_union_slice_prob` knob +
+   `src/ir/soft_union.rs` gen-time pass + the `permits(Sv2023)`-gated emitter
+   overlay + the divergence/down-gate proofs + a banked Verilator `--language
+   1800-2023` acceptance test in `tests/sv_version_downstream.rs`; default-off /
+   byte-identical, snapshots 6/6) + `.3b.2b` (the repo-owned matrix up-opt gate +
+   `saw_sv_version_2023_soft_union_upopt` coverage fact, Yosys/Icarus recorded
+   no-op). The remaining frontier is `.3b.2b`. Default byte-identical throughout.
+   This closes ROADMAP steering gap 1's "version-targeted breadth" with a real,
+   downstream-proven 2023 construct (not just the 2012-floor down-gate).
 2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
    synthesizable SV surfaces (function/task, interface/modport, nested
    generate), valid-by-construction; bigger and more open-ended.

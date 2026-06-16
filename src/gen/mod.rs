@@ -83,6 +83,15 @@ impl Generator {
                 );
             }
         }
+        // `SV-VERSION-TARGETING.3b.2` — opt-in: mark proper low-bits `Slice`
+        // gates for the IEEE-1800-2023 `union soft` overlay (the emitter only
+        // realizes it when the target also permits 2023). Default
+        // `soft_union_slice_prob = 0.0` ⇒ no roll ⇒ byte-identical stream +
+        // output. Mirrors the `aggregate_prob` call-site roll.
+        if self.cfg.soft_union_slice_prob > 0.0 {
+            let p = self.cfg.soft_union_slice_prob;
+            crate::ir::soft_union::annotate_soft_union_slices(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -230,6 +239,18 @@ impl Generator {
                     let prefer_array = array_p > 0.0 && self.rng.gen_bool(array_p);
                     crate::ir::aggregate::annotate_aggregate_with_kind(module, prefer_array);
                 }
+            }
+        }
+        // `SV-VERSION-TARGETING.3b.2` — opt-in `union soft` low-bits-`Slice`
+        // overlay marker (design path), mirroring the single-module roll in
+        // `generate_module`. Default `soft_union_slice_prob = 0.0` ⇒ no roll ⇒
+        // every module byte-identical. The emitter only realizes the overlay
+        // when the target permits 2023; below 2023 a marked gate down-gates to
+        // the plain slice.
+        if self.cfg.soft_union_slice_prob > 0.0 {
+            let p = self.cfg.soft_union_slice_prob;
+            for module in &mut design.modules {
+                crate::ir::soft_union::annotate_soft_union_slices(module, &mut self.rng, p);
             }
         }
         design

@@ -1,9 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SV-VERSION-TARGETING.3b.2a — live union soft low-bits-slice up-opt
+
+**Landed as:** this commit (previous: `eca5d8b`). Task-tree-owned by
+`SV-VERSION-TARGETING.3b.2a`. **The first version-distinctive up-opt now ships.**
+**Default-off / byte-identical** (`tests/snapshots.rs` 6/6 untouched).
+
+**What changed (code)**
+
+- **`src/config.rs`** — new `soft_union_slice_prob: f64` knob (`#[serde(default =
+  "default_soft_union_slice_prob")]` = `0.0`; serde/config-file only, no CLI flag,
+  like `aggregate_prob`); added to the `Default` impl and the `validate()`
+  `0.0..=1.0` range list. Surfaced in `--dump-config` / `--introspect` via serde.
+- **`src/ir/types.rs`** — new emitter-surface marker field
+  `Module.soft_union_slice_gates: BTreeSet<NodeId>` (`Default`-empty). `Module`
+  derives only `Debug, Clone, Default` (no serde) ⇒ zero snapshot/serde impact;
+  it is **not** hashed into `canonical_module_signature`, so identity is
+  unaffected — exactly like `aggregate_layout`.
+- **`src/ir/soft_union.rs`** (new, registered in `src/ir/mod.rs`) —
+  `annotate_soft_union_slices(m, rng, prob)`: a gen-time pass that rolls `prob`
+  per *proper low-bits* slice (`GateOp::Slice { hi, lo: 0 }` over a non-constant
+  source strictly wider than the slice) on the seeded RNG and marks the gate.
+  Skips Phase 5 `param_env` modules. 8 unit/emit tests.
+- **`src/gen/mod.rs`** — rolled the pass in `generate_module` (single-module
+  path) and `generate_design` (design path), guarded by
+  `soft_union_slice_prob > 0.0` (so the default draws nothing ⇒ byte-identical
+  stream), mirroring the `aggregate_prob` call-site roll.
+- **`src/emit/sv.rs`** — new `soft_union_slice_overlay(m, idx, sv_version)`
+  helper; in the gate decl + assign loops, a marked slice on a 2023 target emits
+  an internal `union soft` overlay (`union soft { logic [W-1:0] w; logic [SW-1:0]
+  n; } <gate>__u; assign <gate>__u.w = src; assign <gate> = <gate>__u.n;`) instead
+  of `src[hi:0]`. Below 2023 the helper returns `None` ⇒ the plain slice
+  (**down-gating**). `render_gate` stays a pure expression.
+
+**Why it's correct + genuinely 2023**
+
+Heterogeneous-width packed-union members are legal *only* as `union soft` (IEEE
+1800-2023 §7.3.1 — Verilator's own diagnostic on the plain form cites it). The
+overlay is **behaviour-preserving**: packed-union members are LSB-aligned, so
+`<gate>__u.n == src[hi:0]` (the `--binary` probe gave `y=5` for `a=0xA5`).
+
+**Downstream-proof handling**
+
+Verilator accepts/builds it under `--language 1800-2023`; Yosys/Icarus have no
+IEEE-1800 selector and reject the `union soft` syntax, so they are a **recorded
+no-op** (decision `0010`). The repo-owned matrix up-opt gate +
+`saw_sv_version_2023_soft_union_upopt` fact is the follow-on `.3b.2b`.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `cargo test --lib` 412/0 (2 ignored;
+incl. 8 new `soft_union` proofs — qualifies/skips + emit divergence/down-gate);
+`cargo test --test snapshots` 6/6 byte-identical; `cargo test --test sv_version`
+2/2. **Banked downstream-clean:** `cargo test --test sv_version_downstream --
+--ignored verilator_accepts_soft_union_slice_overlay_at_2023` → ok, **159
+overlays across 7 seeds**, every one Verilator `--language 1800-2023` clean, and
+the same seeds at `sv_version=2012` emit **no** `union soft` (down-gate, Verilator
+1800-2012 clean). `mdbook build book` clean; `cargo test --test book_examples`
+3/3.
+
+**Live docs synced in lockstep (per owner directive)**
+
+`book/src/knobs.md` (SystemVerilog-version-target section + knob-defaults entry +
+knob→metric row), `USER_GUIDE.md`, `README.md` (CLI truth + crate layout),
+`ROADMAP.md` (lane note — up-opt ships, closes steering-gap-1 version breadth),
+`CODEBASE_ANALYSIS.md` (new module + knob + field), and a new Knowledge Map fact
+`docs/knowledge/sv-version-soft-union-upopt.md`.
+
+**Impact**
+
+Default build byte-identical. `--sv-version 2023` + `soft_union_slice_prob > 0.0`
+is the first ANVIL invocation that emits a genuinely version-distinctive,
+downstream-proven construct no `< 2023` flow accepts.
+
+**Files touched**
+
+`src/config.rs`, `src/ir/types.rs`, `src/ir/mod.rs`, `src/ir/soft_union.rs` (new),
+`src/gen/mod.rs`, `src/emit/sv.rs`, `tests/sv_version.rs`,
+`tests/sv_version_downstream.rs`, `book/src/knobs.md`, `USER_GUIDE.md`,
+`README.md`, `ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+`docs/knowledge/sv-version-soft-union-upopt.md`, `KNOWLEDGE_MAP.md`,
+`docs/tasks/SV-VERSION-TARGETING.md`, `docs/TASK_TREE.md`, `MEMORY.md`,
+`CHANGES.md`.
+
 ## 2026-06-16 — SV-VERSION-TARGETING.3b.1 — soft-union up-opt mechanism (impl design-detail)
 
-**Landed as:** this commit (previous: `154b2a7`). Task-tree-owned by
+**Landed as:** `eca5d8b` (previous: `154b2a7`). Task-tree-owned by
 `SV-VERSION-TARGETING.3b.1`. **Docs-only design-detail leaf — no source change.**
 
 **What changed**
