@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4b.2 — `flop_reset_provenance` MCP surface + schema 1.6
+
+**Landed as:** this commit (previous: `3ee0417`). **Source + docs**; DUT
+byte-identical. Closes `.4b` and `.4` — the **third** derived query,
+`flop_reset_provenance`, is delivered end-to-end. The `analyze` surface now
+answers three derived queries (`output_support` + `input_reach` +
+`flop_reset_provenance`) at schema `1.6`.
+
+**What changed (why)**
+
+The `.4b.1` pure core is now reachable over MCP, per the `.4a` design. Registry
+entry + dispatch land **together** (the `.3b.2`/`.4b.1` discipline).
+
+- **`src/introspect/analyze.rs`** — `flop_reset_provenance` added to
+  `supported_query_kinds()` (now the three kinds); the `QUERY_FLOP_RESET_PROVENANCE`
+  doc comment updated (registered + dispatched).
+- **`src/mcp/mod.rs`** — `run_analyze` gains the `flop_reset_provenance` arm
+  (`module_flop_provenance`/`design_flop_provenance`); the unknown-target →
+  `-32602` guard checks `flop_provenance` for this kind; the `analyze_schema`
+  `query` `enum` + `target` description + the `analyze` tool description + the
+  server `instructions` cover the third kind. Two new MCP proofs
+  (`analyze_returns_flop_reset_provenance_and_caches_it` with `flop_prob = 1.0`,
+  `analyze_flop_reset_provenance_unknown_target_is_invalid_params`).
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.5 → 1.6` + the doc comment
+  (the additive MINOR bump for the `flop_provenance` field; `output_support` /
+  `input_reach` documents stay byte-identical). 6 `"1.5" → "1.6"` schema-version
+  test assertions (2 `introspect`, 4 `mcp`).
+- **Docs** — schema-doc §6.7 (the third `flop_provenance` payload + the
+  `FlopProvenance` shape) + the `1.5 → 1.6` changelog + the "defines 1.6"/checklist;
+  book `agent-mcp` (analyze table row + a `flop_reset_provenance` worked example +
+  the three JSON examples `1.5 → 1.6`); USER_GUIDE (the `analyze` description +
+  `--introspect` schema `1.6`); README (schema `1.6` in two spots + the `analyze`
+  sentence); a new KM card `docs/knowledge/semantic-introspection-flop-reset-provenance.md`
+  (+ a cross-link from `semantic-introspection-analyze-tool`, `KNOWLEDGE_MAP.md`
+  regenerated); `CODEBASE_ANALYSIS.md` (both analyze blocks) + `ROADMAP.md`.
+
+**Validation**
+
+- `cargo test --lib` **450 passed / 0 failed / 2 ignored** (incl. the 2 new MCP
+  `flop_reset_provenance` proofs + the 5 `.4b.1` projection proofs). `cargo test
+  --test snapshots` **6/6 byte-identical** — DUT `.sv` unchanged. `cargo clippy
+  --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook
+  build book` clean; `cargo test --test book_examples` **3/3**. KM regenerated +
+  `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean.
+- **End-to-end `anvil-mcp` stdio smoke:** `analyze {query:"flop_reset_provenance",
+  seed:3}` → schema `1.6`, 31 flops (flop 0 async/hold/encoded); unknown
+  `flop:99999` → `-32602`.
+
+**Impact**
+
+The `analyze` surface delivers three derived queries at schema `1.6`. The tree
+stays `active` with no active frontier; the last named query kind,
+`module_reachability`, is open-ended `.5+` breadth. Next lane is owner-directed.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `USER_GUIDE.md`,
+  `README.md`, `docs/knowledge/semantic-introspection-flop-reset-provenance.md`,
+  `docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+  `CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `DEVELOPMENT_NOTES.md`,
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.4b.1 — pure `flop_reset_provenance` core
 
 **Landed as:** this commit (previous: `2b0de36`). **Source + docs**; DUT

@@ -177,8 +177,9 @@ impl McpServer {
                      graph (output_support = an output's transitive combinational \
                      fan-in support cone: its primary inputs, flop Qs, and \
                      child-instance outputs; input_reach = the dual fan-out, which \
-                     outputs and flop D-cones a source reaches) by pure traversal \
-                     — relations, not behaviour. \
+                     outputs and flop D-cones a source reaches; \
+                     flop_reset_provenance = per-flop reset/data provenance) by \
+                     pure traversal — relations, not behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
                      iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
@@ -308,19 +309,21 @@ impl McpServer {
                                             dump_config). Omit for defaults." },
                 "query": {
                     "type": "string",
-                    "enum": ["output_support", "input_reach"],
+                    "enum": ["output_support", "input_reach", "flop_reset_provenance"],
                     "description": "Derived-relation query kind. output_support (default): each \
                                     target's transitive combinational fan-in support cone. \
                                     input_reach: the dual fan-out — which outputs and flop D-cones \
-                                    a source structurally reaches. An unknown kind is rejected \
-                                    with -32602."
+                                    a source structurally reaches. flop_reset_provenance: per-flop \
+                                    reset/data provenance (reset kind/value, zero-vs-hold default, \
+                                    mux kind/arms). An unknown kind is rejected with -32602."
                 },
                 "target": {
                     "type": "string",
                     "description": "Optional target. output_support: an output port name, or \
                                     \"flop:<id>\" for a flop D cone (omit for every output). \
                                     input_reach: a source — an input port name, \"flop:<id>\" (a \
-                                    flop Q), or \"<instance>.<port>\" (omit for every source). An \
+                                    flop Q), or \"<instance>.<port>\" (omit for every source). \
+                                    flop_reset_provenance: \"flop:<id>\" (omit for every flop). An \
                                     unknown target is rejected with -32602."
                 }
             },
@@ -385,10 +388,13 @@ impl McpServer {
                                     transitive combinational fan-in support cone (the primary inputs, \
                                     flop Qs, and child-instance outputs it depends on, plus cone size and \
                                     combinational depth); query=input_reach returns the dual fan-out \
-                                    (which outputs and flop D-cones each source reaches). target = an \
-                                    output port name or \"flop:<id>\" for output_support, or a source \
-                                    (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for input_reach \
-                                    (omit for all). Unknown query/target -> -32602. Cached + exposed as \
+                                    (which outputs and flop D-cones each source reaches); \
+                                    query=flop_reset_provenance returns per-flop reset/data provenance \
+                                    (reset kind/value, zero-vs-hold default, mux kind/arms, has_d). \
+                                    target = an output port name or \"flop:<id>\" for output_support, a \
+                                    source (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for \
+                                    input_reach, or \"flop:<id>\" for flop_reset_provenance (omit for all). \
+                                    Unknown query/target -> -32602. Cached + exposed as \
                                     anvil://artifact/<run_id>/analysis/<query>.",
                     "inputSchema": analyze_schema,
                 },
@@ -633,6 +639,9 @@ impl McpServer {
                 introspect::analyze::QUERY_INPUT_REACH => {
                     introspect::analyze::design_input_reach(&design, target)
                 }
+                introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
+                    introspect::analyze::design_flop_provenance(&design, target)
+                }
                 _ => introspect::analyze::design_support_cones(&design, target),
             };
             let doc = introspect::design_document(seed, cfg, &design);
@@ -642,6 +651,9 @@ impl McpServer {
             let analysis = match query {
                 introspect::analyze::QUERY_INPUT_REACH => {
                     introspect::analyze::module_input_reach(&m, target)
+                }
+                introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
+                    introspect::analyze::module_flop_provenance(&m, target)
                 }
                 _ => introspect::analyze::module_support_cones(&m, target),
             };
@@ -656,6 +668,9 @@ impl McpServer {
         if let Some(t) = target {
             let empty = match query {
                 introspect::analyze::QUERY_INPUT_REACH => analysis.reach_results.is_empty(),
+                introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
+                    analysis.flop_provenance.is_empty()
+                }
                 _ => analysis.results.is_empty(),
             };
             if empty {
@@ -1495,7 +1510,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["schema_version"], "1.6");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -1541,7 +1556,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["schema_version"], "1.6");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -1562,6 +1577,56 @@ mod tests {
         let text = read["result"]["contents"][0]["text"].as_str().unwrap();
         let cached: Value = serde_json::from_str(text).unwrap();
         assert_eq!(cached["analysis"]["query"], "input_reach");
+    }
+
+    #[test]
+    fn analyze_returns_flop_reset_provenance_and_caches_it() {
+        let mut s = McpServer::new();
+        // flop_prob = 1.0 makes the DUT very likely to carry flops; the routing
+        // + schema + caching assertions below hold regardless of flop count.
+        let cfg = Config {
+            seed: 7,
+            flop_prob: 1.0,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
+        // The other queries' vecs are not populated by this kind.
+        assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
+        assert!(doc["analysis"].get("reach_results").is_none());
+        // Cached + served under the flop_reset_provenance query key.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/flop_reset_provenance") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "flop_reset_provenance");
+    }
+
+    #[test]
+    fn analyze_flop_reset_provenance_unknown_target_is_invalid_params() {
+        let mut s = McpServer::new();
+        // No DUT has flop id 99999 ⇒ an unresolvable target ⇒ -32602.
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "query": "flop_reset_provenance", "target": "flop:99999" }),
+        );
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
     }
 
     #[test]
@@ -1792,7 +1857,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["schema_version"], "1.6");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -1893,7 +1958,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["schema_version"], "1.6");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -1948,7 +2013,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["schema_version"], "1.6");
     }
 
     #[test]

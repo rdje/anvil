@@ -81,18 +81,21 @@ pub const QUERY_INPUT_REACH: &str = "input_reach";
 /// (`SEMANTIC-INTROSPECTION-EXPANSION.4`): per-flop **reset/data provenance** —
 /// is each flop reset-defined vs data-driven, and how is its next state built?
 /// A direct projection of [`Module::flops`](Module) (no graph walk). Served by
-/// [`module_flop_provenance`] / [`design_flop_provenance`]; registered +
-/// dispatched in `.4b.2`.
+/// [`module_flop_provenance`] / [`design_flop_provenance`], dispatched by the MCP
+/// `analyze` tool (`.4b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_FLOP_RESET_PROVENANCE: &str = "flop_reset_provenance";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
-/// dispatch never disagree. Remaining future kinds (`flop_reset_provenance`,
-/// `module_reachability`) slot in the same way without changing the document
-/// shape.
+/// dispatch never disagree. The remaining future kind (`module_reachability`)
+/// slots in the same way without changing the document shape.
 pub fn supported_query_kinds() -> &'static [&'static str] {
-    &[QUERY_OUTPUT_SUPPORT, QUERY_INPUT_REACH]
+    &[
+        QUERY_OUTPUT_SUPPORT,
+        QUERY_INPUT_REACH,
+        QUERY_FLOP_RESET_PROVENANCE,
+    ]
 }
 
 /// The result of one derived-relation query over an artifact: a list of

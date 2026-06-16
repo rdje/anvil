@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -151,7 +151,7 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). Relations, not behaviour. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
@@ -189,7 +189,7 @@ anvil://audit/log              the append-only validate/minimize audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -212,7 +212,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -260,7 +260,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -289,6 +289,52 @@ source):
   opposite direction — the `query` kind chooses.
 - Served as `anvil://artifact/<run_id>/analysis/input_reach`; unknown source →
   `-32602`.
+
+#### `flop_reset_provenance` — per-flop reset/data provenance
+
+The third query kind, `flop_reset_provenance`, answers *is each flop
+reset-defined or data-driven, and how is its next state built?* It is a direct
+projection of each `Flop` — no graph walk. The `target` is `"flop:<id>"` (omit
+for every flop):
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "query": "flop_reset_provenance" } }
+```
+
+```json
+{
+  "schema_version": "1.6",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "analysis": {
+    "query": "flop_reset_provenance",
+    "flop_provenance": [
+      {
+        "flop": 0,
+        "width": 8,
+        "has_reset": true,
+        "reset_kind": "async",
+        "reset_value": "0",
+        "default_behavior": "zero",
+        "mux_kind": "one_hot",
+        "mux_arms": 2,
+        "has_d": true
+      }
+    ]
+  }
+}
+```
+
+- The payload is a third `flop_provenance` array (not `results` / `reach_results`),
+  again `skip_serializing_if`, so `output_support` / `input_reach` replies stay
+  byte-identical across the `1.5 → 1.6` bump.
+- `reset_kind` is `none` / `sync` / `async`; `default_behavior` is `zero`
+  (load 0 when no select asserted) or `hold` (keep `Q`); `mux_kind` is `none` /
+  `one_hot` / `encoded` with `mux_arms` the arm count; `reset_value` is the reset
+  value as a **decimal string** (exact for 128-bit values).
+- Served as `anvil://artifact/<run_id>/analysis/flop_reset_provenance`; an unknown
+  `"flop:<id>"` → `-32602`. A flopless module yields an empty result (no flops to
+  report), not an error.
 
 ### All three lanes, not just DUT
 

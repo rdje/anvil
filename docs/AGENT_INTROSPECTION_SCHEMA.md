@@ -307,8 +307,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult`) |
-| **Producer** | `output_support`: `introspect::analyze::module_support_cones` / `design_support_cones`; `input_reach`: `introspect::analyze::module_input_reach` / `design_input_reach` — both pure over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -347,9 +347,22 @@ the query kind populates (the other is empty and, for `reach_results`, omitted v
   `output_support` document never serializes the key and stays byte-identical
   across the `1.4 → 1.5` bump; an `input_reach` document carries it with
   `results: []`.
+- **`flop_provenance: Vec<FlopProvenance>`** (schema `1.6`, `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`)
+  — the `flop_reset_provenance` payload: per-flop **reset/data provenance** (*is
+  this register reset-defined or data-driven, and how is its next state built?*).
+  A `FlopProvenance` is a direct projection of one `Flop`: `flop` (id, addressed
+  `"flop:<id>"`), `width`, `has_reset`, `reset_kind` (`"none"`/`"sync"`/`"async"`),
+  `reset_value` (the `u128` reset value as a **decimal string** — exact on any JSON
+  consumer), `default_behavior` (`"zero"` for `ZeroDefault`, `"hold"` for
+  `QFeedback` — what `D` becomes when no mux select is asserted), `mux_kind`
+  (`"none"`/`"one_hot"`/`"encoded"`), `mux_arms` (arm/data-slot count), and
+  `has_d`. It is a direct read of `Module.flops` (no graph walk). `flop_provenance`
+  carries the same `skip_serializing_if`, so `output_support`/`input_reach`
+  documents stay byte-identical across the `1.5 → 1.6` bump; a
+  `flop_reset_provenance` document carries it with `results: []`.
 
-`target = None` ⇒ all targets/sources (per the agent-audience completeness rule);
-an unknown `query` or `target` is rejected with JSON-RPC `-32602`.
+`target = None` ⇒ all targets/sources/flops (per the agent-audience completeness
+rule); an unknown `query` or `target` is rejected with JSON-RPC `-32602`.
 
 ---
 
@@ -374,7 +387,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.5"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.6"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -384,7 +397,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.5"`**.
+This document defines **`schema_version = "1.6"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -430,6 +443,18 @@ This document defines **`schema_version = "1.5"`**.
   or retyped; `reach_results` is SCHEMA-DERIVED (a pure inversion of the support
   cones, §6.7) so it adds no new computed truth; the default-`dut` artifact stays
   byte-identical and determinism is preserved.
+- **`1.5` → `1.6` (`SEMANTIC-INTROSPECTION-EXPANSION.4b.2`).** Additive MINOR
+  bump: added the **third** derived-query kind `flop_reset_provenance` (§6.7) —
+  per-flop reset/data provenance. `DerivedAnalysis` gains a third
+  `flop_provenance: Vec<FlopProvenance>` field, `#[serde(default,
+  skip_serializing_if = "Vec::is_empty")]`, so `output_support` / `input_reach`
+  documents are **byte-identical to `1.5`** (the key is omitted) and only a
+  `flop_reset_provenance` document carries it (with `results: []`). A `1.5`
+  consumer of the prior documents keeps working unchanged; the new kind is reached
+  only via `analyze {query: "flop_reset_provenance"}`. No envelope field was
+  removed, renamed, or retyped; `flop_provenance` is SCHEMA-DERIVED (a direct
+  projection of `Module.flops`, §6.7) so it adds no new computed truth; the
+  default-`dut` artifact stays byte-identical and determinism is preserved.
 
 ---
 
@@ -468,5 +493,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.5"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.6"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

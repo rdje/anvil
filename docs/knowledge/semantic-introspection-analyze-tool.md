@@ -64,7 +64,9 @@ permanent ceiling).
   stay byte-identical.
 
 The dual fan-out query, `input_reach` (schema `1.5`), is
-[[semantic-introspection-input-reach]].
+[[semantic-introspection-input-reach]]; the per-flop reset/data query,
+`flop_reset_provenance` (schema `1.6`), is
+[[semantic-introspection-flop-reset-provenance]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

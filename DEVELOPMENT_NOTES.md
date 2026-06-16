@@ -5,6 +5,22 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — `flop_reset_provenance` surface + schema 1.6 — `SEMANTIC-INTROSPECTION-EXPANSION.4b.2`
+
+Wires the `.4b.1` core to the MCP surface, closing the third derived query
+(`.4b` + `.4`) end-to-end. Same shape as the `.3b.2` (`input_reach`) closeout —
+registry entry + `run_analyze` dispatch in one commit, schema `1.5 → 1.6`,
+`output_support`/`input_reach` documents byte-identical (the `flop_provenance`
+key is `skip_serializing_if`-omitted). One architectural observation worth
+recording for cold recovery: **the parallel-vec pattern has now scaled cleanly to
+three query kinds** (`results` / `reach_results` / `flop_provenance`), each a
+`skip_serializing_if` vec the `query` field discriminates. This validates the
+`.3a` decision to reject a tagged-enum `results` — every new kind is one more
+optional vec, prior documents stay byte-identical, and the schema bump is always
+a clean additive MINOR. The lane's named-query set is now down to one open kind,
+`module_reachability` (`.5+`, open-ended). E2e `anvil-mcp` smoke: seed 3 → schema
+`1.6`, 31 flops (flop 0 async/hold/encoded); unknown `flop:<id>` → `-32602`.
+
 ## 2026-06-16 — Semantic introspection — `flop_reset_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.4a`
 
 Design-detail leaf for `.4` — the **third** derived query, `flop_reset_provenance`:

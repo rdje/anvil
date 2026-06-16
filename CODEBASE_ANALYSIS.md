@@ -473,9 +473,12 @@ src/
 │                     + `module_flop_provenance`/`design_flop_provenance` — a
 │                     direct projection of `Module.flops` (ascending id; enums →
 │                     strings), no graph walk. `target=None` ⇒ all flops;
-│                     `"flop:<id>"` ⇒ one; unknown ⇒ none. Not in the registry
-│                     until `.4b.2` (registry + dispatch + schema `1.5 → 1.6`
-│                     land together). 5 in-crate proofs. DUT byte-identical.
+│                     `"flop:<id>"` ⇒ one; unknown ⇒ none. `.4b.2` registers the
+│                     kind in `supported_query_kinds()` with the `run_analyze`
+│                     dispatch and bumps the schema `1.5 → 1.6`. 5 in-crate proofs.
+│                     DUT byte-identical. The parallel-vec pattern now carries
+│                     three query kinds (`results`/`reach_results`/`flop_provenance`),
+│                     each a `skip_serializing_if` vec the `query` discriminates.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
@@ -536,10 +539,12 @@ src/
 │                     query over the IR graph (regenerates the `Module`/`Design`,
 │                     dispatches by `query` kind, wraps the relation in a
 │                     `DerivedAnalysisDocument`). `.3b.2` adds the `input_reach`
-│                     branch (`module_input_reach`/`design_input_reach`) beside
-│                     `output_support` (`{module,design}_support_cones`) and
-│                     checks the result vec the query populates for the
-│                     unknown-target test. Unknown `query`/`target` ⇒ `-32602`
+│                     branch (`module_input_reach`/`design_input_reach`) and
+│                     `.4b.2` the `flop_reset_provenance` branch
+│                     (`module_flop_provenance`/`design_flop_provenance`) beside
+│                     `output_support` (`{module,design}_support_cones`); the
+│                     unknown-target test checks the result vec the query
+│                     populates. Unknown `query`/`target` ⇒ `-32602`
 │                     (JSON-RPC error, like `prompts/get`); the result is cached
 │                     in a `CachedArtifact.analyses` map and served as
 │                     `anvil://artifact/<run_id>/analysis/<query>` (added to

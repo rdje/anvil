@@ -310,7 +310,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.5`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.6`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
 
 The `--sv-version 2023` target unlocks the first version-distinctive
 **up-opt**, a config-file knob (no CLI flag, like `aggregate_prob`):
@@ -1649,8 +1649,10 @@ It exposes three MCP primitives:
   (omit for all outputs); `query = input_reach` returns the **dual fan-out** —
   which outputs and flop `D`-cones each source reaches — with `target` a source
   (an input port name, `"flop:<id>"` for a flop Q, or `"<instance>.<port>"`; omit
-  for all sources). Unknown query/target → `-32602`. Relations, not behaviour (no
-  shadow simulator). `coverage_gaps` projects the already-computed `coverage_gaps` out
+  for all sources); `query = flop_reset_provenance` returns **per-flop reset/data
+  provenance** (reset kind/value, zero-vs-hold default, mux kind/arms, has_d),
+  with `target` a `"flop:<id>"` (omit for all flops). Unknown query/target →
+  `-32602`. Relations, not behaviour (no shadow simulator). `coverage_gaps` projects the already-computed `coverage_gaps` out
   of a recorded `tool_matrix_report.json` (inline `report` or `report_path`) so
   the agent can target *unexercised* surfaces — read-only, no recompute, no
   spawn. The controlled tools run only ANVIL's vetted downstream invocations
