@@ -487,8 +487,9 @@ src/
 │                     one entry per module sorted by name; absent top ⇒ all
 │                     unreachable) / `module_module_reachability` (the bare-module
 │                     degenerate one-node case). `target` = a **module name**
-│                     (`None` ⇒ all; unknown ⇒ none). `supported_query_kinds()`
-│                     unchanged until `.5b.2` (registry + dispatch land together).
+│                     (`None` ⇒ all; unknown ⇒ none). `.5b.2` registers the kind
+│                     in `supported_query_kinds()` with the `run_analyze` dispatch
+│                     and bumps the schema `1.6 → 1.7`; 2 MCP proofs (+ e2e smoke).
 │                     6 in-crate proofs. DUT byte-identical. The parallel-vec
 │                     pattern now carries four query kinds
 │                     (`results`/`reach_results`/`flop_provenance`/`module_reachability`),
@@ -555,7 +556,10 @@ src/
 │                     `DerivedAnalysisDocument`). `.3b.2` adds the `input_reach`
 │                     branch (`module_input_reach`/`design_input_reach`) and
 │                     `.4b.2` the `flop_reset_provenance` branch
-│                     (`module_flop_provenance`/`design_flop_provenance`) beside
+│                     (`module_flop_provenance`/`design_flop_provenance`), and
+│                     `.5b.2` the `module_reachability` branch
+│                     (`module_module_reachability`/`design_module_reachability`,
+│                     schema `1.6 → 1.7`) beside
 │                     `output_support` (`{module,design}_support_cones`); the
 │                     unknown-target test checks the result vec the query
 │                     populates. Unknown `query`/`target` ⇒ `-32602`

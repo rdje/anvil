@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5b.2 — `module_reachability` MCP surface + schema 1.7
+
+**Landed as:** this commit (previous: `66b25c5`). **Source + docs**; DUT
+byte-identical. Closes `.5b` and `.5` — the **fourth** (and last named) derived
+query, `module_reachability`, is delivered end-to-end. The `analyze` surface now
+answers **four** derived queries (`output_support` + `input_reach` +
+`flop_reset_provenance` + `module_reachability`) at schema `1.7`. All four named
+query kinds from decision `0011` are now delivered.
+
+**What changed (why)**
+
+The `.5b.1` pure core is now reachable over MCP, per the `.5a` design. Registry
+entry + dispatch land **together** (the `.3b.2`/`.4b.2` discipline).
+
+- **`src/introspect/analyze.rs`** — `module_reachability` added to
+  `supported_query_kinds()` (now four kinds); the `QUERY_MODULE_REACHABILITY` doc
+  comment + the registry doc comment updated (all four named kinds delivered).
+- **`src/mcp/mod.rs`** — `run_analyze` gains the `module_reachability` arm in both
+  the design path (`design_module_reachability`) and the module path
+  (`module_module_reachability`); the unknown-target → `-32602` guard checks
+  `module_reachability` for this kind; the `analyze_schema` `query` `enum` +
+  `target` description + the `analyze` tool description + the server `instructions`
+  cover the fourth kind. Two new MCP proofs
+  (`analyze_returns_module_reachability_and_caches_it` on a hierarchy design,
+  `analyze_module_reachability_unknown_module_is_invalid_params`).
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.6 → 1.7` + the doc comment
+  (the additive MINOR bump for the `module_reachability` field; the three prior
+  documents stay byte-identical). 8 `"1.6" → "1.7"` schema-version test assertions
+  (2 `introspect`, 6 `mcp`).
+- **Docs** — schema-doc §6.7 (the fourth `module_reachability` payload + the
+  `ModuleReachability` shape; the stale "two parallel vecs" intro corrected to
+  four) + the `1.6 → 1.7` changelog + the "defines 1.7"/checklist; book `agent-mcp`
+  (analyze table row + a `module_reachability` worked example + the four JSON
+  examples `1.6 → 1.7` + the resource line); USER_GUIDE (the `analyze` description +
+  `--introspect` schema `1.7`); README (schema `1.7` in two spots + the `analyze`
+  sentence); a new KM card `docs/knowledge/semantic-introspection-module-reachability.md`
+  (+ a cross-link from `semantic-introspection-analyze-tool`, `KNOWLEDGE_MAP.md`
+  regenerated to 35 facts / 262 keys); `CODEBASE_ANALYSIS.md` (the analyze + mcp
+  blocks) + `ROADMAP.md`.
+
+**Validation**
+
+`cargo test --lib` **458 passed / 0 failed / 2 ignored** (incl. the 2 new MCP
+proofs). `cargo test --test snapshots` **6/6 byte-identical** (default
+introspection-document shape unchanged ⇒ DUT `.sv` untouched). `cargo clippy
+--all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build
+book` clean; `cargo test --test book_examples` **3/3**; Knowledge Map regenerated +
+`check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean. End-to-end
+`anvil-mcp` stdio smoke: `analyze {query:"module_reachability", seed:42, hierarchy
+config}` → schema `1.7`, 3 modules (top `mod_42_0002` depth 0 instantiating both
+leaves `mod_42_0000`/`mod_42_0001`, all reachable); unknown module name → `-32602`.
+
+**Impact**
+
+The `analyze` surface answers all four named derived queries from decision `0011`
+at schema `1.7`. The three prior documents stay byte-identical (the
+`module_reachability` key is `skip_serializing_if`-omitted). DUT byte-identical.
+
+**Files touched**
+
+`src/introspect/analyze.rs`, `src/mcp/mod.rs`, `src/introspect/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `USER_GUIDE.md`,
+`README.md`, `docs/knowledge/semantic-introspection-module-reachability.md`,
+`docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5b.1 — pure `module_reachability` core
 
-**Landed as:** this commit (previous: `d05d145`). **Source + docs**; DUT
+**Landed as:** `66b25c5` (previous: `d05d145`). **Source + docs**; DUT
 byte-identical. The pure core of the **fourth** derived query,
 `module_reachability` (per the `.5a` design); not yet reachable over MCP (the
 registry + dispatch land in `.5b.2`).

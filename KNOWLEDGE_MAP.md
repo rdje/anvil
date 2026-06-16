@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **34** facts · **250** question keys.
+> **35** facts · **262** question keys.
 
 ## Questions → fact
 
@@ -36,6 +36,7 @@
 - "does ANVIL emit a SystemVerilog 2023 union soft" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "does ANVIL expose dependency cones over MCP" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "does ANVIL expose per-flop reset provenance" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "does ANVIL expose the design module / instance graph" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "does ANVIL generate async FIFOs or pulse synchronizers" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "does ANVIL have a behavioral oracle or shadow simulator" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "does ANVIL merge mutually-recursive registers" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
@@ -55,6 +56,7 @@
 - "does hierarchy module dedup prove semantic equivalence" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
 - "does hierarchy module dedup remove unreachable modules" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "does hierarchy_module_dedup change under-instantiation" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
+- "does module_reachability keep the other analyze queries byte-identical" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "does semantic gate merge ignore endpoint identity" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 - "does sequential module dedup merge modules with memories or FSMs" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "does the ANVIL introspection adapter compute new truth" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
@@ -69,14 +71,17 @@
 - "does whole-module sequential equivalence retire the combinational module dedup" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "how are downstream coverage gaps surfaced over MCP" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how can ANVIL prove a 3-flop CDC synchronizer was generated" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
+- "how deep is a module in the hierarchy / what is its depth from the top" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I ask a flop's reset kind or reset value over MCP" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I ask what an ANVIL output depends on" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "how do I ask which modules are dead or unreachable over MCP" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I ask which outputs an input drives over MCP" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I make ANVIL emit a union soft overlay" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how do I merge sequentially-equivalent stateful modules" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "how do non-DUT lanes reach the MCP interface" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how does ANVIL address a flop D cone in analyze" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how does ANVIL compute input_reach" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "how does ANVIL compute module reachability" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how does ANVIL down-gate a union soft slice below 2023" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how does ANVIL emit a heterogeneous-width packed union" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how does ANVIL merge sequentially equivalent flops beyond exact self-hold" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
@@ -99,6 +104,7 @@
 - "how does the sv-version gate prove the union soft up-opt" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how is a child-instance output addressed as a reach source" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how is a flop addressed in the analyze tool" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "how is a module addressed in the analyze tool" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how is deep semantic introspection kept SCHEMA-DERIVED" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "how is the ANVIL introspection schema kept from drifting" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "how is the bisimulation flop merge proven sound and downstream-clean" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
@@ -140,6 +146,7 @@
 - "what does a flop Q reach in an ANVIL design" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what does analyze flop_reset_provenance return for a flopless module" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what does analyze input_reach return for an unknown source" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "what does analyze module_reachability return for a combinational DUT" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what does analyze return for an unknown query or target" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what does bisimulation_flop_merge do" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what does cdc_synchronizer_stages do" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
@@ -168,6 +175,7 @@
 - "what is ROADMAP steering gap 3 about adversarial axis coverage" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "what is a DerivedAnalysisDocument" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a FlopProvenance" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "what is a ModuleReachability" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a ReachResult" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a SupportCone" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is anvil schema_version" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
@@ -198,12 +206,14 @@
 - "what is the flop_reset_provenance query" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the input_reach query" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the module dedup proof boundary" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
+- "what is the module_reachability query" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the output_support query" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the second IDENTITY-DEEPENING extension" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "what is the support of output Y / what drives output Y" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "what is whole-module sequential equivalence in ANVIL" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "what metric counts bisimulation flop merges" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what metric counts sequentially-duplicate module pairs" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "what modules does a module instantiate" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what roadmap work remains after the five follow-up bullets" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "what sequential coinductive flop class does ANVIL support" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "what sequential equivalence does ANVIL prove beyond exact self-hold" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
@@ -223,9 +233,11 @@
 - "which generator knobs does the signoff knob-sweep gate cover" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "which introspection schema version adds flop_reset_provenance" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds input_reach" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "which introspection schema version adds module_reachability" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds the analyze surface" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which metric proves mux_arm_duplication_rate fired" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "which modules are excluded from sequential module dedup" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "which modules in an ANVIL design are reachable from the top" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which saw_* facts does the signoff knob-sweep gate require" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "which saw_* facts does the sv-version gate require" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "which scenarios does the sv-version sweep run" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
@@ -455,6 +467,15 @@ _ANVIL's analyze tool answers input_reach — the dual fan-out of the support co
 - **evidence:** `src/introspect/analyze.rs (QUERY_INPUT_REACH, ReachResult, DerivedAnalysis.reach_results, module_input_reach/design_input_reach); src/mcp/mod.rs (run_analyze input_reach dispatch + analyze_schema enum); src/introspect/mod.rs (SCHEMA_VERSION = 1.5); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.4 -> 1.5 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
 - **reverify:** `cargo test --lib analyze`
 - **source:** [`docs/knowledge/semantic-introspection-input-reach.md`](docs/knowledge/semantic-introspection-input-reach.md)
+
+### semantic-introspection-module-reachability
+_ANVIL's analyze tool answers module_reachability — which modules in a design are reachable from the top via the instance graph (schema 1.7)_
+
+- **answers:** which modules in an ANVIL design are reachable from the top | what is the module_reachability query | how do I ask which modules are dead or unreachable over MCP | what is a ModuleReachability | does ANVIL expose the design module / instance graph | how deep is a module in the hierarchy / what is its depth from the top | what modules does a module instantiate | which introspection schema version adds module_reachability | how does ANVIL compute module reachability | does module_reachability keep the other analyze queries byte-identical | how is a module addressed in the analyze tool | what does analyze module_reachability return for a combinational DUT
+- **date:** 2026-06-16 · **status:** current
+- **evidence:** `src/introspect/analyze.rs (QUERY_MODULE_REACHABILITY, ModuleReachability, DerivedAnalysis.module_reachability, design_module_reachability/module_module_reachability); src/mcp/mod.rs (run_analyze module_reachability dispatch + analyze_schema enum); src/introspect/mod.rs (SCHEMA_VERSION = 1.7); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.6 -> 1.7 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
+- **reverify:** `cargo test --lib analyze`
+- **source:** [`docs/knowledge/semantic-introspection-module-reachability.md`](docs/knowledge/semantic-introspection-module-reachability.md)
 
 ### semantic-proof-budget
 _Bounded semantic proofs use support, node, and work budgets_

@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -151,7 +151,7 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). Relations, not behaviour. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
@@ -189,7 +189,7 @@ anvil://audit/log              the append-only validate/minimize audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -212,7 +212,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -260,7 +260,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -303,7 +303,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -335,6 +335,55 @@ for every flop):
 - Served as `anvil://artifact/<run_id>/analysis/flop_reset_provenance`; an unknown
   `"flop:<id>"` → `-32602`. A flopless module yields an empty result (no flops to
   report), not an error.
+
+#### `module_reachability` — which modules are reachable from the top
+
+The fourth query kind, `module_reachability`, answers *which modules in a design
+are reachable from `design.top` via the instance graph, and how does each one sit
+in it?* It is a pure min-depth BFS over `Design.modules` + the
+`Module.instances[].module` edges — no gate-graph walk. The `target` is a **module
+name** (omit for every module). It is most useful on a hierarchy design (a single
+combinational/sequential DUT is one module, reported as a trivial root at depth 0).
+`config` is the full effective `Config` (from `dump_config`); the hierarchy knobs
+shown are what make the artifact a design:
+
+```json
+{ "name": "analyze", "arguments": { "seed": 42, "config": { "hierarchy_depth": 1, "num_leaf_modules": 2, "num_child_instances": 2 }, "query": "module_reachability" } }
+```
+
+```json
+{
+  "schema_version": "1.7",
+  "lane": "dut",
+  "request": { "seed": 42, "run_id": "…" },
+  "artifact": { "kind": "design", "top": "top" },
+  "analysis": {
+    "query": "module_reachability",
+    "module_reachability": [
+      { "module": "child_a", "reachable": true, "depth": 1, "instantiates": [], "instance_count": 0 },
+      { "module": "child_b", "reachable": true, "depth": 1, "instantiates": [], "instance_count": 0 },
+      { "module": "top", "reachable": true, "depth": 0, "instantiates": ["child_a", "child_b"], "instance_count": 2 }
+    ]
+  }
+}
+```
+
+(module names illustrative.)
+
+- The payload is a fourth `module_reachability` array (not `results` /
+  `reach_results` / `flop_provenance`), again `skip_serializing_if`, so the prior
+  three replies stay byte-identical across the `1.6 → 1.7` bump.
+- Each entry is one module: `reachable` (from the top), `depth` (the minimum
+  instance-graph distance from the top — `0` for the top; present only when
+  reachable), `instantiates` (the distinct child module names it directly
+  instantiates, sorted) and `instance_count` (its direct-instance count, `>=
+  instantiates.len()` when a child is instantiated more than once). Entries are
+  sorted by module name; a dead (unreachable) module is reported `reachable: false`
+  with no `depth`.
+- Unlike the prior three queries, `target` is a **module name** (not a port name or
+  `"flop:<id>"`). Served as
+  `anvil://artifact/<run_id>/analysis/module_reachability`; an unknown module name →
+  `-32602`.
 
 ### All three lanes, not just DUT
 

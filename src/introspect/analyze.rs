@@ -101,13 +101,15 @@ pub const QUERY_MODULE_REACHABILITY: &str = "module_reachability";
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
-/// dispatch never disagree. The remaining future kind (`module_reachability`)
-/// slots in the same way without changing the document shape.
+/// dispatch never disagree. All four named kinds from decision `0011` are now
+/// delivered; further kinds slot in the same way without changing the document
+/// shape.
 pub fn supported_query_kinds() -> &'static [&'static str] {
     &[
         QUERY_OUTPUT_SUPPORT,
         QUERY_INPUT_REACH,
         QUERY_FLOP_RESET_PROVENANCE,
+        QUERY_MODULE_REACHABILITY,
     ]
 }
 

@@ -238,14 +238,16 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    behaviour** (the decision `0004` no-shadow-simulator / structure-first
    boundary, ROADMAP steering gap 4, is the permanent ceiling). Decision
    [`0011`](docs/decisions/0011-semantic-introspection-derived-query-surface.md);
-   `.1` + `.2` + `.3` + `.4` **done** — **three derived queries delivered
-   end-to-end**: the output **support cone** (`output_support`, `.2`), its dual
-   fan-out (`input_reach`, `.3`), and **per-flop reset/data provenance**
-   (`flop_reset_provenance`, `.4`), as the pure `src/introspect/analyze.rs` core +
-   the pure MCP `analyze` tool + the `DerivedAnalysisDocument` (schema `1.6`) +
-   book/USER_GUIDE/schema-doc/KM, DUT byte-identical. **No active frontier** — the
-   last named kind `module_reachability` remains open-ended `.5+` breadth, not a
-   blocker. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   `.1` + `.2` + `.3` + `.4` + `.5` **done** — **all four named derived queries
+   delivered end-to-end**: the output **support cone** (`output_support`, `.2`),
+   its dual fan-out (`input_reach`, `.3`), **per-flop reset/data provenance**
+   (`flop_reset_provenance`, `.4`), and **per-module reachability** from the top
+   via the instance graph (`module_reachability`, `.5`), as the pure
+   `src/introspect/analyze.rs` core + the pure MCP `analyze` tool + the
+   `DerivedAnalysisDocument` (schema `1.7`) + book/USER_GUIDE/schema-doc/KM, DUT
+   byte-identical. **No active frontier** — all four named kinds from decision
+   `0011` are delivered; further derived-query kinds are open-ended breadth, not a
+   blocker, none retired. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential

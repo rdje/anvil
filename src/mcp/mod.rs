@@ -178,7 +178,9 @@ impl McpServer {
                      fan-in support cone: its primary inputs, flop Qs, and \
                      child-instance outputs; input_reach = the dual fan-out, which \
                      outputs and flop D-cones a source reaches; \
-                     flop_reset_provenance = per-flop reset/data provenance) by \
+                     flop_reset_provenance = per-flop reset/data provenance; \
+                     module_reachability = which modules are reachable from the \
+                     design top via the instance graph) by \
                      pure traversal — relations, not behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
@@ -309,13 +311,16 @@ impl McpServer {
                                             dump_config). Omit for defaults." },
                 "query": {
                     "type": "string",
-                    "enum": ["output_support", "input_reach", "flop_reset_provenance"],
+                    "enum": ["output_support", "input_reach", "flop_reset_provenance", "module_reachability"],
                     "description": "Derived-relation query kind. output_support (default): each \
                                     target's transitive combinational fan-in support cone. \
                                     input_reach: the dual fan-out — which outputs and flop D-cones \
                                     a source structurally reaches. flop_reset_provenance: per-flop \
                                     reset/data provenance (reset kind/value, zero-vs-hold default, \
-                                    mux kind/arms). An unknown kind is rejected with -32602."
+                                    mux kind/arms). module_reachability: which modules in a design \
+                                    are reachable from the top via the instance graph (per-module \
+                                    reachable/depth/instantiates/instance_count). An unknown kind \
+                                    is rejected with -32602."
                 },
                 "target": {
                     "type": "string",
@@ -323,7 +328,8 @@ impl McpServer {
                                     \"flop:<id>\" for a flop D cone (omit for every output). \
                                     input_reach: a source — an input port name, \"flop:<id>\" (a \
                                     flop Q), or \"<instance>.<port>\" (omit for every source). \
-                                    flop_reset_provenance: \"flop:<id>\" (omit for every flop). An \
+                                    flop_reset_provenance: \"flop:<id>\" (omit for every flop). \
+                                    module_reachability: a module name (omit for every module). An \
                                     unknown target is rejected with -32602."
                 }
             },
@@ -390,10 +396,14 @@ impl McpServer {
                                     combinational depth); query=input_reach returns the dual fan-out \
                                     (which outputs and flop D-cones each source reaches); \
                                     query=flop_reset_provenance returns per-flop reset/data provenance \
-                                    (reset kind/value, zero-vs-hold default, mux kind/arms, has_d). \
+                                    (reset kind/value, zero-vs-hold default, mux kind/arms, has_d); \
+                                    query=module_reachability returns which modules in a design are \
+                                    reachable from the top via the instance graph (per-module \
+                                    reachable/depth/instantiates/instance_count). \
                                     target = an output port name or \"flop:<id>\" for output_support, a \
                                     source (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for \
-                                    input_reach, or \"flop:<id>\" for flop_reset_provenance (omit for all). \
+                                    input_reach, \"flop:<id>\" for flop_reset_provenance, or a module \
+                                    name for module_reachability (omit for all). \
                                     Unknown query/target -> -32602. Cached + exposed as \
                                     anvil://artifact/<run_id>/analysis/<query>.",
                     "inputSchema": analyze_schema,
@@ -642,6 +652,9 @@ impl McpServer {
                 introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
                     introspect::analyze::design_flop_provenance(&design, target)
                 }
+                introspect::analyze::QUERY_MODULE_REACHABILITY => {
+                    introspect::analyze::design_module_reachability(&design, target)
+                }
                 _ => introspect::analyze::design_support_cones(&design, target),
             };
             let doc = introspect::design_document(seed, cfg, &design);
@@ -654,6 +667,9 @@ impl McpServer {
                 }
                 introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
                     introspect::analyze::module_flop_provenance(&m, target)
+                }
+                introspect::analyze::QUERY_MODULE_REACHABILITY => {
+                    introspect::analyze::module_module_reachability(&m, target)
                 }
                 _ => introspect::analyze::module_support_cones(&m, target),
             };
@@ -670,6 +686,9 @@ impl McpServer {
                 introspect::analyze::QUERY_INPUT_REACH => analysis.reach_results.is_empty(),
                 introspect::analyze::QUERY_FLOP_RESET_PROVENANCE => {
                     analysis.flop_provenance.is_empty()
+                }
+                introspect::analyze::QUERY_MODULE_REACHABILITY => {
+                    analysis.module_reachability.is_empty()
                 }
                 _ => analysis.results.is_empty(),
             };
@@ -1510,7 +1529,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -1556,7 +1575,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -1597,7 +1616,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
         assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -1695,6 +1714,74 @@ mod tests {
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "output_support");
         assert!(!doc["analysis"]["results"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn analyze_returns_module_reachability_and_caches_it() {
+        let mut s = McpServer::new();
+        // A hierarchy config ⇒ a design artifact ⇒ design_module_reachability.
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 42, "config": cfg_json, "query": "module_reachability" }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.7");
+        assert_eq!(doc["artifact"]["kind"], "design");
+        assert_eq!(doc["analysis"]["query"], "module_reachability");
+        // module_reachability populates its own vec; the others are empty/omitted.
+        assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
+        assert!(doc["analysis"].get("reach_results").is_none());
+        assert!(doc["analysis"].get("flop_provenance").is_none());
+        let mods = doc["analysis"]["module_reachability"].as_array().unwrap();
+        assert!(!mods.is_empty(), "a hierarchy design has >= 1 module");
+        // The declared top module is reachable at depth 0.
+        let top_name = doc["artifact"]["top"].as_str().unwrap();
+        let top = mods.iter().find(|m| m["module"] == top_name).unwrap();
+        assert_eq!(top["reachable"], true);
+        assert_eq!(top["depth"], 0);
+        // Cached + served under the module_reachability query key.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/module_reachability") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "module_reachability");
+    }
+
+    #[test]
+    fn analyze_module_reachability_unknown_module_is_invalid_params() {
+        let mut s = McpServer::new();
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        // No module in the design is named "no_such_module" ⇒ -32602.
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 42, "config": cfg_json, "query": "module_reachability", "target": "no_such_module" }),
+        );
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
     }
 
     /// A recorded `tool_matrix_report.json` fragment with the exact shape the
@@ -1857,7 +1944,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -1958,7 +2045,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -2013,7 +2100,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.6");
+        assert_eq!(doc["schema_version"], "1.7");
     }
 
     #[test]

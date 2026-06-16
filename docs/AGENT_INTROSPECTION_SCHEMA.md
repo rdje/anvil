@@ -319,9 +319,10 @@ change**, exactly like the `coverage_gaps` projection. It reports **relations**
 structure-first boundary is the permanent ceiling.
 
 `DerivedAnalysis` **category groups** (fields owned by `src/introspect/analyze.rs`):
-the `query` kind (`output_support` and `input_reach` today; `flop_reset_provenance`
-/ `module_reachability` reserved) + **one of two parallel result vecs**, the one
-the query kind populates (the other is empty and, for `reach_results`, omitted via
+the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
+`module_reachability` — all four named kinds from decision `0011` are now
+delivered) + **one of four parallel result vecs**, the one the query kind populates
+(the others are empty and, except for the always-present `results`, omitted via
 `skip_serializing_if`):
 
 - **`results: Vec<SupportCone>`** — the `output_support` payload. A `SupportCone`
@@ -360,9 +361,25 @@ the query kind populates (the other is empty and, for `reach_results`, omitted v
   carries the same `skip_serializing_if`, so `output_support`/`input_reach`
   documents stay byte-identical across the `1.5 → 1.6` bump; a
   `flop_reset_provenance` document carries it with `results: []`.
+- **`module_reachability: Vec<ModuleReachability>`** (schema `1.7`, `SEMANTIC-INTROSPECTION-EXPANSION.5b.2`)
+  — the `module_reachability` payload: which modules in a design are reachable from
+  `design.top` via the instance graph. A `ModuleReachability` is a projection of the
+  design's module table + instance edges: `module` (the module name), `reachable`
+  (from the top over the `Module.instances[].module` edges), `depth` (the minimum
+  instance-graph distance from the top — `0` for the top; present iff `reachable`,
+  omitted otherwise), `instantiates` (the distinct child module names it directly
+  instantiates, sorted), and `instance_count` (its direct-instance count, `>=
+  instantiates.len()`). Computed by a min-depth BFS from `design.top` — a pure
+  projection of `Design.modules` + the instance edges, no gate-graph walk; one entry
+  per module, sorted by module name. `module_reachability` carries the same
+  `skip_serializing_if`, so the prior three documents stay byte-identical across the
+  `1.6 → 1.7` bump; a `module_reachability` document carries it with `results: []`.
+  Unlike the prior three queries, `target` is a **module name** (not a port name or
+  `"flop:<id>"`), the natural identifier for a module-level query.
 
-`target = None` ⇒ all targets/sources/flops (per the agent-audience completeness
-rule); an unknown `query` or `target` is rejected with JSON-RPC `-32602`.
+`target = None` ⇒ all targets/sources/flops/modules (per the agent-audience
+completeness rule); an unknown `query` or `target` is rejected with JSON-RPC
+`-32602`.
 
 ---
 
@@ -387,7 +404,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.6"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.7"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -397,7 +414,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.6"`**.
+This document defines **`schema_version = "1.7"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -455,6 +472,20 @@ This document defines **`schema_version = "1.6"`**.
   removed, renamed, or retyped; `flop_provenance` is SCHEMA-DERIVED (a direct
   projection of `Module.flops`, §6.7) so it adds no new computed truth; the
   default-`dut` artifact stays byte-identical and determinism is preserved.
+- **`1.6` → `1.7` (`SEMANTIC-INTROSPECTION-EXPANSION.5b.2`).** Additive MINOR
+  bump: added the **fourth** derived-query kind `module_reachability` (§6.7) —
+  which modules in a design are reachable from `design.top` via the instance graph.
+  `DerivedAnalysis` gains a fourth `module_reachability: Vec<ModuleReachability>`
+  field, `#[serde(default, skip_serializing_if = "Vec::is_empty")]`, so
+  `output_support` / `input_reach` / `flop_reset_provenance` documents are
+  **byte-identical to `1.6`** (the key is omitted) and only a `module_reachability`
+  document carries it (with `results: []`). A `1.6` consumer of the prior documents
+  keeps working unchanged; the new kind is reached only via `analyze {query:
+  "module_reachability"}`. No envelope field was removed, renamed, or retyped;
+  `module_reachability` is SCHEMA-DERIVED (a pure BFS projection of `Design.modules`
+  + the instance edges, §6.7) so it adds no new computed truth; the default-`dut`
+  artifact stays byte-identical and determinism is preserved. This is the **fourth
+  and last named query kind** from decision `0011`.
 
 ---
 
@@ -493,5 +524,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.6"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.7"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.
