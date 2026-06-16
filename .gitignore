@@ -12,3 +12,8 @@ git_message_brief.txt
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 .claude/settings.local.json
+
+# Per-machine local reference cache (e.g. the SystemVerilog LRM in Markdown
+# under .cache/local-references/sv/). Untracked grounding material for agents;
+# never part of the repo's signoff surface.
+.cache/

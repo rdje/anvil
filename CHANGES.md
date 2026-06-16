@@ -1,6 +1,41 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — LOCAL-REFERENCE-CACHE.1 — gitignore `.cache/` for the local SystemVerilog LRM reference
+
+**Landed as:** this commit (previous: `873803b`). **No code / no RTL change** —
+a `.gitignore` + live-doc workflow tweak, owned by the new `LOCAL-REFERENCE-CACHE`
+workflow tree (the `commit-msg` hook requires a leaf id on every commit).
+
+**What changed (why)**
+
+- **`docs/tasks/LOCAL-REFERENCE-CACHE.md`** (new) + **`docs/TASK_TREE.md`** row —
+  a minimal workflow/tooling tree owning the untracked per-machine reference
+  cache; `.1` done.
+- **`.gitignore`** — ignore `.cache/`. The owner provided the IEEE 1800-2017 /
+  1800-2023 SystemVerilog LRM as per-section Markdown, copied to the untracked
+  `.cache/local-references/sv/{2017,2023}/` (117 files) with a provenance
+  `README.md`. It is per-machine grounding material for LRM-legality checks
+  (the `SV-VERSION-TARGETING` / `STRUCTURED-EMISSION-EXPANSION` lanes), never
+  part of the repo's signoff surface — so it must stay untracked.
+- **`MEMORY.md`** — backfilled the `.2b.2b` commit hash `873803b`; refreshed the
+  resume pointer; recorded that `.2b.2b` was committed on focused checks under
+  `0003-resource-safe-validation` (a binary-only change; the full `cargo test`
+  was contended by an unrelated `cargo-mutants` run). Recorded the LRM cache as a
+  `reference` auto-memory (`reference_sv_lrm_local_cache`).
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` ✅; `bash
+  knowledge-map/scripts/check_knowledge_map.sh` ✅. No source touched (no
+  Rust rebuild warranted).
+
+**Impact**
+
+- Future sessions can `grep` the LRM locally before claiming a construct is
+  legal/synthesizable/version-specific, instead of relying on memory. Untracked,
+  so a fresh clone/machine re-copies from the source.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2b — repo-owned `function automatic` emit gate (`tool_matrix --function-emit-gate`)
 
 **Landed as:** this commit (previous: `503ce60`). Default-off / **DUT
