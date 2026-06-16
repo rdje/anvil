@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.1 — activate lane + decision 0012
+
+**Landed as:** this commit (previous: `d7a7eef`). **Docs-only** (no source
+change); DUT byte-identical. Activates the `STRUCTURED-EMISSION-EXPANSION` lane
+(by explicit owner directive, after `SEMANTIC-INTROSPECTION-EXPANSION` delivered
+all four query kinds) and lands its design/decision leaf.
+
+**What changed (why)**
+
+ROADMAP steering gap 1 (richer structured emission): ANVIL's emitted SV is
+structurally flat (`module` + per-gate `assign`/`always_comb` + flop `always_ff`
++ instances). The lane broadens that into richer **structured** constructs, each a
+new legal downstream interaction surface. The `.1` design/decision leaf picks the
+**first** surface and fixes its discipline before any code, per the task-tree
+doctrine and the `SEMANTIC-INTROSPECTION-EXPANSION.1` precedent.
+
+- **`docs/decisions/0012-structured-emission-first-surface-combinational-function.md`**
+  (new) — the first richer-structured surface is a **default-off, opt-in,
+  valid-by-construction combinational `function automatic`** emitted as a
+  behaviour-preserving projection of an existing combinational cone: a selected
+  `Gate` node + its fan-in (stopping at the `output_support` support-leaf boundary
+  — primary inputs / flop `Q`s / instance outputs / constants) rendered as
+  `function automatic logic[W-1:0] <name>(...)` whose parameter list is the cone's
+  support leaves and whose body is the straight-line evaluation of the cone's
+  internal gates, returning the root; the use site becomes a call. **Chosen over**
+  `interface`/`modport` (weak / version-inconsistent Yosys synth ⇒ fails the
+  both-Yosys-modes-clean bar) and nested `generate` (bigger emitter blast radius)
+  and `task` (procedural/multi-output — a combinational function is the simpler
+  first cut). Discipline: rules-first (no generate-then-filter; selection at
+  construction time), default-off `function_emit_prob` (default `0.0`) ⇒
+  byte-identical, no new IR node / no new computed truth (the `soft_union` /
+  aggregate emit-projection precedent). Downstream gate: Verilator + both Yosys
+  modes + Icarus accept the functions warning-clean, gated on a
+  `saw_combinational_function_emit` fact. Carries `answers:` KM front-matter.
+- **`docs/decisions/INDEX.md`** — the `0012` row.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — activated (`proposed →
+  active`); `.1` marked done; `.2` (impl) + `.2a` (design-detail, **new frontier**)
+  + `.2b` (impl) registered; metadata, task tree, Current Frontier, Decisions,
+  Verification Log, Commit Log, Changelog updated.
+- **`docs/TASK_TREE.md`** — the row flipped `proposed → active`, frontier `.2a`.
+- **`KNOWLEDGE_MAP.md`** — regenerated (decision `0012` now indexed; 36 facts).
+- **`MEMORY.md`** — resume pointer refreshed (backfilled the `.5b.2` hash
+  `d7a7eef`; active lane = `STRUCTURED-EMISSION-EXPANSION`, next = `.2a`).
+
+**Validation**
+
+No source change ⇒ no `cargo` gate required for this leaf (baseline `cargo check
+--all-targets` clean from the prior gate). `bash scripts/check_memory_architecture.sh`
+clean; `bash knowledge-map/scripts/check_knowledge_map.sh` in sync.
+
+**Impact**
+
+Opens the structured-emission lane and fixes the first surface's contract; no
+behavioural or wire change yet (the emitter work lands in `.2b`). DUT
+byte-identical.
+
+**Files touched**
+
+`docs/decisions/0012-structured-emission-first-surface-combinational-function.md`
+(new), `docs/decisions/INDEX.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5b.2 — `module_reachability` MCP surface + schema 1.7
 
-**Landed as:** this commit (previous: `66b25c5`). **Source + docs**; DUT
+**Landed as:** `d7a7eef` (previous: `66b25c5`). **Source + docs**; DUT
 byte-identical. Closes `.5b` and `.5` — the **fourth** (and last named) derived
 query, `module_reachability`, is delivered end-to-end. The `analyze` surface now
 answers **four** derived queries (`output_support` + `input_reach` +
