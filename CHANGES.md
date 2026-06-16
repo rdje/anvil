@@ -1,9 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2b.1 — pure support-cone analysis core
+
+**Landed as:** this commit (previous: `63d2622`). Task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.2b.1` (the first child of the `.2b` split).
+**Code leaf — new pure analysis module; DUT byte-identical (not wired to any
+emit path).**
+
+**What changed**
+
+- **New `src/introspect/analyze.rs`** — the pure derived-relation analysis core
+  the `.2a` design specified, implementing decision `0011`'s first query, the
+  **output support cone**:
+  - **Types:** `DerivedAnalysis { query, results: Vec<SupportCone> }` +
+    `SupportCone { target, support_inputs[], support_flops[],
+    support_instance_outputs[], cone_nodes, cone_depth }` (`serde` + `Default` +
+    `PartialEq`/`Eq`; every support list a `BTreeSet` → sorted `Vec` ⇒
+    byte-stable JSON).
+  - **Builders:** `module_support_cones(&Module, Option<&str>)` and
+    `design_support_cones(&Design, Option<&str>)` — a memoized **combinational**
+    fan-in DFS over the already-emitted IR graph (`Module.nodes` operands +
+    `drives`). No IR field, no generator change (the `coverage_gaps`
+    project-don't-recompute precedent applied to dependency relations).
+  - **Leaf classification (resolves the `.2a` "+ flop D-cones" wording into an
+    exact rule):** `Gate` recurses; `PrimaryInput` → `support_inputs` (port
+    name); `FlopQ` is a **register-boundary** leaf → `support_flops` (recorded,
+    not recursed — a clock edge breaks the combinational path), with the cone
+    feeding a flop's `D` reachable as the separate target `"flop:<id>"`;
+    `InstanceOutput` → `support_instance_outputs` (`"<instance>.<port>"`, cone
+    stops at the instance boundary, decision `0011` Q3); `Constant` counts in
+    `cone_nodes` but is not a support source; `MemRead`/`FsmOut` are **opaque
+    registered leaves** (default-off knobs) that terminate the cone (counted,
+    listed nowhere — a documented boundary + a recorded future query kind).
+  - **Targets (decision `0011` Q1):** `None` ⇒ one cone per output port (in
+    declaration order); `Some("<output name>")` / `Some("flop:<id>")` ⇒ that
+    cone; an unresolvable target ⇒ empty `results` (the `.2b.2` MCP layer maps
+    that to `-32602`), while a resolvable-but-empty target (undriven output,
+    `d = None` flop) still yields one cone — so empty-`results` unambiguously
+    means "unknown target".
+  - `cone_nodes` = distinct nodes in the transitive fan-in (memoized, so shared
+    DAG nodes count once); `cone_depth` = max `Gate` count on any path to a leaf
+    (combinational depth). Defensive `nodes.get()` so a malformed IR can never
+    panic the read-mostly surface.
+- **`src/introspect/mod.rs`** — `pub mod analyze;` declared; the default
+  `IntrospectionPayload` is **untouched** (decision `0011` Q2 — the default
+  `--introspect` document stays lean; the cone is reached via the `.2b.2` MCP
+  `analyze` tool, not here).
+- **Tree:** split `.2b` → `.2b.1` (this, done) + `.2b.2` (schema bump + MCP
+  `analyze` tool + docs + KM).
+
+**Why**
+
+- The first behavioral-adjacent introspection query (decision `0011`): an agent
+  can ask *what does output Y structurally depend on?* and get a derived
+  relation, while the `0004` no-shadow-simulator / structure-first ceiling
+  stays intact. Splitting out the pure core keeps it independently reviewable
+  and proven before any surface wiring.
+
+**Validation**
+
+- `cargo test --lib` — **421 passed / 0 failed / 2 ignored** (incl. the 9 new
+  `introspect::analyze` cone-correctness/determinism/boundary proofs).
+- `cargo test --test snapshots` — **6/6 byte-identical** (DUT `.sv` unchanged;
+  `analyze.rs` is not in any output path).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+  clean; baseline `cargo check --all-targets` clean.
+
+**Impact**
+
+- Additive, pure, read-only. No CLI/knob/output change; default `anvil` build
+  and `--artifact dut` stay byte-identical. The user-facing surface (the MCP
+  `analyze` tool + schema `1.3` + book/USER_GUIDE) lands in `.2b.2`.
+
+**Files touched**
+
+- `src/introspect/analyze.rs` (new), `src/introspect/mod.rs`,
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+  `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2a — support-cone impl design-detail
 
-**Landed as:** this commit (previous: `a31bf94`). Task-tree-owned by
+**Landed as:** `63d2622` (previous: `a31bf94`). Task-tree-owned by
 `SEMANTIC-INTROSPECTION-EXPANSION.2a`. **Docs-only design-detail leaf — no source
 change.**
 

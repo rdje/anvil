@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design landed — decision `0011`; `.2a` design-detail landed — resolved `0011`'s open questions + the `.2b` impl shape; split `.2` → `.2a` done + `.2b` impl; frontier → `.2b`)
+- Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design landed — decision `0011`; `.2a` design-detail landed — resolved `0011`'s open questions + the `.2b` impl shape; split `.2` → `.2a` done + `.2b`; split `.2b` → `.2b.1` + `.2b.2`; `.2b.1` landed — the pure `src/introspect/analyze.rs` support-cone analysis core, DUT byte-identical; frontier → `.2b.2`)
 - Owner: repo-local workflow
 - Note: registered `proposed` by owner roadmap steering (`2026-06-15`); **activated
   `2026-06-16` by explicit owner directive** ("deep semantic introspection shall
@@ -72,9 +72,21 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Commit: `done`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.2b`
+  Status: `active`
+  Goal: `Implement the .2a design: the pure support-cone analysis + types, the schema 1.2 -> 1.3 bump, and the pure MCP analyze tool. Split (it spans two reviewable ownership areas) into .2b.1 (pure analyze module + types, lib-tested) + .2b.2 (schema bump + MCP analyze tool + docs + KM).`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.2b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.2b.1`
+  Status: `done`
+  Goal: `The pure derived-relation analysis core: a new src/introspect/analyze.rs carrying DerivedAnalysis { query, results: Vec<SupportCone> } + SupportCone { target, support_inputs[], support_flops[], support_instance_outputs[], cone_nodes, cone_depth } (serde + Default, BTreeSet -> sorted Vec => deterministic bytes) + the pure builders module_support_cones(&Module, Option<&str>) / design_support_cones(&Design, Option<&str>) doing a memoized combinational fan-in DFS over the existing IR graph. FlopQ is a register-boundary support leaf (recorded, not recursed); child-instance outputs are leaves (the cone stops at the instance boundary); a flop D input is addressable as "flop:<id>"; opaque MemRead/FsmOut terminate the cone (documented boundary, a future kind). No IR field / no generator change; not wired to any emit path => DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. exact cone-correctness on hand-built modules (combinational support; flop-boundary leaf not recursed; "flop:<id>" target; child-instance-output leaf name resolution in a design; constant-not-support; mem/fsm-read termination; unknown target => no cone; determinism + sorted vecs); snapshots 6/6 byte-identical (analyze.rs is not in any output path).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`
   Status: `proposed`
-  Goal: `Implement the .2a design: src/introspect/analyze.rs (the support-cone analysis + types) + the schema 1.2 -> 1.3 bump + the pure MCP analyze tool (+ dispatch + tools/list + the analysis resource), default-off / DUT byte-identical. Pre-split into .2b.1 (analyze module + types) + .2b.2 (MCP tool + schema + docs) when picked if broad.`
-  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green (incl. cone-correctness + determinism + error proofs); snapshots 6/6 byte-identical (DUT .sv unchanged); the pure MCP analyze tool returns the support cone, cached, unknown query/target -> -32602; schema_version = 1.3 everywhere + schema doc updated; book(agent-mcp)/USER_GUIDE/schema-doc + KM fact; committed through COMMIT.md with the leaf id.`
+  Goal: `Wire the analysis to the surface: schema SCHEMA_VERSION 1.2 -> 1.3 (+ the ~5 "1.2" test-assertion bumps + a schema-doc section/changelog) + a DerivedAnalysisDocument envelope (RequestEcho/run_id reuse + an analysis: DerivedAnalysis payload) + the pure MCP analyze tool (dispatch + tools/list + the anvil://artifact/<run_id>/analysis/<query> resource), unknown query/target => -32602; + book(agent-mcp)/USER_GUIDE/schema-doc + a KM fact. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib + introspect/mcp tests green; the pure MCP analyze tool returns the support cone (cached), unknown query/target -> -32602; schema_version = 1.3 everywhere + schema doc updated; book/USER_GUIDE/schema-doc + a KM fact; committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -82,7 +94,8 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.2b` | `proposed` | Implement the `.2a` design: `src/introspect/analyze.rs` (the output support-cone analysis + the `DerivedAnalysis`/`SupportCone` types) + the introspection schema `1.2 → 1.3` bump + the pure MCP `analyze` tool. Default-off / DUT byte-identical. Pre-split into `.2b.1`/`.2b.2` if broad. |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` | `proposed` | Wire the `.2b.1` analysis to the surface: schema `1.2 → 1.3` bump + `DerivedAnalysisDocument` envelope + the pure MCP `analyze` tool (dispatch + `tools/list` + analysis resource, unknown query/target → `-32602`) + book(`agent-mcp`)/USER_GUIDE/schema-doc + a KM fact. Default-off / DUT byte-identical. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | `done` | Landed the pure derived-relation analysis core (`src/introspect/analyze.rs`: the `DerivedAnalysis`/`SupportCone` types + `module_support_cones`/`design_support_cones`), a memoized combinational fan-in DFS over the existing IR graph; lib-tested for exact cone correctness + determinism + the flop/instance/mem-fsm boundaries + unknown-target. No IR/generator change → DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | `done` | Resolved decision `0011`'s three open questions (the `DerivedAnalysis`/`SupportCone` shape; `query`-kind enum + `target` addressing; cone-stops-at-instance-boundary + default-introspect-stays-lean). Split `.2` → `.2a`/`.2b`. No source change. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.1` | `done` | Landed decision `0011` — the first-class MCP-queryable SCHEMA-DERIVED derived-relation API + the no-shadow-simulator boundary + the first query (output support cone) + rejected alternatives. Split `.1`/`.2`/future. No source change. |
 
@@ -133,6 +146,7 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | New pure module `src/introspect/analyze.rs` + `pub mod analyze;` in `src/introspect/mod.rs`. `cargo test --lib` **421 passed / 0 failed / 2 ignored** (incl. 9 new `introspect::analyze` proofs: exact combinational support; flop-boundary leaf not recursed + `"flop:<id>"` target; constant-not-support; opaque mem-read termination; absent-target ⇒ per-output cones; unknown-target ⇒ no cone; design child-instance-output name resolution; determinism + sorted; shared-fan-in counted once). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; baseline `cargo check --all-targets` clean. `bash scripts/check_memory_architecture.sh` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | Design-detail leaf, no source change (grounded in a fresh read of `src/introspect/mod.rs` `IntrospectionPayload`/`IntrospectionDocument`/`RequestEcho`/`content_run_id_for_knobs` + `src/mcp/mod.rs` pure-tool dispatch + `CachedArtifact`). `DEVELOPMENT_NOTES.md` design-detail entry + tree split. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.1` | Design/decision leaf, no source change (grounded in a fresh survey of `docs/AGENT_INTROSPECTION_SCHEMA.md`, `src/introspect/mod.rs`, `src/mcp/mod.rs`, `src/metrics.rs`, `src/ir/types.rs`, decisions `0004`/`0005`). Decision `0011` + `INDEX.md` + tree activation/split; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated. Baseline `cargo check --all-targets` clean. | `done` |
 | `2026-06-15` | `SEMANTIC-INTROSPECTION-EXPANSION` | Tree registered `proposed` (ownership only, no leaf executed). | `done` (registration) |
@@ -141,12 +155,24 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1 — pure support-cone analysis core` | New `src/introspect/analyze.rs`: `DerivedAnalysis`/`SupportCone` + `module_support_cones`/`design_support_cones` (combinational fan-in DFS over the existing IR; FlopQ a register-boundary leaf, `"flop:<id>"` targets, instance-boundary stop, opaque mem/fsm termination). 9 in-crate proofs; DUT byte-identical (no IR/generator change). Split `.2b` → `.2b.1`/`.2b.2`. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | `SEMANTIC-INTROSPECTION-EXPANSION.2a — support-cone impl design-detail` | Resolved `0011`'s 3 open questions: the `DerivedAnalysis`/`SupportCone` shape; `output_support` query-kind + name `target`; default-introspect-stays-lean + cone-stops-at-instance-boundary; schema `1.2→1.3`. Split `.2` → `.2a`/`.2b`. No source change. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.1` | `SEMANTIC-INTROSPECTION-EXPANSION.1 — activate lane + derived-query API design` | Decision `0011`: a first-class, MCP-queryable, SCHEMA-DERIVED derived-relation API (`DerivedAnalysis` schema `1.3` + pure MCP `analyze` tool); first query = the output support cone. Activated the lane by owner directive; split `.1`/`.2`/future. No source change. |
 | `SEMANTIC-INTROSPECTION-EXPANSION` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Registered `proposed` alongside the activated `SV-VERSION-TARGETING` lane. |
 
 ## Changelog
 
+- `2026-06-16`: split `.2b` → `.2b.1` (pure analysis core) + `.2b.2` (surface
+  wiring), and `.2b.1` landed: the pure `src/introspect/analyze.rs` support-cone
+  analysis core — `DerivedAnalysis`/`SupportCone` types + the
+  `module_support_cones`/`design_support_cones` combinational fan-in DFS over the
+  already-emitted IR. Resolved the `.2a` "+ flop D-cones" wording into a clean
+  rule: the cone is purely combinational (`FlopQ` is a register-boundary support
+  leaf; a flop's `D` cone is the separate target `"flop:<id>"`), child-instance
+  outputs stop at the boundary, and opaque `MemRead`/`FsmOut` terminate the cone
+  (a documented boundary + future kind). 9 in-crate proofs; DUT byte-identical
+  (no IR field / no generator change; not wired to any emit path). Frontier
+  advances to `.2b.2` (schema `1.2→1.3` + the pure MCP `analyze` tool + docs/KM).
 - `2026-06-16`: `.2a` design-detail landed (no source change): resolved decision
   `0011`'s three open questions and fixed the `.2b` impl shape — the
   `DerivedAnalysis`/`SupportCone` struct in a pure `src/introspect/analyze.rs`;

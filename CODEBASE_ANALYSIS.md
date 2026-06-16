@@ -390,7 +390,7 @@ src/
 │                     `max_oracle_calls`). Reports `reduced` knobs +
 │                     `final_validation` (the surviving failure).
 ├── introspect/      Agent-introspection emission surface
-│   └── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
+│   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
 │                     introspection document specified in
 │                     `docs/AGENT_INTROSPECTION_SCHEMA.md` out of facts ANVIL
 │                     already records (`Config` / `Metrics` /
@@ -412,6 +412,26 @@ src/
 │                     `microdesign`/`frontend` lane-manifest sections are
 │                     deferred (matrix-only / `.4`+). `content_run_id` is `pub`
 │                     (`.5.2`) so `validate` shares the one content address.
+│   └── analyze.rs    (`SEMANTIC-INTROSPECTION-EXPANSION.2b.1`). The pure
+│                     derived-RELATION analysis core (decision `0011`): the
+│                     output **support cone**. `DerivedAnalysis { query,
+│                     results: Vec<SupportCone> }` + `SupportCone { target,
+│                     support_inputs[], support_flops[],
+│                     support_instance_outputs[], cone_nodes, cone_depth }`
+│                     (serde + `Default`; `BTreeSet` → sorted `Vec` ⇒
+│                     deterministic). `module_support_cones(&Module, …)` /
+│                     `design_support_cones(&Design, …)` do a memoized
+│                     **combinational** fan-in DFS over the existing IR graph
+│                     (`nodes` operands + `drives`): `Gate` recurses; `FlopQ`
+│                     is a register-boundary support leaf (cone feeding `D` is
+│                     the separate target `"flop:<id>"`); `InstanceOutput`
+│                     stops at the instance boundary; `Constant` counts but is
+│                     no support source; opaque `MemRead`/`FsmOut` terminate
+│                     the cone. `target=None` ⇒ all outputs; unknown target ⇒
+│                     no cone (the `.2b.2` MCP `analyze` tool maps that to
+│                     `-32602`). Invariant SCHEMA-DERIVED: no IR field, no
+│                     generator change — DUT byte-identical (not wired to any
+│                     emit path). 9 in-crate cone-correctness proofs.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure

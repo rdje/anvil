@@ -30,6 +30,13 @@
 //! it and records a `warnings[]` note, exactly as the schema (§5/§6.4)
 //! requires.
 
+/// Derived-relation analysis (`SEMANTIC-INTROSPECTION-EXPANSION.2b.1`): the
+/// pure output-support-cone query over the already-emitted IR. Kept in its own
+/// submodule so the default `IntrospectionPayload` stays lean (decision `0011`
+/// Q2); the cone is reached through the MCP `analyze` tool (`.2b.2`), not the
+/// default `--introspect` document.
+pub mod analyze;
+
 use crate::config::Config;
 use crate::emit;
 use crate::ir::{Design, Module};

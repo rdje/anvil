@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — pure support-cone analysis core — `SEMANTIC-INTROSPECTION-EXPANSION.2b.1`
+
+Implemented the `.2a` design as the pure module `src/introspect/analyze.rs`.
+Engineering decisions worth carrying forward (the `.2a` design fixed the struct
+shape; `.2b.1` fixed the exact traversal semantics):
+
+- **"+ flop D-cones" resolved into addressable targets, not transitive
+  recursion.** The `.2a`/`MEMORY.md` phrase "DFS over … + flop D-cones" was
+  ambiguous between (a) crossing flops to find transitive sequential support and
+  (b) making each flop's `D` a separately *queryable* combinational cone. `.2b.1`
+  chose **(b)**: the support cone is purely **combinational** — `FlopQ` is a
+  register-boundary leaf (recorded in `support_flops`, the walk stops there), and
+  the cone feeding a flop's `D` is reached as the distinct target `"flop:<id>"`.
+  This gives one consistent stopping rule (everything stops at a register/leaf
+  boundary), a clean `cone_depth` = combinational depth, and matches the standard
+  meaning of "support cone". Transitive-through-flops reachability is left to a
+  future `input_reach`/sequential kind, not folded into the first query.
+- **`MemRead`/`FsmOut` are opaque registered leaves with no support slot.** The
+  `.2a` struct has exactly three support lists (inputs / flops / instance
+  outputs). Memory reads and FSM Moore outputs are opaque sequential leaves
+  (like `FlopQ`) but have no list, so `.2b.1` **terminates** the cone at them
+  (counted in `cone_nodes`, listed nowhere) and documents it as a boundary +
+  a recorded future query kind — rather than silently mis-bucketing them into
+  `support_flops`. They are default-off (`memory_prob`/`fsm_prob` = 0.0), so the
+  common DUT cone is fully covered by the three lists.
+- **Unknown-target signalling stays in the pure layer's shape, not an error
+  type.** A resolvable target always yields exactly one `SupportCone` (even when
+  its support sets are empty — an undriven output or a `d = None` flop); only a
+  genuinely unknown target yields **zero** cones. So `results.is_empty()` (for an
+  explicit `Some(target)`) unambiguously means "unknown target", which the
+  `.2b.2` MCP layer maps to `-32602` — no `Result`/error enum needed across the
+  pure boundary, keeping the builders total and easy to test.
+- **Instance-leaf naming is variant-specific by necessity.** A bare `Module`
+  carries no child definitions, so `module_support_cones` names instance-output
+  leaves `"<instance>.port<id>"`; `design_support_cones` resolves the child
+  module from `Design.modules` and emits `"<instance>.<child-output-port-name>"`.
+  Leaf DUT modules have no instances, so the module-variant fallback is rarely
+  exercised; the design variant is the useful path. One shared core walker takes
+  an instance-leaf formatter closure so the DFS itself is not duplicated.
+- **Hand-built in-crate tests, not generated modules.** Because `analyze.rs` is
+  in-crate, its `#[cfg(test)]` module can build `Module`s with `..Module::default()`
+  (the CSE bookkeeping fields are `pub(crate)`), so cone correctness is asserted
+  against modules with a *known* graph (exact `support_inputs`/`cone_nodes`/
+  `cone_depth`) — far stronger than poking at an opaque generated module. Mirrors
+  the `src/ir/types.rs` test helpers.
+
 ## 2026-06-16 — Semantic introspection — support-cone impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.2a`
 
 Design-detail leaf for `.2`. Resolves decision `0011`'s three open questions

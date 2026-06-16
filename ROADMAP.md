@@ -227,8 +227,12 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    behaviour** (the decision `0004` no-shadow-simulator / structure-first
    boundary, ROADMAP steering gap 4, is the permanent ceiling). Decision
    [`0011`](docs/decisions/0011-semantic-introspection-derived-query-surface.md);
-   `.1` design **done**, first query = the output **support cone**; frontier
-   `.2` (impl). Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   `.1` design + `.2a` design-detail **done**; first query = the output
+   **support cone**. `.2b` split into `.2b.1` (the pure
+   `src/introspect/analyze.rs` support-cone analysis core — **done**,
+   DUT byte-identical) + `.2b.2` (schema `1.2→1.3` + the pure MCP `analyze`
+   tool + docs/KM); frontier `.2b.2` (impl). Extends `AGENT-INTROSPECTION-MCP`
+   / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the open
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential
