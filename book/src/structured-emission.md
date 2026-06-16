@@ -243,17 +243,21 @@ Like the function surface, selection is **rules-first**
 ([by construction](by-construction.md)): at construction time anvil rolls
 `generate_loop_emit_prob` for each *qualifying* replication and marks the
 winners. A replication qualifies when it is a `{N{x}}` `Concat` — `N ≥ 2`
-operands that are all the **same** signal — **and** the replicated lane
-`x` is exactly **1 bit** wide. With a 1-bit lane the result width is
-exactly `N`, so the loop body `assign <wire>[gi] = x;` is bit-faithful.
+operands that are all the **same** signal — of **any lane width `LW ≥ 1`**
+(the result is then `N·LW` bits wide). Two body shapes cover that:
 
-A *wider* lane (say `{4{byte}}` where `byte` is 8 bits) is still
-index-regular but would need a part-select body
-(`<wire>[gi*8 +: 8] = byte`); that is a recorded follow-up. Until then a
-wider replication stays inline — **nothing is retired**. The
-`generate for` and `function automatic` projections are also mutually
-exclusive on a gate (a replication marked for one is never also marked
-for the other).
+- a **1-bit lane** drives one bit per iteration —
+  `assign <wire>[gi] = x;` (bit `g` of the result is exactly `x`);
+- a **wider lane** (`LW > 1`) drives one `LW`-wide group per iteration via an
+  indexed **part-select** — `assign <wire>[gi*LW +: LW] = x;` (this is the
+  [fourth surface](#the-fourth-surface-wider-lanes-via-a-part-select), decision
+  `0015`; before it shipped, a wider lane stayed inline).
+
+Both unroll byte-faithfully to `{N{x}}` because every group is the same lane.
+The `generate for` and `function automatic` projections are mutually exclusive
+on a gate (a replication marked for one is never also marked for the other), and
+nothing is retired — a replication still emits inline `{N{x}}` when the knob is
+off.
 
 The loop increment is written `gi = gi + 1` — the most portable form,
 accepted identically by every repo tool (`gi++` is equally valid and is
@@ -410,4 +414,95 @@ anvil --seed 1 --config base.json
 ```
 
 Flip `task_emit_prob` back to `0.0` and the output is byte-identical to
+the default lane.
+
+## The fourth surface: wider lanes via a part-select
+
+The fourth surface is not a new construct — it is a **broadening of the
+[second surface](#the-second-surface-a-generate-for-loop)**. The first cut of
+the `generate for` loop took only a **1-bit lane** (`{N{sel}}`), because then
+each result *bit* is exactly the lane and the body `assign <wire>[gi] = sel;` is
+trivially faithful. A **wider lane** — `{N{x}}` where `x` is `LW > 1` bits, like
+the `{2{i_2}}` anvil routinely builds — is just as index-regular, but each
+iteration now owns an `LW`-wide *group* of the result, so the body becomes an
+indexed **part-select** `assign <wire>[gi*LW +: LW] = x;`. That part-select with
+a genvar-computed base is a genuinely new elaboration shape for a tool to lower.
+
+It shares the second surface's knob — [`generate_loop_emit_prob`](knobs.md#structured-emission)
+(default `0.0`) — so there is **no new knob and no introspection schema bump**;
+a marked wider-lane replication simply renders the part-select loop instead of
+the inline `{N{x}}`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). The
+2-bit input `i_2` is replicated to a 4-bit `concat_0` inline:
+
+```systemverilog
+    wire [3:0] concat_0;
+
+    assign concat_0 = {2{i_2}};
+
+    assign o_0 = concat_0;
+```
+
+With `generate_loop_emit_prob = 1.0`, the *same* `concat_0` replication is
+projected to a `generate for` loop whose body is a 2-bit part-select, and the
+inline `assign concat_0 = {2{i_2}};` is suppressed:
+
+```systemverilog
+    wire [3:0] concat_0;
+
+    genvar concat_0__gi;
+    generate
+        for (concat_0__gi = 0; concat_0__gi < 2; concat_0__gi = concat_0__gi + 1) begin : concat_0__gen
+            assign concat_0[concat_0__gi*2 +: 2] = i_2;
+        end
+    endgenerate
+
+    assign o_0 = concat_0;
+```
+
+The loop drives `concat_0[0 +: 2]` then `concat_0[2 +: 2]`, each to `i_2` —
+exactly `{2{i_2}}` — so the module's behaviour is unchanged. Only the marked
+gate's drive changes; everything downstream of `concat_0` is byte-identical.
+
+A **1-bit lane keeps the original `[gi]` body verbatim** — the part-select form
+is taken only when `LW > 1`, so the second surface's shipped 1-bit output (and
+its proofs) are untouched.
+
+### How anvil proves it
+
+- The wider lane reuses the second surface's
+  [`num_emitted_generate_loops`](agent-mcp.md) metric and the repo-owned
+  `tool_matrix --generate-loop-gate` (the corpus naturally contains wider-lane
+  replications, so the gate exercises the part-select body once enabled).
+- A deterministic library test asserts a marked wider-lane replication renders
+  `assign <wire>[gi*LW +: LW] = x;` while a 1-bit lane still renders `[gi]`
+  (the byte-identity guard).
+- The construct is downstream-clean: a forced-knob sweep emits real wider-lane
+  part-selects (e.g. `concat_0[concat_0__gi*16 +: 16] = i_2;`) accepted
+  **warning-clean** by Verilator `-Wall` (zero new warnings vs the inline
+  baseline), both Yosys modes, and Icarus — and the part-select is
+  simulation-proven equal to `{N{x}}`.
+
+The picked-fourth rationale (a wider-lane part-select over `interface` /
+`modport` — empirically rejected — and nested `generate`) is recorded in
+decision `0015`
+(`docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md`).
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 74 --dump-config > base.json
+# edit base.json: set "generate_loop_emit_prob": 1.0 (a small comb-only shape
+# with a multi-bit replicated lane: "flop_prob": 0.0, "constant_prob": 0.0,
+# "terminal_reuse_prob": 0.9, "gate_struct_weight": 8, "min_width": 2,
+# "max_width": 4, "min_inputs": 2, "max_inputs": 3, "min_outputs": 1,
+# "max_outputs": 1, "max_depth": 2)
+anvil --seed 74 --config base.json
+```
+
+Flip `generate_loop_emit_prob` back to `0.0` and the output is byte-identical to
 the default lane.

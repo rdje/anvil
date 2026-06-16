@@ -294,8 +294,15 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    Yosys modes warn on the implicit interface-member decl) and nested/multi-level
    `generate` (clean but bigger blast radius); a fresh probe (Verilator 5.046
    `-Wall` + Yosys 0.64 both modes + Icarus 13.0) accepts the wider-lane
-   part-select warning-clean + iverilog-sim-proven `== {N{x}}`. **Frontier =
-   `.8a`** (impl design-detail; `.7` design done, `.8` pre-split `.8a` + `.8b`).
+   part-select warning-clean + iverilog-sim-proven `== {N{x}}`. The **fourth
+   surface is now delivered end-to-end** (`.7` design + `.8a` design-detail +
+   `.8b` impl): `src/ir/generate_loop.rs` `gate_qualifies` relaxed to `LW >= 1`
+   (`width == N*LW`) + the `src/emit/sv.rs` `render_generate_loop_block`
+   `[gi*LW +: LW]` part-select branch (`LW==1` `[gi]` kept byte-identical),
+   reusing `generate_loop_emit_prob` + `num_emitted_generate_loops` (no new knob
+   / no schema bump); downstream-clean (a per-seed ON-vs-OFF sweep emits 9
+   wider-lane part-selects, Verilator `-Wall` Δ=0 + Yosys both modes + Icarus;
+   `--generate-loop-gate` regression-clean 12/0). **No current frontier.**
    Nested/multi-level `generate`, `interface`/`modport`, and richer
    (multi-output) tasks are future vetted surfaces (`.9`+), each with its own
    decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer

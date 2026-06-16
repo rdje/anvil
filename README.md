@@ -753,20 +753,22 @@ exercising adversarial axes that previously fired only by chance
 - `generate_loop_emit_prob` is a default-off config-file knob (no CLI
   flag, like `function_emit_prob` / `soft_union_slice_prob`;
   `STRUCTURED-EMISSION-EXPANSION.4b.1`, decision `0013`) — ANVIL's
-  **second richer-structured emission surface**. Per *qualifying* `{N{x}}`
+  **second richer-structured emission surface** (its wider-lane case is the
+  **fourth** surface, decision `0015`). Per *qualifying* `{N{x}}`
   replication (a `Concat` of `N >= 2` operands that are all the *same*
-  signal, with a **1-bit lane** — the common one-hot `{W{sel}}` mux-mask
-  idiom), it is the probability the emitter re-renders it as a single-level
-  `generate for` loop (`genvar <wire>__gi; generate for (<wire>__gi=0;
-  <wire>__gi<N; <wire>__gi=<wire>__gi+1) begin : <wire>__gen assign
-  <wire>[<wire>__gi] = <x>; end endgenerate`) instead of the inline
-  `assign <wire> = {N{x}};`. The unrolled loop is exactly `{N{x}}`, so it
-  is a behaviour-preserving **emit-time projection** (no new IR node / no
-  new computed truth — the `function_emit`/`soft_union`/aggregate
-  precedent), rules-first. A **wider lane** would need a part-select body
-  and stays inline (a recorded follow-up; nothing retired); the projection
-  is mutually exclusive with `function_emit_prob` on a gate; the increment
-  is the maximally-portable `gi = gi + 1`. Combinational only. Default
+  signal, of any lane width `LW >= 1`), it is the probability the emitter
+  re-renders it as a single-level `generate for` loop (`genvar <wire>__gi;
+  generate for (<wire>__gi=0; <wire>__gi<N; <wire>__gi=<wire>__gi+1) begin :
+  <wire>__gen assign <wire>[<wire>__gi] = <x>; end endgenerate` for a 1-bit
+  lane — the one-hot `{W{sel}}` mux-mask idiom — or the indexed part-select
+  body `assign <wire>[<wire>__gi*LW +: LW] = <x>;` for a wider lane)
+  instead of the inline `assign <wire> = {N{x}};`. The unrolled loop is
+  exactly `{N{x}}`, so it is a behaviour-preserving **emit-time projection**
+  (no new IR node / no new computed truth — the
+  `function_emit`/`soft_union`/aggregate precedent), rules-first; nothing
+  retired. The projection is mutually exclusive with `function_emit_prob`
+  on a gate; the increment is the maximally-portable `gi = gi + 1`.
+  Combinational only. Default
   `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
   emitted-loop count is surfaced as `num_emitted_generate_loops` in
   `--introspect` (schema `1.9`). Set it via `--config` JSON. See
@@ -818,8 +820,9 @@ exercising adversarial axes that previously fired only by chance
   emission surface (decision `0013`) fires by construction and is
   downstream-accepted. It forces `generate_loop_emit_prob = 1.0` over a
   comb-only single-module DUT across all three construction strategies, so
-  every qualifying `{N{x}}` 1-bit-lane replication (the common one-hot
-  `{W{sel}}` mux-mask idiom) is projected to a behaviour-preserving
+  every qualifying `{N{x}}` replication (a 1-bit lane → `[<wire>__gi]`, a
+  wider lane → the decision-`0015` `[<wire>__gi*LW +: LW]` part-select) is
+  projected to a behaviour-preserving
   single-level `generate for` loop, and requires the `saw_generate_loop_emit`
   fact (a genuinely-emitted loop — detected from the emitted SV text —
   accepted by Verilator **and** Yosys). Like a function (and unlike the

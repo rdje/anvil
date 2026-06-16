@@ -360,10 +360,11 @@ knobs (no CLI flag, like `soft_union_slice_prob`):
   unrolled loop is exactly `{N{x}}`, so it is behaviour-preserving and
   adds no new IR truth (the `function_emit_prob` precedent). A replication
   qualifies when it is a `Concat` of `N ≥ 2` operands that are all the
-  **same** signal **and** the replicated lane is **1 bit** wide (⇒ result
-  width `N`, so `<wire>[gi] = x` is bit-faithful); a **wider lane** would
-  need a part-select body and stays inline (a recorded follow-up; nothing
-  retired). Mutually exclusive with `function_emit_prob` on a gate; the
+  **same** signal, of any lane width `LW ≥ 1` (⇒ result width `N·LW`): a
+  **1-bit lane** renders `<wire>[gi] = x`, a **wider lane** the indexed
+  part-select `<wire>[gi*LW +: LW] = x` (the **fourth** surface, decision
+  `0015`); both unroll byte-faithfully to `{N{x}}`, nothing retired.
+  Mutually exclusive with `function_emit_prob` on a gate; the
   loop increment is the maximally-portable `gi = gi + 1`. Combinational
   only. `default = 0.0` is byte-identical; the emitted-loop count is
   surfaced as `num_emitted_generate_loops` in `--introspect` (schema

@@ -1,6 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.8b — wider-lane `generate for` part-select surface (the fourth structured surface, end-to-end)
+
+**Landed as:** this commit (previous: `ab73083`). **First source change of the
+fourth structured surface; default-off / DUT byte-identical.** Implements
+decision `0015` per the `.8a` design — closing `.8b` / `.8` and delivering the
+**wider-lane `generate for` part-select** end-to-end. The lane returns to
+no-active-frontier (open-ended).
+
+**What changed (why)**
+
+- **`src/ir/generate_loop.rs`** — `gate_qualifies` relaxed from the 1-bit-lane
+  limit to **any lane width `LW >= 1`**: `lane.width() != 1 || *width !=
+  operands.len()` → `lw = lane.width() as usize; lw == 0 || *width !=
+  operands.len() * lw` (i.e. `LW >= 1` with `width == N*LW`). The
+  `function_emit` / `soft_union` and all-same-operand / `N >= 2` exclusions are
+  unchanged. Module + predicate doc updated.
+- **`src/emit/sv.rs`** — `generate_loop_gate`'s defensive re-check mirrored to
+  the same `LW >= 1` / `width == N*LW` condition (it still returns `(lane, N)`);
+  `render_generate_loop_block` now computes `lw = m.nodes[lane as usize].width()`
+  and **branches the body**: `lw == 1` keeps the verbatim
+  `assign <name>[gi] = <x>;` (the shipped 1-bit surface byte-identical), `lw > 1`
+  emits the indexed part-select `assign <name>[gi*LW +: LW] = <x>;`. Doc updated.
+- **Tests** (`src/ir/generate_loop.rs`) — `wide_lane_replication_does_not_qualify`
+  → `wide_lane_replication_qualifies` (now `marked == 1`); new
+  `mismatched_result_width_replication_does_not_qualify` (a Concat whose width
+  ≠ N*LW is rejected); new `module_wide_replication` helper +
+  `marked_wide_lane_gate_emits_part_select_loop` (a `{3{lane}}` 4-bit lane
+  renders `[gi*4 +: 4]`, suppresses the inline `{3{lane}}`, and the 1-bit `[gi]`
+  body is absent); new `marked_one_bit_lane_keeps_index_body_byte_identical` (a
+  1-bit lane keeps `[gi]` and never `+:`).
+- **Docs** — `book/src/structured-emission.md`: the second-surface "What gets
+  wrapped" rewritten to `LW >= 1` (with the `[gi]` vs `[gi*LW +: LW]` split) + a
+  new **`## The fourth surface: wider lanes via a part-select`** section with a
+  **byte-verified seed-74 before/after** (`{2{i_2}}` → the genvar/generate-for +
+  `[gi*2 +: 2]`, fully `-Wall` clean) and a skip-sentinelled reproduce recipe.
+  `book/src/knobs.md` + `USER_GUIDE.md` + `README.md` `generate_loop_emit_prob`
+  entries + the README `--generate-loop-gate` description + the
+  `CODEBASE_ANALYSIS.md` `generate_loop.rs` block + the KM card
+  `generate-loop-emit` (the "excluded wider lane" framing replaced with the
+  shipped fourth surface) all updated.
+
+**Crucially: no new knob, no new metric, no schema bump.** The wider lane reuses
+the second surface's `generate_loop_emit_prob` knob and `num_emitted_generate_loops`
+metric — it is purely a broadening of an existing projection.
+
+**Why** — the wider-lane part-select was the recorded follow-up to the second
+surface (decision `0013` / the book). Decision `0015` picked it as the fourth
+structured surface because it is universally downstream-clean, minimal
+blast-radius, and a genuinely new emitter shape (a variable-base `+:`
+part-select), and the `.8a` corpus-liveness probe proved it fires on real
+generation (20 multi-bit-lane replications in a 300-module sweep).
+
+**Validation** — `cargo check --all-targets` clean; `cargo clippy --all-targets
+-- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib`
+**493 passed** / 2 ignored (incl. the 4 changed/new generate_loop proofs);
+`cargo test --test snapshots` **6/6 byte-identical** (default-off — the
+wider-lane branch is reached only with the knob on). **Forced per-seed ON-vs-OFF
+wider-lane downstream sweep** (`/tmp/anvil-gl8b/`, 8 single seeds each with a
+wider-lane replication): **9 wider-lane part-selects emitted** (e.g.
+`[gi*14 +: 14]`, `[gi*16 +: 16]`), Verilator `-Wall` **delta = 0** on every seed
+(no new warnings vs the inline baseline), Yosys without-abc + with-abc + Icarus
+`iverilog -g2012` **rc=0 / 0 warnings**. The existing
+`tool_matrix --generate-loop-gate` bank (`/tmp/anvil-generate-loop-gate-8b`,
+`--yosys-mode both --iverilog-compile`) is **regression-clean**: 3 scenarios /
+12 modules / `coverage_gaps = []` / `saw_generate_loop_emit = true` / `12/0`
+Verilator + both Yosys + Icarus. The `.7` probe already simulation-proved
+`assign y[gi*W +: W] = x;` ≡ `{N{x}}` under iverilog. `mdbook build book` clean;
+`check_knowledge_map` (42 facts / 341 keys) + `check_memory_architecture` OK;
+`cargo test --test book_examples` **3/3** (the new fourth-surface repro block
+skip-sentinelled). The book before/after is byte-verified against the release
+binary.
+
+**Impact** — the DUT lane gains a wider-lane `generate for` with an indexed
+part-select body — a genuinely new structural shape to parse/elaborate/unroll —
+when `generate_loop_emit_prob > 0.0`. Default emission byte-identical (knob
+default `0.0`; the 1-bit-lane rendering is unchanged). Four structured surfaces
+now delivered end-to-end. Nothing retired.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.8a — wider-lane `generate for` part-select impl design-detail
 
 **Landed as:** this commit (previous: `3ec4f66`). **Design-detail leaf — no

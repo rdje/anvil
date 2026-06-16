@@ -1502,10 +1502,10 @@ fn render_gate_task_call(
 
 /// `STRUCTURED-EMISSION-EXPANSION.4b` — if the gate at `idx` is marked for
 /// the `generate for` loop projection and still qualifies (a `{N{x}}`
-/// replication `Concat`: `>= 2` operands all the same `NodeId`, a 1-bit
-/// lane, and result width `== N`), return `(lane_operand, N)` so the caller
-/// renders a `genvar` + `generate for` block instead of the inline
-/// `assign <wire> = {N{x}};`. `None` ⇒ render the gate inline — an unmarked /
+/// replication `Concat`: `>= 2` operands all the same `NodeId`, a lane of
+/// width `LW >= 1`, and result width `== N*LW`), return `(lane_operand, N)` so
+/// the caller renders a `genvar` + `generate for` block instead of the inline
+/// `assign <wire> = {N{x}};` (the renderer recomputes `LW` from the lane). `None` ⇒ render the gate inline — an unmarked /
 /// non-qualifying gate, or the default-off path where `generate_loop_gates`
 /// is empty. The qualifying contract is re-checked defensively so a stale
 /// marker can never produce an invalid loop (mirrors `function_emit_gate`).
@@ -1529,22 +1529,28 @@ fn generate_loop_gate(m: &Module, idx: usize) -> Option<(NodeId, usize)> {
     if !operands.iter().all(|o| *o == first) {
         return None;
     }
-    // 1-bit lane ⇒ result width == N (each result bit is the lane), so the
-    // `assign <wire>[gi] = <x>;` body is byte-faithful to `{N{x}}`.
-    if m.nodes[first as usize].width() != 1 || *width as usize != operands.len() {
+    // Lane of width LW ⇒ result width == N*LW; the renderer tiles the result in
+    // LW-wide groups (`[gi]` for LW==1, `[gi*LW +: LW]` for LW>1), byte-faithful
+    // to `{N{x}}` since every group is the same lane (decision `0015`).
+    let lw = m.nodes[first as usize].width() as usize;
+    if lw == 0 || *width as usize != operands.len() * lw {
         return None;
     }
     Some((first, operands.len()))
 }
 
-/// `STRUCTURED-EMISSION-EXPANSION.4b` — render the single-level
+/// `STRUCTURED-EMISSION-EXPANSION.4b`/`.8b` — render the single-level
 /// `generate for` loop for a replication-emitted gate `name` (`{N{x}}`): a
 /// `<name>__gi` genvar, a `generate for (gi = 0; gi < N; gi = gi + 1)` over
-/// the replication count, and a body `assign <name>[gi] = <x>;` where `<x>`
-/// is the replicated lane rendered with the normal module-level
-/// [`node_ref`]. The unrolled loop is byte-equivalent to the inline
-/// `{N{x}}`. `gi = gi + 1` is the maximally-portable increment form (the
-/// `.3` probe also verified `gi++`).
+/// the replication count, and a body that drives one `LW`-wide bit-group per
+/// iteration with the replicated lane `<x>` (rendered with the normal
+/// module-level [`node_ref`]). For a **1-bit lane** (`LW == 1`) the body is the
+/// original `assign <name>[gi] = <x>;`; for a **wider lane** (`LW > 1`,
+/// decision `0015`) it is the indexed part-select
+/// `assign <name>[gi*LW +: LW] = <x>;`. `LW` is recomputed from the lane node.
+/// Every iteration drives the same lane, so the unrolled loop tiles `[0, N*LW)`
+/// and is byte-equivalent to the inline `{N{x}}`. `gi = gi + 1` is the
+/// maximally-portable increment form (the `.3` probe also verified `gi++`).
 fn render_generate_loop_block(
     name: &str,
     lane: NodeId,
@@ -1555,6 +1561,7 @@ fn render_generate_loop_block(
     let gi = format!("{name}__gi");
     let label = format!("{name}__gen");
     let x = node_ref(lane, m, names);
+    let lw = m.nodes[lane as usize].width();
     let mut s = String::new();
     writeln!(s, "    genvar {gi};").unwrap();
     writeln!(s, "    generate").unwrap();
@@ -1563,7 +1570,11 @@ fn render_generate_loop_block(
         "        for ({gi} = 0; {gi} < {n}; {gi} = {gi} + 1) begin : {label}"
     )
     .unwrap();
-    writeln!(s, "            assign {name}[{gi}] = {x};").unwrap();
+    if lw == 1 {
+        writeln!(s, "            assign {name}[{gi}] = {x};").unwrap();
+    } else {
+        writeln!(s, "            assign {name}[{gi}*{lw} +: {lw}] = {x};").unwrap();
+    }
     writeln!(s, "        end").unwrap();
     writeln!(s, "    endgenerate").unwrap();
     s

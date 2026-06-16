@@ -18,11 +18,12 @@
 //!
 //! instead of the inline `assign <gate> = {N{x}};`. The candidate is a
 //! `GateOp::Concat` of the `{N{x}}` form — `>= 2` operands that are all the
-//! *same* `NodeId`, with a **1-bit lane** (the replicated operand is 1 bit
-//! wide). With a 1-bit lane the result width is exactly `N == operands.len()`
-//! and bit `g` of the result is exactly the lane `x`, so the unrolled loop is
-//! **byte-equivalent** to the inline replication — the projection is
-//! behaviour-preserving by construction.
+//! *same* `NodeId`, with a lane of any width `LW >= 1`. The result width is
+//! exactly `N*LW` and bit-group `g` (bits `[g*LW +: LW]`) of the result is
+//! exactly the lane `x`, so the unrolled loop — `assign <gate>[gi] = <x>;` for a
+//! 1-bit lane and `assign <gate>[gi*LW +: LW] = <x>;` for a wider lane (the
+//! decision `0015` wider-lane part-select) — is **byte-equivalent** to the
+//! inline replication, the projection is behaviour-preserving by construction.
 //!
 //! **Rules-first, never generate-then-filter.** The loop re-expresses a
 //! replication that is already valid in the flat emission; selection happens
@@ -52,11 +53,12 @@ use rand::Rng;
 ///
 /// - `>= 2` operands that are **all the same `NodeId`** (an N-fold
 ///   replication of one operand);
-/// - the replicated operand (the *lane*) is **1 bit wide**, so the result
-///   width is exactly `N` and bit `g` of the result is exactly the lane (the
-///   loop body `assign <wire>[gi] = <x>;` is byte-faithful). A wider lane
-///   would need a part-select body (`<wire>[gi*LW +: LW]`) — a recorded
-///   follow-up; a wider replication still emits inline, nothing retired;
+/// - the replicated operand (the *lane*) has width `LW >= 1`, so the result
+///   width is exactly `N*LW` and bit-group `g` (bits `[g*LW +: LW]`) of the
+///   result is exactly the lane. The loop body is `assign <wire>[gi] = <x>;`
+///   for a 1-bit lane and `assign <wire>[gi*LW +: LW] = <x>;` for a wider lane
+///   (the decision `0015` wider-lane part-select); both are byte-faithful to
+///   `{N{x}}`;
 /// - **not** already marked for the `function automatic` projection (the two
 ///   emit-projections are mutually exclusive on a gate; this pass runs after
 ///   `function_emit`);
@@ -79,11 +81,14 @@ fn gate_qualifies(m: &Module, id: NodeId, node: &Node) -> bool {
     if !operands.iter().all(|o| *o == first) {
         return false;
     }
-    // 1-bit lane ⇒ result width == N (each result bit is the lane).
+    // Lane of width LW ⇒ result width == N*LW (each LW-wide bit-group is the
+    // lane). LW == 1 renders `assign <wire>[gi] = <x>;`; LW > 1 renders the
+    // part-select `assign <wire>[gi*LW +: LW] = <x>;` (decision `0015`).
     let Some(lane) = m.nodes.get(first as usize) else {
         return false;
     };
-    if lane.width() != 1 || *width as usize != operands.len() {
+    let lw = lane.width() as usize;
+    if lw == 0 || *width as usize != operands.len() * lw {
         return false;
     }
     if m.function_emit_gates.contains(&id) {
@@ -224,9 +229,11 @@ mod tests {
     }
 
     #[test]
-    fn wide_lane_replication_does_not_qualify() {
-        // `{4{byte}}` — lane is 8-bit, so a `<wire>[gi]` body would be wrong;
-        // excluded from the first cut (part-select is a recorded follow-up).
+    fn wide_lane_replication_qualifies() {
+        // `{4{byte}}` — an 8-bit lane, width 32 == 4*8. The decision `0015`
+        // wider-lane part-select now admits it (the renderer emits a
+        // `[gi*8 +: 8]` body); the first cut's 1-bit-only limit is lifted, only
+        // the marked gate's emitted shape changes, nothing retired.
         let mut m = Module {
             name: "wl".into(),
             ..Module::default()
@@ -242,6 +249,32 @@ mod tests {
             op: GateOp::Concat,
             operands: vec![0, 0, 0, 0],
             width: 32,
+            deps: DepSet::from_port(0),
+        }); // id 1
+        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        assert_eq!(marked, 1);
+        assert!(m.generate_loop_gates.contains(&1));
+    }
+
+    #[test]
+    fn mismatched_result_width_replication_does_not_qualify() {
+        // A Concat whose declared width is not N*LW is not a clean replication
+        // tiling — defensively excluded (LW=8, N=4 ⇒ must be 32, here 30).
+        let mut m = Module {
+            name: "mm".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "byte".into(),
+            width: 8,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // id 0
+        m.nodes.push(Node::Gate {
+            op: GateOp::Concat,
+            operands: vec![0, 0, 0, 0],
+            width: 30,
             deps: DepSet::from_port(0),
         }); // id 1
         let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
@@ -337,6 +370,106 @@ mod tests {
         assert!(
             out.contains("assign y = concat_0;"),
             "the output drive is unchanged:\n{out}"
+        );
+    }
+
+    /// `y = {n{lane}}` over an `lw`-bit input — node 1 is a `{N{x}}` replication
+    /// with an `lw`-bit lane (the wider-lane generate-loop candidate of decision
+    /// `0015`). `module_1bit_replication(n)` is the `lw == 1` special case.
+    fn module_wide_replication(n: usize, lw: u32) -> Module {
+        let mut m = Module {
+            name: "gl".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "lane".into(),
+            width: lw,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 1,
+            name: "y".into(),
+            width: n as u32 * lw,
+            dir: Direction::Out,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: lw }); // id 0
+        m.nodes.push(Node::Gate {
+            op: GateOp::Concat,
+            operands: vec![0; n],
+            width: n as u32 * lw,
+            deps: DepSet::from_port(0),
+        }); // id 1
+        m.drives.push((1, 1));
+        m
+    }
+
+    /// The wider-lane emit proof (decision `0015`): a marked `{N{x}}` with an
+    /// `LW > 1` lane renders the part-select loop body `[gi*LW +: LW]` and
+    /// suppresses the inline replication; the default-off emission is inline.
+    #[test]
+    fn marked_wide_lane_gate_emits_part_select_loop() {
+        use crate::emit::to_sv;
+
+        // Unmarked baseline: the plain inline replication assign, no generate.
+        let base = to_sv(&module_wide_replication(3, 4));
+        assert!(
+            !base.contains("generate"),
+            "default-off emission has no generate block:\n{base}"
+        );
+        assert!(
+            base.contains("assign concat_0 = {3{lane}};"),
+            "default-off emission is the inline replication assign:\n{base}"
+        );
+
+        // Marked: the wider-lane replication projects to a part-select loop.
+        let mut marked = module_wide_replication(3, 4);
+        marked.generate_loop_gates.insert(1);
+        let out = to_sv(&marked);
+        assert!(
+            out.contains("genvar concat_0__gi;"),
+            "marked gate declares a genvar:\n{out}"
+        );
+        assert!(
+            out.contains("for (concat_0__gi = 0; concat_0__gi < 3; concat_0__gi = concat_0__gi + 1) begin : concat_0__gen"),
+            "the generate for loop spans the replication count:\n{out}"
+        );
+        assert!(
+            out.contains("assign concat_0[concat_0__gi*4 +: 4] = lane;"),
+            "the wider lane drives each 4-bit group via a part-select:\n{out}"
+        );
+        // The 1-bit `[gi]` body must NOT appear for a wider lane.
+        assert!(
+            !out.contains("assign concat_0[concat_0__gi] = lane;"),
+            "the wider lane does not use the 1-bit `[gi]` body:\n{out}"
+        );
+        // The inline replication assign is suppressed for the marked gate.
+        assert!(
+            !out.contains("assign concat_0 = {3{lane}};"),
+            "the inline replication assign is suppressed:\n{out}"
+        );
+        assert!(
+            out.contains("assign y = concat_0;"),
+            "the output drive is unchanged:\n{out}"
+        );
+    }
+
+    /// Byte-identity guard (decision `0015`): the wider-lane branch must leave
+    /// the shipped 1-bit-lane surface untouched — a marked 1-bit replication
+    /// still renders the original `[gi]` body and never a part-select.
+    #[test]
+    fn marked_one_bit_lane_keeps_index_body_byte_identical() {
+        use crate::emit::to_sv;
+        let mut marked = module_1bit_replication(4);
+        marked.generate_loop_gates.insert(1);
+        let out = to_sv(&marked);
+        assert!(
+            out.contains("assign concat_0[concat_0__gi] = sel;"),
+            "1-bit lane keeps the `[gi]` body:\n{out}"
+        );
+        assert!(
+            !out.contains("+:"),
+            "1-bit lane never uses a part-select body:\n{out}"
         );
     }
 }

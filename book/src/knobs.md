@@ -527,11 +527,12 @@ instead of creating fresh logic.
   unrolled loop is exactly `{N{x}}`, so it is **behaviour-preserving** and
   adds no new IR truth (the `function_emit_prob` precedent). Selection is
   rules-first at construction time. A replication qualifies when it is a
-  `Concat` of `N ≥ 2` operands that are all the **same** signal **and**
-  the replicated lane is **1 bit** wide (⇒ result width `N`, so
-  `<wire>[gi] = x` is bit-faithful); a **wider lane** would need a
-  part-select body and stays inline (a recorded follow-up; nothing
-  retired). Mutually exclusive with `function_emit_prob` on a gate.
+  `Concat` of `N ≥ 2` operands that are all the **same** signal, of any
+  lane width `LW ≥ 1` (⇒ result width `N·LW`). A **1-bit lane** renders
+  `<wire>[gi] = x`; a **wider lane** renders the indexed part-select
+  `<wire>[gi*LW +: LW] = x` (the **fourth** surface, decision `0015`) —
+  both unroll byte-faithfully to `{N{x}}`; nothing retired. Mutually
+  exclusive with `function_emit_prob` on a gate.
   Combinational only. `default = 0.0` ⇒ byte-identical. Surfaced via the
   `num_emitted_generate_loops` metric in `--introspect` (schema `1.9`).
   Proven downstream-clean by the repo-owned

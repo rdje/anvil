@@ -402,22 +402,26 @@ src/
 │                     `function_emit`, after it; param-env modules skipped)
 │                     marks `{N{x}}` replication `Node::Gate`s — a
 │                     `GateOp::Concat` of ≥2 operands all the same `NodeId`,
-│                     **1-bit lane** (⇒ result width == N), not already
-│                     function-emit-marked (nor `union soft`-marked) — into
-│                     the new emitter-surface `Module.generate_loop_gates`
+│                     any lane width LW≥1 (⇒ result width == N*LW), not
+│                     already function-emit-marked (nor `union soft`-marked) —
+│                     into the new emitter-surface `Module.generate_loop_gates`
 │                     (BTreeSet<NodeId>, not hashed into identity, disjoint
 │                     from `function_emit_gates`). The emitter
 │                     (`emit/sv.rs::generate_loop_gate` +
 │                     `render_generate_loop_block`) renders each marked gate
 │                     as a behaviour-preserving single-level `genvar
 │                     <wire>__gi; generate for (gi=0; gi<N; gi=gi+1) begin :
-│                     <wire>__gen assign <wire>[gi] = <x>; end endgenerate`
-│                     and suppresses the inline `assign <wire> = {N{x}};`.
+│                     <wire>__gen <body>; end endgenerate` (body
+│                     `<wire>[gi] = <x>` for LW==1, `<wire>[gi*LW +: LW] =
+│                     <x>` for LW>1) and suppresses the inline
+│                     `assign <wire> = {N{x}};`.
 │                     The unrolled loop is byte-equivalent to the inline
 │                     replication. Default-off (`generate_loop_emit_prob ==
 │                     0.0`) byte-identical (snapshots 6/6). Wider-lane
-│                     part-select = recorded follow-up (still emitted inline,
-│                     nothing retired). Forced `generate_loop_emit_prob=1.0`
+│                     part-select now ships (`.8b`, decision 0015): LW==1
+│                     stays the byte-identical `[gi]` body, LW>1 emits the
+│                     `[gi*LW +: LW]` part-select — nothing retired. Forced
+│                     `generate_loop_emit_prob=1.0`
 │                     sweep clean across Verilator `--lint-only` (+`-Wall`
 │                     Δ=0 vs OFF) + Yosys both modes + Icarus
 │                     (`/tmp/anvil-gl-r1/`). Repo-owned gate + coverage fact
