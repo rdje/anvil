@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.3 — combinational `task automatic` user docs
+
+**Landed as:** this commit (previous: `1ea5a82`). **Docs-only / DUT
+byte-identical** — the user-facing closeout of the **third** structured emission
+surface (decision `0014`). With this leaf `.6b.3` / `.6b` / `.6` all close: the
+combinational `task automatic` emit-projection is delivered end-to-end, and the
+lane returns to no-active-frontier (open-ended).
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** — a `## The third surface: a
+  combinational task automatic` section: the
+  [first-surface](#) function parallel (same single combinational gate, same
+  direct-operand parameter list, but a *procedural* `task` called from
+  `always_comb`); a **byte-verified seed-1 before/after** (the inline `assign
+  shr_0 = i_2 >> 2'h3;` becomes the `task automatic shr_0__t(output logic [3:0]
+  o, input …); o = a0 >> a1; endtask` decl + `logic [3:0] shr_0__tv;` +
+  `always_comb shr_0__t(shr_0__tv, i_2, 2'h3);` + the passthrough `assign shr_0
+  = shr_0__tv;` — everything else byte-identical); the candidate set identical
+  to `function_emit`; the structured/`Slice` exclusions; the four-way mutual
+  exclusion (the task pass runs last); the output-var passthrough integration;
+  combinational-only; the `num_emitted_combinational_tasks` metric (@ schema
+  `1.10`) + the `tool_matrix --task-emit-gate` proof; and a skip-sentinelled
+  repro `bash` block. The chapter intro now lists `task` as a live surface.
+- **`book/src/knobs.md`** — the `task_emit_prob` entry in the
+  `### Structured emission` subsection (beside `function_emit_prob` /
+  `generate_loop_emit_prob`).
+- **`USER_GUIDE.md`** — the `task_emit_prob` config-knob bullet (after
+  `generate_loop_emit_prob`).
+- **`README.md`** — the `task_emit_prob` config-file-knob bullet in "Current CLI
+  truth" (after `generate_loop_emit_prob`).
+- **`docs/knowledge/combinational-task-emit.md`** (new) — a Knowledge Map how-to
+  card (id `combinational-task-emit`) with how-to question keys distinct from
+  decision `0014`'s conceptual keys + a validated `reverify` command. KM
+  regenerated: 40 → 41 facts, 318 → 331 question keys.
+
+**Why** — the mdBook is the user-facing surface to the project
+(`feedback_book_doctrine`): every shipped capability gets an example-heavy,
+non-scary, progressively-disclosed chapter section so a user understands what
+ANVIL can do without reading the code. The KM card closes the retrieval loop so a
+future agent finds the "how do I emit a task" answer in one lookup, not
+archaeology.
+
+**Validation** — docs-only (no `src/` touched ⇒ `cargo check/clippy/fmt`
+unaffected). `mdbook build book` clean (HTML written, no broken-link warnings);
+`bash knowledge-map/scripts/gen_knowledge_map.sh` (41 facts / 331 keys) +
+`check_knowledge_map.sh` **OK**; `bash scripts/check_memory_architecture.sh` all
+invariants hold (`0014` indexed); `cargo test --test book_examples` **3/3** (the
+new repro block correctly skip-sentinelled). The seed-1 before/after was
+byte-verified against the release binary, and the example lints clean under
+`verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus.
+
+**Impact** — docs-only; default emission byte-identical. The three structured
+emission surfaces (`function automatic`, `generate for` loop, `task automatic`)
+are now all delivered end-to-end and documented. The lane stays `active` with no
+current frontier; future surfaces are `.7+`.
+
+**Files touched** — `book/src/structured-emission.md`, `book/src/knobs.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/combinational-task-emit.md` (new),
+`KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.2b — task-emit tool_matrix gate
 
-**Landed as:** this commit (previous: `5f6822b`). The repo-owned downstream
+**Landed as:** `1ea5a82` (previous: `5f6822b`). The repo-owned downstream
 gate that proves the combinational `task automatic` emit-projection (decision
 `0014`) fires **by construction** and is accepted warning-clean by every repo
 downstream tool. Harness-only (`src/bin/tool_matrix.rs`); the default `anvil`

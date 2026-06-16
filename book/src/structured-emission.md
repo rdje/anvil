@@ -10,8 +10,8 @@ By default that shape is deliberately flat: a `module`, one `assign`
 output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
-construction in a richer SystemVerilog surface — today a `function`
-and a `generate for` loop, and later a `task`, nested `generate`, or an
+construction in a richer SystemVerilog surface — today a `function`, a
+`generate for` loop, and a `task`, and later nested `generate` or an
 `interface` — so the tools have more legal structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
@@ -292,3 +292,122 @@ anvil --seed 12 --config base.json
 
 Flip `generate_loop_emit_prob` back to `0.0` and the output is
 byte-identical to the default lane.
+
+## The third surface: a combinational `task automatic`
+
+The third structured surface is a combinational **`task automatic`**. It
+is the exact parallel of the
+[first surface](#the-first-surface-a-combinational-function-automatic) —
+the same single combinational gate, the same direct-operand parameter
+list — but expressed as a *procedural* `task` called from an
+`always_comb` rather than a value-returning `function`. A `task` is a
+genuinely different elaboration surface: it writes through an `output`
+argument and is *called* as a statement, where a function is a
+continuous-assign value. Giving a tool both forms is two distinct
+"named, reusable computation" shapes to lower, not one shape twice.
+
+It is governed by one config-file knob,
+[`task_emit_prob`](knobs.md#structured-emission) (default `0.0`), so with
+the knob off the output is byte-identical.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the
+default). The shift `shr_0` is printed inline:
+
+```systemverilog
+    wire [3:0] shr_0;
+
+    assign shr_0 = i_2 >> 2'h3;
+
+    assign o_0 = shr_0;
+```
+
+With `task_emit_prob = 1.0`, the *same* `shr_0` gate is projected to a
+`task automatic` over its operands. The task writes its result into a
+local `shr_0__tv` variable from an `always_comb`, and the gate's net is
+then driven from that variable — so `shr_0` stays an ordinary
+continuous-assign net and nothing downstream of it moves:
+
+```systemverilog
+    wire [3:0] shr_0;
+
+    task automatic shr_0__t(output logic [3:0] o, input logic [3:0] a0, input logic [1:0] a1);
+        o = a0 >> a1;
+    endtask
+    logic [3:0] shr_0__tv;
+    always_comb shr_0__t(shr_0__tv, i_2, 2'h3);
+
+    assign shr_0 = shr_0__tv;
+
+    assign o_0 = shr_0;
+```
+
+The `always_comb` call computes `i_2 >> 2'h3` into `shr_0__tv`, and
+`assign shr_0 = shr_0__tv;` drives the original net — so the module's
+behaviour is unchanged. The only difference is a `task` declaration, an
+`always_comb` task call, and an output-var passthrough for the tools to
+parse, elaborate, and lower. (The constant operand `2'h3` folds to a
+literal argument exactly as it would inline.)
+
+### What gets wrapped (and what doesn't)
+
+The candidate set is **identical to the function surface**: one
+*ordinary combinational* `Gate` used in full. Structured selectors
+(`case` / `casez` muxes, bounded `for`-folds) and `Slice` bit-selects are
+excluded for the same reasons, and neither is retired — they still emit
+inline. Selection is **rules-first**
+([by construction](by-construction.md)): at construction time anvil rolls
+`task_emit_prob` for each qualifying gate and marks the winners.
+
+The four emit-projections are **mutually exclusive on a gate**: the task
+pass runs last and skips any gate already marked for the
+`function automatic`, `generate for`, or `union soft` projections, so a
+gate is re-rendered by at most one surface.
+
+The **integration form** is deliberately minimal — the *output-var +
+passthrough* form shown above. The gate's wire stays a continuous-assign
+*net*; the task writes a separate `logic` variable; a passthrough
+`assign` connects them. Only the gate's own drive changes, exactly like
+the function surface ("only the gate's own drive changes"). Making the
+gate's wire *itself* the procedural variable was considered and rejected
+for the first cut (it would perturb the uniform wire-declaration
+section). Each task call gets its own `always_comb`.
+
+Like the function, the task is **combinational only** — a flop's `Q` is a
+leaf parameter, and the task never recurses through a register edge or a
+child-instance boundary.
+
+### How anvil proves it
+
+The same two-mechanism proof as the prior surfaces:
+
+- A `num_emitted_combinational_tasks` metric (a post-hoc count of the
+  marked gates) is surfaced in the
+  [introspection document](agent-mcp.md) (schema `1.10`).
+- The repo-owned `tool_matrix --task-emit-gate` forces
+  `task_emit_prob = 1.0` over comb-only DUTs across all three
+  construction strategies and fails unless the emitted tasks are accepted
+  **warning-clean** by Verilator and both Yosys modes (and Icarus when
+  enabled), gated on a `saw_combinational_task_emit` coverage fact. It is
+  banked clean (3 scenarios / 12 modules / 12 emitting a task /
+  `coverage_gaps = []`).
+
+The picked-third rationale (a combinational `task` over nested
+`generate` / `interface` / `modport`) is recorded in decision `0014`
+(`docs/decisions/0014-structured-emission-third-surface-combinational-task.md`).
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 1 --dump-config > base.json
+# edit base.json: set "task_emit_prob": 1.0 (a small comb-only shape makes the one
+# task easy to read: "flop_prob": 0.0, "constant_prob": 0.0, "gate_struct_weight": 0,
+# "min_width": 4, "max_width": 4, "min_inputs": 2, "max_inputs": 3, "min_outputs": 1,
+# "max_outputs": 1, "max_depth": 2)
+anvil --seed 1 --config base.json
+```
+
+Flip `task_emit_prob` back to `0.0` and the output is byte-identical to
+the default lane.

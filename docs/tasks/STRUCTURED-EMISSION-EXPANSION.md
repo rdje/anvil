@@ -6,7 +6,20 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.6b.2b` landed — the repo-owned
+- Last updated: `2026-06-16` (**`.6b.3` landed — the user-facing closeout; the
+  THIRD structured surface (the combinational `task automatic`) is delivered
+  end-to-end; `.6b.3` / `.6b` / `.6` all close; the lane returns to
+  no-active-frontier (open-ended).** Docs-only / DUT byte-identical: a `## The
+  third surface: a combinational task automatic` section in
+  `book/src/structured-emission.md` (byte-verified seed-1 before/after — the
+  inline shift becomes the `task automatic` decl + `logic <wire>__tv` + the
+  `always_comb` call + the passthrough `assign`; the function-surface candidate
+  parallel; the output-var passthrough form; the four-way mutual exclusion; the
+  metric @ schema `1.10` + the gate) + the `task_emit_prob` knob entry in
+  `book/src/knobs.md` / `USER_GUIDE.md` / README + the KM how-to card
+  `combinational-task-emit` (41 facts / 331 keys). `mdbook build` +
+  `check_knowledge_map` + `check_memory_architecture` + `cargo test --test
+  book_examples` 3/3 green. Prior: **`.6b.2b` landed — the repo-owned
   `tool_matrix --task-emit-gate`; `.6b.2` closes; frontier → `.6b.3`.**
   `src/bin/tool_matrix.rs` gains `--task-emit-gate` + `ScenarioSet::TaskEmitSweep`
   + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (comb-only
@@ -196,7 +209,7 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) in progress (.5 + .6a design done; .6b impl in progress — .6b.1 live surface + .6b.2 metric/schema-1.10 + tool_matrix gate done, frontier .6b.3 docs closeout). Open-ended lane: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) delivered end-to-end (.5 + .6 done: .6a design, .6b.1 live surface, .6b.2 metric/schema-1.10 + tool_matrix gate, .6b.3 docs). Open-ended lane with no current frontier: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
   Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
@@ -340,9 +353,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the third structured surface (the combinational task automatic emit-projection) per decision 0014: the task_emit_prob knob + the rules-first single-gate selection (gen-time annotation + Module.task_emit_gates, excluding the sibling projections) + the emitter rendering (task automatic decl + the always_comb call + the output-var passthrough) + the downstream-clean gate (saw_combinational_task_emit) + the num_emitted_combinational_tasks metric + book/USER_GUIDE/KM. Default-off / DUT byte-identical.`
   Children: `STRUCTURED-EMISSION-EXPANSION.6a`, `STRUCTURED-EMISSION-EXPANSION.6b`
+  Result: `Done (closed by .6b.3, 2026-06-16). The third structured surface — the combinational task automatic emit-projection (decision 0014) — is delivered end-to-end: .6a (design-detail) + .6b.1 (live surface: task_emit_prob knob + Module.task_emit_gates + src/ir/task_emit.rs + the to_sv_with_modules task section reusing render_gate_function_body + 11 lib proofs) + .6b.2a (num_emitted_combinational_tasks metric + introspection schema 1.10) + .6b.2b (the repo-owned tool_matrix --task-emit-gate, banked /tmp/anvil-task-emit-gate-r1) + .6b.3 (book/knobs/USER_GUIDE/README/KM closeout). Default-off / DUT byte-identical throughout (snapshots 6/6). Nothing retired.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6a`
   Status: `done`
@@ -353,9 +367,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the .6a design: Config::task_emit_prob (default 0.0) + Module.task_emit_gates + src/ir/task_emit.rs (annotate_task_emit_gates + the candidate predicate excluding the sibling projections) + the two guarded gen-time call-site rolls (after generate_loop) + the to_sv_with_modules task_emit_gate accessor + the task automatic decl (body via render_gate_function_body) + the logic <wire>__tv var + the always_comb call + the assign-RHS swap + lib proofs + the num_emitted_combinational_tasks metric (schema 1.9→1.10) + the repo-owned tool_matrix --task-emit-gate + ModuleReport.emitted_combinational_task + saw_combinational_task_emit + book/USER_GUIDE/KM. Default-off / DUT byte-identical (snapshots untouched). Pre-split into .6b.1 (live surface) + .6b.2 (metric + gate) + .6b.3 (docs closeout) per the .4b precedent.`
   Children: `STRUCTURED-EMISSION-EXPANSION.6b.1`, `STRUCTURED-EMISSION-EXPANSION.6b.2`, `STRUCTURED-EMISSION-EXPANSION.6b.3`
+  Result: `Done (closed by .6b.3, 2026-06-16). All of .6b.1 (live surface), .6b.2 (.6b.2a metric + schema 1.10 + .6b.2b the tool_matrix gate), and .6b.3 (docs closeout) complete. The combinational task automatic emit-projection is delivered end-to-end and downstream-clean (banked /tmp/anvil-task-emit-gate-r1). Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b.1`
   Status: `done`
@@ -388,31 +403,31 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b.3`
-  Status: `pending`
+  Status: `done`
   Goal: `The user-facing closeout: extend the How It Works book chapter book/src/structured-emission.md with the task automatic surface (byte-verified before/after; the single-gate rule; the output-var passthrough form; the always_comb call; the metric + gate) + the task_emit_prob knob entry in book/src/knobs.md / USER_GUIDE.md / README "Current CLI truth" (config-file-only knob) + a Knowledge Map how-to card if warranted (decision 0014 already carries answers:). Default-off / DUT byte-identical (docs-only).`
   Acceptance: `book builds (mdbook build book); USER_GUIDE + README updated; KM regenerated + check_knowledge_map clean; self-checks clean; cargo test --test book_examples 3/3; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. book/src/structured-emission.md gains a "## The third surface: a combinational task automatic" section (the function-surface parallel; a BYTE-VERIFIED seed-1 before/after — the inline assign shr_0 = i_2 >> 2'h3; becomes the task automatic shr_0__t(...) decl + logic shr_0__tv; + always_comb shr_0__t(shr_0__tv, i_2, 2'h3); + the passthrough assign shr_0 = shr_0__tv;, everything else byte-identical; the same candidate set as function_emit; the structured/Slice exclusions; the four-way mutual exclusion; the output-var passthrough integration; combinational-only; the metric @ schema 1.10 + the tool_matrix --task-emit-gate proof; a skip-sentinelled repro bash block) + the chapter intro updated to list task as live. The task_emit_prob knob entry added to book/src/knobs.md (the ### Structured emission subsection, beside function_emit_prob/generate_loop_emit_prob), USER_GUIDE.md (after the generate_loop_emit_prob config-knob bullet), and the README "Current CLI truth" (a config-file knob bullet after the generate_loop_emit_prob bullet). New Knowledge Map how-to card docs/knowledge/combinational-task-emit.md (id combinational-task-emit) with how-to question keys distinct from decision 0014's conceptual keys + a validated reverify command (dump-config -> set task_emit_prob=1.0 + comb-only -> generate seed 1 -> grep "task automatic" -> verilator --lint-only). KM regenerated (40 -> 41 facts, 318 -> 331 question keys). The book example is byte-verified downstream-clean (Verilator -Wall with matching filename + both Yosys + Icarus). Docs-only / DUT byte-identical (no source touched). With this leaf, .6b.3 / .6b / .6 all close: the third structured surface (the combinational task automatic emit-projection) is delivered end-to-end. The tree stays active as an open-ended lane with no current frontier; future surfaces (nested/multi-level generate / interface/modport / richer tasks) are .7+, each its own decision when picked. Nothing retired.`
+  Verification: `mdbook build book clean (HTML written, no broken-link warnings); bash knowledge-map/scripts/gen_knowledge_map.sh (41 facts / 331 keys) + bash knowledge-map/scripts/check_knowledge_map.sh OK (facts valid, ids unique, map in sync); bash scripts/check_memory_architecture.sh all invariants hold (0014 indexed); cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — the new repro block correctly skip-sentinelled). Docs-only: no src/ touched, so cargo check/clippy/fmt unaffected; the seed-1 before/after was byte-verified against the release binary (task_emit_prob 0.0 vs 1.0 diff = exactly the shr_0__t task decl + the logic shr_0__tv var + the always_comb call + the assign rewritten to the passthrough) and the example lints clean under verilator --lint-only -Wall (matching filename) + both Yosys + Icarus.`
+  Commit: `done`
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.6b.3`** (the user-facing
-closeout for the third structured surface — the combinational `task automatic`
-emit-projection, decision `0014`). `.6b.2` is now `done` (`.6b.2a` metric +
-schema `1.10` + `.6b.2b` the repo-owned `tool_matrix --task-emit-gate`, banked
-clean). `.6b.1` (live surface) + `.6a` (design-detail) + `.5` (decision `0014`)
-are done. The live `task automatic` surface is delivered, its
-`num_emitted_combinational_tasks` metric is surfaced in introspection (schema
-`1.10`), and the repo-owned gate proves it downstream-clean — only the
-book/USER_GUIDE/README/KM user-facing closeout remains. The first (combinational
-`function automatic`, `.1`+`.2`) and second (`generate for` loop, `.3`+`.4`)
-structured surfaces are delivered end-to-end. Future surfaces (nested/multi-level
-`generate`, `interface`/`modport`, richer tasks) are `.7+`, each its own decision.
-Nothing retired.
+**No current frontier.** The tree stays `active` as an **open-ended capability
+lane** (richer structured emission, ROADMAP steering gap 1). Three structured
+surfaces are now delivered end-to-end: the combinational `function automatic`
+(`.1`+`.2`), the `generate for` loop (`.3`+`.4`), and the combinational
+`task automatic` (`.5`+`.6`, closed `2026-06-16` by `.6b.3`). Future surfaces —
+nested/multi-level `generate`, `interface` / `modport`, and richer (multi-output)
+tasks — are `.7+`, each its own decision when picked (none retired). When PNT next
+selects this lane, open `.7` with a design/decision leaf naming the next surface
+(the recorded leading candidates from decision `0014` are nested `generate` and
+`interface`/`modport`).
+
+_No active leaves — the lane has no current frontier. The most recent completions:_
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `task automatic` surface (byte-verified before/after; the single-gate rule; the output-var passthrough form; the metric + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted (decision `0014` already carries `answers:`). Docs-only / DUT byte-identical. Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. |
+| — | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `done` | The user-facing closeout: a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` (byte-verified seed-1 before/after — the inline `shr_0 = i_2 >> 2'h3` becomes the `task automatic`/`always_comb`/passthrough form; the function-surface candidate parallel; the output-var passthrough; the four-way mutual exclusion; the `gi`-free single-gate rule; metric @ schema `1.10` + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + the KM how-to card `combinational-task-emit` (KM 40→41 facts / 318→331 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `done` | The repo-owned `tool_matrix --task-emit-gate`: `--task-emit-gate` flag + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (one comb-only `task_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_task` SV-text detection (`"task automatic"`) + `saw_combinational_task_emit` coverage fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6); `cargo test --bin tool_matrix` 68. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `done` | The metric + schema bump: `Metrics::num_emitted_combinational_tasks` (`= m.task_emit_gates.len()`, `#[serde(default)]`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; `cargo test --lib` 490 + snapshots 6/6 + mdbook green; end-to-end introspect default `0` / forced `39`. Precedented (`1.8→1.9` `num_emitted_generate_loops`). |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.1` | `done` | Live surface delivered: `Config::task_emit_prob` + `Module.task_emit_gates` + new `src/ir/task_emit.rs` (`annotate_task_emit_gates`, the function-emit candidate predicate **plus** exclusion of the three sibling projections) + the two guarded gen-time call-site rolls (after generate_loop) + the `to_sv_with_modules` `task_emit_gate` accessor + `render_gate_task_decl` (body via the reused `render_gate_function_body`) + `render_gate_task_call` (the `logic <wire>__tv` var + the `always_comb <wire>__t(...)` call) + the gate-assign-loop passthrough `assign <wire> = <wire>__tv;` + 11 lib proofs. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent; the `.6b.2` metric bumps `1.9→1.10`). Default-off / DUT byte-identical (snapshots 6/6; lib 489); forced `task_emit_prob=1.0` sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-te-r1/`, 5 seeds, 4–39 tasks each). |
@@ -517,6 +532,7 @@ Nothing retired.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.3` | **User-facing closeout, docs-only** (a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` + the intro update + the `task_emit_prob` knob entry in `book/src/knobs.md` `### Structured emission` + `USER_GUIDE.md` + README "Current CLI truth" + new KM card `docs/knowledge/combinational-task-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**41 facts / 331 keys**, was 40 / 318) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0014` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-1 `task_emit_prob` 0.0→1.0 diff = exactly the `shr_0__t` task decl + the `logic shr_0__tv` var + the `always_comb` call + the `assign` rewritten to the passthrough (rest byte-identical); the example lints clean under `verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus. With this leaf `.6b.3`/`.6b`/`.6` all close — the third structured surface is delivered end-to-end; the lane returns to no-active-frontier. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--task-emit-gate` + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` + `ModuleReport.emitted_combinational_task` + `saw_combinational_task_emit` + `MatrixReport.task_emit_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --bin tool_matrix -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **68 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-task-emit-gate-r1` (`--task-emit-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a task** / `coverage_gaps = []` / `saw_combinational_task_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`; all 12 modules `emitted_combinational_task = true`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_combinational_tasks` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.9→1.10` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.9→1.10` changelog entry + the early-example/defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--sv-version --introspect` row; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **490 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.10`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.10"` + metric `0`; forced `task_emit_prob=1.0` (seed 42) ⇒ `1.10` + `39`. `mdbook build book` OK. MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal (recorded in the doc comment + changelog). Historical "landed at schema X" attributions left intact (`num_emitted_generate_loops` @ 1.9; `num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2; the schema-doc `1.8→1.9` changelog entry). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.1` | **Live emitter change** (`src/config.rs` `task_emit_prob` knob + default + `0.0..=1.0` validation + dump-config; `src/ir/types.rs` `Module.task_emit_gates`; new `src/ir/task_emit.rs` `annotate_task_emit_gates` (the function-emit candidate predicate plus exclusion of the three sibling projections) + `src/ir/mod.rs` registration; `src/gen/mod.rs` two call-site rolls after generate_loop; `src/emit/sv.rs` `task_emit_gate` accessor + the task section (`render_gate_task_decl` reusing `render_gate_function_body` + `render_gate_task_call`) + the gate-assign-loop passthrough; `DEVELOPMENT_NOTES.md` + `CODEBASE_ANALYSIS.md` updated). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **489 passed** / 2 ignored (incl. 11 new `task_emit` proofs; introspect `schema_version` 1.9 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `task_emit_prob=1.0` sweep (5 seeds 1/7/42/100/2024, 4–39 tasks each, banked `/tmp/anvil-te-r1/`): Verilator `--lint-only` **5/5 CLEAN** (repo bar) + **`-Wall` ON-vs-OFF delta = 0** (the task projection adds no new warnings; the transient `DECLFILENAME` during the sweep was a filename≠module-name harness artifact, not a task warning), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5 CLEAN**. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent; the `.6b.2` metric bumps `1.9→1.10`). | `done` |
@@ -540,6 +556,7 @@ Nothing retired.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.6b.3` | `STRUCTURED-EMISSION-EXPANSION.6b.3 — combinational task automatic user docs` | Docs-only closeout: a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` (byte-verified seed-1 before/after; the function-surface candidate parallel; the output-var passthrough form; the four-way mutual exclusion; the metric @ schema `1.10` + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `combinational-task-emit` (41 facts / 331 keys). Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `STRUCTURED-EMISSION-EXPANSION.6b.2b — task-emit tool_matrix gate` | The repo-owned `tool_matrix --task-emit-gate`: `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios` (comb-only `task_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_task` SV-text detection + `saw_combinational_task_emit` fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6). Closes `.6b.2`; frontier → `.6b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `STRUCTURED-EMISSION-EXPANSION.6b.2a — task emit metric + introspection schema 1.10` | `Metrics::num_emitted_combinational_tasks` (= `task_emit_gates.len()`) + introspection schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 490); end-to-end introspect default `0` / forced `39`. Pre-split `.6b.2` → `.6b.2a`/`.6b.2b`; frontier → `.6b.2b`. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.1` | `STRUCTURED-EMISSION-EXPANSION.6b.1 — combinational task automatic emit-projection (live surface)` | Live emitter change: `task_emit_prob` knob + `Module.task_emit_gates` + new `src/ir/task_emit.rs` gen-time mark (the function-emit candidate predicate plus exclusion of the three sibling projections) + two generator call-site rolls (after generate_loop) + `to_sv_with_modules` `task_emit_gate` accessor + `render_gate_task_decl` (body via the reused `render_gate_function_body`) + `render_gate_task_call` (the `logic <wire>__tv` var + the `always_comb` call) + the gate-assign-loop passthrough `assign <wire> = <wire>__tv;` + 11 lib proofs. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6, lib 489); forced sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-te-r1/`, 5 seeds, 4–39 tasks each). Pre-split `.6b` → `.6b.1`/`.6b.2`/`.6b.3`; frontier → `.6b.2`. |
@@ -561,6 +578,34 @@ Nothing retired.
 
 ## Changelog
 
+- `2026-06-16`: **`.6b.3` landed — the user-facing closeout; the THIRD structured
+  surface (the combinational `task automatic`) is delivered end-to-end; `.6b.3` /
+  `.6b` / `.6` all close; the lane returns to no-active-frontier (open-ended).**
+  Docs-only / DUT byte-identical. `book/src/structured-emission.md` gains a `## The
+  third surface: a combinational task automatic` section: the function-surface
+  parallel, a **byte-verified seed-1 before/after** (the inline `assign shr_0 =
+  i_2 >> 2'h3;` becomes the `task automatic shr_0__t(output logic [3:0] o, input
+  …); o = a0 >> a1; endtask` decl + `logic [3:0] shr_0__tv;` + `always_comb
+  shr_0__t(shr_0__tv, i_2, 2'h3);` + the passthrough `assign shr_0 = shr_0__tv;`
+  — everything else byte-identical), the same candidate set as `function_emit`,
+  the structured/`Slice` exclusions, the four-way mutual exclusion, the output-var
+  passthrough integration, combinational-only, and the
+  `num_emitted_combinational_tasks` metric (@ schema `1.10`) + the `tool_matrix
+  --task-emit-gate` proof, plus a skip-sentinelled repro `bash` block; the chapter
+  intro now lists `task` as live. The `task_emit_prob` knob is added to
+  `book/src/knobs.md` (the `### Structured emission` subsection, beside
+  `function_emit_prob` / `generate_loop_emit_prob`), `USER_GUIDE.md` (after the
+  `generate_loop_emit_prob` config-knob bullet), and the README "Current CLI
+  truth" (a config-file knob bullet). New Knowledge Map how-to card
+  `docs/knowledge/combinational-task-emit.md` (id `combinational-task-emit`) with
+  how-to question keys + a validated `reverify` command; KM regenerated 40→41
+  facts / 318→331 keys. The book example is byte-verified downstream-clean
+  (Verilator `-Wall` with the matching filename + both Yosys + Icarus). `mdbook
+  build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test
+  --test book_examples` 3/3 green. With this leaf the third structured surface is
+  delivered end-to-end; the tree stays `active` as an open-ended lane with no
+  current frontier (future surfaces — nested/multi-level `generate`,
+  `interface`/`modport`, richer tasks — are `.7+`). Nothing retired.
 - `2026-06-16`: **`.6b.2b` landed — the repo-owned `tool_matrix --task-emit-gate`;
   `.6b.2` closes; frontier → `.6b.3`.** `src/bin/tool_matrix.rs` gains the
   `--task-emit-gate` CLI flag + `ScenarioSet::TaskEmitSweep` +

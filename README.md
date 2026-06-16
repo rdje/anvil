@@ -771,6 +771,29 @@ exercising adversarial axes that previously fired only by chance
   emitted-loop count is surfaced as `num_emitted_generate_loops` in
   `--introspect` (schema `1.9`). Set it via `--config` JSON. See
   `book/src/structured-emission.md`.
+- `task_emit_prob` is a default-off config-file knob (no CLI flag, like
+  `function_emit_prob` / `generate_loop_emit_prob` / `soft_union_slice_prob`;
+  `STRUCTURED-EMISSION-EXPANSION.6b.1`, decision `0014`) — ANVIL's
+  **third richer-structured emission surface**. Per *qualifying*
+  combinational gate (the **same candidate set as `function_emit_prob`** — a
+  non-structured, non-`Slice` `Gate` with `>= 1` operand), it is the
+  probability the emitter re-renders it as a combinational `task automatic`
+  over its direct operands, called from `always_comb` into an output var
+  (`task automatic <wire>__t(output logic[W-1:0] o, input …); o = <op>;
+  endtask` + `logic <wire>__tv; always_comb <wire>__t(<wire>__tv, <refs>);` +
+  the passthrough `assign <wire> = <wire>__tv;`) instead of the inline
+  `assign <wire> = <op>;`. It is the decision `0012` single-gate
+  `function automatic` parallel, but a *procedural* `task` — a
+  behaviour-preserving **emit-time projection** (no new IR node / no new
+  computed truth — the `function_emit`/`generate_loop`/`soft_union`/aggregate
+  precedent), rules-first. The output-var + passthrough form keeps `<wire>` a
+  net (only the gate's own drive changes). The four emit-projections
+  (`function_emit` / `generate_loop` / `task_emit` / `soft_union`) are
+  mutually exclusive on a gate; structured selectors + `Slice` are excluded
+  (nothing retired). Combinational only. Default `0.0` ⇒ DUT byte-identical
+  (`tests/snapshots.rs` untouched); the emitted-task count is surfaced as
+  `num_emitted_combinational_tasks` in `--introspect` (schema `1.10`). Set it
+  via `--config` JSON. See `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first

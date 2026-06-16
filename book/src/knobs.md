@@ -540,6 +540,42 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
+- `task_emit_prob` (config-file only — no CLI flag, like
+  `function_emit_prob` / `generate_loop_emit_prob`; default `0.0` ⇒
+  byte-identical; validated `0.0..=1.0`) — the **third richer-structured
+  emission surface** (decision `0014`). Probability, per *qualifying*
+  combinational gate (the **same candidate set as `function_emit_prob`**),
+  that anvil re-renders it as a combinational `task automatic` called from
+  `always_comb` instead of an inline `assign`:
+
+  ```systemverilog
+  task automatic shr_0__t(output logic [3:0] o, input logic [3:0] a0, input logic [1:0] a1);
+      o = a0 >> a1;
+  endtask
+  logic [3:0] shr_0__tv;
+  always_comb shr_0__t(shr_0__tv, i_2, 2'h3);
+  assign shr_0 = shr_0__tv;   // was: assign shr_0 = i_2 >> 2'h3;
+  ```
+
+  It is the `function_emit_prob` single-gate projection expressed as a
+  *procedural* `task` (an `output` arg written from `always_comb`) rather
+  than a value-returning `function` — an **emit-time projection** of an
+  already-valid gate, so it is **behaviour-preserving** and adds no new IR
+  truth. The task writes a local `<wire>__tv` var and a passthrough
+  `assign` drives the gate's net (the output-var form — only the gate's own
+  drive changes). Selection is rules-first at construction time; structured
+  selectors and `Slice` are excluded (the `function_emit_prob` reasons),
+  nothing retired. The four emit-projections (`function_emit` /
+  `generate_loop` / `task_emit` / `soft_union`) are mutually exclusive on a
+  gate — the task pass runs last and skips already-marked gates.
+  Combinational only. `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_combinational_tasks` metric in `--introspect` (schema
+  `1.10`). Proven downstream-clean by the repo-owned
+  `tool_matrix --task-emit-gate` (Verilator + both Yosys modes + Icarus;
+  `saw_combinational_task_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full
+  walk-through.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

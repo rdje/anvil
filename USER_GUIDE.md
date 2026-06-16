@@ -373,6 +373,27 @@ knobs (no CLI flag, like `soft_union_slice_prob`):
   `tool_matrix --generate-loop-gate` (see the matrix section below). Full
   walk-through: `book/src/structured-emission.md`.
 
+- `task_emit_prob` (default `0.0`) — the probability, per *qualifying*
+  combinational gate (the **same candidate set as `function_emit_prob`**),
+  that anvil re-renders it as a combinational `task automatic` called from
+  `always_comb` instead of an inline `assign` (decision `0014`, the
+  **third** richer-structured emission surface). It is the
+  `function_emit_prob` single-gate projection expressed as a *procedural*
+  `task` (an `output` arg written from `always_comb` into a `<wire>__tv`
+  var, with a passthrough `assign` driving the gate's net) rather than a
+  value-returning `function` — an **emit-time projection** of an
+  already-valid gate, so it is behaviour-preserving and adds no new IR
+  truth. Structured selectors and `Slice` are excluded (the
+  `function_emit_prob` reasons, nothing retired); the four emit-projections
+  are mutually exclusive on a gate (the task pass runs last). Combinational
+  only. `default = 0.0` is byte-identical; the emitted-task count is
+  surfaced as `num_emitted_combinational_tasks` in `--introspect` (schema
+  `1.10`). Set it in a `--config` JSON, e.g.
+  `{ "seed": 1, "task_emit_prob": 1.0, "flop_prob": 0.0, … }`. The surface
+  is proven downstream-clean by `tool_matrix --task-emit-gate` (see the
+  matrix section below). Full walk-through:
+  `book/src/structured-emission.md`.
+
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
 before emission, so the emitted module interface matches the live logic
