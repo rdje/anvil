@@ -5,6 +5,135 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — combinational `task automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.6a`
+
+Design-detail leaf for `.6` — the third richer-structured surface (decision
+`0014`): a default-off, valid-by-construction combinational `task automatic`
+emit-projection. Docs-only (no source). The exact parallel of the `.2a`
+combinational-`function` design, re-expressed as a procedural `task`. Grounded
+in the real emitter + the two sibling gen-time emit-projection passes:
+
+- **`src/emit/sv.rs`** — `to_sv_with_modules` already has the structural
+  template: a per-node decl section before the gate `assign`s (the
+  `function automatic` block, then the `generate for` block), and the per-gate
+  assign loop that `continue`s past a marked gate to suppress its inline assign.
+  The task surface adds a third such section + a third `continue` guard. Crucially,
+  **`render_gate_function_body(op, operand_widths)`** — the positional body
+  renderer the function surface already uses (`o = a0 <op> a1 …` over positional
+  params) — is **reused verbatim** as the task body, so no new body renderer is
+  needed.
+- **`src/ir/function_emit.rs` / `src/ir/generate_loop.rs`** — the gen-time
+  annotation precedent (`annotate_*` collects qualifying candidates, rolls
+  `gen_bool(prob)`, marks a `Module` `BTreeSet<NodeId>`; the call site in both
+  `generate_module` + `generate_design` guards on `prob > 0.0`; `param_env`
+  modules skipped; the later pass excludes earlier marks). The task pass is the
+  third in this chain.
+
+### Q1 — net-vs-var integration: the output-var + passthrough-`assign` form (minimal blast radius)
+
+A `task` cannot drive a continuous `assign` (it writes through an `output`/`ref`
+argument from a procedural context). So a task-emitted gate must be produced in
+an `always_comb`. Two forms were both probed clean at `.5`:
+
+- **(leading) output-var + passthrough.** Keep the gate's wire a *net* exactly as
+  today (`wire [W-1:0] <wire>;`), add a companion var `logic [W-1:0] <wire>__tv;`,
+  emit `always_comb <wire>__t(<wire>__tv, <operand refs>);`, and change the gate's
+  own assign to `assign <wire> = <wire>__tv;`. **Only the gate's own drive
+  changes** (its RHS becomes `<wire>__tv`), the wire-decl section stays uniform
+  (every gate is still a `wire` — zero risk of a net-vs-var mismatch elsewhere),
+  and downstream refs to `<wire>` are unchanged. This is the exact
+  `function_emit` "only the gate's assign RHS changes" parallel, and is the
+  **leading first cut**.
+- **(rejected for the first cut) `<wire>`-as-var.** Make `<wire>` itself a `logic`
+  var driven by `always_comb <wire>__t(<wire>, …)` and drop the assign. Cleaner
+  output (no `__tv`) but it touches the wire-decl section (one node becomes a var,
+  not a net), a larger blast radius for no first-cut benefit. Recorded follow-up;
+  nothing precludes it.
+
+One `always_comb` **per** task-emitted gate (simplest, deterministic ordering;
+a shared `always_comb` is a later optional consolidation). The task decl lives
+in module scope alongside the `function automatic` decls.
+
+### Q2 — gen-time annotation (`Module.task_emit_gates`), the third pass in the chain
+
+A new **`src/ir/task_emit.rs`** (registered `pub mod task_emit;` in `src/ir/mod.rs`)
+carries `annotate_task_emit_gates(m, rng, prob)`, mirroring
+`annotate_function_emit_gates` exactly: skip `param_env` modules, collect
+candidates, roll `gen_bool(prob)`, insert into a new
+**`Module.task_emit_gates: BTreeSet<NodeId>`** (emitter-surface annotation only).
+The candidate predicate is the **same** as `function_emit`'s — an ordinary
+combinational `Gate` (not `CaseMux`/`CasezMux`/`ForFold`, not `Slice`, ≥1
+operand) — **plus** exclusion of gates already in `function_emit_gates`,
+`generate_loop_gates`, and `soft_union_slice_gates` (the three sibling
+projections; each gate is projected by at most one). The generator call site
+lands in both `generate_module` + `generate_design` **after** the
+`generate_loop` roll (the established "later pass excludes earlier marks"
+ordering), guarded on `task_emit_prob > 0.0`.
+
+### Q3 — the `task automatic` decl + `always_comb` call rendering
+
+For a marked gate `g = op(o0,o1,…)` of width `W` (id `idx`, wire `names[idx]`):
+
+- **Accessor** (defensive, mirrors `function_emit_gate`): `task_emit_gate(m, idx)
+  -> Option<(GateOp, &[NodeId], u32)>` returns `None` unless `idx ∈
+  m.task_emit_gates` and the node still satisfies the candidate contract.
+- **Declaration** (a new section after the `function automatic` / generate-block
+  sections): `task automatic <wire>__t(output logic [W-1:0] o, input logic
+  [W0-1:0] a0, …); o = <render_gate_function_body(op, &operand_widths)>; endtask`
+  — the body renderer is reused verbatim, with `o` (the output param) as the LHS
+  instead of `<wire>__f`.
+- **Var decl + call** (a section, or folded into the wire-decl + assign loop):
+  `logic [W-1:0] <wire>__tv;` + `always_comb <wire>__t(<wire>__tv, <node_ref(o0)>,
+  …);`.
+- **Call-site suppression**: in the per-gate assign loop, a marked task gate's
+  `assign <wire> = render_gate(...)` becomes `assign <wire> = <wire>__tv;` (or a
+  `continue` if the var is the gate wire — but the leading output-var form keeps
+  the assign, just changes the RHS). Positional args handle duplicate operands
+  (the same `render_gate_function_call`-style `node_ref` per position).
+- Naming: `<wire>__t` (task) + `<wire>__tv` (output var) mirror the `__f` / `__u`
+  / `__gi` / `__gen` suffix conventions; `build_names` uniqueness carries over.
+
+### Q4 — the `task_emit_prob` knob
+
+A new **`Config::task_emit_prob: f64`** (default `0.0`) beside
+`function_emit_prob` / `generate_loop_emit_prob`, with a
+`default_task_emit_prob()` serde default, added to the `Default` impl and the
+`0.0..=1.0` validation list. **Config-file-only** (no CLI flag — the
+`function_emit_prob` / `generate_loop_emit_prob` precedent). Default `0.0` ⇒
+`annotate_task_emit_gates` not called (call-site guard) ⇒ no RNG draw, nothing
+marked ⇒ **byte-identical** (`tests/snapshots.rs` untouched). Rides
+`request.knobs` via `#[serde(default)]` ⇒ **no schema bump for the knob**.
+
+### Q5 — the metric + the downstream gate
+
+- A **`Metrics::num_emitted_combinational_tasks`** (`= m.task_emit_gates.len()`,
+  `#[serde(default)]`) surfaced in introspection `module_metrics` ⇒ schema MINOR
+  bump `1.9 → 1.10` (the `1.7→1.8` / `1.8→1.9` metric-bump precedent; bump
+  `SCHEMA_VERSION` + the schema_version assertions + schema doc +
+  README/USER_GUIDE/book current-output refs + the CODEBASE_ANALYSIS envelope).
+- A repo-owned **`tool_matrix --task-emit-gate`** + `ScenarioSet::TaskEmitSweep` +
+  `build_task_emit_sweep_scenarios` (a comb-only DUT forcing `task_emit_prob = 1.0`
+  × three construction strategies, shaped like `function_emit_focus_config`) +
+  `ModuleReport.emitted_combinational_task` (from
+  `prepared.sv_text.contains("task automatic")`) + `CoverageSummary.saw_combinational_task_emit`
+  (lit on Verilator success AND clean Yosys — a combinational task is universally
+  synthesizable, like a function, so the full tool plan runs) + merge +
+  early-return gap arm + 5 proofs + the ModuleReport fixture updates. Bank clean
+  `/tmp/anvil-task-emit-gate-r1`.
+
+### `.6b` impl shape (the implementation slice — likely pre-split)
+
+`.6b` mirrors `.4b` and should pre-split: `.6b.1` (live surface: the knob +
+`Module.task_emit_gates` + `src/ir/task_emit.rs` + the two call-site rolls + the
+`to_sv_with_modules` task decl/var/always_comb/assign rendering + lib proofs +
+a forced-knob Verilator/Yosys/Icarus spot-check) + `.6b.2` (the metric + schema
+`1.9→1.10` and the `tool_matrix --task-emit-gate` gate; may further split
+`.6b.2a`/`.6b.2b`) + `.6b.3` (book/knobs/USER_GUIDE/README/KM closeout).
+Default-off / DUT byte-identical throughout. **Rejected** (carried from `.5` /
+decision `0014`): the `<wire>`-as-var integration in the first cut, a
+multi-output/side-effecting task, a multi-gate-cone task body, a new IR `Task`
+node, and changing the default.
+
 ## 2026-06-16 — Structured emission — `generate for` loop live surface — `STRUCTURED-EMISSION-EXPANSION.4b.1`
 
 The second richer-structured emit surface (decision `0013`) goes live, exactly

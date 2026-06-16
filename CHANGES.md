@@ -1,9 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6a — combinational `task automatic` impl design-detail + `.6` split
+
+**Landed as:** this commit (previous: `b90bdff`). **Docs-only / no source
+change** — a design-detail leaf. Grounds decision `0014`'s `task automatic`
+surface in the real emitter before any `.6b` code, and splits the `.6` impl node
+into `.6a` (this leaf, design-detail) + `.6b` (impl, frontier).
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** (new design-detail entry, newest at top) — resolves
+  all five `.6a` points, grounded in a fresh read of the real code:
+  - **The emitter already has the structural template.** `to_sv_with_modules`
+    emits a per-node decl section before the gate `assign`s (the
+    `function automatic` block, then the `generate for` block) and a per-gate
+    assign loop that `continue`s past a marked gate. The task surface adds a
+    third decl section + the task call. Crucially, **`render_gate_function_body`**
+    (the positional body renderer the function surface already uses) is **reused
+    verbatim** as the task body — no new body renderer.
+  - **(1) Integration:** the **output-var + passthrough-`assign`** form — keep
+    the gate's wire a *net* (`wire [W-1:0] <wire>;`), add `logic [W-1:0]
+    <wire>__tv;`, emit `always_comb <wire>__t(<wire>__tv, <operand refs>);`, and
+    swap the gate's assign RHS to `<wire>__tv`. Only the gate's own drive
+    changes; the wire-decl section stays uniform (the `function_emit` parallel).
+    `<wire>`-as-var (drop the assign, make `<wire>` a procedural var) is rejected
+    for the first cut (touches the wire-decl section). One `always_comb` per task
+    gate.
+  - **(2) Gen-time annotation:** new `src/ir/task_emit.rs annotate_task_emit_gates`
+    + `Module.task_emit_gates: BTreeSet<NodeId>`. Candidate = the **same**
+    predicate as `function_emit` (ordinary combinational `Gate`, not
+    `CaseMux`/`CasezMux`/`ForFold`, not `Slice`, ≥1 operand) **plus** exclusion of
+    `function_emit_gates` + `generate_loop_gates` + `soft_union_slice_gates` (each
+    gate projected by at most one surface). Runs **after** the generate_loop roll
+    (later pass excludes earlier marks); `param_env` skipped.
+  - **(3) Rendering:** a `task_emit_gate` accessor + `task automatic <wire>__t(output
+    logic [W-1:0] o, input logic [Wi-1:0] a0, …); o = <render_gate_function_body>;
+    endtask` + `logic <wire>__tv;` + `always_comb <wire>__t(<wire>__tv, …);` + the
+    assign-RHS swap to `<wire>__tv`. Positional args handle duplicate operands.
+  - **(4) Knob:** `Config::task_emit_prob` (default `0.0`, config-file-only — the
+    `function_emit_prob` / `generate_loop_emit_prob` precedent) ⇒ byte-identical;
+    no introspection schema bump for the knob.
+  - **(5) Metric + gate:** a `num_emitted_combinational_tasks` metric ⇒ schema
+    MINOR `1.9 → 1.10`; `tool_matrix --task-emit-gate` + `ScenarioSet::TaskEmitSweep`
+    + `ModuleReport.emitted_combinational_task` (from `sv_text.contains("task
+    automatic")`) + `saw_combinational_task_emit` (Verilator + both Yosys, full
+    plan — a combinational task is universally synthesizable, like a function).
+  - **`.6b` impl shape** recorded (pre-split `.6b.1` live / `.6b.2` metric+gate /
+    `.6b.3` docs per the `.4b` precedent).
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — split `.6` into an `active`
+  container with children `.6a` (done) + `.6b` (pending); frontier `.6` → `.6b`;
+  resolved the `.6a` open question + added a `.6b` open question; Verification
+  Log + Commit Log + Changelog + metadata updated.
+- **`docs/TASK_TREE.md`** — STRUCTURED-EMISSION-EXPANSION row updated (frontier
+  `.6` → `.6b`; `.6a` done).
+
+**Validation**
+
+- Docs-only — **no `src/` touched** ⇒ `cargo check/clippy/fmt/test` unaffected.
+  `bash scripts/check_memory_architecture.sh` ✅;
+  `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh`
+  ✅ (no card change — decision `0014` already carries `answers:`);
+  `mdbook build book` ✅.
+
+**Impact**
+
+- No behavioural / RTL change. The `task automatic` surface (decision `0014`) is
+  now design-pinned and grounded in real code; `.6b` is the next executable leaf
+  (the live surface + gate + closeout). Default-off / DUT byte-identical contract
+  preserved. Nothing retired.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.5 — pick the third structured surface (`task automatic`) + decision 0014
 
-**Landed as:** this commit (previous: `909c82a`). **Docs-only / no source
+**Landed as:** `b90bdff` (previous: `909c82a`). **Docs-only / no source
 change** — a design/decision leaf. At a no-active-frontier boundary (the
 `generate for` surface fully delivered, all active trees open-ended), the owner
 directed *"pick any tree and roll with it, you decide the best route"*; I
