@@ -365,6 +365,26 @@ fn to_sv_with_modules(
     }
     writeln!(out).unwrap();
 
+    // `STRUCTURED-EMISSION-EXPANSION.2b.1` — combinational `function
+    // automatic` declarations for gates marked by the
+    // `crate::ir::function_emit` pass (the function-emit projection,
+    // decision `0012`). A marked gate's value is computed by a `<wire>__f`
+    // function over its direct operands; the gate's continuous assign
+    // below becomes a call. Default-off: `function_emit_gates` empty ⇒
+    // nothing emitted ⇒ byte-identical. Behaviour-preserving by
+    // construction (the function returns exactly the gate's value).
+    let mut emitted_function = false;
+    for (idx, _node) in m.nodes.iter().enumerate() {
+        if let Some((op, operands, width)) = function_emit_gate(m, idx) {
+            let name = names[idx].as_ref().expect("gate name assigned");
+            out.push_str(&render_gate_function_decl(m, name, op, operands, width));
+            emitted_function = true;
+        }
+    }
+    if emitted_function {
+        writeln!(out).unwrap();
+    }
+
     // Combinational assigns for every gate. Fully static structured
     // gates are lowered here too; keeping them out of `always_comb`
     // avoids empty-sensitivity warnings in strict downstream tools.
@@ -400,6 +420,18 @@ fn to_sv_with_modules(
                 let src_ref = node_ref(src, m, &names);
                 writeln!(out, "    assign {name}__u.w = {src_ref};").unwrap();
                 writeln!(out, "    assign {name} = {name}__u.n;").unwrap();
+                continue;
+            }
+            // `STRUCTURED-EMISSION-EXPANSION.2b.1` — a gate marked for
+            // function emission is driven by a call to its `<wire>__f`
+            // `function automatic` (declared above) instead of the inline
+            // operation. Mutually exclusive with the soft_union overlay (a
+            // `union soft` slice is never a function-emit candidate).
+            // Default-off ⇒ never taken.
+            if function_emit_gate(m, idx).is_some() {
+                let name = names[idx].as_ref().unwrap();
+                let call = render_gate_function_call(name, operands, m, &names);
+                writeln!(out, "    assign {name} = {call};").unwrap();
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -1143,6 +1175,165 @@ fn render_gate(op: GateOp, operands: &[NodeId], m: &Module, names: &[Option<Stri
         Shl => format!("{} << {}", a(0), a(1)),
         Shr => format!("{} >> {}", a(0), a(1)),
     }
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.2b.1` — if the gate at `idx` is marked
+/// for combinational `function automatic` emission and still qualifies (a
+/// non-structured gate with at least one operand), return
+/// `(op, operands, width)` so the caller renders a `function automatic`
+/// projection (`<wire>__f`) + a call instead of the inline `assign`.
+/// `None` ⇒ render the gate inline — an unmarked / non-qualifying gate, or
+/// the default-off path where `function_emit_gates` is empty. The
+/// qualifying contract is re-checked defensively so a stale marker can
+/// never produce an invalid function (mirrors `soft_union_slice_overlay`).
+fn function_emit_gate(m: &Module, idx: usize) -> Option<(GateOp, &[NodeId], u32)> {
+    if !m.function_emit_gates.contains(&(idx as NodeId)) {
+        return None;
+    }
+    let Node::Gate {
+        op,
+        operands,
+        width,
+        ..
+    } = &m.nodes[idx]
+    else {
+        return None;
+    };
+    // Structured (procedural) blocks and `Slice` bit-selects are excluded
+    // from function-emit candidacy (see `crate::ir::function_emit`): the
+    // former are emitted via `always_comb`, the latter uses only a
+    // sub-range of its operand (a full-width param would trip
+    // `UNUSEDSIGNAL`). Re-checked here defensively.
+    if matches!(
+        op,
+        GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. } | GateOp::Slice { .. }
+    ) {
+        return None;
+    }
+    if operands.is_empty() {
+        return None;
+    }
+    Some((*op, operands.as_slice(), *width))
+}
+
+/// The body expression of a combinational `function automatic` projection
+/// of gate `op` over positional parameters `a0..a{n-1}`. The
+/// behaviour-preserving counterpart of [`render_gate`]: each operand
+/// reference is the positional parameter name `a{i}` rather than the
+/// operand's module-level [`node_ref`], so the function returns exactly
+/// the gate's value. `operand_widths[i]` is operand `i`'s bit-width
+/// (needed only for the `Slice` 1-bit special case, mirroring
+/// `render_gate`). Structured gates and `Slice` never reach here — both
+/// are excluded from function-emit candidacy in the first cut; the
+/// (correct) `Slice` arm is retained for a future slice-aware projection
+/// that would pass only the used sub-range.
+fn render_gate_function_body(op: GateOp, operand_widths: &[u32]) -> String {
+    use GateOp::*;
+    let p = |i: usize| format!("a{i}");
+    let joined = |sep: &str| -> String {
+        (0..operand_widths.len())
+            .map(p)
+            .collect::<Vec<_>>()
+            .join(sep)
+    };
+    match op {
+        And => joined(" & "),
+        Or => joined(" | "),
+        Xor => joined(" ^ "),
+        Add => joined(" + "),
+        Mul => joined(" * "),
+        Sub => format!("{} - {}", p(0), p(1)),
+        Not => format!("~{}", p(0)),
+        Eq => format!("{} == {}", p(0), p(1)),
+        Neq => format!("{} != {}", p(0), p(1)),
+        Lt => format!("{} < {}", p(0), p(1)),
+        Gt => format!("{} > {}", p(0), p(1)),
+        Le => format!("{} <= {}", p(0), p(1)),
+        Ge => format!("{} >= {}", p(0), p(1)),
+        Mux => format!("({}) ? ({}) : ({})", p(0), p(1), p(2)),
+        Slice { hi, lo } => {
+            let src_width = operand_widths[0];
+            if src_width == 1 && hi == 0 && lo == 0 {
+                p(0)
+            } else if hi == lo {
+                format!("{}[{hi}]", p(0))
+            } else {
+                format!("{}[{hi}:{lo}]", p(0))
+            }
+        }
+        Concat => {
+            let parts: Vec<String> = (0..operand_widths.len()).map(p).collect();
+            format!("{{{}}}", parts.join(", "))
+        }
+        RedAnd => format!("&({})", p(0)),
+        RedOr => format!("|({})", p(0)),
+        RedXor => format!("^({})", p(0)),
+        Shl => format!("{} << {}", p(0), p(1)),
+        Shr => format!("{} >> {}", p(0), p(1)),
+        CaseMux | CasezMux | ForFold { .. } => {
+            unreachable!("structured gates are excluded from function-emit candidacy")
+        }
+    }
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.2b.1` — render the `function automatic`
+/// declaration for a function-emitted gate `name` (`<name>__f`): the
+/// return type is the gate width, the positional params `a0..a{n-1}`
+/// carry the operand widths, and the body is the behaviour-preserving
+/// re-expression of the operation over those params
+/// ([`render_gate_function_body`]).
+fn render_gate_function_decl(
+    m: &Module,
+    name: &str,
+    op: GateOp,
+    operands: &[NodeId],
+    width: u32,
+) -> String {
+    let fname = format!("{name}__f");
+    let operand_widths: Vec<u32> = operands
+        .iter()
+        .map(|id| m.nodes[*id as usize].width())
+        .collect();
+    let params: Vec<String> = operand_widths
+        .iter()
+        .enumerate()
+        .map(|(i, w)| format!("input logic {} a{}", param_width_decl_w(m, *w), i))
+        .collect();
+    let mut s = String::new();
+    writeln!(
+        s,
+        "    function automatic logic {} {}({});",
+        param_width_decl_w(m, width),
+        fname,
+        params.join(", ")
+    )
+    .unwrap();
+    writeln!(
+        s,
+        "        {} = {};",
+        fname,
+        render_gate_function_body(op, &operand_widths)
+    )
+    .unwrap();
+    writeln!(s, "    endfunction").unwrap();
+    s
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.2b.1` — the call-site expression
+/// `<name>__f(<operand refs>)` that replaces a function-emitted gate's
+/// inline `assign` RHS. The arguments are the gate's operands rendered
+/// with the normal module-level [`node_ref`] (constants fold to literals,
+/// inputs to port names, gates to wire names), in positional order — so
+/// duplicate operands pass the same reference into distinct positional
+/// parameters.
+fn render_gate_function_call(
+    name: &str,
+    operands: &[NodeId],
+    m: &Module,
+    names: &[Option<String>],
+) -> String {
+    let args: Vec<String> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
+    format!("{name}__f({})", args.join(", "))
 }
 
 fn render_static_structured_gate(

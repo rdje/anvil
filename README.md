@@ -71,6 +71,9 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/ir/soft_union.rs`    SV-2023 `union soft` low-bits-slice up-opt
                             annotation pass (`--sv-version 2023` +
                             `soft_union_slice_prob`)
+- `src/ir/function_emit.rs` combinational `function automatic`
+                            emit-projection annotation pass
+                            (`function_emit_prob`; decision `0012`)
 - `src/gen/mod.rs`          `Generator` entry points
 - `src/gen/cone.rs`         fanin-cone recursion
 - `src/gen/module.rs`       leaf-module generator

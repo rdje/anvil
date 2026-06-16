@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.2a` design-detail landed** — pinned the first concrete cut of the combinational `function automatic` surface, grounded in the real `to_sv_with_modules` + the `soft_union.rs` gen-time-annotation precedent: a single-gate "operand function" (the minimal cone ⇒ zero sharing/scoping hazard; the multi-level cone body is a recorded follow-up); a gen-time `annotate_function_emit_gates` pass marking `Module.function_emit_gates: BTreeSet<NodeId>` (emitter-surface annotation only); the `<wire>__f` `function automatic` decl + positional-param body + call rendering; the `function_emit_prob` knob (default `0.0` ⇒ byte-identical); the `saw_combinational_function_emit` downstream gate. Pre-split `.2b` → `.2b.1` (live surface, **frontier**) + `.2b.2` (gate + closeout). Prior: `.1` design — decision `0012`.)
+- Last updated: `2026-06-16` (**`.2b.1` live surface landed** — the first richer-structured emit surface goes live: `Config::function_emit_prob` + `Module.function_emit_gates` + new `src/ir/function_emit.rs` `annotate_function_emit_gates` (gen-time mark, the `soft_union.rs` precedent) + two generator call-site rolls (after soft_union) + `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call rendering + 9 lib proofs. `Slice` excluded from the first cut (`-Wall UNUSEDSIGNAL` on a full-width param; still emitted inline, nothing retired; slice-aware projection = follow-up). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6); forced `function_emit_prob=1.0` sweep clean across Verilator `--lint-only` + both Yosys modes + Icarus (`/tmp/anvil-fe-r2/`). Frontier → `.2b.2` (the repo-owned gate + metric + coverage fact + book/USER_GUIDE/KM closeout). Prior: `.2a` design-detail; `.1` design — decision `0012`.)
 - Owner: repo-local workflow
 - Note: registered `proposed` by owner roadmap steering (`2026-06-15`) as a named
   sibling of `SV-VERSION-TARGETING`; **activated `2026-06-16`** by explicit owner
@@ -73,11 +73,12 @@ behaviour.
   Children: `STRUCTURED-EMISSION-EXPANSION.2b.1`, `STRUCTURED-EMISSION-EXPANSION.2b.2`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.1`
-  Status: `pending`
+  Status: `done`
   Goal: `The live first-cut surface: Config::function_emit_prob (default 0.0, serde default) + Module.function_emit_gates: BTreeSet<NodeId> + src/ir/function_emit.rs annotate_function_emit_gates(m, rng, prob) (collect non-structured/non-soft_union Gate candidates, roll gen_bool(prob), mark) + the generator call-site roll (guarded prob > 0.0) + the to_sv_with_modules rendering (a function automatic decl section + positional-param body via a render_gate positional variant + the call-site assign) + lib proofs (a marked gate emits a behaviour-preserving function + call; default-off byte-identical; the mark leaves CSE/canonical_module_signature untouched) + a forced-knob Verilator --lint-only spot-check. Default-off / DUT byte-identical (snapshots 6/6).`
   Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. the new function_emit proofs; cargo test --test snapshots 6/6 byte-identical (default-off); a forced function_emit_prob=1.0 sample lints clean under Verilator. Committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. Config::function_emit_prob (default 0.0, default_function_emit_prob() serde default; added to the Default impl + the 0.0..=1.0 validation list) + Module.function_emit_gates: BTreeSet<NodeId> (Default-empty; emitter-surface annotation only — flat IR / validators / CSE / canonical_module_signature untouched, disjoint from soft_union_slice_gates) + new src/ir/function_emit.rs annotate_function_emit_gates(m, rng, prob) (gen-time mark; the soft_union.rs precedent; rolls gen_bool(prob) per qualifying candidate; skips param_env modules) + call-site rolls in BOTH generate_module and generate_design guarded on prob > 0.0, run AFTER the soft_union pass (so union soft marks are excluded) + src/emit/sv.rs rendering: a function automatic decl section (after the wire decls, before the gate assigns) emitting per marked gate function automatic logic[W-1:0] <wire>__f(input logic[Wi-1:0] a0,...); <wire>__f = <op over a0..a{n-1}>; endfunction, and a call-site substitution making the marked gate's assign become assign <wire> = <wire>__f(<operand refs>). Helpers: function_emit_gate (marked + defensively-revalidated lookup), render_gate_function_body (positional behaviour-preserving counterpart of render_gate), render_gate_function_decl, render_gate_function_call. FIRST-CUT SCOPING REFINEMENT: Slice EXCLUDED from candidacy — a forced function_emit_prob=1.0 verilator -Wall sweep flagged UNUSEDSIGNAL on every slice_*__f param (a bit-select reads only a sub-range of its operand, so a full-width param leaves bits unused); Slice still emits inline (NOTHING RETIRED), a slice-aware projection that passes only src[hi:lo] is a recorded follow-up. All other ops use operands in full and are warning-clean. NO schema bump (default-off prob-knob precedent: soft_union/aggregate/memory/fsm/multi_clock all rode the existing schema_version via #[serde(default)]; only the sv_version enum took a dedicated 1.1->1.2 bump; introspect schema tests stay green at 1.7). 9 lib proofs (mark/skip/structured/slice/soft-union/param-env exclusions + identity-and-node-count-untouched + end-to-end emit + duplicate-operand positional params).`
+  Verification: `cargo check --all-targets clean; cargo clippy --all-targets -- -D warnings clean; cargo fmt --all --check clean; cargo test --lib 467 passed / 2 ignored (incl. 9 new function_emit proofs; introspect schema_version 1.7 + umbrella DUT-byte-identical still green); cargo test --test snapshots 6/6 byte-identical (default-off). Forced function_emit_prob=1.0 sweep (5 seeds: 1/7/42/100/2024, 830-1299 functions each, banked /tmp/anvil-fe-r2/): Verilator --lint-only 5/5 CLEAN (repo bar), 0 __f-param -Wall warnings (slice fix resolved every change-introduced warning; residual -Wall UNUSEDSIGNAL on ordinary gate wires is pre-existing — the function-emit-OFF baseline has 20), Yosys without-abc 5/5 + with-abc 5/5, Icarus iverilog -g2012 5/5 CLEAN.`
+  Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.2b.2`
   Status: `pending`
@@ -88,14 +89,15 @@ behaviour.
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.2b.1`** (the live first-cut
-combinational `function automatic` surface). `.1` (decision `0012`) and `.2a`
-(design-detail) are done. Nothing retired.
+**Active frontier: `STRUCTURED-EMISSION-EXPANSION.2b.2`** (the repo-owned
+downstream gate + closeout). `.1` (decision `0012`), `.2a` (design-detail), and
+`.2b.1` (the live combinational `function automatic` surface) are done. Nothing
+retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.2b.1` | `pending` | Live surface: `Config::function_emit_prob` + `Module.function_emit_gates` + `src/ir/function_emit.rs` (`annotate_function_emit_gates`) + the gen-time call-site roll + the `to_sv_with_modules` `function automatic` decl/positional-body/call rendering + lib proofs + a forced-knob Verilator lint. Default-off / DUT byte-identical. **A real emitter change + a downstream spot-check — a focus-intensive slice; a fresh session is reasonable here.** |
-| 2 | `STRUCTURED-EMISSION-EXPANSION.2b.2` | `pending` | The repo-owned gate + closeout: `saw_combinational_function_emit` + `num_emitted_combinational_functions` + a `tool_matrix` scenario (Verilator + both Yosys + Icarus) + book/USER_GUIDE/KM. |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.2b.2` | `pending` | The repo-owned gate + closeout: `saw_combinational_function_emit` + `num_emitted_combinational_functions` (structural scan of `function_emit_gates`) + a `tool_matrix` scenario or dedicated bank (Verilator + both Yosys + Icarus) + book (a structured-emission chapter) / USER_GUIDE (`function_emit_prob`) / KM + the README CLI-truth knob entry. Forced-sweep evidence already banked at `/tmp/anvil-fe-r2/` (5 seeds, 3 tools, both Yosys modes). Default-off / DUT byte-identical. |
+| — | `STRUCTURED-EMISSION-EXPANSION.2b.1` | `done` | Live surface delivered: `Config::function_emit_prob` + `Module.function_emit_gates` + `src/ir/function_emit.rs` (`annotate_function_emit_gates`) + the gen-time call-site rolls + the `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call rendering + 9 lib proofs + a forced-knob downstream sweep. **`Slice` excluded** (a bit-select uses only a sub-range ⇒ `-Wall UNUSEDSIGNAL` on a full-width param; still emitted inline, nothing retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6). |
 | — | `STRUCTURED-EMISSION-EXPANSION.2a` | `done` | Design-detail (no source): pinned the first-cut single-gate "operand function" (minimal cone ⇒ zero sharing hazard), the gen-time annotation (`Module.function_emit_gates` + `annotate_function_emit_gates`, the `soft_union.rs` precedent), the `function automatic` signature/positional-body/call rendering, the `function_emit_prob` knob, and the downstream gate. Pre-split `.2b` → `.2b.1`/`.2b.2`. |
 | — | `STRUCTURED-EMISSION-EXPANSION.1` | `done` | Decision `0012`: picked the combinational `function automatic` emit-projection as the first surface (over interface/modport + nested generate), with its valid-by-construction discipline, opt-in `function_emit_prob`, and downstream gate. Split `.1`/`.2`/future. No source change. |
 
@@ -135,6 +137,7 @@ combinational `function automatic` surface). `.1` (decision `0012`) and `.2a`
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2b.1` | **Live emitter change** (`src/config.rs` knob + `src/ir/types.rs` `Module.function_emit_gates` + new `src/ir/function_emit.rs` annotate pass + `src/gen/mod.rs` two call-site rolls + `src/emit/sv.rs` `function automatic` decl/body/call rendering). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 467 passed / 2 ignored (incl. 9 new `function_emit` proofs; introspect `schema_version` 1.7 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `function_emit_prob=1.0` sweep (5 seeds 1/7/42/100/2024, 830–1299 functions each, `/tmp/anvil-fe-r2/`): Verilator `--lint-only` **5/5 CLEAN**, **0** `__f`-param `-Wall` warnings (`Slice` excluded; residual `-Wall UNUSEDSIGNAL` is pre-existing — OFF baseline has 20), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5 CLEAN**. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.2a` | Design-detail leaf, **no source change** (grounded in a fresh read of `src/emit/sv.rs` — `to_sv_with_modules` gate-emission loop + `build_names`/`node_ref`/`render_gate`/`param_width_decl_w`; `src/ir/soft_union.rs` + `Module.soft_union_slice_gates` — the gen-time-annotation precedent; the `aggregate_layout` projection). `DEVELOPMENT_NOTES.md` design-detail entry (the five points + the `.2b` pre-split): first-cut single-gate "operand function"; gen-time `annotate_function_emit_gates` + `Module.function_emit_gates`; the `<wire>__f` `function automatic` decl + positional-param body + call; `function_emit_prob` (default `0.0` byte-identical); the `saw_combinational_function_emit` gate. `.2b` pre-split → `.2b.1`/`.2b.2`; frontier set to `.2b.1`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean (no source touched). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.1` | Design/decision leaf, **no source change** (grounded in a fresh read of `src/emit/sv.rs` `to_sv_with_modules` + the `aggregate_layout` projection + `soft_union_slice_overlay`, `src/ir/soft_union.rs`, and the `aggregate_prob`/`soft_union_slice_prob` default-off emit-projection knobs in `src/config.rs`). Decision `0012` + `INDEX.md` row; tree activated (`proposed → active`); `.2`/`.2a`/`.2b` registered; frontier set to `.2a`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean; `KNOWLEDGE_MAP.md` regenerated (decision `0012` carries `answers:` front-matter). Baseline `cargo check --all-targets` clean (from the prior gate; no source touched). | `done` |
 | `2026-06-15` | `STRUCTURED-EMISSION-EXPANSION` | Tree registered `proposed` (ownership only, no leaf executed). | `done` (registration) |
@@ -143,12 +146,36 @@ combinational `function automatic` surface). `.1` (decision `0012`) and `.2a`
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.2b.1` | `STRUCTURED-EMISSION-EXPANSION.2b.1 — combinational function automatic emit-projection (live surface)` | Live emitter change: `function_emit_prob` knob + `Module.function_emit_gates` + `src/ir/function_emit.rs` gen-time mark + two generator call-site rolls (after soft_union) + `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call rendering + 9 lib proofs. `Slice` excluded from the first cut (`-Wall UNUSEDSIGNAL` on a full-width param; still emitted inline, nothing retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6); forced sweep clean across Verilator + both Yosys + Icarus (`/tmp/anvil-fe-r2/`). |
 | `STRUCTURED-EMISSION-EXPANSION.2a` | `STRUCTURED-EMISSION-EXPANSION.2a — combinational function impl design-detail` | Design-detail (no source): pinned the first-cut single-gate "operand function" (minimal cone ⇒ zero sharing hazard), the gen-time `annotate_function_emit_gates` + `Module.function_emit_gates` annotation (the `soft_union.rs` precedent), the `function automatic` decl/positional-body/call rendering, the `function_emit_prob` knob, and the downstream gate. Pre-split `.2b` → `.2b.1`/`.2b.2`. |
 | `STRUCTURED-EMISSION-EXPANSION.1` | `STRUCTURED-EMISSION-EXPANSION.1 — activate lane + decision 0012` | Decision `0012`: the first structured surface is a default-off, valid-by-construction combinational `function automatic` emit-projection of an existing cone (over interface/modport + nested generate). Activated the lane by owner directive; split `.1`/`.2`/future; pre-split `.2` → `.2a`/`.2b`. No source change. |
 | `STRUCTURED-EMISSION-EXPANSION` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Registered `proposed` alongside the activated `SV-VERSION-TARGETING` lane. |
 
 ## Changelog
 
+- `2026-06-16`: **`.2b.1` live surface landed** — the first richer-structured
+  emit surface (decision `0012`) goes live, default-off / DUT byte-identical.
+  `Config::function_emit_prob` (default `0.0`) + `Module.function_emit_gates:
+  BTreeSet<NodeId>` (emitter-surface annotation only; identity/CSE/validators
+  untouched; disjoint from `soft_union_slice_gates`) + new
+  `src/ir/function_emit.rs` `annotate_function_emit_gates(m, rng, prob)` (gen-time
+  mark, the `soft_union.rs` precedent; skips `param_env` modules) + call-site
+  rolls in `generate_module`/`generate_design` (after the soft_union pass) +
+  `src/emit/sv.rs` rendering: a `function automatic` decl section + a call-site
+  substitution (`assign <wire> = <wire>__f(<operand refs>);`), with
+  `render_gate_function_body` the positional behaviour-preserving counterpart of
+  `render_gate`. **First-cut scoping refinement: `Slice` excluded** — a forced
+  `function_emit_prob=1.0` `verilator -Wall` sweep flagged `UNUSEDSIGNAL` on every
+  `slice_*__f` param (a bit-select reads only a sub-range of its operand, so a
+  full-width param leaves bits unused); `Slice` still emits inline (nothing
+  retired), a slice-aware projection passing only `src[hi:lo]` is a recorded
+  follow-up. **No schema bump** (the default-off prob-knob precedent —
+  `soft_union`/`aggregate`/`memory`/`fsm`/`multi_clock` all rode the existing
+  `schema_version` via `#[serde(default)]`; only the `sv_version` enum took a
+  dedicated bump; introspect tests stay green at `1.7`). 9 lib proofs; snapshots
+  6/6 byte-identical; forced sweep (5 seeds) clean across Verilator `--lint-only`
+  + both Yosys modes + Icarus (`/tmp/anvil-fe-r2/`). Frontier → `.2b.2` (the
+  repo-owned gate + metric + coverage fact + book/USER_GUIDE/KM closeout).
 - `2026-06-16`: **`.2a` design-detail landed** (no source change) — pinned the
   first concrete cut of the combinational `function automatic` surface, grounded in
   the real `to_sv_with_modules` + the `soft_union.rs` gen-time-annotation precedent.

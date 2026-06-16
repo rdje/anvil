@@ -1,9 +1,98 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.1 — combinational `function automatic` emit-projection (live surface)
+
+**Landed as:** this commit (previous: `e9be3c7`). Default-off / **DUT
+byte-identical**. The first richer-structured emission surface goes live
+(decision `0012`, design-of-record the `.2a` `DEVELOPMENT_NOTES` entry): a
+selected combinational gate can be rendered as a behaviour-preserving
+combinational `function automatic` projection instead of an inline `assign`.
+
+**What changed (why)**
+
+- **`src/config.rs`** — new opt-in knob `Config::function_emit_prob: f64`
+  (`default_function_emit_prob()` ⇒ `0.0`, `#[serde(default)]`), placed beside
+  `aggregate_prob` / `soft_union_slice_prob`; added to the `Default` impl and the
+  `0.0..=1.0` validation list. Default `0.0` ⇒ no roll ⇒ byte-identical.
+- **`src/ir/types.rs`** — new `Module.function_emit_gates: BTreeSet<NodeId>`
+  (the set of gates to project as functions), beside `soft_union_slice_gates`.
+  `Default`-empty ⇒ byte-identical. An emitter-surface annotation only — the flat
+  IR body, validators, CSE keys and `canonical_module_signature` are unaffected
+  and it is deliberately not hashed into identity. Disjoint from
+  `soft_union_slice_gates` by construction.
+- **`src/ir/function_emit.rs`** (new) — `annotate_function_emit_gates(m, rng,
+  prob)`: the gen-time annotation pass (the `soft_union.rs` precedent). Collects
+  qualifying candidates — a *computational* `Node::Gate` (not
+  `CaseMux`/`CasezMux`/`ForFold`, **not `Slice`**), with `>= 1` operand, not
+  already `union soft`-marked — rolls `gen_bool(prob)` per candidate (seeded;
+  never `thread_rng`), marks. Skips Phase 5 `param_env` modules (symbolic widths).
+  9 lib proofs (mark/skip/structured/slice/soft-union/param exclusions,
+  identity-untouched, end-to-end emit, duplicate-operand positional params).
+- **`src/gen/mod.rs`** — call-site rolls in both `generate_module` and
+  `generate_design`, guarded on `function_emit_prob > 0.0`, **after** the
+  soft_union pass (so `union soft` marks are visible and excluded). Mirrors the
+  soft_union call-site exactly.
+- **`src/emit/sv.rs`** — the rendering: a `function automatic` decl section
+  (after the wire decls, before the gate assigns) emitting, per marked gate, a
+  `<wire>__f` function — `function automatic logic [W-1:0] <wire>__f(input logic
+  [Wi-1:0] a0, …); <wire>__f = <op over a0..a{n-1}>; endfunction` — and, in the
+  gate-assign loop, the marked gate's `assign` becomes `assign <wire> =
+  <wire>__f(<operand refs>);`. Helpers: `function_emit_gate` (the marked +
+  defensively-revalidated lookup), `render_gate_function_body` (the positional
+  behaviour-preserving counterpart of `render_gate`), `render_gate_function_decl`,
+  `render_gate_function_call`.
+
+**First-cut scoping — `Slice` excluded (a real `-Wall` finding, not a guess).** A
+forced `function_emit_prob=1.0` sweep showed `verilator -Wall` flagging
+`UNUSEDSIGNAL` on `slice_*__f` function params: `Slice` is the one operation that
+uses only a *sub-range* of its operand, so a full-width parameter leaves the
+remaining bits unused. `Slice` is therefore excluded from the first-cut candidate
+set (still emitted inline — **nothing retired**); a slice-aware projection that
+passes only the used sub-range is a recorded follow-up. All other ops use their
+operands fully and are warning-clean.
+
+**Validation**
+
+- `cargo check --all-targets` ✅; `cargo clippy --all-targets -- -D warnings` ✅;
+  `cargo fmt --all --check` ✅.
+- `cargo test --lib` ✅ 467 passed / 2 ignored (incl. the 9 new `function_emit`
+  proofs; introspect `schema_version` tests still green at `1.7` — see below;
+  `umbrella` DUT-byte-identical still green).
+- `cargo test --test snapshots` ✅ **6/6 byte-identical** (default-off contract).
+- **Forced `function_emit_prob=1.0` downstream sweep** (5 seeds: 1/7/42/100/2024,
+  830–1299 functions each, banked at `/tmp/anvil-fe-r2/`): **Verilator
+  `--lint-only` 5/5 CLEAN** (the repo bar), **0** `__f`-param `-Wall` warnings
+  (the slice fix resolved every change-introduced warning), **Yosys without-abc
+  5/5 + with-abc 5/5**, **Icarus `iverilog -g2012` 5/5 CLEAN**. (The residual
+  `-Wall UNUSEDSIGNAL` on ordinary gate wires is pre-existing — the function-emit
+  **OFF** baseline has 20 of them — and inherent to ANVIL's random RTL; the repo's
+  downstream gate is `verilator --lint-only`, not `-Wall`.)
+
+**Schema note.** `function_emit_prob` surfaces in `--dump-config` / `--introspect`
+`request.knobs` automatically (serde projection of `Config`). No
+`schema_version` bump: it follows the default-off probability-knob precedent
+(`soft_union_slice_prob` / `aggregate_prob` / `memory_prob` / `fsm_prob` /
+`multi_clock_prob` were all added under the existing version via
+`#[serde(default)]`; only the `sv_version` *enum* took a dedicated 1.1→1.2 bump).
+A `1.7` consumer ignores the new key; an absent key reads back as `0.0`. `.2b.2`
+confirms at closeout.
+
+**Impact**
+
+- ANVIL gains its **first** richer-structured emit surface (a `function
+  automatic` decl + call) — a new legal structural shape for downstream tools to
+  parse / elaborate / inline. Default `anvil` build and `--artifact dut` stay
+  byte-identical (knob `0.0`).
+- Frontier advances to `.2b.2` (the repo-owned `tool_matrix` gate +
+  `saw_combinational_function_emit` + `num_emitted_combinational_functions` +
+  book/USER_GUIDE/KM closeout). **book / USER_GUIDE / KM are deferred to `.2b.2`
+  by the task-tree split** — default-off means no default user-visible behaviour
+  change at this boundary.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2a — combinational `function` impl design-detail
 
-**Landed as:** this commit (previous: `095e471`). **Docs-only** (no source
+**Landed as:** `e9be3c7` (previous: `095e471`). **Docs-only** (no source
 change); DUT byte-identical. The design-detail leaf for `.2` — the first
 richer-structured surface (decision `0012`), the combinational `function
 automatic` emit-projection. Pins the `.2b` implementation shape before any code,

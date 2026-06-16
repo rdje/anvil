@@ -225,9 +225,28 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    blocker, nothing retired). Default byte-identical throughout. This closes
    ROADMAP steering gap 1's "version-targeted breadth" with a real,
    downstream-proven 2023 construct (not just the 2012-floor down-gate).
-2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
-   synthesizable SV surfaces (function/task, interface/modport, nested
-   generate), valid-by-construction; bigger and more open-ended.
+2. **`STRUCTURED-EMISSION-EXPANSION`** (`active` — **activated `2026-06-16` by
+   explicit owner directive**) — richer structured synthesizable SV surfaces
+   (function/task, interface/modport, nested generate), valid-by-construction;
+   bigger and more open-ended. Decision
+   [`0012`](docs/decisions/0012-structured-emission-first-surface-combinational-function.md)
+   picks the **first** surface: a default-off, valid-by-construction combinational
+   `function automatic` emit-projection of an existing cone (over interface/modport
+   — weak/version-inconsistent Yosys synth — and nested generate — bigger blast
+   radius). **Progress:** `.1` (decision `0012`) + `.2a` (impl design-detail) +
+   `.2b.1` (**done `2026-06-16`**: the live surface — `Config::function_emit_prob`
+   + `Module.function_emit_gates` + `src/ir/function_emit.rs` gen-time mark + the
+   `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call
+   rendering; 9 lib proofs; default-off / DUT byte-identical, snapshots 6/6; forced
+   `function_emit_prob=1.0` sweep clean across Verilator `--lint-only` + both Yosys
+   modes + Icarus, `/tmp/anvil-fe-r2/`; `Slice` excluded from the first cut — a
+   bit-select uses only a sub-range of its operand so a full-width param trips
+   `-Wall UNUSEDSIGNAL`; still emitted inline, nothing retired, slice-aware
+   projection = follow-up). Frontier = `.2b.2` (the repo-owned `tool_matrix` gate +
+   `saw_combinational_function_emit` + `num_emitted_combinational_functions` +
+   book/USER_GUIDE/KM closeout). `task`, nested `generate`, `interface`/`modport`
+   are future vetted surfaces (`.3`+), each with its own decision; serves ROADMAP
+   steering gap 1 (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,

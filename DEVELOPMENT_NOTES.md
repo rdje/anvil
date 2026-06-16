@@ -5,6 +5,70 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — combinational `function automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.2b.1`
+
+The `.2a` design (above) implemented as a real, default-off emitter change. The
+mechanism is exactly the `soft_union.rs` precedent; two findings during
+implementation are worth recording.
+
+### What landed (the live surface)
+
+- `Config::function_emit_prob` (default `0.0`, `#[serde(default)]`) +
+  `Module.function_emit_gates: BTreeSet<NodeId>` (default empty) — both beside
+  their `soft_union` siblings.
+- `src/ir/function_emit.rs::annotate_function_emit_gates(m, rng, prob)` — the
+  gen-time mark, rolled at the call site in **both** `generate_module` and
+  `generate_design`, guarded on `prob > 0.0`, **after** the soft_union pass so the
+  `union soft` marks are visible and excluded.
+- `src/emit/sv.rs` — a `function automatic` decl section (after the wire decls,
+  before the gate assigns) + a call-site substitution in the gate-assign loop.
+  `render_gate_function_body` is the **positional** counterpart of `render_gate`
+  (param `a{i}` in place of `node_ref(operands[i])`), so duplicate operands (e.g.
+  `xor(n, n)`) get distinct params with no aliasing, and the function returns
+  exactly the gate's value — behaviour-preserving by construction.
+
+### Gotcha — `Slice` is excluded from the first-cut candidate set (`-Wall UNUSEDSIGNAL`)
+
+The `.2a` candidate rule said "any non-structured `Gate` with ≥1 operand". A forced
+`function_emit_prob=1.0` sweep then showed `verilator -Wall` flagging
+`UNUSEDSIGNAL` on every `slice_*__f` function — and **only** slice functions.
+Root cause: `Slice {hi, lo}` reads only bits `[hi:lo]` of its operand, so a
+function taking the **full-width** source as `a0` and returning `a0[hi:lo]` leaves
+the remaining bits of `a0` unread → an unused-variable warning. Every other op
+(`And`/`Or`/`Xor`/`Add`/`Sub`/`Mul`/`Not`/comparisons/`Mux`/`Concat`/reductions/
+shifts) consumes its operands **in full** (ANVIL's IR is width-consistent: operand
+width == result width for the arithmetic/logic ops; `Concat` sums; `Mux` sel is
+1-bit; shift amounts are used whole), so they are warning-clean. Decision:
+**exclude `Slice` from function-emit candidacy** in the first cut (in both the
+annotate predicate and the emitter's defensive `function_emit_gate` re-check).
+`Slice` still emits inline — **nothing is retired** (`feedback_never_retire_strategies`);
+a slice-aware projection that passes only the used sub-range `src[hi:lo]` (so the
+function param is exactly the slice width) is a recorded follow-up. The
+`render_gate_function_body` `Slice` arm is kept (correct) for that future cut even
+though it is currently unreachable via candidacy.
+
+Note the repo's downstream bar is `verilator --lint-only` (not `-Wall`):
+`UNUSEDSIGNAL` is a `-Wall`-only warning and is **pre-existing** in ANVIL's random
+RTL (the function-emit-OFF baseline carries ~20 of them — gates with naturally
+dead output bits). The slice fix is about not letting the function projection
+*add* such warnings; at the repo bar the forced sweep is fully clean across
+Verilator + both Yosys modes + Icarus.
+
+### Why no introspection `schema_version` bump
+
+`function_emit_prob` surfaces in `request.knobs` automatically (the introspection
+doc embeds `cfg.clone()`), so it also changes `run_id` (a content hash over
+`serde_json::to_string(&Config)`). That is **not** a schema bump here: it follows
+the established default-off probability-knob precedent —
+`soft_union_slice_prob` / `aggregate_prob` / `aggregate_array_prob` /
+`memory_prob` / `fsm_prob` / `multi_clock_prob` were all added under the existing
+`schema_version` via `#[serde(default)]` (the schema doc §6.1 "exact serde
+projection of Config; new knobs carry `#[serde(default)]`, which keeps the schema
+additive"). Only `Config::sv_version` (a new emission-capability *enum*) took a
+dedicated `1.1 → 1.2` bump. A `1.7` consumer ignores the new key; an absent key
+reads back as `0.0`. The introspect `schema_version` lib tests stay green at
+`1.7`. `.2b.2` reconfirms at closeout.
+
 ## 2026-06-16 — Structured emission — combinational `function automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.2a`
 
 Design-detail leaf for `.2` — the first richer-structured surface (decision

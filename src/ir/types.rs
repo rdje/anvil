@@ -415,6 +415,22 @@ pub struct Module {
     /// `aggregate_layout`, this is an emitter-surface annotation only and
     /// is deliberately not hashed into identity.
     pub soft_union_slice_gates: BTreeSet<NodeId>,
+    /// `STRUCTURED-EMISSION-EXPANSION.2b.1` — the set of combinational
+    /// `Node::Gate` `NodeId`s the emitter should render as a
+    /// behaviour-preserving combinational `function automatic` projection
+    /// (a `<wire>__f` function over the gate's direct operands plus a call
+    /// site) instead of an inline `assign <wire> = <op>;` (decision `0012`).
+    /// Populated by the post-construction `crate::ir::function_emit` pass
+    /// under the opt-in `Config::function_emit_prob` knob. Empty (the
+    /// `Default`) ⇒ byte-identical emission. The function returns exactly
+    /// the gate's value, so the projection is behaviour-preserving by
+    /// construction; like `soft_union_slice_gates` / `aggregate_layout`
+    /// this is an emitter-surface annotation only — the flat IR body,
+    /// validators, CSE keys and `canonical_module_signature` are all
+    /// unaffected and it is deliberately not hashed into identity.
+    /// Disjoint from `soft_union_slice_gates` by construction (a
+    /// `union soft` slice is never a function-emit candidate).
+    pub function_emit_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

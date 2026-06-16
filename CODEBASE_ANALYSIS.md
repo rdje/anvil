@@ -314,6 +314,33 @@ src/
 │                     (`tests/sv_version_downstream.rs`); Yosys/Icarus
 │                     reject the syntax → recorded no-op.
 │
+├── ir/function_emit.rs  STRUCTURED-EMISSION-EXPANSION.2b.1 — the first
+│                     richer-structured emit surface (decision 0012).
+│                     Gen-time `annotate_function_emit_gates(m, rng, prob)`
+│                     pass (rolled at the `gen/mod.rs` call site like
+│                     `soft_union`, after it; param-env modules skipped)
+│                     marks *computational* `Node::Gate`s — not structured
+│                     (CaseMux/CasezMux/ForFold), **not `Slice`**, ≥1
+│                     operand, not already `union soft`-marked — into the
+│                     new emitter-surface `Module.function_emit_gates`
+│                     (BTreeSet<NodeId>, not hashed into identity, disjoint
+│                     from `soft_union_slice_gates`). The emitter
+│                     (`emit/sv.rs::function_emit_gate` +
+│                     `render_gate_function_decl`/`_body`/`_call`) renders
+│                     each marked gate as a behaviour-preserving
+│                     `function automatic logic[W-1:0] <wire>__f(positional
+│                     params)` decl + a `assign <wire> = <wire>__f(...)`
+│                     call. Default-off (`function_emit_prob == 0.0`)
+│                     byte-identical (snapshots 6/6). `Slice` excluded
+│                     because a bit-select uses only a sub-range of its
+│                     operand (a full-width param trips `-Wall
+│                     UNUSEDSIGNAL`); still emitted inline (nothing
+│                     retired), slice-aware projection = follow-up. Forced
+│                     `function_emit_prob=1.0` sweep clean across Verilator
+│                     `--lint-only` + Yosys both modes + Icarus
+│                     (`/tmp/anvil-fe-r2/`). Repo-owned gate + coverage
+│                     fact = `.2b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded
