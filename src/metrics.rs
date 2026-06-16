@@ -326,6 +326,16 @@ pub struct Metrics {
     /// (schema `1.9`).
     #[serde(default)]
     pub num_emitted_generate_loops: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.2a` — number of combinational
+    /// gates this module emits as a `task automatic` projection
+    /// (`Module.task_emit_gates.len()`; the `task_emit_prob` knob). Zero
+    /// unless `task_emit_prob > 0.0` selected qualifying gates. A post-hoc
+    /// structural count of an emitter-surface annotation — adding it changes
+    /// no emitted RTL (default-off byte-identical). `#[serde(default)]` keeps
+    /// the introspection projection additive (schema `1.10`).
+    #[serde(default)]
+    pub num_emitted_combinational_tasks: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -907,6 +917,11 @@ pub fn compute(m: &Module) -> Metrics {
     // gates the emitter projects as a `generate for` loop (an emitter-surface
     // annotation; structural, post-hoc, RTL-invisible).
     out.num_emitted_generate_loops = m.generate_loop_gates.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.6b.2a` — count of gates the emitter
+    // projects as a `task automatic` (an emitter-surface annotation;
+    // structural, post-hoc, RTL-invisible).
+    out.num_emitted_combinational_tasks = m.task_emit_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3222,6 +3237,29 @@ mod tests {
         // Marked ⇒ counted.
         m.generate_loop_gates.insert(g);
         assert_eq!(compute(&m).num_emitted_generate_loops, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_combinational_tasks() {
+        // `STRUCTURED-EMISSION-EXPANSION.6b.2a` — the metric is the count of
+        // combinational gates marked for the `task automatic` emit-projection.
+        let mut m = Module {
+            name: "te".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // id 0
+        let (g, _) = m.intern_gate(GateOp::And, vec![0, 0], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_combinational_tasks, 0);
+        // Marked ⇒ counted.
+        m.task_emit_gates.insert(g);
+        assert_eq!(compute(&m).num_emitted_combinational_tasks, 1);
     }
 
     #[test]

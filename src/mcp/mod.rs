@@ -1529,7 +1529,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -1575,7 +1575,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -1616,7 +1616,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -1735,7 +1735,7 @@ mod tests {
             json!({ "seed": 42, "config": cfg_json, "query": "module_reachability" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "module_reachability");
         // module_reachability populates its own vec; the others are empty/omitted.
@@ -1944,7 +1944,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -2045,7 +2045,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -2100,7 +2100,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.9");
+        assert_eq!(doc["schema_version"], "1.10");
     }
 
     #[test]

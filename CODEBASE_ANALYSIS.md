@@ -534,16 +534,18 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.9"`
+│                     only the envelope metadata (`schema_version` `"1.10"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
 │                     `input_reach` / `flop_reset_provenance` /
 │                     `module_reachability` analyze query kinds,
 │                     1.7→1.8 the `Metrics::num_emitted_combinational_functions`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.2b.2a`), and
+│                     count (`STRUCTURED-EMISSION-EXPANSION.2b.2a`),
 │                     1.8→1.9 the `Metrics::num_emitted_generate_loops`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.4b.2a`);
+│                     count (`STRUCTURED-EMISSION-EXPANSION.4b.2a`), and
+│                     1.9→1.10 the `Metrics::num_emitted_combinational_tasks`
+│                     count (`STRUCTURED-EMISSION-EXPANSION.6b.2a`);
 │                     the default introspection-document shape is unchanged.
 │                     The sibling `DerivedAnalysisDocument` +
 │                     `derived_analysis_document` builder reuse this envelope

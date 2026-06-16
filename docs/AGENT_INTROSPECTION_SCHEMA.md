@@ -404,7 +404,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.9"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.10"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -414,7 +414,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.9"`**.
+This document defines **`schema_version = "1.10"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -515,6 +515,19 @@ This document defines **`schema_version = "1.9"`**.
   probability-knob precedent — `function_emit_prob` / `soft_union_slice_prob` /
   `aggregate_prob` / `memory_prob` / `fsm_prob` / `multi_clock_prob`; this bump is
   for the new derived **metric**, not the knob.)
+- **`1.9` → `1.10` (`STRUCTURED-EMISSION-EXPANSION.6b.2a`).** Additive MINOR bump:
+  surfaced the new `Metrics::num_emitted_combinational_tasks` field (the count of
+  combinational gates a module emits as a `task automatic` projection —
+  `Module.task_emit_gates.len()`, the opt-in `task_emit_prob` knob, decision
+  `0014`) in `module_metrics`. `#[serde(default)]`, so a `1.9` consumer ignores the
+  new key and an absent key reads back as `0`. RTL-invisible (a post-hoc structural
+  count of an emitter-surface annotation — exactly the additive-growth case §7
+  names, like the `1.8 → 1.9` `num_emitted_generate_loops` Metrics-field bump); the
+  default-`dut` artifact stays byte-identical, so determinism is preserved. (The
+  companion `task_emit_prob` *knob* was added to `request.knobs` at `.6b.1` under
+  the existing version via `#[serde(default)]`, per the default-off
+  probability-knob precedent; this bump is for the new derived **metric**, not the
+  knob.) MINOR is an integer, so this is `1.9 → 1.10` (ten), not a decimal.
 
 ---
 
@@ -553,5 +566,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.9"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.10"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

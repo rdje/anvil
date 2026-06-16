@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.2a — task emit metric + introspection schema 1.10
+
+**Landed as:** this commit (previous: `55761f9`). The `task automatic`
+emit-projection (`.6b.1`) gains its derived metric, surfaced in the introspection
+document, so the schema MINOR-bumps `1.9 → 1.10`. Default-off / DUT
+byte-identical (a post-hoc `Metrics` field changes no emitted RTL).
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — `Metrics::num_emitted_combinational_tasks: usize`
+  (`#[serde(default)]`), computed in `metrics::compute()` as
+  `m.task_emit_gates.len()` (a post-hoc structural count of an emitter-surface
+  annotation; reads `0` by default, the configured count when `task_emit_prob`
+  fired). Lib proof `metrics_count_emitted_combinational_tasks` (unmarked `0`,
+  marked `1`).
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.9 → 1.10` + its doc comment +
+  the 2 `schema_version` test assertions. The metric **bumps** the schema (a new
+  derived `Metrics` field surfaces in `module_metrics` — the `1.8→1.9`
+  `num_emitted_generate_loops` precedent) whereas the `.6b.1` knob did **not**
+  (default-off prob-knob rides `request.knobs` via `#[serde(default)]`). **MINOR
+  is an integer**, so this is `1.9 → 1.10` (ten), not a decimal fraction —
+  recorded in the doc comment + the schema-doc changelog so no consumer misreads
+  it.
+- **`src/mcp/mod.rs`** — the 7 `schema_version` assertions bumped to `1.10`.
+- **`docs/AGENT_INTROSPECTION_SCHEMA.md`** — a `1.9 → 1.10` §7 changelog entry +
+  the early-example / "this document defines" / §9 checklist version lines.
+- **README.md / USER_GUIDE.md** — the current-output `--introspect` + `analyze`
+  schema refs bumped to `1.10`. **CODEBASE_ANALYSIS.md** — the envelope-version
+  line + its MINOR-bump list extended with `1.9→1.10`. **book/src/agent-mcp.md** —
+  the 5 example JSONs' `schema_version` bumped to `1.10`.
+- Historical "landed at schema X" attributions left intact:
+  `num_emitted_generate_loops` @ 1.9, `num_emitted_combinational_functions` @ 1.8,
+  sv-version @ 1.2, the schema-doc `1.8→1.9` changelog entry.
+
+**Why** — the introspection document is the agent-facing structured-facts surface
+(`api_for_agents_not_humans`). The new task-emit count belongs there beside the
+function / generate-loop counts so an agent can see, per module, how many gates
+were projected to each richer structured shape. The metric is derived
+(`Metrics`-field projection), preserving the SCHEMA-DERIVED invariant (decision
+`0004`): no new computed truth, just a count of an existing annotation.
+
+**Validation** — `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt
+--all --check` clean; `cargo test --lib` **490 passed** / 2 ignored (the new
+metric proof + all `schema_version` assertions green at `1.10`); `cargo test
+--test snapshots` **6/6 byte-identical** (default-off; the metric changes no RTL).
+End-to-end `--introspect`: default seed ⇒ `schema_version "1.10"` + metric `0`;
+forced `task_emit_prob=1.0` (seed 42) ⇒ `1.10` + `39`. `mdbook build book` OK.
+
+**Impact** — additive, backward-compatible (a `1.9` consumer ignores the new key;
+an absent key reads back `0`). Default-`dut` artifact byte-identical. Frontier →
+`.6b.2b` (the repo-owned `tool_matrix --task-emit-gate`), then `.6b.3` (docs).
+
+**Files touched** — `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`, `USER_GUIDE.md`,
+`CODEBASE_ANALYSIS.md`, `book/src/agent-mcp.md`, `CHANGES.md`, `MEMORY.md`,
+`docs/TASK_TREE.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.1 — combinational `task automatic` live surface
 
-**Landed as:** this commit (previous: `7b6a500`). **First source change since
+**Landed as:** `55761f9` (previous: `7b6a500`). **First source change since
 `.4b.1`.** The third richer-structured emit surface (decision `0014`) goes live:
 ANVIL's DUT lane can now project a single combinational gate into a procedural
 `task automatic` called from `always_comb`, opt-in and default-off /
