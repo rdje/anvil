@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `SEMANTIC-INTROSPECTION-EXPANSION`
-- Status: `active` (three queries delivered: `output_support` `.1`/`.2` + `input_reach` `.3` + `flop_reset_provenance` `.4`, schema `1.6`; **`.5` = `module_reachability` opened** — `.5a` design-detail done, frontier = `.5b.1`)
+- Status: `active` (three queries delivered: `output_support` `.1`/`.2` + `input_reach` `.3` + `flop_reset_provenance` `.4`, schema `1.6`; **`.5` = `module_reachability` in progress** — `.5a` design-detail + `.5b.1` pure core done, frontier = `.5b.2` surface)
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
 - Last updated: `2026-06-16` (**`.5a` design-detail landed** — opened `.5`, the **fourth** derived query `module_reachability`: which modules in a design are reachable from `design.top` via the instance graph. Docs-only, grounded in the real `Design`/`Module`/`Instance` IR. Pinned: result shape = a fourth `module_reachability: Vec<ModuleReachability>` parallel vec (`#[serde(default, skip_serializing_if)]` ⇒ prior documents byte-identical); derivation = a BFS over the `Module.instances[].module` edges of the design module table; **module-name** target addressing; module-vs-design semantics (a bare module = a trivial one-node graph rooted at itself); schema `1.6 → 1.7`. Pre-split `.5b` → `.5b.1` (pure core, **frontier**) + `.5b.2` (surface). Prior: `.1` design — decision `0011`; `.2`/`.3`/`.4` delivered three queries end-to-end at schema `1.6`, DUT byte-identical.)
@@ -184,11 +184,12 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Children: `SEMANTIC-INTROSPECTION-EXPANSION.5b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.5b.2`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.5b.1`
-  Status: `pending`
+  Status: `done`
   Goal: `The pure module_reachability core in src/introspect/analyze.rs: QUERY_MODULE_REACHABILITY = "module_reachability", the ModuleReachability struct, the module_reachability: Vec<ModuleReachability> field on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")]), and the pure builders design_module_reachability(&Design, Option<&str>) (BFS from design.top over the Module.instances[].module edges of a name→Module index; min-depth; one entry per module sorted by name) / module_module_reachability(&Module, Option<&str>) (the bare-module degenerate one-node case). The 6 existing DerivedAnalysis literals gain module_reachability: Vec::new(). Do NOT add to supported_query_kinds() yet (registry + run_analyze dispatch land together in .5b.2). Lib-tested only; not wired to any emit path.`
   Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. BFS reachability over a multi-level design + min depth + instantiates (sorted/deduped) + instance_count + an unreachable module (no depth) + module-name target + None ⇒ all modules sorted + unknown name ⇒ none + the bare-module degenerate single entry + serialization omits the other query vecs + determinism; cargo test --test snapshots 6/6 byte-identical (analyze.rs is not in any output path; module_reachability omitted from prior documents ⇒ DUT byte-identical).`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. src/introspect/analyze.rs gains QUERY_MODULE_REACHABILITY, ModuleReachability { module, reachable, depth: Option<usize> (#[serde(skip_serializing_if = "Option::is_none")] ⇒ present iff reachable), instantiates: Vec<String> (distinct child module names, sorted/deduped — both InstanceRole kinds count), instance_count }, the FOURTH DerivedAnalysis.module_reachability field (#[serde(default, skip_serializing_if = "Vec::is_empty")] ⇒ output_support/input_reach/flop_reset_provenance documents byte-identical), and design_module_reachability/module_module_reachability + the internal reachability_of/distinct_instantiated helpers. design_module_reachability: a min-depth BFS from design.top over a name→Module index of the Module.instances[].module edges (children visited in sorted order; one entry per module sorted by name; absent-top ⇒ every present module reachable:false — the honest whole-table enumeration, a documented divergence from the other design_* builders' top-absent early-return). module_module_reachability: the degenerate one-node case (a bare module = reachable depth 0, its own instantiates/instance_count). The 6 existing DerivedAnalysis literals gained module_reachability: Vec::new(). supported_query_kinds() unchanged (module_reachability joins it with the run_analyze dispatch in .5b.2). 6 new in-crate proofs (BFS depth/edges/multi-instance/unreachable/sorted; module-name target + unknown; bare-module degenerate; serialization omits the other 3 vecs; determinism; absent-top all-unreachable). Validation: cargo test --lib 456/0/2 (32 introspect::analyze proofs); cargo test --test snapshots 6/6 byte-identical; cargo clippy --all-targets -D warnings clean; cargo fmt --all --check clean. DUT byte-identical (no IR/generator change, not wired to any emit path). CODEBASE_ANALYSIS analyze.rs block amended.`
+  Verification: `done`
+  Commit: `done`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.5b.2`
   Status: `pending`
@@ -199,18 +200,18 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 
 ## Current Frontier
 
-**Active frontier: `SEMANTIC-INTROSPECTION-EXPANSION.5b.1`** (the pure
-`module_reachability` core). Three derived queries are already delivered
-end-to-end — `output_support` (`.1`/`.2`), `input_reach` (`.3`), and
-`flop_reset_provenance` (`.4`), at introspection schema `1.6`, DUT byte-identical.
-`.5` (`module_reachability`, the **fourth** and last named query kind in decision
-`0011`) is now opened: `.5a` design-detail is done; `.5b` is pre-split into `.5b.1`
-(pure core, the frontier) + `.5b.2` (surface). Nothing retired.
+**Active frontier: `SEMANTIC-INTROSPECTION-EXPANSION.5b.2`** (the
+`module_reachability` MCP surface + schema `1.7`). Three derived queries are
+already delivered end-to-end — `output_support` (`.1`/`.2`), `input_reach`
+(`.3`), and `flop_reset_provenance` (`.4`), at introspection schema `1.6`, DUT
+byte-identical. `.5` (`module_reachability`, the **fourth** and last named query
+kind in decision `0011`) is in progress: `.5a` design-detail and `.5b.1` (the pure
+core) are done; `.5b.2` (surface) is the frontier. Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | `pending` | The pure `module_reachability` core in `analyze.rs`: `QUERY_MODULE_REACHABILITY` + `ModuleReachability` + the fourth `module_reachability` vec + `design_module_reachability`/`module_module_reachability` (BFS over the design's instance edges). Not added to `supported_query_kinds()` yet (joins with dispatch in `.5b.2`). Lib-tested; DUT byte-identical. |
-| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2` | `pending` | Surface: add the kind to `supported_query_kinds()` + branch `run_analyze` (same commit) + schema `1.6 → 1.7` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Closes `.5b`/`.5`. DUT byte-identical. |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2` | `pending` | Surface: add `module_reachability` to `supported_query_kinds()` + branch `run_analyze` (same commit) + schema `1.6 → 1.7` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Closes `.5b`/`.5`. DUT byte-identical. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | `done` | The pure `module_reachability` core in `analyze.rs`: `QUERY_MODULE_REACHABILITY` + `ModuleReachability` + the fourth `module_reachability` vec + `design_module_reachability`/`module_module_reachability` (BFS over the design's instance edges). Not in `supported_query_kinds()` yet (joins with dispatch in `.5b.2`). 6 proofs; `cargo test --lib` 456/0/2; snapshots 6/6; clippy/fmt clean. DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | `done` | Design-detail (no source) for `module_reachability`: pinned the result shape (a fourth `module_reachability: Vec<ModuleReachability>` vec — prior documents byte-identical), the derivation (BFS from `design.top` over the `Module.instances[].module` edges), **module-name** target addressing, the module-vs-design degenerate semantics, and the schema bump `1.6 → 1.7`. Pre-split `.5b` → `.5b.1`/`.5b.2`. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` | `done` | Surface: added the kind to `supported_query_kinds()` + branched `run_analyze` (same commit) + schema `1.5 → 1.6` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. 2 new MCP proofs; `cargo test --lib` 450/0/2; snapshots 6/6; book_examples 3/3; e2e `anvil-mcp` smoke (31 flops, schema 1.6). DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | `done` | The pure `flop_reset_provenance` core in `analyze.rs`: `QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `flop_provenance` vec + `module_flop_provenance`/`design_flop_provenance` (a direct projection of `Module.flops`). 5 proofs; snapshots 6/6; clippy/fmt clean. DUT byte-identical. |
@@ -313,6 +314,7 @@ end-to-end — `output_support` (`.1`/`.2`), `input_reach` (`.3`), and
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | Design-detail leaf, **no source change** (grounded in a fresh read of the `Design { top, modules }` / `Module { instances }` / `Instance { module, role }` IR in `src/ir/types.rs`, plus `src/introspect/analyze.rs` — the `DerivedAnalysis` parallel-vec pattern + `design_*`/`module_*` builder split + `format_instance_leaf_design`; `src/introspect/mod.rs` — `SCHEMA_VERSION`/`DerivedAnalysisDocument`; `src/mcp/mod.rs` — `run_analyze` design-vs-module routing on `effective_hierarchy_depth_range` + the `analyze_schema` enum + the vec-aware `-32602` guard). `DEVELOPMENT_NOTES.md` design-detail entry (the five points + the `.5b` pre-split). Tree `.5`/`.5a`/`.5b` registered (+ root child) and `.5b` pre-split → `.5b.1`/`.5b.2`; frontier set to `.5b.1`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
+| `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | Pure `module_reachability` core in `src/introspect/analyze.rs` (`QUERY_MODULE_REACHABILITY` + `ModuleReachability { module, reachable, depth: Option<usize>, instantiates, instance_count }` + the fourth `DerivedAnalysis.module_reachability` field + `design_module_reachability` (BFS over the instance graph) / `module_module_reachability` (degenerate one-node) + the `reachability_of`/`distinct_instantiated` helpers; the 6 existing `DerivedAnalysis` literals gained `module_reachability: Vec::new()`; `supported_query_kinds()` unchanged). `cargo test --lib` **456 passed / 0 failed / 2 ignored** (32 `introspect::analyze` proofs incl. 6 new: BFS depth/edges/multi-instance/unreachable/sorted; module-name target + unknown; bare-module degenerate; serialization omits the other 3 vecs; determinism; absent-top all-unreachable). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged; `module_reachability` omitted from prior documents). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. `CODEBASE_ANALYSIS.md` `analyze.rs` block amended. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` | Surface wiring: `flop_reset_provenance` in `supported_query_kinds()` + the `run_analyze` dispatch (`module/design_flop_provenance`) + the `flop_provenance` `-32602` guard (`src/mcp/mod.rs`); `analyze_schema` enum + tool/instructions text; `SCHEMA_VERSION` `1.5 → 1.6` + doc comment (`src/introspect/mod.rs`); 6 `"1.5" → "1.6"` test assertions (2 introspect, 4 mcp). Docs: schema-doc §6.7 (third payload + `FlopProvenance`) + `1.5 → 1.6` changelog + "defines 1.6"/checklist; book `agent-mcp` (analyze row + `flop_reset_provenance` worked example + the three JSON examples `1.5 → 1.6`); USER_GUIDE + README; new KM card `semantic-introspection-flop-reset-provenance` + cross-link; `CODEBASE_ANALYSIS` (both analyze blocks); `ROADMAP` lane status. `cargo test --lib` **450 passed / 0 failed / 2 ignored** (incl. `mcp::tests::analyze_returns_flop_reset_provenance_and_caches_it` + `analyze_flop_reset_provenance_unknown_target_is_invalid_params`). `cargo test --test snapshots` **6/6 byte-identical**. `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples` **3/3**; KM regenerated + `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean. End-to-end `anvil-mcp` stdio smoke: `analyze {query:"flop_reset_provenance", seed:3}` → schema `1.6`, 31 flops (flop 0 async/hold/encoded); unknown `flop:99999` → `-32602`. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | Pure `flop_reset_provenance` core in `src/introspect/analyze.rs` (`QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `DerivedAnalysis.flop_provenance` field + `module_flop_provenance`/`design_flop_provenance` + `flop_provenance_with`/`flop_provenance_of`; the 4 existing `DerivedAnalysis` literals gained `flop_provenance: Vec::new()`; `supported_query_kinds()` unchanged). `cargo test --lib` **448 passed / 0 failed / 2 ignored** (20 `introspect::analyze` proofs incl. 5 new: each `ResetKind`/`FlopKind`/`FlopMux` variant + `reset_value` string + ascending-id ordering; `"flop:<id>"` + unknown target ⇒ none; flopless ⇒ empty; serialization omits the other vecs; design top-module variant). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. CODEBASE_ANALYSIS `analyze.rs` block amended. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.4a` | Design-detail leaf, **no source change** (grounded in the real `Flop` type in `src/ir/types.rs` — `ResetKind`/`FlopKind`/`FlopMux`/`reset_val` — plus `src/introspect/analyze.rs`/`mod.rs` + `src/mcp/mod.rs`). `DEVELOPMENT_NOTES.md` design-detail entry (the four points + the `.4b` pre-split: a third `flop_provenance` vec, a direct `Module.flops` projection, `"flop:<id>"` addressing, schema `1.5 → 1.6`). Tree `.4`/`.4a`/`.4b` registered + `.4b` pre-split → `.4b.1`/`.4b.2`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
@@ -329,6 +331,7 @@ end-to-end — `output_support` (`.1`/`.2`), `input_reach` (`.3`), and
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1 — pure module_reachability core` | `src/introspect/analyze.rs`: `QUERY_MODULE_REACHABILITY` + `ModuleReachability` + the fourth `module_reachability` vec + `design_module_reachability`/`module_module_reachability` (BFS over the instance graph + the degenerate one-node case). `supported_query_kinds()` unchanged (joins with dispatch in `.5b.2`). 6 proofs; `cargo test --lib` 456/0/2; snapshots 6/6 byte-identical. DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | `SEMANTIC-INTROSPECTION-EXPANSION.5a — module_reachability impl design-detail` | Design-detail (no source): opened `.5`, the **fourth** derived query `module_reachability`. Pinned the result shape (a fourth `module_reachability: Vec<ModuleReachability>` vec — prior documents byte-identical), the derivation (BFS from `design.top` over the `Module.instances[].module` edges), **module-name** target addressing, the module-vs-design degenerate semantics, and the schema `1.6 → 1.7` bump. Registered `.5`/`.5a`/`.5b`; pre-split `.5b` → `.5b.1`/`.5b.2`. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.2 — flop_reset_provenance MCP surface + schema 1.6` | Registry + `run_analyze` dispatch + schema `1.5 → 1.6` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Closes `.4b`/`.4` — `flop_reset_provenance` delivered end-to-end (third query). 2 new MCP proofs; DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.4b.1 — pure flop_reset_provenance core` | `src/introspect/analyze.rs`: `QUERY_FLOP_RESET_PROVENANCE` + `FlopProvenance` + the third `flop_provenance` vec + `module_flop_provenance`/`design_flop_provenance` (a direct `Module.flops` projection). `supported_query_kinds()` unchanged (joins with dispatch in `.4b.2`). 5 reach proofs; DUT byte-identical (snapshots 6/6). |
@@ -344,6 +347,28 @@ end-to-end — `output_support` (`.1`/`.2`), `input_reach` (`.3`), and
 
 ## Changelog
 
+- `2026-06-16`: **`.5b.1` landed — the pure `module_reachability` core** (DUT
+  byte-identical). `src/introspect/analyze.rs` gains `QUERY_MODULE_REACHABILITY`,
+  the `ModuleReachability { module, reachable, depth: Option<usize> (skip-if-None
+  ⇒ present iff reachable), instantiates (distinct child module names,
+  sorted/deduped), instance_count }` struct, the **fourth**
+  `DerivedAnalysis.module_reachability` field (`#[serde(default,
+  skip_serializing_if = "Vec::is_empty")]` ⇒ the three prior documents stay
+  byte-identical), and the pure `design_module_reachability` /
+  `module_module_reachability` builders (+ the internal
+  `reachability_of`/`distinct_instantiated` helpers). `design_module_reachability`
+  is a min-depth BFS from `design.top` over a name→`Module` index of the
+  `Module.instances[].module` edges (children visited in sorted order; one entry
+  per module sorted by name; both `InstanceRole` kinds are edges; an absent top ⇒
+  every present module `reachable: false` — the honest whole-table enumeration, a
+  documented divergence from the other `design_*` builders' top-absent
+  early-return). `module_module_reachability` is the degenerate one-node case (a
+  bare module rooted at itself). The 6 existing `DerivedAnalysis` literals gained
+  `module_reachability: Vec::new()`. `supported_query_kinds()` unchanged —
+  `module_reachability` joins it with the `run_analyze` dispatch in `.5b.2`. 6 new
+  proofs. `cargo test --lib` 456/0/2; snapshots 6/6 byte-identical; clippy/fmt
+  clean; `CODEBASE_ANALYSIS` `analyze.rs` block amended. Frontier advances to
+  `.5b.2` (surface).
 - `2026-06-16`: **`.5a` design-detail landed** (no source change) — opened `.5`,
   the **fourth** derived query `module_reachability`: which modules in a `Design`
   are reachable from `design.top` via the instance graph. Grounded in the real

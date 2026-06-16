@@ -1,9 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5b.1 — pure `module_reachability` core
+
+**Landed as:** this commit (previous: `d05d145`). **Source + docs**; DUT
+byte-identical. The pure core of the **fourth** derived query,
+`module_reachability` (per the `.5a` design); not yet reachable over MCP (the
+registry + dispatch land in `.5b.2`).
+
+**What changed (why)**
+
+`module_reachability` answers *which modules in a `Design` are reachable from
+`design.top` via the instance graph, and how does each module sit in that
+graph?* — a pure projection of `Design.modules` + the `Module.instances[].module`
+edges, the last named query kind in decision `0011`. The pure analysis lands
+first (the `.3b.1`/`.4b.1` discipline); the surface follows in `.5b.2`.
+
+- **`src/introspect/analyze.rs`** —
+  - `QUERY_MODULE_REACHABILITY = "module_reachability"` (doc'd; **not** added to
+    `supported_query_kinds()` yet — it joins the registry together with the
+    `run_analyze` dispatch in `.5b.2` so no intermediate commit mislabels the
+    supported set).
+  - `ModuleReachability { module, reachable, depth: Option<usize>
+    (#[serde(skip_serializing_if = "Option::is_none")] ⇒ present iff reachable),
+    instantiates: Vec<String> (distinct direct child module names, sorted/deduped),
+    instance_count }`.
+  - the **fourth** `DerivedAnalysis.module_reachability: Vec<ModuleReachability>`
+    field, `#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the three
+    prior documents (`output_support`/`input_reach`/`flop_reset_provenance`) stay
+    byte-identical (the key is omitted unless this is a `module_reachability`
+    analysis). The 6 existing `DerivedAnalysis` literals each gained
+    `module_reachability: Vec::new()`.
+  - `design_module_reachability(&Design, Option<&str>)` — a min-depth BFS from
+    `design.top` over a name→`Module` index of the `Module.instances[].module`
+    edges (both `InstanceRole` kinds are edges; children visited in sorted order;
+    one entry per module sorted by name; an absent top ⇒ every present module
+    `reachable: false`, the honest whole-table enumeration — a documented
+    divergence from the other `design_*` builders' top-absent early-return).
+  - `module_module_reachability(&Module, Option<&str>)` — the degenerate
+    one-node case (a bare module carries no child defs, so it is reported as a
+    single node rooted at itself: `reachable`, `depth 0`, its own
+    `instantiates`/`instance_count`).
+  - the internal `reachability_of` / `distinct_instantiated` helpers.
+  - `target` = a **module name** (`None` ⇒ all modules sorted; `Some(name)` ⇒
+    that one; unknown ⇒ no entry ⇒ `-32602` at the MCP layer in `.5b.2`).
+  - 6 new in-crate proofs: BFS depth/edges/multi-instance/unreachable/sorted;
+    module-name target + unknown name; the bare-module degenerate single entry;
+    serialization omits the other three query vecs; determinism; absent-top
+    all-unreachable.
+- **`CODEBASE_ANALYSIS.md`** — the `analyze.rs` block records the fourth query
+  core (the parallel-vec pattern now carries four kinds).
+
+**Validation**
+
+`cargo test --lib` **456 passed / 0 failed / 2 ignored** (32 `introspect::analyze`
+proofs, +6). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv`
+unchanged — `analyze.rs` is in no output path, and `module_reachability` is
+omitted from the prior documents). `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean. mem-arch + Knowledge Map self-checks
+clean.
+
+**Impact**
+
+Adds the fourth derived-relation analysis; no wire change yet (`analyze` still
+rejects `query=module_reachability` with `-32602` until `.5b.2` registers it).
+DUT byte-identical.
+
+**Files touched**
+
+`src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.5a — `module_reachability` impl design-detail
 
-**Landed as:** this commit (previous: `a715070`). **Docs-only** (no source
+**Landed as:** `d05d145` (previous: `a715070`). **Docs-only** (no source
 change); DUT byte-identical. Opens `.5` — the **fourth** derived query,
 `module_reachability` (the last named query kind in decision `0011`): which
 modules in a `Design` are reachable from `design.top` via the instance graph.

@@ -476,8 +476,22 @@ src/
 │                     `"flop:<id>"` ⇒ one; unknown ⇒ none. `.4b.2` registers the
 │                     kind in `supported_query_kinds()` with the `run_analyze`
 │                     dispatch and bumps the schema `1.5 → 1.6`. 5 in-crate proofs.
-│                     DUT byte-identical. The parallel-vec pattern now carries
-│                     three query kinds (`results`/`reach_results`/`flop_provenance`),
+│                     DUT byte-identical. `.5b.1` adds the fourth query core
+│                     `module_reachability`: `QUERY_MODULE_REACHABILITY` +
+│                     `ModuleReachability { module, reachable, depth:
+│                     Option<usize> (skip-if-None), instantiates[], instance_count
+│                     }` + a **fourth** `DerivedAnalysis.module_reachability` vec
+│                     (`skip_serializing_if`) + `design_module_reachability` (a BFS
+│                     from `design.top` over the `Module.instances[].module`
+│                     instance-graph edges of a name→`Module` index; min-depth;
+│                     one entry per module sorted by name; absent top ⇒ all
+│                     unreachable) / `module_module_reachability` (the bare-module
+│                     degenerate one-node case). `target` = a **module name**
+│                     (`None` ⇒ all; unknown ⇒ none). `supported_query_kinds()`
+│                     unchanged until `.5b.2` (registry + dispatch land together).
+│                     6 in-crate proofs. DUT byte-identical. The parallel-vec
+│                     pattern now carries four query kinds
+│                     (`results`/`reach_results`/`flop_provenance`/`module_reachability`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light

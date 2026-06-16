@@ -64,7 +64,7 @@ use crate::ir::{
     Design, Flop, FlopKind, FlopMux, InstanceId, Module, Node, NodeId, PortId, ResetKind,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 
 /// The query-kind string for the first derived query: the transitive
 /// combinational fan-in support cone of a target.
@@ -84,6 +84,19 @@ pub const QUERY_INPUT_REACH: &str = "input_reach";
 /// [`module_flop_provenance`] / [`design_flop_provenance`], dispatched by the MCP
 /// `analyze` tool (`.4b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_FLOP_RESET_PROVENANCE: &str = "flop_reset_provenance";
+
+/// The query-kind string for the fourth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.5`): per-module **reachability** from the
+/// design top — which modules in a [`Design`] are reachable from `design.top`
+/// over the `Module.instances[].module` instance-graph edges, each module's
+/// minimum depth from the top, the distinct child module names it directly
+/// instantiates, and its direct instance count. A pure projection of
+/// [`Design::modules`](Design) + the instance edges (no gate-graph walk — the
+/// only query whose home is the whole design rather than one module's node
+/// graph). Served by [`design_module_reachability`] / [`module_module_reachability`],
+/// dispatched by the MCP `analyze` tool (`.5b.2`); listed in
+/// [`supported_query_kinds`].
+pub const QUERY_MODULE_REACHABILITY: &str = "module_reachability";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
@@ -125,6 +138,14 @@ pub struct DerivedAnalysis {
     /// `flop_reset_provenance` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flop_provenance: Vec<FlopProvenance>,
+    /// The [`QUERY_MODULE_REACHABILITY`] payload: one [`ModuleReachability`] per
+    /// module in the design. A **fourth** parallel vec, same rationale as
+    /// `reach_results` / `flop_provenance`: `skip_serializing_if` keeps the
+    /// `output_support` / `input_reach` / `flop_reset_provenance` documents
+    /// byte-identical (the key is omitted unless this is a `module_reachability`
+    /// analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub module_reachability: Vec<ModuleReachability>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -213,6 +234,37 @@ pub struct FlopProvenance {
     pub has_d: bool,
 }
 
+/// Where one module sits in a design's instance graph — the
+/// [`QUERY_MODULE_REACHABILITY`] payload. A pure projection of
+/// [`Design::modules`](Design) + the `Module.instances[].module` edges: whether
+/// the module is reachable from `design.top`, its minimum instance-graph distance
+/// from the top, the distinct child module names it directly instantiates (its
+/// local out-edges), and its total direct instance count.
+///
+/// Both [`InstanceRole`](crate::ir::InstanceRole) kinds (`PlannedChild` and
+/// `ParentCone` helper instances) are genuine instance edges, so both are
+/// traversed for reachability and both contribute to `instantiates` /
+/// `instance_count`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModuleReachability {
+    /// The module name (the entity this entry is about).
+    pub module: String,
+    /// Whether the module is reachable from `design.top` via the instance graph.
+    pub reachable: bool,
+    /// The minimum instance-graph distance from `design.top` (`0` for the top
+    /// itself). Present iff `reachable`; omitted for an unreachable module, for
+    /// which a distance is undefined.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depth: Option<usize>,
+    /// The distinct child **module names** this module directly instantiates
+    /// (sorted, deduplicated) — its local out-edges in the instance graph.
+    /// Present for every module, reachable or not (a local structural fact).
+    pub instantiates: Vec<String>,
+    /// The total number of direct child instances (`Module::instances` length);
+    /// `>= instantiates.len()` when a child module is instantiated more than once.
+    pub instance_count: usize,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -236,6 +288,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             results: Vec::new(),
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -269,6 +322,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             results: Vec::new(),
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -298,9 +352,135 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             results: Vec::new(),
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
+}
+
+/// Compute the `module_reachability` analysis for a [`Design`]: which modules are
+/// reachable from `design.top` via the instance graph, with each module's minimum
+/// depth from the top, the distinct child module names it instantiates, and its
+/// direct instance count.
+///
+/// `target = None` ⇒ one [`ModuleReachability`] per module in `design.modules`, in
+/// ascending module-name order (deterministic, independent of the modules-vec /
+/// instance order). `target = Some("<module name>")` ⇒ that one module's entry (it
+/// must be a module in `design.modules`); an unknown name ⇒ no result (→ `-32602`
+/// at the MCP layer). The top module is `reachable` at `depth = Some(0)`.
+///
+/// Defensive edge case: if `design.top` is not a module in `design.modules` (a
+/// malformed design — a real ANVIL design always names a present top), the BFS
+/// finds nothing and every module is reported `reachable: false`. This is the
+/// honest, complete enumeration; unlike the other `design_*` builders (which
+/// analyze the top module and early-return empty when it is absent),
+/// `module_reachability` is a whole-module-table query, so it still answers for
+/// every module that is present.
+pub fn design_module_reachability(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    // Index the module table by name and BFS the instance graph from the top,
+    // recording each reachable module's minimum depth. Both `InstanceRole` kinds
+    // are real edges. A child name with no matching module is a recorded out-edge
+    // that cannot be traversed (defensive — never panics on a malformed design).
+    let by_name: HashMap<&str, &Module> = design
+        .modules
+        .iter()
+        .map(|m| (m.name.as_str(), m))
+        .collect();
+    let mut depth: HashMap<&str, usize> = HashMap::new();
+    if by_name.contains_key(design.top.as_str()) {
+        let mut queue: VecDeque<&str> = VecDeque::new();
+        depth.insert(design.top.as_str(), 0);
+        queue.push_back(design.top.as_str());
+        while let Some(name) = queue.pop_front() {
+            let Some(&d) = depth.get(name) else { continue };
+            let Some(m) = by_name.get(name).copied() else {
+                continue;
+            };
+            // Distinct child names, visited in sorted order (min-depth BFS is
+            // order-independent; sorting removes any doubt about determinism).
+            let children: BTreeSet<&str> = m.instances.iter().map(|i| i.module.as_str()).collect();
+            for child in children {
+                if by_name.contains_key(child) && !depth.contains_key(child) {
+                    depth.insert(child, d + 1);
+                    queue.push_back(child);
+                }
+            }
+        }
+    }
+    // Emit one entry per module, sorted by name (the determinism contract).
+    let mut modules: Vec<&Module> = design.modules.iter().collect();
+    modules.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut module_reachability = Vec::new();
+    for m in modules {
+        if let Some(t) = target {
+            if m.name != t {
+                continue;
+            }
+        }
+        module_reachability.push(reachability_of(m, depth.get(m.name.as_str()).copied()));
+    }
+    DerivedAnalysis {
+        query: QUERY_MODULE_REACHABILITY.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability,
+    }
+}
+
+/// Compute the `module_reachability` analysis for a single [`Module`] — the
+/// **degenerate one-node case**. A bare module carries no child definitions to
+/// traverse (the "no child defs" boundary the module variant of every query
+/// hits — cf. [`format_instance_leaf_module`]), so the instance graph is a single
+/// node rooted at the module itself: one [`ModuleReachability`] for `m`
+/// (`reachable = true`, `depth = Some(0)`, its own distinct instantiated child
+/// names + instance count). Full module-graph reachability needs a [`Design`];
+/// use [`design_module_reachability`].
+///
+/// `target = None` or `target = Some(&m.name)` ⇒ that one entry; any other target
+/// ⇒ no result (→ `-32602` at the MCP layer).
+pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let include = match target {
+        None => true,
+        Some(t) => t == m.name,
+    };
+    let module_reachability = if include {
+        vec![reachability_of(m, Some(0))]
+    } else {
+        Vec::new()
+    };
+    DerivedAnalysis {
+        query: QUERY_MODULE_REACHABILITY.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability,
+    }
+}
+
+/// Build one [`ModuleReachability`] for `m`. `depth` is `Some(d)` (the BFS
+/// distance from the top) when the module is reachable, `None` when it is not;
+/// `reachable` is `depth.is_some()`.
+fn reachability_of(m: &Module, depth: Option<usize>) -> ModuleReachability {
+    ModuleReachability {
+        module: m.name.clone(),
+        reachable: depth.is_some(),
+        depth,
+        instantiates: distinct_instantiated(m),
+        instance_count: m.instances.len(),
+    }
+}
+
+/// The distinct child module names a module directly instantiates (sorted,
+/// deduplicated) — its local out-edges in the instance graph. Includes both
+/// `PlannedChild` and `ParentCone` helper instances (both are real edges).
+fn distinct_instantiated(m: &Module) -> Vec<String> {
+    m.instances
+        .iter()
+        .map(|i| i.module.clone())
+        .collect::<BTreeSet<String>>()
+        .into_iter()
+        .collect()
 }
 
 /// Shared driver for [`module_flop_provenance`] / [`design_flop_provenance`]:
@@ -328,6 +508,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         results: Vec::new(),
         reach_results: Vec::new(),
         flop_provenance,
+        module_reachability: Vec::new(),
     }
 }
 
@@ -389,6 +570,7 @@ fn support_cones_with(
         results,
         reach_results: Vec::new(),
         flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
     }
 }
 
@@ -457,6 +639,7 @@ fn input_reach_with(
         results: Vec::new(),
         reach_results,
         flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
     }
 }
 
@@ -1446,5 +1629,248 @@ mod tests {
         assert_eq!(a.flop_provenance[0].flop, 0);
         assert_eq!(a.flop_provenance[0].default_behavior, "hold");
         assert_eq!(a.flop_provenance[0].reset_kind, "async");
+    }
+
+    // --- module_reachability (`SEMANTIC-INTROSPECTION-EXPANSION.5b.1`) ---
+
+    /// A `PlannedChild` instance named `name` of child module `module`.
+    fn inst(id: u32, name: &str, module: &str) -> Instance {
+        Instance {
+            id,
+            name: name.into(),
+            module: module.into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![],
+            param_bindings: vec![],
+        }
+    }
+
+    /// A bare module with the given name and instance list.
+    fn mod_with(name: &str, instances: Vec<Instance>) -> Module {
+        Module {
+            name: name.into(),
+            instances,
+            ..Module::default()
+        }
+    }
+
+    /// BFS reachability over a multi-level design: min depth, sorted output,
+    /// distinct/sorted `instantiates`, multi-instance `instance_count`, and an
+    /// unreachable (orphan) module with no depth.
+    #[test]
+    fn design_module_reachability_bfs_depth_and_edges() {
+        // top -> a (x2), b ; a -> c ; orphan unreachable.
+        let top = mod_with(
+            "top",
+            vec![
+                inst(0, "u_a0", "a"),
+                inst(1, "u_a1", "a"), // a instantiated twice
+                inst(2, "u_b", "b"),
+            ],
+        );
+        let a = mod_with("a", vec![inst(0, "u_c", "c")]);
+        let b = mod_with("b", vec![]);
+        let c = mod_with("c", vec![]);
+        let orphan = mod_with("orphan", vec![]);
+        // modules pushed deliberately out of alphabetical order.
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, c, orphan, b, a],
+        };
+
+        let an = design_module_reachability(&design, None);
+        assert_eq!(an.query, QUERY_MODULE_REACHABILITY);
+        // Only the module_reachability vec is populated.
+        assert!(
+            an.results.is_empty() && an.reach_results.is_empty() && an.flop_provenance.is_empty()
+        );
+        // One entry per module, sorted by name.
+        let names: Vec<&str> = an
+            .module_reachability
+            .iter()
+            .map(|r| r.module.as_str())
+            .collect();
+        assert_eq!(names, vec!["a", "b", "c", "orphan", "top"]);
+
+        let by = |n: &str| {
+            an.module_reachability
+                .iter()
+                .find(|r| r.module == n)
+                .unwrap()
+        };
+        // top: reachable, depth 0, instantiates {a,b} (sorted/deduped), 3 instances.
+        let t = by("top");
+        assert!(t.reachable);
+        assert_eq!(t.depth, Some(0));
+        assert_eq!(t.instantiates, vec!["a", "b"]);
+        assert_eq!(t.instance_count, 3); // a, a, b — count > distinct
+                                         // a: depth 1, instantiates {c}.
+        let ra = by("a");
+        assert!(ra.reachable);
+        assert_eq!(ra.depth, Some(1));
+        assert_eq!(ra.instantiates, vec!["c"]);
+        assert_eq!(ra.instance_count, 1);
+        // b: depth 1, no children.
+        let rb = by("b");
+        assert_eq!(rb.depth, Some(1));
+        assert!(rb.instantiates.is_empty());
+        assert_eq!(rb.instance_count, 0);
+        // c: depth 2 (top -> a -> c).
+        let rc = by("c");
+        assert!(rc.reachable);
+        assert_eq!(rc.depth, Some(2));
+        // orphan: unreachable, no depth.
+        let ro = by("orphan");
+        assert!(!ro.reachable);
+        assert_eq!(ro.depth, None);
+        assert!(ro.instantiates.is_empty());
+    }
+
+    /// An explicit module-name target yields that one entry; an unknown name
+    /// yields none (→ `-32602` at the MCP layer).
+    #[test]
+    fn design_module_reachability_target_and_unknown() {
+        let top = mod_with("top", vec![inst(0, "u_a", "a")]);
+        let a = mod_with("a", vec![]);
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, a],
+        };
+
+        let one = design_module_reachability(&design, Some("a"));
+        assert_eq!(one.module_reachability.len(), 1);
+        assert_eq!(one.module_reachability[0].module, "a");
+        assert_eq!(one.module_reachability[0].depth, Some(1));
+
+        assert!(design_module_reachability(&design, Some("nope"))
+            .module_reachability
+            .is_empty());
+    }
+
+    /// The module variant is the degenerate one-node case: one entry for the
+    /// module itself (reachable, depth 0, its own instantiated children).
+    #[test]
+    fn module_module_reachability_is_a_degenerate_one_node() {
+        let m = mod_with(
+            "solo",
+            vec![
+                inst(0, "u_x0", "x"),
+                inst(1, "u_x1", "x"), // x twice
+                inst(2, "u_y", "y"),
+            ],
+        );
+        let an = module_module_reachability(&m, None);
+        assert_eq!(an.query, QUERY_MODULE_REACHABILITY);
+        assert_eq!(an.module_reachability.len(), 1);
+        let e = &an.module_reachability[0];
+        assert_eq!(e.module, "solo");
+        assert!(e.reachable);
+        assert_eq!(e.depth, Some(0));
+        assert_eq!(e.instantiates, vec!["x", "y"]); // sorted, deduped
+        assert_eq!(e.instance_count, 3);
+
+        // target = the module itself ⇒ the entry; any other ⇒ none.
+        assert_eq!(
+            module_module_reachability(&m, Some("solo"))
+                .module_reachability
+                .len(),
+            1
+        );
+        assert!(module_module_reachability(&m, Some("x"))
+            .module_reachability
+            .is_empty());
+    }
+
+    /// A `module_reachability` document serializes `module_reachability` (and the
+    /// always-present empty `results`), omits the other two query vecs, and omits
+    /// `depth` only on an unreachable module.
+    #[test]
+    fn module_reachability_document_omits_the_other_query_vecs() {
+        let design = Design {
+            top: "top".into(),
+            modules: vec![mod_with("top", vec![]), mod_with("orphan", vec![])],
+        };
+        let v = serde_json::to_value(design_module_reachability(&design, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("module_reachability"));
+        assert!(obj.get("reach_results").is_none()); // skip_serializing_if
+        assert!(obj.get("flop_provenance").is_none()); // skip_serializing_if
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+
+        let entries = v["module_reachability"].as_array().unwrap();
+        let top_e = entries.iter().find(|e| e["module"] == "top").unwrap();
+        assert_eq!(top_e["reachable"], true);
+        assert_eq!(top_e["depth"], 0); // reachable ⇒ depth present
+        let orphan_e = entries.iter().find(|e| e["module"] == "orphan").unwrap();
+        assert_eq!(orphan_e["reachable"], false);
+        assert!(orphan_e.as_object().unwrap().get("depth").is_none()); // omitted
+    }
+
+    /// `module_reachability` is byte-stable, the output is sorted by module name,
+    /// and `instantiates` is sorted within each entry.
+    #[test]
+    fn module_reachability_is_deterministic_and_sorted() {
+        // Children + modules deliberately declared out of alphabetical order.
+        let top = mod_with(
+            "top",
+            vec![
+                inst(0, "u_z", "zebra"),
+                inst(1, "u_a", "alpha"),
+                inst(2, "u_m", "mike"),
+            ],
+        );
+        let design = Design {
+            top: "top".into(),
+            modules: vec![
+                mod_with("mike", vec![]),
+                top,
+                mod_with("zebra", vec![]),
+                mod_with("alpha", vec![]),
+            ],
+        };
+        let a = design_module_reachability(&design, None);
+        let b = design_module_reachability(&design, None);
+        assert_eq!(
+            serde_json::to_string(&a).unwrap(),
+            serde_json::to_string(&b).unwrap()
+        );
+        let names: Vec<&str> = a
+            .module_reachability
+            .iter()
+            .map(|r| r.module.as_str())
+            .collect();
+        assert_eq!(names, vec!["alpha", "mike", "top", "zebra"]);
+        let top_e = a
+            .module_reachability
+            .iter()
+            .find(|r| r.module == "top")
+            .unwrap();
+        assert_eq!(top_e.instantiates, vec!["alpha", "mike", "zebra"]);
+    }
+
+    /// Defensive: a malformed design whose `top` is absent from the module table
+    /// still enumerates every present module (all `reachable: false`), with
+    /// `instantiates` as the honest local out-edge fact.
+    #[test]
+    fn design_module_reachability_absent_top_reports_all_unreachable() {
+        let design = Design {
+            top: "ghost".into(),
+            modules: vec![
+                mod_with("a", vec![inst(0, "u_b", "b")]),
+                mod_with("b", vec![]),
+            ],
+        };
+        let an = design_module_reachability(&design, None);
+        assert_eq!(an.module_reachability.len(), 2); // still enumerates present modules
+        for e in &an.module_reachability {
+            assert!(!e.reachable);
+            assert_eq!(e.depth, None);
+        }
+        let a = an
+            .module_reachability
+            .iter()
+            .find(|r| r.module == "a")
+            .unwrap();
+        assert_eq!(a.instantiates, vec!["b"]);
     }
 }
