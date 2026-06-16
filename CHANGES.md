@@ -1,9 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.1 — cross-module sequential-equivalence merge mechanism
+
+**Landed as:** this commit (previous: `b873b40`). Task-tree-owned by
+`IDENTITY-DEEPENING.3b.2b.1` (the first child of the `.3b.2b` split — the merge
+mechanism + proof). **Code leaf; default-off / DUT byte-identical.** The
+`DesignMetrics` pair, the downstream-clean bank, and the book/USER_GUIDE/ROADMAP/KM
+closeout are deferred to `.3b.2b.2`.
+
+**What changed (why)**
+
+The flop-level bisimulation primitive (`.2b`) proves individual flops within one
+module sequentially equivalent; the combinational module dedup
+(`dedup_semantic_modules`) proves whole modules equivalent but only stateless ones.
+This slice closes the frontier exactly between them: it proves two whole *stateful*
+flops-only leaf modules observationally (sequentially) equivalent and merges them —
+the bounded whole-leaf-module sequential equivalence designed in decision `0008` and
+grounded in `.3b.1`, built on the `.3b.2a` `bisimulation_partition` helper. It is the
+sequential generalization of `dedup_semantic_modules` (the zero-flop special case)
+and retires nothing (`feedback_never_retire_strategies`).
+
+- **Cross-module proof core** (`src/ir/compact.rs`) — new pure, non-mutating
+  `modules_sequentially_equivalent(a, b) -> bool`. It materializes a throwaway
+  combined module `a.nodes ++ b.nodes` / `a.flops ++ b.flops` with B's
+  `NodeId`/`FlopId` references offset (`build_combined_module`), keeping B's
+  `PrimaryInput { port, width }` so A's and B's inputs unify *for free* in the shared
+  `LeafEndpoint::PrimaryInput { (port, width) }` vocabulary; runs the existing
+  `bisimulation_partition` on the union state; then proves every output drive cone
+  equal under the *final* quotient via one shared structural interner + fixed-quotient
+  memos. Eligibility helper `sequential_leaf_eligible` (stateful flops-only leaf,
+  every flop settled + reset-defined, no memories/FSMs/instances/params/aggregates/
+  multi-clock). Combined flop count capped at `N_BISIM_MODULE_FLOPS = 64`; per-cone
+  checks reuse the 12-bit / 128-node / 131072-work `MERGE_SEMANTIC_LIMITS`. No new
+  proof engine; `merge_bisimilar_flops` stays byte-identical.
+- **Dedup pass** (`src/ir/dedup.rs`) — new opt-in `dedup_sequential_modules` beside
+  `dedup_semantic_modules`: a cheap structural pre-filter (`SequentialPrefilterKey` =
+  sorted `(PortId,width)` interface + sorted flop multiset) buckets candidates, then
+  greedy-by-representative grouping within each bucket (sound because sequential
+  equivalence is transitive) calls the proof, reusing the shared
+  `rewrite_instance_module_names` / `prune_modules_made_unreachable` survivor tail.
+- **Knob** (`src/config.rs`) — new default-off `hierarchy_sequential_module_dedup`,
+  parallel to `hierarchy_module_dedup` / `hierarchy_semantic_module_dedup` /
+  `bisimulation_flop_merge` (config-only, set via `--config` JSON; no CLI flag, like
+  its siblings).
+- **Wire-in** (`src/gen/mod.rs`) — `generate_design` runs the pass after structural
+  and combinational dedup, gated identically (knob + node-id + e-graph). Default-off
+  ⇒ every existing design byte-identical.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean.
+- `cargo test --lib` 433 pass (incl. 6 new gate tests: 4 `modules_sequentially_*`
+  proof tests in `compact.rs` — equivalent delay lines merge, non-equivalent reject,
+  resetless reject, interface mismatch reject — and 2 `sequential_dedup_*` tests in
+  `dedup.rs` — structurally-distinct equivalent stateful leaves collapse to 1 while
+  `dedup_modules` + `dedup_semantic_modules` both leave 2; non-equivalent leaves stay
+  separate).
+- `cargo test --test snapshots` 6/6 byte-identical (knob default-off contract).
+- The 6 `merge_bisimilar_flops_*` regression tests still pass (no change to the flop
+  pass).
+
+**Impact**
+
+ANVIL gains a sound, bounded whole-module sequential-equivalence merge class beyond
+the pure-combinational module boundary, gated default-off so all existing output is
+byte-identical. Soundness = reset base case + bisimulation step (coinduction) across
+two machines + per-output-cone equality under the quotient — a proof, not a heuristic;
+over-budget / interface-mismatch / resetless / unprovable pairs conservatively fail to
+merge (never a guess). Frontier advances to `.3b.2b.2` (metric pair + downstream bank
++ book/docs closeout).
+
+**Files touched:** `src/ir/compact.rs`, `src/ir/dedup.rs`, `src/config.rs`,
+`src/gen/mod.rs`, `docs/tasks/IDENTITY-DEEPENING.md`, `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
 ## 2026-06-16 — SV-VERSION-TARGETING.3b.2b — repo-owned `union soft` up-opt matrix gate
 
-**Landed as:** this commit (previous: `e7fa265`). Task-tree-owned by
+**Landed as:** `b873b40` (previous: `e7fa265`). Task-tree-owned by
 `SV-VERSION-TARGETING.3b.2b` (the second child of the `.3b.2` split).
 **Code + docs leaf — all in `src/bin/tool_matrix.rs`; default matrix byte-identical;
 closes the whole `SV-VERSION-TARGETING` tree.**

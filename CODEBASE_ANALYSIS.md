@@ -668,12 +668,17 @@ src/
 │   │                 bucket -> refinable-partition -> greatest-fixpoint
 │   │                 refinement core is factored into the non-mutating
 │   │                 `bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>`
-│   │                 helper (`IDENTITY-DEEPENING.3b.2a`) so the
-│   │                 forthcoming cross-module whole-leaf-module
-│   │                 sequential-equivalence proof (`.3b.2b`) can reuse the
-│   │                 identical refinement on a combined module;
-│   │                 `merge_bisimilar_flops` keeps its collapse +
-│   │                 `finalize_flop_merge` tail and stays byte-identical.
+│   │                 helper (`IDENTITY-DEEPENING.3b.2a`); `merge_bisimilar_flops`
+│   │                 keeps its collapse + `finalize_flop_merge` tail and stays
+│   │                 byte-identical. The cross-module whole-leaf-module
+│   │                 sequential-equivalence proof
+│   │                 `modules_sequentially_equivalent(&Module, &Module) -> bool`
+│   │                 (`IDENTITY-DEEPENING.3b.2b.1`) reuses that helper on a
+│   │                 temporary combined module (`build_combined_module`, A's and
+│   │                 B's primary inputs unified by `(PortId, width)`): it runs the
+│   │                 bisimulation partition on the union state, then proves every
+│   │                 output drive cone equal under the final quotient. Pure /
+│   │                 non-mutating; consumed by `dedup_sequential_modules`.
 │   │                 `merge_equivalent_fsms(&mut Module)` applies it
 │   │                 to deterministic generated FSM blocks with
 │   │                 matching selector proof, encoding, transition
@@ -722,8 +727,17 @@ src/
 │                     also inside the proof boundary; it keeps leaves
 │                     and wrappers in separate proof classes and skips
 │                     ancestor/descendant wrapper merge groups.
-│                     Both rewrite Instance.module references to the
-│                     survivor and, after a real merge, prune
+│                     `dedup_sequential_modules` (`IDENTITY-DEEPENING.3b.2b.1`,
+│                     opt-in `Config::hierarchy_sequential_module_dedup`,
+│                     node-id / e-graph) is the sequential generalization: it
+│                     collapses stateful flops-only leaf modules proven
+│                     observationally equivalent by the cross-module
+│                     bisimulation `compact::modules_sequentially_equivalent`,
+│                     grouping candidates with a cheap structural pre-filter
+│                     (interface + flop multiset) and greedy-by-representative
+│                     grouping (sound because sequential equivalence is
+│                     transitive). All three rewrite Instance.module references
+│                     to the survivor and, after a real merge, prune
 │                     definitions that were reachable before dedup but
 │                     are no longer reachable from the design top.
 │                     No-merge calls and pre-existing

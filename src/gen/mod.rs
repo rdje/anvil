@@ -161,6 +161,17 @@ impl Generator {
         {
             crate::ir::dedup::dedup_semantic_modules(&mut design);
         }
+        // `IDENTITY-DEEPENING.3b.2b.1` — opt-in bounded whole-leaf-module
+        // sequential-equivalence dedup (decision `0008`). The sequential
+        // generalization of the combinational pass above; runs after it, gated
+        // identically (node-id / e-graph). Default-off (`default = false`) ⇒
+        // every existing design byte-identical.
+        if self.cfg.hierarchy_sequential_module_dedup
+            && self.cfg.identity_mode == IdentityMode::NodeId
+            && self.cfg.effective_factorization_level() >= FactorizationLevel::EGraph
+        {
+            crate::ir::dedup::dedup_sequential_modules(&mut design);
+        }
         // Phase 5: opt-in post-construction width-parameterization
         // annotation. The opt-in *decision* is taken once at
         // construction time by the rules-first

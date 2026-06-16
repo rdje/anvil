@@ -671,6 +671,30 @@ pub struct Config {
     #[serde(default)]
     pub bisimulation_flop_merge: bool,
 
+    /// When `true`, `generate_design` runs the bounded whole-leaf-module
+    /// sequential-equivalence dedup pass
+    /// (`crate::ir::dedup::dedup_sequential_modules`, `IDENTITY-DEEPENING`,
+    /// decision `0008`) after structural and combinational module dedup. It
+    /// proves two stateful *flops-only leaf* modules observationally
+    /// (sequentially) equivalent via a cross-module bisimulation — the `.2b`
+    /// flop-level greatest-fixpoint partition refinement lifted to the disjoint
+    /// union of the two modules' flops, primary inputs unified by
+    /// `(PortId, width)` — plus bounded output-cone equality under the resulting
+    /// quotient, then rewrites instances of one to the other and prunes the
+    /// merged-away definition. It is the sequential generalization of
+    /// `hierarchy_semantic_module_dedup` (the zero-flop special case) and
+    /// retires nothing. Effective only under `identity_mode = node-id` with
+    /// effective `factorization_level` `e-graph`; `identity_mode = relaxed`
+    /// stays the semantic off-switch. First cut excludes modules with memories,
+    /// FSMs, child instances, parameters, packed aggregates, multiple clock
+    /// domains, or any resetless flop (no reset base case). Proofs reuse the
+    /// 12-bit / 128-node / 131072-work budget; over-budget candidates fail to
+    /// merge (never a guess). `default = false` keeps every existing output
+    /// byte-identical. Parallel to `hierarchy_module_dedup` /
+    /// `hierarchy_semantic_module_dedup` / `bisimulation_flop_merge`.
+    #[serde(default)]
+    pub hierarchy_sequential_module_dedup: bool,
+
     /// Phase 5 (parameterization). Probability that a finalized module
     /// is given a single width `parameter` by the post-construction
     /// `crate::ir::param::parameterize_module` pass. The module body
@@ -949,6 +973,7 @@ impl Default for Config {
             hierarchy_module_dedup: false,
             hierarchy_semantic_module_dedup: false,
             bisimulation_flop_merge: false,
+            hierarchy_sequential_module_dedup: false,
             width_parameterization_prob: default_width_parameterization_prob(),
             aggregate_prob: default_aggregate_prob(),
             aggregate_array_prob: default_aggregate_array_prob(),

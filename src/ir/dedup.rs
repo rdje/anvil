@@ -87,6 +87,39 @@ pub fn dedup_semantic_modules(design: &mut Design) -> usize {
     total_removed
 }
 
+/// Collapse stateful flops-only **leaf** `Module` definitions proven
+/// **sequentially (observationally) equivalent** by a bounded cross-module
+/// bisimulation. Returns the number of Modules removed across all fixed-point
+/// iterations plus any modules made unreachable by a real merge.
+///
+/// This is a separate opt-in pass from [`dedup_semantic_modules`] — the
+/// sequential generalization of its pure-combinational (zero-flop) truth-table
+/// proof (`IDENTITY-DEEPENING.3b`, decision `0008`). The equivalence verdict is
+/// `crate::ir::compact::modules_sequentially_equivalent`; this function only
+/// owns the candidate grouping (a cheap structural pre-filter + greedy-by-
+/// representative grouping inside each bucket) and the survivor / instance-
+/// rewrite / unreachable-prune tail it shares with the other dedup passes.
+///
+/// Sequential equivalence is a true equivalence relation, so grouping each
+/// module against an existing group's representative is sound: if `X ≡ rep` and
+/// `Y ≡ rep` then `X ≡ Y`, so rewriting both to the group's lex-smallest
+/// survivor is sound even when the prover only checked each against `rep`.
+pub fn dedup_sequential_modules(design: &mut Design) -> usize {
+    let mut total_removed = 0usize;
+    let reachable_before = reachable_module_names(design);
+    loop {
+        let removed_this_pass = dedup_sequential_modules_once(design);
+        if removed_this_pass == 0 {
+            break;
+        }
+        total_removed += removed_this_pass;
+    }
+    if total_removed > 0 {
+        total_removed += prune_modules_made_unreachable(design, &reachable_before);
+    }
+    total_removed
+}
+
 /// One sweep of dedup over the current `design.modules`. Returns the
 /// number of Modules removed during this sweep.
 fn dedup_modules_once(design: &mut Design) -> usize {
@@ -195,6 +228,135 @@ fn dedup_semantic_modules_once(design: &mut Design) -> usize {
             let merged_name = design.modules[idx].name.clone();
             name_remap.insert(merged_name, survivor_name.clone());
             indices_to_remove.push(idx);
+        }
+    }
+    if indices_to_remove.is_empty() {
+        return 0;
+    }
+
+    rewrite_instance_module_names(&mut design.modules, &name_remap);
+
+    indices_to_remove.sort_unstable();
+    indices_to_remove.dedup();
+    let removed = indices_to_remove.len();
+    for idx in indices_to_remove.into_iter().rev() {
+        design.modules.remove(idx);
+    }
+
+    removed
+}
+
+/// Cheap structural pre-filter key for sequential-equivalence candidates: only
+/// modules sharing this key can be sequentially equivalent, so the `O(n²)`
+/// cross-module proof runs inside a bucket, not across the whole design. Keys by
+/// `(sorted inputs, sorted outputs)` (`(PortId, width)`) and the sorted flop
+/// multiset `(width, reset-discriminant, reset_val)` — the necessary conditions
+/// the real proof later re-checks. Domain is omitted because eligible modules
+/// are single-clock (`clock_domains.is_empty()`), so every flop is in domain 0.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SequentialPrefilterKey {
+    inputs: Vec<(crate::ir::PortId, u32)>,
+    outputs: Vec<(crate::ir::PortId, u32)>,
+    flops: Vec<(u32, u8, u128)>,
+}
+
+fn sequential_prefilter_key(module: &Module) -> SequentialPrefilterKey {
+    use crate::ir::ResetKind;
+    let mut inputs: Vec<(crate::ir::PortId, u32)> =
+        module.inputs.iter().map(|p| (p.id, p.width)).collect();
+    let mut outputs: Vec<(crate::ir::PortId, u32)> =
+        module.outputs.iter().map(|p| (p.id, p.width)).collect();
+    inputs.sort_unstable();
+    outputs.sort_unstable();
+    let reset_disc = |kind: ResetKind| -> u8 {
+        match kind {
+            ResetKind::None => 0,
+            ResetKind::Sync => 1,
+            ResetKind::Async => 2,
+        }
+    };
+    let mut flops: Vec<(u32, u8, u128)> = module
+        .flops
+        .iter()
+        .map(|f| (f.width, reset_disc(f.reset_kind), f.reset_val))
+        .collect();
+    flops.sort_unstable();
+    SequentialPrefilterKey {
+        inputs,
+        outputs,
+        flops,
+    }
+}
+
+/// One sequential sweep over the current `design.modules`. Returns the number
+/// of Modules removed during this sweep.
+fn dedup_sequential_modules_once(design: &mut Design) -> usize {
+    if design.modules.len() <= 1 {
+        return 0;
+    }
+    let top_name = design.top.clone();
+
+    // Pre-filter: bucket eligible stateful flops-only leaf modules by a cheap
+    // structural key. Only same-bucket modules can be sequentially equivalent.
+    let mut buckets: BTreeMap<SequentialPrefilterKey, Vec<usize>> = BTreeMap::new();
+    for (idx, module) in design.modules.iter().enumerate() {
+        if module.name == top_name {
+            continue;
+        }
+        if !crate::ir::compact::sequential_leaf_eligible(module) {
+            continue;
+        }
+        buckets
+            .entry(sequential_prefilter_key(module))
+            .or_default()
+            .push(idx);
+    }
+
+    // Within each bucket, group by proven sequential equivalence (greedy by
+    // representative — sound because the relation is transitive). Leaf modules
+    // never instantiate anything, so no ancestor/descendant rewrite-cycle guard
+    // is needed (unlike the wrapper-bearing combinational pass).
+    let mut name_remap: HashMap<String, String> = HashMap::new();
+    let mut indices_to_remove: Vec<usize> = Vec::new();
+    for indices in buckets.values() {
+        if indices.len() < 2 {
+            continue;
+        }
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for &idx in indices {
+            let mut placed = false;
+            for group in &mut groups {
+                let rep = group[0];
+                if crate::ir::compact::modules_sequentially_equivalent(
+                    &design.modules[rep],
+                    &design.modules[idx],
+                ) {
+                    group.push(idx);
+                    placed = true;
+                    break;
+                }
+            }
+            if !placed {
+                groups.push(vec![idx]);
+            }
+        }
+        for group in &groups {
+            if group.len() < 2 {
+                continue;
+            }
+            let survivor_idx = *group
+                .iter()
+                .min_by(|a, b| design.modules[**a].name.cmp(&design.modules[**b].name))
+                .expect("non-empty sequential group");
+            let survivor_name = design.modules[survivor_idx].name.clone();
+            for &idx in group {
+                if idx == survivor_idx {
+                    continue;
+                }
+                let merged_name = design.modules[idx].name.clone();
+                name_remap.insert(merged_name, survivor_name.clone());
+                indices_to_remove.push(idx);
+            }
         }
     }
     if indices_to_remove.is_empty() {
@@ -632,6 +794,184 @@ mod tests {
             dedup_semantic_modules(&mut design),
             0,
             "stateful modules need sequential proof inputs, so semantic module dedup must skip them"
+        );
+        assert_eq!(design.modules.len(), 3);
+    }
+
+    /// A two-cycle delay-line stateful leaf (`out` = `in` delayed two cycles).
+    /// With `double_not`, stage 0's D-cone is `~~in` (semantically `in`) so the
+    /// module is structurally distinct but sequentially equivalent — the
+    /// cross-module merge target (`IDENTITY-DEEPENING.3b.2b.1`).
+    fn delay2_leaf(name: &str, double_not: bool) -> Module {
+        use crate::ir::{Flop, FlopKind, FlopMux, NodeId, ResetKind};
+        let mut m = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        m.inputs.push(make_port(0, "clk", 1, Direction::In));
+        m.inputs.push(make_port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(make_port(2, "in", 1, Direction::In));
+        m.outputs.push(make_port(3, "out", 1, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 0 = in
+        let d0: NodeId = if double_not {
+            m.nodes.push(Node::Gate {
+                op: GateOp::Not,
+                operands: vec![0],
+                width: 1,
+                deps: DepSet::from_port(2),
+            });
+            m.nodes.push(Node::Gate {
+                op: GateOp::Not,
+                operands: vec![1],
+                width: 1,
+                deps: DepSet::from_port(2),
+            });
+            2
+        } else {
+            0
+        };
+        let q0 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 });
+        let q1 = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FlopQ { flop: 1, width: 1 });
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(d0),
+            q: q0,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 1,
+            d: Some(q0),
+            q: q1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, q1));
+        m
+    }
+
+    fn stateful_delay_top(a_module: &str, b_module: &str) -> Module {
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(make_port(0, "clk", 1, Direction::In));
+        top.inputs.push(make_port(1, "rst_n", 1, Direction::In));
+        top.inputs.push(make_port(2, "in", 1, Direction::In));
+        top.outputs.push(make_port(4, "oa", 1, Direction::Out));
+        top.outputs.push(make_port(5, "ob", 1, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 0 clk
+        top.nodes.push(Node::PrimaryInput { port: 1, width: 1 }); // 1 rst_n
+        top.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 2 in
+        top.instances.push(Instance {
+            id: 0,
+            name: "u_a".into(),
+            module: a_module.into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
+        });
+        top.instances.push(Instance {
+            id: 1,
+            name: "u_b".into(),
+            module: b_module.into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![(0, 0), (1, 1), (2, 2)],
+            param_bindings: Vec::new(),
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 3,
+            width: 1,
+        }); // 3
+        top.nodes.push(Node::InstanceOutput {
+            instance: 1,
+            port: 3,
+            width: 1,
+        }); // 4
+        top.drives.push((4, 3));
+        top.drives.push((5, 4));
+        top
+    }
+
+    #[test]
+    fn sequential_dedup_collapses_bounded_equivalent_stateful_leaves() {
+        let leaf_a = delay2_leaf("leaf_a", false);
+        let leaf_b = delay2_leaf("leaf_b", true);
+        // Structurally distinct (B carries two extra `Not` gates), so the
+        // structural and combinational module-dedup passes must leave them apart.
+        assert_ne!(
+            canonical_module_signature(&leaf_a),
+            canonical_module_signature(&leaf_b),
+            "the delay lines are structurally distinct"
+        );
+
+        let top = stateful_delay_top("leaf_a", "leaf_b");
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![leaf_a, leaf_b, top],
+        };
+
+        assert_eq!(
+            dedup_modules(&mut design),
+            0,
+            "structural dedup must not merge structurally-distinct leaves"
+        );
+        assert_eq!(
+            dedup_semantic_modules(&mut design),
+            0,
+            "combinational module dedup skips stateful modules"
+        );
+        assert_eq!(
+            dedup_sequential_modules(&mut design),
+            1,
+            "the sequentially-equivalent stateful delay lines collapse to one"
+        );
+        let names: Vec<_> = design
+            .modules
+            .iter()
+            .map(|module| module.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["leaf_a", "top"]);
+        let top_after = design
+            .modules
+            .iter()
+            .find(|module| module.name == "top")
+            .expect("top survived");
+        assert!(top_after.instances.iter().all(|i| i.module == "leaf_a"));
+    }
+
+    #[test]
+    fn sequential_dedup_keeps_non_equivalent_stateful_leaves_separate() {
+        // Two delay lines that share interface + flop shape but observe a
+        // different stage (two-cycle vs one-cycle delay): genuinely not
+        // sequentially equivalent, so the pass must not merge them.
+        let leaf_a = delay2_leaf("leaf_a", false);
+        let mut leaf_b = delay2_leaf("leaf_b", false);
+        // Rewire B's output from Q_1 (node 2) to Q_0 (node 1): one-cycle delay.
+        leaf_b.drives.clear();
+        leaf_b.drives.push((3, 1));
+
+        let top = stateful_delay_top("leaf_a", "leaf_b");
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![leaf_a, leaf_b, top],
+        };
+
+        assert_eq!(
+            dedup_sequential_modules(&mut design),
+            0,
+            "one-cycle and two-cycle delays are not sequentially equivalent"
         );
         assert_eq!(design.modules.len(), 3);
     }

@@ -5,6 +5,78 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Cross-module sequential-equivalence merge mechanism — `IDENTITY-DEEPENING.3b.2b.1`
+
+Implemented the bounded whole-leaf-module sequential-equivalence merge designed in
+decision `0008` and grounded in `.3b.1`: the mechanism + proof, fully wired and
+default-off. (The metric pair, downstream-clean bank, and book/USER_GUIDE/ROADMAP/KM
+closeout are deferred to `.3b.2b.2`.)
+
+**The proof reuses the flop primitive on a *combined* module — no new engine.**
+`modules_sequentially_equivalent(a, b)` (`src/ir/compact.rs`) materializes a throwaway
+combined module `a.nodes ++ b.nodes` / `a.flops ++ b.flops` with B's `NodeId`/`FlopId`
+references offset (`build_combined_module`), then calls the existing
+`bisimulation_partition` (`.3b.2a`) on the union state and checks per-output-port drive
+cone equality under the final quotient. The whole trick that makes a single bisimulation
+class span flops from *both* modules is that B's `Node::PrimaryInput { port, width }`
+nodes keep their `port`, and `LeafEndpoint::PrimaryInput` already keys by `(port, width)`
+— so A's and B's primary inputs unify *for free* in the shared endpoint vocabulary. This
+is why the central `.3a` "cross-module cone-proof signature" challenge needed no new
+machinery (the `.3b.1` resolution).
+
+**Soundness does not need the partition to refine by output, nor a flop bijection.**
+`bisimulation_partition` only refines by D-cone (transition) agreement under the quotient
++ reset bucketing — it does *not* label-refine by which output a flop feeds. That is
+sound here because output equality is proven *separately* (step 4) under the *final*
+quotient: the partition guarantees "same class ⇒ equal value for all time" (reset base
+case + stable quotient step = coinduction), and step 4 proves A's and B's output cones
+are equal functions of those equal-valued classes + unified inputs. Together ⇒ equal
+outputs every cycle. No flop bijection is required: if A's and B's output cones reference
+flops in *different* classes the structural/semantic proof simply differs and the pair is
+rejected (conservative, never unsound).
+
+**Two `cone_proof` gotchas, both load-bearing.** (1) The output-equality proofs for all
+ports must share ONE `StructuralSignatureCtx` interner — `ConeProof::Structural` is an
+interner-relative id, so proofs computed against different contexts are incomparable.
+(2) The four memos are valid across all ports only because the quotient is *fixed* (the
+final `rep_map`); they are `NodeId`-keyed and assume fixed endpoint identity (the same
+invariant the `.2b` refinement loop rebuilds-per-iteration for).
+
+**First-cut eligibility (`sequential_leaf_eligible`) and excluded boundaries.** Stateful
+flops-only leaf modules with every flop settled + reset-defined, and no memories / FSMs /
+instances / params / aggregates / multiple clock domains. Resetless flops are excluded
+(no `t=0` base case — carries the `0007`/`.2b` boundary forward). Multi-clock is excluded
+in the first cut because clock-domain indices are module-local, so a naive cross-module
+union would be unsound without a domain correspondence; `clock_domains.is_empty()` sidesteps
+it cleanly. Each exclusion is a separately-recorded boundary / named future leaf, none
+retired.
+
+**The dedup pass groups greedily by representative — sound because the relation is
+transitive.** `dedup_sequential_modules` (`src/ir/dedup.rs`) buckets eligible leaves by a
+cheap `SequentialPrefilterKey` (sorted `(PortId,width)` interface + sorted flop multiset),
+then within a bucket compares each module against existing group representatives. Real
+sequential equivalence is a true equivalence relation, so matching any representative is
+sound even though the (incomplete-but-sound) prover only checked against `rep`: `X≡rep`
+and `Y≡rep` ⇒ `X≡Y`, so rewriting both to the group's lex-smallest survivor is sound. It
+reuses the shared `rewrite_instance_module_names` / `prune_modules_made_unreachable` tail;
+leaf modules never instantiate anything, so the combinational pass's ancestor/descendant
+rewrite-cycle guard is unnecessary here.
+
+**Budget.** Per-cone checks reuse the 12-bit / 128-node / 131072-work
+`MERGE_SEMANTIC_LIMITS` verbatim; the combined flop count is capped at
+`N_BISIM_MODULE_FLOPS = 64` so every combined `(width,reset,domain)` bucket also stays
+within the per-bucket `N_BISIM_FLOPS` refinement cap. Over-budget pairs fail to merge
+(never a guess).
+
+**Wire-in + default-off contract.** Gated in `generate_design` (`src/gen/mod.rs`)
+identically to the two sibling module-dedup knobs (`hierarchy_sequential_module_dedup`
++ node-id / e-graph), running after structural and combinational dedup. Default `false`
+⇒ every existing design byte-identical (`tests/snapshots.rs` 6/6 untouched). Rules-first
+gate: `delay2_leaf` fixtures (a two-cycle delay line, one built with a redundant `~~in`
+D-cone so it is structurally distinct but sequentially equivalent) merge to one
+definition with the knob on while `dedup_modules` (structural) and `dedup_semantic_modules`
+(stateful-skip) both leave them as two.
+
 ## 2026-06-16 — `union soft` up-opt matrix gate — `SV-VERSION-TARGETING.3b.2b`
 
 Industrialized the `.3b.2a` `union soft` up-opt into `tool_matrix --sv-version-gate`

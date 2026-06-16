@@ -92,7 +92,8 @@
 //! that two independent memory instances store equal state.
 
 use super::types::{
-    Flop, FlopId, FlopMux, FsmEncoding, FsmId, GateOp, Module, Node, NodeId, PortId, ResetKind,
+    Flop, FlopId, FlopMux, FsmEncoding, FsmId, GateOp, Module, MuxArm, Node, NodeId, PortId,
+    ResetKind,
 };
 use crate::config::FactorizationLevel;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -1459,6 +1460,257 @@ fn bisimulation_partition(m: &Module) -> Option<Vec<Vec<FlopId>>> {
     }
 
     Some(classes)
+}
+
+/// Union flop-count cap for the cross-module sequential-equivalence proof.
+///
+/// `modules_sequentially_equivalent` materializes a combined module holding both
+/// candidates' flops, so the bisimulation refinement on that union is bounded by
+/// `O(k² · iters)` with `k = a.flops + b.flops`. Pairs whose combined flop count
+/// exceeds this cap are skipped (the pair conservatively fails to merge, never a
+/// guess). Mirrors [`N_BISIM_FLOPS`]; chosen so every combined `(width, reset,
+/// domain)` bucket also stays within the per-bucket [`N_BISIM_FLOPS`] refinement
+/// cap (`IDENTITY-DEEPENING.3b`, decision `0008`).
+const N_BISIM_MODULE_FLOPS: usize = 64;
+
+/// Whether `m` is inside the first-cut scope of the whole-leaf-module
+/// sequential-equivalence proof (`IDENTITY-DEEPENING.3b`, decision `0008`).
+///
+/// Eligible: a **stateful flops-only leaf module** — it has local flops, every
+/// flop has a settled D-cone and a real reset (resetless flops have no `t = 0`
+/// base case, so a cross-module state correspondence is unprovable and the
+/// module is conservatively skipped, carrying the `0007`/`.2b` resetless
+/// boundary forward), and it has no memories, FSMs, child instances, width
+/// parameter, packed-aggregate projection, or explicit multi-clock domains.
+/// Each exclusion is a separately-recorded boundary / named future leaf, none
+/// retired.
+pub(crate) fn sequential_leaf_eligible(m: &Module) -> bool {
+    m.has_local_flops()
+        && !m.has_local_memories()
+        && !m.has_local_fsms()
+        && m.instances.is_empty()
+        && m.param_env.is_none()
+        && m.aggregate_layout.is_none()
+        && m.clock_domains.is_empty()
+        && m.flops
+            .iter()
+            .all(|flop| flop.reset_kind != ResetKind::None)
+        && m.flops.iter().all(|flop| flop.d.is_some())
+}
+
+/// A sorted `(PortId, width)` port shape (one side of a module interface).
+type PortShape = Vec<(PortId, u32)>;
+
+/// `(sorted inputs, sorted outputs)` keyed by `(PortId, width)`. Two modules
+/// with equal keys have identical public interfaces, so rewriting instances of
+/// one to the other preserves every parent-side port-id binding (the same
+/// interface base case `dedup_semantic_modules` enforces).
+fn module_port_key(m: &Module) -> (PortShape, PortShape) {
+    let mut inputs: PortShape = m.inputs.iter().map(|p| (p.id, p.width)).collect();
+    let mut outputs: PortShape = m.outputs.iter().map(|p| (p.id, p.width)).collect();
+    inputs.sort_unstable();
+    outputs.sort_unstable();
+    (inputs, outputs)
+}
+
+/// Shift every `NodeId` inside a `FlopMux` by `node_offset` (used when copying
+/// module `b`'s flops into the combined proof module). The proof itself never
+/// reads `FlopMux`, but keeping the combined module internally consistent avoids
+/// dangling ids if any future reader does.
+fn shift_flop_mux(mux: &FlopMux, node_offset: NodeId) -> FlopMux {
+    match mux {
+        FlopMux::None => FlopMux::None,
+        FlopMux::OneHot(arms) => FlopMux::OneHot(
+            arms.iter()
+                .map(|arm| MuxArm {
+                    data: arm.data + node_offset,
+                    sel: arm.sel + node_offset,
+                })
+                .collect(),
+        ),
+        FlopMux::Encoded { sel, data } => FlopMux::Encoded {
+            sel: sel + node_offset,
+            data: data.iter().map(|d| d + node_offset).collect(),
+        },
+    }
+}
+
+/// Materialize the temporary **combined module** `a.nodes ++ b.nodes` /
+/// `a.flops ++ b.flops` used by the cross-module proof.
+///
+/// `b`'s `NodeId`s are offset by `a.nodes.len()` and its `FlopId`s by
+/// `a.flops.len()`; every operand / `FlopQ` / flop `d`/`q`/`mux` reference is
+/// remapped accordingly. Crucially, `b`'s `PrimaryInput { port, width }` nodes
+/// keep their `port`, so A's and B's primary inputs **unify for free** in the
+/// shared `LeafEndpoint::PrimaryInput { port, width }` vocabulary — that is what
+/// makes a single bisimulation class span flops from *both* modules
+/// (`IDENTITY-DEEPENING.3b.1`). Only the fields the proof reads (`nodes`,
+/// `flops`) are populated; everything else is `Module::default()`.
+fn build_combined_module(a: &Module, b: &Module) -> Module {
+    let node_offset = a.nodes.len() as NodeId;
+    let flop_offset = a.flops.len() as FlopId;
+
+    let mut nodes: Vec<Node> = a.nodes.clone();
+    for node in &b.nodes {
+        nodes.push(match node {
+            Node::PrimaryInput { port, width } => Node::PrimaryInput {
+                port: *port,
+                width: *width,
+            },
+            Node::Constant { width, value } => Node::Constant {
+                width: *width,
+                value: *value,
+            },
+            Node::FlopQ { flop, width } => Node::FlopQ {
+                flop: flop + flop_offset,
+                width: *width,
+            },
+            Node::InstanceOutput {
+                instance,
+                port,
+                width,
+            } => Node::InstanceOutput {
+                instance: *instance,
+                port: *port,
+                width: *width,
+            },
+            Node::MemRead { mem, width } => Node::MemRead {
+                mem: *mem,
+                width: *width,
+            },
+            Node::FsmOut { fsm, width } => Node::FsmOut {
+                fsm: *fsm,
+                width: *width,
+            },
+            Node::Gate {
+                op,
+                operands,
+                width,
+                deps,
+            } => Node::Gate {
+                op: *op,
+                operands: operands.iter().map(|o| o + node_offset).collect(),
+                width: *width,
+                deps: deps.clone(),
+            },
+        });
+    }
+
+    let mut flops: Vec<Flop> = a.flops.clone();
+    for flop in &b.flops {
+        flops.push(Flop {
+            id: flop.id + flop_offset,
+            width: flop.width,
+            d: flop.d.map(|d| d + node_offset),
+            q: flop.q + node_offset,
+            reset_val: flop.reset_val,
+            reset_kind: flop.reset_kind,
+            kind: flop.kind,
+            mux: shift_flop_mux(&flop.mux, node_offset),
+        });
+    }
+
+    Module {
+        nodes,
+        flops,
+        ..Module::default()
+    }
+}
+
+/// Prove two stateful flops-only leaf modules observationally (sequentially)
+/// equivalent by a **bounded cross-module bisimulation**
+/// (`IDENTITY-DEEPENING.3b`, decision `0008`).
+///
+/// This is the sequential generalization of the combinational
+/// `dedup_semantic_modules` truth-table proof: it lifts the flop-level
+/// greatest-fixpoint partition refinement ([`bisimulation_partition`]) to the
+/// disjoint union of both modules' flops, then proves every output cone equal
+/// under the resulting state quotient.
+///
+/// Steps (decision `0008`):
+///
+/// 1. **Interface base case.** Identical input & output ports by
+///    `(PortId, width)` (so an instance rewrite preserves every parent-side
+///    binding). Both modules must be [`sequential_leaf_eligible`], and the
+///    combined flop count within [`N_BISIM_MODULE_FLOPS`].
+/// 2. **State correspondence.** Materialize the combined module (A's and B's
+///    primary inputs unified by `(PortId, width)`) and run the coarsest stable
+///    bisimulation partition on its union state. Same-class flops (possibly from
+///    both modules) provably hold equal values for all time (reset base case +
+///    stable quotient transition — the `.2b` coinduction, now across two
+///    machines).
+/// 3. **Output equality.** For every output port, A's drive cone equals B's
+///    drive cone under the *final* quotient (one shared structural interner makes
+///    the proof ids mutually comparable; the fixed quotient keeps the
+///    `NodeId`-keyed memos sound across all ports).
+///
+/// Returns `true` only when all three hold. Any over-budget cone, interface
+/// mismatch, resetless flop, or unprovable correspondence ⇒ `false` (never a
+/// guess). Pure / non-mutating.
+pub(crate) fn modules_sequentially_equivalent(a: &Module, b: &Module) -> bool {
+    if !sequential_leaf_eligible(a) || !sequential_leaf_eligible(b) {
+        return false;
+    }
+    if a.flops.len() + b.flops.len() > N_BISIM_MODULE_FLOPS {
+        return false;
+    }
+    if module_port_key(a) != module_port_key(b) {
+        return false;
+    }
+
+    // 2-3. Combined module + coarsest stable bisimulation on the union state.
+    let combined = build_combined_module(a, b);
+    let classes = match bisimulation_partition(&combined) {
+        Some(classes) => classes,
+        None => return false,
+    };
+    let mut rep_map: HashMap<FlopId, FlopId> = HashMap::new();
+    for class in &classes {
+        let rep = *class.iter().min().expect("partition class is non-empty");
+        for &flop in class {
+            rep_map.insert(flop, rep);
+        }
+    }
+
+    // 4. Per-output-port drive-cone equality under the final quotient.
+    let node_offset = a.nodes.len() as NodeId;
+    let a_drives: BTreeMap<PortId, NodeId> = a.drives.iter().copied().collect();
+    let b_drives: BTreeMap<PortId, NodeId> = b.drives.iter().copied().collect();
+
+    let mut structural_memo: HashMap<NodeId, StructuralSigId> = HashMap::new();
+    let mut structural_ctx = StructuralSignatureCtx::default();
+    let mut endpoint_memo: HashMap<NodeId, BTreeSet<LeafEndpoint>> = HashMap::new();
+    let mut semantic_memo: HashMap<NodeId, Option<SemanticConeProof>> = HashMap::new();
+
+    for port in &a.outputs {
+        let (Some(&a_node), Some(&b_node)) = (a_drives.get(&port.id), b_drives.get(&port.id))
+        else {
+            return false;
+        };
+        let proof_a = cone_proof(
+            &combined,
+            a_node,
+            &mut structural_memo,
+            &mut structural_ctx,
+            &mut endpoint_memo,
+            &mut semantic_memo,
+            Some(&rep_map),
+        );
+        let proof_b = cone_proof(
+            &combined,
+            b_node + node_offset,
+            &mut structural_memo,
+            &mut structural_ctx,
+            &mut endpoint_memo,
+            &mut semantic_memo,
+            Some(&rep_map),
+        );
+        if proof_a != proof_b {
+            return false;
+        }
+    }
+
+    true
 }
 
 /// Merge duplicate generated FSM blocks after their selector cones are known.
@@ -2969,6 +3221,159 @@ mod tests {
             "flops with genuinely different transitions must not merge"
         );
         assert_eq!(m.flops.len(), 2);
+    }
+
+    /// A two-deep delay-line stateful leaf module (`out` = `in` delayed two
+    /// cycles). When `double_not` is set, the first flop's D-cone is the
+    /// semantically-equal `~~in` instead of a bare `in`, so the module is
+    /// *structurally distinct* (an extra two `Not` gates) while staying
+    /// *sequentially equivalent* — exactly the cross-module merge target.
+    fn delay2_leaf(name: &str, double_not: bool, reset_kind: ResetKind) -> Module {
+        let mut m = Module {
+            name: name.into(),
+            identity_mode: IdentityMode::NodeId,
+            factorization_level: FactorizationLevel::EGraph,
+            ..Module::default()
+        };
+        // Shared interface: clk(0), rst_n(1), in(2) -> out(3).
+        m.inputs.push(Port {
+            id: 0,
+            name: "clk".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "rst_n".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 2,
+            name: "in".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.outputs.push(Port {
+            id: 3,
+            name: "out".into(),
+            width: 1,
+            dir: Direction::Out,
+        });
+        m.clock = Some(0);
+        m.reset = Some(1);
+
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 0 = in
+        let d0: NodeId = if double_not {
+            m.nodes.push(Node::Gate {
+                op: GateOp::Not,
+                operands: vec![0],
+                width: 1,
+                deps: DepSet::from_port(2),
+            }); // 1 = ~in
+            m.nodes.push(Node::Gate {
+                op: GateOp::Not,
+                operands: vec![1],
+                width: 1,
+                deps: DepSet::from_port(2),
+            }); // 2 = ~~in
+            2
+        } else {
+            0
+        };
+        let q0_node = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 }); // Q_0
+        let q1_node = m.nodes.len() as NodeId;
+        m.nodes.push(Node::FlopQ { flop: 1, width: 1 }); // Q_1
+
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(d0), // stage 0 captures `in` (possibly via ~~in)
+            q: q0_node,
+            reset_val: 0,
+            reset_kind,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.flops.push(Flop {
+            id: 1,
+            width: 1,
+            d: Some(q0_node), // stage 1 captures stage 0's Q
+            q: q1_node,
+            reset_val: 0,
+            reset_kind,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, q1_node)); // out = Q_1 (two-cycle delay)
+
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    /// A one-deep delay module sharing the delay-line interface and flop shape
+    /// but observing stage 0 (`out` = `in` delayed *one* cycle): genuinely
+    /// NOT sequentially equivalent to [`delay2_leaf`].
+    fn delay1_leaf(name: &str) -> Module {
+        let mut m = delay2_leaf(name, false, ResetKind::Async);
+        // Rewire the output drive from Q_1 (node 2) to Q_0 (node 1).
+        let q0_node = 1 as NodeId;
+        m.drives.clear();
+        m.drives.push((3, q0_node));
+        rebuild_instance_tables(&mut m);
+        m
+    }
+
+    #[test]
+    fn modules_sequentially_equivalent_merges_structurally_distinct_delay_lines() {
+        // Two two-cycle delay lines, one built with a redundant `~~in` D-cone:
+        // structurally distinct (so `dedup_modules` keeps them apart) but
+        // sequentially equivalent up to the identity state correspondence the
+        // cross-module bisimulation discovers.
+        let a = delay2_leaf("delay_a", false, ResetKind::Async);
+        let b = delay2_leaf("delay_b", true, ResetKind::Async);
+        assert!(
+            modules_sequentially_equivalent(&a, &b),
+            "two-cycle delay lines must be proven sequentially equivalent"
+        );
+        // Symmetric.
+        assert!(modules_sequentially_equivalent(&b, &a));
+    }
+
+    #[test]
+    fn modules_sequentially_equivalent_rejects_non_equivalent_delays() {
+        let a = delay2_leaf("delay2", false, ResetKind::Async);
+        let c = delay1_leaf("delay1");
+        assert!(
+            !modules_sequentially_equivalent(&a, &c),
+            "one-cycle and two-cycle delays differ for some input sequence"
+        );
+    }
+
+    #[test]
+    fn modules_sequentially_equivalent_rejects_resetless_modules() {
+        // No reset => no t=0 base case => the cross-module correspondence is
+        // unprovable. Carries the resetless boundary forward.
+        let a = delay2_leaf("delay_a", false, ResetKind::None);
+        let b = delay2_leaf("delay_b", true, ResetKind::None);
+        assert!(
+            !modules_sequentially_equivalent(&a, &b),
+            "resetless stateful modules have no bisimulation base case"
+        );
+    }
+
+    #[test]
+    fn modules_sequentially_equivalent_rejects_interface_mismatch() {
+        let a = delay2_leaf("delay_a", false, ResetKind::Async);
+        let mut b = delay2_leaf("delay_b", true, ResetKind::Async);
+        // Widen the output port: same behaviour class, different interface, so
+        // an instance rewrite would break parent-side bindings => reject.
+        b.outputs[0].width = 2;
+        assert!(
+            !modules_sequentially_equivalent(&a, &b),
+            "mismatched output interface must not merge"
+        );
     }
 
     #[test]
