@@ -1,9 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2a — `num_emitted_combinational_functions` metric + introspection schema `1.7 → 1.8`
+
+**Landed as:** this commit (previous: `15844d9`). Default-off / **DUT
+byte-identical** (a post-hoc structural metric; emitted RTL unchanged). The
+function-emit surface gains its introspection-queryable count, and the
+introspection schema takes its additive MINOR bump for the new `Metrics` field.
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — new `Metrics::num_emitted_combinational_functions:
+  usize` (`#[serde(default)]`), computed in `metrics::compute()` as
+  `m.function_emit_gates.len()`. A post-hoc structural count of an
+  emitter-surface annotation (alongside `num_priority_encoder_blocks` etc.) — it
+  reads `0` by default and the configured count when `function_emit_prob` fired.
+  A lib proof (`metrics_count_emitted_combinational_functions`): unmarked ⇒ `0`,
+  marked ⇒ counted.
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.7 → 1.8`. The metric is part
+  of `Metrics`, which is the exact serde projection surfaced in introspection
+  `module_metrics`; adding a `#[serde(default)]` `Metrics` field is an additive
+  (backward-compatible) MINOR bump — the same case as the `1.0 → 1.1`
+  `bisimulation_flops_merged` and `1.3 → 1.4` `DesignMetrics` bumps. A `1.7`
+  consumer ignores the new key; an absent key reads back as `0`.
+- **schema-version references bumped to `1.8`**: the 9 `schema_version`
+  assertions in `src/introspect/mod.rs` + `src/mcp/mod.rs` tests; the schema doc
+  (`docs/AGENT_INTROSPECTION_SCHEMA.md` — the `1.7 → 1.8` changelog entry + the
+  "defines `schema_version`" / lockstep / checklist lines); the README
+  `--introspect`/`analyze` current-output statements; the USER_GUIDE
+  `--introspect` note; the 5 book `agent-mcp.md` example `schema_version` values;
+  and (fixing pre-existing drift) the `CODEBASE_ANALYSIS.md` introspect
+  envelope-metadata line (was frozen at `"1.4"`). Historical "landed at schema
+  X" attributions (ROADMAP semantic-introspection lane, the `1.6 → 1.7` prose)
+  are left intact.
+
+**Why the metric bumps the schema but the `.2b.1` knob did not.** A new `Metrics`
+field is a new derived projection surfaced in `module_metrics` (the
+`bisimulation_flops_merged` precedent ⇒ MINOR bump). The companion
+`function_emit_prob` *knob* was added to `request.knobs` at `.2b.1` under the
+existing version via `#[serde(default)]`, following the default-off
+probability-knob precedent (`soft_union_slice_prob` / `aggregate_prob` /
+`memory_prob` / `fsm_prob` / `multi_clock_prob`). Both are honest with the
+schema-versioning policy (§7); the bump rides the metric.
+
+**Validation**
+
+- `cargo clippy --all-targets -- -D warnings` ✅; `cargo fmt --all --check` ✅.
+- `cargo test --lib` ✅ **468 passed** / 2 ignored (the new metric proof + all
+  `schema_version` assertions now green at `1.8`).
+- `cargo test --test snapshots` ✅ **6/6 byte-identical** (default-off contract;
+  the metric changes no emitted RTL).
+- End-to-end `--introspect`: default seed ⇒ `schema_version "1.8"`,
+  `num_emitted_combinational_functions 0`; forced `function_emit_prob=1.0` ⇒
+  `schema_version "1.8"`, `num_emitted_combinational_functions 1256`.
+- `mdbook build book` ✅.
+
+**Impact**
+
+- The combinational-function-emit surface is now introspection-queryable (an
+  agent can read `num_emitted_combinational_functions` per module). Default
+  `anvil` build + `--artifact dut` stay byte-identical.
+- This is the first of three `.2b.2` sub-leaves (pre-split `2026-06-16`):
+  `.2b.2a` (this — metric + schema), `.2b.2b` (the repo-owned `tool_matrix` gate
+  + `saw_combinational_function_emit`), `.2b.2c` (book/USER_GUIDE/KM/README
+  closeout). Frontier → `.2b.2b`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.1 — combinational `function automatic` emit-projection (live surface)
 
-**Landed as:** this commit (previous: `e9be3c7`). Default-off / **DUT
+**Landed as:** `15844d9` (previous: `e9be3c7`). Default-off / **DUT
 byte-identical**. The first richer-structured emission surface goes live
 (decision `0012`, design-of-record the `.2a` `DEVELOPMENT_NOTES` entry): a
 selected combinational gate can be rendered as a behaviour-preserving

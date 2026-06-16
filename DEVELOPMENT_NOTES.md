@@ -5,6 +5,37 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — the emit metric + schema `1.7 → 1.8` — `STRUCTURED-EMISSION-EXPANSION.2b.2a`
+
+`Metrics::num_emitted_combinational_functions` (`= m.function_emit_gates.len()`,
+computed in `metrics::compute()`) makes the function-emit surface
+introspection-queryable. `Metrics` is the exact serde projection surfaced in
+introspection `module_metrics`, so adding the field bumps the introspection
+schema MINOR `1.7 → 1.8`.
+
+This resolves the schema question the `.2b.1` entry below flagged ("`.2b.2`
+reconfirms"). The split is principled and policy-honest (§7):
+
+- The **knob** `function_emit_prob` (added at `.2b.1`) rode the existing schema
+  via `#[serde(default)]` in `request.knobs` — the default-off probability-knob
+  precedent (`soft_union_slice_prob` / `aggregate_prob` / `memory_prob` /
+  `fsm_prob` / `multi_clock_prob` all did the same; only the `sv_version` *enum*
+  took a dedicated `1.1 → 1.2` bump).
+- The **metric** `num_emitted_combinational_functions` (added here) is a new
+  derived `Metrics` field surfaced in `module_metrics`, which **is** a MINOR
+  bump — the `1.0 → 1.1` `bisimulation_flops_merged` and `1.3 → 1.4`
+  `DesignMetrics` precedents.
+
+So a single feature legitimately split its introspection surfacing across two
+slices: the knob rode the version, the metric bumped it. Gotcha for the next
+session: a schema bump touches more than the const — the 9 `schema_version`
+assertions in `src/introspect/mod.rs` + `src/mcp/mod.rs`, the schema doc
+changelog/§7 lines, and every **current-output** doc reference (README /
+USER_GUIDE / the 5 `book/src/agent-mcp.md` example JSONs) — but **not** the
+historical "landed at schema X" attributions (the ROADMAP semantic-introspection
+lane line, the `1.6 → 1.7` book prose). `CODEBASE_ANALYSIS.md`'s envelope line
+had drifted (frozen at `"1.4"`); corrected to `"1.8"` with the full chain here.
+
 ## 2026-06-16 — Structured emission — combinational `function automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.2b.1`
 
 The `.2a` design (above) implemented as a real, default-off emitter change. The

@@ -303,6 +303,17 @@ pub struct Metrics {
     /// Number of procedural combinational statically bounded for-fold
     /// blocks built.
     pub num_for_fold_blocks: u32,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.2b.2a` — number of combinational
+    /// gates this module emits as a `function automatic` projection
+    /// (`Module.function_emit_gates.len()`; the `function_emit_prob`
+    /// knob). Zero unless `function_emit_prob > 0.0` selected qualifying
+    /// gates. A post-hoc structural count of an emitter-surface
+    /// annotation — adding it changes no emitted RTL (default-off
+    /// byte-identical). `#[serde(default)]` keeps the introspection
+    /// projection additive (schema `1.8`).
+    #[serde(default)]
+    pub num_emitted_combinational_functions: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -874,6 +885,11 @@ pub fn compute(m: &Module) -> Metrics {
     out.num_case_mux_blocks = m.case_mux_built;
     out.num_casez_mux_blocks = m.casez_mux_built;
     out.num_for_fold_blocks = m.for_fold_built;
+
+    // `STRUCTURED-EMISSION-EXPANSION.2b.2a` — count of gates the emitter
+    // projects as a `function automatic` (an emitter-surface annotation;
+    // structural, post-hoc, RTL-invisible).
+    out.num_emitted_combinational_functions = m.function_emit_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3142,6 +3158,29 @@ mod tests {
         assert_eq!(met.num_nodes, 0);
         assert_eq!(met.num_gates, 0);
         assert_eq!(met.num_flops, 0);
+    }
+
+    #[test]
+    fn metrics_count_emitted_combinational_functions() {
+        // `STRUCTURED-EMISSION-EXPANSION.2b.2a` — the metric is the count
+        // of gates marked for the `function automatic` emit-projection.
+        let mut m = Module {
+            name: "fe".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // id 0
+        let (g, _) = m.intern_gate(GateOp::And, vec![0, 0], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_combinational_functions, 0);
+        // Marked ⇒ counted.
+        m.function_emit_gates.insert(g);
+        assert_eq!(compute(&m).num_emitted_combinational_functions, 1);
     }
 
     #[test]

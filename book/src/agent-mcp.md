@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.7",
+  "schema_version": "1.8",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -212,7 +212,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.7",
+  "schema_version": "1.8",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -260,7 +260,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.7",
+  "schema_version": "1.8",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -303,7 +303,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.7",
+  "schema_version": "1.8",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -353,7 +353,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.7",
+  "schema_version": "1.8",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },

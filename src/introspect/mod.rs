@@ -44,18 +44,18 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.7` is the
-/// additive (backward-compatible) MINOR bump that adds the fourth derived-query
-/// kind `module_reachability` — the
-/// [`DerivedAnalysis::module_reachability`](analyze::DerivedAnalysis) field
-/// carrying [`ModuleReachability`](analyze::ModuleReachability)s
-/// (`SEMANTIC-INTROSPECTION-EXPANSION.5b.2`). The field is
-/// `#[serde(default, skip_serializing_if)]`, so `output_support` / `input_reach`
-/// / `flop_reset_provenance` documents are **byte-identical** to `1.6` (the key
-/// is omitted); only a `module_reachability` document carries it, and only the
-/// `schema_version` string advances. Old consumers ignore the new field. See the
-/// schema-doc §7 changelog for the full `1.0 → … → 1.6 → 1.7` history.
-pub const SCHEMA_VERSION: &str = "1.7";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.8` is the
+/// additive (backward-compatible) MINOR bump that surfaces the new
+/// [`Metrics::num_emitted_combinational_functions`](crate::metrics::Metrics)
+/// field in `module_metrics` — the count of gates emitted as a
+/// `function automatic` projection (the `function_emit_prob` knob,
+/// `STRUCTURED-EMISSION-EXPANSION.2b.2a`). The field is `#[serde(default)]`,
+/// so a `1.7` consumer ignores the new key and an absent key reads back as
+/// `0`; the default-`dut` artifact stays byte-identical and determinism is
+/// preserved (the metric is a post-hoc structural count, not new computed
+/// truth). See the schema-doc §7 changelog for the full
+/// `1.0 → … → 1.7 → 1.8` history.
+pub const SCHEMA_VERSION: &str = "1.8";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -432,7 +432,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.7");
+        assert_eq!(doc.schema_version, "1.8");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -561,7 +561,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.7");
+        assert_eq!(doc.schema_version, "1.8");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");

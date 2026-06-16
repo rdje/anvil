@@ -624,7 +624,7 @@ exercising adversarial axes that previously fired only by chance
   `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.7`) for a single-artifact run instead of SystemVerilog
+  (schema `1.8`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Requires a single-artifact stdout
@@ -641,7 +641,7 @@ exercising adversarial axes that previously fired only by chance
   fan-out (`input_reach`: what a source reaches), per-flop reset/data
   provenance (`flop_reset_provenance`), and per-module reachability from the top
   (`module_reachability`: which modules in a design are reachable via the instance
-  graph), schema `1.7`, unknown query/target ⇒
+  graph), schema `1.8`, unknown query/target ⇒
   `-32602`, and `coverage_gaps` projects the recorded
   `tool_matrix_report.json` gap list read-only), controlled tools
   (`validate`/`minimize`, run only through the hardened

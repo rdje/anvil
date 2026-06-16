@@ -242,9 +242,11 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    modes + Icarus, `/tmp/anvil-fe-r2/`; `Slice` excluded from the first cut — a
    bit-select uses only a sub-range of its operand so a full-width param trips
    `-Wall UNUSEDSIGNAL`; still emitted inline, nothing retired, slice-aware
-   projection = follow-up). Frontier = `.2b.2` (the repo-owned `tool_matrix` gate +
-   `saw_combinational_function_emit` + `num_emitted_combinational_functions` +
-   book/USER_GUIDE/KM closeout). `task`, nested `generate`, `interface`/`modport`
+   projection = follow-up). `.2b.2` pre-split into `.2b.2a` (**done**:
+   `Metrics::num_emitted_combinational_functions` ⇒ introspection schema MINOR
+   bump `1.7 → 1.8`; default-off / DUT byte-identical) + `.2b.2b` (the repo-owned
+   `tool_matrix` gate + `saw_combinational_function_emit`, **frontier**) + `.2b.2c`
+   (book/USER_GUIDE/KM/README closeout). `task`, nested `generate`, `interface`/`modport`
    are future vetted surfaces (`.3`+), each with its own decision; serves ROADMAP
    steering gap 1 (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
