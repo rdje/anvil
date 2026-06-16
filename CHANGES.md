@@ -1,9 +1,49 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3 — register `input_reach` lane + API-audience decision (handoff)
+
+**Landed as:** this commit (previous: `fcddc1c`). **Docs/workflow-only** (no
+source, no behaviour change) — a clean fresh-session handoff after the
+`IDENTITY-DEEPENING.3b.2b` sub-tree closed.
+
+**What changed (why)**
+
+The owner (a) directed PNT into the next derived introspection query, `input_reach`
+(the dual fan-out of the delivered `output_support` cone), and (b) gave durable
+API-audience steering: the introspection / MCP query API is **for AI agents,
+not humans**, so it should optimize for machine-friendly completeness / structure /
+speed, not human-terse digests (within the unchanged SCHEMA-DERIVED ceiling). Both
+are recorded durably before a fresh session so nothing lives only in the
+conversation.
+
+- **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — registered `.3` (container,
+  `active`) + `.3a` (design-detail, the new **frontier**) + `.3b` (impl); the `.3a`
+  goal is grounded in a fresh read of `src/introspect/analyze.rs` (result-shape +
+  schema-version decision, invert-support-vs-forward-BFS derivation, `target`
+  addressing). Added two `Decisions` entries (the API-audience steering + the lane
+  order) + a `Changelog` entry; Status/frontier updated.
+- **Durable memory** — new auto-memory `feedback_api_for_agents_not_humans.md` (+
+  `MEMORY.md` index line) and the repo resume pointer `MEMORY.md` next_action both
+  capture the `input_reach` directive + the API-audience guidance.
+
+**Validation**
+
+- No source change ⇒ DUT byte-identical; `bash scripts/check_memory_architecture.sh`
+  + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Repo handoff-ready:
+  clean working tree, all prior gates green.
+
+**Impact**
+
+Fresh-session handoff: resume by executing `SEMANTIC-INTROSPECTION-EXPANSION.3a`
+(the `input_reach` design-detail leaf). No code is in flight.
+
+**Files touched:** `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `MEMORY.md`,
+`CHANGES.md` (+ auto-memory outside the repo).
+
 ## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.2b — whole-module sequential equivalence docs closeout
 
-**Landed as:** this commit (previous: `06bc2e1`). Task-tree-owned by
+**Landed as:** `fcddc1c` (previous: `06bc2e1`). Task-tree-owned by
 `IDENTITY-DEEPENING.3b.2b.2b` (the second child of the `.3b.2b.2` closeout split —
 the user-facing narrative). **Docs-only leaf** (book + USER_GUIDE + ROADMAP + KM;
 no code, no behaviour change). Closes the `.3b.2b` cross-module sequential-equivalence

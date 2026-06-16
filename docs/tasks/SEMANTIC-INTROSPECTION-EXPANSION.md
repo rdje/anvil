@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `SEMANTIC-INTROSPECTION-EXPANSION`
-- Status: `active` (first-query milestone delivered; open for future query kinds `.3+`)
+- Status: `active` (first query `output_support` delivered `.1`/`.2`; `.3` `input_reach` open, frontier `.3a`)
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
 - Last updated: `2026-06-16` (**activated by explicit owner directive**; `.1` design — decision `0011`; `.2a` design-detail; `.2b.1` the pure analysis core; `.2b.2` the agent-facing surface — schema `1.3` + the pure MCP `analyze` tool + the `DerivedAnalysisDocument` + docs/KM. **`.2` done — the first query (output support cone) is delivered end-to-end, DUT byte-identical.** No active frontier; future query kinds are `.3+`.)
@@ -93,16 +93,37 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Verification: `done`
   Commit: `done`
 
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3`
+  Status: `active`
+  Goal: `The second derived query — input_reach: the dual fan-OUT of the delivered output_support cone (which outputs / flop-D cones a given input port / flop Q / child-instance output structurally reaches). Owner-directed (2026-06-16) as the next lane. Same SCHEMA-DERIVED / pure-post-hoc / default-off / DUT-byte-identical contract; same first-class MCP analyze registry (a new "input_reach" query kind added to analyze::supported_query_kinds()).`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.3a`, `SEMANTIC-INTROSPECTION-EXPANSION.3b`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3a`
+  Status: `pending`
+  Goal: `Design-detail leaf (no source): ground input_reach in the real src/introspect/analyze.rs + mod.rs + mcp.rs. Pin: (1) the result shape — likely a new ReachResult { target, reaches_outputs[], reaches_flops[], ... } reusing DerivedAnalysis (decide whether DerivedAnalysis.results stays Vec<SupportCone> or generalizes to an enum/second vec — a schema-shape choice that drives the MINOR bump 1.4 -> 1.5 vs reuse); (2) the derivation — invert per-output/per-flop-D support (reuse the existing module_support_cones builder: input X reaches output Y iff X in support(Y)) vs a forward consumers BFS, choosing the pure/cheap one with no IR/generator change; (3) target addressing — input port NAME (absent => all inputs), plus "flop:<id>" (Q as a reach source) and child-instance-output sources, unknown target => -32602; (4) the schema-version decision (new query kind alone may not need a bump if the document shape is reused; a new result struct does). No source change; DEVELOPMENT_NOTES design-detail entry + the .3b impl shape.`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the four points grounded in real code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.3b`
+  Status: `pending`
+  Goal: `Implement input_reach per the .3a design: the pure analysis (reusing analyze.rs), the "input_reach" query kind in supported_query_kinds(), the MCP analyze tool wiring (it already dispatches by query kind), any schema bump the .3a shape decision requires, lib tests for exact reach correctness (dual of the output_support proofs) + determinism + unknown-target, and book/USER_GUIDE/schema-doc/KM closeout. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. exact input_reach proofs (dual of the support-cone proofs) + determinism + unknown-target => -32602; snapshots 6/6 byte-identical; schema consistent (bump iff the .3a shape decision requires it); book/USER_GUIDE/schema-doc + a KM fact; committed through COMMIT.md with the leaf id. May pre-split into .3b.1 (pure core) + .3b.2 (surface) if broad, per the .2b precedent.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
-**No active frontier.** The first-query milestone (`.1` + `.2`, the output
-support cone end-to-end) is delivered. Future query kinds (`input_reach`,
-`flop_reset_provenance`, `module_reachability`) are open-ended `.3+` breadth and
-are not yet registered as nodes; they are not a blocker and no mode was retired.
-Per PNT, the next lane is `SV-VERSION-TARGETING` (`.3b.2b`).
+**Frontier = `SEMANTIC-INTROSPECTION-EXPANSION.3a`** (owner-directed `2026-06-16`:
+PNT into the next derived query, `input_reach`). The first-query milestone (`.1` +
+`.2`, the output support cone end-to-end) is delivered; `.3` opens the second
+query. The other future kinds (`flop_reset_provenance`, `module_reachability`)
+remain open-ended `.4+` breadth (not yet registered, not a blocker, none retired).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.3a` | `pending` | Design-detail (no source) for `input_reach` — the dual fan-out of the delivered `output_support` cone: pin the result shape + schema-version decision, the derivation (invert per-output support vs forward BFS), and `target` addressing, grounded in the real `analyze.rs`. Then `.3b` impl. |
+| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.3b` | `pending` | Implement `input_reach` per `.3a`: the pure analysis + the `input_reach` query kind + MCP wiring + tests + docs/KM. Default-off / DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` | `done` | Wired the `.2b.1` analysis to the surface: schema `1.2 → 1.3` + the `DerivedAnalysisDocument` + the pure MCP `analyze` tool (dispatch + `tools/list` + the `anvil://artifact/<run_id>/analysis/<query>` resource, unknown query/target → `-32602`) + book(`agent-mcp`)/USER_GUIDE/schema-doc + a KM fact. DUT byte-identical (snapshots 6/6). |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` | `done` | Landed the pure derived-relation analysis core (`src/introspect/analyze.rs`: the `DerivedAnalysis`/`SupportCone` types + `module_support_cones`/`design_support_cones`), a memoized combinational fan-in DFS over the existing IR graph; lib-tested for exact cone correctness + determinism + the flop/instance/mem-fsm boundaries + unknown-target. No IR/generator change → DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.2a` | `done` | Resolved decision `0011`'s three open questions (the `DerivedAnalysis`/`SupportCone` shape; `query`-kind enum + `target` addressing; cone-stops-at-instance-boundary + default-introspect-stays-lean). Split `.2` → `.2a`/`.2b`. No source change. |
@@ -110,6 +131,22 @@ Per PNT, the next lane is `SV-VERSION-TARGETING` (`.3b.2b`).
 
 ## Decisions
 
+- `2026-06-16` (owner steering, audience): **the introspection / MCP query API is
+  for AI agents, not human consumption.** Agents can ingest and act on a lot
+  of structured data very fast, so the API should optimize for **machine-friendly
+  completeness, structured/queryable shape, batch breadth, and speed** — not
+  human-readable minimalism or terse summaries. Design implication for every query
+  kind (incl. `input_reach`, `.3`): prefer returning the full structured relation
+  (all targets / complete reach sets / explicit ids) over abridged human digests;
+  keep results JSON-structured and deterministic; lean into "ask one query, get the
+  complete machine-actionable answer" rather than paginating for human eyes. This
+  does **not** relax the SCHEMA-DERIVED / no-shadow-simulator ceiling — it is about
+  *shape and completeness for the agent consumer*, still pure relations over the
+  emitted IR. (Big results still spill to `ResourceRef` per `0011` to avoid
+  unbounded inline payloads — a transport choice, not a completeness cut.)
+- `2026-06-16` (owner steering, lane order): after the cross-module sequential
+  equivalence sub-tree (`IDENTITY-DEEPENING.3b.2b`) closed, the owner directed PNT
+  into this lane's next derived query, **`input_reach`** (`.3`).
 - `2026-06-16` (`.2a`, design-detail in `DEVELOPMENT_NOTES.md`): resolved decision
   `0011`'s three open questions. (1) `DerivedAnalysis { query, results:
   Vec<SupportCone> }` + `SupportCone { target, support_inputs[], support_flops[],
@@ -173,6 +210,15 @@ Per PNT, the next lane is `SV-VERSION-TARGETING` (`.3b.2b`).
 
 ## Changelog
 
+- `2026-06-16`: **Re-entered `active` with a frontier** — owner directed PNT into
+  the next derived query, **`input_reach`** (the dual fan-out of the delivered
+  `output_support` cone), after `IDENTITY-DEEPENING.3b.2b` closed. Registered `.3`
+  (container) + `.3a` (design-detail, **frontier**) + `.3b` (impl); the `.3a` goal
+  is grounded in a fresh read of `src/introspect/analyze.rs`. Also recorded the
+  owner's **API-audience** steering (the API targets AI agents, not humans ⇒
+  optimize for machine-friendly completeness / structured breadth / speed, within
+  the unchanged SCHEMA-DERIVED ceiling). No source change (design registration +
+  durable decision capture only); handoff for a fresh session.
 - `2026-06-16`: `.2b.2` landed, closing `.2b`/`.2` — the **first query is
   delivered end-to-end**. Schema `1.2 → 1.3` (`SCHEMA_VERSION` + 6 `"1.2"`
   test-assertion bumps); the `DerivedAnalysisDocument` envelope +
