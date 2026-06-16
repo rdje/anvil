@@ -1,6 +1,46 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — LIVE-DOC-CODEBASE-ALIGNMENT.2 — correct integration-test count 6→8
+
+**Landed as:** this commit (previous: `7163d72`). **Live-doc only / no `src/`
+touched** — a session-bootstrap (`SESSION_BOOTSTRAP.md` step 3) deep-dive
+correction to `CODEBASE_ANALYSIS.md`. Exempt from task-tree-ownership of code,
+but tracked through the existing `LIVE-DOC-CODEBASE-ALIGNMENT` tree (reopened
+with a `.2` leaf) for continuity and so the commit carries a `commit-msg`-hook
+acceptable leaf id.
+
+**What changed (why)**
+
+- **`CODEBASE_ANALYSIS.md`** Snapshot bullet — the integration-test count was
+  stale at **six** while `tests/` actually holds **eight** files. The two
+  `SV-VERSION-TARGETING` test files were uncounted: `sv_version`
+  (`SV-VERSION-TARGETING.2b.1` — the down-gating / byte-identical emission
+  proofs, pure, no real tool) and `sv_version_downstream`
+  (`SV-VERSION-TARGETING.2b.2a` — the per-version `--language 1800-20xx`
+  real-tool acceptance proofs). Corrected to **eight**, and the tool-gated
+  `#[ignore]` note widened from "the last three" to the four genuinely
+  tool-gated files (`diff_sim`, `microdesign_parity`, `frontend_parity`,
+  `sv_version_downstream`).
+- **`docs/tasks/LIVE-DOC-CODEBASE-ALIGNMENT.md`** — reopened with a `.2` leaf
+  (goal / acceptance / verification / frontier / verification-log / commit-log /
+  changelog rows); the stale "six" in the `.1` acceptance criterion likewise
+  corrected to "eight". Tree returns to `done`.
+
+**Why** — `CODEBASE_ANALYSIS.md` is the authoritative live workspace snapshot;
+the bootstrap discipline (`SESSION_BOOTSTRAP.md` step 3) is that at any
+interruption point it must describe the code as it actually is. The count drift
+is a small but real completeness gap surfaced by the deep-dive — exactly the
+concern `LIVE-DOC-CODEBASE-ALIGNMENT.1` (which corrected the count 3→6) owns.
+
+**Validation** — docs-only (no `src/` ⇒ `cargo check/clippy/fmt` unaffected).
+`ls tests/*.rs` = 8 files; `grep -c '#\[ignore' tests/sv_version*.rs` = `0` /
+`4`; `bash scripts/check_memory_architecture.sh` all invariants hold;
+`git diff --check` clean.
+
+**Impact** — live-doc accuracy only; no behaviour, no emitted RTL, no schema
+change. Default emission byte-identical.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.3 — combinational `task automatic` user docs
 
 **Landed as:** this commit (previous: `1ea5a82`). **Docs-only / DUT
