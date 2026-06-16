@@ -385,6 +385,26 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.4b` — single-level `generate for` loops
+    // for `{N{x}}` replication gates marked by the `crate::ir::generate_loop`
+    // pass (the generate-loop projection, decision `0013`). A marked gate's
+    // value is produced by a `genvar` + `generate for` over the replication
+    // count; the gate's continuous assign below is suppressed. Default-off:
+    // `generate_loop_gates` empty ⇒ nothing emitted ⇒ byte-identical. The
+    // unrolled loop is byte-equivalent to the inline `{N{x}}`, so this is
+    // behaviour-preserving by construction.
+    let mut emitted_generate_loop = false;
+    for (idx, _node) in m.nodes.iter().enumerate() {
+        if let Some((lane, n)) = generate_loop_gate(m, idx) {
+            let name = names[idx].as_ref().expect("gate name assigned");
+            out.push_str(&render_generate_loop_block(name, lane, n, m, &names));
+            emitted_generate_loop = true;
+        }
+    }
+    if emitted_generate_loop {
+        writeln!(out).unwrap();
+    }
+
     // Combinational assigns for every gate. Fully static structured
     // gates are lowered here too; keeping them out of `always_comb`
     // avoids empty-sensitivity warnings in strict downstream tools.
@@ -396,6 +416,15 @@ fn to_sv_with_modules(
             ..
         } = node
         {
+            // `STRUCTURED-EMISSION-EXPANSION.4b` — a `{N{x}}` replication
+            // marked for the `generate for` loop projection is driven by the
+            // generate block emitted above instead of the inline
+            // `assign <wire> = {N{x}};`. Checked first (the generate-loop and
+            // function-emit / soft_union projections are disjoint by the
+            // annotation rule). Default-off ⇒ never taken.
+            if generate_loop_gate(m, idx).is_some() {
+                continue;
+            }
             if matches!(
                 op,
                 GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
@@ -1334,6 +1363,75 @@ fn render_gate_function_call(
 ) -> String {
     let args: Vec<String> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
     format!("{name}__f({})", args.join(", "))
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.4b` — if the gate at `idx` is marked for
+/// the `generate for` loop projection and still qualifies (a `{N{x}}`
+/// replication `Concat`: `>= 2` operands all the same `NodeId`, a 1-bit
+/// lane, and result width `== N`), return `(lane_operand, N)` so the caller
+/// renders a `genvar` + `generate for` block instead of the inline
+/// `assign <wire> = {N{x}};`. `None` ⇒ render the gate inline — an unmarked /
+/// non-qualifying gate, or the default-off path where `generate_loop_gates`
+/// is empty. The qualifying contract is re-checked defensively so a stale
+/// marker can never produce an invalid loop (mirrors `function_emit_gate`).
+fn generate_loop_gate(m: &Module, idx: usize) -> Option<(NodeId, usize)> {
+    if !m.generate_loop_gates.contains(&(idx as NodeId)) {
+        return None;
+    }
+    let Node::Gate {
+        op: GateOp::Concat,
+        operands,
+        width,
+        ..
+    } = &m.nodes[idx]
+    else {
+        return None;
+    };
+    if operands.len() < 2 {
+        return None;
+    }
+    let first = *operands.first()?;
+    if !operands.iter().all(|o| *o == first) {
+        return None;
+    }
+    // 1-bit lane ⇒ result width == N (each result bit is the lane), so the
+    // `assign <wire>[gi] = <x>;` body is byte-faithful to `{N{x}}`.
+    if m.nodes[first as usize].width() != 1 || *width as usize != operands.len() {
+        return None;
+    }
+    Some((first, operands.len()))
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.4b` — render the single-level
+/// `generate for` loop for a replication-emitted gate `name` (`{N{x}}`): a
+/// `<name>__gi` genvar, a `generate for (gi = 0; gi < N; gi = gi + 1)` over
+/// the replication count, and a body `assign <name>[gi] = <x>;` where `<x>`
+/// is the replicated lane rendered with the normal module-level
+/// [`node_ref`]. The unrolled loop is byte-equivalent to the inline
+/// `{N{x}}`. `gi = gi + 1` is the maximally-portable increment form (the
+/// `.3` probe also verified `gi++`).
+fn render_generate_loop_block(
+    name: &str,
+    lane: NodeId,
+    n: usize,
+    m: &Module,
+    names: &[Option<String>],
+) -> String {
+    let gi = format!("{name}__gi");
+    let label = format!("{name}__gen");
+    let x = node_ref(lane, m, names);
+    let mut s = String::new();
+    writeln!(s, "    genvar {gi};").unwrap();
+    writeln!(s, "    generate").unwrap();
+    writeln!(
+        s,
+        "        for ({gi} = 0; {gi} < {n}; {gi} = {gi} + 1) begin : {label}"
+    )
+    .unwrap();
+    writeln!(s, "            assign {name}[{gi}] = {x};").unwrap();
+    writeln!(s, "        end").unwrap();
+    writeln!(s, "    endgenerate").unwrap();
+    s
 }
 
 fn render_static_structured_gate(

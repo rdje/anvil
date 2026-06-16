@@ -98,6 +98,10 @@ fn default_function_emit_prob() -> f64 {
     0.0
 }
 
+fn default_generate_loop_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -780,6 +784,27 @@ pub struct Config {
     #[serde(default = "default_function_emit_prob")]
     pub function_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.4b` — the second richer-structured
+    /// emission surface (decision `0013`). Probability, per qualifying
+    /// replication gate (a `GateOp::Concat` of the `{N{x}}` form — `>= 2`
+    /// operands that are all the *same* `NodeId`, with a **1-bit lane** — that
+    /// is not already marked for the `function automatic` projection), that the
+    /// emitter renders it as a behaviour-preserving single-level `generate for`
+    /// loop (`genvar <wire>__gi; generate for (...) assign <wire>[gi] = <x>;
+    /// endgenerate`) instead of the inline `assign <wire> = {N{x}};`. The
+    /// unrolled loop is byte-equivalent to the inline replication. Marked at
+    /// construction time by the post-construction
+    /// `crate::ir::generate_loop::annotate_generate_loop_gates` pass (the
+    /// `function_emit`/`soft_union` emit-projection precedent), an
+    /// emitter-surface annotation only — the flat IR body, validators, CSE keys
+    /// and `canonical_module_signature` are all unaffected, and no new IR node /
+    /// no new computed truth is introduced. Rules-first (the loop wraps an
+    /// already-valid replication; never generate-then-filter). `default = 0.0`
+    /// keeps every existing output byte-identical. See decision `0013` +
+    /// `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_generate_loop_emit_prob")]
+    pub generate_loop_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1003,6 +1028,7 @@ impl Default for Config {
             aggregate_array_prob: default_aggregate_array_prob(),
             soft_union_slice_prob: default_soft_union_slice_prob(),
             function_emit_prob: default_function_emit_prob(),
+            generate_loop_emit_prob: default_generate_loop_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
@@ -1362,6 +1388,7 @@ impl Config {
             ("aggregate_array_prob", self.aggregate_array_prob),
             ("soft_union_slice_prob", self.soft_union_slice_prob),
             ("function_emit_prob", self.function_emit_prob),
+            ("generate_loop_emit_prob", self.generate_loop_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("multi_clock_prob", self.multi_clock_prob),

@@ -5,6 +5,71 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — `generate for` loop live surface — `STRUCTURED-EMISSION-EXPANSION.4b.1`
+
+The second richer-structured emit surface (decision `0013`) goes live, exactly
+per the `.4a` design-detail below. Implemented as a single live-surface slice;
+`.4b` pre-split into `.4b.1` (this — knob + annotation + Module field + emitter
+rendering + lib proofs + forced sweep), `.4b.2` (the repo-owned `tool_matrix
+--generate-loop-gate` + the `num_emitted_generate_loops` metric + the
+`saw_generate_loop_emit` coverage fact + schema `1.8→1.9`), `.4b.3`
+(book/USER_GUIDE/README/KM closeout).
+
+### What landed (the live surface)
+
+- `Config::generate_loop_emit_prob` (default `0.0`, `#[serde(default =
+  "default_generate_loop_emit_prob")]`) + `Module.generate_loop_gates:
+  BTreeSet<NodeId>` (default empty) — both beside the `function_emit` /
+  `soft_union` / `aggregate` analogues.
+- `src/ir/generate_loop.rs::annotate_generate_loop_gates(m, rng, prob)` — the
+  gen-time mark, rolled at the call site in **both** `generate_module` and
+  `generate_design`, guarded on `prob > 0.0`, **after** the function-emit pass so
+  an already function-emit-marked replication is excluded (the two
+  emit-projections are mutually exclusive on a gate). Candidate = a
+  `GateOp::Concat` of the `{N{x}}` form (`≥ 2` operands all the same `NodeId`)
+  with a **1-bit lane**. `param_env` modules skipped.
+- `src/emit/sv.rs` — a `generate for` block section (after the function-decl
+  section, before the gate assigns) emitting per marked gate `genvar <wire>__gi;
+  generate for (…) begin : <wire>__gen assign <wire>[<gi>] = <x>; end
+  endgenerate`, and the per-gate assign loop `continue`s past a marked gate so
+  the inline `assign <wire> = {N{x}};` is suppressed. Helpers: `generate_loop_gate`
+  (marked + defensively-revalidated lookup, returns `(lane, N)`) +
+  `render_generate_loop_block`.
+
+### The `gi = gi + 1` increment (vs the decision record's `gi++`)
+
+Decision `0013`'s rendered example used `gi++`; `.4a` recorded `gi = gi + 1` as
+the "maximally-portable fallback." I implemented the **`gi = gi + 1`** form: it
+is the most conservative increment (no dependence on the `++` operator, valid in
+every Verilog/SV standard), and the forced sweep verifies it clean across all
+four tools — so there is no reason to take on `gi++`'s (smaller) portability
+surface for a first cut. Not a behaviour difference; the unrolled loop is
+identical. `gi++` stays available if ever wanted; nothing is retired.
+
+### Why the 1-bit-lane restriction (and why it is not narrow in practice)
+
+A 1-bit lane makes `assign <wire>[gi] = <x>;` byte-faithful to `{N{x}}` (result
+width `== N`, bit `g` == the lane). A wider lane (`{N{byte}}`) would need a
+part-select body (`<wire>[gi*LW +: LW]`) — verified clean too, but more emitter
+surgery; recorded as a follow-up (the wider replication still emits inline,
+nothing retired). It is *not* a rare case: a `{W{sel}}` 1-bit broadcast is the
+common ANVIL one-hot mux-mask idiom (`render_gate`'s own `Concat` comment calls
+it out), so the surface fires readily — a forced `generate_loop_emit_prob=1.0`
+default-config probe lit a `generate for` on **27/30** seeds.
+
+### Validation
+
+`cargo test --lib` 477 (468 + 9 new `generate_loop` proofs) / 2 ignored; `cargo
+test --test snapshots` 6/6 byte-identical (default-off; the umbrella
+DUT-byte-identical proofs still green); clippy `-D warnings` + fmt clean. Forced
+`generate_loop_emit_prob=1.0` sweep (5 seeds, `/tmp/anvil-gl-r1/`, 62–168 loops
+each): Verilator `--lint-only` **5/5 rc=0 / 0 warnings**, **`-Wall` ON-vs-OFF
+delta = 0** (the change adds no new warnings; the residual `-Wall UNUSEDSIGNAL`
+is pre-existing, identical ON and OFF), Yosys without-abc **5/5**, with-abc
+**5/5**, Icarus `iverilog -g2012` **5/5**. No introspection schema bump (the
+default-off prob-knob rides `request.knobs` via `#[serde(default)]`, the
+`.2b.1` precedent; the `.4b.2` metric will bump `1.8→1.9`).
+
 ## 2026-06-16 — Structured emission — `generate for` loop impl design-detail — `STRUCTURED-EMISSION-EXPANSION.4a`
 
 Design-detail leaf for `.4` — the second richer-structured surface (decision

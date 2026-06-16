@@ -103,6 +103,17 @@ impl Generator {
             let p = self.cfg.function_emit_prob;
             crate::ir::function_emit::annotate_function_emit_gates(&mut m, &mut self.rng, p);
         }
+        // `STRUCTURED-EMISSION-EXPANSION.4b` — opt-in `generate for` loop
+        // emit-projection marker for `{N{x}}` 1-bit-lane replications
+        // (decision `0013`). Runs AFTER function_emit so an already
+        // function-emit-marked replication is excluded (the two
+        // emit-projections are mutually exclusive on a gate). Default
+        // `generate_loop_emit_prob = 0.0` ⇒ no roll ⇒ byte-identical stream
+        // + output. Mirrors the function_emit call-site roll.
+        if self.cfg.generate_loop_emit_prob > 0.0 {
+            let p = self.cfg.generate_loop_emit_prob;
+            crate::ir::generate_loop::annotate_generate_loop_gates(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -285,6 +296,18 @@ impl Generator {
             let p = self.cfg.function_emit_prob;
             for module in &mut design.modules {
                 crate::ir::function_emit::annotate_function_emit_gates(module, &mut self.rng, p);
+            }
+        }
+        // `STRUCTURED-EMISSION-EXPANSION.4b` — opt-in `generate for` loop
+        // emit-projection marker (design path), mirroring the single-module
+        // roll in `generate_module`. Runs AFTER function_emit so an already
+        // function-emit-marked replication is excluded. Default
+        // `generate_loop_emit_prob = 0.0` ⇒ no roll ⇒ every module
+        // byte-identical.
+        if self.cfg.generate_loop_emit_prob > 0.0 {
+            let p = self.cfg.generate_loop_emit_prob;
+            for module in &mut design.modules {
+                crate::ir::generate_loop::annotate_generate_loop_gates(module, &mut self.rng, p);
             }
         }
         design

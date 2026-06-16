@@ -431,6 +431,25 @@ pub struct Module {
     /// Disjoint from `soft_union_slice_gates` by construction (a
     /// `union soft` slice is never a function-emit candidate).
     pub function_emit_gates: BTreeSet<NodeId>,
+    /// `STRUCTURED-EMISSION-EXPANSION.4b` — the set of replication
+    /// `Node::Gate` `NodeId`s the emitter should render as a
+    /// behaviour-preserving single-level `generate for` loop (`genvar
+    /// <wire>__gi; generate for (...) assign <wire>[gi] = <x>;
+    /// endgenerate`) instead of an inline `assign <wire> = {N{x}};`
+    /// (decision `0013`). Each marked gate is a `GateOp::Concat` of the
+    /// `{N{x}}` form (`>= 2` operands, all the same `NodeId`) with a 1-bit
+    /// lane, so the unrolled loop is byte-equivalent to the inline
+    /// replication. Populated by the post-construction
+    /// `crate::ir::generate_loop` pass under the opt-in
+    /// `Config::generate_loop_emit_prob` knob. Empty (the `Default`) ⇒
+    /// byte-identical emission; like `soft_union_slice_gates` /
+    /// `function_emit_gates` / `aggregate_layout` this is an
+    /// emitter-surface annotation only — the flat IR body, validators, CSE
+    /// keys and `canonical_module_signature` are all unaffected and it is
+    /// deliberately not hashed into identity. Disjoint from
+    /// `function_emit_gates` by construction (the generate-loop pass runs
+    /// after function-emit and excludes already-marked gates).
+    pub generate_loop_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

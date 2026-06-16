@@ -1,9 +1,85 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.1 — `generate for` loop emit-projection (live surface)
+
+**Landed as:** this commit (previous: `0f821d7`). The second richer-structured
+emit surface (decision `0013`) goes **live**, exactly per the `.4a` design.
+First source change in this lane since `.2b.1`. Default-off / DUT byte-identical.
+
+**What changed (why)**
+
+- **`src/config.rs`** — `Config::generate_loop_emit_prob: f64` (default `0.0`,
+  `#[serde(default = "default_generate_loop_emit_prob")]`) beside
+  `function_emit_prob` / `soft_union_slice_prob` / `aggregate_prob`; added to the
+  `Default` impl and the `0.0..=1.0` validation list. **Config-file-only** (no
+  `--generate-loop-emit-prob` CLI flag — the `function_emit_prob` precedent).
+- **`src/ir/types.rs`** — `Module.generate_loop_gates: BTreeSet<NodeId>`
+  (default empty; an emitter-surface annotation only — flat IR / validators /
+  CSE / `canonical_module_signature` untouched, disjoint from
+  `function_emit_gates`).
+- **`src/ir/generate_loop.rs`** (new) + **`src/ir/mod.rs`** registration —
+  `annotate_generate_loop_gates(m, rng, prob)`, the gen-time mark (the
+  `function_emit.rs` precedent). Candidate = a `GateOp::Concat` of the `{N{x}}`
+  form (`>= 2` operands all the same `NodeId`) with a **1-bit lane** (so result
+  width `== N` and `assign <wire>[gi] = <x>;` is byte-faithful); excludes gates
+  already in `function_emit_gates` (mutual exclusion) and `soft_union_slice_gates`
+  (defensive); `param_env` modules skipped. 9 lib proofs.
+- **`src/gen/mod.rs`** — two guarded call-site rolls in `generate_module` +
+  `generate_design`, run **after** the function-emit roll (so a function-emit-marked
+  replication is excluded). Default `generate_loop_emit_prob = 0.0` ⇒ no roll ⇒
+  byte-identical stream + output.
+- **`src/emit/sv.rs`** — a `generate_loop_gate(m, idx)` accessor (marked +
+  defensively re-validated, returns `(lane, N)`) + `render_generate_loop_block` +
+  a generate-block section (after the function-decl section) emitting per marked
+  gate `genvar <wire>__gi; generate for (<wire>__gi = 0; <wire>__gi < N;
+  <wire>__gi = <wire>__gi + 1) begin : <wire>__gen assign <wire>[<wire>__gi] =
+  <x>; end endgenerate`, plus a per-gate assign-loop `continue` that suppresses
+  the inline `assign <wire> = {N{x}};`. The unrolled loop is byte-equivalent to
+  the inline replication.
+- **Increment form `gi = gi + 1`** (not the decision record's `gi++`): the
+  maximally-portable form (`.4a` recorded it as the portable fallback). Verified
+  clean; `gi++` is not retired.
+- **`DEVELOPMENT_NOTES.md`** + **`CODEBASE_ANALYSIS.md`** (module map gains the
+  `ir/generate_loop.rs` entry) updated; **no schema bump** (the default-off
+  prob-knob rides `request.knobs` via `#[serde(default)]`, the `.2b.1`
+  precedent — the `.4b.2` `num_emitted_generate_loops` metric will bump
+  `1.8→1.9`).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean; `cargo test --lib` **477 passed** / 2
+  ignored (incl. 9 new `generate_loop` proofs; introspect `schema_version` 1.8 +
+  umbrella DUT-byte-identical still green); `cargo test --test snapshots` **6/6
+  byte-identical** (default-off).
+- Forced `generate_loop_emit_prob=1.0` sweep (5 seeds 1–5, default config,
+  62–168 loops each, banked `/tmp/anvil-gl-r1/`): Verilator `--lint-only` **5/5
+  rc=0 / 0 warnings** (repo bar); **`-Wall` ON-vs-OFF delta = 0** (the change
+  adds no new warnings — the residual `-Wall UNUSEDSIGNAL` is pre-existing,
+  identical ON and OFF); Yosys without-abc **5/5**, with-abc **5/5**; Icarus
+  `iverilog -g2012` **5/5**. A forced-knob default-config probe lit a `generate
+  for` on **27/30** seeds (the 1-bit `{W{sel}}` broadcast is the common one-hot
+  mux-mask idiom), so the surface is not rare.
+
+**Impact**
+
+- The DUT lane gains a `generate` / `genvar` construct for the first time (a new
+  legal structural shape to parse / elaborate / unroll / synthesize — a new
+  bug-surfacing surface), opt-in and behaviour-preserving. The default `anvil`
+  build and `--artifact dut` stay byte-identical (`generate_loop_emit_prob =
+  0.0`). `.4b.2` (the repo-owned gate + metric) is next; `.4b.3` is the
+  user-facing closeout. Nothing retired.
+
+**Files touched:** `src/config.rs`, `src/ir/types.rs`, `src/ir/generate_loop.rs`
+(new), `src/ir/mod.rs`, `src/gen/mod.rs`, `src/emit/sv.rs`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4a — `generate for` loop impl design-detail + `.4` split
 
-**Landed as:** this commit (previous: `c57d5b4`). **Docs-only / no source
+**Landed as:** `0f821d7` (previous: `c57d5b4`). **Docs-only / no source
 change** — a design-detail leaf. Grounds decision `0013`'s `generate for` loop
 surface in the real emitter before any `.4b` code, and splits the `.4` impl node
 into `.4a` (this leaf, design-detail) + `.4b` (impl, frontier).
