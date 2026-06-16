@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -212,7 +212,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {

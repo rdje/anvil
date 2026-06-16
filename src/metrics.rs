@@ -351,6 +351,25 @@ pub struct DesignMetrics {
     /// signatures differ, for example `out = in` vs. `out = ~~in`
     /// inside the current pure-combinational proof boundary.
     pub num_semantically_duplicate_module_pairs: usize,
+    /// `IDENTITY-DEEPENING.3b.2b.2a` — one sequential proof-class id per
+    /// module. `Some(id)` for a module inside the bounded whole-leaf-module
+    /// sequential-equivalence proof boundary (a stateful flops-only leaf, all
+    /// flops settled + reset-defined, no memories/FSMs/instances/params/
+    /// aggregates/multi-clock — and not the top); two modules sharing an id were
+    /// proven sequentially (observationally) equivalent by the cross-module
+    /// bisimulation. `None` means the module is outside that boundary. There is
+    /// no per-module canonical sequential proof (equivalence is decided
+    /// pairwise), so the id is the deterministic class id (a hash of the class's
+    /// lex-smallest member name). RTL-invisible; default-off path unaffected.
+    #[serde(default)]
+    pub sequential_module_proof_signatures: Vec<Option<u64>>,
+    /// `IDENTITY-DEEPENING.3b.2b.2a` — pairs of modules proven sequentially
+    /// equivalent (sum of `count choose 2` over the cross-module proof classes).
+    /// Reducible to 0 by `dedup_sequential_modules` on a supported design. 0 for
+    /// every design without a distinct-but-sequentially-equivalent stateful leaf
+    /// pair.
+    #[serde(default)]
+    pub num_sequentially_duplicate_module_pairs: usize,
     /// Phase 5: number of `Design::modules` carrying a width
     /// `parameter` (`Module::param_env.is_some()`). 0 for every
     /// default-off / pre-Phase-5 design.
@@ -1001,6 +1020,27 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .filter(|count| **count > 1)
         .map(|count| count * (count - 1) / 2)
         .sum();
+    // IDENTITY-DEEPENING.3b.2b.2a: sequential proof signatures + duplicate
+    // pairs, derived from the SAME non-mutating grouping the dedup pass uses, so
+    // the counted pairs are exactly the ones `dedup_sequential_modules` would
+    // collapse. Pairwise (no per-module canonical proof), but pre-filtered so
+    // the O(n^2) cross-module proof only runs inside a same-shape bucket — on a
+    // default design (no equivalent stateful-leaf pair) it does no proof work.
+    let sequential_classes = crate::ir::dedup::group_sequentially_equivalent_modules(design);
+    let mut sequential_module_proof_signatures: Vec<Option<u64>> = vec![None; design.modules.len()];
+    let mut num_sequentially_duplicate_module_pairs = 0usize;
+    for class in &sequential_classes {
+        let rep_name = class
+            .iter()
+            .map(|&idx| design.modules[idx].name.as_str())
+            .min()
+            .expect("sequential proof class is non-empty");
+        let class_id = fnv1a_64_extend(fnv1a_64_init(), rep_name.as_bytes());
+        for &idx in class {
+            sequential_module_proof_signatures[idx] = Some(class_id);
+        }
+        num_sequentially_duplicate_module_pairs += class.len() * (class.len() - 1) / 2;
+    }
     // Phase 5 (PHASE-5-PARAMETERIZATION.2.4) coverage inputs.
     let num_width_parameterized_modules = design
         .modules
@@ -1045,6 +1085,8 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_distinct_module_signatures,
         num_structurally_duplicate_module_pairs,
         num_semantically_duplicate_module_pairs,
+        sequential_module_proof_signatures,
+        num_sequentially_duplicate_module_pairs,
         num_width_parameterized_modules,
         num_param_override_instances,
         num_packed_aggregate_modules,

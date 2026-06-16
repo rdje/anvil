@@ -288,16 +288,24 @@ fn sequential_prefilter_key(module: &Module) -> SequentialPrefilterKey {
     }
 }
 
-/// One sequential sweep over the current `design.modules`. Returns the number
-/// of Modules removed during this sweep.
-fn dedup_sequential_modules_once(design: &mut Design) -> usize {
-    if design.modules.len() <= 1 {
-        return 0;
-    }
-    let top_name = design.top.clone();
-
-    // Pre-filter: bucket eligible stateful flops-only leaf modules by a cheap
-    // structural key. Only same-bucket modules can be sequentially equivalent.
+/// Group the design's eligible stateful flops-only **leaf** modules into proven
+/// sequential-equivalence classes (module indices into `design.modules`). The
+/// top is excluded (never a merge candidate); ineligible modules are omitted
+/// entirely. Each returned class is non-empty (singletons included).
+///
+/// Non-mutating, deterministic, and the single source of truth shared by the
+/// [`dedup_sequential_modules`] pass and the `DesignMetrics` sequential
+/// proof-signature metric, so the metric's "duplicate pairs" can never disagree
+/// with what the pass would actually collapse (`IDENTITY-DEEPENING.3b.2b.2a`).
+///
+/// Grouping = a cheap structural pre-filter (interface + flop multiset) bucket
+/// followed by greedy-by-representative grouping inside each bucket (sound
+/// because sequential equivalence is a true equivalence relation: matching any
+/// group representative implies equivalence to every member). Leaf modules never
+/// instantiate anything, so no ancestor/descendant rewrite-cycle guard is needed
+/// (unlike the wrapper-bearing combinational pass).
+pub(crate) fn group_sequentially_equivalent_modules(design: &Design) -> Vec<Vec<usize>> {
+    let top_name = design.top.as_str();
     let mut buckets: BTreeMap<SequentialPrefilterKey, Vec<usize>> = BTreeMap::new();
     for (idx, module) in design.modules.iter().enumerate() {
         if module.name == top_name {
@@ -312,16 +320,8 @@ fn dedup_sequential_modules_once(design: &mut Design) -> usize {
             .push(idx);
     }
 
-    // Within each bucket, group by proven sequential equivalence (greedy by
-    // representative — sound because the relation is transitive). Leaf modules
-    // never instantiate anything, so no ancestor/descendant rewrite-cycle guard
-    // is needed (unlike the wrapper-bearing combinational pass).
-    let mut name_remap: HashMap<String, String> = HashMap::new();
-    let mut indices_to_remove: Vec<usize> = Vec::new();
+    let mut classes: Vec<Vec<usize>> = Vec::new();
     for indices in buckets.values() {
-        if indices.len() < 2 {
-            continue;
-        }
         let mut groups: Vec<Vec<usize>> = Vec::new();
         for &idx in indices {
             let mut placed = false;
@@ -340,23 +340,37 @@ fn dedup_sequential_modules_once(design: &mut Design) -> usize {
                 groups.push(vec![idx]);
             }
         }
-        for group in &groups {
-            if group.len() < 2 {
+        classes.extend(groups);
+    }
+    classes
+}
+
+/// One sequential sweep over the current `design.modules`. Returns the number
+/// of Modules removed during this sweep.
+fn dedup_sequential_modules_once(design: &mut Design) -> usize {
+    if design.modules.len() <= 1 {
+        return 0;
+    }
+
+    let classes = group_sequentially_equivalent_modules(design);
+    let mut name_remap: HashMap<String, String> = HashMap::new();
+    let mut indices_to_remove: Vec<usize> = Vec::new();
+    for group in &classes {
+        if group.len() < 2 {
+            continue;
+        }
+        let survivor_idx = *group
+            .iter()
+            .min_by(|a, b| design.modules[**a].name.cmp(&design.modules[**b].name))
+            .expect("non-empty sequential group");
+        let survivor_name = design.modules[survivor_idx].name.clone();
+        for &idx in group {
+            if idx == survivor_idx {
                 continue;
             }
-            let survivor_idx = *group
-                .iter()
-                .min_by(|a, b| design.modules[**a].name.cmp(&design.modules[**b].name))
-                .expect("non-empty sequential group");
-            let survivor_name = design.modules[survivor_idx].name.clone();
-            for &idx in group {
-                if idx == survivor_idx {
-                    continue;
-                }
-                let merged_name = design.modules[idx].name.clone();
-                name_remap.insert(merged_name, survivor_name.clone());
-                indices_to_remove.push(idx);
-            }
+            let merged_name = design.modules[idx].name.clone();
+            name_remap.insert(merged_name, survivor_name.clone());
+            indices_to_remove.push(idx);
         }
     }
     if indices_to_remove.is_empty() {
@@ -974,6 +988,68 @@ mod tests {
             "one-cycle and two-cycle delays are not sequentially equivalent"
         );
         assert_eq!(design.modules.len(), 3);
+    }
+
+    #[test]
+    fn sequential_proof_metric_counts_then_collapses_pair() {
+        use crate::metrics::compute_design;
+        let leaf_a = delay2_leaf("leaf_a", false);
+        let leaf_b = delay2_leaf("leaf_b", true);
+        let top = stateful_delay_top("leaf_a", "leaf_b");
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![leaf_a, leaf_b, top],
+        };
+
+        let before = compute_design(&design);
+        assert_eq!(
+            before.num_sequentially_duplicate_module_pairs, 1,
+            "the two equivalent stateful leaves form one sequential duplicate pair"
+        );
+        let sigs = &before.sequential_module_proof_signatures;
+        assert!(
+            sigs[0].is_some() && sigs[0] == sigs[1],
+            "sequentially-equivalent leaves share one proof-class signature"
+        );
+        assert!(
+            sigs[2].is_none(),
+            "the top is outside the sequential proof boundary"
+        );
+
+        assert_eq!(dedup_sequential_modules(&mut design), 1);
+        let after = compute_design(&design);
+        assert_eq!(
+            after.num_sequentially_duplicate_module_pairs, 0,
+            "the merge reduces the duplicate-pair count to zero"
+        );
+    }
+
+    /// Downstream-clean bank hook (`IDENTITY-DEEPENING.3b.2b.2a`): the merged
+    /// multi-module stateful design emits valid, downstream-clean SV. Default
+    /// no-op; re-bank with
+    ///   ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib \
+    ///     sequential_dedup_merged_design_is_downstream_clean
+    /// then lint /tmp/anvil-seq-module-merged.sv with verilator --lint-only -Wall
+    /// + yosys (both modes) + iverilog -g2012.
+    #[test]
+    fn sequential_dedup_merged_design_is_downstream_clean() {
+        let leaf_a = delay2_leaf("leaf_a", false);
+        let leaf_b = delay2_leaf("leaf_b", true);
+        let top = stateful_delay_top("leaf_a", "leaf_b");
+        let mut design = Design {
+            top: "top".into(),
+            modules: vec![leaf_a, leaf_b, top],
+        };
+        assert_eq!(dedup_sequential_modules(&mut design), 1);
+        crate::ir::validate::validate_design(&design)
+            .expect("merged sequential-equivalence design should validate");
+        if std::env::var("ANVIL_DUMP_SEQ_MODULE_SV").is_ok() {
+            std::fs::write(
+                "/tmp/anvil-seq-module-merged.sv",
+                crate::emit::to_sv_design(&design),
+            )
+            .unwrap();
+        }
     }
 
     #[test]

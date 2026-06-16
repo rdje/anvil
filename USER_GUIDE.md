@@ -294,7 +294,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.3`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.4`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
 
 The `--sv-version 2023` target unlocks the first version-distinctive
 **up-opt**, a config-file knob (no CLI flag, like `aggregate_prob`):

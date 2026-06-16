@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.2a — sequential proof metric + schema 1.4 + downstream bank
+
+**Landed as:** this commit (previous: `314664c`). Task-tree-owned by
+`IDENTITY-DEEPENING.3b.2b.2a` (the first child of the `.3b.2b.2` closeout split —
+metric + schema + evidence). **Code leaf; default-off / DUT byte-identical.** The
+book/USER_GUIDE-knob/ROADMAP-gap-2/KM narrative closeout is deferred to `.3b.2b.2b`.
+
+**What changed (why)**
+
+`.3b.2b.1` landed the cross-module sequential-equivalence merge mechanism but with
+no observability. This slice adds the RTL-invisible design-level metric pair the
+decision pinned, makes the metric and the dedup pass share one grouping (so the
+counted "duplicate pairs" are exactly what the pass collapses), and banks the merged
+multi-module design downstream-clean.
+
+- **DRY grouping helper** (`src/ir/dedup.rs`) — factored the pre-filter + greedy-by-
+  representative grouping out of `dedup_sequential_modules_once` into a non-mutating
+  `pub(crate) fn group_sequentially_equivalent_modules(&Design) -> Vec<Vec<usize>>`
+  (eligible stateful flops-only leaf modules, top excluded, classes incl. singletons).
+  The pass now consumes it; the metric consumes the same helper — single source of
+  truth, so the metric can never disagree with the pass.
+- **DesignMetrics pair** (`src/metrics.rs`) — new
+  `sequential_module_proof_signatures: Vec<Option<u64>>` (one sequential proof-class
+  id per module — `Some` inside the proof boundary, two equivalent modules sharing an
+  id; the id is the FNV-1a hash of the class's lex-smallest member name, since there
+  is no per-module canonical sequential proof) + `num_sequentially_duplicate_module_pairs`
+  (sum of `count choose 2` over the classes). Computed in `compute_design` from the
+  shared helper; pre-filtered, so a default design (no equivalent stateful-leaf pair)
+  does zero cross-module proof work. RTL-invisible.
+- **Introspection schema MINOR bump `1.3 → 1.4`** (`src/introspect/mod.rs`,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`) — `DesignMetrics` is in the `--introspect`
+  payload, so per the SCHEMA-DERIVED invariant adding fields is an additive MINOR bump
+  (exactly the "DesignMetrics fields → additive growth" case §7 names). Both new fields
+  are `#[serde(default)]` (a `1.3` consumer ignores them; absent reads back empty/0).
+  `SCHEMA_VERSION = "1.4"`, schema-doc §4/§7 + checklist updated, schema-version
+  assertions in `introspect`/`mcp` tests bumped, and the user-facing schema-version
+  statements in README / USER_GUIDE / `book/src/agent-mcp.md` examples kept in sync.
+- **Downstream-clean bank** — `sequential_dedup_merged_design_is_downstream_clean`
+  emits the merged multi-module stateful design (top instantiating the surviving
+  `leaf_a` twice — the two-cycle delay line); banked clean at `/tmp/anvil-seq-bank/`
+  (one `.sv` per module, mirroring ANVIL `--out`): Verilator `--lint-only -Wall` clean
+  (2 modules), Yosys without-abc + with-abc (synthesizes to a non-empty `$_DFF_` netlist),
+  Icarus `iverilog -g2012` compile clean. Re-bank with `ANVIL_DUMP_SEQ_MODULE_SV=1`.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean.
+- `cargo test --lib` 435 pass (incl. the new `sequential_proof_metric_counts_then_collapses_pair`
+  — metric reads 1 pre-dedup, 0 post-dedup — and the bank validate test; plus the
+  schema-version `1.4` assertions in `introspect`/`mcp` tests).
+- `cargo test --test snapshots` 6/6 byte-identical (metric + schema change is
+  RTL-invisible). `mdbook build book` clean.
+- Downstream bank clean across Verilator + both Yosys modes + Icarus (above).
+
+**Impact**
+
+The cross-module sequential merge is now observable (the metric pair, surfaced in
+`--introspect` design documents at schema `1.4`) and proven downstream-clean on a real
+merged design. Default-off / DUT byte-identical. Frontier advances to `.3b.2b.2b` (the
+book/USER_GUIDE-knob/ROADMAP-gap-2/KM narrative closeout).
+
+**Files touched:** `src/ir/dedup.rs`, `src/metrics.rs`, `src/introspect/mod.rs`,
+`src/mcp/mod.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`, `USER_GUIDE.md`,
+`book/src/agent-mcp.md`, `docs/tasks/IDENTITY-DEEPENING.md`, `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
 ## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.1 — cross-module sequential-equivalence merge mechanism
 
-**Landed as:** this commit (previous: `b873b40`). Task-tree-owned by
+**Landed as:** `314664c` (previous: `b873b40`). Task-tree-owned by
 `IDENTITY-DEEPENING.3b.2b.1` (the first child of the `.3b.2b` split — the merge
 mechanism + proof). **Code leaf; default-off / DUT byte-identical.** The
 `DesignMetrics` pair, the downstream-clean bank, and the book/USER_GUIDE/ROADMAP/KM

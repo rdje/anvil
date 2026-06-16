@@ -14,8 +14,10 @@
   `.3b.2` (impl) split into `.3b.2a` (the byte-identical `bisimulation_partition`
   refactor — **done**) + `.3b.2b` (the cross-module feature). `.3b.2b` is now an
   `active` container split into `.3b.2b.1` (the merge mechanism + proof —
-  **done**) + `.3b.2b.2` (the metric/bank/docs closeout — future). Tree stays
-  `active` until `.3b.2b.2` lands or is deferred.
+  **done**) + `.3b.2b.2` (the closeout). `.3b.2b.2` is itself an `active`
+  container split into `.3b.2b.2a` (metric + schema bump + downstream bank —
+  **done**) + `.3b.2b.2b` (book/USER_GUIDE/ROADMAP/KM docs — future). Tree
+  stays `active` until `.3b.2b.2b` lands or is deferred.
 
 ## Goal
 
@@ -165,9 +167,22 @@ handoff.
   Commit: `done`
 
 - ID: `IDENTITY-DEEPENING.3b.2b.2`
+  Status: `active`
+  Goal: `The closeout on top of .3b.2b.1, split into the metric + schema + downstream bank (.3b.2b.2a) and the book/USER_GUIDE/ROADMAP/KM docs (.3b.2b.2b).`
+  Children: `IDENTITY-DEEPENING.3b.2b.2a`, `IDENTITY-DEEPENING.3b.2b.2b`
+
+- ID: `IDENTITY-DEEPENING.3b.2b.2a`
+  Status: `done`
+  Goal: `The metric + schema + evidence: a non-mutating DRY group_sequentially_equivalent_modules helper (shared by the dedup pass and the metric); the DesignMetrics sequential_module_proof_signatures + num_sequentially_duplicate_module_pairs pair (design-level pairwise grouping, RTL-invisible) wired into compute_design; the additive introspection schema MINOR bump 1.3 -> 1.4 (SCHEMA-DERIVED: DesignMetrics is in the --introspect payload) + docs/AGENT_INTROSPECTION_SCHEMA.md changelog + schema_version test updates; and a downstream-clean bank of a merged multi-module stateful design (Verilator + both Yosys).`
+  Acceptance: `cargo fmt/check/clippy clean; the metric pair detects the equivalent pair (num_sequentially_duplicate_module_pairs = 1 pre-dedup, 0 post-dedup) by a focused test; schema bump 1.3 -> 1.4 with all schema_version assertions + schema doc updated; merged multi-module design banked downstream-clean (Verilator + both Yosys); knob-off byte-identical (snapshots 6/6); committed through COMMIT.md with the leaf id.`
+  Result: `Factored group_sequentially_equivalent_modules(&Design) (non-mutating, src/ir/dedup.rs) shared by the dedup pass + the metric (counted pairs == what the pass collapses). New DesignMetrics::sequential_module_proof_signatures (Vec<Option<u64>>, class-id = FNV of class lex-min name) + num_sequentially_duplicate_module_pairs in compute_design, pre-filtered (zero proof work on default designs). Schema MINOR bump 1.3->1.4 (SCHEMA_VERSION + schema doc §4/§7+checklist + introspect/mcp schema_version assertions + README/USER_GUIDE/book/agent-mcp.md example numbers); both fields #[serde(default)]. Downstream bank /tmp/anvil-seq-bank/ (merged 2-module delay-line design, one .sv/module): Verilator -Wall clean, Yosys both modes (non-empty $_DFF_ netlist), Icarus -g2012 clean. cargo --lib 435/0/2 incl. the metric counts-then-collapses test + bank validate test; snapshots 6/6 byte-identical; clippy/fmt clean; mdbook clean.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `IDENTITY-DEEPENING.3b.2b.2b`
   Status: `proposed`
-  Goal: `(Future) The closeout on top of .3b.2b.1: the DesignMetrics sequential_module_proof_signatures + num_sequentially_duplicate_module_pairs pair (design-level pairwise grouping, RTL-invisible); a downstream-clean bank of a merged multi-module stateful design (Verilator + both Yosys); and the book/src/factorization.md + hierarchy.md, USER_GUIDE/knobs, ROADMAP gap 2, CODEBASE_ANALYSIS, DEVELOPMENT_NOTES, and Knowledge Map card closeout.`
-  Acceptance: `cargo fmt/check/clippy clean; the metric pair detects the equivalent pair (num_sequentially_duplicate_module_pairs reducible to 0 by the pass); merged multi-module design downstream-clean (Verilator + both Yosys); live docs + a Knowledge Map card updated; knob-off byte-identical (snapshots 6/6); committed through COMMIT.md with the leaf id.`
+  Goal: `(Future) The user-facing docs closeout: book/src/factorization.md + hierarchy.md (the sequential whole-module equivalence narrative), USER_GUIDE/knobs (the hierarchy_sequential_module_dedup config knob), ROADMAP gap 2 (record the cross-module sequential-equivalence merge as delivered), and a Knowledge Map card for the new durable identity fact.`
+  Acceptance: `mdbook build clean; book_examples gate still green; KM + memory-arch self-checks clean; ROADMAP gap 2 accurate (no premature done claims); committed through COMMIT.md with the leaf id.`
   Verification: `pending`
   Commit: `pending`
 
@@ -175,7 +190,8 @@ handoff.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `IDENTITY-DEEPENING.3b.2b.2` | `proposed` | Now eligible — `.3b.2b.1` (the merge mechanism + proof) landed. Closeout: the `DesignMetrics` proof-signature + duplicate-pair metric pair (design-level pairwise grouping), the downstream-clean merged-design bank (Verilator + both Yosys), and the book/USER_GUIDE/ROADMAP/CODEBASE/KM closeout. |
+| 1 | `IDENTITY-DEEPENING.3b.2b.2b` | `proposed` | Now eligible — `.3b.2b.2a` (metric + schema + bank) landed. User-facing narrative closeout: book (`factorization.md`/`hierarchy.md`), USER_GUIDE knob row for `hierarchy_sequential_module_dedup`, ROADMAP gap 2 (record as delivered), and a Knowledge Map card. |
+| — | `IDENTITY-DEEPENING.3b.2b.2a` | `done` | Landed the metric + schema + evidence: the DRY `group_sequentially_equivalent_modules` helper, the `DesignMetrics` `sequential_module_proof_signatures` + `num_sequentially_duplicate_module_pairs` pair, the additive schema MINOR bump `1.3 → 1.4`, and the downstream-clean merged-design bank `/tmp/anvil-seq-bank/` (Verilator + both Yosys + Icarus). |
 | — | `IDENTITY-DEEPENING.3b.2b.1` | `done` | Landed the cross-module merge **mechanism + proof**, fully wired and default-off: `modules_sequentially_equivalent` (combined-module materialization reusing `bisimulation_partition` + per-output-cone equality under the final quotient) + the `dedup_sequential_modules` pass + the default-off `hierarchy_sequential_module_dedup` knob + the gated `gen/mod.rs` wire-in + 6 rules-first gate tests; snapshots 6/6 byte-identical. |
 | — | `IDENTITY-DEEPENING.3b.2a` | `done` | Factored the `merge_bisimilar_flops` refinement core into a non-mutating `bisimulation_partition(&Module) -> Option<Vec<Vec<FlopId>>>` helper; byte-identical (snapshots 6/6 + 6 bisim tests); the foundation `.3b.2b.1` reuses on a combined module. |
 | — | `IDENTITY-DEEPENING.3b.1` | `done` | Ground decision `0008` in the real code: combined-module materialization (inputs unify by `(PortId,width)` for free), reuse the `merge_bisimilar_flops` refinement via a factored `bisimulation_partition`, the no-bijection soundness condition (interfaces + stable union partition + per-output-cone equality under the quotient), pre-filter + union-find grouping; pinned knob/metric names + gate. No source change. |
@@ -258,7 +274,8 @@ handoff.
 | `2026-06-15` | `IDENTITY-DEEPENING.3a` | Design/decision leaf, **no source change** (grounded in a close read of `src/ir/dedup.rs` `dedup_semantic_modules` + `prune_modules_made_unreachable`, `src/metrics.rs` `semantic_module_proof_inner` + the module-proof budget constants, and `src/ir/compact.rs` `merge_bisimilar_flops` / `canonical_flop_endpoint` / `cone_proof` / `MERGE_SEMANTIC_LIMITS`). Decision `0008` written with KM `answers:` front-matter; `KNOWLEDGE_MAP.md` regenerated; `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.3b.1` | Design-detail leaf, **no source change** (grounded in the full source of `src/ir/dedup.rs` `dedup_semantic_modules_once` + survivor/rewrite/prune tail, `src/metrics.rs` `SemanticModuleProof` / `semantic_module_proof_inner` / `semantic_module_proof_body` / `build_instance_semantic_views`, and `src/ir/compact.rs` `merge_bisimilar_flops` refinement loop + `cone_proof` quotient threading + `LeafEndpoint::PrimaryInput{port,width}`). Pinned the combined-module materialization, the factored `bisimulation_partition` reuse, the no-bijection coinduction soundness condition, the pre-filter + union-find grouping, and the finalized knob/metric names + gate in `DEVELOPMENT_NOTES.md`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean (no fact-file change ⇒ KM already in sync). | `done` |
 | `2026-06-15` | `IDENTITY-DEEPENING.3b.2a` | Pure refactor (`src/ir/compact.rs`): `cargo build` clean; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --test snapshots` 6/6 byte-identical; `cargo test --lib bisim` 6/6 pass (default-off, mutual-swap merge, exact-cannot, resetless-excluded, relaxed off, e-graph gate, non-bisimilar split). No behaviour change ⇒ DUT byte-identical. CODEBASE_ANALYSIS updated. | `done` |
-| `2026-06-16` | `IDENTITY-DEEPENING.3b.2b.1` | Code leaf (`src/ir/compact.rs`, `src/ir/dedup.rs`, `src/config.rs`, `src/gen/mod.rs`): `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 433 pass incl. 6 new gate tests (4 `modules_sequentially_*` proof + 2 `sequential_dedup_*`) and the 6 `merge_bisimilar_flops_*` regressions; `cargo test --test snapshots` 6/6 byte-identical (knob default-off). DUT byte-identical (default-off). Live docs (CHANGES, DEVELOPMENT_NOTES, CODEBASE_ANALYSIS, MEMORY) updated. | `done` |
+| `2026-06-16` | `IDENTITY-DEEPENING.3b.2b.1` | Code leaf (`src/ir/compact.rs`, `src/ir/dedup.rs`, `src/config.rs`, `src/gen/mod.rs`): `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 433 pass incl. 6 new gate tests (4 `modules_sequentially_*` proof + 2 `sequential_dedup_*`) and the 6 `merge_bisimilar_flops_*` regressions; `cargo test --test snapshots` 6/6 byte-identical (knob default-off). DUT byte-identical (default-off). Live docs (CHANGES, DEVELOPMENT_NOTES, CODEBASE_ANALYSIS, MEMORY) updated. Landed `314664c`. | `done` |
+| `2026-06-16` | `IDENTITY-DEEPENING.3b.2b.2a` | Code+schema leaf (`src/ir/dedup.rs`, `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, README/USER_GUIDE/`book/agent-mcp.md`): `cargo check --all-targets` + `cargo clippy --all-targets -- -D warnings` + `cargo fmt --all --check` clean; `cargo test --lib` 435 pass incl. `sequential_proof_metric_counts_then_collapses_pair` (1 pre-dedup, 0 post) + the bank validate test + the `introspect`/`mcp` schema_version `1.4` assertions; `cargo test --test snapshots` 6/6 byte-identical (RTL-invisible); `mdbook build book` clean. Downstream bank `/tmp/anvil-seq-bank/`: Verilator `--lint-only -Wall` clean (2 modules), Yosys without-abc + with-abc (non-empty `$_DFF_` netlist), Icarus `iverilog -g2012` clean (re-bank: `ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean`). KM + memory-arch self-checks clean. | `done` |
 
 ## Commit Log
 
@@ -270,7 +287,8 @@ handoff.
 | `IDENTITY-DEEPENING.3a` | `IDENTITY-DEEPENING.3a — whole-module sequential equivalence design` | Decision record `0008`; split `.3` into `.3a` (design, done) + `.3b` (impl, future). No source change. |
 | `IDENTITY-DEEPENING.3b.1` | `IDENTITY-DEEPENING.3b.1 — cross-module sequential merge design detail` | Grounded `.3b.2` algorithm/API-reuse/names/soundness/gate in the real code; split `.3b` into `.3b.1` (design-detail, done) + `.3b.2` (impl). No source change. |
 | `IDENTITY-DEEPENING.3b.2a` | `IDENTITY-DEEPENING.3b.2a — factor bisimulation_partition helper` | Factored the `merge_bisimilar_flops` refinement core into a non-mutating `bisimulation_partition` helper; byte-identical (snapshots 6/6 + 6 bisim tests); split `.3b.2` into `.3b.2a` (refactor, done) + `.3b.2b` (cross-module feature). |
-| `IDENTITY-DEEPENING.3b.2b.1` | `IDENTITY-DEEPENING.3b.2b.1 — cross-module sequential-equivalence merge mechanism` | Landed `modules_sequentially_equivalent` (combined-module materialization reusing `bisimulation_partition` + per-output-cone equality under the final quotient) + `dedup_sequential_modules` (pre-filter + greedy-by-rep grouping + shared survivor/rewrite/prune tail) + default-off `hierarchy_sequential_module_dedup` knob + gated `generate_design` wire-in + 6 rules-first gate tests. Default-off / byte-identical (snapshots 6/6). Split `.3b.2b` into `.3b.2b.1` (mechanism, done) + `.3b.2b.2` (closeout). |
+| `IDENTITY-DEEPENING.3b.2b.1` | `IDENTITY-DEEPENING.3b.2b.1 — cross-module sequential-equivalence merge mechanism` | Landed `modules_sequentially_equivalent` (combined-module materialization reusing `bisimulation_partition` + per-output-cone equality under the final quotient) + `dedup_sequential_modules` (pre-filter + greedy-by-rep grouping + shared survivor/rewrite/prune tail) + default-off `hierarchy_sequential_module_dedup` knob + gated `generate_design` wire-in + 6 rules-first gate tests. Default-off / byte-identical (snapshots 6/6). Split `.3b.2b` into `.3b.2b.1` (mechanism, done) + `.3b.2b.2` (closeout). Landed `314664c`. |
+| `IDENTITY-DEEPENING.3b.2b.2a` | `IDENTITY-DEEPENING.3b.2b.2a — sequential proof metric + schema 1.4 + downstream bank` | Factored the shared `group_sequentially_equivalent_modules` helper; added `DesignMetrics::sequential_module_proof_signatures` + `num_sequentially_duplicate_module_pairs`; bumped introspection schema `1.3 → 1.4` (DesignMetrics is in the `--introspect` payload); banked the merged 2-module stateful design downstream-clean (Verilator + both Yosys + Icarus). RTL-invisible / snapshots 6/6. Split `.3b.2b.2` into `.3b.2b.2a` (metric/schema/bank, done) + `.3b.2b.2b` (book/docs closeout). |
 
 ## Changelog
 
@@ -335,6 +353,24 @@ handoff.
   snapshots 6/6 byte-identical; clippy/fmt clean; bisim regression intact; no new
   proof engine (`merge_bisimilar_flops` byte-identical). Frontier advances to
   `.3b.2b.2` (metric + downstream bank + book/docs closeout).
+- `2026-06-16`: split `.3b.2b.2` into `.3b.2b.2a` (metric + schema bump +
+  downstream bank, `in_progress`) + `.3b.2b.2b` (book/USER_GUIDE/ROADMAP/KM
+  narrative, future); rationale: the metric requires an introspection schema MINOR
+  bump (`DesignMetrics` is in the `--introspect` payload), making the
+  code+schema+evidence half a distinct, independently-reviewable concern from the
+  user-facing narrative docs.
+- `2026-06-16`: `.3b.2b.2a` done — factored the non-mutating
+  `group_sequentially_equivalent_modules(&Design)` helper shared by the dedup pass
+  and the metric (counted pairs == what the pass collapses); added
+  `DesignMetrics::sequential_module_proof_signatures` +
+  `num_sequentially_duplicate_module_pairs` to `compute_design` (pre-filtered, zero
+  proof work on default designs); bumped introspection schema `1.3 → 1.4`
+  (additive MINOR, both fields `#[serde(default)]`) with the schema doc + all
+  `schema_version` assertions + README/USER_GUIDE/book example numbers synced; and
+  banked the merged 2-module stateful design downstream-clean
+  (`/tmp/anvil-seq-bank/`: Verilator `-Wall` + Yosys both modes + Icarus). `cargo
+  --lib` 435 pass; snapshots 6/6 byte-identical; mdbook clean. Frontier advances to
+  `.3b.2b.2b` (book/USER_GUIDE/ROADMAP/KM narrative closeout).
 - `2026-06-15`: `.3b.1` done — split `.3b` into `.3b.1` (design-detail, done) +
   `.3b.2` (impl, future); `.3b` is now an `active` container. Resolved decision
   `0008`'s central impl challenge by a full read of the real code: **no new

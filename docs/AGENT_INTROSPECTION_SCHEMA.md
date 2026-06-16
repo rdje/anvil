@@ -100,7 +100,7 @@ document is self-identifying and reproducible:
 
 ---
 
-## 4. The introspection envelope (v1.3)
+## 4. The introspection envelope (v1.4)
 
 The top-level object. **Every field below is owned by this document.** Types
 use TypeScript-ish notation for brevity; the wire format is JSON.
@@ -355,7 +355,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.3"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.4"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -365,7 +365,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.3"`**.
+This document defines **`schema_version = "1.4"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -390,6 +390,15 @@ This document defines **`schema_version = "1.3"`**.
   removed, renamed, or retyped; `analysis` is SCHEMA-DERIVED (a pure IR-graph
   projection, §6.7) so it adds no new computed truth; the default-`dut`
   artifact stays byte-identical and determinism is preserved.
+- **`1.3` → `1.4` (`IDENTITY-DEEPENING.3b.2b.2a`).** Additive MINOR bump:
+  surfaced the new `DesignMetrics::sequential_module_proof_signatures`
+  (`Vec<Option<u64>>`, one sequential proof-class id per module) and
+  `DesignMetrics::num_sequentially_duplicate_module_pairs` fields (the
+  whole-leaf-module sequential-equivalence projection) in `design_metrics`. Both
+  are `#[serde(default)]`, so a `1.3` consumer ignores them and an absent key
+  reads back as empty / `0`. RTL-invisible (a post-hoc `DesignMetrics`
+  projection — exactly the additive-growth case §7 names); the default-`dut`
+  artifact stays byte-identical, so determinism is preserved.
 
 ---
 
@@ -428,5 +437,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.3"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.4"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

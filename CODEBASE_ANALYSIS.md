@@ -409,9 +409,11 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.3"`
+│                     only the envelope metadata (`schema_version` `"1.4"`
 │                     — MINOR-bumped 1.2→1.3 for the derived-relation
-│                     analysis surface, `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`;
+│                     analysis surface (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`)
+│                     and 1.3→1.4 for the `DesignMetrics` sequential
+│                     proof-signature fields (`IDENTITY-DEEPENING.3b.2b.2a`);
 │                     the default introspection-document shape is unchanged.
 │                     The sibling `DerivedAnalysisDocument` +
 │                     `derived_analysis_document` builder reuse this envelope
@@ -736,8 +738,13 @@ src/
 │                     grouping candidates with a cheap structural pre-filter
 │                     (interface + flop multiset) and greedy-by-representative
 │                     grouping (sound because sequential equivalence is
-│                     transitive). All three rewrite Instance.module references
-│                     to the survivor and, after a real merge, prune
+│                     transitive). That grouping is factored into a
+│                     non-mutating `group_sequentially_equivalent_modules`
+│                     (`IDENTITY-DEEPENING.3b.2b.2a`) shared by the pass and
+│                     the `DesignMetrics` sequential proof metric, so the
+│                     metric's counted duplicate pairs are exactly what the
+│                     pass collapses. All three rewrite Instance.module
+│                     references to the survivor and, after a real merge, prune
 │                     definitions that were reachable before dedup but
 │                     are no longer reachable from the design top.
 │                     No-merge calls and pre-existing

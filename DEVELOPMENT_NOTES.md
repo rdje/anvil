@@ -5,6 +5,58 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Sequential proof metric + schema 1.4 + downstream bank — `IDENTITY-DEEPENING.3b.2b.2a`
+
+The observability + evidence closeout half of the cross-module sequential merge.
+
+**One grouping, two consumers — by construction, not by hope.** The metric's
+"duplicate pairs" must equal exactly what the pass would collapse, or the gate
+"metric reads N, pass reduces to 0" is a lie. So I factored the pre-filter + greedy
+grouping into a single non-mutating `group_sequentially_equivalent_modules(&Design)
+-> Vec<Vec<usize>>` (`src/ir/dedup.rs`) that BOTH `dedup_sequential_modules_once`
+(filters to len≥2, picks lex-survivor) and `compute_design`'s metric (counts pairs,
+hashes class ids) call. The dedup pass behaviour is unchanged (the gate tests from
+`.3b.2b.1` still pass byte-for-byte).
+
+**Why the signature is a class-id hash, not a content hash.** The combinational
+`semantic_module_signatures` are content hashes (truth tables) — a per-module
+canonical proof, so equality is transitive *and* independently computable. Sequential
+equivalence has no per-module canonical form: it is decided pairwise (a bisimulation
+between two machines). So `sequential_module_proof_signatures[i]` is the deterministic
+**class id** = FNV-1a of the class's lex-smallest member name. Two modules share a
+value iff they were proven equivalent *within this design's grouping*. This is honest
+(documented on the field) and sufficient for the metric's job (observability + the
+"reducible to 0" gate). The combinational metric counts pairs by grouping equal
+proofs in a `BTreeMap`; the sequential metric counts pairs from the shared grouping —
+a real difference forced by the pairwise nature of the proof.
+
+**The schema bump was mandatory, not optional.** `DesignMetrics` is a `serde`
+projection inside the `--introspect` payload, and the SCHEMA-DERIVED invariant says
+any change to the projected structs is a schema change. The schema doc §7 even names
+"DesignMetrics fields" as the canonical additive-MINOR case. So adding the pair is a
+`1.3 → 1.4` MINOR bump — both fields `#[serde(default)]` (a `1.3` reader ignores them;
+absent reads back empty/0), the envelope shape unchanged. I kept every schema-version
+statement in sync in one slice (const + schema doc §4/§7 + checklist + the
+`introspect`/`mcp` test assertions + the README/USER_GUIDE/book example numbers) so
+the contract never drifts. Contrast `SV-VERSION-TARGETING.3b.2b`, which *avoided* a
+bump by keeping its evidence flag matrix-local (`ModuleReport`) — that was the right
+call there (no design-level meaning); here the metric is genuinely a `DesignMetrics`
+fact, so the bump is correct.
+
+**Cost is bounded even on the default path.** `compute_design` runs on every manifest
+/ coverage computation, knob on or off. The metric pre-filters eligible stateful-leaf
+modules by `(interface, flop multiset)`, so the `O(n²)` cross-module proof only fires
+inside a same-shape bucket of ≥2 — and a default design rarely has even one eligible
+stateful leaf, let alone two of one shape. So the added cost is ~zero on the default
+path, and the metric is RTL-invisible regardless (snapshots 6/6 byte-identical).
+
+**Bank faithfulness: one `.sv` per module.** The merged multi-module design tripped
+Verilator `DECLFILENAME` only because the smoke dump bundled both modules in one file;
+ANVIL `--out` writes one `.sv` per module definition (no such warning). So the bank
+splits the dump per module before linting — the faithful representation. Clean across
+Verilator `-Wall`, Yosys both modes (non-empty `$_DFF_` netlist), and Icarus
+`-g2012`.
+
 ## 2026-06-16 — Cross-module sequential-equivalence merge mechanism — `IDENTITY-DEEPENING.3b.2b.1`
 
 Implemented the bounded whole-leaf-module sequential-equivalence merge designed in
