@@ -307,8 +307,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone`) |
-| **Producer** | `introspect::analyze::module_support_cones` / `design_support_cones` over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult`) |
+| **Producer** | `output_support`: `introspect::analyze::module_support_cones` / `design_support_cones`; `input_reach`: `introspect::analyze::module_input_reach` / `design_input_reach` — both pure over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -319,18 +319,37 @@ change**, exactly like the `coverage_gaps` projection. It reports **relations**
 structure-first boundary is the permanent ceiling.
 
 `DerivedAnalysis` **category groups** (fields owned by `src/introspect/analyze.rs`):
-the `query` kind (`output_support` today; `input_reach` / `flop_reset_provenance`
-/ `module_reachability` reserved) + a list of per-target `SupportCone`s. A
-`SupportCone` is the transitive **combinational** fan-in support of one target —
-an output port, or a flop `D` addressed `"flop:<id>"`: the primary-input port
-names (`support_inputs`), flop ids (`support_flops`, a register boundary — the
-cone feeding a flop's `D` is the separate `"flop:<id>"` target), and
-child-instance outputs (`support_instance_outputs`, the cone stops at the
-instance boundary), plus `cone_nodes` (distinct fan-in nodes) and `cone_depth`
-(max combinational gate depth). Opaque registered leaves (`MemRead` / `FsmOut`)
-terminate the cone (counted, listed nowhere — surfacing memory/FSM provenance is
-a recorded future query kind). An unknown `query` or `target` is rejected with
-JSON-RPC `-32602`.
+the `query` kind (`output_support` and `input_reach` today; `flop_reset_provenance`
+/ `module_reachability` reserved) + **one of two parallel result vecs**, the one
+the query kind populates (the other is empty and, for `reach_results`, omitted via
+`skip_serializing_if`):
+
+- **`results: Vec<SupportCone>`** — the `output_support` payload. A `SupportCone`
+  is the transitive **combinational** fan-in support of one target — an output
+  port, or a flop `D` addressed `"flop:<id>"`: the primary-input port names
+  (`support_inputs`), flop ids (`support_flops`, a register boundary — the cone
+  feeding a flop's `D` is the separate `"flop:<id>"` target), and child-instance
+  outputs (`support_instance_outputs`, the cone stops at the instance boundary),
+  plus `cone_nodes` (distinct fan-in nodes) and `cone_depth` (max combinational
+  gate depth). Opaque registered leaves (`MemRead` / `FsmOut`) terminate the cone
+  (counted, listed nowhere — surfacing memory/FSM provenance is a reserved future
+  kind).
+- **`reach_results: Vec<ReachResult>`** (schema `1.5`, `SEMANTIC-INTROSPECTION-EXPANSION.3b.2`)
+  — the `input_reach` payload, the **dual fan-out** of `output_support`. A
+  `ReachResult` is what one **source** structurally reaches: `target` is the
+  source (an input port name, a flop `Q` addressed `"flop:<id>"`, or a
+  child-instance output `"<instance>.<port>"`), `reaches_outputs` are the output
+  port names whose support cone contains it, `reaches_flops` are the flop ids
+  whose `D` cone contains it, and `fanout_targets` is their total. It is computed
+  by **inverting** the support cones, so `X` reaches `Y` iff `Y`'s `SupportCone`
+  lists `X` — the two queries cannot drift. `reach_results` carries
+  `#[serde(default, skip_serializing_if = "Vec::is_empty")]`, so an
+  `output_support` document never serializes the key and stays byte-identical
+  across the `1.4 → 1.5` bump; an `input_reach` document carries it with
+  `results: []`.
+
+`target = None` ⇒ all targets/sources (per the agent-audience completeness rule);
+an unknown `query` or `target` is rejected with JSON-RPC `-32602`.
 
 ---
 
@@ -355,7 +374,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.4"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.5"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -365,7 +384,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.4"`**.
+This document defines **`schema_version = "1.5"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -399,6 +418,18 @@ This document defines **`schema_version = "1.4"`**.
   reads back as empty / `0`. RTL-invisible (a post-hoc `DesignMetrics`
   projection — exactly the additive-growth case §7 names); the default-`dut`
   artifact stays byte-identical, so determinism is preserved.
+- **`1.4` → `1.5` (`SEMANTIC-INTROSPECTION-EXPANSION.3b.2`).** Additive MINOR
+  bump: added the **second** derived-query kind `input_reach` (§6.7) — the dual
+  fan-out of `output_support`. `DerivedAnalysis` gains a second
+  `reach_results: Vec<ReachResult>` field, `#[serde(default,
+  skip_serializing_if = "Vec::is_empty")]`, so an `output_support` analysis
+  document is **byte-identical to `1.4`** (the key is omitted) and only an
+  `input_reach` document carries it (with `results: []`). A `1.4` consumer of an
+  `output_support` document keeps working unchanged; the new kind is reached only
+  via `analyze {query: "input_reach"}`. No envelope field was removed, renamed,
+  or retyped; `reach_results` is SCHEMA-DERIVED (a pure inversion of the support
+  cones, §6.7) so it adds no new computed truth; the default-`dut` artifact stays
+  byte-identical and determinism is preserved.
 
 ---
 
@@ -437,5 +468,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.4"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.5"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

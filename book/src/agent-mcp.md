@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -151,7 +151,7 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR — *what does this output depend on?* — by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone**. Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). Relations, not behaviour. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
@@ -189,7 +189,7 @@ anvil://audit/log              the append-only validate/minimize audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (e.g. output_support)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -212,7 +212,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -245,6 +245,50 @@ The result is cached and also served as the
 `anvil://artifact/<run_id>/analysis/output_support` resource. Every field is a
 pure projection of the IR the generator already built — no new computed truth
 (the `SCHEMA-DERIVED` invariant).
+
+#### `input_reach` — the dual fan-out
+
+The second query kind, `input_reach`, is the **transpose** of `output_support`:
+instead of *what does this output depend on?* it answers *what does this source
+reach?* The `target` is a **source** — an input port name, a flop `Q` as
+`"flop:<id>"`, or a child-instance output `"<instance>.<port>"` (omit for every
+source):
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "query": "input_reach", "target": "i_1" } }
+```
+
+```json
+{
+  "schema_version": "1.5",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "analysis": {
+    "query": "input_reach",
+    "reach_results": [
+      {
+        "target": "i_1",
+        "reaches_outputs": ["o_0"],
+        "reaches_flops": [],
+        "fanout_targets": 1
+      }
+    ]
+  }
+}
+```
+
+- The payload is a separate `reach_results` array (not `results`), so an
+  `output_support` reply is byte-identical to before the `1.4 → 1.5` bump — the
+  `reach_results` key is simply absent there.
+- `reaches_outputs` / `reaches_flops` are the outputs and flop `D`-cones the
+  source reaches; `fanout_targets` is their total. It is computed by **inverting**
+  the support cones, so a source reaches a target exactly when that target's
+  support cone lists it — `output_support` and `input_reach` cannot drift.
+- `"flop:<id>"` as a *source* is the flop's **Q** (its fan-out); as an
+  `output_support` *target* it is the flop's **D** cone. Same register boundary,
+  opposite direction — the `query` kind chooses.
+- Served as `anvil://artifact/<run_id>/analysis/input_reach`; unknown source →
+  `-32602`.
 
 ### All three lanes, not just DUT
 

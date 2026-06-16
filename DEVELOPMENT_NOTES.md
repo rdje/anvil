@@ -5,6 +5,31 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — `input_reach` surface + schema 1.5 — `SEMANTIC-INTROSPECTION-EXPANSION.3b.2`
+
+Wires the `.3b.1` core to the agent-facing surface, closing the `input_reach`
+query (`.3b` + `.3`) end-to-end. Three things worth recording:
+
+- **Registry + dispatch in one commit (the `.3b.1` promise kept).** This commit
+  both adds `QUERY_INPUT_REACH` to `analyze::supported_query_kinds()` *and*
+  branches `run_analyze` by query kind (`module_input_reach`/`design_input_reach`
+  vs the support builders). They land together so the registry (the MCP `-32602`
+  gate) and the dispatch never disagree — there is no commit in which
+  `input_reach` is "accepted but mislabelled". The unknown-target → `-32602`
+  guard now checks the result vec the *query* populates (`reach_results` for
+  `input_reach`, `results` for `output_support`).
+- **Schema `1.4 → 1.5`, additive MINOR, `output_support` byte-identical.** The
+  only wire change is the `reach_results` field (already added in `.3b.1` with
+  `skip_serializing_if`), so an `output_support` document is byte-identical to
+  `1.4`. The bump is the honest, consistent call (every prior field addition
+  bumped MINOR; the `.2b` analysis surface bumped even though its default
+  document was unchanged). All `"1.4"` schema-version test assertions in
+  `introspect`/`mcp` moved to `"1.5"`.
+- **Doc-hygiene caught in passing:** the MCP `introspect` tool description still
+  claimed "schema 1.0"; rather than chase the version forever I made it
+  version-agnostic ("the `schema_version` field carries the version"), so it
+  can't re-stale on the next bump. DUT byte-identical throughout (snapshots 6/6).
+
 ## 2026-06-16 — Semantic introspection — pure `input_reach` core — `SEMANTIC-INTROSPECTION-EXPANSION.3b.1`
 
 Implements the `.3a` design: the pure `input_reach` core in

@@ -71,19 +71,18 @@ pub const QUERY_OUTPUT_SUPPORT: &str = "output_support";
 /// The query-kind string for the second derived query
 /// (`SEMANTIC-INTROSPECTION-EXPANSION.3`): the transitive combinational
 /// fan-**out** reach of a source — the exact dual of [`QUERY_OUTPUT_SUPPORT`].
-/// The pure builders ([`module_input_reach`] / [`design_input_reach`]) exist as
-/// of `.3b.1`; the MCP-facing registry entry + dispatch land together in
-/// `.3b.2`, so this kind is **not** yet in [`supported_query_kinds`].
+/// Served by [`module_input_reach`] / [`design_input_reach`] and dispatched by
+/// the MCP `analyze` tool (`.3b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_INPUT_REACH: &str = "input_reach";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
-/// (`.2b.2`) rejects any `query` not in this set with `-32602`. New kinds
-/// (`input_reach`, `flop_reset_provenance`, `module_reachability`) slot in here
-/// without changing the document shape — but only once their dispatch is wired,
-/// so the registry and the `run_analyze` branch never disagree (`input_reach`
-/// joins in `.3b.2`, alongside its dispatch).
+/// rejects any `query` not in this set with `-32602`. A kind appears here
+/// **only once its `run_analyze` dispatch is wired**, so the registry and the
+/// dispatch never disagree. Remaining future kinds (`flop_reset_provenance`,
+/// `module_reachability`) slot in the same way without changing the document
+/// shape.
 pub fn supported_query_kinds() -> &'static [&'static str] {
-    &[QUERY_OUTPUT_SUPPORT]
+    &[QUERY_OUTPUT_SUPPORT, QUERY_INPUT_REACH]
 }
 
 /// The result of one derived-relation query over an artifact: a list of

@@ -461,10 +461,10 @@ src/
 │                     by construction. `target=None` ⇒ all sources (inputs, flop
 │                     Qs, instance outputs); `"flop:<id>"` source = the Q's
 │                     fan-out (direction set by the query kind); unknown source ⇒
-│                     no result. **Not yet in `supported_query_kinds()`** — the
-│                     registry entry + `run_analyze` dispatch land together in
-│                     `.3b.2`. 7 in-crate reach proofs (the transpose of the cone
-│                     proofs). DUT byte-identical.
+│                     no result. `.3b.2` registers `input_reach` in
+│                     `supported_query_kinds()` together with the `run_analyze`
+│                     dispatch and bumps the schema `1.4 → 1.5`. 7 in-crate reach
+│                     proofs (the transpose of the cone proofs). DUT byte-identical.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
@@ -523,11 +523,14 @@ src/
 │                     `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` adds the pure
 │                     `analyze` tool (`run_analyze`): a DUT-only derived-RELATION
 │                     query over the IR graph (regenerates the `Module`/`Design`,
-│                     calls `introspect::analyze::{module,design}_support_cones`,
-│                     wraps the cone in a `DerivedAnalysisDocument`). Unknown
-│                     `query`/`target` ⇒ `-32602` (JSON-RPC error, like
-│                     `prompts/get`); the result is cached in a new
-│                     `CachedArtifact.analyses` map and served as
+│                     dispatches by `query` kind, wraps the relation in a
+│                     `DerivedAnalysisDocument`). `.3b.2` adds the `input_reach`
+│                     branch (`module_input_reach`/`design_input_reach`) beside
+│                     `output_support` (`{module,design}_support_cones`) and
+│                     checks the result vec the query populates for the
+│                     unknown-target test. Unknown `query`/`target` ⇒ `-32602`
+│                     (JSON-RPC error, like `prompts/get`); the result is cached
+│                     in a `CachedArtifact.analyses` map and served as
 │                     `anvil://artifact/<run_id>/analysis/<query>` (added to
 │                     `resources_list`/`resources_read`). No FS/spawn — pure.
 │   └── http.rs      (`AGENT-MCP-EXPANSION.4b`). The optional hand-rolled

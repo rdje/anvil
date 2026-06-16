@@ -176,8 +176,9 @@ impl McpServer {
                      analyze answers derived-RELATION queries over the DUT IR \
                      graph (output_support = an output's transitive combinational \
                      fan-in support cone: its primary inputs, flop Qs, and \
-                     child-instance outputs) by pure traversal — relations, not \
-                     behaviour. \
+                     child-instance outputs; input_reach = the dual fan-out, which \
+                     outputs and flop D-cones a source reaches) by pure traversal \
+                     — relations, not behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
                      iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
@@ -307,16 +308,20 @@ impl McpServer {
                                             dump_config). Omit for defaults." },
                 "query": {
                     "type": "string",
-                    "enum": ["output_support"],
-                    "description": "Derived-relation query kind (default output_support: the \
-                                    transitive combinational fan-in support cone). An unknown \
-                                    kind is rejected with -32602."
+                    "enum": ["output_support", "input_reach"],
+                    "description": "Derived-relation query kind. output_support (default): each \
+                                    target's transitive combinational fan-in support cone. \
+                                    input_reach: the dual fan-out — which outputs and flop D-cones \
+                                    a source structurally reaches. An unknown kind is rejected \
+                                    with -32602."
                 },
                 "target": {
                     "type": "string",
-                    "description": "Optional target: an output port name, or \"flop:<id>\" for a \
-                                    flop D cone. Omit for every output. An unknown target is \
-                                    rejected with -32602."
+                    "description": "Optional target. output_support: an output port name, or \
+                                    \"flop:<id>\" for a flop D cone (omit for every output). \
+                                    input_reach: a source — an input port name, \"flop:<id>\" (a \
+                                    flop Q), or \"<instance>.<port>\" (omit for every source). An \
+                                    unknown target is rejected with -32602."
                 }
             },
             "additionalProperties": false
@@ -333,10 +338,10 @@ impl McpServer {
                 },
                 {
                     "name": "introspect",
-                    "description": "Return the versioned introspection document (schema 1.0) for \
+                    "description": "Return the versioned introspection document for \
                                     (seed, lane, knobs): config echo + metrics (dut), or the lane \
                                     manifest resource pointer (microdesign/frontend). Derived from \
-                                    existing facts.",
+                                    existing facts; the schema_version field carries the version.",
                     "inputSchema": generate_schema,
                 },
                 {
@@ -377,11 +382,14 @@ impl McpServer {
                     "description": "Answer a derived-RELATION query over the DUT (seed, config) IR by \
                                     pure post-hoc graph traversal — relations, not behaviour (no shadow \
                                     simulator). query=output_support (default) returns each target's \
-                                    transitive combinational fan-in support cone: the primary inputs, \
+                                    transitive combinational fan-in support cone (the primary inputs, \
                                     flop Qs, and child-instance outputs it depends on, plus cone size and \
-                                    combinational depth. target = an output port name or \"flop:<id>\" \
-                                    (omit for all outputs). Unknown query/target -> -32602. Cached + \
-                                    exposed as anvil://artifact/<run_id>/analysis/<query>.",
+                                    combinational depth); query=input_reach returns the dual fan-out \
+                                    (which outputs and flop D-cones each source reaches). target = an \
+                                    output port name or \"flop:<id>\" for output_support, or a source \
+                                    (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for input_reach \
+                                    (omit for all). Unknown query/target -> -32602. Cached + exposed as \
+                                    anvil://artifact/<run_id>/analysis/<query>.",
                     "inputSchema": analyze_schema,
                 },
             ]
@@ -615,29 +623,49 @@ impl McpServer {
         let target = args.get("target").and_then(Value::as_str);
 
         // Regenerate the artifact (deterministic ⇒ the same one the run_id
-        // addresses) and project the relation off its IR graph.
+        // addresses) and project the requested relation off its IR graph. The
+        // `query` is already validated against `supported_query_kinds()` above,
+        // so the `_` arm is `output_support` (the only other supported kind).
         let mut gen = Generator::new(cfg.clone());
         let (analysis, doc) = if cfg.effective_hierarchy_depth_range().is_some() {
             let design = gen.generate_design();
-            let analysis = introspect::analyze::design_support_cones(&design, target);
+            let analysis = match query {
+                introspect::analyze::QUERY_INPUT_REACH => {
+                    introspect::analyze::design_input_reach(&design, target)
+                }
+                _ => introspect::analyze::design_support_cones(&design, target),
+            };
             let doc = introspect::design_document(seed, cfg, &design);
             (analysis, doc)
         } else {
             let m = gen.generate_module();
-            let analysis = introspect::analyze::module_support_cones(&m, target);
+            let analysis = match query {
+                introspect::analyze::QUERY_INPUT_REACH => {
+                    introspect::analyze::module_input_reach(&m, target)
+                }
+                _ => introspect::analyze::module_support_cones(&m, target),
+            };
             let doc = introspect::module_document(seed, cfg, &m);
             (analysis, doc)
         };
 
-        // An explicit but unresolvable target yields no cone (a resolvable
+        // An explicit but unresolvable target yields no result (a resolvable
         // target always yields exactly one, even when empty), so surface it as
-        // `-32602` — matching `prompts/get`'s unknown-argument handling.
+        // `-32602` — matching `prompts/get`'s unknown-argument handling. Each
+        // query populates exactly one result vec, so check the one this kind fills.
         if let Some(t) = target {
-            if analysis.results.is_empty() {
+            let empty = match query {
+                introspect::analyze::QUERY_INPUT_REACH => analysis.reach_results.is_empty(),
+                _ => analysis.results.is_empty(),
+            };
+            if empty {
                 return err(
                     id,
                     INVALID_PARAMS,
-                    &format!("unknown target `{t}` for query `{query}` (no such output or flop)"),
+                    &format!(
+                        "unknown target `{t}` for query `{query}` \
+                         (no such output/flop for output_support, or input/flop/instance-output for input_reach)"
+                    ),
                 );
             }
         }
@@ -1467,7 +1495,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.4");
+        assert_eq!(doc["schema_version"], "1.5");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -1503,9 +1531,55 @@ mod tests {
     }
 
     #[test]
+    fn analyze_returns_input_reach_relation_and_caches_it() {
+        let mut s = McpServer::new();
+        // query=input_reach ⇒ the dual fan-out, carried in `reach_results`.
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "query": "input_reach" }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.5");
+        assert_eq!(doc["analysis"]["query"], "input_reach");
+        // input_reach populates reach_results, not results.
+        assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
+        let reach = doc["analysis"]["reach_results"].as_array().unwrap();
+        assert!(
+            !reach.is_empty(),
+            "a comb DUT has at least one input source"
+        );
+        // Cached + served under the input_reach query key.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/input_reach") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "input_reach");
+    }
+
+    #[test]
     fn analyze_unknown_query_is_invalid_params() {
         let mut s = McpServer::new();
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7, "query": "nope" }));
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
+    }
+
+    #[test]
+    fn analyze_input_reach_unknown_source_is_invalid_params() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "query": "input_reach", "target": "no_such_input" }),
+        );
         assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
     }
 
@@ -1718,7 +1792,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.4");
+        assert_eq!(doc["schema_version"], "1.5");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -1819,7 +1893,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.4");
+        assert_eq!(doc["schema_version"], "1.5");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -1863,7 +1937,7 @@ mod tests {
         let sv = sv_resp["result"]["contents"][0]["text"].as_str().unwrap();
         assert!(sv.contains("module "));
 
-        // resources/read the introspection document: schema 1.0.
+        // resources/read the introspection document.
         let doc_resp = s
             .handle(&req(
                 6,
@@ -1874,7 +1948,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.4");
+        assert_eq!(doc["schema_version"], "1.5");
     }
 
     #[test]

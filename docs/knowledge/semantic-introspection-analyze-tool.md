@@ -63,5 +63,8 @@ permanent ceiling).
   IR field, no generator change; the default `anvil` build and `--artifact dut`
   stay byte-identical.
 
+The dual fan-out query, `input_reach` (schema `1.5`), is
+[[semantic-introspection-input-reach]].
+
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

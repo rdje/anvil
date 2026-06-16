@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3b.2 — `input_reach` MCP surface + schema 1.5
+
+**Landed as:** this commit (previous: `42f3ea9`). **Source + docs**; DUT
+byte-identical. Closes `.3b` and `.3` — the second derived query, `input_reach`,
+is delivered end-to-end.
+
+**What changed (why)**
+
+The `.3b.1` pure core is now reachable over MCP. Per the `.3a` design, the
+registry entry and the dispatch land **together** so no intermediate commit can
+accept `input_reach` and mislabel it.
+
+- **`src/introspect/analyze.rs`** — `input_reach` added to
+  `supported_query_kinds()` (now `[output_support, input_reach]`); the
+  `QUERY_INPUT_REACH` doc comment updated (it is now registered + dispatched).
+- **`src/mcp/mod.rs`** — `run_analyze` branches by `query` kind
+  (`module_input_reach`/`design_input_reach` for `input_reach`, the support
+  builders otherwise); the unknown-target → `-32602` guard now checks the result
+  vec the query populates (`reach_results` vs `results`). The `analyze_schema`
+  `query` `enum` gains `"input_reach"` and the `target` description covers the
+  source forms; the `analyze` tool description and the server `instructions`
+  mention the dual fan-out. Two new MCP proofs
+  (`analyze_returns_input_reach_relation_and_caches_it`,
+  `analyze_input_reach_unknown_source_is_invalid_params`). The stale `introspect`
+  tool description ("schema 1.0") was made version-agnostic so it cannot re-stale.
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.4 → 1.5` + the doc comment;
+  this is the additive MINOR bump for the `reach_results` field (already added in
+  `.3b.1` with `skip_serializing_if`, so `output_support` documents stay
+  byte-identical). 6 `"1.4" → "1.5"` schema-version test assertions (2 in
+  `introspect`, 4 in `mcp`).
+- **Docs** — schema-doc §6.7 rewritten to the `results` (output_support) vs
+  `reach_results` (input_reach) split + the `ReachResult` shape + the `1.4 → 1.5`
+  changelog entry + the "defines 1.5"/checklist; book `agent-mcp` (analyze table
+  row + an `input_reach` worked example + both JSON examples `1.4 → 1.5`);
+  USER_GUIDE (the `analyze` description + `--introspect` schema `1.5`); README
+  (schema `1.5` in two spots + the `analyze` sentence); a new KM card
+  `docs/knowledge/semantic-introspection-input-reach.md` (+ a cross-link from
+  `semantic-introspection-analyze-tool`, `KNOWLEDGE_MAP.md` regenerated);
+  `CODEBASE_ANALYSIS.md` (both analyze blocks) + `ROADMAP.md` lane status.
+
+**Validation**
+
+- `cargo test --lib` **443 passed / 0 failed / 2 ignored** (incl. the 2 new MCP
+  `input_reach` proofs + the 7 `.3b.1` reach proofs). `cargo test --test
+  snapshots` **6/6 byte-identical** — DUT `.sv` unchanged. `cargo clippy
+  --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook
+  build book` clean; `cargo test --test book_examples` **3/3**. KM regenerated +
+  `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean.
+- **End-to-end `anvil-mcp` stdio smoke:** `analyze {query:"input_reach", seed:7}`
+  → schema `1.5`, query `input_reach`, 37 `reach_results`, `results` empty;
+  unknown source → `-32602`.
+
+**Impact**
+
+`input_reach` is delivered end-to-end; the `analyze` surface now answers two
+derived queries (`output_support` + `input_reach`) at schema `1.5`. The tree
+stays `active` with no active frontier; the remaining query kinds
+(`flop_reset_provenance`, `module_reachability`) are open-ended `.4+` breadth.
+Next lane is owner-directed.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `USER_GUIDE.md`,
+  `README.md`, `docs/knowledge/semantic-introspection-input-reach.md`,
+  `docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+  `CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `DEVELOPMENT_NOTES.md`,
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.3b.1 — pure `input_reach` analysis core
 
 **Landed as:** this commit (previous: `05527b2`). **Source + docs**; DUT

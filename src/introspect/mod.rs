@@ -44,15 +44,17 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.4` is the
-/// additive (backward-compatible) MINOR bump that adds the
-/// [`DesignMetrics`] sequential proof-signature fields
-/// (`sequential_module_proof_signatures` + `num_sequentially_duplicate_module_pairs`)
-/// projected by the whole-leaf-module sequential-equivalence pass
-/// (`IDENTITY-DEEPENING.3b.2b.2a`). Old consumers ignore the new fields; the
-/// envelope shape is unchanged, only the `schema_version` string advances. See
-/// the schema-doc §7 changelog for the full `1.0 → 1.1 → 1.2 → 1.3 → 1.4` history.
-pub const SCHEMA_VERSION: &str = "1.4";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.5` is the
+/// additive (backward-compatible) MINOR bump that adds the second derived-query
+/// kind `input_reach` — the [`DerivedAnalysis::reach_results`](analyze::DerivedAnalysis)
+/// field carrying [`ReachResult`](analyze::ReachResult)s
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.3b.2`). The field is
+/// `#[serde(default, skip_serializing_if)]`, so an `output_support` document is
+/// **byte-identical** to `1.4` (the key is omitted); only an `input_reach`
+/// document carries it, and only the `schema_version` string advances. Old
+/// consumers ignore the new field. See the schema-doc §7 changelog for the full
+/// `1.0 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5` history.
+pub const SCHEMA_VERSION: &str = "1.5";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -429,7 +431,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.4");
+        assert_eq!(doc.schema_version, "1.5");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -558,7 +560,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.4");
+        assert_eq!(doc.schema_version, "1.5");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");

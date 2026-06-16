@@ -238,13 +238,14 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    behaviour** (the decision `0004` no-shadow-simulator / structure-first
    boundary, ROADMAP steering gap 4, is the permanent ceiling). Decision
    [`0011`](docs/decisions/0011-semantic-introspection-derived-query-surface.md);
-   `.1` + `.2` **done** — the **first query is delivered end-to-end**: the output
-   **support cone**, as the pure `src/introspect/analyze.rs` core (`.2b.1`) + the
-   pure MCP `analyze` tool + the `DerivedAnalysisDocument` (schema `1.3`) +
-   book/USER_GUIDE/schema-doc/KM (`.2b.2`), DUT byte-identical. **No active
-   frontier** — future query kinds (`input_reach`, `flop_reset_provenance`,
-   `module_reachability`) are open-ended `.3+` breadth, not a blocker. Extends
-   `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   `.1` + `.2` + `.3` **done** — **two derived queries delivered end-to-end**:
+   the output **support cone** (`output_support`, `.2`) and its dual fan-out
+   (`input_reach`, `.3` — `.3a` design + `.3b.1` pure core + `.3b.2` surface),
+   as the pure `src/introspect/analyze.rs` core + the pure MCP `analyze` tool +
+   the `DerivedAnalysisDocument` (schema `1.5`) + book/USER_GUIDE/schema-doc/KM,
+   DUT byte-identical. **No active frontier** — the remaining query kinds
+   (`flop_reset_provenance`, `module_reachability`) are open-ended `.4+` breadth,
+   not a blocker. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential
