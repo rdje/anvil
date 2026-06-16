@@ -5,6 +5,79 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — pick the FOURTH surface (wider-lane `generate for` part-select) — `STRUCTURED-EMISSION-EXPANSION.7` (decision `0015`)
+
+A design/decision leaf (no source), autonomously selected at the
+no-active-frontier boundary (`feedback_pick_and_roll_at_no_frontier`) after the
+third structured surface (the combinational `task automatic`, decision `0014`)
+closed. It picks the **fourth** structured-emission surface.
+
+**The pick: the wider-lane `generate for` part-select.** This is a
+behaviour-preserving *broadening* of the second surface (decision `0013`'s
+`generate for` loop) from the 1-bit lane to a lane of any width `LW >= 1`. For a
+marked `{N{x}}` replication whose lane `x` is `LW` bits (so the result is `N*LW`
+bits) the loop body becomes the indexed part-select
+`assign <wire>[<wire>__gi*LW +: LW] = <x>;`. Bit-group `g` of `{N{x}}` — bits
+`[g*LW +: LW]` — is exactly the lane, so the unrolled loop stays
+byte-equivalent to the inline replication. It closes the wider-lane follow-up
+that decision `0013` and `book/src/structured-emission.md` both recorded ("a
+wider lane would need a part-select body and stays inline — a recorded
+follow-up").
+
+**Why this over the previously-recorded leading candidates (nested `generate`,
+`interface`/`modport`).** A fresh empirical tool-acceptance probe this session
+(`/tmp/anvil-probe-se4/`; Verilator 5.046 `-Wall --lint-only`, Yosys 0.64
+`synth -noabc` and `abc -fast; opt -fast; check`, Icarus `iverilog -g2012`):
+- **Wider-lane part-select**: universally warning-clean (the lone Verilator
+  `DECLFILENAME` complaint was a filename≠module-name probe artifact, gone with
+  `-Wno-DECLFILENAME` / a matching filename) **and** iverilog simulation proved
+  the unrolled loop **bit-equal to `{4{b}}`** across sampled inputs. Minimal
+  blast radius. **Picked.**
+- **`interface`/`modport`**: **empirically disqualified.** Icarus syntax-fails
+  the `modport`-typed port (`syntax error … Errors in port declarations`); *both*
+  Yosys modes warn `Identifier '\p.data' / '\intf.data' is implicitly declared`.
+  This confirms with current tools the weak/version-inconsistent support the
+  prior decisions only cited — it would fail the clean-across-every-tool bar.
+- **Nested/multi-level `generate`**: clean across all three tools, but a bigger
+  emitter change (nested genvar scoping) **and** it lacks a routine
+  by-construction source — ANVIL's replications are 1-dimensional; `{N{ {M{x}} }}`
+  is not a normal construction. Recorded as a later `generate`-deepening surface.
+- **Constant-predicate `generate if`**: clean, but introduces a dead untaken
+  branch (unused logic) and the source-level frontend lane already exercises
+  `generate if`. Deferred.
+
+**Discipline / why it's cheap (decision `0015`).** Rules-first — broaden the
+existing `annotate_generate_loop_gates` predicate; never generate-then-filter.
+It **reuses** the existing `generate_loop_emit_prob` knob (default `0.0` ⇒
+byte-identical, snapshots untouched) and the `num_emitted_generate_loops` metric
+— so **no new knob, no new metric, and no introspection schema bump** (the
+fourth surface is the first that needs none of those). No new IR node / no new
+computed truth (the emit-projection precedent).
+
+**Planned `.8` implementation shape (for `.8a` to pin against real code).** Two
+surgical edits, both confirmed small by the bootstrap codebase walk:
+- `src/ir/generate_loop.rs::gate_qualifies` — relax the `lane.width() != 1`
+  restriction to `LW >= 1` and the `*width == operands.len()` check to
+  `*width == operands.len() * LW`; keep the `function_emit` / `soft_union`
+  exclusions.
+- `src/emit/sv.rs::generate_loop_gate` + `render_generate_loop_block` — the gate
+  helper currently returns `(lane, N)`; the wider lane needs `LW` too (return it,
+  or recompute `m.nodes[lane].width()` in the renderer). The renderer branches:
+  `LW == 1` keeps the existing `assign <wire>[gi] = <x>;` **byte-identical** (so
+  the shipped 1-bit surface, its proofs, and the `.4b` gate stay green
+  unchanged); `LW > 1` emits `assign <wire>[gi*LW +: LW] = <x>;`. Do **not**
+  collapse `LW==1` into `[gi*1 +: 1]` — that would change the shipped surface's
+  bytes.
+- Downstream proof: the existing `tool_matrix --generate-loop-gate` covers wider
+  lanes the moment the predicate is relaxed; `.8` adds a focused assertion (and,
+  if warranted, a wider-lane coverage signal) so the wider lane is *proven
+  exercised*, not merely possible.
+
+Split `.7` (this design leaf, done) + `.8` (impl, pre-split `.8a` design-detail +
+`.8b` impl) + future `.9+` (nested/multi-level `generate`, `interface`/`modport`,
+richer multi-output tasks). Default-off / DUT byte-identical throughout. Nothing
+retired.
+
 ## 2026-06-16 — Structured emission — combinational `task automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.6b.1`
 
 The third richer-structured emit surface goes live, implementing the `.6a`

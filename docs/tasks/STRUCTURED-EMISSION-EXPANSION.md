@@ -6,10 +6,27 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.6b.3` landed — the user-facing closeout; the
-  THIRD structured surface (the combinational `task automatic`) is delivered
-  end-to-end; `.6b.3` / `.6b` / `.6` all close; the lane returns to
-  no-active-frontier (open-ended).** Docs-only / DUT byte-identical: a `## The
+- Last updated: `2026-06-17` (**`.7` landed — picked the FOURTH structured
+  surface (the wider-lane `generate for` part-select); decision `0015`;
+  design/decision leaf, no source change; frontier → `.8`.** At a
+  no-active-frontier boundary, autonomously selected per
+  `feedback_pick_and_roll_at_no_frontier` the recorded wider-lane follow-up to
+  the second surface. A fresh empirical probe this session (Verilator 5.046
+  `-Wall` + Yosys 0.64 both modes + Icarus 13.0) accepts a wider-lane
+  `generate for` part-select warning-clean and iverilog simulation proves it
+  bit-equal to `{N{x}}`; the same probe **disqualifies** `interface`/`modport`
+  (Icarus syntax-fails the modport port, both Yosys modes warn on the implicit
+  `.data` decl — confirming the recorded weak-support claim) and records
+  nested-generate as clean-but-bigger-blast-radius. The fourth surface broadens
+  the `generate for` lane from 1-bit to `LW >= 1` via
+  `assign <wire>[gi*LW +: LW] = <x>;`, reusing the existing
+  `generate_loop_emit_prob` knob + `num_emitted_generate_loops` metric (no new
+  knob / no schema bump). Split `.7` (design, done) + `.8` (impl, pending;
+  pre-split `.8a` design-detail + `.8b`). Prior: **`.6b.3` landed — the
+  user-facing closeout; the THIRD structured surface (the combinational
+  `task automatic`) is delivered end-to-end; `.6b.3` / `.6b` / `.6` all close;
+  the lane returns to no-active-frontier (open-ended).** Docs-only / DUT
+  byte-identical: a `## The
   third surface: a combinational task automatic` section in
   `book/src/structured-emission.md` (byte-verified seed-1 before/after — the
   inline shift becomes the `task automatic` decl + `logic <wire>__tv` + the
@@ -209,8 +226,8 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) delivered end-to-end (.5 + .6 done: .6a design, .6b.1 live surface, .6b.2 metric/schema-1.10 + tool_matrix gate, .6b.3 docs). Open-ended lane with no current frontier: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
-  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2), second surface (generate for loop, .3+.4), and third surface (combinational task automatic, .5+.6) delivered end-to-end. FOURTH surface (the wider-lane generate for part-select) design done (.7, decision 0015); impl pending (.8, pre-split .8a/.8b). Open-ended lane: nested/multi-level generate / interface-modport / richer tasks are future (.9+), each its own decision.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
   Status: `done`
@@ -410,23 +427,55 @@ behaviour.
   Verification: `mdbook build book clean (HTML written, no broken-link warnings); bash knowledge-map/scripts/gen_knowledge_map.sh (41 facts / 331 keys) + bash knowledge-map/scripts/check_knowledge_map.sh OK (facts valid, ids unique, map in sync); bash scripts/check_memory_architecture.sh all invariants hold (0014 indexed); cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — the new repro block correctly skip-sentinelled). Docs-only: no src/ touched, so cargo check/clippy/fmt unaffected; the seed-1 before/after was byte-verified against the release binary (task_emit_prob 0.0 vs 1.0 diff = exactly the shr_0__t task decl + the logic shr_0__tv var + the always_comb call + the assign rewritten to the passthrough) and the example lints clean under verilator --lint-only -Wall (matching filename) + both Yosys + Icarus.`
   Commit: `done`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.7`
+  Status: `done`
+  Goal: `Design/decision leaf: at the no-active-frontier boundary, pick the FOURTH structured surface, define its valid-by-construction discipline + opt-in knob + downstream gate, re-confirm with a fresh empirical tool-acceptance probe, and split the tree — before any code.`
+  Acceptance: `A decision record naming the fourth surface, its construction discipline, and its downstream gate, grounded in a fresh empirical probe; no source change; self-checks clean.`
+  Result: `Decision 0015. The fourth richer-structured surface is a default-off, opt-in, valid-by-construction wider-lane generate for part-select — a behaviour-preserving broadening of the second surface (decision 0013) from the 1-bit lane to a lane of any width LW >= 1. For a marked replication {N{x}} whose lane x is LW bits (result N*LW), it renders generate for (gi=0; gi<N; gi=gi+1) assign <wire>[gi*LW +: LW] = <x>; (the LW==1 case keeps the existing assign <wire>[gi] = <x>; verbatim ⇒ the shipped 1-bit surface stays byte-identical). Bit-group g of {N{x}} is exactly the lane, so the unrolled loop is byte-equivalent to the inline replication. Chosen over interface/modport (EMPIRICALLY DISQUALIFIED this session: Icarus syntax-fails the modport port + both Yosys modes warn on the implicit interface-member decl — confirms the recorded weak-support claim) and nested/multi-level generate (clean but bigger blast radius + no routine by-construction 2D source) and constant-predicate generate if (dead untaken branch; frontend lane already exercises it). Fresh empirical probe (Verilator 5.046 -Wall + Yosys 0.64 both modes + Icarus 13.0): wider-lane part-select universally warning-clean + iverilog-simulation-proven bit-equal to {4{b}}. Discipline: rules-first (broaden the annotate_generate_loop_gates predicate; never generate-then-filter); REUSES the existing generate_loop_emit_prob knob (default 0.0 ⇒ byte-identical, snapshots untouched) and the num_emitted_generate_loops metric (NO new knob / NO new metric / NO introspection schema bump); no new IR node / no new computed truth. Downstream gate: the existing tool_matrix --generate-loop-gate covers wider lanes once the predicate is relaxed; .8 adds a focused wider-lane assertion. Rejected: interface/modport fourth, nested generate fourth, generate if fourth, an explicit per-bit unroll, a new IR node/knob/metric/schema bump, generate-then-filter, changing the default. Split into .7 (done) + .8 (impl) + future (.9+: nested/multi-level generate, interface/modport, richer tasks). Pre-split .8 → .8a (design-detail) + .8b (impl).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.8`
+  Status: `pending`
+  Goal: `Implement the fourth structured surface (the wider-lane generate for part-select) per decision 0015: relax the generate_loop predicate from 1-bit-lane to LW >= 1 (width == N*LW); render the part-select loop body assign <wire>[gi*LW +: LW] = <x>; for LW > 1 while keeping the LW==1 body byte-identical; lib proofs (wider-lane mark; wider-lane emit shape; LW==1 still [gi] byte-identical; sim-faithful); prove the wider lane is exercised in tool_matrix --generate-loop-gate (Verilator + both Yosys + Icarus); book/USER_GUIDE update (replace the "wider lane stays inline" caveat). Default-off / DUT byte-identical (snapshots untouched). Reuses generate_loop_emit_prob + num_emitted_generate_loops (no new knob / no schema bump).`
+  Children: `STRUCTURED-EMISSION-EXPANSION.8a`, `STRUCTURED-EMISSION-EXPANSION.8b`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.8a`
+  Status: `pending`
+  Goal: `Design-detail leaf (no source): ground decision 0015 in the real src/ir/generate_loop.rs (gate_qualifies — the 1-bit-lane restriction to relax) + src/emit/sv.rs (generate_loop_gate returning (lane, N) — and whether to also return LW or recompute m.nodes[lane].width(); render_generate_loop_block — the [gi] vs [gi*LW +: LW] branch). Pin: (1) the relaxed predicate (LW >= 1, width == N*LW; keep the function-emit/soft_union exclusions); (2) the generate_loop_gate signature change ((lane, N) -> (lane, N) with LW recomputed, or (lane, N, LW)); (3) the render branch (LW==1 keeps [gi] byte-identical; LW>1 emits [gi*LW +: LW]); (4) the byte-identity contract for the shipped 1-bit surface (its proofs + the .4b gate must stay green unchanged); (5) the wider-lane downstream proof (a dedicated --generate-loop-gate wide-lane scenario/assertion vs asserting inside the existing gate, and whether a wider-lane coverage signal is warranted). DEVELOPMENT_NOTES design-detail entry + the .8b impl shape.`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the five points grounded in real code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.8b`
+  Status: `pending`
+  Goal: `Implement the .8a design: relax src/ir/generate_loop.rs gate_qualifies to LW >= 1 (width == N*LW); extend src/emit/sv.rs generate_loop_gate + render_generate_loop_block with the LW>1 part-select body (LW==1 unchanged); lib proofs (wider-lane mark; wider-lane emit shape; LW==1 byte-identical; identity/node-count untouched; an emit/sim faithfulness check); prove the wider lane exercised + downstream-clean in tool_matrix --generate-loop-gate (Verilator + both Yosys modes + Icarus); book/USER_GUIDE closeout (replace the "wider lane stays inline" caveat with the shipped wider-lane surface). Default-off / DUT byte-identical (snapshots untouched; no new knob / no schema bump). Pre-split further (.8b.1 live + .8b.2 gate/docs) if warranted when picked.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. new wider-lane proofs + the 1-bit-lane proofs unchanged; cargo test --test snapshots 6/6 byte-identical (default-off); the --generate-loop-gate bank stays clean and proves a wider-lane loop emitted + accepted; book/USER_GUIDE updated; committed through COMMIT.md with the leaf id.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
-**No current frontier.** The tree stays `active` as an **open-ended capability
-lane** (richer structured emission, ROADMAP steering gap 1). Three structured
-surfaces are now delivered end-to-end: the combinational `function automatic`
+**Frontier = `STRUCTURED-EMISSION-EXPANSION.8a`** (the design-detail leaf of the
+FOURTH structured surface implementation). The tree is `active`. Three structured
+surfaces are delivered end-to-end — the combinational `function automatic`
 (`.1`+`.2`), the `generate for` loop (`.3`+`.4`), and the combinational
-`task automatic` (`.5`+`.6`, closed `2026-06-16` by `.6b.3`). Future surfaces —
+`task automatic` (`.5`+`.6`) — and the **wider-lane `generate for` part-select**
+(`.7` design done `2026-06-17`, decision `0015`) is now in implementation (`.8`,
+pre-split `.8a` design-detail + `.8b` impl). Future surfaces —
 nested/multi-level `generate`, `interface` / `modport`, and richer (multi-output)
-tasks — are `.7+`, each its own decision when picked (none retired). When PNT next
-selects this lane, open `.7` with a design/decision leaf naming the next surface
-(the recorded leading candidates from decision `0014` are nested `generate` and
-`interface`/`modport`).
-
-_No active leaves — the lane has no current frontier. The most recent completions:_
+tasks — are `.9+`, each its own decision when picked (none retired).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.8a` | `pending` | Design-detail (no source): ground decision `0015` in the real `src/ir/generate_loop.rs` `gate_qualifies` + `src/emit/sv.rs` `generate_loop_gate`/`render_generate_loop_block`; pin the relaxed predicate (`LW >= 1`, `width == N*LW`), the `generate_loop_gate` signature, the `[gi]` vs `[gi*LW +: LW]` render branch (keep `LW==1` byte-identical), the shipped-1-bit-surface byte-identity contract, and the wider-lane downstream proof shape. |
+| 2 | `STRUCTURED-EMISSION-EXPANSION.8b` | `pending` | Impl: relax the predicate + the part-select render branch + lib proofs + the wider-lane `--generate-loop-gate` proof + book/USER_GUIDE closeout. Default-off / DUT byte-identical; reuses `generate_loop_emit_prob` + `num_emitted_generate_loops` (no new knob / no schema bump). |
+
+_Most recent completions:_
+
+| Order | Leaf | Status | Why next |
+| --- | --- | --- | --- |
+| — | `STRUCTURED-EMISSION-EXPANSION.7` | `done` | Decision `0015`: picked the FOURTH structured surface — the **wider-lane `generate for` part-select** (broaden the `generate for` lane from 1-bit to `LW >= 1`, rendering `assign <wire>[gi*LW +: LW] = <x>;`, closing the recorded wider-lane follow-up). A fresh empirical probe (Verilator 5.046 `-Wall` + Yosys 0.64 both modes + Icarus 13.0) accepts it warning-clean + iverilog-sim-proves it `== {N{x}}`; `interface`/`modport` empirically DISQUALIFIED (Icarus syntax-fail + both-Yosys implicit-decl warn); nested-generate recorded clean-but-bigger-blast-radius. Reuses the existing `generate_loop_emit_prob` knob + `num_emitted_generate_loops` metric (no new knob / no schema bump). Split `.7` (design) + `.8` (impl, pre-split `.8a`/`.8b`) + future `.9+`. No source change. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `done` | The user-facing closeout: a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` (byte-verified seed-1 before/after — the inline `shr_0 = i_2 >> 2'h3` becomes the `task automatic`/`always_comb`/passthrough form; the function-surface candidate parallel; the output-var passthrough; the four-way mutual exclusion; the `gi`-free single-gate rule; metric @ schema `1.10` + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + the KM how-to card `combinational-task-emit` (KM 40→41 facts / 318→331 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `done` | The repo-owned `tool_matrix --task-emit-gate`: `--task-emit-gate` flag + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (one comb-only `task_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_task` SV-text detection (`"task automatic"`) + `saw_combinational_task_emit` coverage fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6); `cargo test --bin tool_matrix` 68. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `done` | The metric + schema bump: `Metrics::num_emitted_combinational_tasks` (`= m.task_emit_gates.len()`, `#[serde(default)]`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; `cargo test --lib` 490 + snapshots 6/6 + mdbook green; end-to-end introspect default `0` / forced `39`. Precedented (`1.8→1.9` `num_emitted_generate_loops`). |
@@ -448,6 +497,36 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 ## Decisions
 
+- `2026-06-17` (`.7`, decision [`0015`](../decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md)):
+  picked the **fourth** richer-structured surface autonomously at a
+  no-active-frontier boundary (`feedback_pick_and_roll_at_no_frontier`). It is a
+  default-off, opt-in, **valid-by-construction wider-lane `generate for`
+  part-select** — a behaviour-preserving broadening of the second surface
+  (decision `0013`) from the 1-bit lane to a lane of any width `LW >= 1`: a marked
+  `{N{x}}` replication whose lane is `LW` bits (result `N*LW`) renders
+  `generate for (gi=0; gi<N; gi=gi+1) assign <wire>[gi*LW +: LW] = <x>;`, while
+  the `LW==1` case keeps the existing `assign <wire>[gi] = <x>;` verbatim (so the
+  shipped 1-bit surface stays byte-identical). Bit-group `g` of `{N{x}}` is
+  exactly the lane ⇒ byte-equivalent to the inline replication. Chosen over
+  `interface`/`modport` (**empirically disqualified this session**: Icarus
+  syntax-fails the modport port + both Yosys modes warn on the implicit
+  interface-member decl — confirms the recorded weak-support claim), nested/
+  multi-level `generate` (clean but bigger blast radius + no routine
+  by-construction 2D source), and constant-predicate `generate if` (dead untaken
+  branch; the frontend lane already exercises it). Empirically grounded this
+  session: a wider-lane `generate for` part-select is accepted warning-clean by
+  Verilator 5.046 `-Wall` + both repo Yosys modes + Icarus `iverilog -g2012`,
+  and iverilog simulation proves the unrolled loop bit-equal to `{4{b}}`.
+  Discipline: rules-first (broaden the `annotate_generate_loop_gates` predicate;
+  never generate-then-filter); **reuses** the existing `generate_loop_emit_prob`
+  knob (default `0.0` ⇒ byte-identical / snapshots untouched) and the
+  `num_emitted_generate_loops` metric — **no new knob, no new metric, no
+  introspection schema bump**; no new IR node / no new computed truth (the
+  emit-projection precedent). Downstream gate: the existing
+  `tool_matrix --generate-loop-gate` covers wider lanes once the predicate is
+  relaxed; `.8` adds a focused wider-lane assertion. Split `.7` (done) + `.8`
+  (impl; pre-split `.8a` design-detail + `.8b` impl) + future (`.9+`:
+  nested/multi-level `generate`, `interface`/`modport`, richer tasks).
 - `2026-06-16` (`.3`, decision [`0013`](../decisions/0013-structured-emission-second-surface-generate-loop.md)):
   picked the **second** richer-structured surface by explicit owner steer
   (*"structured emission: next surface"* → `generate`). It is a default-off,
@@ -532,6 +611,7 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.7` | **Design/decision leaf, no source change.** Decision `0015` (`docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md`) + `INDEX.md` row + tree split (`.7` done + `.8` impl pending, pre-split `.8a`/`.8b`). **Fresh empirical tool-acceptance probe** (this session, `/tmp/anvil-probe-se4/`): a wider-lane `generate for` part-select (`assign y[gi*8 +: 8] = b;` ≡ `{4{b}}`) accepted warning-clean by **Verilator 5.046 `-Wall --lint-only`** (with the `DECLFILENAME` filename-artifact suppressed) + **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`) + **Icarus `iverilog -g2012`**, and **iverilog simulation proves it bit-equal to `{4{b}}`** across sampled inputs (`ALL-MATCH`); the same probe **disqualifies `interface`/`modport`** (Icarus syntax-fails the modport-typed port; both Yosys modes warn `Identifier '\p.data'/'\intf.data' is implicitly declared`) and records nested-generate clean-but-bigger-blast-radius + `generate if` clean-but-dead-branch. `bash scripts/check_memory_architecture.sh` ✅ (`0015` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0015` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected (`cargo check --all-targets` was clean at session start). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.3` | **User-facing closeout, docs-only** (a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` + the intro update + the `task_emit_prob` knob entry in `book/src/knobs.md` `### Structured emission` + `USER_GUIDE.md` + README "Current CLI truth" + new KM card `docs/knowledge/combinational-task-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**41 facts / 331 keys**, was 40 / 318) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0014` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-1 `task_emit_prob` 0.0→1.0 diff = exactly the `shr_0__t` task decl + the `logic shr_0__tv` var + the `always_comb` call + the `assign` rewritten to the passthrough (rest byte-identical); the example lints clean under `verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus. With this leaf `.6b.3`/`.6b`/`.6` all close — the third structured surface is delivered end-to-end; the lane returns to no-active-frontier. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--task-emit-gate` + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` + `ModuleReport.emitted_combinational_task` + `saw_combinational_task_emit` + `MatrixReport.task_emit_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --bin tool_matrix -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **68 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-task-emit-gate-r1` (`--task-emit-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a task** / `coverage_gaps = []` / `saw_combinational_task_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`; all 12 modules `emitted_combinational_task = true`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_combinational_tasks` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.9→1.10` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.9→1.10` changelog entry + the early-example/defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--sv-version --introspect` row; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **490 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.10`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.10"` + metric `0`; forced `task_emit_prob=1.0` (seed 42) ⇒ `1.10` + `39`. `mdbook build book` OK. MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal (recorded in the doc comment + changelog). Historical "landed at schema X" attributions left intact (`num_emitted_generate_loops` @ 1.9; `num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2; the schema-doc `1.8→1.9` changelog entry). | `done` |
@@ -556,6 +636,7 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.7` | `STRUCTURED-EMISSION-EXPANSION.7 — pick wide-lane generate-loop surface + decision 0015` | Design/decision leaf (no source): decision `0015` picks the fourth structured surface — a default-off, valid-by-construction **wider-lane `generate for` part-select** (broaden the `generate for` lane from 1-bit to `LW >= 1`, render `assign <wire>[gi*LW +: LW] = <x>;`, keep `LW==1` byte-identical), the recorded wider-lane follow-up to the second surface. Chosen via a fresh empirical probe (Verilator `-Wall` + both Yosys + Icarus clean + iverilog-sim-proven `== {N{x}}`) that **disqualifies** `interface`/`modport` (Icarus syntax-fail + both-Yosys implicit-decl warn) and records nested-generate as bigger-blast-radius. Reuses the existing `generate_loop_emit_prob` knob + `num_emitted_generate_loops` metric (no new knob / no schema bump). `INDEX.md` row; tree split `.7`/`.8` (pre-split `.8a`/`.8b`)/`.9+`; frontier → `.8a`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `STRUCTURED-EMISSION-EXPANSION.6b.3 — combinational task automatic user docs` | Docs-only closeout: a `## The third surface: a combinational task automatic` section in `book/src/structured-emission.md` (byte-verified seed-1 before/after; the function-surface candidate parallel; the output-var passthrough form; the four-way mutual exclusion; the metric @ schema `1.10` + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `combinational-task-emit` (41 facts / 331 keys). Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `STRUCTURED-EMISSION-EXPANSION.6b.2b — task-emit tool_matrix gate` | The repo-owned `tool_matrix --task-emit-gate`: `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios` (comb-only `task_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_task` SV-text detection + `saw_combinational_task_emit` fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6). Closes `.6b.2`; frontier → `.6b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `STRUCTURED-EMISSION-EXPANSION.6b.2a — task emit metric + introspection schema 1.10` | `Metrics::num_emitted_combinational_tasks` (= `task_emit_gates.len()`) + introspection schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 490); end-to-end introspect default `0` / forced `39`. Pre-split `.6b.2` → `.6b.2a`/`.6b.2b`; frontier → `.6b.2b`. |
@@ -578,6 +659,32 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 ## Changelog
 
+- `2026-06-17`: **`.7` landed — picked the FOURTH structured surface (the
+  wider-lane `generate for` part-select); decision `0015`; frontier → `.8a`.**
+  Design/decision leaf, no source change. At a no-active-frontier boundary,
+  autonomously selected (`feedback_pick_and_roll_at_no_frontier`) the recorded
+  wider-lane follow-up to the second surface (decision `0013` / the book both
+  recorded "a wider lane would need a part-select body and stays inline — a
+  recorded follow-up"). It broadens the `generate for` lane from 1-bit to
+  `LW >= 1`: a `{N{x}}` replication whose lane is `LW` bits (result `N*LW`)
+  renders `assign <wire>[gi*LW +: LW] = <x>;`, while `LW==1` keeps the existing
+  `assign <wire>[gi] = <x>;` verbatim (the shipped 1-bit surface stays
+  byte-identical); bit-group `g` of `{N{x}}` is exactly the lane ⇒
+  byte-equivalent. A **fresh empirical probe** (Verilator 5.046 `-Wall` + Yosys
+  0.64 both modes + Icarus 13.0, `/tmp/anvil-probe-se4/`) accepts it
+  warning-clean and iverilog simulation proves it bit-equal to `{4{b}}`; the same
+  probe **disqualifies `interface`/`modport`** (Icarus syntax-fails the modport
+  port; both Yosys modes warn on the implicit interface-member decl — confirming
+  the recorded weak-support claim) and records nested-generate as
+  clean-but-bigger-blast-radius + `generate if` as clean-but-dead-branch.
+  Discipline: rules-first; **reuses** `generate_loop_emit_prob` +
+  `num_emitted_generate_loops` (no new knob / no new metric / no schema bump);
+  default-off / DUT byte-identical. `docs/decisions/0015-...md` + `INDEX.md` row;
+  KM regenerated (decision `0015` carries `answers:`); tree split `.7` (done) +
+  `.8` (impl pending, pre-split `.8a` design-detail + `.8b` impl) + future
+  `.9+` (nested/multi-level `generate`, `interface`/`modport`, richer tasks).
+  `check_memory_architecture` + `check_knowledge_map` + `mdbook build` green;
+  no source touched. Nothing retired.
 - `2026-06-16`: **`.6b.3` landed — the user-facing closeout; the THIRD structured
   surface (the combinational `task automatic`) is delivered end-to-end; `.6b.3` /
   `.6b` / `.6` all close; the lane returns to no-active-frontier (open-ended).**

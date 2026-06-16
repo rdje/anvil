@@ -272,10 +272,32 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    already exercises it). Empirically grounded clean across Verilator `-Wall` +
    both Yosys modes + Icarus; the DUT emitter has no `generate`/`genvar` today,
    the frontend lane has `generate if`. Rules-first / default-off
-   `generate_loop_emit_prob` (proposed) ⇒ byte-identical; downstream gate
-   `saw_generate_loop_emit`. **Frontier = `.4`** (impl; pre-split `.4a`
-   design-detail + `.4b` impl). `task` (leading), nested/multi-level `generate`,
-   `interface`/`modport` are future vetted surfaces (`.5`+), each with its own
+   `generate_loop_emit_prob` ⇒ byte-identical; downstream gate
+   `saw_generate_loop_emit`. The **second surface is now delivered end-to-end**
+   (`.4a` design-detail + `.4b.1` live + `.4b.2` metric-schema-`1.9` + gate +
+   `.4b.3` docs). The **third surface** (decision
+   [`0014`](docs/decisions/0014-structured-emission-third-surface-combinational-task.md))
+   — a default-off combinational **`task automatic`** emit-projection of a single
+   gate, called from `always_comb` — is **also delivered end-to-end** (`.5`
+   design + `.6a` design-detail + `.6b.1` live + `.6b.2` metric-schema-`1.10` +
+   `tool_matrix --task-emit-gate` + `.6b.3` docs). The **fourth surface**
+   (decision
+   [`0015`](docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md),
+   autonomously picked `2026-06-17` at the no-frontier boundary) is a default-off
+   **wider-lane `generate for` part-select** — a behaviour-preserving broadening
+   of the second surface from the 1-bit lane to `LW >= 1` (a `{N{x}}` replication
+   whose lane is `LW` bits renders `assign <wire>[gi*LW +: LW] = <x>;`; `LW==1`
+   stays the byte-identical `[gi]` form), the recorded wider-lane follow-up. It
+   **reuses** the existing `generate_loop_emit_prob` knob + `num_emitted_generate_loops`
+   metric (no new knob / no schema bump). Chosen over `interface`/`modport`
+   (**empirically disqualified**: Icarus syntax-fails the modport port + both
+   Yosys modes warn on the implicit interface-member decl) and nested/multi-level
+   `generate` (clean but bigger blast radius); a fresh probe (Verilator 5.046
+   `-Wall` + Yosys 0.64 both modes + Icarus 13.0) accepts the wider-lane
+   part-select warning-clean + iverilog-sim-proven `== {N{x}}`. **Frontier =
+   `.8a`** (impl design-detail; `.7` design done, `.8` pre-split `.8a` + `.8b`).
+   Nested/multi-level `generate`, `interface`/`modport`, and richer
+   (multi-output) tasks are future vetted surfaces (`.9`+), each with its own
    decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer
    structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`

@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.7 — pick the fourth structured surface (wider-lane `generate for` part-select) + decision 0015
+
+**Landed as:** this commit (previous: `cf25642`). **Design/decision leaf — no
+`src/` touched / DUT byte-identical.** At the no-active-frontier boundary,
+autonomously selected (`feedback_pick_and_roll_at_no_frontier`) the **fourth**
+richer-structured emission surface and recorded it as decision `0015`. The
+implementation is `.8` (this leaf is design-only).
+
+**What changed (why)**
+
+- **`docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md`**
+  (new) — decision `0015`: the fourth surface is a default-off,
+  valid-by-construction **wider-lane `generate for` part-select**, a
+  behaviour-preserving broadening of the second surface (decision `0013`) from
+  the 1-bit lane to a lane of any width `LW >= 1`. A marked `{N{x}}` replication
+  whose lane is `LW` bits (result `N*LW`) renders
+  `assign <wire>[gi*LW +: LW] = <x>;`; the `LW==1` case keeps the existing
+  `assign <wire>[gi] = <x>;` verbatim, so the shipped 1-bit surface stays
+  byte-identical. Full context → decision → rejected-alternatives → consequences,
+  with the fresh empirical probe and the `.8` touch points; carries `answers:`
+  for the Knowledge Map.
+- **`docs/decisions/INDEX.md`** — row for `0015`.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — `.7` (design, done) + `.8`
+  (impl, pending; pre-split `.8a` design-detail + `.8b` impl) nodes; root Goal +
+  Children; metadata last-updated; the Current Frontier now points to `.8a`; a
+  Decisions entry; Verification-Log, Commit-Log, and Changelog rows.
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row updated: `.7`
+  design done, frontier → `.8a`.
+- **`ROADMAP.md`** — capability-lane #2 brought current: the second and third
+  surfaces delivered end-to-end, the fourth surface (decision `0015`) design
+  done, frontier `.8a`.
+- **`DEVELOPMENT_NOTES.md`** — a design-rationale entry: the pick, the empirical
+  probe (incl. the `interface`/`modport` disqualification with exact tool
+  errors), why wider-lane over nested-generate, and the planned `.8`
+  implementation shape.
+
+**The empirical probe (this session, `/tmp/anvil-probe-se4/`)** — Verilator
+5.046 `-Wall --lint-only`, Yosys 0.64 both modes (`synth -noabc` and `abc -fast;
+opt -fast; check`), Icarus `iverilog -g2012`:
+
+| Candidate 4th surface | Verilator | Yosys (both) | Icarus | Verdict |
+|---|---|---|---|---|
+| wider-lane `generate for` part-select | CLEAN | CLEAN | CLEAN | ✅ picked — + iverilog-sim-proven `== {4{b}}` |
+| nested generate-for (2D) | CLEAN | CLEAN | CLEAN | clean but bigger blast radius / no routine by-construction source |
+| `interface`/`modport` | (parses) | WARN (implicit `.data` decl) | FAIL (modport-port syntax error) | ❌ disqualified |
+| `generate if` (const predicate) | CLEAN | CLEAN | CLEAN | clean but dead untaken branch + frontend lane already has it |
+
+**Why** — continue the open-ended `STRUCTURED-EMISSION-EXPANSION` lane (ROADMAP
+steering gap 1) one vetted surface at a time, evidence-first: pick the
+minimal-blast-radius, universally-clean, genuinely-new-shape surface and record
+the decision before any code (the doctrine: no code change without a task-tree
+leaf owning it). The fourth surface is notably cheap — it reuses the existing
+`generate_loop_emit_prob` knob and `num_emitted_generate_loops` metric, so it
+needs no new knob and no introspection schema bump.
+
+**Validation** — docs-only (no `src/` ⇒ `cargo check/clippy/fmt` unaffected;
+`cargo check --all-targets` was clean at session start). The empirical probe is
+banked at `/tmp/anvil-probe-se4/` (the wider-lane part-select lints + synthesizes
++ compiles clean across Verilator/Yosys/Icarus and simulates `== {4{b}}`;
+`interface`/`modport` fails Icarus + warns Yosys). `bash
+scripts/check_memory_architecture.sh` all invariants hold (`0015` indexed);
+`bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` OK
+(decision `0015` carries `answers:`); `mdbook build book` clean.
+
+**Impact** — design-only; no behaviour, no emitted RTL, no schema change. The
+fourth structured surface is now decided and tree-owned; `.8` implements it
+(default-off / DUT byte-identical, no new knob / no schema bump). Nothing
+retired.
+
 ## 2026-06-17 — LIVE-DOC-CODEBASE-ALIGNMENT.2 — correct integration-test count 6→8
 
 **Landed as:** this commit (previous: `7163d72`). **Live-doc only / no `src/`
