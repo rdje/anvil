@@ -6,7 +6,18 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.6b.2a` landed — the
+- Last updated: `2026-06-16` (**`.6b.2b` landed — the repo-owned
+  `tool_matrix --task-emit-gate`; `.6b.2` closes; frontier → `.6b.3`.**
+  `src/bin/tool_matrix.rs` gains `--task-emit-gate` + `ScenarioSet::TaskEmitSweep`
+  + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (comb-only
+  `task_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_task`
+  (`"task automatic"` SV-text detection) + `saw_combinational_task_emit` +
+  `MatrixReport.task_emit_gate` + early-return gap arm + 5 proofs + 6 fixture
+  updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate
+  entries. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules /
+  12 emitting a task / `coverage_gaps=[]` / `12/0` Verilator + both Yosys +
+  Icarus). No schema bump (harness-only); snapshots 6/6 byte-identical; `cargo
+  test --bin tool_matrix` 68. Prior: **`.6b.2a` landed — the
   `num_emitted_combinational_tasks` metric + introspection schema `1.9 → 1.10`;
   `.6b.2` split into `.6b.2a` (done) + `.6b.2b` (the `tool_matrix` gate); frontier
   → `.6b.2b`.** `Metrics::num_emitted_combinational_tasks` (`= m.task_emit_gates.len()`,
@@ -185,7 +196,7 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) in progress (.5 + .6a design done; .6b impl in progress — .6b.1 live surface + .6b.2a metric/schema-1.10 done, frontier .6b.2b tool_matrix gate). Open-ended lane: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) in progress (.5 + .6a design done; .6b impl in progress — .6b.1 live surface + .6b.2 metric/schema-1.10 + tool_matrix gate done, frontier .6b.3 docs closeout). Open-ended lane: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
   Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
@@ -358,6 +369,7 @@ behaviour.
   Status: `active`
   Goal: `The repo-owned downstream gate + metric for the combinational task automatic surface. Pre-split per the .4b.2 precedent into .6b.2a (the num_emitted_combinational_tasks metric = m.task_emit_gates.len() + introspection schema bump 1.9→1.10) + .6b.2b (the tool_matrix --task-emit-gate + ScenarioSet::TaskEmitSweep + ModuleReport.emitted_combinational_task SV-text detection ("task automatic") + saw_combinational_task_emit coverage fact + early-return gap enforcement, templated on --function-emit-gate / --generate-loop-gate; banked clean Verilator + both Yosys + Icarus). Default-off / DUT byte-identical.`
   Children: `STRUCTURED-EMISSION-EXPANSION.6b.2a`, `STRUCTURED-EMISSION-EXPANSION.6b.2b`
+  Result: `Done (closed by .6b.2b, 2026-06-16). .6b.2a (the num_emitted_combinational_tasks metric + introspection schema 1.10) + .6b.2b (the repo-owned tool_matrix --task-emit-gate, banked clean /tmp/anvil-task-emit-gate-r1) both complete. Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b.2a`
   Status: `done`
@@ -368,11 +380,12 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `The repo-owned tool_matrix gate: a saw_combinational_task_emit coverage fact + a --task-emit-gate flag + ScenarioSet::TaskEmitSweep + build_task_emit_sweep_scenarios (one comb-only task_emit_prob=1.0 DUT forcing the task projection across the three construction strategies) + a ModuleReport.emitted_combinational_task detection (SV-text contains "task automatic", #[serde(default)]) + coverage-gap enforcement (early-return arm in compute_coverage_gaps), proving Verilator + both Yosys modes + Icarus accept the emitted tasks warning-clean. Bank a clean report (/tmp/anvil-task-emit-gate-r1). Default-off / DUT byte-identical. Template: --function-emit-gate / --generate-loop-gate; the new field threaded through the ModuleReport fixtures + the test_cli default.`
   Acceptance: `cargo check/clippy(-D warnings)/fmt clean; the repo-owned gate is banked clean (Verilator + both Yosys + Icarus) with saw_combinational_task_emit lit and coverage_gaps=[]; snapshots 6/6 byte-identical; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. src/bin/tool_matrix.rs gains the repo-owned --task-emit-gate, templated on --generate-loop-gate (.4b.2b). New: --task-emit-gate CLI flag + ScenarioSet::TaskEmitSweep + MatrixReport.task_emit_gate (wired into select_scenario_set [mutually exclusive], derive_run_plan [TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO=4 units/scenario floor + fail_on_coverage_gap], build_scenarios, scenario_set_slug "task-emit-sweep", artifact_kind_slug "module"). build_task_emit_sweep_scenarios + task_emit_focus_config: one comb-only single-module DUT (function_emit_focus_config-shaped: node-id + e-graph, flop_prob = 0.0) with task_emit_prob = 1.0 across all three construction strategies (3 scenarios). ModuleReport.emitted_combinational_task (#[serde(default)]) set in materialize_prepared_module from prepared.sv_text.contains("task automatic"). CoverageSummary.saw_combinational_task_emit lit in summarize_coverage when an emitted-task module is accepted by Verilator success AND a non-empty clean Yosys vec (a combinational task is universally synthesizable like a function, so the gate runs the full tool plan; Icarus rides ToolSummary::any_failed); merged in merge_coverage; enforced by an early-return arm in compute_coverage_gaps after the universal construction-strategy coverage. 5 cargo-portable proofs + the new field threaded through 6 ModuleReport fixtures + the test_cli default. No schema bump (harness-only). Default task_emit_prob = 0.0 emission byte-identical (snapshots 6/6). Closes .6b.2 / frontier -> .6b.3.`
+  Verification: `cargo check --bin tool_matrix clean; cargo clippy --bin tool_matrix -- -D warnings clean; cargo fmt --all --check clean; cargo test --bin tool_matrix 68 passed / 1 ignored (incl. 5 new task-emit gate proofs); cargo test --test snapshots 6/6 byte-identical (harness-only). Repo-owned downstream bank /tmp/anvil-task-emit-gate-r1 (--task-emit-gate --yosys-mode both --iverilog-compile): 3 scenarios / 12 modules / 12 emitting a task / coverage_gaps = [] / saw_combinational_task_emit = true / Verilator 12/0 / Yosys without-abc 12/0 / Yosys with-abc 12/0 / Icarus compile 12/0; all 12 modules emitted_combinational_task = true.`
+  Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.6b.3`
   Status: `pending`
@@ -383,14 +396,15 @@ behaviour.
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.6b.2b`** (the repo-owned
-`tool_matrix --task-emit-gate` downstream gate for the third structured surface —
-the combinational `task automatic` emit-projection, decision `0014`). `.6b.2` is
-now an `active` container split into `.6b.2a` (metric + schema `1.10` — **done
-`2026-06-16`**) + `.6b.2b` (the `tool_matrix` gate — `pending`). `.6b.1` (live
-surface) + `.6a` (design-detail) + `.5` (decision `0014`) are done. The live
-`task automatic` surface is delivered + its `num_emitted_combinational_tasks`
-metric is surfaced in introspection (schema `1.10`). The first (combinational
+**Active frontier: `STRUCTURED-EMISSION-EXPANSION.6b.3`** (the user-facing
+closeout for the third structured surface — the combinational `task automatic`
+emit-projection, decision `0014`). `.6b.2` is now `done` (`.6b.2a` metric +
+schema `1.10` + `.6b.2b` the repo-owned `tool_matrix --task-emit-gate`, banked
+clean). `.6b.1` (live surface) + `.6a` (design-detail) + `.5` (decision `0014`)
+are done. The live `task automatic` surface is delivered, its
+`num_emitted_combinational_tasks` metric is surfaced in introspection (schema
+`1.10`), and the repo-owned gate proves it downstream-clean — only the
+book/USER_GUIDE/README/KM user-facing closeout remains. The first (combinational
 `function automatic`, `.1`+`.2`) and second (`generate for` loop, `.3`+`.4`)
 structured surfaces are delivered end-to-end. Future surfaces (nested/multi-level
 `generate`, `interface`/`modport`, richer tasks) are `.7+`, each its own decision.
@@ -398,8 +412,8 @@ Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `pending` | The repo-owned `tool_matrix --task-emit-gate`: a `--task-emit-gate` flag + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (one comb-only `task_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_task` SV-text detection (`"task automatic"`, `#[serde(default)]`) + `saw_combinational_task_emit` coverage fact + early-return gap enforcement, proving Verilator + both Yosys modes + Icarus accept the emitted tasks warning-clean. Bank clean `/tmp/anvil-task-emit-gate-r1`. Templated on `--function-emit-gate` / `--generate-loop-gate`; the new field threaded through the `ModuleReport` fixtures + the `test_cli` default. Default-off / DUT byte-identical (snapshots 6/6). |
-| 2 | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `task automatic` surface (byte-verified before/after; the single-gate rule; the output-var passthrough form; the metric + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted (decision `0014` already carries `answers:`). Docs-only / DUT byte-identical. |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.6b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `task automatic` surface (byte-verified before/after; the single-gate rule; the output-var passthrough form; the metric + gate) + the `task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted (decision `0014` already carries `answers:`). Docs-only / DUT byte-identical. Closes `.6b.3` / `.6b` / `.6` — the third structured surface delivered end-to-end. |
+| — | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `done` | The repo-owned `tool_matrix --task-emit-gate`: `--task-emit-gate` flag + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (one comb-only `task_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_combinational_task` SV-text detection (`"task automatic"`) + `saw_combinational_task_emit` coverage fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6); `cargo test --bin tool_matrix` 68. |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `done` | The metric + schema bump: `Metrics::num_emitted_combinational_tasks` (`= m.task_emit_gates.len()`, `#[serde(default)]`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; `cargo test --lib` 490 + snapshots 6/6 + mdbook green; end-to-end introspect default `0` / forced `39`. Precedented (`1.8→1.9` `num_emitted_generate_loops`). |
 | — | `STRUCTURED-EMISSION-EXPANSION.6b.1` | `done` | Live surface delivered: `Config::task_emit_prob` + `Module.task_emit_gates` + new `src/ir/task_emit.rs` (`annotate_task_emit_gates`, the function-emit candidate predicate **plus** exclusion of the three sibling projections) + the two guarded gen-time call-site rolls (after generate_loop) + the `to_sv_with_modules` `task_emit_gate` accessor + `render_gate_task_decl` (body via the reused `render_gate_function_body`) + `render_gate_task_call` (the `logic <wire>__tv` var + the `always_comb <wire>__t(...)` call) + the gate-assign-loop passthrough `assign <wire> = <wire>__tv;` + 11 lib proofs. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent; the `.6b.2` metric bumps `1.9→1.10`). Default-off / DUT byte-identical (snapshots 6/6; lib 489); forced `task_emit_prob=1.0` sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-te-r1/`, 5 seeds, 4–39 tasks each). |
 | — | `STRUCTURED-EMISSION-EXPANSION.6a` | `done` | Design-detail (no source): grounded decision `0014` in the real emitter (the `to_sv_with_modules` function-decl + generate-block sections as the template; the per-gate assign-loop `continue` pattern; the **reuse of `render_gate_function_body` verbatim** as the task body) + the `function_emit.rs`/`generate_loop.rs` gen-time-annotation chain. Pinned all five points: (1) the **output-var + passthrough-`assign`** integration (keep `<wire>` a net, add `logic <wire>__tv`, `always_comb <wire>__t(<wire>__tv, …)`, swap the gate's assign RHS to `<wire>__tv` — only the gate's own drive changes; `<wire>`-as-var rejected for the first cut); (2) gen-time `src/ir/task_emit.rs` `annotate_task_emit_gates` + `Module.task_emit_gates`, the function-emit predicate plus exclusion of the three sibling projections, run after generate_loop; (3) the `task automatic` decl + `always_comb` call + assign-RHS swap; (4) `Config::task_emit_prob` (config-file-only, default `0.0`, byte-identical); (5) `num_emitted_combinational_tasks` metric (schema `1.9→1.10`) + `tool_matrix --task-emit-gate` / `saw_combinational_task_emit`. `.6b` impl shape recorded. |
@@ -503,6 +517,7 @@ Nothing retired.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--task-emit-gate` + `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios`/`task_emit_focus_config` + `ModuleReport.emitted_combinational_task` + `saw_combinational_task_emit` + `MatrixReport.task_emit_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --bin tool_matrix -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **68 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-task-emit-gate-r1` (`--task-emit-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a task** / `coverage_gaps = []` / `saw_combinational_task_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`; all 12 modules `emitted_combinational_task = true`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_combinational_tasks` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.9→1.10` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.9→1.10` changelog entry + the early-example/defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--sv-version --introspect` row; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **490 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.10`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.10"` + metric `0`; forced `task_emit_prob=1.0` (seed 42) ⇒ `1.10` + `39`. `mdbook build book` OK. MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal (recorded in the doc comment + changelog). Historical "landed at schema X" attributions left intact (`num_emitted_generate_loops` @ 1.9; `num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2; the schema-doc `1.8→1.9` changelog entry). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6b.1` | **Live emitter change** (`src/config.rs` `task_emit_prob` knob + default + `0.0..=1.0` validation + dump-config; `src/ir/types.rs` `Module.task_emit_gates`; new `src/ir/task_emit.rs` `annotate_task_emit_gates` (the function-emit candidate predicate plus exclusion of the three sibling projections) + `src/ir/mod.rs` registration; `src/gen/mod.rs` two call-site rolls after generate_loop; `src/emit/sv.rs` `task_emit_gate` accessor + the task section (`render_gate_task_decl` reusing `render_gate_function_body` + `render_gate_task_call`) + the gate-assign-loop passthrough; `DEVELOPMENT_NOTES.md` + `CODEBASE_ANALYSIS.md` updated). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **489 passed** / 2 ignored (incl. 11 new `task_emit` proofs; introspect `schema_version` 1.9 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `task_emit_prob=1.0` sweep (5 seeds 1/7/42/100/2024, 4–39 tasks each, banked `/tmp/anvil-te-r1/`): Verilator `--lint-only` **5/5 CLEAN** (repo bar) + **`-Wall` ON-vs-OFF delta = 0** (the task projection adds no new warnings; the transient `DECLFILENAME` during the sweep was a filename≠module-name harness artifact, not a task warning), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5 CLEAN**. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent; the `.6b.2` metric bumps `1.9→1.10`). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.6a` | **Design-detail leaf, no source change** (a `DEVELOPMENT_NOTES.md` design-detail entry + the `.6` tree split; no `src/` touched). Grounded in a fresh read of `src/emit/sv.rs` (the `to_sv_with_modules` function-decl + generate-block sections as the structural template; the per-gate assign-loop `continue` pattern; the **reuse of `render_gate_function_body` verbatim** as the task body) + `src/ir/function_emit.rs` / `src/ir/generate_loop.rs` (the gen-time-annotation chain + the defensive `*_gate` accessor) + `src/gen/mod.rs` (the guarded call-site rolls) + `src/config.rs` (default + `0.0..=1.0` validation) + `src/ir/mod.rs` (`pub mod` registration). Resolved all five `.6a` points: (1) the output-var + passthrough-`assign` integration (`<wire>`-as-var rejected for the first cut); (2) gen-time `annotate_task_emit_gates` + `Module.task_emit_gates`, the function-emit predicate plus exclusion of the three sibling projections, run after generate_loop; (3) the `task automatic` decl + `always_comb` call + assign-RHS swap; (4) `Config::task_emit_prob` config-file-only default `0.0`; (5) `num_emitted_combinational_tasks` metric (schema `1.9→1.10`) + `tool_matrix --task-emit-gate` / `saw_combinational_task_emit`. Recorded the `.6b` impl shape (pre-split `.6b.1`/`.6b.2`/`.6b.3`). `bash scripts/check_memory_architecture.sh` ✅; `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card change — `0014` already carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
@@ -525,6 +540,7 @@ Nothing retired.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.6b.2b` | `STRUCTURED-EMISSION-EXPANSION.6b.2b — task-emit tool_matrix gate` | The repo-owned `tool_matrix --task-emit-gate`: `ScenarioSet::TaskEmitSweep` + `build_task_emit_sweep_scenarios` (comb-only `task_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_combinational_task` SV-text detection + `saw_combinational_task_emit` fact + `MatrixReport.task_emit_gate` + early-return gap enforcement + 5 proofs + 6 fixture updates + the `test_cli` default. Banked clean `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a task / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Templated on `--generate-loop-gate`. Default-off / DUT byte-identical (snapshots 6/6). Closes `.6b.2`; frontier → `.6b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.2a` | `STRUCTURED-EMISSION-EXPANSION.6b.2a — task emit metric + introspection schema 1.10` | `Metrics::num_emitted_combinational_tasks` (= `task_emit_gates.len()`) + introspection schema MINOR bump `1.9 → 1.10` (the metric bumps; the `.6b.1` knob rode the version). MINOR is an integer ⇒ `1.9 → 1.10` (ten), not a decimal. Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 490); end-to-end introspect default `0` / forced `39`. Pre-split `.6b.2` → `.6b.2a`/`.6b.2b`; frontier → `.6b.2b`. |
 | `STRUCTURED-EMISSION-EXPANSION.6b.1` | `STRUCTURED-EMISSION-EXPANSION.6b.1 — combinational task automatic emit-projection (live surface)` | Live emitter change: `task_emit_prob` knob + `Module.task_emit_gates` + new `src/ir/task_emit.rs` gen-time mark (the function-emit candidate predicate plus exclusion of the three sibling projections) + two generator call-site rolls (after generate_loop) + `to_sv_with_modules` `task_emit_gate` accessor + `render_gate_task_decl` (body via the reused `render_gate_function_body`) + `render_gate_task_call` (the `logic <wire>__tv` var + the `always_comb` call) + the gate-assign-loop passthrough `assign <wire> = <wire>__tv;` + 11 lib proofs. Output-var + passthrough integration (the `.6a` first cut). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6, lib 489); forced sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-te-r1/`, 5 seeds, 4–39 tasks each). Pre-split `.6b` → `.6b.1`/`.6b.2`/`.6b.3`; frontier → `.6b.2`. |
 | `STRUCTURED-EMISSION-EXPANSION.6a` | `STRUCTURED-EMISSION-EXPANSION.6a — combinational task impl design-detail` | Design-detail (no source): a `DEVELOPMENT_NOTES.md` entry grounding decision `0014`'s `task` surface in the real emitter (the `to_sv_with_modules` section template; the **reuse of `render_gate_function_body`** as the task body) + the `function_emit.rs`/`generate_loop.rs` chain, resolving all five `.6a` points (output-var + passthrough integration; gen-time `Module.task_emit_gates` excluding the sibling projections; the `task automatic` decl + `always_comb` call + assign-RHS swap; `task_emit_prob` config-file knob; `num_emitted_combinational_tasks` metric schema `1.9→1.10` + `tool_matrix --task-emit-gate`/`saw_combinational_task_emit`) + the `.6b` impl shape. Split `.6` into `.6a` (done) + `.6b` (impl pending); frontier → `.6b`. No source change; self-checks clean. |
@@ -545,6 +561,32 @@ Nothing retired.
 
 ## Changelog
 
+- `2026-06-16`: **`.6b.2b` landed — the repo-owned `tool_matrix --task-emit-gate`;
+  `.6b.2` closes; frontier → `.6b.3`.** `src/bin/tool_matrix.rs` gains the
+  `--task-emit-gate` CLI flag + `ScenarioSet::TaskEmitSweep` +
+  `MatrixReport.task_emit_gate` (wired into `select_scenario_set` [mutually
+  exclusive], `derive_run_plan` [`TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO=4`
+  units/scenario floor + `fail_on_coverage_gap`], `build_scenarios`,
+  `scenario_set_slug` "task-emit-sweep", `artifact_kind_slug` "module") +
+  `build_task_emit_sweep_scenarios`/`task_emit_focus_config` (the
+  `function_emit_focus_config`-shaped comb-only single-module DUT — node-id +
+  e-graph, `flop_prob=0.0` — with `task_emit_prob=1.0` × all three construction
+  strategies = 3 scenarios) + `ModuleReport.emitted_combinational_task`
+  (`#[serde(default)]`, set from `prepared.sv_text.contains("task automatic")`) +
+  `CoverageSummary.saw_combinational_task_emit` (lit in `summarize_coverage` when
+  an emitted-task module is Verilator-success AND has a non-empty clean Yosys vec
+  — a combinational task is universally synthesizable like a function, so the full
+  tool plan; Icarus rides `ToolSummary::any_failed`) + merge in `merge_coverage` +
+  an early-return arm in `compute_coverage_gaps` + 5 cargo-portable proofs + the
+  new field threaded through 6 `ModuleReport` fixtures + the `test_cli` default;
+  README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Banked clean
+  `/tmp/anvil-task-emit-gate-r1` (`--task-emit-gate --yosys-mode both
+  --iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a task** /
+  `coverage_gaps = []` / `saw_combinational_task_emit = true` / Verilator `12/0` /
+  Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. No
+  schema bump (harness-only); `cargo test --bin tool_matrix` 68 / 1 ignored;
+  snapshots 6/6 byte-identical (default `task_emit_prob = 0.0` emission
+  unchanged). Closes `.6b.2`; frontier → `.6b.3`. Nothing retired.
 - `2026-06-16`: **`.6b.2a` landed — the `num_emitted_combinational_tasks` metric +
   introspection schema `1.9 → 1.10`; `.6b.2` split into `.6b.2a` (done) + `.6b.2b`
   (the `tool_matrix` gate); frontier → `.6b.2b`.** `Metrics::num_emitted_combinational_tasks`

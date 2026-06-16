@@ -846,6 +846,22 @@ Useful options:
   at `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8
   emitting a loop / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both
   modes / Icarus compile 12/0).
+- `--task-emit-gate` to run the repo-owned combinational `task automatic`
+  emit gate (`STRUCTURED-EMISSION-EXPANSION.6b.2b`) and fail unless the report
+  proves the third richer-structured emission surface (decision `0014`) fires
+  **by construction** and is downstream-accepted. It forces
+  `task_emit_prob = 1.0` over a comb-only single-module DUT across all three
+  construction strategies, so every qualifying combinational gate is projected
+  to a behaviour-preserving `task automatic` over its direct operands (called
+  from `always_comb` into a `<wire>__tv` output var), and requires the
+  `saw_combinational_task_emit` fact (a genuinely-emitted task, detected from
+  the emitted SV text, accepted by Verilator **and** Yosys). Like a function
+  (and unlike the `union soft` up-opt), a combinational `task` is universally
+  synthesizable, so the gate runs the full Verilator + both Yosys modes (+
+  Icarus when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a
+  task / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes /
+  Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

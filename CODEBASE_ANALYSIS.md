@@ -181,6 +181,21 @@ into four explicit gaps:
    scenarios, 12 modules, 8 emitting a loop, `coverage_gaps = []`, `12/0`
    Verilator + both Yosys modes + Icarus compile). Default
    `generate_loop_emit_prob = 0.0` emission stays byte-identical.
+   The combinational `task automatic` emit gate landed the same way as
+   `STRUCTURED-EMISSION-EXPANSION.6b.2b`: a new
+   `ScenarioSet::TaskEmitSweep` + the opt-in `--task-emit-gate` flag +
+   `build_task_emit_sweep_scenarios` (one comb-only `task_emit_focus_config`
+   DUT × three construction strategies, all forcing `Config::task_emit_prob =
+   1.0`) + the `saw_combinational_task_emit` coverage fact + a new
+   `ModuleReport.emitted_combinational_task` field (set from
+   `prepared.sv_text.contains("task automatic")`); `summarize_coverage` lights
+   the fact on Verilator + Yosys acceptance (a combinational `task` is
+   universally synthesizable, like a function), and `compute_coverage_gaps`
+   early-returns after the one fact. `MatrixReport.task_emit_gate` records the
+   run. Banked downstream-clean at `/tmp/anvil-task-emit-gate-r1` (3
+   scenarios, 12 modules, 12 emitting a task, `coverage_gaps = []`, `12/0`
+   Verilator + both Yosys modes + Icarus compile). Default `task_emit_prob =
+   0.0` emission stays byte-identical.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

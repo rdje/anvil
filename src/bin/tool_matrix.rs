@@ -28,6 +28,7 @@ const SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 2;
 const FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -105,6 +106,16 @@ struct Cli {
     /// also set).
     #[arg(long)]
     generate_loop_gate: bool,
+
+    /// Elevate the run to the repo-owned combinational `task automatic`
+    /// emit gate (`STRUCTURED-EMISSION-EXPANSION.6b.2b`): force
+    /// `task_emit_prob = 1.0` over comb-only DUTs across the three
+    /// construction strategies and require the `saw_combinational_task_emit`
+    /// coverage fact, proving the emitted tasks are accepted warning-clean by
+    /// Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
+    /// also set).
+    #[arg(long)]
+    task_emit_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -223,6 +234,18 @@ struct ModuleReport {
     /// Icarus) plan.
     #[serde(default)]
     emitted_generate_loop: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.2b` — `true` iff this module's
+    /// emitted SV carries at least one combinational `task automatic`
+    /// emit-projection (the `task_emit_prob` rendering of a marked
+    /// combinational gate; decision `0014`). Detected from the emitted SV
+    /// text (`task automatic`), mirroring the `emitted_combinational_function`
+    /// precedent. Lights the `saw_combinational_task_emit` coverage fact when
+    /// the module is also accepted by the downstream tools. Like a function
+    /// (and unlike the `union soft` overlay), a combinational `task` is
+    /// universally synthesizable, so such a module runs the full Verilator +
+    /// Yosys (+ Icarus) plan.
+    #[serde(default)]
+    emitted_combinational_task: bool,
 }
 
 /// `DIFFERENTIAL-SIMULATION.3b.2` — per-module diff-sim outcome
@@ -530,6 +553,14 @@ struct CoverageSummary {
     /// fires by construction and is downstream-clean, not just that the knob
     /// was requested.
     saw_generate_loop_emit: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.2b` — at least one module emitted a
+    /// combinational `task automatic` emit-projection (`task_emit_prob`;
+    /// decision `0014`) **and** that module was accepted by the downstream
+    /// tools (Verilator success + Yosys clean; Icarus when enabled is enforced
+    /// via the tool-summary bail). Proves the third richer-structured surface
+    /// fires by construction and is downstream-clean, not just that the knob
+    /// was requested.
+    saw_combinational_task_emit: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -620,6 +651,19 @@ enum ScenarioSet {
     /// byte-identical; the gate is the opt-in proof axis for the non-default
     /// surface.
     GenerateLoopSweep,
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.2b` — the repo-owned combinational
+    /// `task automatic` emit gate. Forces `task_emit_prob = 1.0` over a
+    /// comb-only single-module DUT across all three construction strategies,
+    /// so every qualifying combinational gate is rendered as a
+    /// behaviour-preserving `task automatic` over its direct operands, called
+    /// from `always_comb` into a `<wire>__tv` output var (decision `0014`).
+    /// Proves the third richer-structured emission surface is accepted
+    /// warning-clean by Verilator + both Yosys modes (+ Icarus when
+    /// `--iverilog-compile` is set), gated on the `saw_combinational_task_emit`
+    /// coverage fact. Default `task_emit_prob = 0.0` emission stays
+    /// byte-identical; the gate is the opt-in proof axis for the non-default
+    /// surface.
+    TaskEmitSweep,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -685,6 +729,12 @@ struct MatrixReport {
     /// `saw_generate_loop_emit` fact is enforced under `coverage_gaps`.
     #[serde(default)]
     generate_loop_gate: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.2b` — whether `--task-emit-gate`
+    /// drove this run. When `true`, every scenario forced
+    /// `task_emit_prob = 1.0` over comb-only DUTs and the
+    /// `saw_combinational_task_emit` fact is enforced under `coverage_gaps`.
+    #[serde(default)]
+    task_emit_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -843,6 +893,7 @@ fn main() -> Result<()> {
         sv_version_gate: cli.sv_version_gate,
         function_emit_gate: cli.function_emit_gate,
         generate_loop_gate: cli.generate_loop_gate,
+        task_emit_gate: cli.task_emit_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -958,6 +1009,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
     } else if cli.generate_loop_gate {
         GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO
+    } else if cli.task_emit_gate {
+        TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -973,7 +1026,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.signoff_knob_sweep_gate
             || cli.sv_version_gate
             || cli.function_emit_gate
-            || cli.generate_loop_gate,
+            || cli.generate_loop_gate
+            || cli.task_emit_gate,
         total_modules,
     }
 }
@@ -986,10 +1040,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         + usize::from(cli.signoff_knob_sweep_gate)
         + usize::from(cli.sv_version_gate)
         + usize::from(cli.function_emit_gate)
-        + usize::from(cli.generate_loop_gate);
+        + usize::from(cli.generate_loop_gate)
+        + usize::from(cli.task_emit_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, and --generate-loop-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, and --task-emit-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -1006,6 +1061,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::FunctionEmitSweep)
     } else if cli.generate_loop_gate {
         Ok(ScenarioSet::GenerateLoopSweep)
+    } else if cli.task_emit_gate {
+        Ok(ScenarioSet::TaskEmitSweep)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -1021,6 +1078,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::SvVersionSweep => build_sv_version_sweep_scenarios(base_seed)?,
         ScenarioSet::FunctionEmitSweep => build_function_emit_sweep_scenarios(base_seed)?,
         ScenarioSet::GenerateLoopSweep => build_generate_loop_sweep_scenarios(base_seed)?,
+        ScenarioSet::TaskEmitSweep => build_task_emit_sweep_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -3156,6 +3214,75 @@ fn generate_loop_focus_config(strategy: ConstructionStrategy, seed: u64) -> Conf
     }
 }
 
+/// `STRUCTURED-EMISSION-EXPANSION.6b.2b` — the repo-owned combinational
+/// `task automatic` emit gate. For each of the three construction strategies
+/// it emits one comb-only single-module DUT with `task_emit_prob = 1.0`, so
+/// every qualifying combinational gate is rendered as a behaviour-preserving
+/// `task automatic` over its direct operands, called from `always_comb` into a
+/// `<wire>__tv` output var (decision `0014`). The caller (`--task-emit-gate`)
+/// runs the full Verilator + both Yosys modes (+ Icarus when
+/// `--iverilog-compile` is set) plan and requires the
+/// `saw_combinational_task_emit` coverage fact, proving the third
+/// richer-structured emission surface is accepted warning-clean.
+///
+/// Default `task_emit_prob = 0.0` emission is byte-identical to today; the gate
+/// forces the non-default knob, exactly like the `--function-emit-gate` /
+/// `--generate-loop-gate` templates.
+fn build_task_emit_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+
+    for (index, strategy) in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let seed = base_seed + index as u64;
+        let strategy_slug = strategy_slug(strategy);
+        let strategy_label = construction_strategy_name(strategy);
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_task_emit"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, comb-only DUT with task_emit_prob = 1.0 — projects every qualifying combinational gate to a behaviour-preserving `task automatic` over its direct operands, called from always_comb (decision 0014; lights saw_combinational_task_emit)."
+            ),
+            task_emit_focus_config(strategy, seed),
+        )?);
+    }
+
+    Ok(scenarios)
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.6b.2b` anchor config for the combinational
+/// `task automatic` emit-projection. The task surface shares the
+/// `function_emit` candidate set (any non-structured, non-`Slice` combinational
+/// gate), so this is the `function_emit_focus_config` shape (a comb-only,
+/// `flop_prob = 0.0`, node-id + e-graph rich combinational cone) with
+/// `task_emit_prob = 1.0` instead — so the gen-time `annotate_task_emit_gates`
+/// pass marks every qualifying gate and the emitter renders each as a
+/// `task automatic` + `always_comb` call + passthrough `assign`. Downstream-clean
+/// across Verilator + both Yosys modes + Icarus (the live surface was banked
+/// clean at `/tmp/anvil-te-r1/`).
+fn task_emit_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        task_emit_prob: 1.0,
+        flop_prob: 0.0,
+        terminal_reuse_prob: 0.9,
+        constant_prob: 0.05,
+        max_depth: 8,
+        min_inputs: 4,
+        max_inputs: 8,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
 /// `SV-VERSION-TARGETING.2b.2b` — bare-year slug for an `SvVersion`,
 /// used in scenario names (`sv2017_comb_egraph`).
 fn sv_version_year_slug(version: SvVersion) -> &'static str {
@@ -4768,6 +4895,13 @@ fn materialize_prepared_module(
     // stays honest even if a seed produced no qualifying replication.
     let emitted_generate_loop = prepared.sv_text.contains("generate");
 
+    // `STRUCTURED-EMISSION-EXPANSION.6b.2b` — real evidence the combinational
+    // `task automatic` emit-projection was actually emitted (not just requested
+    // by `task_emit_prob`): the emitted SV text carries the declaration.
+    // Mirrors the `emitted_combinational_function` precedent and stays honest
+    // even if a seed produced no qualifying gate.
+    let emitted_combinational_task = prepared.sv_text.contains("task automatic");
+
     let (verilator, yosys, iverilog_compile) = run_module_tools(
         cli,
         scenario_dir,
@@ -4810,6 +4944,7 @@ fn materialize_prepared_module(
         emitted_soft_union_overlay,
         emitted_combinational_function,
         emitted_generate_loop,
+        emitted_combinational_task,
     };
     write_module_checkpoint(
         cli,
@@ -5830,6 +5965,26 @@ fn summarize_coverage(
             && all_yosys_invocations_ok(&module.yosys)
         {
             coverage.saw_generate_loop_emit = true;
+        }
+
+        // `STRUCTURED-EMISSION-EXPANSION.6b.2b` — a genuinely-emitted
+        // combinational `task automatic` (proven from the SV text) accepted by
+        // the downstream tools. Like a function (and unlike the `union soft`
+        // overlay), a combinational `task` is universally synthesizable, so this
+        // fact requires Verilator success **and** Yosys clean
+        // (`!yosys.is_empty()` guards the vacuous empty-vec case). Icarus
+        // acceptance, when `--iverilog-compile` is set, is enforced separately
+        // via the tool-summary `any_failed` bail.
+        if module.emitted_combinational_task
+            && module
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+            && !module.yosys.is_empty()
+            && all_yosys_invocations_ok(&module.yosys)
+        {
+            coverage.saw_combinational_task_emit = true;
         }
     }
 
@@ -7302,6 +7457,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_sv_version_2023_soft_union_upopt |= src.saw_sv_version_2023_soft_union_upopt;
     dst.saw_combinational_function_emit |= src.saw_combinational_function_emit;
     dst.saw_generate_loop_emit |= src.saw_generate_loop_emit;
+    dst.saw_combinational_task_emit |= src.saw_combinational_task_emit;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
@@ -7631,6 +7787,22 @@ fn compute_coverage_gaps(
         return gaps;
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.6b.2b` — the combinational `task automatic`
+    // emit gate's sole contract is to prove the third richer-structured emission
+    // surface fires by construction and is downstream-accepted. Like the
+    // function-emit / generate-loop gates above, the broad motif/identity/category
+    // richness the other sets enforce below is intentionally out of scope, so
+    // check exactly the one fact (plus the universal construction-strategy
+    // coverage above) and return.
+    if scenario_set == ScenarioSet::TaskEmitSweep {
+        if !coverage.saw_combinational_task_emit {
+            gaps.push(
+                "matrix never proved task_emit_prob (a combinational `task automatic` emit-projection accepted by Verilator + Yosys)".to_string(),
+            );
+        }
+        return gaps;
+    }
+
     match scenario_set {
         ScenarioSet::Default => {
             for mode in ["relaxed", "node-id"] {
@@ -7718,11 +7890,12 @@ fn compute_coverage_gaps(
             }
         }
         // Unreachable: the focused knob-sweep, sv-version, function-emit,
-        // and generate-loop gates return above.
+        // generate-loop, and task-emit gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
         | ScenarioSet::FunctionEmitSweep
-        | ScenarioSet::GenerateLoopSweep => {}
+        | ScenarioSet::GenerateLoopSweep
+        | ScenarioSet::TaskEmitSweep => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -7744,11 +7917,12 @@ fn compute_coverage_gaps(
             "structural",
         ],
         // Unreachable: the focused knob-sweep, sv-version, function-emit,
-        // and generate-loop gates return above.
+        // generate-loop, and task-emit gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
         | ScenarioSet::FunctionEmitSweep
-        | ScenarioSet::GenerateLoopSweep => &[],
+        | ScenarioSet::GenerateLoopSweep
+        | ScenarioSet::TaskEmitSweep => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -8549,11 +8723,12 @@ fn compute_coverage_gaps(
             "hierarchy_parent_flop_prob",
         ],
         // Unreachable: the focused knob-sweep, sv-version, function-emit,
-        // and generate-loop gates return above.
+        // generate-loop, and task-emit gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
         | ScenarioSet::FunctionEmitSweep
-        | ScenarioSet::GenerateLoopSweep => &[],
+        | ScenarioSet::GenerateLoopSweep
+        | ScenarioSet::TaskEmitSweep => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -8690,6 +8865,7 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::SvVersionSweep => "sv-version-sweep",
         ScenarioSet::FunctionEmitSweep => "function-emit-sweep",
         ScenarioSet::GenerateLoopSweep => "generate-loop-sweep",
+        ScenarioSet::TaskEmitSweep => "task-emit-sweep",
     }
 }
 
@@ -8706,7 +8882,8 @@ fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
         | ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
         | ScenarioSet::FunctionEmitSweep
-        | ScenarioSet::GenerateLoopSweep => "module",
+        | ScenarioSet::GenerateLoopSweep
+        | ScenarioSet::TaskEmitSweep => "module",
     }
 }
 
@@ -8745,6 +8922,7 @@ mod tests {
             sv_version_gate: false,
             function_emit_gate: false,
             generate_loop_gate: false,
+            task_emit_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -9318,6 +9496,102 @@ mod tests {
         // Fact lit → no gaps.
         coverage.saw_generate_loop_emit = true;
         let gaps = compute_coverage_gaps(ScenarioSet::GenerateLoopSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    // ===============================================================
+    // STRUCTURED-EMISSION-EXPANSION.6b.2b — cargo-portable proofs of the
+    // repo-owned combinational `task automatic` emit gate wiring (CLI flag,
+    // scenario set, run-plan, knob forcing, gap requirement). The
+    // downstream-clean bank is the repo-owned report, run separately with
+    // real Verilator + Yosys + Icarus.
+    // ===============================================================
+
+    #[test]
+    fn task_emit_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.task_emit_gate);
+        let with_flag = Cli::try_parse_from(["tool_matrix", "--task-emit-gate", "--out", "/tmp/x"])
+            .expect("parse");
+        assert!(with_flag.task_emit_gate);
+    }
+
+    #[test]
+    fn task_emit_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.task_emit_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::TaskEmitSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::TaskEmitSweep).expect("build");
+        // one comb-only focus config x three construction strategies.
+        assert_eq!(scenarios.len(), 3);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(
+            plan.total_modules,
+            3 * TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn task_emit_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.task_emit_gate = true;
+        cli.generate_loop_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    #[test]
+    fn task_emit_sweep_scenarios_force_the_knob() {
+        let scenarios = build_scenarios(0, ScenarioSet::TaskEmitSweep).expect("build");
+        let mut strategies = BTreeSet::new();
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            let cfg = &scenario.config;
+            assert!(
+                scenario.name.ends_with("task_emit"),
+                "unexpected task-emit scenario {}",
+                scenario.name
+            );
+            // task_emit_prob forced to 1.0 so every qualifying combinational
+            // gate is projected to a `task automatic`.
+            assert_eq!(cfg.task_emit_prob, 1.0);
+            // Comb-only single-module DUT (no flops, no hierarchy): the
+            // first-cut surface projects combinational gates only.
+            assert_eq!(cfg.flop_prob, 0.0);
+            assert!(cfg.effective_hierarchy_depth_range().is_none());
+        }
+        assert_eq!(scenarios.len(), 3);
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+    }
+
+    #[test]
+    fn task_emit_sweep_gaps_require_the_fact() {
+        // All three strategies present, but the fact not lit → exactly the
+        // one task-emit gap (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::TaskEmitSweep, &coverage, None);
+        assert_eq!(gaps.len(), 1, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("task_emit_prob"));
+
+        // Fact lit → no gaps.
+        coverage.saw_combinational_task_emit = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::TaskEmitSweep, &coverage, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
     }
 
@@ -10345,6 +10619,7 @@ mod tests {
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
+            emitted_combinational_task: false,
         }];
 
         let summary = summarize_tools(&modules);
@@ -10383,6 +10658,7 @@ mod tests {
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
+            emitted_combinational_task: false,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -10445,6 +10721,7 @@ mod tests {
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
+            emitted_combinational_task: false,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -10504,6 +10781,7 @@ mod tests {
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
                 emitted_generate_loop: false,
+                emitted_combinational_task: false,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -10971,6 +11249,7 @@ mod tests {
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
                 emitted_generate_loop: false,
+                emitted_combinational_task: false,
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
@@ -11145,6 +11424,7 @@ endmodule\n";
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
+            emitted_combinational_task: false,
         }];
         let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);

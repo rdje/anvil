@@ -1,9 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.2b — task-emit tool_matrix gate
+
+**Landed as:** this commit (previous: `5f6822b`). The repo-owned downstream
+gate that proves the combinational `task automatic` emit-projection (decision
+`0014`) fires **by construction** and is accepted warning-clean by every repo
+downstream tool. Harness-only (`src/bin/tool_matrix.rs`); the default `anvil`
+build / `--artifact dut` stay byte-identical (`task_emit_prob` default `0.0`).
+
+**What changed (why)**
+
+- **`src/bin/tool_matrix.rs`** — templated on `--generate-loop-gate` (`.4b.2b`):
+  - `--task-emit-gate` CLI flag + `ScenarioSet::TaskEmitSweep` +
+    `MatrixReport.task_emit_gate`, wired into `select_scenario_set` (mutually
+    exclusive with the other gates), `derive_run_plan`
+    (`TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO = 4` units/scenario floor +
+    `fail_on_coverage_gap`), `build_scenarios`, `scenario_set_slug`
+    (`"task-emit-sweep"`), and `artifact_kind_slug` (`"module"`).
+  - `build_task_emit_sweep_scenarios` + `task_emit_focus_config`: one comb-only
+    single-module DUT (the `function_emit_focus_config` shape — node-id +
+    e-graph, `flop_prob = 0.0`, rich combinational cone) with
+    `task_emit_prob = 1.0` across all three construction strategies (3
+    scenarios).
+  - `ModuleReport.emitted_combinational_task` (`#[serde(default)]`) set in
+    `materialize_prepared_module` from `prepared.sv_text.contains("task
+    automatic")` (the `emitted_combinational_function` precedent).
+  - `CoverageSummary.saw_combinational_task_emit`, lit in `summarize_coverage`
+    when an emitted-task module is accepted by Verilator success **and** a
+    non-empty clean Yosys vec (a combinational `task` is universally
+    synthesizable like a function, so the full tool plan, not Verilator-only;
+    Icarus, when `--iverilog-compile` is set, rides the `ToolSummary::any_failed`
+    bail), merged in `merge_coverage`, and enforced by an early-return arm in
+    `compute_coverage_gaps` after the universal construction-strategy coverage
+    (so no broad-motif richness leaks into the focused gate).
+  - 5 cargo-portable proofs (flag parse / set-selection + units / mutual
+    exclusion / knob forcing / gap requirement) + the new field threaded through
+    the 6 `ModuleReport` fixtures + the `test_cli` default.
+- **README.md / USER_GUIDE.md / CODEBASE_ANALYSIS.md** — a `--task-emit-gate`
+  gate entry beside the `--generate-loop-gate` / `--function-emit-gate` entries.
+
+**Why** — the prior surfaces hold a "prove the new surface is *accepted*, not
+just *produced*" bar (`project_anvil_north_star`): a repo-owned gate that forces
+the knob and fails on a coverage gap unless the emitted construct is downstream
+warning-clean. This gives the `task automatic` surface the same teeth.
+
+**Validation** — `cargo check --bin tool_matrix` clean; `cargo clippy --bin
+tool_matrix -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test
+--bin tool_matrix` **68 passed** / 1 ignored (incl. 5 new gate proofs); `cargo
+test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank
+`/tmp/anvil-task-emit-gate-r1` (`--task-emit-gate --yosys-mode both
+--iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a task** /
+`coverage_gaps = []` / `saw_combinational_task_emit = true` / Verilator `12/0` /
+Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`.
+
+**Impact** — opt-in proof axis; no schema bump (harness-only); default emission
+byte-identical. Frontier → `.6b.3` (the book/USER_GUIDE/README/KM user-facing
+closeout), which closes `.6b` / `.6` — the third structured surface end-to-end.
+
+**Files touched** — `src/bin/tool_matrix.rs`, `README.md`, `USER_GUIDE.md`,
+`CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.2a — task emit metric + introspection schema 1.10
 
-**Landed as:** this commit (previous: `55761f9`). The `task automatic`
+**Landed as:** `5f6822b` (previous: `55761f9`). The `task automatic`
 emit-projection (`.6b.1`) gains its derived metric, surfaced in the introspection
 document, so the schema MINOR-bumps `1.9 → 1.10`. Default-off / DUT
 byte-identical (a post-hoc `Metrics` field changes no emitted RTL).

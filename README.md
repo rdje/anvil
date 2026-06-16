@@ -807,6 +807,24 @@ exercising adversarial axes that previously fired only by chance
   loop, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `generate_loop_emit_prob = 0.0` emission stays
   byte-identical; the gate is the opt-in proof axis.
+- `tool_matrix --task-emit-gate` runs the repo-owned combinational
+  `task automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.6b.2b`) and
+  fails on coverage gaps unless the report proves the third richer-structured
+  emission surface (decision `0014`) fires by construction and is
+  downstream-accepted. It forces `task_emit_prob = 1.0` over a comb-only
+  single-module DUT across all three construction strategies, so every
+  qualifying combinational gate is projected to a behaviour-preserving
+  `task automatic` over its direct operands (called from `always_comb` into a
+  `<wire>__tv` output var), and requires the `saw_combinational_task_emit`
+  fact (a genuinely-emitted task — detected from the emitted SV text —
+  accepted by Verilator **and** Yosys). Like a function (and unlike the
+  `union soft` up-opt), a combinational `task` is universally synthesizable,
+  so the gate runs the full Verilator + both Yosys modes (+ Icarus when
+  `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-task-emit-gate-r1` (3 scenarios, 12 modules, 12 emitting a
+  task, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
+  compile). Default `task_emit_prob = 0.0` emission stays byte-identical; the
+  gate is the opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now
