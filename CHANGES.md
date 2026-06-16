@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2b — repo-owned `function automatic` emit gate (`tool_matrix --function-emit-gate`)
+
+**Landed as:** this commit (previous: `503ce60`). Default-off / **DUT
+byte-identical** (a `tool_matrix` harness-only change; no generator/emitter/config
+default touched). The combinational `function automatic` surface (decision
+`0012`) gets its repo-owned downstream-acceptance gate, banked clean across
+Verilator + both Yosys modes + Icarus.
+
+**What changed (why)**
+
+- **`src/bin/tool_matrix.rs`** — a new repo-owned gate, templated on
+  `--signoff-knob-sweep-gate` (scaffolding) + the `union soft` up-opt
+  (emitted-construct detection):
+  - `--function-emit-gate` CLI flag + `ScenarioSet::FunctionEmitSweep` +
+    `MatrixReport.function_emit_gate`; wired into `select_scenario_set`
+    (mutually exclusive with the other gates), `derive_run_plan` (4 units/scenario
+    floor, `fail_on_coverage_gap`), `build_scenarios`, and the two slug helpers.
+  - `build_function_emit_sweep_scenarios` + `function_emit_focus_config`: one
+    comb-only single-module DUT (`share_heavy_comb_only_config`-shaped:
+    node-id + e-graph, `flop_prob = 0.0`) with `function_emit_prob = 1.0`, across
+    all three construction strategies (3 scenarios).
+  - `ModuleReport.emitted_combinational_function: bool` (`#[serde(default)]`),
+    set in `materialize_prepared_module` from
+    `prepared.sv_text.contains("function automatic")` — the honest "the construct
+    is in the file the tools checked" signal, mirroring `emitted_soft_union_overlay`.
+  - `CoverageSummary.saw_combinational_function_emit`, lit in `summarize_coverage`
+    when an emitted-function module is accepted by Verilator success **and** a
+    non-empty, clean Yosys vec (a synthesizable function is universally accepted,
+    so — unlike the Verilator-only `union soft` up-opt — the gate runs the full
+    tool plan; Icarus, when `--iverilog-compile` is set, rides the
+    `ToolSummary::any_failed` bail). Merged in `merge_coverage`; enforced by an
+    early-return arm in `compute_coverage_gaps` (after the universal
+    construction-strategy coverage), so it does not inherit the broad-motif
+    richness the phase gates require.
+  - 5 cargo-portable proofs (flag parse / set-selection + unit-raise / mutual
+    exclusion / per-strategy knob-forcing / gap-requires-the-fact) + the new
+    field threaded through the 6 `ModuleReport` test fixtures.
+
+**Validation**
+
+- `cargo check --bin tool_matrix` ✅; `cargo clippy --all-targets -- -D warnings`
+  ✅ (fixed a `clippy::explicit_counter_loop` by switching the builder to
+  `.enumerate()`); `cargo fmt --all --check` ✅.
+- `cargo test --bin tool_matrix` ✅ **58 passed** / 1 ignored (incl. the 5 new
+  function-emit gate proofs); `cargo test --lib` ✅ **468 passed** / 2 ignored
+  (unchanged — harness-only slice).
+- `cargo test --test snapshots` ✅ **6/6 byte-identical** (default-off contract;
+  the gate forces a non-default knob but the default path is untouched).
+- **Repo-owned downstream bank** `/tmp/anvil-function-emit-gate-r1`
+  (`./target/release/tool_matrix --function-emit-gate --yosys-mode both
+  --iverilog-compile`): 3 scenarios / 12 modules / **608 emitted functions** /
+  `coverage_gaps = []` / `saw_combinational_function_emit = true` / Verilator
+  `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile
+  `12/0`. All 12 modules carry `emitted_combinational_function = true`.
+
+**Impact**
+
+- The first richer-structured emission surface (combinational `function
+  automatic`, decision `0012`) now has a repo-owned, coverage-gated proof that it
+  fires by construction and stays downstream-clean. Frontier → `.2b.2c`
+  (book/USER_GUIDE-knob/KM closeout). Nothing retired.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.2b.2a — `num_emitted_combinational_functions` metric + introspection schema `1.7 → 1.8`
 
-**Landed as:** this commit (previous: `15844d9`). Default-off / **DUT
+**Landed as:** `503ce60` (previous: `15844d9`). Default-off / **DUT
 byte-identical** (a post-hoc structural metric; emitted RTL unchanged). The
 function-emit surface gains its introspection-queryable count, and the
 introspection schema takes its additive MINOR bump for the new `Metrics` field.

@@ -142,6 +142,29 @@ into four explicit gaps:
    `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
    up-opt scenario is the Yosys no-op). Default matrix runs stay
    byte-identical (selector `None`, `Sv2012`-floor emits).
+   The combinational `function automatic` emit gate landed the same way as
+   `STRUCTURED-EMISSION-EXPANSION.2b.2b`: `tool_matrix` gains a new
+   `ScenarioSet::FunctionEmitSweep` + the opt-in `--function-emit-gate`
+   flag + `build_function_emit_sweep_scenarios` (one comb-only
+   `function_emit_focus_config` DUT × three construction strategies, all
+   forcing `Config::function_emit_prob = 1.0`) + the
+   `saw_combinational_function_emit` coverage fact + a new
+   `ModuleReport.emitted_combinational_function` field. Detection mirrors
+   the `union soft` precedent — `materialize_prepared_module` sets the
+   field from `prepared.sv_text.contains("function automatic")`, and
+   `summarize_coverage` lights the fact when an emitted module is accepted
+   by Verilator **and** Yosys (a synthesizable function is universally
+   accepted, so — unlike the Verilator-only `union soft` up-opt — the gate
+   runs the full tool plan; Icarus, when `--iverilog-compile` is set, is
+   enforced via the `ToolSummary::any_failed` bail). `compute_coverage_gaps`
+   early-returns after the one fact (plus the universal
+   construction-strategy coverage), so it does not inherit the broad-motif
+   richness the phase gates require. `MatrixReport.function_emit_gate`
+   records the run. Banked downstream-clean at
+   `/tmp/anvil-function-emit-gate-r1` (3 scenarios, 12 modules, 608
+   emitted functions, `coverage_gaps = []`, `12/0` Verilator + both Yosys
+   modes + Icarus compile). Default `function_emit_prob = 0.0` emission
+   stays byte-identical.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

@@ -5,6 +5,48 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — repo-owned `function automatic` emit gate — `STRUCTURED-EMISSION-EXPANSION.2b.2b`
+
+The repo-owned `tool_matrix --function-emit-gate` proves the combinational
+`function automatic` surface (decision `0012`) is downstream-accepted, not just
+that the knob can be set. It is templated on `--signoff-knob-sweep-gate` for the
+gate scaffolding (`ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios`
++ run-plan + early-return `compute_coverage_gaps` arm) and on the `union soft`
+up-opt for emitted-construct detection (`ModuleReport.emitted_combinational_function`).
+
+Two design points worth recording for the next session:
+
+- **The fact requires Verilator AND Yosys clean — not Verilator-only.** The
+  `union soft` up-opt fact (`saw_sv_version_2023_soft_union_upopt`) is
+  Verilator-only because Yosys/Icarus *reject* the `union soft` syntax (a
+  recorded no-op, decision `0010`). A `function automatic` is the opposite: a
+  synthesizable function is accepted by *every* tool. So
+  `saw_combinational_function_emit` is the stronger fact — it requires the
+  emitted-function module to be accepted by Verilator success **and** a
+  non-empty, clean Yosys vec. The gate therefore runs the *full* tool plan
+  (`verilator_only = false`), and Icarus acceptance (when `--iverilog-compile`
+  is set) rides the existing `ToolSummary::any_failed` bail rather than a
+  dedicated coverage fact — keeping the gate honest whether or not Icarus is
+  enabled.
+
+- **Detection is from the emitted SV text, not the metric.** Both were
+  available — `num_emitted_combinational_functions > 0` (the `.2b.2a` metric) or
+  an SV-text scan. The SV-text `contains("function automatic")` mirrors the
+  `union soft` precedent exactly and proves the construct is in the *file the
+  tools actually checked*, which is the honest signal for an acceptance gate
+  (the metric counts marked gates; the text proves emission). They agree by
+  construction here, but the text is the load-bearing evidence.
+
+Calibration: the focus config is `share_heavy_comb_only_config`-shaped
+(node-id + e-graph, rich combinational cone, `flop_prob = 0.0`) with
+`function_emit_prob = 1.0`. With `SIGNOFF_KNOB_SWEEP`-style 4 units/scenario ×
+3 strategies = 12 modules, the live bank emitted **608** functions —
+abundantly non-vacuous (the `.2b.1` forced sweep saw 830–1299/module on the
+fatter default shape). Banked clean `/tmp/anvil-function-emit-gate-r1`
+(`coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile). No
+schema bump (a harness-only change); default `function_emit_prob = 0.0`
+emission byte-identical (snapshots 6/6).
+
 ## 2026-06-16 — Structured emission — the emit metric + schema `1.7 → 1.8` — `STRUCTURED-EMISSION-EXPANSION.2b.2a`
 
 `Metrics::num_emitted_combinational_functions` (`= m.function_emit_gates.len()`,

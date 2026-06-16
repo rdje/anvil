@@ -769,6 +769,22 @@ Useful options:
   `Interleaved` strategy only. Banked clean at
   `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
   `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes).
+- `--function-emit-gate` to run the repo-owned combinational `function
+  automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`) and fail
+  unless the report proves the first richer-structured emission surface
+  (decision `0012`) fires **by construction** and is downstream-accepted.
+  It forces `function_emit_prob = 1.0` over a comb-only single-module DUT
+  across all three construction strategies, so every qualifying
+  combinational gate is projected to a behaviour-preserving `function
+  automatic` over its direct operands, and requires the
+  `saw_combinational_function_emit` fact (a genuinely-emitted function,
+  detected from the emitted SV text, accepted by Verilator **and** Yosys).
+  Unlike the `union soft` up-opt, a synthesizable function is accepted by
+  every tool, so the gate runs the full Verilator + both Yosys modes (+
+  Icarus when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
+  emitted functions / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0
+  both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

@@ -730,6 +730,24 @@ exercising adversarial axes that previously fired only by chance
   `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
   `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
   up-opt scenario's two modules are the Yosys no-op).
+- `tool_matrix --function-emit-gate` runs the repo-owned combinational
+  `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
+  and fails on coverage gaps unless the report proves the first
+  richer-structured emission surface (decision `0012`) fires by
+  construction and is downstream-accepted. It forces
+  `function_emit_prob = 1.0` over a comb-only single-module DUT across all
+  three construction strategies, so every qualifying combinational gate is
+  projected to a behaviour-preserving `function automatic` over its direct
+  operands, and requires the `saw_combinational_function_emit` fact (a
+  genuinely-emitted function — detected from the emitted SV text —
+  accepted by Verilator **and** Yosys). Unlike the `union soft` up-opt, a
+  synthesizable function is accepted by every tool, so the gate runs the
+  full Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
+  set) plan rather than Verilator-only. Banked clean at
+  `/tmp/anvil-function-emit-gate-r1` (3 scenarios, 12 modules, 608 emitted
+  functions, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
+  compile). Default `function_emit_prob = 0.0` emission stays
+  byte-identical; the gate is the opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

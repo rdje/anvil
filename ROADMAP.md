@@ -244,9 +244,16 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `-Wall UNUSEDSIGNAL`; still emitted inline, nothing retired, slice-aware
    projection = follow-up). `.2b.2` pre-split into `.2b.2a` (**done**:
    `Metrics::num_emitted_combinational_functions` ⇒ introspection schema MINOR
-   bump `1.7 → 1.8`; default-off / DUT byte-identical) + `.2b.2b` (the repo-owned
-   `tool_matrix` gate + `saw_combinational_function_emit`, **frontier**) + `.2b.2c`
-   (book/USER_GUIDE/KM/README closeout). `task`, nested `generate`, `interface`/`modport`
+   bump `1.7 → 1.8`; default-off / DUT byte-identical) + `.2b.2b` (**done
+   `2026-06-16`**: the repo-owned `tool_matrix --function-emit-gate` —
+   `ScenarioSet::FunctionEmitSweep` + `build_function_emit_sweep_scenarios`
+   [one comb-only `function_emit_prob=1.0` DUT × three construction strategies]
+   + `ModuleReport.emitted_combinational_function` SV-text detection +
+   `saw_combinational_function_emit` coverage fact + gap enforcement; banked
+   clean `/tmp/anvil-function-emit-gate-r1` [3 scenarios / 12 modules / 608
+   emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys +
+   Icarus compile]; default-off / DUT byte-identical, snapshots 6/6) + `.2b.2c`
+   (book/USER_GUIDE/KM/README closeout, **frontier**). `task`, nested `generate`, `interface`/`modport`
    are future vetted surfaces (`.3`+), each with its own decision; serves ROADMAP
    steering gap 1 (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
