@@ -1,9 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.2a — generate-loop emit metric + introspection schema 1.9
+
+**Landed as:** this commit (previous: `2bf8121`). The repo-owned downstream-gate
+slice's first half: the structural metric + the additive introspection schema
+bump. Default-off / DUT byte-identical (a post-hoc `Metrics` field changes no
+emitted RTL). `.4b.2` pre-split into `.4b.2a` (this) + `.4b.2b` (the `tool_matrix`
+gate).
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — `Metrics::num_emitted_generate_loops: usize`
+  (`#[serde(default)]`), computed in `metrics::compute()` as
+  `m.generate_loop_gates.len()` (a post-hoc structural count of an emitter-surface
+  annotation; reads `0` by default, the configured count when
+  `generate_loop_emit_prob` fired). Lib proof `metrics_count_emitted_generate_loops`
+  (unmarked `0`, marked `1`).
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.8 → 1.9` + its doc comment.
+  The metric surfaces in introspection `module_metrics` (`Metrics` is the exact
+  serde projection), so the new derived field is an **additive MINOR** bump (the
+  `1.7→1.8` `num_emitted_combinational_functions` precedent). The `.4b.1` *knob*
+  did **not** bump (it rides `request.knobs` via `#[serde(default)]`).
+- **Schema-version refs bumped to `1.9`** everywhere they describe current output:
+  the 9 `schema_version` test assertions (2 in `introspect/mod.rs` + 7 in
+  `mcp/mod.rs`), the schema doc `docs/AGENT_INTROSPECTION_SCHEMA.md` (a `1.8→1.9`
+  changelog entry + the "defines version" + checklist lines), README
+  (`--introspect` + `analyze` current refs), USER_GUIDE (`--introspect` ref), the
+  5 `book/src/agent-mcp.md` example JSONs, and the `CODEBASE_ANALYSIS.md` envelope
+  line (+ its bump changelog). **Historical "landed at schema X" attributions left
+  intact** (`num_emitted_combinational_functions` @ `1.8`; sv-version @ `1.2`; the
+  schema-doc `1.7→1.8` changelog entry).
+
+**Validation**
+
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+  clean; `cargo test --lib` **478 passed** / 2 ignored (the new metric proof + all
+  `schema_version` assertions green at `1.9`); `cargo test --test snapshots`
+  **6/6 byte-identical** (default-off; the metric changes no RTL). End-to-end
+  `--introspect`: default seed ⇒ `schema_version "1.9"` + `num_emitted_generate_loops
+  0`; forced `generate_loop_emit_prob=1.0` ⇒ `1.9` + `50`. `mdbook build book` OK
+  (the 5 example JSONs bumped).
+
+**Impact**
+
+- No behavioural / RTL change (a post-hoc structural count; default-`dut`
+  byte-identical). An agent can now read the emitted-`generate for`-loop count from
+  `--introspect` / the MCP introspection surface, under schema `1.9`. `.4b.2b` (the
+  repo-owned `tool_matrix --generate-loop-gate`) is next, then `.4b.3` (the
+  user-facing closeout). Nothing retired.
+
+**Files touched:** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`, `USER_GUIDE.md`,
+`book/src/agent-mcp.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.1 — `generate for` loop emit-projection (live surface)
 
-**Landed as:** this commit (previous: `0f821d7`). The second richer-structured
+**Landed as:** `2bf8121` (previous: `0f821d7`). The second richer-structured
 emit surface (decision `0013`) goes **live**, exactly per the `.4a` design.
 First source change in this lane since `.2b.1`. Default-off / DUT byte-identical.
 

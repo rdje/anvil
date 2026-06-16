@@ -314,6 +314,18 @@ pub struct Metrics {
     /// projection additive (schema `1.8`).
     #[serde(default)]
     pub num_emitted_combinational_functions: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.4b.2a` — number of `{N{x}}`
+    /// replication gates this module emits as a single-level `generate for`
+    /// loop projection (`Module.generate_loop_gates.len()`; the
+    /// `generate_loop_emit_prob` knob). Zero unless
+    /// `generate_loop_emit_prob > 0.0` selected qualifying replications. A
+    /// post-hoc structural count of an emitter-surface annotation — adding
+    /// it changes no emitted RTL (default-off byte-identical).
+    /// `#[serde(default)]` keeps the introspection projection additive
+    /// (schema `1.9`).
+    #[serde(default)]
+    pub num_emitted_generate_loops: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -890,6 +902,11 @@ pub fn compute(m: &Module) -> Metrics {
     // projects as a `function automatic` (an emitter-surface annotation;
     // structural, post-hoc, RTL-invisible).
     out.num_emitted_combinational_functions = m.function_emit_gates.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.4b.2a` — count of `{N{x}}` replication
+    // gates the emitter projects as a `generate for` loop (an emitter-surface
+    // annotation; structural, post-hoc, RTL-invisible).
+    out.num_emitted_generate_loops = m.generate_loop_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3181,6 +3198,30 @@ mod tests {
         // Marked ⇒ counted.
         m.function_emit_gates.insert(g);
         assert_eq!(compute(&m).num_emitted_combinational_functions, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_generate_loops() {
+        // `STRUCTURED-EMISSION-EXPANSION.4b.2a` — the metric is the count of
+        // `{N{x}}` replication gates marked for the `generate for` loop
+        // emit-projection.
+        let mut m = Module {
+            name: "gl".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "sel".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // id 0
+        let (g, _) = m.intern_gate(GateOp::Concat, vec![0, 0, 0, 0], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_generate_loops, 0);
+        // Marked ⇒ counted.
+        m.generate_loop_gates.insert(g);
+        assert_eq!(compute(&m).num_emitted_generate_loops, 1);
     }
 
     #[test]
