@@ -810,6 +810,22 @@ Useful options:
   `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
   emitted functions / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0
   both modes / Icarus compile 12/0).
+- `--generate-loop-gate` to run the repo-owned `generate for` loop emit
+  gate (`STRUCTURED-EMISSION-EXPANSION.4b.2b`) and fail unless the report
+  proves the second richer-structured emission surface (decision `0013`)
+  fires **by construction** and is downstream-accepted. It forces
+  `generate_loop_emit_prob = 1.0` over a comb-only single-module DUT across
+  all three construction strategies, so every qualifying `{N{x}}`
+  1-bit-lane replication (the common one-hot `{W{sel}}` mux-mask idiom) is
+  projected to a behaviour-preserving single-level `generate for` loop, and
+  requires the `saw_generate_loop_emit` fact (a genuinely-emitted loop,
+  detected from the emitted SV text, accepted by Verilator **and** Yosys).
+  Like a function (and unlike the `union soft` up-opt), a `generate for` is
+  universally synthesizable, so the gate runs the full Verilator + both
+  Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean
+  at `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8
+  emitting a loop / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both
+  modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

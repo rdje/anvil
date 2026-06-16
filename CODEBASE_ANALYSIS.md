@@ -165,6 +165,22 @@ into four explicit gaps:
    emitted functions, `coverage_gaps = []`, `12/0` Verilator + both Yosys
    modes + Icarus compile). Default `function_emit_prob = 0.0` emission
    stays byte-identical.
+   The `generate for` loop emit gate landed the same way as
+   `STRUCTURED-EMISSION-EXPANSION.4b.2b`: a new
+   `ScenarioSet::GenerateLoopSweep` + the opt-in `--generate-loop-gate` flag
+   + `build_generate_loop_sweep_scenarios` (one comb-only
+   `generate_loop_focus_config` DUT × three construction strategies, all
+   forcing `Config::generate_loop_emit_prob = 1.0`) + the
+   `saw_generate_loop_emit` coverage fact + a new
+   `ModuleReport.emitted_generate_loop` field (set from
+   `prepared.sv_text.contains("generate")`); `summarize_coverage` lights the
+   fact on Verilator + Yosys acceptance (a `generate for` is universally
+   synthesizable, like a function), and `compute_coverage_gaps` early-returns
+   after the one fact. `MatrixReport.generate_loop_gate` records the run.
+   Banked downstream-clean at `/tmp/anvil-generate-loop-gate-r1` (3
+   scenarios, 12 modules, 8 emitting a loop, `coverage_gaps = []`, `12/0`
+   Verilator + both Yosys modes + Icarus compile). Default
+   `generate_loop_emit_prob = 0.0` emission stays byte-identical.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

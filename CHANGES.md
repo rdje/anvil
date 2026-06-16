@@ -1,9 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.2b — `generate for` loop tool_matrix gate
+
+**Landed as:** this commit (previous: `678b682`). The repo-owned downstream gate
+for the `generate for` loop surface — the harness-only proof axis. Closes
+`.4b.2`. Default-off / DUT byte-identical (harness-only; the generator is
+untouched, snapshots 6/6).
+
+**What changed (why)** — all in `src/bin/tool_matrix.rs`, templated on the
+`--function-emit-gate` (`.2b.2b`) scaffolding:
+
+- `--generate-loop-gate` CLI flag + `ScenarioSet::GenerateLoopSweep` +
+  `MatrixReport.generate_loop_gate`, wired into `select_scenario_set` (mutually
+  exclusive with the other gates), `derive_run_plan`
+  (`GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO = 4` units/scenario floor +
+  `fail_on_coverage_gap`), `build_scenarios`, `scenario_set_slug`
+  (`"generate-loop-sweep"`), and `artifact_kind_slug` (`"module"`).
+- `build_generate_loop_sweep_scenarios` + `generate_loop_focus_config`: one
+  comb-only single-module DUT (shaped like `function_emit_focus_config`: node-id
+  + e-graph, `flop_prob = 0.0`) with `generate_loop_emit_prob = 1.0` across all
+  three construction strategies (3 scenarios). The rich combinational cone
+  produces the one-hot `{W{sel}}` mux-mask broadcasts that are the index-regular
+  source.
+- `ModuleReport.emitted_generate_loop` (`#[serde(default)]`) set in
+  `materialize_prepared_module` from `prepared.sv_text.contains("generate")`
+  (mirrors `emitted_combinational_function`).
+- `CoverageSummary.saw_generate_loop_emit` lit in `summarize_coverage` when an
+  emitted-loop module is accepted by Verilator success **and** a non-empty clean
+  Yosys vec (a `generate for` is universally synthesizable like a function — so,
+  unlike the Verilator-only `union soft` up-opt, the gate runs the full tool
+  plan; Icarus, when `--iverilog-compile` is set, rides the
+  `ToolSummary::any_failed` bail); merged in `merge_coverage`; enforced by an
+  early-return arm in `compute_coverage_gaps` after the universal
+  construction-strategy coverage (so no broad-motif richness leaks in).
+- 5 cargo-portable proofs (flag default/parse; set-selection + units;
+  mutual-exclusion; scenarios-force-the-knob; gaps-require-the-fact) + the new
+  `emitted_generate_loop` field threaded through 6 `ModuleReport` fixtures + the
+  `test_cli` `generate_loop_gate: false` default.
+- README "Current CLI truth" + USER_GUIDE gate-list + `CODEBASE_ANALYSIS.md`
+  tool_matrix section gain the `--generate-loop-gate` entry.
+
+**Validation**
+
+- `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D
+  warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin
+  tool_matrix` **63 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test
+  --test snapshots` **6/6 byte-identical** (harness-only — the generator is
+  untouched). No introspection schema bump (harness-only).
+- **Banked downstream-clean** `/tmp/anvil-generate-loop-gate-r1`
+  (`--generate-loop-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12
+  modules / **8 emitting a generate loop** / `coverage_gaps = []` /
+  `saw_generate_loop_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` /
+  Yosys with-abc `12/0` / Icarus compile `12/0`.
+
+**Impact**
+
+- The second richer-structured surface (decision `0013`) now has a repo-owned
+  gate proving it fires by construction and is downstream-accepted, not just
+  produced — the same bar the prior breadth lanes hold. `.4b.3` (the user-facing
+  closeout: book chapter + knob docs + KM) is the last leaf of the surface.
+  Default `generate_loop_emit_prob = 0.0` emission stays byte-identical. Nothing
+  retired.
+
+**Files touched:** `src/bin/tool_matrix.rs`, `README.md`, `USER_GUIDE.md`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.2a — generate-loop emit metric + introspection schema 1.9
 
-**Landed as:** this commit (previous: `2bf8121`). The repo-owned downstream-gate
+**Landed as:** `678b682` (previous: `2bf8121`). The repo-owned downstream-gate
 slice's first half: the structural metric + the additive introspection schema
 bump. Default-off / DUT byte-identical (a post-hoc `Metrics` field changes no
 emitted RTL). `.4b.2` pre-split into `.4b.2a` (this) + `.4b.2b` (the `tool_matrix`

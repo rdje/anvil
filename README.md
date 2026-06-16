@@ -768,6 +768,24 @@ exercising adversarial axes that previously fired only by chance
   functions, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `function_emit_prob = 0.0` emission stays
   byte-identical; the gate is the opt-in proof axis.
+- `tool_matrix --generate-loop-gate` runs the repo-owned `generate for`
+  loop emit gate (`STRUCTURED-EMISSION-EXPANSION.4b.2b`) and fails on
+  coverage gaps unless the report proves the second richer-structured
+  emission surface (decision `0013`) fires by construction and is
+  downstream-accepted. It forces `generate_loop_emit_prob = 1.0` over a
+  comb-only single-module DUT across all three construction strategies, so
+  every qualifying `{N{x}}` 1-bit-lane replication (the common one-hot
+  `{W{sel}}` mux-mask idiom) is projected to a behaviour-preserving
+  single-level `generate for` loop, and requires the `saw_generate_loop_emit`
+  fact (a genuinely-emitted loop — detected from the emitted SV text —
+  accepted by Verilator **and** Yosys). Like a function (and unlike the
+  `union soft` up-opt), a `generate for` is universally synthesizable, so the
+  gate runs the full Verilator + both Yosys modes (+ Icarus when
+  `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-generate-loop-gate-r1` (3 scenarios, 12 modules, 8 emitting a
+  loop, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
+  compile). Default `generate_loop_emit_prob = 0.0` emission stays
+  byte-identical; the gate is the opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

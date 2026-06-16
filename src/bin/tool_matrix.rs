@@ -27,6 +27,7 @@ const PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO: usize = 4;
 const SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 2;
 const FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -94,6 +95,16 @@ struct Cli {
     /// Yosys modes (+ Icarus when `--iverilog-compile` is also set).
     #[arg(long)]
     function_emit_gate: bool,
+
+    /// Elevate the run to the repo-owned `generate for` loop emit gate
+    /// (`STRUCTURED-EMISSION-EXPANSION.4b.2b`): force
+    /// `generate_loop_emit_prob = 1.0` over comb-only DUTs across the three
+    /// construction strategies and require the `saw_generate_loop_emit`
+    /// coverage fact, proving the emitted loops are accepted warning-clean by
+    /// Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
+    /// also set).
+    #[arg(long)]
+    generate_loop_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -200,6 +211,18 @@ struct ModuleReport {
     /// such a module runs the full Verilator + Yosys (+ Icarus) plan.
     #[serde(default)]
     emitted_combinational_function: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.4b.2b` — `true` iff this module's
+    /// emitted SV carries at least one `generate for` loop emit-projection
+    /// (the `generate_loop_emit_prob` rendering of a marked `{N{x}}`
+    /// replication; decision `0013`). Detected from the emitted SV text
+    /// (`generate`/`genvar`), mirroring the `emitted_combinational_function`
+    /// precedent. Lights the `saw_generate_loop_emit` coverage fact when the
+    /// module is also accepted by the downstream tools. Like a function (and
+    /// unlike the `union soft` overlay), a `generate for` is universally
+    /// synthesizable, so such a module runs the full Verilator + Yosys (+
+    /// Icarus) plan.
+    #[serde(default)]
+    emitted_generate_loop: bool,
 }
 
 /// `DIFFERENTIAL-SIMULATION.3b.2` — per-module diff-sim outcome
@@ -499,6 +522,14 @@ struct CoverageSummary {
     /// the first richer-structured surface fires by construction and is
     /// downstream-clean, not just that the knob was requested.
     saw_combinational_function_emit: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.4b.2b` — at least one module emitted a
+    /// `generate for` loop emit-projection (`generate_loop_emit_prob`;
+    /// decision `0013`) **and** that module was accepted by the downstream
+    /// tools (Verilator success + Yosys clean; Icarus when enabled is enforced
+    /// via the tool-summary bail). Proves the second richer-structured surface
+    /// fires by construction and is downstream-clean, not just that the knob
+    /// was requested.
+    saw_generate_loop_emit: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -577,6 +608,18 @@ enum ScenarioSet {
     /// `function_emit_prob = 0.0` emission stays byte-identical; the gate
     /// is the opt-in proof axis for the non-default surface.
     FunctionEmitSweep,
+    /// `STRUCTURED-EMISSION-EXPANSION.4b.2b` — the repo-owned `generate for`
+    /// loop emit gate. Forces `generate_loop_emit_prob = 1.0` over a comb-only
+    /// single-module DUT across all three construction strategies, so every
+    /// qualifying `{N{x}}` 1-bit-lane replication is rendered as a
+    /// behaviour-preserving single-level `generate for` loop (decision
+    /// `0013`). Proves the second richer-structured emission surface is
+    /// accepted warning-clean by Verilator + both Yosys modes (+ Icarus when
+    /// `--iverilog-compile` is set), gated on the `saw_generate_loop_emit`
+    /// coverage fact. Default `generate_loop_emit_prob = 0.0` emission stays
+    /// byte-identical; the gate is the opt-in proof axis for the non-default
+    /// surface.
+    GenerateLoopSweep,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -636,6 +679,12 @@ struct MatrixReport {
     /// `coverage_gaps`.
     #[serde(default)]
     function_emit_gate: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.4b.2b` — whether `--generate-loop-gate`
+    /// drove this run. When `true`, every scenario forced
+    /// `generate_loop_emit_prob = 1.0` over comb-only DUTs and the
+    /// `saw_generate_loop_emit` fact is enforced under `coverage_gaps`.
+    #[serde(default)]
+    generate_loop_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -793,6 +842,7 @@ fn main() -> Result<()> {
         signoff_knob_sweep_gate: cli.signoff_knob_sweep_gate,
         sv_version_gate: cli.sv_version_gate,
         function_emit_gate: cli.function_emit_gate,
+        generate_loop_gate: cli.generate_loop_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -906,6 +956,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
     } else if cli.function_emit_gate {
         FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
+    } else if cli.generate_loop_gate {
+        GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -920,7 +972,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.phase4_hierarchy_gate
             || cli.signoff_knob_sweep_gate
             || cli.sv_version_gate
-            || cli.function_emit_gate,
+            || cli.function_emit_gate
+            || cli.generate_loop_gate,
         total_modules,
     }
 }
@@ -932,10 +985,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         + usize::from(cli.phase4_hierarchy_gate)
         + usize::from(cli.signoff_knob_sweep_gate)
         + usize::from(cli.sv_version_gate)
-        + usize::from(cli.function_emit_gate);
+        + usize::from(cli.function_emit_gate)
+        + usize::from(cli.generate_loop_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, and --function-emit-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, and --generate-loop-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -950,6 +1004,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::SvVersionSweep)
     } else if cli.function_emit_gate {
         Ok(ScenarioSet::FunctionEmitSweep)
+    } else if cli.generate_loop_gate {
+        Ok(ScenarioSet::GenerateLoopSweep)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -964,6 +1020,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::SignoffKnobSweep => build_signoff_knob_sweep_scenarios(base_seed)?,
         ScenarioSet::SvVersionSweep => build_sv_version_sweep_scenarios(base_seed)?,
         ScenarioSet::FunctionEmitSweep => build_function_emit_sweep_scenarios(base_seed)?,
+        ScenarioSet::GenerateLoopSweep => build_generate_loop_sweep_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -3027,6 +3084,78 @@ fn function_emit_focus_config(strategy: ConstructionStrategy, seed: u64) -> Conf
     }
 }
 
+/// `STRUCTURED-EMISSION-EXPANSION.4b.2b` — the repo-owned `generate for`
+/// loop emit gate. For each of the three construction strategies it emits
+/// one comb-only single-module DUT with `generate_loop_emit_prob = 1.0`, so
+/// every qualifying `{N{x}}` 1-bit-lane replication (the common one-hot
+/// `{W{sel}}` mux-mask idiom) is rendered as a behaviour-preserving
+/// single-level `generate for` loop (decision `0013`). The caller
+/// (`--generate-loop-gate`) runs the full Verilator + both Yosys modes (+
+/// Icarus when `--iverilog-compile` is set) plan and requires the
+/// `saw_generate_loop_emit` coverage fact, proving the second
+/// richer-structured emission surface is accepted warning-clean.
+///
+/// Default `generate_loop_emit_prob = 0.0` emission is byte-identical to
+/// today; the gate forces the non-default knob, exactly like the
+/// `--function-emit-gate` template.
+fn build_generate_loop_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+
+    for (index, strategy) in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let seed = base_seed + index as u64;
+        let strategy_slug = strategy_slug(strategy);
+        let strategy_label = construction_strategy_name(strategy);
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_generate_loop"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, comb-only DUT with generate_loop_emit_prob = 1.0 — projects every qualifying {{N{{x}}}} 1-bit-lane replication to a behaviour-preserving single-level `generate for` loop (decision 0013; lights saw_generate_loop_emit)."
+            ),
+            generate_loop_focus_config(strategy, seed),
+        )?);
+    }
+
+    Ok(scenarios)
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.4b.2b` anchor config for the `generate for`
+/// loop emit-projection. A comb-only (`flop_prob = 0.0`) single-module DUT
+/// shaped like `function_emit_focus_config` (node-id + e-graph, rich
+/// combinational cone) with `generate_loop_emit_prob = 1.0` so the gen-time
+/// `annotate_generate_loop_gates` pass marks every qualifying `{N{x}}`
+/// 1-bit-lane replication and the emitter renders each as a `generate for`
+/// loop. The rich combinational cone produces the one-hot `{W{sel}}`
+/// mux-mask broadcasts that are the index-regular source; an empirical probe
+/// lit a loop on every interleaved seed and the great majority of
+/// shuffled/sequential seeds, and with 4 modules/scenario × 3 strategies the
+/// `saw_generate_loop_emit` fact lights robustly. Downstream-clean across
+/// Verilator + both Yosys modes + Icarus (the live surface was banked clean
+/// at `/tmp/anvil-gl-r1/`).
+fn generate_loop_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        generate_loop_emit_prob: 1.0,
+        flop_prob: 0.0,
+        terminal_reuse_prob: 0.9,
+        constant_prob: 0.05,
+        max_depth: 8,
+        min_inputs: 4,
+        max_inputs: 8,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
 /// `SV-VERSION-TARGETING.2b.2b` — bare-year slug for an `SvVersion`,
 /// used in scenario names (`sv2017_comb_egraph`).
 fn sv_version_year_slug(version: SvVersion) -> &'static str {
@@ -4632,6 +4761,13 @@ fn materialize_prepared_module(
     // seed produced no qualifying gate.
     let emitted_combinational_function = prepared.sv_text.contains("function automatic");
 
+    // `STRUCTURED-EMISSION-EXPANSION.4b.2b` — real evidence the `generate
+    // for` loop emit-projection was actually emitted (not just requested by
+    // `generate_loop_emit_prob`): the emitted SV text carries a `generate`
+    // region. Mirrors the `emitted_combinational_function` precedent and
+    // stays honest even if a seed produced no qualifying replication.
+    let emitted_generate_loop = prepared.sv_text.contains("generate");
+
     let (verilator, yosys, iverilog_compile) = run_module_tools(
         cli,
         scenario_dir,
@@ -4673,6 +4809,7 @@ fn materialize_prepared_module(
         diff_sim,
         emitted_soft_union_overlay,
         emitted_combinational_function,
+        emitted_generate_loop,
     };
     write_module_checkpoint(
         cli,
@@ -5673,6 +5810,26 @@ fn summarize_coverage(
             && all_yosys_invocations_ok(&module.yosys)
         {
             coverage.saw_combinational_function_emit = true;
+        }
+
+        // `STRUCTURED-EMISSION-EXPANSION.4b.2b` — a genuinely-emitted
+        // `generate for` loop (proven from the SV text) accepted by the
+        // downstream tools. Like a function (and unlike the `union soft`
+        // overlay), a `generate for` is universally synthesizable, so this
+        // fact requires Verilator success **and** Yosys clean
+        // (`!yosys.is_empty()` guards the vacuous empty-vec case). Icarus
+        // acceptance, when `--iverilog-compile` is set, is enforced separately
+        // via the tool-summary `any_failed` bail.
+        if module.emitted_generate_loop
+            && module
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+            && !module.yosys.is_empty()
+            && all_yosys_invocations_ok(&module.yosys)
+        {
+            coverage.saw_generate_loop_emit = true;
         }
     }
 
@@ -7144,6 +7301,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_sv_version_2023_targeted_acceptance |= src.saw_sv_version_2023_targeted_acceptance;
     dst.saw_sv_version_2023_soft_union_upopt |= src.saw_sv_version_2023_soft_union_upopt;
     dst.saw_combinational_function_emit |= src.saw_combinational_function_emit;
+    dst.saw_generate_loop_emit |= src.saw_generate_loop_emit;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
@@ -7457,6 +7615,22 @@ fn compute_coverage_gaps(
         return gaps;
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.4b.2b` — the `generate for` loop emit
+    // gate's sole contract is to prove the second richer-structured emission
+    // surface fires by construction and is downstream-accepted. Like the
+    // function-emit gate above, the broad motif/identity/category richness
+    // the other sets enforce below is intentionally out of scope, so check
+    // exactly the one fact (plus the universal construction-strategy coverage
+    // above) and return.
+    if scenario_set == ScenarioSet::GenerateLoopSweep {
+        if !coverage.saw_generate_loop_emit {
+            gaps.push(
+                "matrix never proved generate_loop_emit_prob (a `generate for` loop emit-projection accepted by Verilator + Yosys)".to_string(),
+            );
+        }
+        return gaps;
+    }
+
     match scenario_set {
         ScenarioSet::Default => {
             for mode in ["relaxed", "node-id"] {
@@ -7543,11 +7717,12 @@ fn compute_coverage_gaps(
                 );
             }
         }
-        // Unreachable: the focused knob-sweep, sv-version, and
-        // function-emit gates return above.
+        // Unreachable: the focused knob-sweep, sv-version, function-emit,
+        // and generate-loop gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
-        | ScenarioSet::FunctionEmitSweep => {}
+        | ScenarioSet::FunctionEmitSweep
+        | ScenarioSet::GenerateLoopSweep => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -7568,11 +7743,12 @@ fn compute_coverage_gaps(
             "shift",
             "structural",
         ],
-        // Unreachable: the focused knob-sweep, sv-version, and
-        // function-emit gates return above.
+        // Unreachable: the focused knob-sweep, sv-version, function-emit,
+        // and generate-loop gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
-        | ScenarioSet::FunctionEmitSweep => &[],
+        | ScenarioSet::FunctionEmitSweep
+        | ScenarioSet::GenerateLoopSweep => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -8372,11 +8548,12 @@ fn compute_coverage_gaps(
             "hierarchy_parent_cone_instance_prob",
             "hierarchy_parent_flop_prob",
         ],
-        // Unreachable: the focused knob-sweep, sv-version, and
-        // function-emit gates return above.
+        // Unreachable: the focused knob-sweep, sv-version, function-emit,
+        // and generate-loop gates return above.
         ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
-        | ScenarioSet::FunctionEmitSweep => &[],
+        | ScenarioSet::FunctionEmitSweep
+        | ScenarioSet::GenerateLoopSweep => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -8512,22 +8689,24 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::SignoffKnobSweep => "signoff-knob-sweep",
         ScenarioSet::SvVersionSweep => "sv-version-sweep",
         ScenarioSet::FunctionEmitSweep => "function-emit-sweep",
+        ScenarioSet::GenerateLoopSweep => "generate-loop-sweep",
     }
 }
 
 fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
     match scenario_set {
         ScenarioSet::Phase4Hierarchy => "design",
-        // The knob-sweep, sv-version, and function-emit sets are mixed or
-        // single-module DUTs, like the Default set; report the coarse
-        // "module" label and let each per-scenario report carry its own
-        // module/design routing.
+        // The knob-sweep, sv-version, function-emit, and generate-loop sets
+        // are mixed or single-module DUTs, like the Default set; report the
+        // coarse "module" label and let each per-scenario report carry its
+        // own module/design routing.
         ScenarioSet::Default
         | ScenarioSet::Phase2Share
         | ScenarioSet::Phase3Structured
         | ScenarioSet::SignoffKnobSweep
         | ScenarioSet::SvVersionSweep
-        | ScenarioSet::FunctionEmitSweep => "module",
+        | ScenarioSet::FunctionEmitSweep
+        | ScenarioSet::GenerateLoopSweep => "module",
     }
 }
 
@@ -8565,6 +8744,7 @@ mod tests {
             signoff_knob_sweep_gate: false,
             sv_version_gate: false,
             function_emit_gate: false,
+            generate_loop_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -9049,6 +9229,95 @@ mod tests {
         // Fact lit → no gaps.
         coverage.saw_combinational_function_emit = true;
         let gaps = compute_coverage_gaps(ScenarioSet::FunctionEmitSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    #[test]
+    fn generate_loop_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.generate_loop_gate);
+        let with_flag =
+            Cli::try_parse_from(["tool_matrix", "--generate-loop-gate", "--out", "/tmp/x"])
+                .expect("parse");
+        assert!(with_flag.generate_loop_gate);
+    }
+
+    #[test]
+    fn generate_loop_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.generate_loop_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::GenerateLoopSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::GenerateLoopSweep).expect("build");
+        // one comb-only focus config x three construction strategies.
+        assert_eq!(scenarios.len(), 3);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(
+            plan.total_modules,
+            3 * GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn generate_loop_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.generate_loop_gate = true;
+        cli.function_emit_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    #[test]
+    fn generate_loop_sweep_scenarios_force_the_knob() {
+        let scenarios = build_scenarios(0, ScenarioSet::GenerateLoopSweep).expect("build");
+        let mut strategies = BTreeSet::new();
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            let cfg = &scenario.config;
+            assert!(
+                scenario.name.ends_with("generate_loop"),
+                "unexpected generate-loop scenario {}",
+                scenario.name
+            );
+            // generate_loop_emit_prob forced to 1.0 so every qualifying
+            // {N{x}} replication is projected to a `generate for` loop.
+            assert_eq!(cfg.generate_loop_emit_prob, 1.0);
+            // Comb-only single-module DUT (no flops, no hierarchy): the
+            // first-cut surface projects combinational replications only.
+            assert_eq!(cfg.flop_prob, 0.0);
+            assert!(cfg.effective_hierarchy_depth_range().is_none());
+        }
+        assert_eq!(scenarios.len(), 3);
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+    }
+
+    #[test]
+    fn generate_loop_sweep_gaps_require_the_fact() {
+        // All three strategies present, but the fact not lit → exactly the
+        // one generate-loop gap (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::GenerateLoopSweep, &coverage, None);
+        assert_eq!(gaps.len(), 1, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("generate_loop_emit_prob"));
+
+        // Fact lit → no gaps.
+        coverage.saw_generate_loop_emit = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::GenerateLoopSweep, &coverage, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
     }
 
@@ -10075,6 +10344,7 @@ mod tests {
             diff_sim: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
+            emitted_generate_loop: false,
         }];
 
         let summary = summarize_tools(&modules);
@@ -10112,6 +10382,7 @@ mod tests {
             diff_sim: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
+            emitted_generate_loop: false,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -10173,6 +10444,7 @@ mod tests {
             diff_sim: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
+            emitted_generate_loop: false,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -10231,6 +10503,7 @@ mod tests {
                 diff_sim: None,
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
+                emitted_generate_loop: false,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -10697,6 +10970,7 @@ mod tests {
                 diff_sim: None,
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
+                emitted_generate_loop: false,
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
@@ -10870,6 +11144,7 @@ endmodule\n";
             diff_sim: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
+            emitted_generate_loop: false,
         }];
         let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);

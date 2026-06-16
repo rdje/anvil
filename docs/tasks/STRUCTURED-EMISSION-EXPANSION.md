@@ -6,7 +6,17 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.4b.2a` landed — the `num_emitted_generate_loops`
+- Last updated: `2026-06-16` (**`.4b.2b` landed — the repo-owned `tool_matrix
+  --generate-loop-gate`; `.4b.2` closes; frontier → `.4b.3` (the user-facing
+  closeout).** `src/bin/tool_matrix.rs` gains `--generate-loop-gate` +
+  `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` +
+  `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` +
+  `MatrixReport.generate_loop_gate` + 5 proofs + 6 fixture updates; README +
+  USER_GUIDE + CODEBASE_ANALYSIS gate entries. Banked clean
+  `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a
+  loop / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). No schema
+  bump (harness-only); snapshots 6/6 byte-identical; `cargo test --bin
+  tool_matrix` 63. Prior: **`.4b.2a` landed — the `num_emitted_generate_loops`
   metric + introspection schema `1.8 → 1.9`; `.4b.2` split into `.4b.2a` (done) +
   `.4b.2b` (the `tool_matrix` gate, frontier).** `Metrics::num_emitted_generate_loops`
   (`= m.generate_loop_gates.len()`) surfaced in introspection `module_metrics` ⇒
@@ -218,9 +228,10 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.2`
-  Status: `active`
-  Goal: `The repo-owned downstream gate + metric for the generate for loop surface. Pre-split (2026-06-16) into .4b.2a (the num_emitted_generate_loops metric + introspection schema bump 1.8→1.9 — done) + .4b.2b (the tool_matrix --generate-loop-gate + saw_generate_loop_emit coverage fact + ModuleReport.emitted_generate_loop detection + early-return gap enforcement). Default-off / DUT byte-identical.`
+  Status: `done`
+  Goal: `The repo-owned downstream gate + metric for the generate for loop surface. Pre-split (2026-06-16) into .4b.2a (the num_emitted_generate_loops metric + introspection schema bump 1.8→1.9 — done) + .4b.2b (the tool_matrix --generate-loop-gate + saw_generate_loop_emit coverage fact + ModuleReport.emitted_generate_loop detection + early-return gap enforcement — done). Default-off / DUT byte-identical.`
   Children: `STRUCTURED-EMISSION-EXPANSION.4b.2a`, `STRUCTURED-EMISSION-EXPANSION.4b.2b`
+  Result: `Done (closed by .4b.2b, 2026-06-16). .4b.2a (metric + introspection schema 1.9) + .4b.2b (the repo-owned tool_matrix --generate-loop-gate, banked clean /tmp/anvil-generate-loop-gate-r1) both complete. Default-off / DUT byte-identical.`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.2a`
   Status: `done`
@@ -231,11 +242,12 @@ behaviour.
   Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `The repo-owned tool_matrix gate: a saw_generate_loop_emit coverage fact + a --generate-loop-gate flag + ScenarioSet::GenerateLoopSweep + build_generate_loop_sweep_scenarios (a replication-rich comb-only DUT forcing generate_loop_emit_prob=1.0 across the three construction strategies — must actually emit {N{x}} 1-bit replications; the share-heavy comb config with one-hot mux-mask broadcasts is the source) + a ModuleReport.emitted_generate_loop detection (SV-text contains "generate"/"genvar", #[serde(default)]) + coverage-gap enforcement (early-return arm in compute_coverage_gaps), proving Verilator + both Yosys modes + Icarus accept the emitted loops warning-clean. Bank a clean report (/tmp/anvil-generate-loop-gate-r1). Default-off / DUT byte-identical. Template: --function-emit-gate; the new field threaded through the ModuleReport fixtures.`
   Acceptance: `cargo check/clippy(-D warnings)/fmt clean; the repo-owned gate is banked clean (Verilator + both Yosys + Icarus) with saw_generate_loop_emit lit and coverage_gaps=[]; snapshots 6/6 byte-identical; committed through COMMIT.md with the leaf id.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. src/bin/tool_matrix.rs gains the repo-owned --generate-loop-gate, templated on --function-emit-gate (.2b.2b). New: --generate-loop-gate CLI flag + ScenarioSet::GenerateLoopSweep + MatrixReport.generate_loop_gate (wired into select_scenario_set [mutually exclusive], derive_run_plan [GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO=4 units/scenario floor + fail_on_coverage_gap], build_scenarios, scenario_set_slug "generate-loop-sweep", artifact_kind_slug "module"). build_generate_loop_sweep_scenarios + generate_loop_focus_config: one comb-only single-module DUT (function_emit_focus_config-shaped: node-id + e-graph, flop_prob = 0.0) with generate_loop_emit_prob = 1.0 across all three construction strategies (3 scenarios). ModuleReport.emitted_generate_loop (#[serde(default)]) set in materialize_prepared_module from prepared.sv_text.contains("generate"). CoverageSummary.saw_generate_loop_emit lit in summarize_coverage when an emitted-loop module is accepted by Verilator success AND a non-empty clean Yosys vec (a generate for is universally synthesizable like a function, so the gate runs the full tool plan; Icarus rides ToolSummary::any_failed); merged in merge_coverage; enforced by an early-return arm in compute_coverage_gaps after the universal construction-strategy coverage. 5 cargo-portable proofs + the new field threaded through 6 ModuleReport fixtures + the test_cli default. No schema bump (harness-only). Default generate_loop_emit_prob = 0.0 emission byte-identical (snapshots 6/6). Closes .4b.2 / frontier -> .4b.3.`
+  Verification: `cargo check --bin tool_matrix clean; cargo clippy --all-targets -- -D warnings clean; cargo fmt --all --check clean; cargo test --bin tool_matrix 63 passed / 1 ignored (incl. 5 new generate-loop gate proofs); cargo test --test snapshots 6/6 byte-identical (harness-only). Repo-owned downstream bank /tmp/anvil-generate-loop-gate-r1 (--generate-loop-gate --yosys-mode both --iverilog-compile): 3 scenarios / 12 modules / 8 emitting a generate loop / coverage_gaps = [] / saw_generate_loop_emit = true / Verilator 12/0 / Yosys without-abc 12/0 / Yosys with-abc 12/0 / Icarus compile 12/0.`
+  Commit: `done`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.4b.3`
   Status: `pending`
@@ -246,20 +258,20 @@ behaviour.
 
 ## Current Frontier
 
-**Active frontier: `STRUCTURED-EMISSION-EXPANSION.4b.2b`** (the repo-owned
-`tool_matrix --generate-loop-gate` + the `saw_generate_loop_emit` coverage fact).
-`.4b.2` is now an `active` container split into `.4b.2a` (metric + schema bump
-`1.8→1.9` — **done `2026-06-16`**) + `.4b.2b` (the gate — `pending`). `.4b` is an
-`active` container; `.4b.1` (live surface) + `.4a` + `.4` + `.3` are done. The
-first structured surface (the combinational `function automatic`, `.1`+`.2`) is
-delivered end-to-end. Future surfaces (`task` [leading], nested/multi-level
-`generate`, `interface`/`modport`) are `.5+`, each its own decision. Nothing
-retired.
+**Active frontier: `STRUCTURED-EMISSION-EXPANSION.4b.3`** (the user-facing
+closeout — the book chapter extension + the `generate_loop_emit_prob` knob entry
+in `book/src/knobs.md` / `USER_GUIDE.md` / README + a KM card). `.4b.2` is now
+**done** (`.4b.2a` metric + schema `1.8→1.9` + `.4b.2b` the repo-owned
+`tool_matrix --generate-loop-gate`, banked clean). `.4b.1` (live surface) + `.4a`
++ `.4` + `.3` are done. The first structured surface (the combinational
+`function automatic`, `.1`+`.2`) is delivered end-to-end. Future surfaces
+(`task` [leading], nested/multi-level `generate`, `interface`/`modport`) are
+`.5+`, each its own decision. Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `pending` | The repo-owned `tool_matrix --generate-loop-gate`: a `saw_generate_loop_emit` coverage fact + a `--generate-loop-gate` flag + `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (a replication-rich comb-only DUT forcing `generate_loop_emit_prob=1.0` across the three construction strategies — must emit `{N{x}}` 1-bit replications, the one-hot mux-mask idiom) + `ModuleReport.emitted_generate_loop` SV-text detection + early-return gap enforcement, banked clean across Verilator + both Yosys + Icarus. Template: `--function-emit-gate`. Forced-sweep evidence already banked at `/tmp/anvil-gl-r1/`. Default-off / DUT byte-identical. |
-| 2 | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `generate for` loop surface (byte-verified before/after; the `{N{x}}` 1-bit-lane rule; the wider-lane exclusion; the `gi = gi + 1` form) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted. Docs-only / DUT byte-identical. |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `pending` | The user-facing closeout: extend `book/src/structured-emission.md` with the `generate for` loop surface (byte-verified before/after; the `{N{x}}` 1-bit-lane rule; the wider-lane exclusion; the `gi = gi + 1` form) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + a KM how-to card if warranted. Docs-only / DUT byte-identical. With this leaf the `generate for` loop surface (decision `0013`) is delivered end-to-end and the `STRUCTURED-EMISSION-EXPANSION` lane returns to no-active-frontier (open-ended; `.5+` future surfaces each their own decision). |
+| — | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `done` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (one comb-only `generate_loop_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` coverage fact + early-return gap enforcement + 5 cargo-portable proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). Templated on `--function-emit-gate`. Default-off / DUT byte-identical (snapshots 6/6). |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `done` | The metric `Metrics::num_emitted_generate_loops` (`= m.generate_loop_gates.len()`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.8 → 1.9`. Lib proof; `cargo test --lib` 478 + snapshots 6/6 + mdbook all green; end-to-end introspect default `0` / forced `50`. Precedented (`1.7→1.8` `num_emitted_combinational_functions`). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.1` | `done` | Live surface delivered: `Config::generate_loop_emit_prob` + `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` (`annotate_generate_loop_gates`, the `{N{x}}` 1-bit-lane replication candidate predicate excluding function-emit marks) + the two guarded gen-time call-site rolls (after function_emit) + the `to_sv_with_modules` `generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block section + the assign-loop inline-replication suppression + 9 lib proofs. Increment form `gi = gi + 1` (the portable form; `gi++` not retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6; lib 477); forced `generate_loop_emit_prob=1.0` sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-gl-r1/`, 5 seeds, 62–168 loops each). |
 | — | `STRUCTURED-EMISSION-EXPANSION.4a` | `done` | Design-detail (no source): grounded decision `0013` in the real emitter (`render_gate`'s `Concat` replication predicate at `sv.rs:1159` — `operands.len() >= 2 && all-same-NodeId ⇒ {N{x}}`; the `to_sv_with_modules` function-decl-section template) + the `function_emit.rs`/`soft_union.rs` gen-time-annotation precedent + `src/config.rs`/`src/gen/mod.rs`. Pinned all five points: (1) selection = a `{N{x}}` replication `Concat` with a **1-bit lane** (⇒ `W == N`, `assign <wire>[gi] = <x>` byte-faithful), mutually exclusive with function-emit (excludes `m.function_emit_gates`, run after function_emit); (2) gen-time `annotate_generate_loop_gates` + `Module.generate_loop_gates`; (3) the `genvar <wire>__gi` / `generate for` rendering + the assign-loop `continue` suppression; (4) `Config::generate_loop_emit_prob` (default `0.0`, config-file-only, byte-identical); (5) `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit` (full Verilator + both Yosys plan). Flagged the gate-shape risk (the corpus must emit `{N{x}}` 1-bit replications — the one-hot mux-mask idiom). `.4b` impl shape recorded. |
@@ -348,6 +360,7 @@ retired.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--generate-loop-gate` + `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios`/`generate_loop_focus_config` + `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` + `MatrixReport.generate_loop_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **63 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-generate-loop-gate-r1` (`--generate-loop-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **8 emitting a generate loop** / `coverage_gaps = []` / `saw_generate_loop_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_generate_loops` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.8→1.9` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.8→1.9` changelog entry + the defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--introspect` ref; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **478 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.9`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.9"` + metric `0`; forced `generate_loop_emit_prob=1.0` ⇒ `1.9` + `50`. `mdbook build book` OK. Historical "landed at schema X" attributions left intact (`num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.1` | **Live emitter change** (`src/config.rs` `generate_loop_emit_prob` knob + `src/ir/types.rs` `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` annotate pass + `src/ir/mod.rs` registration + `src/gen/mod.rs` two call-site rolls after function_emit + `src/emit/sv.rs` `generate for` block rendering + assign-loop suppression; `DEVELOPMENT_NOTES.md` + `CODEBASE_ANALYSIS.md` updated). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **477 passed** / 2 ignored (incl. 9 new `generate_loop` proofs; introspect `schema_version` 1.8 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Forced `generate_loop_emit_prob=1.0` sweep (5 seeds 1–5, 62–168 loops each, banked `/tmp/anvil-gl-r1/`): Verilator `--lint-only` **5/5 rc=0 / 0 warnings** (repo bar), **`-Wall` ON-vs-OFF delta = 0** (the change adds no new warnings; residual `-Wall UNUSEDSIGNAL` is pre-existing, identical ON and OFF), Yosys without-abc **5/5** + with-abc **5/5**, Icarus `iverilog -g2012` **5/5**. Increment form `gi = gi + 1` (the portable form; `gi++` not retired). No schema bump (default-off prob-knob precedent; the `.4b.2` metric bumps `1.8→1.9`). | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4a` | **Design-detail leaf, no source change** (a `DEVELOPMENT_NOTES.md` design-detail entry + the `.4` tree split; no `src/` touched). Grounded in a fresh read of `src/emit/sv.rs` (`render_gate`'s `Concat` replication predicate at `sv.rs:1159` + the `to_sv_with_modules` function-decl section + `build_names`/`node_ref`/`param_width_decl_w`), `src/ir/function_emit.rs` + `src/ir/soft_union.rs` (the gen-time-annotation precedent + `function_emit_gate` defensive re-check), `src/gen/mod.rs` (the two guarded call-site rolls), `src/config.rs` (`default_function_emit_prob` + the `0.0..=1.0` validation list), `src/ir/mod.rs` (`pub mod` registration). Resolved all five `.4a` points (selection = `{N{x}}` 1-bit-lane replication `Concat` excluding function-emit marks; gen-time `annotate_generate_loop_gates` + `Module.generate_loop_gates`; the `genvar <wire>__gi` / `generate for` rendering + assign-loop `continue` suppression; `Config::generate_loop_emit_prob` config-file-only default `0.0` byte-identical; `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit` full Verilator + both Yosys plan) + flagged the gate-shape replication-availability risk + recorded the `.4b` impl shape. `bash scripts/check_memory_architecture.sh` ✅; `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card change — `0013` already carries `answers:`); `mdbook build book` ✅; `cargo test --test book_examples` 3/3 ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
@@ -364,6 +377,7 @@ retired.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `STRUCTURED-EMISSION-EXPANSION.4b.2b — generate-loop tool_matrix gate` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (comb-only `generate_loop_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` fact + early-return gap enforcement + 5 proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Default-off / DUT byte-identical (snapshots 6/6). Closes `.4b.2`; frontier → `.4b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `STRUCTURED-EMISSION-EXPANSION.4b.2a — generate-loop emit metric + introspection schema 1.9` | `Metrics::num_emitted_generate_loops` (= `generate_loop_gates.len()`) + introspection schema MINOR bump `1.8 → 1.9` (the metric bumps; the `.4b.1` knob rode the version). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 478); end-to-end introspect default `0` / forced `50`. Pre-split `.4b.2` → `.4b.2a`/`.4b.2b`; frontier → `.4b.2b`. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.1` | `STRUCTURED-EMISSION-EXPANSION.4b.1 — generate-for loop emit-projection (live surface)` | Live emitter change: `generate_loop_emit_prob` knob + `Module.generate_loop_gates` + new `src/ir/generate_loop.rs` gen-time mark (`{N{x}}` 1-bit-lane replication candidate excluding function-emit marks) + two generator call-site rolls (after function_emit) + `to_sv_with_modules` `generate_loop_gate` accessor + `render_generate_loop_block` + the generate-block section + assign-loop inline-replication suppression + 9 lib proofs. Increment form `gi = gi + 1` (portable; `gi++` not retired). No schema bump (default-off prob-knob precedent). Default-off / DUT byte-identical (snapshots 6/6, lib 477); forced sweep clean across Verilator `--lint-only` (`-Wall` Δ=0 vs OFF) + both Yosys + Icarus (`/tmp/anvil-gl-r1/`, 5 seeds). Pre-split `.4b` → `.4b.1`/`.4b.2`/`.4b.3`; frontier → `.4b.2`. |
 | `STRUCTURED-EMISSION-EXPANSION.4a` | `STRUCTURED-EMISSION-EXPANSION.4a — generate-for loop impl design-detail` | Design-detail leaf (no source): a `DEVELOPMENT_NOTES.md` entry grounding decision `0013`'s `generate for` loop surface in the real emitter (`render_gate`'s `Concat` replication predicate `sv.rs:1159`) + the `function_emit.rs`/`soft_union.rs` gen-time-annotation precedent, resolving all five `.4a` points (selection rule = `{N{x}}` 1-bit-lane replication excluding function-emit marks; gen-time `Module.generate_loop_gates`; `genvar`/`generate for` rendering + assign suppression; `generate_loop_emit_prob` config-file-only knob; `tool_matrix --generate-loop-gate` / `saw_generate_loop_emit`) + the `.4b` impl shape. Split `.4` into `.4a` (done) + `.4b` (impl pending); frontier → `.4b`. No source change; self-checks clean. |
@@ -378,6 +392,32 @@ retired.
 
 ## Changelog
 
+- `2026-06-16`: **`.4b.2b` landed — the repo-owned `tool_matrix
+  --generate-loop-gate`; `.4b.2` closes.** `src/bin/tool_matrix.rs` gains the
+  `--generate-loop-gate` flag + `ScenarioSet::GenerateLoopSweep` +
+  `build_generate_loop_sweep_scenarios`/`generate_loop_focus_config` (one
+  comb-only `generate_loop_emit_prob=1.0` DUT × three construction strategies) +
+  `MatrixReport.generate_loop_gate` (wired through `select_scenario_set`
+  [mutually exclusive], `derive_run_plan` [4 units/scenario floor +
+  fail-on-gap], `build_scenarios`, `scenario_set_slug` "generate-loop-sweep",
+  `artifact_kind_slug` "module") + `ModuleReport.emitted_generate_loop`
+  (`#[serde(default)]`, from `prepared.sv_text.contains("generate")`) +
+  `CoverageSummary.saw_generate_loop_emit` (lit in `summarize_coverage` on
+  Verilator success AND non-empty clean Yosys — a `generate for` is universally
+  synthesizable like a function, so the full tool plan runs; Icarus rides the
+  `ToolSummary::any_failed` bail) + `merge_coverage` + an early-return arm in
+  `compute_coverage_gaps`. 5 cargo-portable proofs + the new field threaded
+  through 6 `ModuleReport` fixtures + the `test_cli` default. README "Current
+  CLI truth" + USER_GUIDE gate-list + `CODEBASE_ANALYSIS.md` tool_matrix section
+  gain the `--generate-loop-gate` entry. No schema bump (harness-only). `cargo
+  check --bin tool_matrix` + clippy `-D warnings` + fmt clean; `cargo test --bin
+  tool_matrix` 63 / 1 ignored (5 new gate proofs); `cargo test --test
+  snapshots` 6/6 byte-identical (harness-only). **Banked downstream-clean**
+  `/tmp/anvil-generate-loop-gate-r1` (`--generate-loop-gate --yosys-mode both
+  --iverilog-compile`): 3 scenarios / 12 modules / **8 emitting a generate
+  loop** / `coverage_gaps = []` / `saw_generate_loop_emit = true` / Verilator
+  `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile
+  `12/0`. Frontier → `.4b.3` (the user-facing closeout). Nothing retired.
 - `2026-06-16`: **`.4b.2a` landed — the `num_emitted_generate_loops` metric +
   introspection schema `1.8 → 1.9`; `.4b.2` split into `.4b.2a` (done) + `.4b.2b`
   (the gate).** `Metrics::num_emitted_generate_loops` (`= m.generate_loop_gates.len()`,
