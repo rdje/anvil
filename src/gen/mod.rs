@@ -114,6 +114,16 @@ impl Generator {
             let p = self.cfg.generate_loop_emit_prob;
             crate::ir::generate_loop::annotate_generate_loop_gates(&mut m, &mut self.rng, p);
         }
+        // `STRUCTURED-EMISSION-EXPANSION.6b.1` — opt-in combinational
+        // `task automatic` emit-projection marker (decision `0014`). Runs
+        // AFTER function_emit and generate_loop so an already-marked gate is
+        // excluded (the emit-projections are mutually exclusive on a gate).
+        // Default `task_emit_prob = 0.0` ⇒ no roll ⇒ byte-identical stream +
+        // output. Mirrors the generate_loop call-site roll.
+        if self.cfg.task_emit_prob > 0.0 {
+            let p = self.cfg.task_emit_prob;
+            crate::ir::task_emit::annotate_task_emit_gates(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -308,6 +318,17 @@ impl Generator {
             let p = self.cfg.generate_loop_emit_prob;
             for module in &mut design.modules {
                 crate::ir::generate_loop::annotate_generate_loop_gates(module, &mut self.rng, p);
+            }
+        }
+        // `STRUCTURED-EMISSION-EXPANSION.6b.1` — opt-in combinational
+        // `task automatic` emit-projection marker (design path), mirroring the
+        // single-module roll in `generate_module`. Runs AFTER function_emit
+        // and generate_loop so an already-marked gate is excluded. Default
+        // `task_emit_prob = 0.0` ⇒ no roll ⇒ every module byte-identical.
+        if self.cfg.task_emit_prob > 0.0 {
+            let p = self.cfg.task_emit_prob;
+            for module in &mut design.modules {
+                crate::ir::task_emit::annotate_task_emit_gates(module, &mut self.rng, p);
             }
         }
         design

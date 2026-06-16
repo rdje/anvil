@@ -408,6 +408,37 @@ src/
 │                     (`/tmp/anvil-gl-r1/`). Repo-owned gate + coverage fact
 │                     = `.4b.2`.
 │
+├── ir/task_emit.rs  STRUCTURED-EMISSION-EXPANSION.6b.1 — the third
+│                     richer-structured emit surface (decision 0014).
+│                     Gen-time `annotate_task_emit_gates(m, rng, prob)`
+│                     pass (rolled at the `gen/mod.rs` call site like
+│                     `function_emit`/`generate_loop`, after both;
+│                     param-env modules skipped) marks combinational
+│                     `Node::Gate`s — the same candidate set as
+│                     `function_emit` (non-structured, non-`Slice`, ≥1
+│                     operand) that is not already marked for the
+│                     `function_emit` / `generate_loop` / `soft_union`
+│                     projections — into the new emitter-surface
+│                     `Module.task_emit_gates` (BTreeSet<NodeId>, not hashed
+│                     into identity, disjoint from the sibling gate sets).
+│                     The emitter (`emit/sv.rs::task_emit_gate` +
+│                     `render_gate_task_decl` + `render_gate_task_call`,
+│                     reusing `render_gate_function_body` for the body)
+│                     renders each marked gate as a behaviour-preserving
+│                     combinational `task automatic <wire>__t(output logic
+│                     [W-1:0] o, input ...); o = <op over params>; endtask`
+│                     + `logic [W-1:0] <wire>__tv; always_comb
+│                     <wire>__t(<wire>__tv, <refs>);` and rewrites the gate's
+│                     assign to the passthrough `assign <wire> =
+│                     <wire>__tv;`. The decision 0012 single-gate
+│                     `function automatic` parallel, but a *procedural* task
+│                     called from `always_comb`. Default-off
+│                     (`task_emit_prob == 0.0`) byte-identical (snapshots
+│                     6/6). Forced `task_emit_prob=1.0` sweep clean across
+│                     Verilator `--lint-only` (+`-Wall` Δ=0 vs OFF) + Yosys
+│                     both modes + Icarus (`/tmp/anvil-te-r1/`). Metric +
+│                     repo-owned gate + coverage fact = `.6b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

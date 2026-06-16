@@ -102,6 +102,10 @@ fn default_generate_loop_emit_prob() -> f64 {
     0.0
 }
 
+fn default_task_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -805,6 +809,31 @@ pub struct Config {
     #[serde(default = "default_generate_loop_emit_prob")]
     pub generate_loop_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.1` — the third richer-structured
+    /// emission surface (decision `0014`). Probability, per qualifying
+    /// combinational gate (the same candidate set as `function_emit_prob` —
+    /// any non-structured, non-`Slice` `Node::Gate` with at least one operand
+    /// — that is not already marked for the `function automatic` /
+    /// `generate for` / `union soft` projections), that the emitter renders it
+    /// as a behaviour-preserving combinational `task automatic` projection: a
+    /// `<wire>__t` procedural task over the gate's direct operands, called from
+    /// an `always_comb` into a `<wire>__tv` output var, with the gate's net
+    /// driven `assign <wire> = <wire>__tv;` — instead of the inline
+    /// `assign <wire> = <op>;`. The decision `0012` single-gate parallel, but a
+    /// procedural `task` rather than a value-returning `function`. Marked at
+    /// construction time by the post-construction
+    /// `crate::ir::task_emit::annotate_task_emit_gates` pass (the
+    /// `function_emit`/`generate_loop`/`soft_union` emit-projection precedent),
+    /// an emitter-surface annotation only — the flat IR body, validators, CSE
+    /// keys and `canonical_module_signature` are all unaffected, and no new IR
+    /// node / no new computed truth is introduced. The task writes exactly the
+    /// gate's value, so the projection is valid by construction (rules-first;
+    /// never generate-then-filter). `default = 0.0` keeps every existing output
+    /// byte-identical. See decision `0014` +
+    /// `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_task_emit_prob")]
+    pub task_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1029,6 +1058,7 @@ impl Default for Config {
             soft_union_slice_prob: default_soft_union_slice_prob(),
             function_emit_prob: default_function_emit_prob(),
             generate_loop_emit_prob: default_generate_loop_emit_prob(),
+            task_emit_prob: default_task_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
@@ -1389,6 +1419,7 @@ impl Config {
             ("soft_union_slice_prob", self.soft_union_slice_prob),
             ("function_emit_prob", self.function_emit_prob),
             ("generate_loop_emit_prob", self.generate_loop_emit_prob),
+            ("task_emit_prob", self.task_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("multi_clock_prob", self.multi_clock_prob),

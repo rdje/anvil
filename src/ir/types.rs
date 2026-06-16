@@ -450,6 +450,26 @@ pub struct Module {
     /// `function_emit_gates` by construction (the generate-loop pass runs
     /// after function-emit and excludes already-marked gates).
     pub generate_loop_gates: BTreeSet<NodeId>,
+    /// `STRUCTURED-EMISSION-EXPANSION.6b.1` — the set of combinational
+    /// `Node::Gate` `NodeId`s the emitter should render as a
+    /// behaviour-preserving combinational `task automatic` projection (a
+    /// `<wire>__t` procedural task over the gate's direct operands, called
+    /// from an `always_comb` into a `<wire>__tv` output var, with the gate's
+    /// net driven `assign <wire> = <wire>__tv;`) instead of an inline
+    /// `assign <wire> = <op>;` (decision `0014`). The decision `0012`
+    /// single-gate parallel, but a procedural `task` rather than a
+    /// value-returning `function`. Populated by the post-construction
+    /// `crate::ir::task_emit` pass under the opt-in `Config::task_emit_prob`
+    /// knob. Empty (the `Default`) ⇒ byte-identical emission. The task writes
+    /// exactly the gate's value, so the projection is behaviour-preserving by
+    /// construction; like `soft_union_slice_gates` / `function_emit_gates` /
+    /// `generate_loop_gates` / `aggregate_layout` this is an emitter-surface
+    /// annotation only — the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected and it is deliberately
+    /// not hashed into identity. Disjoint from `function_emit_gates` /
+    /// `generate_loop_gates` / `soft_union_slice_gates` by construction (the
+    /// task pass runs after the others and excludes already-marked gates).
+    pub task_emit_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

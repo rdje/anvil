@@ -1,9 +1,94 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6b.1 — combinational `task automatic` live surface
+
+**Landed as:** this commit (previous: `7b6a500`). **First source change since
+`.4b.1`.** The third richer-structured emit surface (decision `0014`) goes live:
+ANVIL's DUT lane can now project a single combinational gate into a procedural
+`task automatic` called from `always_comb`, opt-in and default-off /
+byte-identical. The decision `0012` single-gate `function automatic` parallel,
+but a *procedural task with an `output` arg* — a genuinely distinct elaboration
+surface for a downstream tool to parse / elaborate / lower.
+
+**What changed (why)**
+
+- **`src/config.rs`** — `Config::task_emit_prob: f64` (default `0.0`,
+  `default_task_emit_prob()` serde default; added to the `Default` impl + the
+  `0.0..=1.0` probability-validation list). Config-file-only (no CLI flag — the
+  `function_emit_prob` / `generate_loop_emit_prob` precedent). `default = 0.0` ⇒
+  no roll ⇒ every existing output byte-identical.
+- **`src/ir/types.rs`** — `Module.task_emit_gates: BTreeSet<NodeId>`
+  (Default-empty). An emitter-surface annotation only: the flat IR body,
+  validators, CSE keys and `canonical_module_signature` are all unaffected and
+  it is deliberately not hashed into identity. Disjoint from
+  `function_emit_gates` / `generate_loop_gates` / `soft_union_slice_gates` by
+  construction (the task pass runs last and excludes their marks).
+- **`src/ir/task_emit.rs`** (new) — `annotate_task_emit_gates(m, rng, prob)`,
+  the `function_emit.rs` precedent. Candidate = the function-emit candidate set
+  (a non-structured — not `CaseMux`/`CasezMux`/`ForFold` — non-`Slice`
+  `Node::Gate` with ≥1 operand) **plus** exclusion of any gate already marked
+  for the three sibling projections. Rolls `gen_bool(prob)` per candidate;
+  `param_env` modules skipped. 11 lib proofs (mark / prob-0 byte-identical /
+  structured / `Slice` / each-sibling-exclusion / param-env / identity +
+  node-count untouched / end-to-end emit shape / duplicate-operand positional
+  params).
+- **`src/ir/mod.rs`** — `pub mod task_emit;`.
+- **`src/gen/mod.rs`** — two guarded gen-time call-site rolls (`generate_module`
+  + `generate_design`) run **after** the generate_loop roll, guarded on
+  `task_emit_prob > 0.0` (the established soft_union → function_emit →
+  generate_loop → task_emit ordering, so each gate is projected by at most one
+  surface).
+- **`src/emit/sv.rs`** — a `task_emit_gate` accessor (defensively re-checks the
+  candidate contract, mirrors `function_emit_gate`); a task section (after the
+  generate-loop section) emitting per marked gate `task automatic
+  <wire>__t(output logic [W-1:0] o, input logic [Wi-1:0] a0, …); o = <body>;
+  endtask` (`render_gate_task_decl`, body reuses `render_gate_function_body`
+  verbatim) + `logic [W-1:0] <wire>__tv; always_comb <wire>__t(<wire>__tv,
+  <operand refs>);` (`render_gate_task_call`); and the gate-assign loop rewrites
+  a marked gate's assign to the passthrough `assign <wire> = <wire>__tv;`.
+- **Integration form** (resolved at `.6a`): the output-var + passthrough-assign
+  form — `<wire>` stays a continuous-assign net (minimal downstream change), the
+  task writes a local `logic <wire>__tv`, a continuous `assign` drives `<wire>`
+  from it. One `always_comb` per task gate. `<wire>`-as-procedural-var rejected
+  for the first cut.
+
+**Why** — `project_anvil_north_star`: each richer legal structural shape is a new
+place a downstream tool must parse / elaborate / lower, and so a new place to
+surface a real bug. A procedural `task` is a distinct named-reusable-computation
+form from the value-returning `function` (decision `0012`). Rules-first
+(`feedback_rules_first_generation`): the task re-expresses an already-valid gate,
+selected at construction time — never generate-then-filter. Opt-in / default
+byte-identical (`feedback_never_retire_strategies`): excluded gates still emit
+inline; nothing retired.
+
+**No schema bump here** — the knob rides `request.knobs` via `#[serde(default)]`;
+the `num_emitted_combinational_tasks` metric that bumps the introspection schema
+`1.9 → 1.10` is the `.6b.2` slice.
+
+**Validation** — `cargo check --all-targets` clean; `cargo clippy --all-targets
+-- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 489
+passed / 2 ignored (incl. 11 new `task_emit` proofs); `cargo test --test
+snapshots` 6/6 byte-identical (default-off). Forced `task_emit_prob=1.0` sweep
+(5 seeds 1/7/42/100/2024, 4–39 tasks each, banked `/tmp/anvil-te-r1/`):
+Verilator `--lint-only` clean + `-Wall` ON-vs-OFF delta = 0, Yosys without-abc +
+with-abc clean, Icarus `iverilog -g2012` clean. Tools: Verilator 5.046, Yosys
+0.64, iverilog.
+
+**Impact** — opt-in only; the default `anvil` build and `--artifact dut` stay
+byte-identical (`task_emit_prob` default `0.0`). Frontier → `.6b.2` (the metric +
+schema `1.9 → 1.10` + the repo-owned `tool_matrix --task-emit-gate` +
+`saw_combinational_task_emit`), then `.6b.3` (book/USER_GUIDE/README/KM
+closeout).
+
+**Files touched** — `src/config.rs`, `src/ir/types.rs`, `src/ir/task_emit.rs`
+(new), `src/ir/mod.rs`, `src/gen/mod.rs`, `src/emit/sv.rs`, `CHANGES.md`,
+`MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `docs/TASK_TREE.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.6a — combinational `task automatic` impl design-detail + `.6` split
 
-**Landed as:** this commit (previous: `b90bdff`). **Docs-only / no source
+**Landed as:** `7b6a500` (previous: `b90bdff`). **Docs-only / no source
 change** — a design-detail leaf. Grounds decision `0014`'s `task automatic`
 surface in the real emitter before any `.6b` code, and splits the `.6` impl node
 into `.6a` (this leaf, design-detail) + `.6b` (impl, frontier).

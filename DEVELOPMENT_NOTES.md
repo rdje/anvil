@@ -5,6 +5,78 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Structured emission — combinational `task automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.6b.1`
+
+The third richer-structured emit surface goes live, implementing the `.6a`
+design (decision `0014`). It is the decision `0012` single-gate
+`function automatic` parallel, but expressed as a **procedural `task automatic`
+called from `always_comb`** — a genuinely distinct elaboration surface (a task
+writes through an `output` arg; a function returns a value).
+
+**What landed.**
+- `Config::task_emit_prob: f64` (default `0.0`, `default_task_emit_prob()` serde
+  default; added to the `Default` impl + the `0.0..=1.0` validation list),
+  config-file-only (no CLI flag — the `function_emit_prob` /
+  `generate_loop_emit_prob` precedent).
+- `Module.task_emit_gates: BTreeSet<NodeId>` (Default-empty; emitter-surface
+  annotation only — flat IR / validators / CSE / `canonical_module_signature`
+  untouched; disjoint from `function_emit_gates` / `generate_loop_gates` /
+  `soft_union_slice_gates`).
+- New `src/ir/task_emit.rs` `annotate_task_emit_gates(m, rng, prob)` (the
+  `function_emit.rs` precedent): the candidate is the **function-emit candidate
+  set** (a non-structured, non-`Slice` `Node::Gate` with ≥1 operand) **plus**
+  exclusion of any gate already marked for the three sibling projections; rolls
+  `gen_bool(prob)` per candidate; `param_env` modules skipped.
+- Two guarded gen-time call-site rolls (`generate_module` + `generate_design`)
+  run **after** the generate_loop roll, so an already-marked gate is excluded
+  (the established "later pass excludes earlier marks" ordering — soft_union →
+  function_emit → generate_loop → task_emit).
+- `src/emit/sv.rs`: a `task_emit_gate` accessor (defensively re-checks the
+  candidate contract, mirrors `function_emit_gate`), a task section (after the
+  generate-loop section) emitting per marked gate
+  `task automatic <wire>__t(output logic [W-1:0] o, input ...); o = <body>;
+  endtask` (`render_gate_task_decl`) + `logic [W-1:0] <wire>__tv; always_comb
+  <wire>__t(<wire>__tv, <refs>);` (`render_gate_task_call`), and the gate-assign
+  loop rewrites a marked gate's assign to the passthrough `assign <wire> =
+  <wire>__tv;`.
+
+**Integration form (resolved at `.6a`).** The **output-var + passthrough-assign**
+form: `<wire>` stays a continuous-assign net (minimal downstream change, the
+`function_emit` "only the gate's own drive changes" parallel), the task writes a
+local `logic <wire>__tv` var, and a continuous `assign` drives `<wire>` from it.
+The `<wire>`-as-procedural-var alternative was rejected as the first cut.
+
+**Body reuse.** `render_gate_task_decl` reuses `render_gate_function_body`
+verbatim for the body expression — the only difference from `function_emit` is
+the procedural `output` arg (`o = <body>;`) vs the function return value
+(`<fname> = <body>;`). One body renderer, two projection shapes.
+
+**Why no schema bump here.** The `task_emit_prob` knob rides `request.knobs` via
+`#[serde(default)]` (the `function_emit_prob` / `generate_loop_emit_prob`
+precedent); the `num_emitted_combinational_tasks` metric — which *will* bump the
+introspection schema `1.9 → 1.10` — is the `.6b.2` slice, not this one.
+
+**Verification.** `cargo check --all-targets` clean; `cargo clippy --all-targets
+-- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` 489
+passed / 2 ignored (incl. 11 new `task_emit` proofs); `cargo test --test
+snapshots` 6/6 byte-identical (default-off). Forced `task_emit_prob=1.0` sweep
+(5 seeds 1/7/42/100/2024, 4–39 tasks each, banked `/tmp/anvil-te-r1/`):
+Verilator `--lint-only` clean + `-Wall` ON-vs-OFF delta = 0, Yosys without-abc +
+with-abc clean, Icarus `iverilog -g2012` clean. (The transient `DECLFILENAME`
+during the sweep was a test-harness filename≠module-name artifact, not a task
+warning — gone once files are named after their module.)
+
+**Width-1 spacing note.** For a width-1 gate `param_width_decl_w` yields `""`, so
+the decl reads `output logic  o` (double space) — identical to the existing
+`function automatic logic  <name>__f` width-1 behaviour; accepted by all three
+tools. Mirrored deliberately, nothing special-cased.
+
+Default-off / DUT byte-identical. Nothing retired (excluded gates still emit
+inline). Frontier → `.6b.2` (the metric + schema `1.9 → 1.10` + the repo-owned
+`tool_matrix --task-emit-gate` + `saw_combinational_task_emit`).
+
+---
+
 ## 2026-06-16 — Structured emission — combinational `task automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.6a`
 
 Design-detail leaf for `.6` — the third richer-structured surface (decision

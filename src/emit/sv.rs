@@ -405,6 +405,29 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.6b.1` — combinational `task automatic`
+    // declarations + `always_comb` calls for gates marked by the
+    // `crate::ir::task_emit` pass (the task-emit projection, decision
+    // `0014`). A marked gate's value is computed by a `<wire>__t` procedural
+    // task over its direct operands, called from an `always_comb` into a
+    // `<wire>__tv` output var; the gate's continuous assign below becomes a
+    // passthrough `assign <wire> = <wire>__tv;`. Default-off:
+    // `task_emit_gates` empty ⇒ nothing emitted ⇒ byte-identical.
+    // Behaviour-preserving by construction (the task writes exactly the
+    // gate's value into the output var).
+    let mut emitted_task = false;
+    for (idx, _node) in m.nodes.iter().enumerate() {
+        if let Some((op, operands, width)) = task_emit_gate(m, idx) {
+            let name = names[idx].as_ref().expect("gate name assigned");
+            out.push_str(&render_gate_task_decl(m, name, op, operands, width));
+            out.push_str(&render_gate_task_call(m, name, operands, width, &names));
+            emitted_task = true;
+        }
+    }
+    if emitted_task {
+        writeln!(out).unwrap();
+    }
+
     // Combinational assigns for every gate. Fully static structured
     // gates are lowered here too; keeping them out of `always_comb`
     // avoids empty-sensitivity warnings in strict downstream tools.
@@ -461,6 +484,17 @@ fn to_sv_with_modules(
                 let name = names[idx].as_ref().unwrap();
                 let call = render_gate_function_call(name, operands, m, &names);
                 writeln!(out, "    assign {name} = {call};").unwrap();
+                continue;
+            }
+            // `STRUCTURED-EMISSION-EXPANSION.6b.1` — a gate marked for task
+            // emission is driven from its `<wire>__tv` output var (written by
+            // the `always_comb` task call above) instead of the inline
+            // operation. Mutually exclusive with the other projections (the
+            // task pass runs last and excludes their marks). Default-off ⇒
+            // never taken.
+            if task_emit_gate(m, idx).is_some() {
+                let name = names[idx].as_ref().unwrap();
+                writeln!(out, "    assign {name} = {name}__tv;").unwrap();
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -1363,6 +1397,107 @@ fn render_gate_function_call(
 ) -> String {
     let args: Vec<String> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
     format!("{name}__f({})", args.join(", "))
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.6b.1` — if the gate at `idx` is marked for
+/// the combinational `task automatic` projection and still qualifies (a
+/// non-structured, non-`Slice` gate with at least one operand), return
+/// `(op, operands, width)` so the caller renders a `task automatic`
+/// projection (`<wire>__t`) + an `always_comb` call into a `<wire>__tv` var +
+/// a passthrough `assign` instead of the inline `assign`. `None` ⇒ render the
+/// gate inline — an unmarked / non-qualifying gate, or the default-off path
+/// where `task_emit_gates` is empty. The qualifying contract is re-checked
+/// defensively so a stale marker can never produce an invalid task (mirrors
+/// `function_emit_gate`).
+fn task_emit_gate(m: &Module, idx: usize) -> Option<(GateOp, &[NodeId], u32)> {
+    if !m.task_emit_gates.contains(&(idx as NodeId)) {
+        return None;
+    }
+    let Node::Gate {
+        op,
+        operands,
+        width,
+        ..
+    } = &m.nodes[idx]
+    else {
+        return None;
+    };
+    // Structured (procedural) blocks and `Slice` bit-selects are excluded
+    // from task-emit candidacy (see `crate::ir::task_emit`), the same as
+    // function-emit. Re-checked here defensively.
+    if matches!(
+        op,
+        GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. } | GateOp::Slice { .. }
+    ) {
+        return None;
+    }
+    if operands.is_empty() {
+        return None;
+    }
+    Some((*op, operands.as_slice(), *width))
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.6b.1` — render the `task automatic`
+/// declaration for a task-emitted gate `name` (`<name>__t`): an `output`
+/// argument `o` carrying the gate width, then positional `input` params
+/// `a0..a{n-1}` carrying the operand widths, and a single procedural
+/// statement assigning the behaviour-preserving re-expression of the
+/// operation over those params to `o`. The body is the same positional
+/// expression the `function automatic` projection uses
+/// ([`render_gate_function_body`]) — the only difference is the procedural
+/// `output` arg vs the function return value.
+fn render_gate_task_decl(
+    m: &Module,
+    name: &str,
+    op: GateOp,
+    operands: &[NodeId],
+    width: u32,
+) -> String {
+    let tname = format!("{name}__t");
+    let operand_widths: Vec<u32> = operands
+        .iter()
+        .map(|id| m.nodes[*id as usize].width())
+        .collect();
+    let mut params: Vec<String> = Vec::with_capacity(operand_widths.len() + 1);
+    params.push(format!("output logic {} o", param_width_decl_w(m, width)));
+    for (i, w) in operand_widths.iter().enumerate() {
+        params.push(format!("input logic {} a{}", param_width_decl_w(m, *w), i));
+    }
+    let mut s = String::new();
+    writeln!(s, "    task automatic {}({});", tname, params.join(", ")).unwrap();
+    writeln!(
+        s,
+        "        o = {};",
+        render_gate_function_body(op, &operand_widths)
+    )
+    .unwrap();
+    writeln!(s, "    endtask").unwrap();
+    s
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.6b.1` — render the task-output var
+/// declaration + the `always_comb` call that drives it for a task-emitted
+/// gate `name`: `logic [W-1:0] <name>__tv;` then
+/// `always_comb <name>__t(<name>__tv, <operand refs>);`. The arguments are
+/// the gate's operands rendered with the normal module-level [`node_ref`]
+/// (constants fold to literals, inputs to port names, gates to wire names),
+/// in positional order after the output var — so duplicate operands pass the
+/// same reference into distinct positional parameters. The gate's net is
+/// then driven `assign <name> = <name>__tv;` at the call site.
+fn render_gate_task_call(
+    m: &Module,
+    name: &str,
+    operands: &[NodeId],
+    width: u32,
+    names: &[Option<String>],
+) -> String {
+    let tname = format!("{name}__t");
+    let tv = format!("{name}__tv");
+    let args: Vec<String> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
+    let mut s = String::new();
+    writeln!(s, "    logic {} {};", param_width_decl_w(m, width), tv).unwrap();
+    writeln!(s, "    always_comb {}({}, {});", tname, tv, args.join(", ")).unwrap();
+    s
 }
 
 /// `STRUCTURED-EMISSION-EXPANSION.4b` — if the gate at `idx` is marked for
