@@ -5,6 +5,70 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — support-cone impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.2a`
+
+Design-detail leaf for `.2`. Resolves decision `0011`'s three open questions
+before code and pre-splits `.2` → `.2a` (this design) + `.2b` (impl). Grounded in
+a fresh read of `src/introspect/mod.rs` (the `IntrospectionPayload` /
+`IntrospectionDocument` / `RequestEcho` / `content_run_id_for_knobs` surface) and
+`src/mcp/mod.rs` (the pure-tool dispatch + `CachedArtifact` cache). Docs-only.
+
+- **The derived-relation types (a new pure `src/introspect/analyze.rs`,
+  serde + `Default`, BTreeSet→sorted-Vec so the JSON bytes are a pure function):**
+  ```rust
+  pub struct DerivedAnalysis { pub query: String, pub results: Vec<SupportCone> }
+  pub struct SupportCone {
+      pub target: String,                       // output port name (or "flop:<id>")
+      pub support_inputs: Vec<String>,          // primary-input port names (sorted)
+      pub support_flops: Vec<u32>,              // flop ids (sorted)
+      pub support_instance_outputs: Vec<String>,// "<inst>.<port>" (sorted, design only)
+      pub cone_nodes: usize,                     // # IR nodes in the transitive fan-in
+      pub cone_depth: usize,                     // max combinational depth to a leaf
+  }
+  ```
+  Pure builders `module_support_cones(m: &Module, target: Option<&str>) ->
+  DerivedAnalysis` (+ a `design_*` variant) do a memoized DFS over the existing
+  `Module.nodes` operands + `drives` (+ flop D-cones; child-instance outputs are
+  **leaves** — see cone semantics). **No IR field, no generator change** — the
+  analysis is a pure function of the already-emitted IR (the `coverage_gaps`
+  project-don't-recompute precedent; `metrics::compute` already walks this graph).
+- **The `query`-kind enum (Q1 of `0011`):** `output_support` is the first kind.
+  Future kinds slot into the same registry: `input_reach` (symmetric fanout),
+  `flop_reset_provenance`, `module_reachability`. The MCP `analyze` tool rejects
+  an unknown `query` with `-32602` (the `prompts/get` validation precedent).
+- **`target` addressing (Q1):** an output **port name** string; absent/`null` ⇒
+  **all outputs**. Flop D-cones address as `"flop:<id>"`. Keep it stringly +
+  simple; an unknown target is `-32602`.
+- **Default `introspect` stays lean (Q2):** the existing `IntrospectionPayload`
+  is **untouched** — no `analysis` field is added to the default document, so
+  `--introspect` / the `introspect` tool keep their current shape (only the
+  `schema_version` string bumps). The derived analysis is reached **only** via
+  the new MCP `analyze` tool, which returns a standalone `DerivedAnalysisDocument`
+  reusing the same envelope (`schema_version` `1.3`, `RequestEcho` + content
+  `run_id`, the artifact `ResourceRef`) with an `analysis: DerivedAnalysis`
+  payload. Big cones: inline for the first cut (a cone is bounded by module size);
+  a `ResourceRef` spill-over above a node-count threshold is a noted `.2b` option,
+  not first-cut.
+- **Cross-instance cone semantics (Q3):** the cone **stops at the instance
+  boundary** — a child-instance output is reported as a support *leaf*
+  (`support_instance_outputs`), not recursed into. Recursing through the child
+  (a `depth`/`recurse` arg) is a future kind. This keeps the first query a clean,
+  single-module-graph walk that also works per-module inside a design.
+- **Schema `1.2 → 1.3` (MINOR, additive):** bump `SCHEMA_VERSION` + add the
+  `DerivedAnalysis`/`SupportCone`/`DerivedAnalysisDocument` types + a schema-doc
+  `1.3` changelog/section. **DUT `.sv` stays byte-identical** (introspect output
+  is not in `tests/snapshots.rs`); the bump only changes the `--introspect`
+  document's `schema_version` field + the ~5 `"1.2"` test assertions (the exact
+  `.2b.1` `1.1→1.2` procedure). The pure tools (`generate`/`introspect`/…) stay
+  pure; `analyze` is a new **pure** tool (no FS, no spawn, cached like the rest).
+- **`.2b` impl scope:** `src/introspect/analyze.rs` + the types + the schema bump
+  + the MCP `analyze` tool + dispatch + `tools/list` entry + a `DerivedAnalysis`
+  resource (`anvil://artifact/<run_id>/analysis/<query>`) + lib proofs (cone
+  correctness on a hand-built module; determinism; unknown-target/-query errors)
+  + book(`agent-mcp.md`)/USER_GUIDE/schema-doc + a KM fact. Default-off / DUT
+  byte-identical (snapshots 6/6). Pre-split `.2b` → `.2b.1` (analyze module +
+  types, lib-tested) + `.2b.2` (MCP tool + schema + docs) if broad.
+
 ## 2026-06-16 — SV-version targeting — live `union soft` up-opt — `SV-VERSION-TARGETING.3b.2a`
 
 Implemented the `.3b.1` mechanism exactly. The first ANVIL emission that diverges

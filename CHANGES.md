@@ -1,9 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2a — support-cone impl design-detail
+
+**Landed as:** this commit (previous: `a31bf94`). Task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.2a`. **Docs-only design-detail leaf — no source
+change.**
+
+**What changed**
+
+- **`DEVELOPMENT_NOTES.md` design-detail entry** resolving decision `0011`'s three
+  open questions, grounded in a fresh read of `src/introspect/mod.rs`
+  (`IntrospectionPayload`/`IntrospectionDocument`/`RequestEcho`/`content_run_id_for_knobs`)
+  and `src/mcp/mod.rs` (pure-tool dispatch + `CachedArtifact`):
+  - **Types:** `DerivedAnalysis { query, results: Vec<SupportCone> }` +
+    `SupportCone { target, support_inputs[], support_flops[],
+    support_instance_outputs[], cone_nodes, cone_depth }` (serde + `Default`,
+    sorted Vecs ⇒ deterministic JSON), in a new pure `src/introspect/analyze.rs`;
+    `module_support_cones(m, target)` = a memoized DFS over the existing
+    `Module.nodes` operands + `drives` + flop D-cones (no IR field / no generator
+    change).
+  - **Query API:** `output_support` is the first `query`-kind (future:
+    `input_reach`, `flop_reset_provenance`, `module_reachability`); `target` =
+    output port name (absent ⇒ all outputs); unknown query/target ⇒ `-32602`.
+  - **Default `introspect` stays lean:** no `analysis` field on the default
+    payload; the cone is reached only via a new **pure** MCP `analyze` tool
+    returning a standalone `DerivedAnalysisDocument` (envelope reuse, schema
+    `1.3`). Big cones inline first-cut (ResourceRef spill-over a noted `.2b`
+    option).
+  - **Cone semantics:** stops at the instance boundary (child-instance outputs
+    are support leaves; recursion is a future kind).
+  - **Schema `1.2 → 1.3`** MINOR bump; **DUT `.sv` byte-identical** (introspect
+    is not in `tests/snapshots.rs`; only `--introspect`'s `schema_version` string
+    + the `.2b.1`-style test assertions change).
+- **Tree:** split `.2` → `.2a` (this design, done) + `.2b` (impl); pre-split
+  `.2b` → `.2b.1` (analyze module) / `.2b.2` (MCP tool + schema + docs) if broad.
+
+**Why**
+
+`.2` hid concrete struct/enum/addressing choices behind implementation wording (a
+Splitting Rule trigger). Resolving them against the real introspect/MCP code
+keeps `.2b` a clean, SCHEMA-DERIVED, byte-identical implementation.
+
+**Validation**
+
+Docs-only, no source change. Baseline `cargo check --all-targets` clean.
+`bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh`
+clean.
+
+**Impact**
+
+No behaviour change; default byte-identical. Fixes the `.2b` impl shape.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `MEMORY.md`, `CHANGES.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.1 — activate lane + derived-query API design
 
-**Landed as:** this commit (previous: `59e09c4`). Task-tree-owned by
+**Landed as:** `a31bf94` (previous: `59e09c4`). Task-tree-owned by
 `SEMANTIC-INTROSPECTION-EXPANSION.1`. **Docs-only design leaf — no source change.**
 Activates the lane **by explicit owner directive** (`2026-06-16`: "deep semantic
 introspection shall be first-class … everything shall be queryable via MCP through
