@@ -739,12 +739,20 @@ Useful options:
   `saw_sv_version_2012_targeted_acceptance`,
   `saw_sv_version_2017_targeted_acceptance`,
   `saw_sv_version_2023_targeted_acceptance`, and the umbrella
-  `saw_sv_version_targeted_acceptance`. Emission is byte-identical
-  across the three targets today (the current subset is a 2012/2017/2023
-  common floor), so the gate's value is the per-version downstream
-  acceptance axis, not output divergence — that arrives with the future
-  up-opting leaf. Other gates own construction-strategy / motif breadth,
-  so this gate uses the `Interleaved` strategy only.
+  `saw_sv_version_targeted_acceptance`. Those nine common-floor scenarios
+  emit byte-identical SV across the three targets, so their value is the
+  per-version downstream acceptance axis, not output divergence. The gate
+  also runs a tenth **up-opt scenario** (`SV-VERSION-TARGETING.3b.2b`): a
+  slice-heavy 2023-targeted leaf with `soft_union_slice_prob = 1.0` that
+  genuinely emits the IEEE 1800-2023 `union soft` overlay and is accepted
+  by Verilator `--language 1800-2023`. Yosys/Icarus reject the `union
+  soft` syntax, so that scenario runs **Verilator-only** (Yosys/Icarus
+  recorded no-op) and the report requires the dedicated
+  `saw_sv_version_2023_soft_union_upopt` fact. Other gates own
+  construction-strategy / motif breadth, so this gate uses the
+  `Interleaved` strategy only. Banked clean at
+  `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
+  `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

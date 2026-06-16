@@ -1,9 +1,93 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SV-VERSION-TARGETING.3b.2b — repo-owned `union soft` up-opt matrix gate
+
+**Landed as:** this commit (previous: `e7fa265`). Task-tree-owned by
+`SV-VERSION-TARGETING.3b.2b` (the second child of the `.3b.2` split).
+**Code + docs leaf — all in `src/bin/tool_matrix.rs`; default matrix byte-identical;
+closes the whole `SV-VERSION-TARGETING` tree.**
+
+**What changed (why)**
+
+The first version-distinctive up-opt — the IEEE 1800-2023 `union soft` overlay —
+shipped as a generator capability in `.3b.2a` but was proven downstream only by an
+`#[ignore]` test. `.3b.2b` industrializes it into the repo-owned
+`tool_matrix --sv-version-gate` so the up-opt is enforced, banked, repo-owned
+evidence (the north star: surface version-specific downstream-tool bugs via legal,
+downstream-accepted output).
+
+- **New gate scenario** — `build_sv_version_sweep_scenarios` gains a tenth scenario
+  `sv2023_soft_union_upopt` (`soft_union_upopt_config`: the proven `.3b.2a`
+  slice-heavy recipe — `gate_struct_weight 10`, widths `4..16`,
+  `soft_union_slice_prob 1.0`, `sv_version 2023`, `Interleaved`), so the gate emits
+  the real `union soft` overlay, not just the common-floor corpus.
+- **Verilator-only tool plan** — Yosys/Icarus reject the `union soft` syntax, so the
+  scenario is detected by `scenario_emits_soft_union_overlay(scenario)` (=
+  `soft_union_slice_prob > 0.0 && sv_version.permits(Sv2023)`) and threaded as a
+  `verilator_only` bool through `run_module_scenario` → `resume_existing_module` /
+  `materialize_prepared_module` → `run_module_tools`, where it forces the Yosys vec
+  empty and Icarus `None` (a *recorded no-op* per decision `0010`). The tool plan is
+  a pure function of the scenario config, not a separate `Scenario` field.
+- **Honest emission evidence** — new `ModuleReport.emitted_soft_union_overlay`
+  (`#[serde(default)]`), set in `materialize_prepared_module` from
+  `prepared.sv_text.contains("union soft")` — proves the overlay was *actually
+  emitted* (not merely requested by the knob), and carries through checkpoints for
+  resume correctness.
+- **New coverage fact** — `CoverageSummary.saw_sv_version_2023_soft_union_upopt`, lit
+  in `summarize_coverage` when `version_targeted && sv_version == Sv2023 &&
+  emitted_soft_union_overlay && Verilator succeeded` (never Yosys), merged in
+  `merge_coverage`, and enforced by the `SvVersionSweep` arm of
+  `compute_coverage_gaps`.
+- **Honesty guard** — the general per-version fact lighting gained a
+  `!module.yosys.is_empty()` guard so the new Yosys-no-op union module cannot
+  vacuously light the Yosys-requiring `saw_sv_version_2023_targeted_acceptance` fact
+  via `all_yosys_invocations_ok(&[])`.
+- **Rejected** a `Metrics` overlay counter (it would force an introspection schema
+  MINOR bump `1.3 → 1.4` touching the schema doc + MCP/introspect assertions +
+  DUT-facing output — too wide for a matrix-scoped leaf); the matrix-local
+  `ModuleReport` bool is the minimum-blast-radius, faithful choice.
+- **Tests** — `cargo test --bin tool_matrix` 53/0: updated the scenario-count proof
+  (9 → 10), added the up-opt arm to `sv_version_sweep_scenarios_target_each_version`,
+  extended `sv_version_sweep_gaps_require_each_version_fact` (5 gaps; the up-opt fact
+  required), and added `sv_version_sweep_has_verilator_only_soft_union_upopt_scenario`.
+  Two `#[allow(clippy::too_many_arguments)]` on the now-8-arg plumbing fns (matches
+  the repo's wide-plumbing precedent, e.g. `gen/hierarchy.rs`).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` 53/0;
+  `cargo test --lib` 427/0 (2 ignored); `cargo test --test snapshots` 6/6
+  byte-identical; `cargo test --test sv_version` 2/2.
+- **Banked downstream-clean:** `./target/release/tool_matrix --sv-version-gate
+  --yosys-mode both --out /tmp/anvil-sv-version-gate-upopt-r1` → exit 0; report:
+  10 scenarios / 20 units / `coverage_gaps = []` / Verilator `20/0` / Yosys
+  without-abc `18/0` / with-abc `18/0`. The `sv2023_soft_union_upopt` scenario's two
+  modules carry `emitted_soft_union_overlay=true` (1 + 28 `union soft` occurrences),
+  Verilator argv carries `--language 1800-2023`, Yosys ran 0 times (no-op);
+  `saw_sv_version_2023_soft_union_upopt` + all four `saw_sv_version_*_targeted_acceptance`
+  facts lit.
+
+**Impact**
+
+- Default `anvil` and `--artifact dut` byte-identical (no generator change; the
+  up-opt scenario is matrix-only; snapshots 6/6). `verilator_only` is `false` for
+  every non-up-opt scenario, so the existing 9-scenario sweep is unchanged.
+- **`SV-VERSION-TARGETING` tree CLOSED.** Down-gating + up-opting + per-version
+  downstream acceptance axis all delivered. Further version-distinctive up-opts are
+  open-ended post-tree breadth (no finite completion point, not a blocker, nothing
+  retired).
+
+**Files touched:** `src/bin/tool_matrix.rs`; `README.md`, `USER_GUIDE.md`,
+`book/src/knobs.md`, `ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `MEMORY.md`,
+`docs/TASK_TREE.md`, `docs/tasks/SV-VERSION-TARGETING.md`,
+`docs/knowledge/sv-version-soft-union-upopt.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2b.2 — the pure MCP `analyze` tool + schema 1.3
 
-**Landed as:** this commit (previous: `cc2b5bc`). Task-tree-owned by
+**Landed as:** `e7fa265` (previous: `cc2b5bc`). Task-tree-owned by
 `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` (the second child of the `.2b` split).
 **Code + docs leaf — the user-facing derived-relation surface; DUT byte-identical.**
 

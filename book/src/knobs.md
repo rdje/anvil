@@ -459,9 +459,18 @@ instead of creating fresh logic.
   runs **Verilator in the matching `--language 1800-20xx` standard
   mode** plus Yosys `-sv`, failing on any coverage gap unless every
   target's corpus is accepted in its matching mode
-  (`saw_sv_version_<year>_targeted_acceptance`). Banked clean at
-  `/tmp/anvil-sv-version-gate-r1` (9 scenarios / 18 units /
-  `coverage_gaps = []` / 18/0 Verilator + both Yosys modes).
+  (`saw_sv_version_<year>_targeted_acceptance`). The same gate also
+  carries the **up-opt scenario** (`SV-VERSION-TARGETING.3b.2b`): a
+  slice-heavy 2023-targeted leaf with `soft_union_slice_prob = 1.0` that
+  genuinely emits the IEEE 1800-2023 `union soft` overlay. Because
+  Yosys/Icarus reject the `union soft` syntax, that scenario runs
+  **Verilator-only** (Yosys/Icarus are a recorded no-op, decision
+  `0010`) and lights the dedicated `saw_sv_version_2023_soft_union_upopt`
+  fact, which requires only matching-mode Verilator acceptance of a
+  *genuinely emitted* overlay. Banked clean at
+  `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
+  `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes — the
+  up-opt scenario's two modules are the Yosys no-op).
 
 ### Hierarchy knobs (Phase 4+)
 

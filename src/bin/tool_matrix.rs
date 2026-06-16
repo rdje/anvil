@@ -170,6 +170,14 @@ struct ModuleReport {
     /// counterexample per the Phase-7 doctrine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     diff_sim: Option<DiffSimReport>,
+    /// `SV-VERSION-TARGETING.3b.2b` — `true` iff this module's emitted SV
+    /// carries the IEEE 1800-2023 `union soft` up-opt overlay (the
+    /// `soft_union_slice_prob` low-bits-slice rendering). Lights the
+    /// `saw_sv_version_2023_soft_union_upopt` coverage fact. Such a module
+    /// runs Verilator-only — Yosys/Icarus reject the `union soft` syntax and
+    /// are a recorded no-op (decision `0010`).
+    #[serde(default)]
+    emitted_soft_union_overlay: bool,
 }
 
 /// `DIFFERENTIAL-SIMULATION.3b.2` — per-module diff-sim outcome
@@ -452,6 +460,15 @@ struct CoverageSummary {
     /// `SV-VERSION-TARGETING.2b.2b` — an IEEE 1800-2023-targeted artifact
     /// was accepted by Verilator `--language 1800-2023` + Yosys `-sv`.
     saw_sv_version_2023_targeted_acceptance: bool,
+    /// `SV-VERSION-TARGETING.3b.2b` — at least one IEEE 1800-2023-targeted
+    /// module emitted the `union soft` low-bits-slice up-opt overlay
+    /// (`soft_union_slice_prob`) and it was accepted by Verilator
+    /// `--language 1800-2023`. Distinct from
+    /// `saw_sv_version_2023_targeted_acceptance` (which requires Yosys-clean):
+    /// Yosys/Icarus reject the `union soft` syntax and are a recorded no-op
+    /// (decision `0010`), so this fact requires only Verilator matching-mode
+    /// acceptance of a *genuinely emitted* overlay.
+    saw_sv_version_2023_soft_union_upopt: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -2903,14 +2920,22 @@ fn sv_version_year_slug(version: SvVersion) -> &'static str {
 /// matching tool standard mode*, lighting the per-version
 /// `saw_sv_version_*_targeted_acceptance` facts.
 ///
-/// All three artifact kinds use the `Interleaved` strategy: the gate's
+/// All artifact kinds use the `Interleaved` strategy: the gate's
 /// contract is per-version acceptance, not construction-strategy breadth
 /// (the other gates own that), so `compute_coverage_gaps` returns early
-/// for this set without the strategy/motif/category checks. Emission is
-/// byte-identical across the three targets today — the current subset is
-/// a 2012/2017/2023 common floor — so the gate's value is the downstream
-/// acceptance axis, not output divergence (that arrives with the future
-/// up-opting leaf `.3`).
+/// for this set without the strategy/motif/category checks.
+///
+/// The first nine scenarios (3 targets × {comb leaf, seq leaf, recursive
+/// hierarchy design}) are byte-identical across the three targets — the
+/// current subset is a 2012/2017/2023 common floor — so their value is
+/// the per-version downstream acceptance axis, not output divergence.
+/// `SV-VERSION-TARGETING.3b.2b` adds a tenth scenario, the **up-opt**:
+/// a slice-heavy 2023-targeted leaf with `soft_union_slice_prob = 1.0`
+/// that genuinely diverges — every qualifying proper low-bits `Slice`
+/// renders the IEEE 1800-2023 `union soft` overlay. That scenario runs
+/// Verilator-only (Yosys/Icarus reject the `union soft` syntax → a
+/// recorded no-op per decision `0010`) and lights the dedicated
+/// `saw_sv_version_2023_soft_union_upopt` fact.
 fn build_sv_version_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
     let mut scenarios = Vec::new();
     let mut next_seed = base_seed;
@@ -2955,7 +2980,48 @@ fn build_sv_version_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
         next_seed += 3;
     }
 
+    // `SV-VERSION-TARGETING.3b.2b` — the up-opt scenario. A single
+    // slice-heavy 2023-targeted leaf with `soft_union_slice_prob = 1.0`
+    // genuinely diverges from the common floor: every qualifying proper
+    // low-bits `Slice` renders the IEEE 1800-2023 `union soft` overlay.
+    // Verilator-only (Yosys/Icarus reject the syntax → recorded no-op,
+    // decision `0010`); lights `saw_sv_version_2023_soft_union_upopt`.
+    scenarios.push(make_scenario(
+        "sv2023_soft_union_upopt",
+        &format!(
+            "{strategy_label} strategy, slice-heavy combinational leaf targeting IEEE 1800-2023 with soft_union_slice_prob=1.0; proves the live `union soft` low-bits-slice up-opt is emitted and accepted by Verilator --language 1800-2023. Yosys/Icarus reject the syntax and are a recorded no-op (decision 0010)."
+        ),
+        soft_union_upopt_config(next_seed),
+    )?);
+
     Ok(scenarios)
+}
+
+/// `SV-VERSION-TARGETING.3b.2b` — the up-opt scenario config. The proven
+/// `.3b.2a` slice-heavy recipe: a high structured-gate weight + wide
+/// widths make proper low-bits `Slice` gates plentiful, and
+/// `soft_union_slice_prob = 1.0` marks every qualifying one, so the
+/// `Sv2023` target reliably emits the `union soft` overlay (banked clean
+/// at 159 overlays / 7 seeds in `tests/sv_version_downstream.rs`).
+/// `Interleaved` matches the rest of the sweep.
+fn soft_union_upopt_config(seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: ConstructionStrategy::Interleaved,
+        sv_version: SvVersion::Sv2023,
+        soft_union_slice_prob: 1.0,
+        gate_struct_weight: 10,
+        gate_bitwise_weight: 1,
+        gate_arith_weight: 1,
+        min_width: 4,
+        max_width: 16,
+        max_depth: 5,
+        min_inputs: 3,
+        max_inputs: 6,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
 }
 
 fn phase4_hierarchy_structurally_duplicate_modules_focus_config(
@@ -3844,6 +3910,19 @@ fn verilator_language_for(scenario: &Scenario, version_targeted: bool) -> Option
     version_targeted.then(|| scenario.config.sv_version.ieee_standard())
 }
 
+/// `SV-VERSION-TARGETING.3b.2b` — true iff this scenario's emission carries
+/// the IEEE 1800-2023 `union soft` up-opt overlay: `soft_union_slice_prob`
+/// is on **and** the target permits 2023 (below 2023 the overlay down-gates
+/// to a plain slice every tool accepts). Yosys/Icarus reject the `union
+/// soft` syntax (no 1800 selector, fixed subset), so such a scenario runs
+/// Verilator-only — Yosys/Icarus are a *recorded no-op* (decision `0010`).
+/// The tool plan is therefore a pure function of the scenario config, not a
+/// separate flag.
+fn scenario_emits_soft_union_overlay(scenario: &Scenario) -> bool {
+    scenario.config.soft_union_slice_prob > 0.0
+        && scenario.config.sv_version.permits(SvVersion::Sv2023)
+}
+
 fn run_scenario(
     scenario: &Scenario,
     cli: &Cli,
@@ -3889,6 +3968,9 @@ fn run_module_scenario(
     // Verilator in the scenario's matching `--language 1800-20xx` mode;
     // otherwise keep today's byte-identical argv (`None`).
     let verilator_language = verilator_language_for(scenario, version_targeted);
+    // `SV-VERSION-TARGETING.3b.2b` — a `union soft` up-opt scenario runs
+    // Verilator-only; Yosys/Icarus are a recorded no-op for it.
+    let verilator_only = scenario_emits_soft_union_overlay(scenario);
 
     let mut generator = Generator::new(scenario.config.clone());
     let mut modules = Vec::with_capacity(plan.modules_per_scenario);
@@ -3902,6 +3984,7 @@ fn run_module_scenario(
             module_index,
             runtime_fingerprint,
             verilator_language,
+            verilator_only,
         )? {
             modules.push(report);
             continue;
@@ -3917,6 +4000,7 @@ fn run_module_scenario(
             runtime_fingerprint,
             true,
             verilator_language,
+            verilator_only,
         )?);
     }
 
@@ -4014,6 +4098,10 @@ fn run_design_scenario(
     })
 }
 
+// `verilator_only` (`SV-VERSION-TARGETING.3b.2b`) joins the existing
+// downstream-tool plumbing; mirrors the wide-plumbing `#[allow]` already
+// used across the generator (e.g. `gen/hierarchy.rs`).
+#[allow(clippy::too_many_arguments)]
 fn resume_existing_module(
     generator: &mut Generator,
     scenario: &Scenario,
@@ -4022,6 +4110,7 @@ fn resume_existing_module(
     module_index: usize,
     runtime_fingerprint: Option<&str>,
     verilator_language: Option<&str>,
+    verilator_only: bool,
 ) -> Result<Option<ModuleReport>> {
     if !cli.resume {
         return Ok(None);
@@ -4078,6 +4167,7 @@ fn resume_existing_module(
         runtime_fingerprint,
         false,
         verilator_language,
+        verilator_only,
     )
     .map(Some)
 }
@@ -4383,6 +4473,7 @@ fn materialize_prepared_design(
     Ok(report)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn materialize_prepared_module(
     cli: &Cli,
     scenario_dir: &Path,
@@ -4391,11 +4482,19 @@ fn materialize_prepared_module(
     runtime_fingerprint: Option<&str>,
     write_sv: bool,
     verilator_language: Option<&str>,
+    verilator_only: bool,
 ) -> Result<ModuleReport> {
     if write_sv {
         std::fs::write(&prepared.paths.sv_path, &prepared.sv_text)
             .with_context(|| format!("write {}", prepared.paths.sv_path.display()))?;
     }
+
+    // `SV-VERSION-TARGETING.3b.2b` — real evidence the IEEE 1800-2023
+    // `union soft` overlay was actually emitted (not just requested by the
+    // knob): the emitted SV text carries it. Drives the up-opt coverage
+    // fact, and is honest about emission even if a seed produced no
+    // qualifying slice.
+    let emitted_soft_union_overlay = prepared.sv_text.contains("union soft");
 
     let (verilator, yosys, iverilog_compile) = run_module_tools(
         cli,
@@ -4403,6 +4502,7 @@ fn materialize_prepared_module(
         &prepared.paths.sv_path,
         &prepared.paths.stem,
         verilator_language,
+        verilator_only,
     )?;
 
     // `DIFFERENTIAL-SIMULATION.3b.2` — opt-in diff-sim column.
@@ -4435,6 +4535,7 @@ fn materialize_prepared_module(
         yosys,
         iverilog_compile,
         diff_sim,
+        emitted_soft_union_overlay,
     };
     write_module_checkpoint(
         cli,
@@ -4901,6 +5002,10 @@ fn run_module_tools(
     sv_path: &Path,
     stem: &str,
     verilator_language: Option<&str>,
+    // `SV-VERSION-TARGETING.3b.2b` — a `union soft` up-opt module runs
+    // Verilator-only: Yosys/Icarus reject the syntax and are a recorded
+    // no-op (empty Yosys vec / `None` Icarus), decision `0010`.
+    verilator_only: bool,
 ) -> Result<(
     Option<ToolInvocation>,
     Vec<ToolInvocation>,
@@ -4918,13 +5023,13 @@ fn run_module_tools(
         )?)
     };
 
-    let yosys = if cli.skip_yosys {
+    let yosys = if cli.skip_yosys || verilator_only {
         Vec::new()
     } else {
         run_yosys(cli.yosys_mode, &cli.yosys_bin, scenario_dir, sv_path, stem)?
     };
 
-    let iverilog_compile = if cli.iverilog_compile {
+    let iverilog_compile = if cli.iverilog_compile && !verilator_only {
         Some(run_iverilog_compile(
             &cli.iverilog_bin,
             scenario_dir,
@@ -5381,17 +5486,36 @@ fn summarize_coverage(
         // `SV-VERSION-TARGETING.2b.2b` — only the per-version gate runs
         // Verilator in the matching `--language` mode, so the acceptance
         // fact is honest only when `version_targeted`. Require Verilator
-        // to have actually run and succeeded (plus clean Yosys) — that is
-        // the "accepted in the matching tool standard mode" signal.
+        // to have actually run and succeeded plus Yosys to have actually
+        // run and stayed clean — `!yosys.is_empty()` guards against a
+        // Verilator-only `union soft` up-opt module (empty Yosys vec)
+        // vacuously lighting this Yosys-requiring fact.
         if version_targeted
             && module
                 .verilator
                 .as_ref()
                 .map(|t| t.success)
                 .unwrap_or(false)
+            && !module.yosys.is_empty()
             && all_yosys_invocations_ok(&module.yosys)
         {
             light_sv_version_acceptance(&mut coverage, scenario.config.sv_version);
+        }
+        // `SV-VERSION-TARGETING.3b.2b` — the 2023 `union soft` up-opt fact:
+        // a genuinely-emitted overlay (proven from the SV text) accepted by
+        // Verilator `--language 1800-2023`. Yosys/Icarus reject the syntax
+        // and are a recorded no-op (decision `0010`), so this fact requires
+        // only matching-mode Verilator acceptance — never Yosys.
+        if version_targeted
+            && scenario.config.sv_version == SvVersion::Sv2023
+            && module.emitted_soft_union_overlay
+            && module
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+        {
+            coverage.saw_sv_version_2023_soft_union_upopt = true;
         }
     }
 
@@ -6861,6 +6985,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_sv_version_2012_targeted_acceptance |= src.saw_sv_version_2012_targeted_acceptance;
     dst.saw_sv_version_2017_targeted_acceptance |= src.saw_sv_version_2017_targeted_acceptance;
     dst.saw_sv_version_2023_targeted_acceptance |= src.saw_sv_version_2023_targeted_acceptance;
+    dst.saw_sv_version_2023_soft_union_upopt |= src.saw_sv_version_2023_soft_union_upopt;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
@@ -7109,6 +7234,14 @@ fn compute_coverage_gaps(
         }
         if !coverage.saw_sv_version_targeted_acceptance {
             gaps.push("matrix never proved any sv_version targeted acceptance".to_string());
+        }
+        // `SV-VERSION-TARGETING.3b.2b` — the up-opt fact. Requires a
+        // genuinely-emitted IEEE 1800-2023 `union soft` overlay accepted by
+        // Verilator `--language 1800-2023` (Yosys/Icarus recorded no-op).
+        if !coverage.saw_sv_version_2023_soft_union_upopt {
+            gaps.push(
+                "matrix never proved the 2023 `union soft` up-opt (Verilator --language 1800-2023 accepted a generated `union soft` overlay; Yosys/Icarus recorded no-op)".to_string(),
+            );
         }
         return gaps;
     }
@@ -8664,8 +8797,9 @@ mod tests {
             ScenarioSet::SvVersionSweep
         );
         let scenarios = build_scenarios(0, ScenarioSet::SvVersionSweep).expect("build");
-        // three versions x {comb leaf, seq leaf, hierarchy design}.
-        assert_eq!(scenarios.len(), 9);
+        // three versions x {comb leaf, seq leaf, hierarchy design} = 9,
+        // plus the `.3b.2b` 2023 `union soft` up-opt scenario = 10.
+        assert_eq!(scenarios.len(), 10);
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(
             plan.modules_per_scenario,
@@ -8673,7 +8807,7 @@ mod tests {
         );
         assert_eq!(
             plan.total_modules,
-            9 * SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
+            10 * SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
         );
         assert!(plan.fail_on_coverage_gap);
     }
@@ -8710,6 +8844,15 @@ mod tests {
             } else if scenario.name == format!("sv{year}_hier_recursive") {
                 entry.2 += 1;
                 assert!(scenario.config.effective_hierarchy_depth_range().is_some());
+            } else if scenario.name == "sv2023_soft_union_upopt" {
+                // `.3b.2b` — the up-opt scenario: a 2023-targeted slice-heavy
+                // comb leaf that requests the `union soft` overlay. It is NOT
+                // part of the per-version (comb/seq/hier) triple, so it does
+                // not increment the triple counters.
+                assert_eq!(v, SvVersion::Sv2023);
+                assert!(scenario.config.soft_union_slice_prob > 0.0);
+                assert!(scenario.config.effective_hierarchy_depth_range().is_none());
+                assert!(scenario_emits_soft_union_overlay(scenario));
             } else {
                 panic!("unexpected sv-version scenario {}", scenario.name);
             }
@@ -8741,27 +8884,67 @@ mod tests {
     #[test]
     fn sv_version_sweep_gaps_require_each_version_fact() {
         // No fact lit → exactly the three per-version gaps + the umbrella
-        // gap. Crucially, an EMPTY construction-strategy set produces no
-        // strategy gaps: the version gate returns before the strategy
-        // loop (its contract is per-version acceptance only).
+        // gap + the `.3b.2b` up-opt gap. Crucially, an EMPTY
+        // construction-strategy set produces no strategy gaps: the version
+        // gate returns before the strategy loop (its contract is per-version
+        // acceptance only).
         let coverage = CoverageSummary::default();
         let gaps = compute_coverage_gaps(ScenarioSet::SvVersionSweep, &coverage, None);
-        assert_eq!(gaps.len(), 4, "unexpected gaps: {gaps:?}");
+        assert_eq!(gaps.len(), 5, "unexpected gaps: {gaps:?}");
         assert!(gaps.iter().any(|g| g.contains("1800-2012")));
         assert!(gaps.iter().any(|g| g.contains("1800-2017")));
         assert!(gaps.iter().any(|g| g.contains("1800-2023")));
         assert!(gaps
             .iter()
             .any(|g| g.contains("any sv_version targeted acceptance")));
+        assert!(gaps.iter().any(|g| g.contains("union soft")));
 
-        // All per-version facts (and the umbrella) lit → no gaps, even
-        // with no construction strategies recorded.
+        // All per-version facts (and the umbrella) lit but NOT the up-opt
+        // fact → exactly the one up-opt gap remains.
         let mut lit = CoverageSummary::default();
         light_sv_version_acceptance(&mut lit, SvVersion::Sv2012);
         light_sv_version_acceptance(&mut lit, SvVersion::Sv2017);
         light_sv_version_acceptance(&mut lit, SvVersion::Sv2023);
         let gaps = compute_coverage_gaps(ScenarioSet::SvVersionSweep, &lit, None);
+        assert_eq!(gaps.len(), 1, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("union soft"));
+
+        // Every fact (per-version + umbrella + up-opt) lit → no gaps, even
+        // with no construction strategies recorded.
+        lit.saw_sv_version_2023_soft_union_upopt = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::SvVersionSweep, &lit, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    #[test]
+    fn sv_version_sweep_has_verilator_only_soft_union_upopt_scenario() {
+        let scenarios = build_scenarios(0, ScenarioSet::SvVersionSweep).expect("build");
+        let upopt = scenarios
+            .iter()
+            .find(|s| s.name == "sv2023_soft_union_upopt")
+            .expect("up-opt scenario present");
+
+        // The up-opt scenario targets 2023, requests every qualifying
+        // overlay, and is therefore Verilator-only (Yosys/Icarus no-op).
+        assert_eq!(upopt.config.sv_version, SvVersion::Sv2023);
+        assert_eq!(upopt.config.soft_union_slice_prob, 1.0);
+        assert!(scenario_emits_soft_union_overlay(upopt));
+        // Under the gate, Verilator runs in the matching 1800-2023 mode.
+        assert_eq!(verilator_language_for(upopt, true), Some("1800-2023"));
+
+        // The nine common-floor scenarios are NOT Verilator-only (they run
+        // Yosys), and none requests the overlay.
+        for s in scenarios
+            .iter()
+            .filter(|s| s.name != "sv2023_soft_union_upopt")
+        {
+            assert!(
+                !scenario_emits_soft_union_overlay(s),
+                "{} unexpectedly flagged as a soft-union overlay scenario",
+                s.name
+            );
+            assert_eq!(s.config.soft_union_slice_prob, 0.0);
+        }
     }
 
     #[test]
@@ -9607,6 +9790,7 @@ mod tests {
                 error: None,
             }),
             diff_sim: None,
+            emitted_soft_union_overlay: false,
         }];
 
         let summary = summarize_tools(&modules);
@@ -9642,6 +9826,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             diff_sim: None,
+            emitted_soft_union_overlay: false,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -9701,6 +9886,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             diff_sim: None,
+            emitted_soft_union_overlay: false,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -9757,6 +9943,7 @@ mod tests {
                 iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
+                emitted_soft_union_overlay: false,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -10221,6 +10408,7 @@ mod tests {
                 iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
+                emitted_soft_union_overlay: false,
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
@@ -10392,6 +10580,7 @@ endmodule\n";
             iverilog_compile: None,
             yosys: vec![],
             diff_sim: None,
+            emitted_soft_union_overlay: false,
         }];
         let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);

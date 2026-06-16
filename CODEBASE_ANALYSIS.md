@@ -123,13 +123,25 @@ into four explicit gaps:
    selector) only under the gate; four `saw_sv_version_*_targeted_acceptance`
    coverage facts (lit by `light_sv_version_acceptance` from
    `summarize_{coverage,design_coverage}` when Verilator ran-and-succeeded
-   + clean Yosys) are enforced by an early-return arm in
+   + a non-empty, clean Yosys vec) are enforced by an early-return arm in
    `compute_coverage_gaps` *before* the construction-strategy loop (so an
-   Interleaved-only sweep is valid). `MatrixReport.sv_version_gate`
+   Interleaved-only sweep is valid). `SV-VERSION-TARGETING.3b.2b` adds a
+   tenth scenario, `soft_union_upopt_config` (slice-heavy, 2023-targeted,
+   `soft_union_slice_prob = 1.0`), that genuinely emits the IEEE 1800-2023
+   `union soft` overlay. Because Yosys/Icarus reject the syntax, such a
+   scenario is detected by `scenario_emits_soft_union_overlay` and threaded
+   as `verilator_only` through `run_module_scenario` →
+   `resume_existing_module` / `materialize_prepared_module` →
+   `run_module_tools` (Yosys vec empty + Icarus `None` — a recorded
+   no-op); `ModuleReport.emitted_soft_union_overlay` (from the emitted SV
+   text) gives `summarize_coverage` honest evidence to light the dedicated
+   `saw_sv_version_2023_soft_union_upopt` fact (Verilator-only — never
+   Yosys), enforced by `compute_coverage_gaps`. `MatrixReport.sv_version_gate`
    records the run. Banked downstream-clean at
-   `/tmp/anvil-sv-version-gate-r1` (9 scenarios, 18 units,
-   `coverage_gaps = []`, `18/0` Verilator + both Yosys). Default matrix
-   runs stay byte-identical (selector `None`, `Sv2012`-floor emits).
+   `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
+   `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
+   up-opt scenario is the Yosys no-op). Default matrix runs stay
+   byte-identical (selector `None`, `Sv2012`-floor emits).
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is

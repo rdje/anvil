@@ -5,6 +5,54 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — `union soft` up-opt matrix gate — `SV-VERSION-TARGETING.3b.2b`
+
+Industrialized the `.3b.2a` `union soft` up-opt into `tool_matrix --sv-version-gate`
+(a tenth scenario), closing the `SV-VERSION-TARGETING` tree. The non-obvious design
+choices:
+
+- **The Verilator-only tool plan is a pure function of the scenario config, not a
+  `Scenario` flag.** A scenario that emits a `union soft` overlay *inherently* forces
+  Yosys/Icarus to a no-op (they reject the syntax — decision `0010`), so the decision
+  belongs to the config, not to an independent field that could drift from it. The
+  predicate `scenario_emits_soft_union_overlay = soft_union_slice_prob > 0.0 &&
+  sv_version.permits(Sv2023)` is computed once in `run_module_scenario` and threaded
+  as `verilator_only` exactly where `verilator_language` already flows (resume →
+  materialize → `run_module_tools`). Below 2023 the overlay down-gates to a plain
+  slice every tool accepts, so the `permits(Sv2023)` half of the predicate is
+  load-bearing — a 2012/2017 soft-union scenario would (correctly) NOT be Verilator-only.
+
+- **Coverage evidence is *actual emission*, not the knob.** The up-opt fact must not
+  be lit by a scenario that merely *requested* the overlay — a seed could produce no
+  qualifying low-bits slice, Verilator would still pass (plain SV), and the fact would
+  be a false positive. So `ModuleReport.emitted_soft_union_overlay` is set from
+  `prepared.sv_text.contains("union soft")` (the emitted text), and the fact requires
+  it. Bonus: the banked report then visibly shows which modules carried the up-opt.
+
+- **Rejected: a `Metrics` overlay counter.** The repo's established pattern for "light
+  a coverage fact from a by-construction signal" is a `Metrics` field (e.g.
+  `num_operator_gates_with_duplicate_operands` for the signoff sweep). But `Metrics`
+  is projected verbatim into the `--introspect` document, so adding a field forces an
+  introspection schema MINOR bump (`1.3 → 1.4`) touching the schema doc + the
+  MCP/introspect assertions + DUT-facing output — a wide, user-facing surface change
+  for a matrix-scoped concern. The matrix-local `ModuleReport` bool is the
+  minimum-blast-radius choice and is *stronger* evidence (text emission vs a marker
+  count that's populated regardless of `sv_version`).
+
+- **`all_yosys_invocations_ok(&[])` is vacuously `true`** (`.all()` over an empty
+  iterator), so a Yosys-no-op union module would have falsely lit the Yosys-requiring
+  `saw_sv_version_2023_targeted_acceptance` fact. Added a `!module.yosys.is_empty()`
+  guard to the general per-version lighting. This only affects empty-Yosys modules
+  (which did not exist in the sweep before this leaf), so the existing 9-scenario
+  behavior is unchanged — but the fact is now honest about "Yosys actually ran clean".
+
+- **Gate-scoped, not a new `ScenarioSet`.** The task asked for "a dedicated
+  `--sv-version-gate` up-opt scenario", so the overlay scenario lives inside the
+  existing `SvVersionSweep` and `compute_coverage_gaps`' early-return arm gained one
+  more required fact. The sweep is now heterogeneous (9 Yosys-running common-floor
+  scenarios + 1 Verilator-only up-opt scenario), which is exactly why the tool plan
+  had to become per-scenario.
+
 ## 2026-06-16 — Semantic introspection — the MCP `analyze` surface — `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`
 
 Wired the `.2b.1` analysis core to the agent surface (schema `1.3` + the pure MCP

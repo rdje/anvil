@@ -174,7 +174,7 @@ Beyond the closed numbered phases and the open post-phase identity lane
 (`IDENTITY-DEEPENING`), owner roadmap steering on `2026-06-15` named three
 new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
 
-1. **`SV-VERSION-TARGETING`** (`active`, recommended highest-leverage) — an
+1. **`SV-VERSION-TARGETING`** (`done` — closed `2026-06-16`) — an
    opt-in `--sv-version <2012|2017|2023>` gate (`Config::sv_version`) that
    targets a chosen IEEE 1800 standard valid-by-construction: **down-gating**
    (never emit a construct newer than the target — a standard-validity
@@ -209,10 +209,18 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `src/ir/soft_union.rs` gen-time pass + the `permits(Sv2023)`-gated emitter
    overlay + the divergence/down-gate proofs + a banked Verilator `--language
    1800-2023` acceptance test in `tests/sv_version_downstream.rs`; default-off /
-   byte-identical, snapshots 6/6) + `.3b.2b` (the repo-owned matrix up-opt gate +
-   `saw_sv_version_2023_soft_union_upopt` coverage fact, Yosys/Icarus recorded
-   no-op). The remaining frontier is `.3b.2b`. Default byte-identical throughout.
-   This closes ROADMAP steering gap 1's "version-targeted breadth" with a real,
+   byte-identical, snapshots 6/6) + `.3b.2b` (**done** `2026-06-16`: the
+   repo-owned matrix up-opt gate — a tenth `sv2023_soft_union_upopt`
+   `--sv-version-gate` scenario that genuinely emits the `union soft` overlay,
+   run Verilator-only with Yosys/Icarus recorded no-op, lighting the
+   `saw_sv_version_2023_soft_union_upopt` coverage fact; banked clean
+   `/tmp/anvil-sv-version-gate-upopt-r1`: 10 scenarios / 20 units /
+   `coverage_gaps=[]` / Verilator 20/0 / Yosys 18/0 both modes). **The
+   `SV-VERSION-TARGETING` tree is now CLOSED** — down-gating + up-opting +
+   per-version downstream acceptance axis all delivered; further version-distinctive
+   up-opts are open-ended post-tree breadth (no finite completion point, not a
+   blocker, nothing retired). Default byte-identical throughout. This closes
+   ROADMAP steering gap 1's "version-targeted breadth" with a real,
    downstream-proven 2023 construct (not just the 2012-floor down-gate).
 2. **`STRUCTURED-EMISSION-EXPANSION`** (`proposed`) — richer structured
    synthesizable SV surfaces (function/task, interface/modport, nested
