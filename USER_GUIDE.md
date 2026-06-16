@@ -219,6 +219,22 @@ shift. Examples:
   separate, and ancestor/descendant wrapper groups are skipped.
   `num_semantically_duplicate_module_pairs` tells you how many
   proof-equal module pairs remain.
+- With `hierarchy_sequential_module_dedup=true` in a JSON config or
+  library `Config` (opt-in, `default=false`, no CLI flag — like the two
+  dedup knobs above), ANVIL extends that module merge to **stateful
+  flops-only leaf modules**: it proves two of them observationally
+  (sequentially) equivalent by a bounded *cross-module* bisimulation
+  (the flop-level greatest-fixpoint refinement lifted across both
+  modules' state, primary inputs unified by `(PortId, width)`) plus
+  output-cone equality under the resulting quotient — the sequential
+  generalization of the combinational module dedup above. Active only
+  under `identity_mode=node-id` with effective
+  `factorization_level=e-graph`. First cut excludes modules with
+  memories, FSMs, child instances, parameters, aggregates, multiple
+  clock domains, or any resetless flop; over-budget candidates fall back
+  to no-merge. `num_sequentially_duplicate_module_pairs` (and the
+  per-module `sequential_module_proof_signatures`) tell you how many
+  sequentially-equivalent stateful-leaf pairs remain.
 - `factorization_level=none` (under `identity_mode=node-id`) → gate count
   grows; `=cse` and above shrinks it.
 

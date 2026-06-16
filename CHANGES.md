@@ -1,9 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.2b — whole-module sequential equivalence docs closeout
+
+**Landed as:** this commit (previous: `06bc2e1`). Task-tree-owned by
+`IDENTITY-DEEPENING.3b.2b.2b` (the second child of the `.3b.2b.2` closeout split —
+the user-facing narrative). **Docs-only leaf** (book + USER_GUIDE + ROADMAP + KM;
+no code, no behaviour change). Closes the `.3b.2b` cross-module sequential-equivalence
+feature end-to-end.
+
+**What changed (why)**
+
+`.3b.2b.1` (mechanism) and `.3b.2b.2a` (metric + schema + bank) delivered the
+cross-module whole-leaf-module sequential-equivalence merge but only in code /
+short-form docs. This slice gives the feature its user-facing surface so the book
+(the only window into ANVIL's behaviour for the reader) stays in lock-step with the
+code — no drift.
+
+- **`book/src/factorization.md`** — new §9b "Opt-in whole-module sequential
+  equivalence (`hierarchy_sequential_module_dedup`)" describing the combined-module
+  materialization, the reuse of the §8b bisimulation partition on the union state,
+  the per-output-cone equality under the final quotient, the coinduction soundness,
+  the first-cut exclusions, and the worked delay-line example. Updated the "What
+  full factorization still means" list (whole stateful flops-only leaf modules now
+  merge; deeper cases stay open) and the "Empirical counters" module-identity
+  paragraph (the new `sequential_module_proof_signatures` +
+  `num_sequentially_duplicate_module_pairs` pair, derived from the same grouping the
+  pass uses).
+- **`book/src/hierarchy.md`** — added the sequential layer as the third default-off
+  module-identity layer beside structural and combinational dedup, pointing at
+  factorization §9b.
+- **`USER_GUIDE.md`** — a `hierarchy_sequential_module_dedup` config-knob bullet
+  (config-only, no CLI flag, like the sibling dedup knobs) under the identity/
+  factorization knob walkthrough.
+- **`ROADMAP.md`** — steering gap 2 updated: the whole-module sequential-equivalence
+  axis is no longer "designed but not yet implemented" — the opt-in
+  `hierarchy_sequential_module_dedup` pass is delivered (schema `1.4`, banked
+  downstream-clean); the deeper cases remain named, excluded, non-retired boundaries.
+- **Knowledge Map** — new card `docs/knowledge/sequential-module-dedup.md` (11
+  implementation-focused answer keys + a `reverify` command), regenerated into
+  `KNOWLEDGE_MAP.md` (now 32 facts).
+
+**Validation**
+
+- `mdbook build book` clean; `cargo test --test book_examples` green (no runnable
+  bash block added/changed). `bash knowledge-map/scripts/check_knowledge_map.sh`
+  OK (facts valid, ids unique, map in sync). `bash scripts/check_memory_architecture.sh`
+  clean. No source change ⇒ no `cargo` build/test impact; DUT byte-identical.
+
+**Impact**
+
+The cross-module sequential-equivalence merge is now fully documented in the
+book + USER_GUIDE + ROADMAP + KM, closing the `.3b.2b` sub-tree end-to-end.
+Frontier returns to the lane level: `IDENTITY-DEEPENING.3b.2b` and `.3b.2b.2` are
+complete; remaining `IDENTITY-DEEPENING` work is the deeper whole-module / retimed /
+memory / FSM / wrapper sequential-equivalence boundaries (named, not started).
+
+**Files touched:** `book/src/factorization.md`, `book/src/hierarchy.md`,
+`USER_GUIDE.md`, `ROADMAP.md`, `docs/knowledge/sequential-module-dedup.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/IDENTITY-DEEPENING.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-16 — IDENTITY-DEEPENING.3b.2b.2a — sequential proof metric + schema 1.4 + downstream bank
 
-**Landed as:** this commit (previous: `314664c`). Task-tree-owned by
+**Landed as:** `06bc2e1` (previous: `314664c`). Task-tree-owned by
 `IDENTITY-DEEPENING.3b.2b.2a` (the first child of the `.3b.2b.2` closeout split —
 metric + schema + evidence). **Code leaf; default-off / DUT byte-identical.** The
 book/USER_GUIDE-knob/ROADMAP-gap-2/KM narrative closeout is deferred to `.3b.2b.2b`.

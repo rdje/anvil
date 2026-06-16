@@ -91,23 +91,26 @@ instead of leaving them implicit.
    correspondence* — e.g. mutually-recursive registers — via bounded
    greatest-fixpoint bisimulation over that same proof budget (default-off
    / byte-identical, node-id / e-graph only, resetless flops excluded);
-   broader *whole-module* sequential equivalence, retimed-state
-   equivalence, memory-state merging beyond the current
+   and the opt-in `hierarchy_sequential_module_dedup` pass
+   (`IDENTITY-DEEPENING.3b`, decision
+   [`0008`](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md))
+   that now merges **whole stateful flops-only leaf modules** proven
+   sequentially equivalent via a bounded *cross-module* bisimulation (the
+   `.2b` partition refinement lifted to the disjoint union of the two
+   modules' flops, primary inputs unified by `(PortId, width)`) plus
+   bounded output-cone equality under the resulting quotient, reusing the
+   same 12-bit/128-node/131072-work budget (default-off / byte-identical,
+   node-id / e-graph only). It is the sequential generalization of
+   `dedup_semantic_modules` (the zero-flop case), added beside it; surfaced
+   by `DesignMetrics::sequential_module_proof_signatures` +
+   `num_sequentially_duplicate_module_pairs` (introspection schema `1.4`)
+   and banked downstream-clean. Still open work: broader *whole-module*
+   sequential equivalence for modules with memories / FSMs / child
+   instances / parameters / aggregates / multiple clock domains,
+   retimed-state equivalence, memory-state merging beyond the current
    instance-local proof boundary, and hierarchy equivalence beyond
-   canonical structural module signatures are still open work. The next
-   step on the whole-module axis is now **designed but not yet
-   implemented**: decision
-   [`0008`](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md)
-   (`IDENTITY-DEEPENING.3a`) fixes the soundness discipline, budget, and
-   downstream gate for bounded whole-leaf-module sequential equivalence —
-   a default-off pass *beside* `dedup_semantic_modules` that proves two
-   stateful (flops-only) leaf modules observationally equivalent via a
-   cross-module bisimulation (the `.2b` partition refinement lifted to the
-   disjoint union of the two modules' flops, primary inputs unified by
-   `(PortId, width)`) plus bounded output-cone equality under the quotient,
-   reusing the same 12-bit/128-node/131072-work budget. The implementation
-   is the named future leaf `IDENTITY-DEEPENING.3b`; memory / FSM / wrapper
-   / retimed-state module equivalence remain excluded boundaries. Current
+   canonical structural module signatures — each a named, excluded
+   boundary, none retired. Current
    inferrable memories deliberately remain state-by-instance because
    their stored contents are not reset-defined, and current module dedup
    deliberately does not merge semantically-equivalent-but-structurally
@@ -243,9 +246,15 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `module_reachability`) are open-ended `.3+` breadth, not a blocker. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
-Nothing is retired; all three are tracked task trees, and the open
+Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential
-equivalence) is parked-but-fully-designed, not abandoned.
+equivalence) is now **delivered** (`2026-06-16`): the opt-in
+`hierarchy_sequential_module_dedup` pass merges whole stateful flops-only leaf
+modules proven sequentially equivalent by a bounded cross-module bisimulation,
+banked downstream-clean and surfaced at introspection schema `1.4`. The
+`IDENTITY-DEEPENING` lane stays `active` with no current frontier — the deeper
+module-equivalence boundaries (memory / FSM / wrapper / retimed-state) remain
+named, not-started future leaves (open-ended, not a blocker, none retired).
 
 ## Phase 0 — Scaffolding (done)
 

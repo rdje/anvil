@@ -766,6 +766,22 @@ modules outside the boundary), and
 `num_semantically_duplicate_module_pairs` records how many proof-equal
 module pairs remain in the emitted design.
 
+`IDENTITY-DEEPENING.3b` adds the **sequential** analogue, a third
+default-off layer: `Config::hierarchy_sequential_module_dedup`. It runs
+under the same `node-id` / `e-graph` gate, after the structural and
+combinational module-dedup passes, and lifts the "skip stateful modules"
+boundary above for **stateful flops-only leaf modules** — proving two of
+them observationally equivalent by a bounded *cross-module* bisimulation
+rather than a truth table (memories, FSMs, child instances, parameters,
+aggregates, multiple clock domains, and resetless flops stay excluded as
+named boundaries). It is the sequential generalization of the
+combinational pass (the zero-flop case *is* the combinational one); the
+full proof discipline lives in
+[Factorization §9b](factorization.md#9b-opt-in-whole-module-sequential-equivalence-hierarchy_sequential_module_dedup-node-id--effective-e-graph).
+`DesignMetrics.sequential_module_proof_signatures` +
+`num_sequentially_duplicate_module_pairs` mirror the combinational metric
+pair, and the count is derived from the same grouping the pass uses.
+
 The earlier `r86` bank closed `HIERARCHY-AWARE-IDENTITY.2` by proving the
 planner can emit structurally-duplicate Module definitions under
 tight 1-in / 1-out / width-1 / max_depth-1 / terminal_reuse_prob=1.0

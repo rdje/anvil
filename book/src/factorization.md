@@ -446,6 +446,58 @@ factorization, two independent memories with identical source cones must
 still survive as two `Memory` blocks and two `MemRead` leaves after the
 state-sharing passes and compaction.
 
+### 9b. Opt-in whole-module sequential equivalence (`hierarchy_sequential_module_dedup`, node-id / effective `e-graph`)
+
+Sections 8/8b/9 share *state inside one module*; the **module** dedup
+passes share *whole module definitions*. The combinational module dedup
+(`dedup_semantic_modules`) proves two **stateless** modules equal by a
+whole-module truth table — but it *skips* every module with flops. The
+**opt-in** `hierarchy_sequential_module_dedup` knob
+(`IDENTITY-DEEPENING`, decision `0008`) lifts that skip for stateful
+**flops-only leaf** modules, the sequential generalization of the
+combinational pass (the zero-flop case is exactly the combinational one).
+
+When enabled — and only under `identity_mode = node-id` with effective
+`factorization_level = e-graph` — `generate_design` runs
+[`crate::ir::dedup::dedup_sequential_modules`] after the structural and
+combinational module-dedup passes. To decide whether two candidate
+modules `A` and `B` are equivalent,
+[`crate::ir::compact::modules_sequentially_equivalent`] reuses the
+section-8b machinery on a *combined* module:
+
+1. **Interface base case.** `A` and `B` must have identical input and
+   output ports by `(PortId, width)` — so rewriting instances of one to
+   the other preserves every parent-side binding.
+2. **State correspondence.** Materialize `A.nodes ++ B.nodes` /
+   `A.flops ++ B.flops` (B's ids offset), keeping B's
+   `PrimaryInput {port, width}` so A's and B's primary inputs **unify for
+   free** in the shared endpoint vocabulary. Run the *same*
+   greatest-fixpoint bisimulation partition (section 8b) on the **union**
+   state. Same-class flops — possibly from *both* modules — provably hold
+   equal values for all time.
+3. **Output equality.** For every output port, A's drive cone equals B's
+   drive cone under the *final* quotient, by the same bounded
+   endpoint-preserving proof.
+
+By coinduction (reset base case + stable quotient transition + equal
+output cones), `A` and `B` emit identical outputs for every input
+sequence — observationally equivalent — so instances of one are rewritten
+to the other and the merged-away definition is pruned, exactly as the
+combinational pass already does.
+
+First cut, each a separately-recorded boundary (none retired): modules
+with memories, FSMs, child instances, width parameters, packed
+aggregates, multiple clock domains, or any resetless flop are skipped.
+The proof reuses the 12-bit / 128-node / 131072-work budget; an
+over-budget cone, interface mismatch, or unprovable correspondence
+conservatively **fails to merge** (never a guess). The knob is
+**default-off**, so emitted RTL is byte-identical unless requested, and
+`--identity-mode relaxed` remains the real off-switch. Worked example:
+two two-cycle delay lines — one built with a redundant `~~in` first-stage
+cone so they are structurally distinct yet sequentially equivalent —
+collapse to one definition, and the merged multi-module design is
+downstream-clean across Verilator, both Yosys modes, and Icarus.
+
 ## What "full factorization" still means
 
 The strong-form user doctrine is:
@@ -470,11 +522,15 @@ Today, ANVIL is **part-way there**:
   mutually-recursive registers), via bounded greatest-fixpoint
   bisimulation (section 8b);
 - deterministic duplicate FSM blocks merge when their selector proof and
-  table/encoding/output signatures match; but
-- whole-module sequential equivalence, retimed-state equivalence,
-  memory-state merging beyond the current instance-local boundary, and
-  hierarchy identity beyond canonical structural module signatures are
-  still open work.
+  table/encoding/output signatures match;
+- the opt-in `hierarchy_sequential_module_dedup` pass merges whole
+  **stateful flops-only leaf modules** proven sequentially equivalent by a
+  bounded cross-module bisimulation (section 9b); but
+- whole-module sequential equivalence *for modules with memories / FSMs /
+  child instances / parameters / aggregates / multiple clock domains*,
+  retimed-state equivalence, memory-state merging beyond the current
+  instance-local boundary, and hierarchy identity beyond canonical
+  structural module signatures are still open work.
 
 This remains deliberately user-controllable:
 
@@ -559,6 +615,17 @@ zero for supported non-top leaves and bounded pure-combinational
 hierarchy wrappers; unsupported stateful, memory, FSM, parameterized,
 aggregate-projected, too-large, too-many-instance, out-of-bound child,
 or ancestor/descendant wrapper groups are skipped.
+
+The sequential analogue (section 9b) is the same shape:
+`DesignMetrics.sequential_module_proof_signatures` records a sequential
+proof-class id for each **stateful flops-only leaf** module inside the
+cross-module bisimulation boundary (two modules sharing an id were proven
+sequentially equivalent), and `num_sequentially_duplicate_module_pairs`
+records how many such pairs remain. Enabling
+`Config::hierarchy_sequential_module_dedup` reduces that pair count to
+zero for supported pairs; both metrics are RTL-invisible, and the count
+is derived from the *same* grouping the dedup pass uses, so it always
+equals what the pass would collapse.
 
 Plus a structural post-construction metric:
 `nested_associative_operand_count` — the number of operand slots
