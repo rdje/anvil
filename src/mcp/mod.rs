@@ -72,6 +72,11 @@ struct CachedArtifact {
     /// semantic manifest — its check plan is synth-acceptance, not parity).
     /// Served read-only as the `anvil://artifact/<run_id>/manifest` resource.
     manifest: Option<String>,
+    /// Derived-relation analysis documents for this artifact, keyed by query
+    /// kind (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`). Populated lazily by the
+    /// pure `analyze` tool; each is served read-only as
+    /// `anvil://artifact/<run_id>/analysis/<query>`.
+    analyses: BTreeMap<String, Value>,
 }
 
 /// The read-only MCP server: a JSON-RPC dispatcher plus a content-addressed
@@ -168,6 +173,11 @@ impl McpServer {
                      already-computed coverage-gap list out of a recorded \
                      tool_matrix_report.json (inline or by path) so the agent can \
                      target unexercised surfaces — read-only, no recompute. \
+                     analyze answers derived-RELATION queries over the DUT IR \
+                     graph (output_support = an output's transitive combinational \
+                     fan-in support cone: its primary inputs, flop Qs, and \
+                     child-instance outputs) by pure traversal — relations, not \
+                     behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
                      iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
@@ -284,6 +294,33 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        // analyze (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`): the pure
+        // derived-relation query over the DUT IR graph. Takes the DUT
+        // `(seed, config)` plus a `query` kind and an optional `target`.
+        let analyze_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "RNG seed (deterministic output)." },
+                "config": { "type": "object",
+                            "description": "DUT lane only: full effective Config (as emitted by \
+                                            dump_config). Omit for defaults." },
+                "query": {
+                    "type": "string",
+                    "enum": ["output_support"],
+                    "description": "Derived-relation query kind (default output_support: the \
+                                    transitive combinational fan-in support cone). An unknown \
+                                    kind is rejected with -32602."
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Optional target: an output port name, or \"flop:<id>\" for a \
+                                    flop D cone. Omit for every output. An unknown target is \
+                                    rejected with -32602."
+                }
+            },
+            "additionalProperties": false
+        });
         json!({
             "tools": [
                 {
@@ -335,6 +372,18 @@ impl McpServer {
                                     no recompute; the single gap computation stays in tool_matrix.",
                     "inputSchema": coverage_gaps_schema,
                 },
+                {
+                    "name": "analyze",
+                    "description": "Answer a derived-RELATION query over the DUT (seed, config) IR by \
+                                    pure post-hoc graph traversal — relations, not behaviour (no shadow \
+                                    simulator). query=output_support (default) returns each target's \
+                                    transitive combinational fan-in support cone: the primary inputs, \
+                                    flop Qs, and child-instance outputs it depends on, plus cone size and \
+                                    combinational depth. target = an output port name or \"flop:<id>\" \
+                                    (omit for all outputs). Unknown query/target -> -32602. Cached + \
+                                    exposed as anvil://artifact/<run_id>/analysis/<query>.",
+                    "inputSchema": analyze_schema,
+                },
             ]
         })
     }
@@ -381,12 +430,25 @@ impl McpServer {
             };
         }
 
+        // analyze (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`) queries the DUT IR
+        // graph; the non-DUT lanes (microdesign/frontend) carry no gate graph,
+        // so reject a non-DUT lane cleanly before the DUT knob parse below.
+        if name == "analyze" && lane != introspect::LANE_DUT {
+            return ok(
+                id,
+                tool_error(&format!(
+                    "analyze applies to the dut IR lane only (got lane `{lane}`)"
+                )),
+            );
+        }
+
         let (seed, cfg) = match config_from_args(&args) {
             Ok(pair) => pair,
             Err(e) => return ok(id, tool_error(&e)),
         };
 
         match name {
+            "analyze" => self.run_analyze(id, seed, &cfg, &args),
             "dump_config" => match serde_json::to_string_pretty(&cfg) {
                 Ok(text) => ok(id, tool_text(&text)),
                 Err(e) => ok(id, tool_error(&format!("serialize config: {e}"))),
@@ -526,6 +588,74 @@ impl McpServer {
         serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
     }
 
+    /// The pure `analyze` tool (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`):
+    /// answer a derived-relation query over the DUT `(seed, cfg)` IR graph.
+    /// Pure — it regenerates the artifact (deterministic) and traverses the IR;
+    /// no filesystem, no spawn (unlike `validate`/`minimize`). Returns the full
+    /// JSON-RPC response: a tool result carrying the
+    /// [`DerivedAnalysisDocument`](introspect::DerivedAnalysisDocument), or a
+    /// `-32602` protocol error for an unknown query kind or target (the
+    /// `prompts/get` validation precedent). The analysis is cached under
+    /// `anvil://artifact/<run_id>/analysis/<query>`.
+    fn run_analyze(&mut self, id: Value, seed: u64, cfg: &Config, args: &Value) -> Value {
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or(introspect::analyze::QUERY_OUTPUT_SUPPORT);
+        if !introspect::analyze::supported_query_kinds().contains(&query) {
+            return err(
+                id,
+                INVALID_PARAMS,
+                &format!(
+                    "unknown query kind `{query}`; supported: {:?}",
+                    introspect::analyze::supported_query_kinds()
+                ),
+            );
+        }
+        let target = args.get("target").and_then(Value::as_str);
+
+        // Regenerate the artifact (deterministic ⇒ the same one the run_id
+        // addresses) and project the relation off its IR graph.
+        let mut gen = Generator::new(cfg.clone());
+        let (analysis, doc) = if cfg.effective_hierarchy_depth_range().is_some() {
+            let design = gen.generate_design();
+            let analysis = introspect::analyze::design_support_cones(&design, target);
+            let doc = introspect::design_document(seed, cfg, &design);
+            (analysis, doc)
+        } else {
+            let m = gen.generate_module();
+            let analysis = introspect::analyze::module_support_cones(&m, target);
+            let doc = introspect::module_document(seed, cfg, &m);
+            (analysis, doc)
+        };
+
+        // An explicit but unresolvable target yields no cone (a resolvable
+        // target always yields exactly one, even when empty), so surface it as
+        // `-32602` — matching `prompts/get`'s unknown-argument handling.
+        if let Some(t) = target {
+            if analysis.results.is_empty() {
+                return err(
+                    id,
+                    INVALID_PARAMS,
+                    &format!("unknown target `{t}` for query `{query}` (no such output or flop)"),
+                );
+            }
+        }
+
+        let analysis_doc = introspect::derived_analysis_document(&doc, analysis);
+        // Cache the base artifact (so its sv/introspection resources exist) and
+        // stash the analysis under anvil://artifact/<run_id>/analysis/<query>.
+        let run_id = self.cache_artifact(&doc);
+        let analysis_value = serde_json::to_value(&analysis_doc).unwrap_or(Value::Null);
+        if let Some(art) = self.cache.get_mut(&run_id) {
+            art.analyses.insert(query.to_string(), analysis_value);
+        }
+        match analysis_doc.to_json_pretty() {
+            Ok(text) => ok(id, tool_text(&text)),
+            Err(e) => ok(id, tool_error(&format!("serialize analysis: {e}"))),
+        }
+    }
+
     /// Build the artifact for `(seed, cfg)`, store it in the content-addressed
     /// cache keyed by the document's `run_id`, and return that `run_id`.
     fn cache_artifact(&mut self, doc: &introspect::IntrospectionDocument) -> String {
@@ -542,6 +672,7 @@ impl McpServer {
             sv,
             document,
             manifest: None, // DUT lane carries no semantic manifest.
+            analyses: BTreeMap::new(),
         });
         run_id
     }
@@ -589,6 +720,7 @@ impl McpServer {
             sv: artifact.sv,
             document: doc.clone(),
             manifest: Some(manifest),
+            analyses: BTreeMap::new(),
         });
         Ok((run_id, doc))
     }
@@ -628,6 +760,14 @@ impl McpServer {
                 resources.push(json!({
                     "uri": format!("anvil://artifact/{run_id}/manifest"),
                     "name": format!("{} {} expected-facts manifest", art.kind, art.top),
+                    "mimeType": "application/json",
+                }));
+            }
+            // Derived-relation analyses (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`).
+            for query in art.analyses.keys() {
+                resources.push(json!({
+                    "uri": format!("anvil://artifact/{run_id}/analysis/{query}"),
+                    "name": format!("{} {} {query} analysis", art.kind, art.top),
                     "mimeType": "application/json",
                 }));
             }
@@ -679,6 +819,26 @@ impl McpServer {
                             )
                         }
                     },
+                    // `anvil://artifact/<run_id>/analysis/<query>`
+                    // (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`).
+                    Some(art) if part.starts_with("analysis/") => {
+                        let query = part.strip_prefix("analysis/").unwrap_or("");
+                        match art.analyses.get(query) {
+                            Some(a) => (
+                                "application/json",
+                                serde_json::to_string_pretty(a).unwrap_or_default(),
+                            ),
+                            None => {
+                                return err(
+                                    id,
+                                    INVALID_PARAMS,
+                                    &format!(
+                                        "no `{query}` analysis for `{other}` (call analyze first)"
+                                    ),
+                                )
+                            }
+                        }
+                    }
                     Some(_) => {
                         return err(id, INVALID_PARAMS, &format!("unknown artifact part in `{other}`"))
                     }
@@ -1295,9 +1455,107 @@ mod tests {
                 "dump_config",
                 "validate",
                 "minimize",
-                "coverage_gaps"
+                "coverage_gaps",
+                "analyze"
             ]
         );
+    }
+
+    #[test]
+    fn analyze_returns_output_support_cone_and_caches_it() {
+        let mut s = McpServer::new();
+        // A default comb DUT module ⇒ a support cone per output.
+        let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.3");
+        assert_eq!(doc["lane"], "dut");
+        assert_eq!(doc["analysis"]["query"], "output_support");
+        let results = doc["analysis"]["results"].as_array().unwrap();
+        assert!(
+            !results.is_empty(),
+            "a comb DUT has at least one output cone"
+        );
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+
+        // The analysis is cached + served as a resource.
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/output_support") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "output_support");
+
+        // resources/list advertises the analysis resource.
+        let list = s.handle(&req(3, "resources/list", json!({}))).unwrap();
+        let uris: Vec<&str> = list["result"]["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["uri"].as_str().unwrap())
+            .collect();
+        assert!(
+            uris.contains(&format!("anvil://artifact/{run_id}/analysis/output_support").as_str())
+        );
+    }
+
+    #[test]
+    fn analyze_unknown_query_is_invalid_params() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 1, "analyze", json!({ "seed": 7, "query": "nope" }));
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
+    }
+
+    #[test]
+    fn analyze_unknown_target_is_invalid_params() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "target": "no_such_output" }),
+        );
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
+    }
+
+    #[test]
+    fn analyze_rejects_non_dut_lane() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "lane": "microdesign" }),
+        );
+        // A tool-level error (isError), not a JSON-RPC protocol error.
+        assert_eq!(resp["result"]["isError"], true);
+    }
+
+    #[test]
+    fn analyze_on_a_design_routes_through_design_cones() {
+        let mut s = McpServer::new();
+        // A hierarchy config ⇒ a design artifact ⇒ design_support_cones.
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 42, "config": cfg_json }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["artifact"]["kind"], "design");
+        assert_eq!(doc["analysis"]["query"], "output_support");
+        assert!(!doc["analysis"]["results"].as_array().unwrap().is_empty());
     }
 
     /// A recorded `tool_matrix_report.json` fragment with the exact shape the
@@ -1460,7 +1718,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.2");
+        assert_eq!(doc["schema_version"], "1.3");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -1561,7 +1819,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.2");
+        assert_eq!(doc["schema_version"], "1.3");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -1616,7 +1874,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.2");
+        assert_eq!(doc["schema_version"], "1.3");
     }
 
     #[test]

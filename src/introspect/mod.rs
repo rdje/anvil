@@ -44,10 +44,14 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.1` is the
-/// additive (backward-compatible) MINOR bump that surfaced the new
-/// `Metrics::bisimulation_flops_merged` field (`IDENTITY-DEEPENING.2b`).
-pub const SCHEMA_VERSION: &str = "1.2";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.3` is the
+/// additive (backward-compatible) MINOR bump that adds the derived-relation
+/// analysis surface — the pure MCP `analyze` tool + the standalone
+/// [`DerivedAnalysisDocument`], schema-derived by traversing the already-emitted
+/// IR graph (`SEMANTIC-INTROSPECTION-EXPANSION.2b`). The default `--introspect`
+/// document shape is unchanged; only its `schema_version` string advances. See
+/// the schema-doc §7 changelog for the full `1.0 → 1.1 → 1.2 → 1.3` history.
+pub const SCHEMA_VERSION: &str = "1.3";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -144,6 +148,54 @@ impl IntrospectionDocument {
     /// `BTreeMap`, so the bytes are a pure function of the inputs.
     pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
+    }
+}
+
+/// A standalone derived-relation analysis document
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.2b`). It reuses the introspection
+/// **envelope** ([`RequestEcho`] + the content-addressed `run_id`, the
+/// [`ArtifactDescriptor`]) but carries a single `analysis` payload instead of
+/// the structural `introspection` payload — so the default `--introspect`
+/// document stays lean (decision `0011` Q2) while the derived relation is a
+/// first-class, versioned, self-identifying document. Served by the pure MCP
+/// `analyze` tool and as the `anvil://artifact/<run_id>/analysis/<query>`
+/// resource. Schema-derived (invariant SCHEMA-DERIVED): `analysis` is a pure
+/// projection of the IR graph the generator already produced.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DerivedAnalysisDocument {
+    pub schema_version: String,
+    pub anvil_version: String,
+    pub lane: String,
+    pub request: RequestEcho,
+    pub artifact: ArtifactDescriptor,
+    /// The derived relation for this artifact (e.g. the output support cone).
+    pub analysis: analyze::DerivedAnalysis,
+    pub warnings: Vec<String>,
+}
+
+impl DerivedAnalysisDocument {
+    pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+}
+
+/// Wrap a [`DerivedAnalysis`](analyze::DerivedAnalysis) in the introspection
+/// envelope, reusing `base`'s request/artifact metadata — the same `run_id`,
+/// seed, knobs, and artifact pointers as the artifact's `generate` /
+/// `introspect` document, so an agent can correlate the analysis with the
+/// artifact it describes. Pure: byte-identical for the same `(base, analysis)`.
+pub fn derived_analysis_document(
+    base: &IntrospectionDocument,
+    analysis: analyze::DerivedAnalysis,
+) -> DerivedAnalysisDocument {
+    DerivedAnalysisDocument {
+        schema_version: base.schema_version.clone(),
+        anvil_version: base.anvil_version.clone(),
+        lane: base.lane.clone(),
+        request: base.request.clone(),
+        artifact: base.artifact.clone(),
+        analysis,
+        warnings: base.warnings.clone(),
     }
 }
 
@@ -376,7 +428,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.2");
+        assert_eq!(doc.schema_version, "1.3");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -488,6 +540,48 @@ mod tests {
             "request",
             "artifact",
             "introspection",
+            "warnings",
+        ] {
+            assert!(obj.contains_key(key), "missing envelope key `{key}`");
+        }
+    }
+
+    #[test]
+    fn derived_analysis_document_reuses_envelope_and_carries_analysis() {
+        // The analysis document reuses the artifact's envelope (same content
+        // address) and carries the support-cone projection as its payload.
+        let cfg = comb_cfg(9);
+        let mut gen = Generator::new(cfg.clone());
+        let m = gen.generate_module();
+        let base = module_document(9, &cfg, &m);
+        let analysis = analyze::module_support_cones(&m, None);
+        let doc = derived_analysis_document(&base, analysis.clone());
+
+        assert_eq!(doc.schema_version, "1.3");
+        assert_eq!(doc.lane, base.lane);
+        assert_eq!(doc.request.run_id, base.request.run_id); // same content address
+        assert_eq!(doc.analysis.query, "output_support");
+        // The analysis payload IS the support-cone projection, byte-for-byte.
+        assert_eq!(
+            serde_json::to_value(&doc.analysis).unwrap(),
+            serde_json::to_value(&analysis).unwrap()
+        );
+        // Round-trips through JSON and is deterministic.
+        let s = doc.to_json_pretty().unwrap();
+        let reparsed: DerivedAnalysisDocument = serde_json::from_str(&s).unwrap();
+        assert_eq!(
+            serde_json::to_value(&doc).unwrap(),
+            serde_json::to_value(&reparsed).unwrap()
+        );
+        let v: Value = serde_json::to_value(&doc).unwrap();
+        let obj = v.as_object().unwrap();
+        for key in [
+            "schema_version",
+            "anvil_version",
+            "lane",
+            "request",
+            "artifact",
+            "analysis",
             "warnings",
         ] {
             assert!(obj.contains_key(key), "missing envelope key `{key}`");

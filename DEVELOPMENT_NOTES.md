@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-16 — Semantic introspection — the MCP `analyze` surface — `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`
+
+Wired the `.2b.1` analysis core to the agent surface (schema `1.3` + the pure MCP
+`analyze` tool). Surface-wiring decisions worth carrying forward:
+
+- **`-32602` is a JSON-RPC protocol error, not a tool-level `isError`.** Unknown
+  `query`/`target` returns `err(id, INVALID_PARAMS, …)` (a top-level `error`
+  object) — matching `prompts/get`, the existing precedent for invalid arguments
+  — *not* `tool_error` (which is a successful tool call carrying
+  `isError: true`). So `run_analyze` owns `id` and returns the *full* JSON-RPC
+  response, unlike the `ok(id, tool_text/tool_error)` arms. Rule of thumb: a
+  malformed *request* (bad query/target) is `-32602`; a *tool-domain* problem
+  (e.g. a non-DUT lane, which is a valid request the tool can't serve) is
+  `tool_error`.
+- **Unknown-target detection rides the pure layer's totality.** `run_analyze`
+  doesn't re-resolve the target; it builds the cone and treats "explicit target +
+  empty `results`" as unknown (→ `-32602`). This works precisely because the
+  `.2b.1` builders are total and only an *unknown* target yields zero cones (a
+  known-but-empty cone still yields one) — so no error type crosses the pure
+  boundary.
+- **The analysis is cached on the artifact, not in a side map.** Added
+  `CachedArtifact.analyses: BTreeMap<query, Value>` (default-empty ⇒ the two
+  existing constructions just gained one field). `run_analyze` caches the base
+  artifact (so its `sv`/`introspection` resources exist) via the existing
+  `cache_artifact`, then `get_mut`s the entry to insert the analysis — so
+  `anvil://artifact/<run_id>/analysis/<query>` is a sibling of the artifact's
+  other resources and `parse_artifact_uri` needs **no** change (it splits on the
+  first `/`, yielding `part = "analysis/<query>"`, matched by a
+  `part.starts_with("analysis/")` arm).
+- **DUT-only by construction.** The cone walks the DUT IR `Module`/`Design`
+  graph; the microdesign/frontend lanes are source-level/oracle artifacts with no
+  gate graph, so a non-DUT `lane` is rejected before the DUT knob parse. A
+  derived query *kind* for those lanes (if ever wanted) is a separate future
+  surface, not a lane arg on `analyze`.
+- **Double-generation is acceptable and consistent.** `run_analyze` generates the
+  `Module`/`Design` once for the cone, then `cache_artifact` regenerates the SV
+  from the doc's request echo — exactly the pattern `generate`/`introspect`
+  already use (deterministic ⇒ identical artifact). Not optimised; correctness +
+  consistency over a micro-saving on a read-mostly tool.
+- **Schema bump is a string, not a shape change.** Only `SCHEMA_VERSION` and the
+  ~6 `"1.2"` test assertions move to `"1.3"`; the default `IntrospectionDocument`
+  is byte-identical otherwise, so snapshots stay 6/6 and the default
+  `--introspect` document is unchanged for a `1.2` consumer (the cone is a
+  *separate* `DerivedAnalysisDocument`, reached only via `analyze`).
+
 ## 2026-06-16 — Semantic introspection — pure support-cone analysis core — `SEMANTIC-INTROSPECTION-EXPANSION.2b.1`
 
 Implemented the `.2a` design as the pure module `src/introspect/analyze.rs`.

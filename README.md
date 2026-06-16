@@ -621,7 +621,7 @@ exercising adversarial axes that previously fired only by chance
   `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.0`) for a single-artifact run instead of SystemVerilog
+  (schema `1.3`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Requires a single-artifact stdout
@@ -631,12 +631,15 @@ exercising adversarial axes that previously fired only by chance
   (JSON-RPC 2.0 over **stdio** by default, or **HTTP** via the opt-in
   `--http <addr>` flag — a hand-rolled loopback-default transport driving the
   same dispatcher, no new dependency) that drives the agent bug-hunting loop. It
-  exposes pure tools (`generate`/`introspect`/`dump_config`/`coverage_gaps`,
+  exposes pure tools (`generate`/`introspect`/`analyze`/`dump_config`/`coverage_gaps`,
   where `generate`/`introspect` cover all three lanes via a `lane` arg defaulting
-  to `dut`, and `coverage_gaps` projects the recorded `tool_matrix_report.json`
-  gap list read-only), controlled tools (`validate`/`minimize`, run only through
-  the hardened `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
-  + audit-logged), resources (artifact `.sv`/introspection/`manifest`,
+  to `dut`, `analyze` answers a derived-relation query over the DUT IR — the
+  output **support cone** (what an output depends on), schema `1.3`, unknown
+  query/target ⇒ `-32602`, and `coverage_gaps` projects the recorded
+  `tool_matrix_report.json` gap list read-only), controlled tools
+  (`validate`/`minimize`, run only through the hardened
+  `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
+  + audit-logged), resources (artifact `.sv`/introspection/`manifest`/`analysis`,
   `knobs`/`lanes` catalogs, `audit/log`), and five workflow prompts
   (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`,
   `triage_tool_failures`, `explain_artifact`). It runs no generation path of its

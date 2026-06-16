@@ -397,10 +397,13 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.2"`
-│                     — MINOR-bumped 1.1→1.2 when `Config::sv_version`
-│                     joined the `request.knobs` echo,
-│                     SV-VERSION-TARGETING.2b.1),
+│                     only the envelope metadata (`schema_version` `"1.3"`
+│                     — MINOR-bumped 1.2→1.3 for the derived-relation
+│                     analysis surface, `SEMANTIC-INTROSPECTION-EXPANSION.2b.2`;
+│                     the default introspection-document shape is unchanged.
+│                     The sibling `DerivedAnalysisDocument` +
+│                     `derived_analysis_document` builder reuse this envelope
+│                     with an `analysis` payload),
 │                     `anvil_version`, `lane`, the `request` echo with a
 │                     content-addressed FNV-1a `run_id`, the `artifact`
 │                     `ResourceRef`s, `warnings`). Pure `module_document` /
@@ -487,6 +490,16 @@ src/
 │                     `anvil-mcp` bin; the whole protocol surface is unit-tested
 │                     in-process. Separate target ⇒ default `anvil` build /
 │                     `--artifact dut` unaffected.
+│                     `SEMANTIC-INTROSPECTION-EXPANSION.2b.2` adds the pure
+│                     `analyze` tool (`run_analyze`): a DUT-only derived-RELATION
+│                     query over the IR graph (regenerates the `Module`/`Design`,
+│                     calls `introspect::analyze::{module,design}_support_cones`,
+│                     wraps the cone in a `DerivedAnalysisDocument`). Unknown
+│                     `query`/`target` ⇒ `-32602` (JSON-RPC error, like
+│                     `prompts/get`); the result is cached in a new
+│                     `CachedArtifact.analyses` map and served as
+│                     `anvil://artifact/<run_id>/analysis/<query>` (added to
+│                     `resources_list`/`resources_read`). No FS/spawn — pure.
 │   └── http.rs      (`AGENT-MCP-EXPANSION.4b`). The optional hand-rolled
 │                     HTTP/1.1 POST transport beside stdio, re-exported as
 │                     `mcp::serve_http` + `mcp::resolve_http_addr`. Pure framing

@@ -41,7 +41,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.3",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -144,22 +144,25 @@ curl -s -X POST http://127.0.0.1:8765/ \
 ### Tools
 
 ```
-generate · introspect · dump_config · coverage_gaps · validate · minimize
+generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize
 ```
 
 | Tool | Pure? | What it does |
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
-| `introspect` | ✅ pure | Return the schema-1.0 introspection document (config echo + metrics) for that `lane`. |
+| `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics) for that `lane`. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR — *what does this output depend on?* — by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone**. Relations, not behaviour. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
 | `minimize` | controlled | Delta-debug a failing `(seed, config)` to a smaller reproducer, using `validate` as the failure oracle. |
 
-The four **pure** tools are read-only: no generation side effects, no shell, no
+The five **pure** tools are read-only: no generation side effects, no shell, no
 external tools. (`coverage_gaps` may read a report file you point it at, but it
 *runs* nothing — it relays the gap list `tool_matrix` already computed, so the
-two can never drift.) The two *controlled* tools run real downstream tools, but
+two can never drift; `analyze` only traverses the IR the generator already
+produced — relations, never a behavioural simulation.) The two *controlled*
+tools run real downstream tools, but
 only through ANVIL's existing hardened invocations:
 
 - a **fixed allow-list** of tool names (`verilator`, `yosys`, `iverilog`) — an
@@ -183,13 +186,65 @@ session:
 anvil://catalog/knobs          the default Config (the knob taxonomy)
 anvil://catalog/lanes          the artifact lanes (dut / microdesign / frontend)
 anvil://audit/log              the append-only validate/minimize audit trail
-anvil://artifact/<run_id>/sv             the emitted SystemVerilog
-anvil://artifact/<run_id>/introspection  the introspection document
-anvil://artifact/<run_id>/manifest       the lane's expected-facts manifest (microdesign / frontend)
+anvil://artifact/<run_id>/sv               the emitted SystemVerilog
+anvil://artifact/<run_id>/introspection    the introspection document
+anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (e.g. output_support)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
 anvil://artifact/<run_id>/sv` always returns the same bytes.
+
+### Derived-relation queries: `analyze`
+
+`analyze` answers *what does this output structurally depend on?* over the DUT
+IR — a **relation**, derived by pure graph traversal, never a behavioural
+simulation (anvil has no shadow simulator by doctrine). The first query kind,
+`output_support` (the default), returns each target's transitive **combinational
+fan-in support cone**:
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
+```
+
+A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with an
+`analysis` payload):
+
+```json
+{
+  "schema_version": "1.3",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "analysis": {
+    "query": "output_support",
+    "results": [
+      {
+        "target": "o_0",
+        "support_inputs": ["i_1"],
+        "support_flops": [],
+        "support_instance_outputs": [],
+        "cone_nodes": 3,
+        "cone_depth": 2
+      }
+    ]
+  }
+}
+```
+
+- `target` addresses an **output port name**, or a flop's `D` input as
+  `"flop:<id>"`; omit it to get a cone for **every** output.
+- `support_inputs` / `support_flops` / `support_instance_outputs` are the
+  combinational support **leaves** the target depends on. A flop `Q` is a
+  register boundary (the cone stops there; query `"flop:<id>"` for what feeds its
+  `D`); a child-instance output stops at the instance boundary.
+- `cone_nodes` is the number of distinct fan-in nodes; `cone_depth` is the
+  combinational gate depth.
+- An unknown `query` or `target` is rejected with JSON-RPC `-32602`.
+
+The result is cached and also served as the
+`anvil://artifact/<run_id>/analysis/output_support` resource. Every field is a
+pure projection of the IR the generator already built — no new computed truth
+(the `SCHEMA-DERIVED` invariant).
 
 ### All three lanes, not just DUT
 

@@ -1,9 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2b.2 — the pure MCP `analyze` tool + schema 1.3
+
+**Landed as:** this commit (previous: `cc2b5bc`). Task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.2b.2` (the second child of the `.2b` split).
+**Code + docs leaf — the user-facing derived-relation surface; DUT byte-identical.**
+
+**What changed**
+
+- **Schema `1.2 → 1.3`** (additive MINOR) — `introspect::SCHEMA_VERSION` bumped;
+  the default `IntrospectionDocument` **shape is unchanged** (only its
+  `schema_version` string advances), so a `1.2` consumer of the default
+  `--introspect` document keeps working. The new derived-relation surface is
+  reached only via the opt-in `analyze` tool (decision `0011` Q2).
+- **`src/introspect/mod.rs`** — new `DerivedAnalysisDocument` (the introspection
+  envelope — `RequestEcho`/`run_id` + the artifact pointers — with an
+  `analysis: DerivedAnalysis` payload instead of the structural `introspection`
+  payload) + the pure `derived_analysis_document(base, analysis)` builder that
+  reuses the artifact's envelope.
+- **`src/mcp/mod.rs`** — the pure MCP **`analyze`** tool (`run_analyze`):
+  - DUT lane only (the non-DUT lanes carry no gate graph → a clean tool error);
+    takes `(seed, config)` + `query` (default `output_support`) + optional
+    `target`. Regenerates the artifact deterministically and projects the cone
+    off its IR via `analyze::module_support_cones`/`design_support_cones`.
+  - Unknown `query` kind or unresolvable `target` ⇒ JSON-RPC **`-32602`** (the
+    `prompts/get` validation precedent); a resolvable-but-empty target still
+    yields one cone.
+  - Result is a `DerivedAnalysisDocument`, **cached** in a new
+    `CachedArtifact.analyses` map and served as the
+    `anvil://artifact/<run_id>/analysis/<query>` resource (added to
+    `resources/list` + `resources/read`). `analyze` joins the `tools/list`
+    registry + the server `instructions`.
+- **Docs (user-facing surface ships with the slice):**
+  `docs/AGENT_INTROSPECTION_SCHEMA.md` §6.7 (the analysis surface) + §7 `1.3`
+  changelog + version-string bumps; `book/src/agent-mcp.md` (the `analyze` row +
+  a worked `output_support` example + the analysis resource; the stale `1.0`
+  example bumped to `1.3`); `USER_GUIDE.md` (the MCP tool/resource lists + the
+  `--introspect` schema reference `1.2 → 1.3`); a new Knowledge Map fact
+  `docs/knowledge/semantic-introspection-analyze-tool.md`.
+
+**Why**
+
+- Completes decision `0011`'s first query end-to-end: an agent can now ask
+  *what does output Y depend on?* over MCP and get a derived structural relation
+  — while the `0004` no-shadow-simulator / structure-first ceiling stays intact.
+
+**Validation**
+
+- `cargo test --lib` — **427 passed / 0 failed / 2 ignored** (incl. the new
+  `introspect::derived_analysis_document_*` proof + 5 `mcp::tests::analyze_*`
+  proofs: cone returned + cached + resource-served; unknown query → `-32602`;
+  unknown target → `-32602`; non-DUT lane rejected; design routing).
+- `cargo test --test snapshots` — **6/6 byte-identical** (default `--introspect`
+  shape unchanged ⇒ DUT `.sv` untouched).
+- End-to-end `anvil-mcp` stdio smoke: `analyze {seed:7}` → schema `1.3`,
+  `output_support` cone (`o_0` ← `i_1`, cone_nodes 3, depth 2); unknown query →
+  `-32602`.
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+  clean; `mdbook build book` clean; `cargo test --test book_examples` **3/3**
+  (no new runnable bash; the `json` examples are not executed); Knowledge Map
+  regenerated + `check_knowledge_map.sh` in sync.
+
+**Impact**
+
+- Additive, opt-in, read-only. The default `anvil` build, `--artifact dut`, and
+  the default `--introspect` document shape stay byte-identical. The
+  `SEMANTIC-INTROSPECTION-EXPANSION` first-query milestone (`.1` + `.2`) is
+  delivered; future query kinds (`input_reach`, `flop_reset_provenance`,
+  `module_reachability`) are open-ended `.3+` breadth, not a blocker.
+
+**Files touched**
+
+- `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `USER_GUIDE.md`,
+  `README.md`, `docs/knowledge/semantic-introspection-analyze-tool.md` (new),
+  `KNOWLEDGE_MAP.md` (regenerated),
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+  `MEMORY.md`.
+
 ## 2026-06-16 — SEMANTIC-INTROSPECTION-EXPANSION.2b.1 — pure support-cone analysis core
 
-**Landed as:** this commit (previous: `63d2622`). Task-tree-owned by
+**Landed as:** `cc2b5bc` (previous: `63d2622`). Task-tree-owned by
 `SEMANTIC-INTROSPECTION-EXPANSION.2b.1` (the first child of the `.2b` split).
 **Code leaf — new pure analysis module; DUT byte-identical (not wired to any
 emit path).**
