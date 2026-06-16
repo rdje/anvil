@@ -29,6 +29,7 @@ Decision records may also carry Knowledge Map front matter. A non-empty
 | [0011](0011-semantic-introspection-derived-query-surface.md) | ANVIL gains a first-class, MCP-queryable, SCHEMA-DERIVED derived-relation introspection API; the first query is the transitive support cone of an output | 2026-06-16 | accepted | introspection, mcp, semantic, derived-query, schema-derived, agent, api, north-star |
 | [0012](0012-structured-emission-first-surface-combinational-function.md) | ANVIL's first richer-structured SV surface is a default-off, valid-by-construction combinational `function automatic` emit-projection of an existing cone | 2026-06-16 | accepted | capability, structured-emission, function, emission, downstream, valid-by-construction, rules-first, breadth, north-star |
 | [0013](0013-structured-emission-second-surface-generate-loop.md) | ANVIL's second richer-structured SV surface is a default-off, valid-by-construction `generate for` loop emit-projection of an existing replicated construction | 2026-06-16 | accepted | capability, structured-emission, generate, genvar, emission, downstream, valid-by-construction, rules-first, breadth, north-star |
+| [0014](0014-structured-emission-third-surface-combinational-task.md) | ANVIL's third richer-structured SV surface is a default-off, valid-by-construction combinational `task automatic` emit-projection of an existing combinational gate | 2026-06-16 | accepted | capability, structured-emission, task, emission, downstream, valid-by-construction, rules-first, breadth, north-star |
 
 ## How To Add A Record
 

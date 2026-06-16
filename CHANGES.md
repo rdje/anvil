@@ -1,9 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.5 — pick the third structured surface (`task automatic`) + decision 0014
+
+**Landed as:** this commit (previous: `909c82a`). **Docs-only / no source
+change** — a design/decision leaf. At a no-active-frontier boundary (the
+`generate for` surface fully delivered, all active trees open-ended), the owner
+directed *"pick any tree and roll with it, you decide the best route"*; I
+autonomously selected the **third structured-emission surface** (`task`, the
+recorded leading future candidate from decision `0013`) as the
+highest-confidence/lowest-risk continuation, and this leaf writes its decision
+record before any code.
+
+**What changed (why)**
+
+- **`docs/decisions/0014-structured-emission-third-surface-combinational-task.md`**
+  (new) + **`docs/decisions/INDEX.md`** row — decision `0014`: the **third**
+  richer-structured surface is a default-off, valid-by-construction combinational
+  **`task automatic`** emit-projection of a single combinational gate — the exact
+  parallel of decision `0012`'s combinational `function`, but a *procedural*
+  `task` with an `output` argument called from `always_comb` (vs the
+  value-returning function). For a marked gate `<wire> = op(o0,o1,…)` of width
+  `W`: `task automatic <wire>__t(output logic [W-1:0] o, input logic [Wi-1:0]
+  a0, …); o = a0 op a1 …; endtask` + (minimal-blast-radius form) `logic [W-1:0]
+  <wire>__tv; always_comb <wire>__t(<wire>__tv, <operand refs>); assign <wire> =
+  <wire>__tv;` — so the existing `<wire>` net is driven from the task output,
+  downstream refs unchanged. First cut = single-gate operand task.
+- **Empirical grounding (this session, recorded in the decision + tree):** a
+  combinational `task automatic` called from `always_comb` is accepted
+  **warning-clean** by Verilator 5.046 `-Wall --lint-only` + both repo Yosys
+  modes (`synth -noabc` and `abc -fast; opt -fast; check`) + Icarus `iverilog
+  -g2012`, in **both** the direct-output form *and* the output-var +
+  passthrough-`assign` minimal-blast-radius form. This confirms decision `0013`'s
+  narrowed `task` caution (simple combinational void tasks are clean; the
+  weakness is multi-output/side-effecting).
+- **Chosen over** nested/multi-level `generate` (a deeper variant of an
+  already-shipped surface; more emitter surgery) and `interface`/`modport`
+  (still weak/inconsistent Yosys synth). `task` was already the recorded leading
+  candidate (decision `0013`).
+- **Discipline:** rules-first (mark an already-valid gate; no
+  generate-then-filter), default-off `task_emit_prob` (proposed; default `0.0`)
+  ⇒ byte-identical / snapshots untouched, no new IR node / no new whole-module
+  behaviour; mutually exclusive with the sibling projections
+  (`function_emit`/`generate_loop`/`soft_union`); combinational only; structured
+  selectors + `Slice` excluded (same reasons as `function_emit`); nothing
+  retired. Downstream gate `tool_matrix --task-emit-gate` /
+  `saw_combinational_task_emit`.
+- **Tree split** `.5` (done) + `.6` (impl; pre-split `.6a` design-detail + `.6b`
+  impl, which may further split `.6b.1`/`.6b.2`/`.6b.3` per the `.4b` precedent)
+  + future (`.7+`: nested/multi-level `generate`, `interface`/`modport`, richer
+  tasks). Frontier → `.6`.
+- **`KNOWLEDGE_MAP.md`** regenerated (39 → 40 facts) — decision `0014` carries
+  `answers:` front-matter (the KM card
+  `structured-emission-third-surface-combinational-task`).
+
+**Validation**
+
+- Docs-only — **no `src/` touched** ⇒ `cargo check/clippy/fmt/test` unaffected.
+  `bash scripts/check_memory_architecture.sh` ✅ (`0014` indexed);
+  `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh`
+  ✅ (map in sync); `mdbook build book` ✅. Empirical tool-acceptance probe
+  recorded above (Verilator `-Wall` + both Yosys + Icarus clean, both task
+  forms).
+
+**Impact**
+
+- No behavioural / RTL change. The `task` surface (decision `0014`) is
+  design-pinned and empirically grounded; `.6` is the next executable leaf (the
+  live surface + gate + closeout). Default-off / DUT byte-identical contract
+  preserved. Nothing retired.
+
+**Files touched:**
+`docs/decisions/0014-structured-emission-third-surface-combinational-task.md`,
+`docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-16 — STRUCTURED-EMISSION-EXPANSION.4b.3 — `generate for` loop user docs
 
-**Landed as:** this commit (previous: `2129035`). The user-facing closeout of
+**Landed as:** `909c82a` (previous: `2129035`). The user-facing closeout of
 the second structured surface — docs-only, DUT byte-identical (no `src/`
 touched). **With this leaf the `generate for` loop surface (decision `0013`) is
 delivered end-to-end and `.4b.3` / `.4b` / `.4` all close.**

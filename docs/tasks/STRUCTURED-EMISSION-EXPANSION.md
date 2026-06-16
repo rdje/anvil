@@ -6,7 +6,18 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.4b.3` landed — the user-facing closeout; the
+- Last updated: `2026-06-16` (**`.5` landed — picked the THIRD structured surface
+  (`task`); decision `0014`; frontier → `.6`.** Design/decision leaf, no source
+  change. At a no-active-frontier boundary the owner directed *"pick any tree and
+  roll"*; I autonomously selected `task` (the recorded leading candidate from
+  decision `0013`). The third surface is a default-off, valid-by-construction
+  combinational `task automatic` emit-projection of a single combinational gate
+  (the decision `0012` single-gate parallel, but a procedural `task` with an
+  `output` arg called from `always_comb`). Empirically grounded clean across
+  Verilator `-Wall` + both Yosys + Icarus (both the direct-output and the
+  output-var passthrough forms). Discipline / opt-in `task_emit_prob` /
+  `saw_combinational_task_emit` gate; split `.5`/`.6`/`.7+`. Prior: **`.4b.3`
+  landed — the user-facing closeout; the
   SECOND structured surface (the `generate for` loop) is delivered end-to-end;
   `.4b.3` / `.4b` / `.4` all close; the lane returns to no-active-frontier
   (open-ended).** Docs-only / DUT byte-identical: a `## The second surface: a
@@ -135,8 +146,8 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / interfaces), valid-by-construction. First surface (combinational function automatic) delivered end-to-end (.1+.2); second surface (generate for loop) in progress (.3 design done, .4 impl pending). Open-ended lane: task / nested generate / interface-modport are future (.5+), each its own decision.`
-  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. First surface (combinational function automatic, .1+.2) and second surface (generate for loop, .3+.4) delivered end-to-end. Third surface (combinational task automatic) in progress (.5 design done, .6 impl pending). Open-ended lane: nested generate / interface-modport / richer tasks are future (.7+), each its own decision.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
   Status: `done`
@@ -270,20 +281,37 @@ behaviour.
   Verification: `mdbook build book clean (HTML written, no broken-link warnings); bash knowledge-map/scripts/gen_knowledge_map.sh (39 facts / 309 keys) + bash knowledge-map/scripts/check_knowledge_map.sh OK (facts valid, ids unique, map in sync); bash scripts/check_memory_architecture.sh all invariants hold (0013 indexed); cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + every_runnable_book_bash_block_succeeds green — the new repro block correctly skip-sentinelled). Docs-only: no src/ touched, so cargo check/clippy/fmt unaffected; the seed-12 before/after was byte-verified against the release binary (generate_loop_emit_prob 0.0 vs 1.0 diff = exactly the {5{slice_0}} replication becoming the genvar/generate for block) and the example lints clean under verilator --lint-only -Wall (matching filename) + both Yosys + Icarus.`
   Commit: `done`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.5`
+  Status: `done`
+  Goal: `Design/decision leaf for the THIRD structured surface (the leading future candidate from decision 0013: task): re-confirm the candidate ranking with current tool evidence, pick the next concrete synthesizable + downstream-clean surface, define its valid-by-construction discipline + opt-in knob + downstream gate, and split the tree — before any code.`
+  Acceptance: `A decision record naming the third surface, its construction discipline, and its downstream gate; an empirical tool-acceptance grounding; no source change; self-checks clean (mdbook + check_knowledge_map + check_memory_architecture). Committed through COMMIT.md with the leaf id.`
+  Result: `Decision 0014. The third richer-structured surface is a default-off, opt-in, valid-by-construction combinational task automatic emitted as a behaviour-preserving projection of a single combinational gate — the exact parallel of decision 0012's combinational function, but a procedural task with an output argument (called from always_comb) rather than a value-returning function. For a marked gate <wire> = op(o0,o1,…) of width W: task automatic <wire>__t(output logic [W-1:0] o, input logic [Wi-1:0] a0, …); o = a0 op a1 …; endtask + (minimal-blast-radius form) logic [W-1:0] <wire>__tv; always_comb <wire>__t(<wire>__tv, <operand refs>); assign <wire> = <wire>__tv; — so the existing <wire> net is driven from the task output, downstream refs unchanged. First cut = single-gate operand task (the decision 0012 single-gate parallel; zero sharing/scoping hazard). Grounding (empirical, this session): a combinational task automatic called from always_comb is accepted warning-clean by Verilator 5.046 -Wall + both repo Yosys modes + Icarus iverilog -g2012, in BOTH the direct-output form and the output-var + passthrough-assign minimal-blast-radius form. Chosen over nested/multi-level generate (deeper variant of an already-shipped surface; more emitter surgery) and interface/modport (still weak/inconsistent Yosys synth). task was already the recorded leading future candidate (decision 0013). Discipline: rules-first (mark an already-valid gate; never generate-then-filter), default-off task_emit_prob (proposed; default 0.0) ⇒ byte-identical / snapshots untouched, no new IR node / no new whole-module behaviour (the function_emit/generate_loop/soft_union precedent); mutually exclusive with the sibling projections; combinational only; structured selectors + Slice excluded (same reasons as function_emit); nothing retired. Downstream gate: tool_matrix --task-emit-gate (templated on --function-emit-gate) proving Verilator + both Yosys modes + Icarus accept the tasks warning-clean, gated on a saw_combinational_task_emit fact. Rejected: interface/modport first, nested generate first, multi-output/side-effecting task in the first cut, multi-gate-cone task body, a semantic IR Task node, generate-then-filter, changing the default. Split into .5 (done) + .6 (impl; pre-split .6a design-detail + .6b impl) + future (.7+: nested/multi-level generate, interface/modport, richer tasks). KM card structured-emission-third-surface-combinational-task (decision carries answers:).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.6`
+  Status: `pending`
+  Goal: `Implement the third structured surface (the combinational task automatic emit-projection) per decision 0014: the task_emit_prob knob + the rules-first single-gate selection (gen-time annotation + Module.task_emit_gates, excluding the sibling projections) + the emitter rendering (task automatic decl + the always_comb call + the output-var passthrough) + the downstream-clean gate (saw_combinational_task_emit) + the num_emitted_combinational_tasks metric + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split into .6a (design-detail, grounded in the real to_sv_with_modules + the gate source) + .6b (impl) when picked; .6b may further pre-split .6b.1 (live surface) / .6b.2 (gate + metric) / .6b.3 (docs closeout) per the .4b precedent.`
+  Acceptance: `Each landed leaf rules-first, opt-in / default byte-identical, proven downstream-clean (Verilator + both Yosys + Icarus, saw_combinational_task_emit lit + coverage_gaps=[]); snapshots 6/6 byte-identical; live docs + book + KM updated; committed through COMMIT.md with the leaf id.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
-**No active frontier.** The `STRUCTURED-EMISSION-EXPANSION` tree stays `active`
-as an open-ended capability lane, but **both delivered surfaces are complete
-end-to-end**: the **first** (the combinational `function automatic`
-emit-projection, `.1`+`.2`) and the **second** (the `generate for` loop
-emit-projection of a `{N{x}}` 1-bit-lane replication, `.3`+`.4`, decision
-`0013`) — `.4b.3` (`2026-06-16`) closed the second surface's user-facing
-closeout, so `.4b`/`.4` close. Future surfaces (`task` [leading],
-nested/multi-level `generate`, `interface`/`modport`) are `.5+`, each its own
-decision when picked. Nothing retired.
+**Active frontier: `STRUCTURED-EMISSION-EXPANSION.6`** (implement the third
+structured surface — the combinational `task automatic` emit-projection,
+decision `0014`), pre-split into `.6a` (design-detail, grounded in the real
+`to_sv_with_modules` + the gate source) + `.6b` (impl) when picked. `.5`
+(decision `0014`, the design leaf) is **done (`2026-06-16`)**. The first
+(combinational `function automatic`, `.1`+`.2`) and second (`generate for` loop,
+`.3`+`.4`) structured surfaces are delivered end-to-end. Future surfaces
+(nested/multi-level `generate`, `interface`/`modport`, richer tasks) are `.7+`,
+each its own decision. Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.6` | `pending` | Implement the combinational `task automatic` emit-projection (decision `0014`): the `task_emit_prob` knob + the rules-first single-gate selection (gen-time `Module.task_emit_gates`, excluding the sibling projections) + the `to_sv_with_modules` `task automatic` decl / `always_comb` call / output-var passthrough rendering + the downstream-clean `saw_combinational_task_emit` gate + the `num_emitted_combinational_tasks` metric + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split `.6a` (design-detail) + `.6b` (impl) when picked (`.6b` may further split `.6b.1`/`.6b.2`/`.6b.3` per the `.4b` precedent). |
+| — | `STRUCTURED-EMISSION-EXPANSION.5` | `done` | Decision `0014`: picked the third surface — a default-off, valid-by-construction combinational `task automatic` emit-projection of a single combinational gate (the decision `0012` single-gate parallel, but a procedural `task` with an `output` arg called from `always_comb`), over nested `generate` and `interface`/`modport`. `task` was the recorded leading candidate (decision `0013`). Empirically grounded this session: a combinational `task` called from `always_comb` is clean across Verilator `-Wall` + both Yosys + Icarus, in both the direct-output and the output-var passthrough forms. Discipline, opt-in `task_emit_prob`, `saw_combinational_task_emit` gate. Split `.5`/`.6`/`.7+`. No source change. |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `done` | The user-facing closeout of the SECOND surface: a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` (byte-verified seed-12 before/after — the inline `{5{slice_0}}` becomes the `genvar`/`generate for` block; the `{N{x}}` 1-bit-lane rule; the wider-lane part-select exclusion; the `function_emit` mutual exclusion; the `gi = gi + 1` form; metric + gate) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` (the `### Structured emission` subsection), `USER_GUIDE.md`, and the README "Current CLI truth" (config-file-only knob) + the Knowledge Map how-to card `generate-loop-emit` (KM 38→39 facts / 296→309 keys). Docs-only / DUT byte-identical. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `done` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (one comb-only `generate_loop_emit_prob=1.0` DUT × three construction strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` coverage fact + early-return gap enforcement + 5 cargo-portable proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile). Templated on `--function-emit-gate`. Default-off / DUT byte-identical (snapshots 6/6). |
 | — | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `done` | The metric `Metrics::num_emitted_generate_loops` (`= m.generate_loop_gates.len()`) surfaced in introspection `module_metrics` ⇒ schema MINOR bump `1.8 → 1.9`. Lib proof; `cargo test --lib` 478 + snapshots 6/6 + mdbook all green; end-to-end introspect default `0` / forced `50`. Precedented (`1.7→1.8` `num_emitted_combinational_functions`). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. |
@@ -363,8 +391,17 @@ decision when picked. Nothing retired.
 - (`.4b`) Does the forced `generate_loop_emit_prob=1.0` comb-only gate corpus
   actually emit `{N{x}}` 1-bit replications (the one-hot mux-mask broadcast idiom)
   so the loops fire? Pinned as the load-bearing gate-shape risk at `.4a`; resolved
-  at `.4b` by the banked forced-sweep evidence (broaden the scenario config or add
-  a replication-rich scenario if a chosen seed/strategy yields none).
+  at `.4b` by the banked forced-sweep evidence — `.4b.2b`'s
+  `/tmp/anvil-generate-loop-gate-r1` shows 8/12 modules emitting a loop, fact lit.
+- Which structured surface is next after the `generate for` loop — resolved by
+  `.5` (`task`, decision `0014`; the recorded leading candidate, autonomously
+  selected at a no-frontier boundary per the owner *"pick any tree and roll"*
+  directive).
+- (`.6a`) The exact `task` net-vs-var integration (the output-var +
+  passthrough-`assign` form vs making `<wire>` itself the `always_comb` var) +
+  one-`always_comb`-per-call vs shared + the selection mechanism (gen-time
+  annotation vs emit-time) + the exact knob name — deferred to `.6a`
+  (design-detail) per decision `0014`. Both integration forms probed clean.
 
 ## Blockers
 
@@ -374,6 +411,7 @@ decision when picked. Nothing retired.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.5` | **Design/decision leaf, no source change.** Decision `0014` (`docs/decisions/0014-structured-emission-third-surface-combinational-task.md`) + `INDEX.md` row + tree split (`.5` done + `.6` impl pending, pre-split `.6a`/`.6b`). Empirical tool-acceptance grounding (this session): a combinational `task automatic` called from `always_comb` accepted warning-clean by **Verilator 5.046 `-Wall --lint-only`** + **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`) + **Icarus `iverilog -g2012`**, in **both** the direct-output form (the task writes the module output) and the minimal-blast-radius output-var + passthrough-`assign` form (the task writes a local `logic` var, a continuous `assign` drives the gate's net). Confirms decision `0013`'s narrowed `task` caution (simple combinational void tasks are clean; the weakness is multi-output/side-effecting). `bash scripts/check_memory_architecture.sh` ✅ (`0014` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0014` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.3` | **User-facing closeout, docs-only** (a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` + the intro update + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` `### Structured emission` + `USER_GUIDE.md` + README "Current CLI truth" + new KM card `docs/knowledge/generate-loop-emit.md`; no `src/` touched). `mdbook build book` clean (HTML written, no broken-link warnings); `bash knowledge-map/scripts/gen_knowledge_map.sh` (**39 facts / 309 keys**, was 38 / 296) + `bash knowledge-map/scripts/check_knowledge_map.sh` **OK** (facts valid, ids unique, map in sync); `bash scripts/check_memory_architecture.sh` **all invariants hold** (`0013` indexed); `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` + `every_runnable_book_bash_block_succeeds` green — the new repro block correctly skip-sentinelled). Docs-only ⇒ `cargo check/clippy/fmt` unaffected (no source). Byte-verified against the release binary: seed-12 `generate_loop_emit_prob` 0.0→1.0 diff = exactly the `{5{slice_0}}` replication becoming the `genvar`/`generate for` block (rest byte-identical); the example lints clean under `verilator --lint-only -Wall` (matching filename) + both Yosys + Icarus. With this leaf `.4b.3`/`.4b`/`.4` all close — the second structured surface is delivered end-to-end. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | **Repo-owned `tool_matrix` gate** (`src/bin/tool_matrix.rs`: `--generate-loop-gate` + `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios`/`generate_loop_focus_config` + `ModuleReport.emitted_generate_loop` + `saw_generate_loop_emit` + `MatrixReport.generate_loop_gate` + merge/early-return-gap + slugs + 5 proofs + 6 fixture updates + the `test_cli` default; README + USER_GUIDE + CODEBASE_ANALYSIS gate entries). `cargo check --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix` **63 passed** / 1 ignored (incl. 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (harness-only). Repo-owned bank `/tmp/anvil-generate-loop-gate-r1` (`--generate-loop-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **8 emitting a generate loop** / `coverage_gaps = []` / `saw_generate_loop_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`. | `done` |
 | `2026-06-16` | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | **Metric + schema bump** (`src/metrics.rs` `num_emitted_generate_loops` field + `compute()` + a lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.8→1.9` + its doc comment + 2 `schema_version` assertions; `src/mcp/mod.rs` 7 `schema_version` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` `1.8→1.9` changelog entry + the defines/checklist lines; README `--introspect`+`analyze` current refs; USER_GUIDE `--introspect` ref; the 5 `book/src/agent-mcp.md` example JSONs; the `CODEBASE_ANALYSIS.md` envelope line). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **478 passed** / 2 ignored (the new metric proof + all `schema_version` assertions green at `1.9`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL). End-to-end `--introspect`: default ⇒ `schema_version "1.9"` + metric `0`; forced `generate_loop_emit_prob=1.0` ⇒ `1.9` + `50`. `mdbook build book` OK. Historical "landed at schema X" attributions left intact (`num_emitted_combinational_functions` @ 1.8; sv-version @ 1.2). | `done` |
@@ -392,6 +430,7 @@ decision when picked. Nothing retired.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.5` | `STRUCTURED-EMISSION-EXPANSION.5 — pick task surface + decision 0014` | Design/decision leaf (no source): decision `0014` picks the third structured surface — a default-off, valid-by-construction combinational `task automatic` emit-projection of a single combinational gate (the decision `0012` single-gate parallel, but a procedural `task` called from `always_comb`), over nested `generate` + `interface`/`modport`. `task` was the recorded leading candidate (decision `0013`); autonomously selected at a no-frontier boundary per the owner *"pick any tree and roll"* directive. Empirically grounded clean across Verilator `-Wall` + both Yosys + Icarus (both the direct-output and the output-var passthrough forms). `INDEX.md` row; KM card `structured-emission-third-surface-combinational-task`; tree split `.5`/`.6`/`.7+`; frontier → `.6`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.3` | `STRUCTURED-EMISSION-EXPANSION.4b.3 — generate-for loop user docs` | Docs-only closeout: a `## The second surface: a generate for loop` section in `book/src/structured-emission.md` (byte-verified seed-12 before/after; the `{N{x}}` 1-bit-lane rule; wider-lane exclusion; `function_emit` mutual exclusion; `gi = gi + 1`) + the `generate_loop_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `generate-loop-emit` (39 facts / 309 keys). Closes `.4b.3` / `.4b` / `.4` — the second structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.2b` | `STRUCTURED-EMISSION-EXPANSION.4b.2b — generate-loop tool_matrix gate` | The repo-owned `tool_matrix --generate-loop-gate`: `ScenarioSet::GenerateLoopSweep` + `build_generate_loop_sweep_scenarios` (comb-only `generate_loop_emit_prob=1.0` × 3 strategies) + `ModuleReport.emitted_generate_loop` SV-text detection + `saw_generate_loop_emit` fact + early-return gap enforcement + 5 proofs + 6 fixture updates. Banked clean `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a loop / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). README + USER_GUIDE + CODEBASE_ANALYSIS gate entries. Default-off / DUT byte-identical (snapshots 6/6). Closes `.4b.2`; frontier → `.4b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.4b.2a` | `STRUCTURED-EMISSION-EXPANSION.4b.2a — generate-loop emit metric + introspection schema 1.9` | `Metrics::num_emitted_generate_loops` (= `generate_loop_gates.len()`) + introspection schema MINOR bump `1.8 → 1.9` (the metric bumps; the `.4b.1` knob rode the version). Bumped all current-output schema refs (9 test assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + the CODEBASE_ANALYSIS envelope line); historical landing attributions left intact. Lib proof; default-off / DUT byte-identical (snapshots 6/6, lib 478); end-to-end introspect default `0` / forced `50`. Pre-split `.4b.2` → `.4b.2a`/`.4b.2b`; frontier → `.4b.2b`. |
@@ -408,6 +447,35 @@ decision when picked. Nothing retired.
 
 ## Changelog
 
+- `2026-06-16`: **`.5` landed — picked the THIRD structured surface (`task`);
+  decision `0014`.** Design/decision leaf, no source change. At a no-active-frontier
+  boundary (the `generate for` surface fully delivered), the owner directed *"pick
+  any tree and roll with it, you decide the best route"*; I autonomously selected
+  the **third structured-emission surface** — `task`, the recorded leading future
+  candidate from decision `0013` (highest-confidence/lowest-risk continuation with
+  maximal warm context on the emitter/annotation/gate machinery). The third
+  richer-structured surface is a default-off, valid-by-construction combinational
+  **`task automatic`** emit-projection of a single combinational gate — the
+  decision `0012` single-gate parallel, but a *procedural* `task` with an `output`
+  argument called from `always_comb` (vs the value-returning `function`). For a
+  marked gate `<wire> = op(o0,o1,…)`: `task automatic <wire>__t(output …, input
+  …); o = a0 op a1 …; endtask` + (minimal-blast-radius) `logic <wire>__tv;
+  always_comb <wire>__t(<wire>__tv, …); assign <wire> = <wire>__tv;`. **Empirically
+  grounded this session:** a combinational `task` called from `always_comb` is
+  accepted warning-clean by Verilator 5.046 `-Wall` + both repo Yosys modes +
+  Icarus, in *both* the direct-output and the output-var passthrough forms —
+  confirming decision `0013`'s narrowed caution (simple combinational void tasks
+  are clean; the weakness is multi-output/side-effecting). Chosen over nested
+  `generate` (deeper variant of an already-shipped surface) + `interface`/`modport`
+  (still weak Yosys synth). Discipline: rules-first (mark an already-valid gate;
+  no generate-then-filter), default-off `task_emit_prob` (proposed; default `0.0`)
+  ⇒ byte-identical, no new IR node / no new whole-module behaviour; mutually
+  exclusive with the sibling projections; combinational only; structured selectors
+  + `Slice` excluded (same reasons as `function_emit`). Downstream gate
+  (`saw_combinational_task_emit`). Decision `0014` + `INDEX.md` row + KM card
+  `structured-emission-third-surface-combinational-task`. Tree split `.5` (done) +
+  `.6` (impl; pre-split `.6a`/`.6b`) + future (`.7+`). Frontier → `.6`. Self-checks
+  clean (`mdbook build` + `check_knowledge_map` + `check_memory_architecture`).
 - `2026-06-16`: **`.4b.3` landed — the user-facing closeout; the second
   structured surface (the `generate for` loop) is delivered end-to-end; `.4b.3` /
   `.4b` / `.4` all close.** Docs-only / DUT byte-identical. `book/src/structured-emission.md`
