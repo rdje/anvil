@@ -1,6 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.8a — wider-lane `generate for` part-select impl design-detail
+
+**Landed as:** this commit (previous: `3ec4f66`). **Design-detail leaf — no
+`src/` touched / DUT byte-identical.** Grounds decision `0015`'s wider-lane
+`generate for` part-select in the real emitter and resolves its open questions
+before any code (`.8b`).
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** — a design-detail entry that (a) reports a
+  **corpus-liveness probe** and (b) resolves the three open questions decision
+  `0015` deferred to `.8a`, grounded in a fresh read of
+  `src/ir/generate_loop.rs` (`gate_qualifies`) and `src/emit/sv.rs`
+  (`generate_loop_gate` ~`1512`, `render_generate_loop_block` ~`1548`).
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — `.8a` marked `done` with
+  its Result + Verification; the Current Frontier advanced to `.8b`; metadata
+  last-updated; Verification-Log, Commit-Log, and Changelog rows.
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row: `.8a` done,
+  frontier → `.8b`.
+
+**Corpus-liveness probe (`/tmp/anvil-widelane-probe/`)** — a 300-module comb-only
+sweep (seed 1, `terminal_reuse_prob=0.95`, `gate_struct_weight=12`, widths 4–16)
+emits **448 `{N{x}}` replications, of which 20 have a multi-bit lane** (`LW > 1`)
+— e.g. `{2{i_4}}` (7b→14b), `{3{case_mux_0}}` (12b→36b), `{6{i_1}}` (8b→48b),
+`{4{concat_7}}` (20b→80b). So the broadened predicate fires on **real
+generation** (~4.5% of replications), not only on hand-built IR — the existing
+`--generate-loop-gate` corpus will exercise the new branch once the predicate is
+relaxed.
+
+**Resolved open questions (for `.8b`)**
+
+1. **`generate_loop_gate` return shape** — keep `Option<(NodeId, usize)>`
+   `(lane, N)` unchanged; recompute `LW = m.nodes[lane].width()` in
+   `render_generate_loop_block` (which already takes `m`). No signature churn.
+2. **Render branch** — `LW == 1` keeps the exact existing
+   `assign <name>[<gi>] = <x>;` (byte-identical); `LW > 1` emits
+   `assign <name>[<gi>*LW +: LW] = <x>;`. Do **not** collapse the 1-bit case into
+   `[<gi>*1 +: 1]` (would change the shipped surface's bytes + break its proofs /
+   the `.4b` gate).
+3. **Predicate relaxation** (`gate_qualifies` + the emitter defensive re-check) —
+   replace the `lane.width() != 1 || width != N` test with `LW >= 1` and
+   `width == N * LW`; the `function_emit` / `soft_union` and all-same-operand /
+   `N >= 2` checks are unchanged.
+
+**Downstream proof shape (for `.8b`)** — primary = a deterministic lib emit-test
+(hand-built `{3{x}}` with a 4-bit lane → assert `[<gi>*4 +: 4]`) + a
+1-bit-still-`[gi]` byte-identity guard; bonus = the existing
+`tool_matrix --generate-loop-gate` bank stays clean and now also projects
+wider-lane corpus replications. Behaviour faithfulness is already proven by the
+`.7` probe (`/tmp/anvil-probe-se4/`: `assign y[gi*8 +: 8] = b;` ≡ `{4{b}}` under
+iverilog).
+
+**Byte-identity contract** — default-off untouched; with the knob on only
+*wider-lane* replications change rendering (they previously emitted inline
+`{N{x}}`); the 1-bit rendering is verbatim. Reuses `generate_loop_emit_prob` +
+`num_emitted_generate_loops` ⇒ **no new knob, no new metric, no introspection
+schema bump.**
+
+**Why** — the design-detail-before-code discipline (the `.2a`/`.4a`/`.6a`
+precedent): pin the exact edits and the byte-identity contract against the real
+code, and confirm the surface is genuinely live, before touching `src/` at `.8b`.
+
+**Validation** — docs-only (no `src/` ⇒ `cargo check/clippy/fmt` unaffected). The
+corpus-liveness probe is banked at `/tmp/anvil-widelane-probe/`. `bash
+scripts/check_memory_architecture.sh` all invariants hold; `bash
+knowledge-map/scripts/check_knowledge_map.sh` OK (no card change — `0015` already
+carries `answers:`).
+
+**Impact** — design-only; no behaviour, no emitted RTL, no schema change. `.8b`
+implements the two surgical edits + the proofs + the gate confirmation +
+book/USER_GUIDE closeout. Nothing retired.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.7 — pick the fourth structured surface (wider-lane `generate for` part-select) + decision 0015
 
 **Landed as:** this commit (previous: `cf25642`). **Design/decision leaf — no

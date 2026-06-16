@@ -5,6 +5,71 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — wider-lane `generate for` part-select impl design-detail — `STRUCTURED-EMISSION-EXPANSION.8a`
+
+Grounds decision `0015` in the real emitter and resolves the three open questions
+it deferred to `.8a`. Read this session: `src/ir/generate_loop.rs` (the
+`gate_qualifies` 1-bit-lane predicate) and `src/emit/sv.rs`
+(`generate_loop_gate` at ~`1512`, `render_generate_loop_block` at ~`1548`). No
+source change in this leaf.
+
+**Corpus-liveness evidence (the surface is real, not hand-built-only).** A
+300-module comb-only sweep (`/tmp/anvil-widelane-probe/`, seed 1,
+`terminal_reuse_prob=0.95`, `gate_struct_weight=12`, widths 4–16) emits **448
+`{N{x}}` replications, of which 20 have a multi-bit lane** (`LW > 1`) — e.g.
+`{2{i_4}}` (7b→14b), `{3{case_mux_0}}` (12b→36b), `{6{i_1}}` (8b→48b),
+`{4{concat_7}}` (20b→80b). So the broadened predicate fires on real generation
+(~4.5% of replications), and the existing `--generate-loop-gate` corpus will
+exercise the new branch once the predicate is relaxed — it is not a
+hand-built-only surface.
+
+**Resolved open questions.**
+1. **`generate_loop_gate` return shape — keep `(lane, N)`; recompute `LW` in the
+   renderer.** `render_generate_loop_block(name, lane, n, m, names)` already takes
+   `m`, so it computes `lw = m.nodes[lane as usize].width()` itself. No signature
+   change to `generate_loop_gate`; it stays `Option<(NodeId, usize)>`. (The gate
+   helper still *validates* `width == N*LW` defensively, computing `LW` the same
+   way.)
+2. **Render branch — keep `LW == 1` byte-identical; part-select only for `LW > 1`.**
+   `LW == 1` keeps the exact existing line `assign <name>[<gi>] = <x>;`; `LW > 1`
+   emits `assign <name>[<gi>*LW +: LW] = <x>;`. Do **not** collapse the 1-bit case
+   into `[<gi>*1 +: 1]` — that would change the shipped 1-bit surface's bytes and
+   break its proofs + the `.4b` gate. The branch is a single `if lw == 1 { … }
+   else { … }` around the one `writeln!` body line.
+3. **Predicate relaxation in `gate_qualifies`** (`src/ir/generate_loop.rs`):
+   replace `if lane.width() != 1 || *width as usize != operands.len()` with
+   `let lw = lane.width(); if lw == 0 || *width as usize != operands.len() * lw as usize`
+   (i.e. any `LW >= 1` with the result width matching `N*LW`). The
+   `function_emit` / `soft_union` exclusions and the all-same-operand / `N >= 2`
+   checks are unchanged. The same relaxation is mirrored in the emitter-side
+   defensive re-check (`generate_loop_gate`).
+
+**Downstream proof shape for `.8b`.** Primary = a **deterministic lib emit-test**
+that hand-builds a wider-lane replication (e.g. `{3{x}}` with a 4-bit lane,
+width 12) and asserts the rendered body is `assign <wire>[<gi>*4 +: 4] = <x>;`
+(authoritative, seed-free) **plus** a test that the existing 1-bit-lane module
+still renders `[<gi>]` (byte-identity guard). Bonus = the existing
+`tool_matrix --generate-loop-gate` will now also project wider-lane corpus
+replications; `.8b` confirms the bank stays clean and (corpus-liveness above)
+that wider lanes are exercised. A behaviour/sim faithfulness check is covered by
+the empirical probe (`/tmp/anvil-probe-se4/` proved `assign y[gi*8 +: 8] = b;`
+≡ `{4{b}}` under iverilog); `.8b` may add a lib assertion that the unrolled
+ranges tile `[0, N*LW)` exactly.
+
+**Byte-identity contract.** Default-off (`generate_loop_emit_prob == 0.0`) is
+untouched. With the knob on, only *wider-lane* replications change rendering
+(they previously emitted inline `{N{x}}`); the 1-bit-lane rendering is verbatim,
+so `tests/snapshots.rs` (default-off) and every shipped 1-bit `generate_loop`
+proof + the `.4b` `--generate-loop-gate` bank stay green unchanged. Reuses
+`generate_loop_emit_prob` + `num_emitted_generate_loops` ⇒ **no new knob, no new
+metric, no introspection schema bump.**
+
+Split `.8b` does the two edits + the lib proofs + the gate confirmation +
+book/USER_GUIDE closeout (replace the "wider lane stays inline — a recorded
+follow-up" caveat in `book/src/structured-emission.md` with the shipped
+wider-lane surface). Pre-split `.8b` further (`.8b.1` live + `.8b.2` gate/docs)
+only if it grows beyond a clean single slice.
+
 ## 2026-06-17 — Structured emission — pick the FOURTH surface (wider-lane `generate for` part-select) — `STRUCTURED-EMISSION-EXPANSION.7` (decision `0015`)
 
 A design/decision leaf (no source), autonomously selected at the
