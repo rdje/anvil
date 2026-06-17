@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2b.2 — the `tool_matrix --sv2v` transpile-acceptance column + real-tool gate (decision 0020)
+
+**Landed as:** this commit (previous: `af81e16`). **Code change — `src/bin/tool_matrix.rs`
++ `tests/sv2v_e2e.rs` + docs; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6
+untouched; no generator change; banked reports + `--resume` byte-identical when `--sv2v`
+is off). Closes `DOWNSTREAM-ADAPTER-EXPANSION.2b` (leaf `.2b.2`; the byte-identical-
+sensitive half of the `.2b` split).
+
+**What changed (why)**
+
+`.2b.1` made `sv2v` a selectable/discoverable adapter over the API. This slice adds the
+`tool_matrix` acceptance column so a corpus sweep records each artifact's `sv2v` verdict —
+mirroring the `--iverilog-compile` column end-to-end:
+
+- **`src/bin/tool_matrix.rs`** — `Cli.sv2v` (`--sv2v`) + `Cli.sv2v_bin` (`--sv2v-bin`,
+  default `"sv2v"`); `ModuleReport.sv2v` + `DesignReport.sv2v: Option<ToolInvocation>`
+  (`#[serde(default, skip_serializing_if = "Option::is_none")]` ⇒ off the wire when the
+  column is off, so default runs stay byte-identical); `run_module_tools` (now returns a
+  `ModuleToolColumns` 4-tuple alias — factored to satisfy clippy `type_complexity`) and
+  `run_design_tools` dispatch the column through `AcceptanceTool::Sv2v.adapter().run(&cx)`;
+  `ModuleCheckpoint.sv2v` + `DesignCheckpoint.sv2v` + the `checkpoint_matches_cli` /
+  `checkpoint_matches_design_cli` `--resume` guard; `ToolSummary.sv2v_passed/failed` +
+  `accumulate_tool_summary` + `merge_tool_summary` + `any_failed` + the console
+  `sv2v pass/fail` line + `MatrixReport.sv2v_enabled`; `unit_divergence` threads the `sv2v`
+  invocation (so an `sv2v`-vs-other disagreement is a divergence; the early-return-before-
+  assembly optimization is preserved behind a documented `#[allow(too_many_arguments)]`).
+- **Friendly absent-tool no-op (decision `0020`).** The column is gated on a
+  `downstream::tool_version(&cli.sv2v_bin)` presence probe: a requested-but-absent `sv2v`
+  records **no** column and never bails the run. Verified by a real smoke
+  (`--skip-verilator --skip-yosys --sv2v` over 17 modules ⇒ exit 0, `sv2v pass/fail = 0/0`,
+  zero `sv2v` invocations). A `union soft` up-opt module skips `sv2v` alongside
+  Yosys/Icarus (it targets Verilog, not SV-2023).
+- **`tests/sv2v_e2e.rs`** — a portable public-API proof that `sv2v` is a selectable +
+  discoverable adapter (always runs) + an `#[ignore]` real-tool gate asserting `sv2v`
+  accepts ANVIL's valid-by-construction DUT output (skips green when `sv2v` is absent — the
+  `divergence_e2e`/`hunt_e2e` precedent).
+- **Docs** — README `tool_matrix --sv2v` bullet, USER_GUIDE `tool_matrix` flags,
+  `book/src/synthesizability.md` (the fourth acceptance column + a runnable example), and a
+  new `docs/knowledge/sv2v-adapter.md` KM card (KM 51 → 52 facts).
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --bin tool_matrix` **76/0** (+1:
+`sv2v_cli_flag_defaults_to_false_and_parses_when_set`; the `summarize_tools` tally proof
+extended to `sv2v`); `tests/snapshots.rs` **6/6** byte-identical; `cargo test --test
+sv2v_e2e` portable **1/0** + the real-tool gate `#[ignore]` (skips green, `sv2v` absent);
+`cargo test --lib` **549/0** (unchanged — bin-only slice); the `--sv2v` smoke is a friendly
+no-op (exit 0, `sv2v 0/0`, 0 invocations); `cargo clippy --all-targets -- -D warnings`
+clean (the `ModuleToolColumns` alias + a documented `#[allow]` on the `unit_divergence`
+collector); `cargo fmt --all --check` clean; `mdbook build book` clean;
+`check_memory_architecture.sh` + KM gen/check green (52 facts). Heavy steps RAM-guarded
+(decision `0003`).
+
+**Impact**
+
+`tool_matrix --sv2v` adds a fourth optional downstream acceptance column. Default-off ⇒
+banked reports + `--resume` + snapshots are byte-identical; the `--sv2v` column is a
+friendly no-op until `sv2v` is installed. `.2b` (the first new adapter, `sv2v`) is now
+complete end-to-end — selectable/queryable over the API (`.2b.1`) **and** a corpus column
+(`.2b.2`). Frontier advances to `.2c` (`slang`, the richer `extract_facts` JSON-AST hook).
+
+**Files touched**
+
+`src/bin/tool_matrix.rs`, `tests/sv2v_e2e.rs`, `README.md`, `USER_GUIDE.md`,
+`book/src/synthesizability.md`, `docs/knowledge/sv2v-adapter.md`,
+`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`, `docs/TASK_TREE.md`, `CODEBASE_ANALYSIS.md`,
+`CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md` (and the regenerated `KNOWLEDGE_MAP.md`).
+
 ## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2b.1 — the `sv2v` downstream adapter + MCP selectability/discoverability (decision 0020)
 
-**Landed as:** this commit (previous: `9980cee`). **Code change — `src/downstream/mod.rs`
+**Landed as:** `af81e16` (previous: `9980cee`). **Code change — `src/downstream/mod.rs`
 + `src/mcp/mod.rs` + book; additive / DUT byte-identical** (`tests/snapshots.rs` 6/6
 untouched; no generator change; no introspection `SCHEMA_VERSION` bump). The first new
 downstream adapter beyond the three originals (leaf `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`;

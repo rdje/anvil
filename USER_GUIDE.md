@@ -933,6 +933,15 @@ Useful options:
   or design and records the result under `iverilog_compile` in the
   report. This is warning-clean acceptance evidence only; it does not
   run a testbench or compare traces.
+- `--sv2v` (with `--sv2v-bin` to override the binary) to add an `sv2v`
+  SystemVerilog→Verilog-2005 **transpile** acceptance column. A clean
+  transpile accepts; a non-zero exit or a warning is a finding. Recorded
+  under `sv2v` in each report and tallied as `sv2v pass/fail` in the
+  summary line. Like `--iverilog-compile` it is an acceptance gate, not a
+  behavioural testbench. `sv2v` is absent on most hosts; when so the column
+  is a **friendly no-op** — a presence probe means a requested-but-missing
+  `sv2v` records no column and never fails the run (`brew install sv2v` to
+  light it up). A `union soft` up-opt module skips it alongside Yosys/Icarus.
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one

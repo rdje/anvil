@@ -681,6 +681,20 @@ exercising adversarial axes that previously fired only by chance
   compile/elaboration column (`iverilog -g2012`) to each generated
   artifact. It is warning-clean acceptance evidence only; it does not
   run a testbench or compare traces.
+- `tool_matrix --sv2v` (`DOWNSTREAM-ADAPTER-EXPANSION.2b.2`, decision
+  `0020`) adds an opt-in `sv2v` SystemVerilog→Verilog-2005 **transpile**
+  acceptance column (`--sv2v-bin` overrides the binary). A clean transpile
+  accepts; a non-zero exit or a warning is a finding (a candidate
+  downstream-tool bug). Like `--iverilog-compile` it is an acceptance gate,
+  not a behavioural testbench — the transpiled Verilog is discarded. `sv2v`
+  is absent on most hosts; when so this column is a **friendly no-op** (a
+  presence probe means a requested-but-missing `sv2v` records no column and
+  never fails the run). Recorded as `ModuleReport.sv2v` /
+  `DesignReport.sv2v` and tallied as `sv2v pass/fail` in the summary; a
+  `union soft` up-opt module skips it alongside Yosys/Icarus. `sv2v` is also
+  the first new entry in the closed downstream-adapter registry, selectable
+  via the `validate`/`hunt`/`divergence` `tools` arg + the `anvil hunt
+  --tools` CLI.
 - `tool_matrix --resume` reuses per-module checkpoints from an existing
   `--out` tree when the saved tool surface matches the current run. New
   same-binary checkpoints also carry a generator checkpoint, an `sv`

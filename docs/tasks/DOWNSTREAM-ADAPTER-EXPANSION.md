@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-18` (`.2b.1` done — sv2v downstream adapter + MCP selectability/discoverability; frontier `.2b.2` [tool_matrix column + real-tool gate + docs])
+- Last updated: `2026-06-18` (`.2b` done — sv2v adapter [`.2b.1` downstream+MCP / `.2b.2` tool_matrix column + real-tool gate]; frontier `.2c` [slang + the extract_facts JSON-AST hook])
 - Owner: repo-local workflow
 
 ## Goal
@@ -92,9 +92,10 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b`
-  Status: `active`
+  Status: `done`
   Goal: `The first new adapter, sv2v, as an accept/reject transpile column: registered descriptor + tools-selectable + queryable verdict in ValidateReport/DivergenceReport/the matrix column; friendly absent-tool no-op + an #[ignore] real-tool gate; book/USER_GUIDE/README/KM card. Pre-split (mirroring .2a) into the additive downstream+MCP surface (.2b.1) and the byte-identical-sensitive tool_matrix column + the real-tool gate + docs (.2b.2), so each sub-slice commits independently.`
   Children: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`, `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
+  Result: `Done — both children landed. .2b.1: the sv2v downstream adapter (AcceptanceTool::Sv2v + run_sv2v/_design + Sv2vAdapter + 4th registry entry + warning arm) + MCP selectability/discoverability (the four tools enums + parse_validate_tools + the adapter catalog) + the anvil hunt --tools CLI. .2b.2: the tool_matrix --sv2v transpile-acceptance column (mirroring --iverilog-compile) with the tool_version presence-probe friendly no-op + tests/sv2v_e2e.rs #[ignore] gate. Default-off / DUT byte-identical throughout. sv2v multiplies the bug surface across validate/hunt/divergence/tool_matrix for free (decision 0019 compounding). slang (the richer extract_facts hook) is .2c.`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
   Status: `done`
@@ -105,11 +106,12 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
-  Status: `pending`
+  Status: `done`
   Goal: `The tool_matrix sv2v acceptance column (byte-identical-sensitive) mirroring the --iverilog-compile precedent: a --sv2v opt-in flag + sv2v_bin + ModuleReport/DesignReport.sv2v: Option<ToolInvocation> (serde skip_serializing_if) routed through the registry, checkpoint fields + --resume guard, per-tool tally + an opportunistic saw_sv2v_* coverage fact (never a required gate), the friendly absent-tool no-op; an #[ignore] real-tool gate (tests/sv2v_e2e.rs, the hunt_e2e/divergence_e2e precedent) for when sv2v is installed; book (agent-mcp.md / api-resources-prompts.md / synthesizability.md downstream surface) + USER_GUIDE + README CLI surface + a KM card. Default-off ⇒ banked reports + --resume + snapshots 6/6 byte-identical.`
-  Acceptance: `pending (refine at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `Mirror the --iverilog-compile column touchpoints in src/bin/tool_matrix.rs for sv2v: (1) Cli.sv2v: bool (#[arg(long)], default false) + Cli.sv2v_bin: String (default "sv2v"); (2) ModuleReport.sv2v + DesignReport.sv2v: Option<ToolInvocation> with #[serde(default, skip_serializing_if="Option::is_none")] so default runs stay byte-identical; (3) run_module_tools/run_design_tools dispatch the column via AcceptanceTool::Sv2v.adapter().run(&cx) when cli.sv2v (module path also gated !verilator_only, like iverilog), placed into the report; (4) ModuleCheckpoint.sv2v + DesignCheckpoint.sv2v: bool written at checkpoint time + the checkpoint_matches_cli/_design_cli --resume guard compares them; (5) ToolSummary.sv2v_passed/failed + accumulate_tool_summary + merge_tool_summary + the console summary line + MatrixReport.sv2v_enabled; (6) unit_divergence includes the sv2v invocation so a column that disagrees is a divergence; (7) test_cli() sets sv2v:false + sv2v_bin; a CLI parse proof (--sv2v default-false/parses) + a summarize proof. An #[ignore] tests/sv2v_e2e.rs real-tool gate (sv2v on PATH ⇒ a clean anvil-emitted module transpiles; tool-less ⇒ skips green). Docs: README CLI/tool_matrix surface, USER_GUIDE tool_matrix flags, book synthesizability.md (the downstream acceptance tools) + api/agent-mcp if needed, a docs/knowledge KM card. Gate: cargo check --all-targets; cargo test --bin tool_matrix (+ proofs); cargo test --lib; snapshots 6/6 byte-identical; a real --sv2v smoke is a friendly no-op (sv2v absent); clippy -D warnings; fmt --check; mdbook build; KM gen/check. Default-off ⇒ banked reports + --resume + snapshots byte-identical.`
+  Result: `Landed all the --iverilog-compile column touchpoints for sv2v in src/bin/tool_matrix.rs, byte-identical when off: Cli.sv2v/sv2v_bin; ModuleReport/DesignReport.sv2v (serde skip_serializing_if); run_module_tools (now returns a 4-tuple via a ModuleToolColumns alias to satisfy clippy type_complexity) + run_design_tools dispatch sv2v via AcceptanceTool::Sv2v.adapter().run(&cx); ModuleCheckpoint/DesignCheckpoint.sv2v + the checkpoint_matches_cli/_design_cli --resume guard; ToolSummary.sv2v_passed/failed + accumulate_tool_summary + merge_tool_summary + any_failed + the console "sv2v pass/fail" line + MatrixReport.sv2v_enabled; unit_divergence threads sv2v (kept its early-return-before-assembly optimization with a documented #[allow(too_many_arguments)]); test_cli() sets the fields. KEY DESIGN CHOICE: the sv2v column is gated on a tool_version presence probe (decision 0020 friendly-no-op) — a requested-but-absent sv2v records NO column and never bails (verified by a real smoke: --skip-verilator --skip-yosys --sv2v over 17 modules ⇒ exit 0, "sv2v pass/fail = 0/0", 0 sv2v invocations). Proofs: a --sv2v CLI parse test + the summarize tally extended to sv2v; tests/sv2v_e2e.rs (a portable public-API proof sv2v is selectable/discoverable + an #[ignore] real-tool gate, skips green when absent). Docs: README CLI bullet + USER_GUIDE tool_matrix flags + book synthesizability.md (the 4th acceptance column) + a docs/knowledge/sv2v-adapter.md KM card (KM 51→52). Default-off ⇒ snapshots 6/6 + banked reports + --resume byte-identical.`
+  Verification: `cargo check --all-targets clean; cargo test --bin tool_matrix 76/0 (+1: sv2v_cli_flag_defaults_to_false_and_parses_when_set; the summarize tally proof extended to sv2v); cargo test --test snapshots 6/6 byte-identical; cargo test --test sv2v_e2e portable 1/0 + #[ignore] 1 (sv2v absent ⇒ skips green); cargo test --lib 549/0 (unchanged — bin-only slice); real --sv2v smoke a friendly no-op (exit 0, sv2v 0/0, 0 invocations); clippy --all-targets -D warnings clean (type alias + documented #[allow] for the collector); fmt --all --check clean; mdbook build clean; KM gen/check green (52 facts). Heavy steps RAM-guarded (decision 0003).`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c`
   Status: `pending`
@@ -122,12 +124,14 @@ with its results queryable over MCP. Builds on the hardened
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `pending` | `sv2v` `tool_matrix` column (byte-identical-sensitive, mirrors `--iverilog-compile`) + the `#[ignore]` real-tool gate + book/USER_GUIDE/README/KM. |
-| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook, proving the trait's SCHEMA-DERIVED fact path; absent locally ⇒ no-op + `#[ignore]` gate. |
 
-Done: `.2b.1` — the `sv2v` downstream adapter (4th `AcceptanceTool` / `run_sv2v` /
-`Sv2vAdapter` / registry entry) + MCP selectability (`tools` enums) +
-discoverability (`adapter_catalog()` now 4 entries), additive / DUT byte-identical.
+Done: `.2b` (`sv2v`, the first new adapter) — `.2b.1` the downstream adapter (4th
+`AcceptanceTool` / `run_sv2v` / `Sv2vAdapter` / registry entry) + MCP selectability
+(`tools` enums) + discoverability (`adapter_catalog()` now 4 entries) + the `anvil hunt
+--tools` CLI; `.2b.2` the `tool_matrix --sv2v` transpile-acceptance column (mirroring
+`--iverilog-compile`) with the presence-probe friendly no-op + the `tests/sv2v_e2e.rs`
+`#[ignore]` real-tool gate. Default-off / DUT byte-identical.
 
 Done: `.1` (design ADR, decision `0020`); `.2a.1` (the closed `Adapter` registry
 core + `validate` routed through it, byte-identical); `.2a.2` (the
@@ -187,6 +191,7 @@ registry, byte-identical — `.2a` complete).
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `cargo test --lib 546/0 (+1 catalog proof); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt --check clean; mdbook build clean; book_examples 3/3; no introspection SCHEMA_VERSION bump; DUT byte-identical; RAM-guarded` | `done` |
 | `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `cargo check --all-targets clean; cargo test --lib 547/0 (+1: validate_tool_specs_routes_each_kind_through_its_adapter_single_row); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil+pipeline+divergence_e2e exit 0; clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green; DUT byte-identical; RAM-guarded` | `done` |
 | `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` | `cargo check --all-targets clean; cargo test --lib 549/0 (+2 net: adapter_catalog_projects_every_registered_adapter, parse_validate_tools_accepts_sv2v_and_rejects_unknown; registry/warning/routing/catalog proofs extended to 4 adapters); snapshots 6/6 byte-identical (no generator change); clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green; DUT byte-identical; RAM-guarded` | `done` |
+| `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `cargo check --all-targets clean; cargo test --bin tool_matrix 76/0 (+1 --sv2v CLI proof; tally proof extended); snapshots 6/6 byte-identical; sv2v_e2e portable 1/0 + #[ignore] 1 (sv2v absent ⇒ skips green); lib 549/0 (bin-only slice); real --sv2v smoke a friendly no-op (exit 0, sv2v 0/0, 0 invocations); clippy -D warnings clean (type alias + documented #[allow] collector); fmt --check clean; mdbook build clean; KM gen/check green (52 facts); DUT byte-identical; RAM-guarded` | `done` |
 
 ## Commit Log
 
@@ -198,6 +203,7 @@ registry, byte-identical — `.2a` complete).
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — anvil://catalog/adapters discoverability resource` | The SCHEMA-DERIVED adapter catalog over MCP (decision `0017`); `Adapter::supports_facts` + `AdapterInfo`/`adapter_catalog()`. Frontier advances to `.2a.3`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3 — route validate_tool_specs + tool_matrix columns through the adapter registry` | The last two downstream callers (`validate_tool_specs` via `run_tool_spec`; the `tool_matrix` `run_module_tools`/`run_design_tools` columns) routed through the registry, byte-identical; six now-unused `run_*` imports dropped from `tool_matrix.rs`. `.2a` complete; frontier advances to `.2b` (sv2v). |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.1 — sv2v downstream adapter + MCP selectability/discoverability` | The first new adapter: `AcceptanceTool::Sv2v` + `run_sv2v`/`run_sv2v_design` + `Sv2vAdapter` + a 4th registry entry + a `first_tool_warning` arm; `mcp` `tools` enums + `parse_validate_tools` allow-list updated to 4; book synced. Additive / DUT byte-identical (no `tool_matrix` column — that is `.2b.2`). `.2b` split into `.2b.1`/`.2b.2`; frontier advances to `.2b.2`. |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2 — tool_matrix sv2v transpile-acceptance column + real-tool gate` | The `tool_matrix --sv2v` column mirroring `--iverilog-compile` (CLI flag/bin, `ModuleReport`/`DesignReport.sv2v`, checkpoint + `--resume` guard, tally + console line + `MatrixReport.sv2v_enabled`, `unit_divergence` inclusion), gated on a `tool_version` presence probe for the friendly no-op; `tests/sv2v_e2e.rs` `#[ignore]` real-tool gate; README/USER_GUIDE/book + a KM card. `.2b` complete; frontier advances to `.2c` (slang). |
 
 ## Changelog
 
@@ -251,3 +257,17 @@ registry, byte-identical — `.2a` complete).
   (`agent-mcp.md` / `api-tools.md` / `api-resources-prompts.md`). Additive / DUT
   byte-identical (snapshots 6/6, no generator change). Gate green (lib 549/0 +2 net
   proofs, clippy/fmt, mdbook, KM). Frontier advanced to `.2b.2`.
+- `2026-06-18`: **`.2b.2` done — closes `.2b`** — the `tool_matrix --sv2v`
+  transpile-acceptance column (byte-identical-sensitive), mirroring `--iverilog-compile`:
+  `Cli.sv2v`/`sv2v_bin`, `ModuleReport`/`DesignReport.sv2v` (serde `skip_serializing_if`),
+  `run_module_tools` (a `ModuleToolColumns` alias for the 4-tuple) / `run_design_tools`
+  dispatch via `AcceptanceTool::Sv2v.adapter().run(&cx)`, the checkpoint field + `--resume`
+  guard, the `ToolSummary.sv2v_passed/failed` tally (in `any_failed`) + console line +
+  `MatrixReport.sv2v_enabled`, `unit_divergence` inclusion — all gated on a `tool_version`
+  presence probe so a requested-but-absent `sv2v` records no column and never bails (the
+  friendly no-op, verified by a real `--sv2v` smoke: exit 0, `sv2v 0/0`, 0 invocations).
+  `tests/sv2v_e2e.rs` (a portable public-API proof + an `#[ignore]` real-tool gate);
+  README/USER_GUIDE/`synthesizability.md` + a `docs/knowledge/sv2v-adapter.md` KM card
+  (KM 51→52). Default-off ⇒ banked reports + `--resume` + snapshots 6/6 byte-identical.
+  Gate green (tool_matrix 76/0, snapshots 6/6, sv2v_e2e portable 1/0, lib 549/0,
+  clippy/fmt, mdbook, KM). `.2b` complete; frontier advanced to `.2c`.

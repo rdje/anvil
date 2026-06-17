@@ -11,8 +11,8 @@ use anvil::config::{
 // delegates verbatim to those primitives, so the serialized `ToolInvocation`
 // shape (and banked reports + `--resume`) stay unchanged.
 use anvil::downstream::{
-    yosys_mode_slug, AcceptanceTool, AdapterRunCx, AdapterTarget, ToolInvocation, ValidateReport,
-    YosysMode,
+    tool_version, yosys_mode_slug, AcceptanceTool, AdapterRunCx, AdapterTarget, ToolInvocation,
+    ValidateReport, YosysMode,
 };
 // ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the opt-in acceptance-divergence column
 // reuses the one shared detector in `anvil::divergence`: `classify_report`
@@ -177,6 +177,22 @@ struct Cli {
     #[arg(long, default_value = "iverilog")]
     iverilog_bin: String,
 
+    /// Opt-in `sv2v` SystemVerilog→Verilog-2005 transpile acceptance
+    /// column (`DOWNSTREAM-ADAPTER-EXPANSION.2b.2`, decision `0020`).
+    /// When enabled, each generated artifact is transpiled with `sv2v`
+    /// after the normal Verilator/Yosys checks: a clean transpile
+    /// accepts, a non-zero exit or a warning is a finding. Like
+    /// `--iverilog-compile`, this is an acceptance gate, not a
+    /// behavioural testbench — the transpiled Verilog is discarded.
+    /// `sv2v` is absent on most hosts; when so this column is a
+    /// friendly no-op (the run records a spawn failure, never a panic).
+    #[arg(long)]
+    sv2v: bool,
+
+    /// `sv2v` executable to run when `--sv2v` is set.
+    #[arg(long, default_value = "sv2v")]
+    sv2v_bin: String,
+
     /// Yosys synthesis mode: keep the current no-ABC path, run the
     /// warning-clean ABC-enabled harness path, or run both.
     #[arg(long, value_enum, default_value_t = YosysMode::WithoutAbc)]
@@ -239,6 +255,12 @@ struct ModuleReport {
     /// `--iverilog-compile` was set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     iverilog_compile: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — opt-in `sv2v`
+    /// SystemVerilog→Verilog-2005 transpile acceptance column. `None`
+    /// unless `--sv2v` was set. Like `iverilog_compile`, the field is
+    /// off the wire when `None`, so default runs stay byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sv2v: Option<ToolInvocation>,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — opt-in cross-simulator
     /// byte-equal-trace report. `None` when `--diff-sim` was not
     /// set OR this scenario was not in the per-axis subset OR
@@ -343,6 +365,8 @@ struct ModuleCheckpoint {
     skip_yosys: bool,
     #[serde(default)]
     iverilog_compile: bool,
+    #[serde(default)]
+    sv2v: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     sv_hash: Option<String>,
@@ -364,6 +388,11 @@ struct DesignReport {
     yosys: Vec<ToolInvocation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     iverilog_compile: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — opt-in `sv2v` transpile
+    /// column (the design-level counterpart of `ModuleReport.sv2v`).
+    /// `None` unless `--sv2v` was set; off the wire when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sv2v: Option<ToolInvocation>,
     /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opt-in acceptance-divergence
     /// column (decision `0019`); the design-level counterpart of
     /// `ModuleReport.divergence`. `None` unless `--divergence` was set AND this
@@ -387,6 +416,8 @@ struct DesignCheckpoint {
     skip_yosys: bool,
     #[serde(default)]
     iverilog_compile: bool,
+    #[serde(default)]
+    sv2v: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     files: Vec<DesignFileHash>,
@@ -404,6 +435,8 @@ struct ToolSummary {
     yosys_with_abc_failed: usize,
     iverilog_compile_passed: usize,
     iverilog_compile_failed: usize,
+    sv2v_passed: usize,
+    sv2v_failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -833,6 +866,11 @@ struct MatrixReport {
     /// module/design report carries an `iverilog_compile` invocation.
     #[serde(default)]
     iverilog_compile_enabled: bool,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — whether `--sv2v` was set
+    /// for this run. When `false`, no module/design report carries an
+    /// `sv2v` invocation.
+    #[serde(default)]
+    sv2v_enabled: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — whether `--diff-sim` was
     /// set for this run. When `false`, `diff_sim_subset` is empty
     /// and no `ModuleReport.diff_sim` is populated.
@@ -1019,6 +1057,7 @@ fn main() -> Result<()> {
         tool_summary: global_tool_summary,
         scenarios: scenario_reports,
         iverilog_compile_enabled: cli.iverilog_compile,
+        sv2v_enabled: cli.sv2v,
         diff_sim_enabled: cli.diff_sim,
         diff_sim_subset,
         divergence_enabled: cli.divergence,
@@ -1038,7 +1077,7 @@ fn main() -> Result<()> {
     );
     println!("tool_matrix: total modules = {}", report.total_modules);
     println!(
-        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}, Icarus compile pass/fail = {}/{}",
+        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}, Icarus compile pass/fail = {}/{}, sv2v pass/fail = {}/{}",
         report.tool_summary.verilator_passed,
         report.tool_summary.verilator_failed,
         report.tool_summary.yosys_without_abc_passed,
@@ -1046,7 +1085,9 @@ fn main() -> Result<()> {
         report.tool_summary.yosys_with_abc_passed,
         report.tool_summary.yosys_with_abc_failed,
         report.tool_summary.iverilog_compile_passed,
-        report.tool_summary.iverilog_compile_failed
+        report.tool_summary.iverilog_compile_failed,
+        report.tool_summary.sv2v_passed,
+        report.tool_summary.sv2v_failed
     );
     if let Some(share_sweep) = &report.share_sweep {
         for (share_prob, bucket) in &share_sweep.buckets {
@@ -5110,7 +5151,7 @@ fn materialize_prepared_module(
     // even when both knobs are off or a seed produced no qualifying cone.
     let emitted_cone_function = prepared.sv_text.contains("__cf(");
 
-    let (verilator, yosys, iverilog_compile) = run_module_tools(
+    let (verilator, yosys, iverilog_compile, sv2v) = run_module_tools(
         cli,
         scenario_dir,
         &prepared.paths.sv_path,
@@ -5151,6 +5192,7 @@ fn materialize_prepared_module(
         verilator.as_ref(),
         &yosys,
         iverilog_compile.as_ref(),
+        sv2v.as_ref(),
     );
 
     let report = ModuleReport {
@@ -5160,6 +5202,7 @@ fn materialize_prepared_module(
         verilator,
         yosys,
         iverilog_compile,
+        sv2v,
         diff_sim,
         divergence,
         emitted_soft_union_overlay,
@@ -5260,6 +5303,11 @@ fn scenario_in_named_subset(scenario_dir: &Path, sentinel_name: &str) -> bool {
 /// The `run_id` is the unit's `top` name (a stable per-report identifier);
 /// the matrix retains the actual `.sv` on disk per the reproducer policy, so it
 /// does not content-address here.
+// One collector parameter per acceptance column (Verilator / Yosys /
+// iverilog-compile / sv2v) on top of cli + scenario_dir + kind + top. The
+// per-column arguments are intentional — it checks the off/out-of-subset cases
+// *before* assembling, so the default path clones nothing.
+#[allow(clippy::too_many_arguments)]
 fn unit_divergence(
     cli: &Cli,
     scenario_dir: &Path,
@@ -5268,6 +5316,7 @@ fn unit_divergence(
     verilator: Option<&ToolInvocation>,
     yosys: &[ToolInvocation],
     iverilog_compile: Option<&ToolInvocation>,
+    sv2v: Option<&ToolInvocation>,
 ) -> Option<DivergenceReport> {
     if !cli.divergence || !scenario_in_divergence_subset(scenario_dir) {
         return None;
@@ -5279,6 +5328,9 @@ fn unit_divergence(
     tools.extend(yosys.iter().cloned());
     if let Some(i) = iverilog_compile {
         tools.push(i.clone());
+    }
+    if let Some(s) = sv2v {
+        tools.push(s.clone());
     }
     if tools.is_empty() {
         return None;
@@ -5354,6 +5406,18 @@ fn classify_diff_sim_axis(cfg: &Config) -> &'static str {
     }
 }
 
+/// The per-module acceptance columns [`run_module_tools`] produces, in report
+/// order: Verilator (one invocation), Yosys (1–2 per [`YosysMode`]), the opt-in
+/// Icarus compile column, and the opt-in `sv2v` transpile column
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2b.2`). Factored into an alias to keep the
+/// signature readable (clippy `type_complexity`).
+type ModuleToolColumns = (
+    Option<ToolInvocation>,
+    Vec<ToolInvocation>,
+    Option<ToolInvocation>,
+    Option<ToolInvocation>,
+);
+
 fn run_module_tools(
     cli: &Cli,
     scenario_dir: &Path,
@@ -5364,11 +5428,7 @@ fn run_module_tools(
     // Verilator-only: Yosys/Icarus reject the syntax and are a recorded
     // no-op (empty Yosys vec / `None` Icarus), decision `0010`.
     verilator_only: bool,
-) -> Result<(
-    Option<ToolInvocation>,
-    Vec<ToolInvocation>,
-    Option<ToolInvocation>,
-)> {
+) -> Result<ModuleToolColumns> {
     // Dispatch each fixed column through the closed adapter registry
     // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.3`, decision `0020`) instead of calling
     // the `run_*` primitives directly. Byte-identical: each built-in adapter's
@@ -5418,7 +5478,21 @@ fn run_module_tools(
         None
     };
 
-    Ok((verilator, yosys, iverilog_compile))
+    // `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — the opt-in sv2v transpile column.
+    // Skipped for `union soft` up-opt modules alongside Yosys/Icarus (sv2v
+    // targets Verilog and does not accept the SV-2023 `union soft` syntax), and
+    // a **friendly no-op** when sv2v is absent: a presence probe (decision
+    // `0020`, the diff-sim `tools_present()` precedent) means a requested-but-
+    // missing sv2v records no column and never bails the run.
+    let sv2v = if cli.sv2v && !verilator_only && tool_version(&cli.sv2v_bin).is_some() {
+        run_column(AcceptanceTool::Sv2v, &cli.sv2v_bin, None)?
+            .into_iter()
+            .next()
+    } else {
+        None
+    };
+
+    Ok((verilator, yosys, iverilog_compile, sv2v))
 }
 
 fn run_design_tools(
@@ -5501,6 +5575,16 @@ fn run_design_tools(
         None
     };
 
+    // `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — the opt-in sv2v transpile column;
+    // a friendly no-op when sv2v is absent (presence probe, decision `0020`).
+    let sv2v = if cli.sv2v && tool_version(&cli.sv2v_bin).is_some() {
+        run_column(AcceptanceTool::Sv2v, &cli.sv2v_bin, None)?
+            .into_iter()
+            .next()
+    } else {
+        None
+    };
+
     // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — classify the tools just run on this
     // design for acceptance divergence (a pure projection; no extra spawn).
     let divergence = unit_divergence(
@@ -5511,6 +5595,7 @@ fn run_design_tools(
         verilator.as_ref(),
         &yosys,
         iverilog_compile.as_ref(),
+        sv2v.as_ref(),
     );
 
     Ok(DesignReport {
@@ -5523,6 +5608,7 @@ fn run_design_tools(
         verilator,
         yosys,
         iverilog_compile,
+        sv2v,
         divergence,
     })
 }
@@ -5539,6 +5625,7 @@ fn write_module_checkpoint(
         skip_verilator: cli.skip_verilator,
         skip_yosys: cli.skip_yosys,
         iverilog_compile: cli.iverilog_compile,
+        sv2v: cli.sv2v,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         sv_hash: Some(sv_hash.to_string()),
@@ -5569,6 +5656,7 @@ fn write_design_checkpoint(
         skip_verilator: cli.skip_verilator,
         skip_yosys: cli.skip_yosys,
         iverilog_compile: cli.iverilog_compile,
+        sv2v: cli.sv2v,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         files,
@@ -5608,6 +5696,7 @@ fn checkpoint_matches_cli(checkpoint: &ModuleCheckpoint, cli: &Cli) -> bool {
     checkpoint.skip_verilator == cli.skip_verilator
         && checkpoint.skip_yosys == cli.skip_yosys
         && checkpoint.iverilog_compile == cli.iverilog_compile
+        && checkpoint.sv2v == cli.sv2v
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
@@ -5615,6 +5704,7 @@ fn checkpoint_matches_design_cli(checkpoint: &DesignCheckpoint, cli: &Cli) -> bo
     checkpoint.skip_verilator == cli.skip_verilator
         && checkpoint.skip_yosys == cli.skip_yosys
         && checkpoint.iverilog_compile == cli.iverilog_compile
+        && checkpoint.sv2v == cli.sv2v
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
@@ -5825,6 +5915,7 @@ fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
             module.verilator.as_ref(),
             &module.yosys,
             module.iverilog_compile.as_ref(),
+            module.sv2v.as_ref(),
         );
     }
     summary
@@ -5838,6 +5929,7 @@ fn summarize_design_tools(designs: &[DesignReport]) -> ToolSummary {
             design.verilator.as_ref(),
             &design.yosys,
             design.iverilog_compile.as_ref(),
+            design.sv2v.as_ref(),
         );
     }
     summary
@@ -7280,6 +7372,8 @@ fn merge_tool_summary(dst: &mut ToolSummary, src: &ToolSummary) {
     dst.yosys_with_abc_failed += src.yosys_with_abc_failed;
     dst.iverilog_compile_passed += src.iverilog_compile_passed;
     dst.iverilog_compile_failed += src.iverilog_compile_failed;
+    dst.sv2v_passed += src.sv2v_passed;
+    dst.sv2v_failed += src.sv2v_failed;
 }
 
 fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
@@ -7612,6 +7706,7 @@ fn accumulate_tool_summary(
     verilator: Option<&ToolInvocation>,
     yosys: &[ToolInvocation],
     iverilog_compile: Option<&ToolInvocation>,
+    sv2v: Option<&ToolInvocation>,
 ) {
     if let Some(verilator) = verilator {
         if verilator.success {
@@ -7644,6 +7739,13 @@ fn accumulate_tool_summary(
             summary.iverilog_compile_passed += 1;
         } else {
             summary.iverilog_compile_failed += 1;
+        }
+    }
+    if let Some(sv2v) = sv2v {
+        if sv2v.success {
+            summary.sv2v_passed += 1;
+        } else {
+            summary.sv2v_failed += 1;
         }
     }
 }
@@ -8956,7 +9058,10 @@ impl ToolSummary {
     }
 
     fn any_failed(&self) -> bool {
-        self.verilator_failed > 0 || self.yosys_failed() > 0 || self.iverilog_failed() > 0
+        self.verilator_failed > 0
+            || self.yosys_failed() > 0
+            || self.iverilog_failed() > 0
+            || self.sv2v_failed > 0
     }
 }
 
@@ -8990,6 +9095,8 @@ mod tests {
             yosys_bin: "yosys".to_string(),
             iverilog_compile: false,
             iverilog_bin: "iverilog".to_string(),
+            sv2v: false,
+            sv2v_bin: "sv2v".to_string(),
             yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
             resume: false,
@@ -10728,6 +10835,31 @@ mod tests {
         assert_eq!(with_flag.iverilog_bin, "/opt/homebrew/bin/iverilog");
     }
 
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` — the `--sv2v` opt-in column flag
+    /// defaults off (so default runs stay byte-identical) and parses with a
+    /// caller-supplied `--sv2v-bin`. (`sv2v` is also a valid `--tools` value —
+    /// the `AcceptanceTool` clap `ValueEnum` derives the token `sv2v`.)
+    #[test]
+    fn sv2v_cli_flag_defaults_to_false_and_parses_when_set() {
+        use clap::Parser;
+
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.sv2v);
+        assert_eq!(no_flag.sv2v_bin, "sv2v");
+
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--sv2v",
+            "--sv2v-bin",
+            "/opt/homebrew/bin/sv2v",
+            "--out",
+            "/tmp/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.sv2v);
+        assert_eq!(with_flag.sv2v_bin, "/opt/homebrew/bin/sv2v");
+    }
+
     #[test]
     fn summarize_tools_counts_yosys_modes_separately() {
         let modules = vec![ModuleReport {
@@ -10776,6 +10908,16 @@ mod tests {
                 error: None,
                 version: None,
             }),
+            sv2v: Some(ToolInvocation {
+                tool: "sv2v".to_string(),
+                argv: vec![],
+                success: true,
+                exit_code: Some(0),
+                stdout_log: None,
+                stderr_log: None,
+                error: None,
+                version: None,
+            }),
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -10790,6 +10932,8 @@ mod tests {
         assert_eq!(summary.yosys_without_abc_passed, 1);
         assert_eq!(summary.yosys_with_abc_failed, 1);
         assert_eq!(summary.iverilog_compile_passed, 1);
+        assert_eq!(summary.sv2v_passed, 1);
+        assert_eq!(summary.sv2v_failed, 0);
         assert_eq!(summary.yosys_failed(), 1);
         assert_eq!(summary.iverilog_failed(), 0);
         assert!(summary.any_failed());
@@ -10817,6 +10961,7 @@ mod tests {
             metrics: prepared0.metrics.clone(),
             verilator: None,
             iverilog_compile: None,
+            sv2v: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -10882,6 +11027,7 @@ mod tests {
             metrics: prepared.metrics.clone(),
             verilator: None,
             iverilog_compile: None,
+            sv2v: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -10943,6 +11089,7 @@ mod tests {
                 metrics: prepared.metrics,
                 verilator: None,
                 iverilog_compile: None,
+                sv2v: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11413,6 +11560,7 @@ mod tests {
                 metrics: Metrics::default(),
                 verilator: None,
                 iverilog_compile: None,
+                sv2v: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11507,6 +11655,7 @@ mod tests {
             Some(&verilator),
             &yosys,
             None,
+            None,
         )
         .is_none());
 
@@ -11521,6 +11670,7 @@ mod tests {
             "m",
             Some(&verilator),
             &yosys,
+            None,
             None,
         )
         .expect("divergence column populated when enabled and in subset");
@@ -11566,6 +11716,7 @@ mod tests {
                 metrics: Metrics::default(),
                 verilator: None,
                 iverilog_compile: None,
+                sv2v: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11735,6 +11886,7 @@ mod tests {
             metrics: Metrics::default(),
             verilator: None,
             iverilog_compile: None,
+            sv2v: None,
             yosys: vec![],
             diff_sim: None,
             divergence: None,

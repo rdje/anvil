@@ -129,6 +129,25 @@ cargo run --bin tool_matrix -- --out ./tool-matrix --iverilog-compile
 cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both --iverilog-compile
 ```
 
+`--sv2v` adds a fourth optional acceptance column: each emitted
+module/design is transpiled to Verilog-2005 with `sv2v` — an
+*independent* SystemVerilog front-end, so it trips bugs the other
+three cannot. A clean transpile accepts; a non-zero exit or a warning
+is a finding. Like `--iverilog-compile` it is an acceptance gate, not
+a behavioural testbench (the transpiled output is discarded). `sv2v`
+is the first new entry in ANVIL's closed
+[downstream-adapter registry](./agent-mcp.md), so it is also selectable
+over the MCP/CLI `tools` arg. It is absent on most hosts; when so the
+column is a **friendly no-op** (a presence probe means a
+requested-but-missing `sv2v` records no column and never fails the
+run — `brew install sv2v` to light it up).
+
+<!-- book-test: skip — opt-in column requires sv2v on PATH; documented in the verification log of DOWNSTREAM-ADAPTER-EXPANSION.2b.2 -->
+```bash
+# Add the sv2v transpile-acceptance column to a matrix run
+cargo run --bin tool_matrix -- --out ./tool-matrix --sv2v
+```
+
 The `--diff-sim` column raises the bar further to **semantic
 equivalence** across two independent simulators — iverilog
 (interpreted, 4-state, event-driven) and verilator (compiled,

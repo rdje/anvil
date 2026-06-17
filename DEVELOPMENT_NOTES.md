@@ -5,6 +5,40 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — The `tool_matrix --sv2v` column — presence-gated friendly no-op, and where it differs from `--iverilog-compile` — `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
+
+`.2b.2` adds the `tool_matrix --sv2v` column by mirroring the 19 `--iverilog-compile`
+touchpoints (CLI flag/bin, `ModuleReport`/`DesignReport` field, checkpoint + `--resume`
+guard, `ToolSummary` tally + `any_failed` + console line, `MatrixReport.sv2v_enabled`,
+`unit_divergence` inclusion). Three deliberate *departures* from a pure mirror, all forced
+by `sv2v` being **absent on most hosts** (unlike iverilog, which `--iverilog-compile`
+assumes present):
+
+- **The column is gated on a `tool_version` presence probe.** `--iverilog-compile` runs
+  unconditionally and a spawn failure (absent tool) would count as a failure and bail via
+  `any_failed`. For `sv2v` that would make `--sv2v` *fail* on a host without `sv2v` —
+  violating decision `0020`'s "a missing binary is a friendly no-op, never a hard failure".
+  So `run_module_tools`/`run_design_tools` only run the `sv2v` column when
+  `downstream::tool_version(&cli.sv2v_bin).is_some()`; absent ⇒ the column is `None` (no
+  row, not counted, no bail). This is the `diff_sim::tools_present()` precedent. The cost is
+  one `sv2v --version` probe per artifact when `--sv2v` is set — instant (`ENOENT`) when
+  absent, and only on the deliberate opt-in path when present; acceptable for a first cut.
+  `sv2v` **is** in `any_failed` (a real reject bails, like iverilog) — the presence gate is
+  what keeps "absent" out of that count.
+- **`run_module_tools` now returns a 4-tuple → a named alias.** The added `sv2v` column
+  pushed the return type past clippy's `type_complexity` threshold, so the tuple is factored
+  into `type ModuleToolColumns = (…)`. (The clippy-recommended "factor into a type" fix; a
+  struct was overkill for four positional columns the one caller immediately destructures.)
+- **`unit_divergence` reached 8 args → a documented `#[allow(too_many_arguments)]`.** It
+  takes one parameter per acceptance column on top of cli + location, *because* it checks the
+  off/out-of-subset cases before assembling, so the default path clones nothing. Bundling the
+  columns into a struct would either lose that early-return or add a lifetime-bearing struct
+  for no real gain; the suppression is the honest, behaviour-preserving choice for a collector.
+
+Verified the no-op end-to-end with a real smoke: `tool_matrix --skip-verilator --skip-yosys
+--sv2v` over 17 modules exits 0 with `sv2v pass/fail = 0/0` and zero `sv2v` invocations in
+the report — `--sv2v` requested, `sv2v` absent, run clean.
+
 ## 2026-06-18 — The `sv2v` adapter — argv + warning rule chosen against an absent tool — `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
 
 `.2b.1` lands the first new downstream adapter, `sv2v`. `sv2v` is **absent** on this
