@@ -720,6 +720,25 @@ src/
 │                     `prepare_dut_sandbox` + the vetted `run_*` primitives +
 │                     `MemGuard`, one relabeled+version-stamped invocation per spec
 │                     (Yosys single-mode for the axis: `Both`→`WithoutAbc`).
+│                     `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` (decision `0020`) adds
+│                     the **closed, compile-time adapter registry**: a `pub trait
+│                     Adapter { id, binary, run(&AdapterRunCx) -> Vec<ToolInvocation> }`
+│                     + `AdapterRunCx`/`AdapterTarget{Module,Design}` + three
+│                     built-in unit-struct adapters (`Verilator`/`Yosys`/`Icarus`)
+│                     whose `run` delegates **verbatim** to the existing `run_*`
+│                     primitives, a closed `pub fn adapters() -> &'static [&'static
+│                     dyn Adapter]` (`static ADAPTER_REGISTRY`; `Adapter: Sync` ⇒
+│                     `&dyn Adapter: Sync`), and `AcceptanceTool::adapter()` mapping
+│                     the enum into it (the enum stays the canonical built-in
+│                     identity — not retired). `validate` now dispatches through
+│                     `tool.adapter().run(&cx)` instead of a hard-coded match —
+│                     byte-identical (same labels/argv/order; Yosys `Both` still 2
+│                     rows; `adapter.binary() == tool.binary()`; mem-guard checked
+│                     once per selected tool). It is the pluggable seam new tools
+│                     plug into (`sv2v` `.2b`, `slang` `.2c`); not a runtime plugin /
+│                     not an agent-supplied command, so the `0004` fixed-allow-list
+│                     holds. `validate_tool_specs` + the `tool_matrix` columns route
+│                     through the registry at `.2a.3`; the catalog query is `.2a.2`.
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`

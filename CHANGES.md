@@ -1,9 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in `src/downstream` (decision 0020)
+
+**Landed as:** this commit (previous: `412e5ff`). **Code change — `src/downstream/mod.rs`
+only; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6 untouched). The
+first impl leaf of decision `0020`: the closed, compile-time adapter-registry core
+(owned by leaf `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`, split this slice from `.2a`).
+
+**What changed (why)**
+
+The downstream surface hard-coded a 3-way `match` on `AcceptanceTool` in `validate`
+(and `validate_tool_specs`, `tool_matrix`), so adding a tool was a sprawling
+cross-cutting edit. This slice lands the pluggable seam in `src/downstream/mod.rs`:
+
+- **`pub trait Adapter { id, binary, run(&AdapterRunCx) -> Result<Vec<ToolInvocation>> }`**
+  — the per-tool variation (argv) behind one method; the warning predicate stays in
+  `first_tool_warning` (keyed by the emitted `ToolInvocation.tool` label) and the
+  verdict stays the one `tool_verdict` (no second runner, no second classifier).
+- **`AdapterRunCx { binary, out_dir, target, yosys_mode, language }`** +
+  **`AdapterTarget { Module, Design }`** (`Copy`; built once per `validate` run) —
+  carry everything the existing `run_*` primitives take.
+- **Three built-in unit-struct adapters** (`Verilator`/`Yosys`/`Icarus`) whose `run`
+  **delegates verbatim** to `run_verilator`/`run_yosys`/`run_iverilog_compile`
+  (+ `_design`), so reports stay byte-identical (Yosys `Both` still yields 2 rows).
+- **`static ADAPTER_REGISTRY` + `pub fn adapters() -> &'static [&'static dyn Adapter]`**
+  — the closed, compile-time registry (`Adapter: Sync` ⇒ `&dyn Adapter: Sync`, so the
+  array is a valid `static`). Adding a tool = one entry here; never a runtime plugin
+  or an agent-supplied command, so the decision-`0004` fixed-allow-list holds.
+- **`AcceptanceTool::adapter()`** maps each built-in kind into the registry; the enum
+  stays the canonical built-in identity (`feedback_never_retire_strategies`).
+- **`downstream::validate` refactored** to dispatch via `tool.adapter().run(&cx)`
+  instead of the hard-coded match — byte-identical: same labels/argv/order,
+  `adapter.binary() == tool.binary()`, mem-guard checked once per selected tool.
+
+`extract_facts` (slang's hook) lands at `.2c`; `validate_tool_specs` + the
+`tool_matrix` columns route through the registry at `.2a.3`; the adapter-catalog
+discoverability query is `.2a.2`.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` **545/0** (+2 new registry
+proofs: `adapter_registry_holds_the_three_builtins`,
+`acceptance_tool_maps_to_its_registered_adapter`); `tests/snapshots.rs` **6/6**
+byte-identical; `cargo test --bin tool_matrix` **75/0**; `cargo test --bin anvil`
+**12/0**; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+clean. DUT byte-identical proven by the `umbrella` `dut_lane_is_byte_identical_*`
+tests + snapshots. Heavy steps run under `scripts/ram_guard.sh --threshold 90`
+(decision `0003`).
+
+**Impact**
+
+No behavioural change: `validate` produces identical `ToolInvocation`s; banked
+`tool_matrix` reports + `--resume` checkpoints unaffected (the `run_*` primitives and
+the `ModuleReport`/`DesignReport` columns are untouched). The pluggable seam is now in
+place for `.2b` (sv2v) / `.2c` (slang). Default `anvil` build / `--artifact dut`
+byte-identical.
+
+**Files touched:** `src/downstream/mod.rs`, `docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface design ADR (decision 0020)
 
-**Landed as:** this commit (previous: `6a441f7`). **Docs-only — no `src/` touched ⇒
+**Landed as:** `412e5ff` (previous: `6a441f7`). **Docs-only — no `src/` touched ⇒
 DUT byte-identical** (`tests/snapshots.rs` untouched). The `.1` design/decision leaf
 of the owner-directed usability lane 3 (north-star idea 3): pin the pluggable
 downstream-adapter interface before any code (task-tree doctrine — design-first ADR).

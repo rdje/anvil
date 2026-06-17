@@ -2516,8 +2516,14 @@ other five remain `active` with a design-first `.1` ADR frontier:
    `tools` arg, queryable via the existing reports + a new adapter-catalog
    projection; allow-list/sandbox (`0004`) + the `0019.2f` caller-supplied-binary
    library-only boundary preserved. `.2` pre-split → `.2a` (registry refactor +
-   catalog) / `.2b` (sv2v) / `.2c` (slang); `.2d+` future. Default-off / DUT
-   byte-identical.
+   catalog) / `.2b` (sv2v) / `.2c` (slang); `.2d+` future. **`.2a` split + `.2a.1`
+   done (`2026-06-17`):** `src/downstream/mod.rs` gains the closed `Adapter`
+   registry core (`trait Adapter` + `AdapterRunCx`/`AdapterTarget` + 3 built-ins
+   delegating verbatim to the existing `run_*` + `static ADAPTER_REGISTRY`/
+   `adapters()` + `AcceptanceTool::adapter()`), with `validate` routed through it
+   byte-identically (lib 545/0, snapshots 6/6, tool_matrix 75/0). `.2a.2`
+   (adapter-catalog discoverability) / `.2a.3` (orchestrator routing) next.
+   Default-off / DUT byte-identical.
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
    MCP knob steerability + an API-queryable knob catalog & preset registry.
 5. `CI-PACKAGING-DISTRIBUTION` — prebuilt binaries + a drop-in GitHub Action for

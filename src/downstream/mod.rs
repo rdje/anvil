@@ -558,6 +558,179 @@ impl AcceptanceTool {
             Self::Iverilog => "iverilog",
         }
     }
+
+    /// The registered [`Adapter`] for this built-in tool kind
+    /// (`DOWNSTREAM-ADAPTER-EXPANSION.2a.1`, decision `0020`). The enum stays the
+    /// canonical built-in identity (`feedback_never_retire_strategies`); the
+    /// closed [`adapters`] registry is its pluggable home, so `validate`
+    /// dispatches through `tool.adapter().run(&cx)` rather than a hard-coded
+    /// match — byte-identical, because each built-in adapter's `run` delegates
+    /// verbatim to the existing `run_*` primitives.
+    pub fn adapter(self) -> &'static dyn Adapter {
+        match self {
+            Self::Verilator => &VERILATOR_ADAPTER,
+            Self::Yosys => &YOSYS_ADAPTER,
+            Self::Iverilog => &ICARUS_ADAPTER,
+        }
+    }
+}
+
+/// The artifact an [`Adapter`] runs against: a single leaf module (one `.sv`) or
+/// a multi-file design (several `.sv` + a declared top), mirroring the
+/// module-vs-design split the `run_*` / `run_*_design` primitives already draw.
+/// All fields are references, so it is `Copy` and built once per `validate` run.
+#[derive(Clone, Copy)]
+pub enum AdapterTarget<'a> {
+    /// A single leaf module: its `.sv` path and the `<stem>` log/name root.
+    Module { sv_path: &'a Path, stem: &'a str },
+    /// A multi-file design: the emitted `.sv` paths and the declared top name.
+    Design {
+        sv_paths: &'a [PathBuf],
+        top: &'a str,
+    },
+}
+
+/// The uniform context one [`Adapter`] needs to run an acceptance check over a
+/// sandboxed artifact: the resolved binary to spawn, the output directory, the
+/// module-vs-design [`AdapterTarget`], and the two per-tool selectors (the Yosys
+/// mode and the Verilator IEEE-1800 `--language` bound). It carries everything
+/// the existing `run_verilator` / `run_yosys` / `run_iverilog_compile`
+/// primitives take, so a built-in adapter's [`Adapter::run`] is a verbatim
+/// delegation to them.
+pub struct AdapterRunCx<'a> {
+    /// The binary to spawn. On the fixed acceptance path this is
+    /// [`Adapter::binary`]; the version axis (`.2a.3`) passes a caller-supplied
+    /// path for the same allow-listed kind (decision `0019.2f`).
+    pub binary: &'a str,
+    /// The sandbox directory the artifact lives in and tool logs are written to.
+    pub out_dir: &'a Path,
+    /// The artifact under test.
+    pub target: AdapterTarget<'a>,
+    /// Yosys synthesis mode (ignored by non-Yosys adapters).
+    pub yosys_mode: YosysMode,
+    /// Verilator IEEE-1800 `--language` bound (`None` = byte-identical default
+    /// argv; ignored by non-Verilator adapters).
+    pub language: Option<&'a str>,
+}
+
+/// One vetted downstream acceptance tool, behind a **closed, compile-time**
+/// registry ([`adapters`]). This is the pluggable seam
+/// (`DOWNSTREAM-ADAPTER-EXPANSION`, decision `0020`) that generalizes the fixed
+/// Verilator/Yosys/Icarus surface so a new tool is one self-contained descriptor
+/// — *not* a runtime plugin and *not* an agent-supplied command, so the
+/// decision-`0004` fixed-allow-list still holds (the binary is fixed per
+/// adapter; the version axis's caller-supplied binary stays library-only,
+/// decision `0019.2f`).
+///
+/// An adapter owns only what genuinely differs per tool: the argv (via its
+/// [`run`](Adapter::run)) and — implicitly — its warning predicate (keyed by the
+/// emitted [`ToolInvocation::tool`] label in [`first_tool_warning`]). Every
+/// adapter runs through the one [`run_tool`] runner and is classified by the one
+/// [`tool_verdict`]; there is no second runner and no second classifier
+/// (`feedback_full_factorization`). The optional richer fact-extraction hook
+/// (e.g. a JSON-AST projection) lands with the first adapter that needs it
+/// (`slang`, `DOWNSTREAM-ADAPTER-EXPANSION.2c`).
+pub trait Adapter: Sync {
+    /// The stable selector token + report-label root (e.g. `"verilator"`,
+    /// `"yosys"`, `"iverilog"`). Distinct from the per-invocation
+    /// [`ToolInvocation::tool`] labels a multi-invocation adapter emits (Yosys
+    /// emits `yosys-without-abc` / `yosys-with-abc`).
+    fn id(&self) -> &'static str;
+
+    /// The fixed, vetted binary name. Not agent-overridable (decision `0004`).
+    fn binary(&self) -> &'static str;
+
+    /// Run this adapter's acceptance check, producing one or more
+    /// [`ToolInvocation`]s (Yosys `Both` yields two). The built-ins delegate
+    /// verbatim to the existing `run_*` primitives, so their reports stay
+    /// byte-identical.
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>>;
+}
+
+/// The Verilator `--lint-only` acceptance adapter.
+struct VerilatorAdapter;
+/// The Yosys synthesis acceptance adapter (1–2 invocations per [`YosysMode`]).
+struct YosysAdapter;
+/// The Icarus Verilog `-g2012` compile/elaborate acceptance adapter.
+struct IcarusAdapter;
+
+impl Adapter for VerilatorAdapter {
+    fn id(&self) -> &'static str {
+        "verilator"
+    }
+    fn binary(&self) -> &'static str {
+        "verilator"
+    }
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>> {
+        let inv = match cx.target {
+            AdapterTarget::Module { sv_path, stem } => {
+                run_verilator(cx.binary, cx.out_dir, sv_path, stem, cx.language)?
+            }
+            AdapterTarget::Design { sv_paths, top } => {
+                run_verilator_design(cx.binary, cx.out_dir, sv_paths, top, cx.language)?
+            }
+        };
+        Ok(vec![inv])
+    }
+}
+
+impl Adapter for YosysAdapter {
+    fn id(&self) -> &'static str {
+        "yosys"
+    }
+    fn binary(&self) -> &'static str {
+        "yosys"
+    }
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>> {
+        match cx.target {
+            AdapterTarget::Module { sv_path, stem } => {
+                run_yosys(cx.yosys_mode, cx.binary, cx.out_dir, sv_path, stem)
+            }
+            AdapterTarget::Design { sv_paths, top } => {
+                run_yosys_design(cx.yosys_mode, cx.binary, cx.out_dir, sv_paths, top)
+            }
+        }
+    }
+}
+
+impl Adapter for IcarusAdapter {
+    fn id(&self) -> &'static str {
+        "iverilog"
+    }
+    fn binary(&self) -> &'static str {
+        "iverilog"
+    }
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>> {
+        let inv = match cx.target {
+            AdapterTarget::Module { sv_path, stem } => {
+                run_iverilog_compile(cx.binary, cx.out_dir, sv_path, stem)?
+            }
+            AdapterTarget::Design { sv_paths, top } => {
+                run_iverilog_compile_design(cx.binary, cx.out_dir, sv_paths, top)?
+            }
+        };
+        Ok(vec![inv])
+    }
+}
+
+static VERILATOR_ADAPTER: VerilatorAdapter = VerilatorAdapter;
+static YOSYS_ADAPTER: YosysAdapter = YosysAdapter;
+static ICARUS_ADAPTER: IcarusAdapter = IcarusAdapter;
+
+/// The closed registry table. Adding a tool means adding one entry here. The
+/// `Adapter: Sync` supertrait makes `&dyn Adapter` `Sync`, so this array is a
+/// valid `static`. The order is the canonical adapter-catalog display order.
+static ADAPTER_REGISTRY: [&dyn Adapter; 3] = [&VERILATOR_ADAPTER, &YOSYS_ADAPTER, &ICARUS_ADAPTER];
+
+/// The **closed, compile-time** registry of vetted downstream adapters
+/// (`DOWNSTREAM-ADAPTER-EXPANSION`, decision `0020`). Adding a tool means adding
+/// one entry to [`ADAPTER_REGISTRY`] — never a runtime plugin or an
+/// agent-supplied command, so the decision-`0004` fixed-allow-list holds. Today
+/// it holds exactly the three built-ins (`verilator`, `yosys`, `iverilog`), each
+/// delegating to its existing vetted `run_*` primitive so reports stay
+/// byte-identical.
+pub fn adapters() -> &'static [&'static dyn Adapter] {
+    &ADAPTER_REGISTRY
 }
 
 /// One caller-supplied tool spec for the tool-version-vs-version divergence axis
@@ -763,58 +936,39 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
     let mut tools = Vec::new();
     let mut declined = None;
 
+    // One module-vs-design target for every selected adapter (`Copy`, built once).
+    let target = if is_design {
+        AdapterTarget::Design {
+            sv_paths: std::slice::from_ref(&sb.sv_path),
+            top: &sb.top,
+        }
+    } else {
+        AdapterTarget::Module {
+            sv_path: &sb.sv_path,
+            stem: &sb.top,
+        }
+    };
+
+    // Dispatch each selected tool through the closed adapter registry
+    // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.1`, decision `0020`). Byte-identical to
+    // the prior hard-coded match: each built-in adapter's `run` delegates
+    // verbatim to the same `run_*` primitive (Yosys still yields 1–2 rows for
+    // `Both`), `adapter.binary()` equals the prior `tool.binary()`, and the
+    // memory guard is still checked exactly once before each selected tool.
     for tool in &opts.tools {
         if let Some(reason) = guard.check() {
             declined = Some(decline_message(&reason));
             break;
         }
-        match tool {
-            AcceptanceTool::Verilator => {
-                tools.push(if is_design {
-                    run_verilator_design(
-                        tool.binary(),
-                        &sb.dir,
-                        std::slice::from_ref(&sb.sv_path),
-                        &sb.top,
-                        None,
-                    )?
-                } else {
-                    run_verilator(tool.binary(), &sb.dir, &sb.sv_path, &sb.top, None)?
-                });
-            }
-            AcceptanceTool::Yosys => {
-                let invs = if is_design {
-                    run_yosys_design(
-                        opts.yosys_mode,
-                        tool.binary(),
-                        &sb.dir,
-                        std::slice::from_ref(&sb.sv_path),
-                        &sb.top,
-                    )?
-                } else {
-                    run_yosys(
-                        opts.yosys_mode,
-                        tool.binary(),
-                        &sb.dir,
-                        &sb.sv_path,
-                        &sb.top,
-                    )?
-                };
-                tools.extend(invs);
-            }
-            AcceptanceTool::Iverilog => {
-                tools.push(if is_design {
-                    run_iverilog_compile_design(
-                        tool.binary(),
-                        &sb.dir,
-                        std::slice::from_ref(&sb.sv_path),
-                        &sb.top,
-                    )?
-                } else {
-                    run_iverilog_compile(tool.binary(), &sb.dir, &sb.sv_path, &sb.top)?
-                });
-            }
-        }
+        let adapter = tool.adapter();
+        let cx = AdapterRunCx {
+            binary: adapter.binary(),
+            out_dir: &sb.dir,
+            target,
+            yosys_mode: opts.yosys_mode,
+            language: None,
+        };
+        tools.extend(adapter.run(&cx)?);
     }
 
     let ok = declined.is_none() && tools.iter().all(|t| t.success);
@@ -1758,6 +1912,49 @@ mod tests {
         assert_eq!(AcceptanceTool::Verilator.binary(), "verilator");
         assert_eq!(AcceptanceTool::Yosys.binary(), "yosys");
         assert_eq!(AcceptanceTool::Iverilog.binary(), "iverilog");
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` — the closed adapter registry holds
+    /// exactly the three built-ins, in canonical display order, each with the
+    /// `id` (selector token) and fixed `binary` matching the `AcceptanceTool`
+    /// allow-list. The registry is the pluggable home; the enum stays the
+    /// canonical built-in identity (not retired).
+    #[test]
+    fn adapter_registry_holds_the_three_builtins() {
+        let ids: Vec<&str> = adapters().iter().map(|a| a.id()).collect();
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog"]);
+        let bins: Vec<&str> = adapters().iter().map(|a| a.binary()).collect();
+        assert_eq!(bins, vec!["verilator", "yosys", "iverilog"]);
+        // Every registry `id` is a name `from_name` accepts (one allow-list).
+        for id in ids {
+            assert!(
+                AcceptanceTool::from_name(id).is_some(),
+                "registry id {id} must be an allow-listed tool name"
+            );
+        }
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` — `AcceptanceTool::adapter()` maps each
+    /// built-in kind to the registered adapter whose `id`/`binary` agree with the
+    /// enum, so `validate`'s registry dispatch is byte-identical to the prior
+    /// hard-coded match (`adapter.binary() == tool.binary()`).
+    #[test]
+    fn acceptance_tool_maps_to_its_registered_adapter() {
+        for tool in [
+            AcceptanceTool::Verilator,
+            AcceptanceTool::Yosys,
+            AcceptanceTool::Iverilog,
+        ] {
+            let adapter = tool.adapter();
+            assert_eq!(adapter.binary(), tool.binary());
+            assert_eq!(adapter.id(), tool.binary()); // selector id == binary for the built-ins
+                                                     // The mapped adapter is the same object the registry exposes.
+            assert!(
+                adapters().iter().any(|a| a.id() == adapter.id()),
+                "{} adapter must be in the registry",
+                adapter.id()
+            );
+        }
     }
 
     /// The version axis (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`) keeps the kind

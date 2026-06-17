@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` design ADR done — decision `0020`; `.2` pre-split)
+- Last updated: `2026-06-17` (`.2a.1` done — closed `Adapter` registry core; frontier `.2a.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -64,9 +64,29 @@ with its results queryable over MCP. Builds on the hardened
   Children: `DOWNSTREAM-ADAPTER-EXPANSION.2a`, `DOWNSTREAM-ADAPTER-EXPANSION.2b`, `DOWNSTREAM-ADAPTER-EXPANSION.2c`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a`
+  Status: `active`
+  Goal: `The registry refactor + the catalog query: introduce the Adapter trait + the closed adapters() registry; re-express Verilator/Yosys/Icarus as the first three registered adapters with byte-identical id/argv/warning-detection; route the orchestrators through the registry; add the SCHEMA-DERIVED adapter-catalog query/resource (decision 0017 discoverability). Split (refining decision 0020's .2a) into the downstream core, the catalog query, and the orchestrator routing so each sub-slice is provably byte-identical.`
+  Children: `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`, `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`, `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
+
+- ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`
+  Status: `done`
+  Goal: `The downstream library core: a pub trait Adapter { id, binary, run(&AdapterRunCx)->Vec<ToolInvocation> } + AdapterRunCx/AdapterTarget + three built-in unit-struct adapters (Verilator/Yosys/Icarus) whose run() delegates VERBATIM to the existing run_verilator/run_yosys/run_iverilog_compile (+ _design), a closed pub fn adapters() registry, and AcceptanceTool::adapter() mapping the enum into it (enum stays the canonical built-in identity — not retired). Refactor downstream::validate to dispatch via tool.adapter().run(&cx) instead of the hard-coded match. Scope: src/downstream/mod.rs only.`
+  Acceptance: `validate emits byte-identical ToolInvocations (same labels/argv/order; Yosys Both still 2 rows; mem-guard checked once per selected tool); snapshots 6/6; lib proofs (registry has the 3 built-ins with expected ids/binaries; AcceptanceTool::adapter round-trips; validate-through-adapter shape); cargo check/test --lib/clippy/fmt green; default-off / DUT byte-identical. The optional extract_facts hook lands at .2c (slang); validate_tool_specs + tool_matrix routing is .2a.3.`
+  Result: `Landed in src/downstream/mod.rs: pub trait Adapter: Sync { id, binary, run(&AdapterRunCx)->Result<Vec<ToolInvocation>> } + AdapterRunCx{binary,out_dir,target,yosys_mode,language} + AdapterTarget{Module,Design}(Copy) + 3 built-in unit-struct adapters delegating verbatim to run_* + static ADAPTER_REGISTRY/pub fn adapters() + AcceptanceTool::adapter(). validate refactored to tool.adapter().run(&cx) (byte-identical). The Adapter:Sync supertrait makes the static registry valid (E0515 fix). +2 lib proofs.`
+  Verification: `cargo check --all-targets clean; cargo test --lib 545/0 (+2: adapter_registry_holds_the_three_builtins, acceptance_tool_maps_to_its_registered_adapter); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil 12/0; clippy -D warnings clean; fmt --check clean; DUT byte-identical (umbrella byte-identical tests + snapshots). RAM-guarded heavy steps (decision 0003).`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`
+
+- ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
   Status: `pending`
-  Goal: `The registry refactor + the catalog query: introduce the Adapter trait / AdapterSpec + the closed adapters() registry; re-express Verilator/Yosys/Icarus as the first three registered adapters with byte-identical id/argv/warning-detection; route validate / validate_tool_specs / the tool_matrix columns / AcceptanceTool::from_name through the registry; add the SCHEMA-DERIVED adapter-catalog query/resource (decision 0017 discoverability).`
-  Acceptance: `Pure refactor + the catalog; built-in ToolInvocation.tool labels/argv unchanged; banked tool_matrix reports + --resume checkpoints byte-identical; snapshots 6/6; default-off / DUT byte-identical; cargo test/clippy/fmt green.`
+  Goal: `The SCHEMA-DERIVED adapter-catalog discoverability surface (decision 0017): project the closed adapters() registry as { id, binary, present (a PATH --version probe), supports_facts } — surfaced as an MCP resource (anvil://catalog/adapters) and/or a pure query, plus the introspection/schema touch if any; book/USER_GUIDE. So an agent can discover which tools exist and which are installed over the API alone.`
+  Acceptance: `pending (refine at pick)`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
+  Status: `pending`
+  Goal: `Route validate_tool_specs (version axis, single-yosys-mode, caller-supplied binary) and the tool_matrix per-unit invocation (run_module_tools/run_design_tools) through the registry, keeping the fixed ModuleReport/DesignReport columns + banked reports + --resume byte-identical. This is the bridge that makes adding a new adapter column (sv2v at .2b) a near-one-line registry add.`
+  Acceptance: `pending (refine at pick)`
   Verification: `pending`
   Commit: `pending`
 
@@ -88,9 +108,13 @@ with its results queryable over MCP. Builds on the hardened
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2a` | `pending` | The registry refactor + the adapter-catalog query land first (decision `0020`): the built-ins re-expressed byte-identically through the closed `Adapter` registry, so every later adapter (`.2b` sv2v, `.2c` slang) is one self-contained descriptor. Pure refactor / DUT byte-identical. |
-| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). |
-| 3 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `pending` | The adapter-catalog discoverability surface (decision `0017`): project the closed `adapters()` registry as `{ id, binary, present, supports_facts }` over MCP so an agent can discover installed tools over the API alone. |
+| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `pending` | Route `validate_tool_specs` + the `tool_matrix` columns through the registry (byte-identical fixed columns) — the bridge that makes adding `sv2v` a near-one-line registry add. |
+| 3 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). |
+| 4 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+
+Done: `.1` (design ADR, decision `0020`); `.2a.1` (the closed `Adapter` registry
+core + `validate` routed through it, byte-identical).
 
 ## Decisions
 
@@ -140,13 +164,15 @@ with its results queryable over MCP. Builds on the hardened
 | --- | --- | --- | --- |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.1` | `docs-only / DUT byte-identical (no src/); decision 0020 + INDEX + tree + TASK_TREE.md + DEVELOPMENT_NOTES; live-toolchain probe (slang/sv2v/surelog absent); check_memory_architecture + KM gen/check green; mdbook build clean` | `done` |
+| `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `cargo check --all-targets clean; cargo test --lib 545/0 (+2 registry proofs); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil 12/0; clippy -D warnings clean; fmt --check clean; DUT byte-identical (umbrella + snapshots); RAM-guarded` | `done` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `DOWNSTREAM-ADAPTER-EXPANSION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
-| `DOWNSTREAM-ADAPTER-EXPANSION.1` | `DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface ADR (decision 0020)` | Design ADR; pre-split `.2` → `.2a`/`.2b`/`.2c`; frontier advances to `.2a`. |
+| `DOWNSTREAM-ADAPTER-EXPANSION.1` | `DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface ADR (decision 0020)` | Design ADR (`412e5ff`); pre-split `.2` → `.2a`/`.2b`/`.2c`; frontier advances to `.2a`. |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in src/downstream` | The registry core + `validate` routed through it, byte-identical. `.2a` split into `.2a.1`/`.2a.2`/`.2a.3`; frontier advances to `.2a.2`. |
 
 ## Changelog
 
@@ -155,3 +181,11 @@ with its results queryable over MCP. Builds on the hardened
   registry; `sv2v` first, `slang` second; API-completeness via the existing `tools`
   arg + the new adapter-catalog projection). `.2` pre-split into `.2a`/`.2b`/`.2c`;
   frontier advanced to `.2a`.
+- `2026-06-17`: `.2a` split into `.2a.1` (downstream registry core) / `.2a.2`
+  (adapter-catalog discoverability) / `.2a.3` (orchestrator routing) so each
+  sub-slice is provably byte-identical (refining decision `0020`'s `.2a`).
+  **`.2a.1` done** — `src/downstream/mod.rs` gains `trait Adapter` + `AdapterRunCx`/
+  `AdapterTarget` + 3 built-in adapters delegating verbatim to `run_*` + `static
+  ADAPTER_REGISTRY`/`adapters()` + `AcceptanceTool::adapter()`; `validate` routed
+  through the registry, byte-identical. Gate green (lib 545/0, snapshots 6/6,
+  tool_matrix 75/0, anvil 12/0, clippy/fmt). Frontier advanced to `.2a.2`.

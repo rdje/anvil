@@ -5,6 +5,46 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Downstream adapter registry — the byte-identical "delegate verbatim" trick + the `Sync` static — `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`
+
+The first impl leaf of decision `0020`. Two implementation choices worth recording:
+
+- **How the refactor is provably byte-identical: each built-in adapter's `run`
+  *delegates verbatim* to the existing `run_*` primitive.** The temptation in a
+  "generalize the three tools behind a trait" refactor is to *re-implement* the argv
+  construction inside each adapter. That would be a second source of truth for the
+  command lines (the thing `src/downstream` exists to prevent) and a byte-identical
+  risk. Instead, `VerilatorAdapter::run` literally calls `run_verilator(...)`,
+  `YosysAdapter::run` calls `run_yosys(...)` (already returns a `Vec`), etc. — so the
+  argv, the warning detection, the log capture, and the `ToolInvocation` shape are
+  *the same code*, and byte-identical is guaranteed by construction, not by testing.
+  The trait's `run` returns `Vec<ToolInvocation>` precisely because Yosys already
+  does (1–2 rows per `YosysMode`); Verilator/Icarus wrap their single result in a
+  one-element `Vec`. `validate`'s loop becomes `tools.extend(adapter.run(&cx)?)`,
+  which reproduces the old match arms exactly (push-one vs extend-many) with the
+  mem-guard still checked once per selected tool.
+
+- **`AdapterTarget` is `Copy`; the registry is a `static` needing `Adapter: Sync`.**
+  `AdapterTarget` holds only references (`&Path`, `&str`, `&[PathBuf]`), so it derives
+  `Copy` and is built once before the `validate` loop and copied into each
+  `AdapterRunCx` — no per-iteration re-derivation, and NLL lets `sb.top` move into the
+  `ValidateReport` after the loop's last use of the borrow. The registry tripped one
+  compiler subtlety: `fn adapters() -> &'static [&'static dyn Adapter]` returning
+  `&[&A, &B, &C]` fails (`E0515`: the array is a temporary). The fix is a named
+  `static ADAPTER_REGISTRY: [&dyn Adapter; 3]` returned by reference — which requires
+  the array to be `Sync` (statics must be), i.e. `&dyn Adapter: Sync`, which holds
+  *because* `trait Adapter: Sync` (a supertrait `Sync` makes the trait object `Sync`).
+  That is the whole reason the trait carries the `Sync` supertrait.
+
+- **Why `.2a` was split (`.2a.1`/`.2a.2`/`.2a.3`).** The original `.2a` bundled the
+  registry refactor + the catalog query + routing the `tool_matrix` *fixed columns*
+  through the registry. The last part is the byte-identical-sensitive one (the
+  `ModuleReport`/`DesignReport` `verilator`/`yosys`/`iverilog_compile` fields are a
+  serde wire contract for banked reports + `--resume`). Splitting keeps `.2a.1` a
+  single-file, provably-byte-identical foundation (touching only `src/downstream`),
+  with the catalog (`.2a.2`) and the riskier orchestrator routing (`.2a.3`) as their
+  own reviewable slices — the repo's standard "split a big impl leaf" discipline.
+
 ## 2026-06-17 — Downstream adapter interface — a closed registry, not a plugin system — `DOWNSTREAM-ADAPTER-EXPANSION.1` (decision `0020`)
 
 The design ADR for making ANVIL's downstream reach pluggable. Rationales worth
