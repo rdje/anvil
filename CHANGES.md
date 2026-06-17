@@ -1,9 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.2a — fold cross-sim mismatch detection into hunt::run + extract downstream::generate_dut_artifact
+
+**Landed as:** this commit (previous: `5ca0006`). **Default-off / DUT
+byte-identical.** First-half of the pre-split `.2b.2` (`.2b.2a` cross-sim fold +
+`.2b.2b` bundle emitter): the hunt loop gains the optional cross-simulator
+agreement axis (`diff_sim::run_agreement`, available since `.2a`), and the shared
+DUT-generate dispatch is lifted into one home.
+
+**What changed (why)**
+
+- **`src/downstream/mod.rs`** — extracted `pub fn generate_dut_artifact(cfg) ->
+  (String, String, String)` (the hierarchy-range ⇒ `design` else `module`
+  dispatch that `validate` had inline); `validate` now calls it. Byte-identical
+  (the `downstream` lib tests stay 20/0). The bug-hunt loop reuses it to
+  regenerate exactly the artifact `validate` accepted — no third copy of the
+  branch (full-factorization).
+- **`src/hunt/mod.rs`** — `HuntRequest.diff_sim: bool` + `HuntFailure.diff_sim:
+  Option<DiffSimReport>` (skip_serializing_if) + a `cross_sim_mismatch(req, cfg,
+  run_id)` helper. `hunt::run` now, for each *validate-clean* artifact when
+  `diff_sim` is set, regenerates the SV via `generate_dut_artifact` and runs
+  `diff_sim::run_agreement` in a per-run sandbox under the caller-set
+  `sandbox_root` (removed unless `keep_sandbox`). A trace disagreement (`ran &&
+  !success`) is a finding with `detection == "cross_sim_mismatch"` carrying the
+  `DiffSimReport`; it is **not** minimized (the `validate` oracle can't reproduce
+  a trace disagreement). New cargo-portable proof
+  `diff_sim_on_clean_artifact_no_ops_without_simulators` (a `--diff-sim` hunt on a
+  tool-less host never invents a finding); the serde round-trip updated for the
+  new `diff_sim` field (stays absent in the wire form when `None`).
+- **`CODEBASE_ANALYSIS.md`** — `hunt/` entry (cross-sim axis) + `downstream/`
+  entry (the shared `generate_dut_artifact`). **`DEVELOPMENT_NOTES.md`** — a
+  `.2b.2a` entry (extract-not-copy; cross-sim only on clean artifacts; cross-sim
+  findings not minimized). **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** +
+  **`docs/TASK_TREE.md`** — `.2b.2` pre-split into `.2b.2a` (done) + `.2b.2b`;
+  frontier → `.2b.2b`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --lib hunt::` 7/7 + `downstream::`
+  20/0; full `cargo test` green incl. **`tests/snapshots.rs` 6/6 byte-identical**
+  (the `validate` refactor is byte-identical; `hunt` is wired into no generate/emit
+  path).
+
+**Impact**
+
+- No user-visible / CLI / MCP surface yet (library core). The bug-hunt loop now
+  detects reject, warning, **and** cross-simulator mismatch. The reproducer-bundle
+  emitter is `.2b.2b`; the MCP `hunt` tool (`.2c`) + the `anvil hunt` CLI (`.2d`)
+  shim over `hunt::run`.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.1 — fix: thread the swept seed into the per-iteration config
 
-**Landed as:** this commit (previous: `f4fc9c8`). **Correctness fix to the
+**Landed as:** `5ca0006` (previous: `f4fc9c8`). **Correctness fix to the
 `.2b.1` hunt loop — found while grounding `.2b.2`.** DUT byte-identical (only
 `src/hunt/mod.rs`).
 

@@ -611,6 +611,12 @@ src/
 │                     `Config::validate` before the generator; hard-capped by
 │                     `max_oracle_calls`). Reports `reduced` knobs +
 │                     `final_validation` (the surviving failure).
+│                     `BUG-HUNT-ORCHESTRATION.2b.2a` extracts the shared
+│                     `generate_dut_artifact(cfg) -> (kind, top, sv)` (the
+│                     design-vs-module dispatch `validate` used inline) so the
+│                     bug-hunt loop regenerates exactly what `validate` accepted
+│                     without copying the branch; `validate` now calls it
+│                     (byte-identical).
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`
@@ -623,11 +629,16 @@ src/
 │                     caller-set, never agent-supplied — decision `0004`); the
 │                     `HuntReport` (`verdicts` / `failures` / `summary`) is a
 │                     `SCHEMA-DERIVED` projection of `ValidateReport` /
-│                     `MinimizeReport` / `ToolInvocation` — no new computed truth,
-│                     no shadow oracle (decisions `0017` / `0004`). `.2b.1` is the
-│                     library core (reject/warning detection); the cross-sim
-│                     mismatch detector (`diff_sim::run_agreement`) + the
-│                     reproducer-bundle emitter are `.2b.2`; the MCP `hunt` tool
+│                     `MinimizeReport` / `ToolInvocation` / `DiffSimReport` — no
+│                     new computed truth, no shadow oracle (decisions `0017` /
+│                     `0004`). `.2b.1` is the loop core (reject/warning detection);
+│                     `.2b.2a` folds the optional **cross-simulator** axis — when
+│                     `HuntRequest.diff_sim` is set, each validate-clean artifact is
+│                     re-checked via `diff_sim::run_agreement` (regenerating the SV
+│                     through the shared `downstream::generate_dut_artifact`), and a
+│                     trace disagreement is a `cross_sim_mismatch` finding (not
+│                     minimized — the `validate` oracle can't reproduce it). The
+│                     reproducer-bundle emitter is `.2b.2b`; the MCP `hunt` tool
 │                     (`.2c`) + the `anvil hunt` CLI (`.2d`) shim over `run`.
 │                     Default-off / DUT byte-identical (no generate/emit path).
 ├── introspect/      Agent-introspection emission surface

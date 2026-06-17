@@ -550,13 +550,18 @@ pub struct ValidateReport {
 /// run, with fixed binary names (no arbitrary shell); and the memory guard can
 /// decline-to-spawn before the host enters the danger zone. The returned
 /// [`ValidateReport`] carries the reproducible `(run_id, argv)` for every call.
-pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
-    let run_id = content_run_id("dut", seed, cfg);
-
-    // Generate deterministically. Mirrors the CLI / MCP single-artifact
-    // dispatch: a hierarchy range ⇒ a design, else a leaf module.
+/// Generate the DUT artifact for `cfg` deterministically: a hierarchy range ⇒ a
+/// `design` (all modules emitted into one SV string), else a leaf `module`.
+/// Returns `(kind, top, sv)`.
+///
+/// This is the single home of the DUT design-vs-module dispatch — shared by
+/// [`validate`] and the bug-hunt loop (`anvil::hunt`,
+/// `BUG-HUNT-ORCHESTRATION.2b.2a`) so the branch is not copied a third time
+/// (full-factorization). The generator seeds from `cfg.seed`; callers that
+/// sweep seeds stamp `cfg.seed` accordingly (the `config_from_args` convention).
+pub fn generate_dut_artifact(cfg: &Config) -> (String, String, String) {
     let mut generator = Generator::new(cfg.clone());
-    let (kind, top, sv) = if cfg.effective_hierarchy_depth_range().is_some() {
+    if cfg.effective_hierarchy_depth_range().is_some() {
         let design = generator.generate_design();
         (
             "design".to_string(),
@@ -570,7 +575,15 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
             module.name.clone(),
             emit::to_sv(&module),
         )
-    };
+    }
+}
+
+pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
+    let run_id = content_run_id("dut", seed, cfg);
+
+    // Generate deterministically. Mirrors the CLI / MCP single-artifact
+    // dispatch: a hierarchy range ⇒ a design, else a leaf module.
+    let (kind, top, sv) = generate_dut_artifact(cfg);
 
     // Fresh per-run sandbox directory under the caller-fixed root.
     let sandbox = opts.sandbox_root.join(format!("anvil-validate-{run_id}"));

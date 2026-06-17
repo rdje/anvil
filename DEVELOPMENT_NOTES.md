@@ -5,6 +5,43 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — cross-sim fold + shared generate helper — `BUG-HUNT-ORCHESTRATION.2b.2a`
+
+The second-half-first slice of `.2b.2` (pre-split into `.2b.2a` cross-sim fold +
+`.2b.2b` bundle emitter). Two pieces:
+
+1. **`downstream::generate_dut_artifact(cfg) -> (kind, top, sv)` extracted.**
+   `validate` had the DUT design-vs-module dispatch inline; the hunt's cross-sim
+   detector needs the same `(top, sv)` to drive the two simulators on exactly the
+   artifact `validate` accepted. Rather than copy the branch a third time
+   (`validate` had it; `tool_matrix` has its own), I lifted it into a shared
+   `downstream` helper that `validate` now calls — byte-identical (the
+   `downstream` lib tests stay 20/0). Deliberately takes `cfg` only (not `seed`):
+   generation seeds from `cfg.seed`, and the `seed` arg is only a run_id input,
+   so a `seed` parameter would be dead weight.
+
+2. **Cross-sim mismatch folded into `hunt::run`.** `HuntRequest.diff_sim: bool`;
+   when set, each *validate-clean* artifact is re-checked by
+   `cross_sim_mismatch(req, cfg, run_id)` → `diff_sim::run_agreement` in a
+   per-run sandbox under the caller-set `sandbox_root` (removed unless
+   `keep_sandbox`). A real mismatch (`ran && !success`) is a finding with
+   `detection == "cross_sim_mismatch"`, carrying the `DiffSimReport` in the new
+   `HuntFailure.diff_sim`. Design choices worth recording:
+   - **Cross-sim runs only on parse/synth-clean artifacts.** A tool that already
+     *rejected* the SV is the finding; there's no point asking simulators to
+     agree on output a tool refused (the book's framing; the `tool_matrix`
+     `--diff-sim` ordering).
+   - **Cross-sim findings are NOT minimized.** The `minimize` oracle is
+     `validate` (parse/synth acceptance); it cannot reproduce a *trace*
+     disagreement (validate says clean), so `reproduced_initial` would be false
+     and the shrink would be meaningless. `minimized` is `None` for these; a
+     diff-sim-oracle minimize is a possible future extension.
+   - **Cargo-portable proof.** `diff_sim_on_clean_artifact_no_ops_without_simulators`
+     guards on `tools_present()` and proves the fold is a no-op when a simulator
+     is absent (so a `--diff-sim` hunt on a tool-less host never invents a
+     finding). The present-tools path is owned by `tests/diff_sim.rs` + the
+     `tool_matrix` `#[ignore]` e2e gate.
+
 ## 2026-06-17 — Bug-hunt orchestration — seed-threading gotcha — `BUG-HUNT-ORCHESTRATION.2b.1` (fix)
 
 A correctness fix to `.2b.1`'s loop, found while grounding `.2b.2` against the

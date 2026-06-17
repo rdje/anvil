@@ -31,12 +31,17 @@
 //! max_oracle_calls)`.
 
 use crate::config::Config;
+use crate::diff_sim::{run_agreement, DiffSimReport};
 use crate::downstream::{
-    minimize, validate, KnobReduction, MinimizeOptions, MinimizeReport, ToolInvocation,
-    ValidateOptions,
+    generate_dut_artifact, minimize, validate, KnobReduction, MinimizeOptions, MinimizeReport,
+    ToolInvocation, ValidateOptions,
 };
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+
+/// Baked input-vector count for the optional cross-simulator agreement check
+/// (matches `tool_matrix`'s `--diff-sim` column).
+const DIFF_SIM_VECTORS: usize = 8;
 
 /// One bug-hunt request: a deterministic seed sweep over a fixed knob profile,
 /// validated against a chosen set of downstream tools, with optional
@@ -63,6 +68,12 @@ pub struct HuntRequest {
     pub minimize: bool,
     /// Per-failure ceiling on minimize oracle (`validate`) evaluations.
     pub max_oracle_calls: u32,
+    /// Run the optional **cross-simulator agreement** check on each
+    /// downstream-clean artifact (iverilog ↔ verilator post-reset trace
+    /// compare via [`run_agreement`]). A mismatch is a finding with
+    /// `detection == "cross_sim_mismatch"`. Friendly no-op when either
+    /// simulator is absent. Default-off behaviour is `false`.
+    pub diff_sim: bool,
 }
 
 /// The per-seed outcome line: clean, declined (memory guard), or a failure
@@ -137,12 +148,19 @@ pub struct HuntFailure {
     /// The first warning/error line, when the invocation parsed one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_error: Option<String>,
-    /// `"reject"` (non-zero exit) or `"warning"` (clean exit, warning folded
-    /// into `success == false`). `"cross_sim_mismatch"` is added by `.2b.2`.
+    /// `"reject"` (non-zero exit), `"warning"` (clean exit, warning folded into
+    /// `success == false`), or `"cross_sim_mismatch"` (the two simulators
+    /// disagreed on a validate-clean artifact).
     pub detection: String,
-    /// The auto-minimize result, when `HuntRequest::minimize` was set.
+    /// The auto-minimize result, when `HuntRequest::minimize` was set. Absent
+    /// for a `cross_sim_mismatch` finding — the `validate`-based minimize oracle
+    /// only shrinks parse/synth failures, not a trace disagreement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimized: Option<HuntMinimized>,
+    /// The cross-simulator agreement report, present on a `cross_sim_mismatch`
+    /// finding (carries `ran` / `success` / `n_samples` / `mismatch_excerpt`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diff_sim: Option<DiffSimReport>,
 }
 
 /// Aggregate counts over the sweep (`n_seeds == n_clean + n_failures +
@@ -201,6 +219,32 @@ fn seed_config(req: &HuntRequest, seed: u64) -> Config {
     cfg
 }
 
+/// Run the cross-simulator agreement check on a downstream-clean `(seed, cfg)`
+/// artifact. Returns `Some(report)` **only** when both simulators ran and
+/// disagreed (a `cross_sim_mismatch` finding); `None` when they agreed or when
+/// the check was a no-op (a simulator absent, or the SV port section
+/// unparsable — `run_agreement` reports `ran == false`). The DUT SV is
+/// regenerated through the shared `downstream::generate_dut_artifact` so the
+/// two simulators see exactly the artifact `validate` accepted. The work dir is
+/// a per-run sandbox under the caller-set `sandbox_root` (never agent-supplied,
+/// decision `0004`), removed after the run unless `keep_sandbox`.
+fn cross_sim_mismatch(req: &HuntRequest, cfg: &Config, run_id: &str) -> Option<DiffSimReport> {
+    let (_kind, top, sv) = generate_dut_artifact(cfg);
+    let work_dir = req
+        .validate
+        .sandbox_root
+        .join(format!("anvil-hunt-diffsim-{run_id}"));
+    let ds = run_agreement(&work_dir, &top, &sv, DIFF_SIM_VECTORS);
+    if !req.validate.keep_sandbox {
+        let _ = std::fs::remove_dir_all(&work_dir);
+    }
+    if ds.ran && !ds.success {
+        Some(ds)
+    } else {
+        None
+    }
+}
+
 /// Run the bug-hunt loop: fuzz a deterministic seed sweep, detect any
 /// reject/warning, auto-minimize each failure (when requested), and return a
 /// structured [`HuntReport`].
@@ -239,6 +283,33 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
         }
 
         if report.ok {
+            // Optional cross-simulator agreement on the parse/synth-clean
+            // artifact. A mismatch is a *new* kind of finding (a tool accepted
+            // it, but two simulators disagree on its semantics); a no-op (a
+            // simulator absent) leaves the artifact clean.
+            if req.diff_sim {
+                if let Some(ds) = cross_sim_mismatch(req, &cfg, &run_id) {
+                    verdicts.push(HuntVerdict {
+                        seed,
+                        run_id: run_id.clone(),
+                        ok: false,
+                        declined: None,
+                    });
+                    failures.push(HuntFailure {
+                        seed,
+                        run_id,
+                        failing_tool: "diff-sim".to_string(),
+                        failing_argv: Vec::new(),
+                        first_error: ds.mismatch_excerpt.clone(),
+                        detection: "cross_sim_mismatch".to_string(),
+                        // The validate-based minimize oracle can't reproduce a
+                        // trace disagreement, so cross-sim findings aren't shrunk.
+                        minimized: None,
+                        diff_sim: Some(ds),
+                    });
+                    continue;
+                }
+            }
             verdicts.push(HuntVerdict {
                 seed,
                 run_id,
@@ -289,6 +360,7 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
             first_error,
             detection,
             minimized,
+            diff_sim: None,
         });
     }
 
@@ -357,6 +429,7 @@ mod tests {
             validate: test_validate_opts("no-tool-smoke"),
             minimize: false,
             max_oracle_calls: 50,
+            diff_sim: false,
         };
         let report = run(&req).expect("hunt run");
         assert_eq!(report.lane, "dut");
@@ -390,6 +463,7 @@ mod tests {
             validate: test_validate_opts("seed-thread"),
             minimize: false,
             max_oracle_calls: 50,
+            diff_sim: false,
         };
         assert_eq!(seed_config(&req, 100).seed, 100);
         assert_eq!(seed_config(&req, 103).seed, 103);
@@ -416,6 +490,7 @@ mod tests {
             validate: test_validate_opts("reproducible"),
             minimize: false,
             max_oracle_calls: 50,
+            diff_sim: false,
         };
         let a = run(&mk()).expect("hunt run a");
         let b = run(&mk()).expect("hunt run b");
@@ -469,6 +544,7 @@ mod tests {
                 first_error: Some("Warning: ...".to_string()),
                 detection: "warning".to_string(),
                 minimized: None,
+                diff_sim: None,
             }],
             summary: HuntSummary {
                 n_seeds: 1,
@@ -483,8 +559,37 @@ mod tests {
         assert_eq!(back.failures.len(), 1);
         assert_eq!(back.failures[0].detection, "warning");
         assert_eq!(back.summary.n_failures, 1);
-        // `declined`/`first_error`/`minimized` use skip_serializing_if, so an
-        // absent `declined` stays absent (no `null`) in the wire form.
+        // `declined`/`first_error`/`minimized`/`diff_sim` use skip_serializing_if,
+        // so an absent `declined`/`diff_sim` stays absent (no `null`) in the wire
+        // form.
         assert!(!json.contains("\"declined\""));
+        assert!(!json.contains("\"diff_sim\""));
+    }
+
+    /// With `diff_sim` on but no simulators present, the cross-sim check is a
+    /// friendly no-op (`run_agreement` reports `ran == false`), so every
+    /// validate-clean artifact stays clean — the fold never turns a clean
+    /// sweep into a spurious finding. Skipped when both simulators are present
+    /// (that path runs the real tools — the `tool_matrix` `#[ignore]` e2e gate
+    /// and `tests/diff_sim.rs` own the present-tools case).
+    #[test]
+    fn diff_sim_on_clean_artifact_no_ops_without_simulators() {
+        if crate::diff_sim::tools_present() {
+            return;
+        }
+        let req = HuntRequest {
+            base_seed: 5,
+            seeds: 2,
+            config: Config::default(),
+            validate: test_validate_opts("diff-sim-noop"),
+            minimize: false,
+            max_oracle_calls: 50,
+            diff_sim: true,
+        };
+        let report = run(&req).expect("hunt run");
+        assert!(report.failures.is_empty());
+        assert!(report.verdicts.iter().all(|v| v.ok));
+        assert_eq!(report.summary.n_clean, 2);
+        assert_eq!(report.summary.n_failures, 0);
     }
 }

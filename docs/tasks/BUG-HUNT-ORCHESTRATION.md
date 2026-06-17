@@ -96,8 +96,24 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.2b.1 commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2b.2`
+  Status: `active`
+  Goal: `Fold the cross-simulator mismatch detector (anvil::diff_sim::run_agreement from .2a) into hunt::run as an optional detection axis (detection = "cross_sim_mismatch"), AND add the reproducer-bundle emitter. Pre-split at pick into .2b.2a (cross-sim fold + the shared generate helper) + .2b.2b (the reproducer-bundle emitter).`
+  Acceptance: `Both .2b.2a + .2b.2b done; cross-sim mismatch is a detection axis on clean artifacts; the reproducer bundle is emitted as a directory; cargo-portable proofs; default-off / DUT byte-identical (snapshots 6/6).`
+  Verification: `pending`
+  Commit: `pending`
+  Children: `BUG-HUNT-ORCHESTRATION.2b.2a, .2b.2b`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2b.2a`
+  Status: `done`
+  Goal: `Fold cross-simulator mismatch detection into hunt::run: a HuntRequest.diff_sim flag runs anvil::diff_sim::run_agreement on each validate-clean artifact; a mismatch is a finding (detection = "cross_sim_mismatch", HuntFailure.diff_sim carries the DiffSimReport, no minimize — the validate oracle can't reproduce a trace disagreement). Extract the shared downstream::generate_dut_artifact(cfg) -> (kind, top, sv) so the hunt regenerates exactly what validate accepted without copying the design-vs-module branch. Cargo-portable proofs. Default-off / DUT byte-identical.`
+  Acceptance: `downstream::generate_dut_artifact extracted + validate uses it (byte-identical, downstream tests green); HuntRequest.diff_sim + HuntFailure.diff_sim added; cross_sim_mismatch helper runs run_agreement on clean artifacts (work dir caller-set, removed unless keep_sandbox); cargo-portable proof that diff_sim on clean artifacts is a no-op without simulators; cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical.`
+  Result: `Done. (1) Extracted pub fn downstream::generate_dut_artifact(cfg) -> (String,String,String) (the design-vs-module dispatch); validate now calls it — byte-identical (downstream lib tests 20/0, 2 ignored). (2) hunt: HuntRequest.diff_sim: bool (default behaviour false) + HuntFailure.diff_sim: Option<DiffSimReport> (skip_serializing_if) + a cross_sim_mismatch(req, cfg, run_id) helper that regenerates the DUT SV via generate_dut_artifact and runs diff_sim::run_agreement in a caller-set per-run work dir (removed unless keep_sandbox), returning Some only when both sims ran AND disagreed. hunt::run runs it on each validate-clean artifact when diff_sim is set; a mismatch is a finding (detection "cross_sim_mismatch", minimized None since the validate oracle can't reproduce a trace disagreement, diff_sim carries the report). (3) Proof diff_sim_on_clean_artifact_no_ops_without_simulators (tools-absent ⇒ run_agreement ran=false ⇒ clean), + updated the serde round-trip (the new diff_sim field stays absent in the wire form). The bundle emitter is .2b.2b.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --lib hunt:: 7/7 + downstream:: 20/0; full cargo test green incl. tests/snapshots.rs 6/6 byte-identical (the validate refactor is byte-identical; hunt is wired into no generate/emit path).`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2b.2a commit`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2b.2b`
   Status: `pending`
-  Goal: `Fold the cross-simulator mismatch detector (anvil::diff_sim::run_agreement from .2a) into hunt::run as an optional detection axis (detection = "cross_sim_mismatch"), AND add the reproducer-bundle emitter: write <bundle_root>/<run_id>/ with repro.sv, knobs.json, introspection.json, manifest.json (non-DUT), tool-logs/, hunt-verdict.json, repro.sh. HuntFailure gains the bundle ref. Cargo-portable proofs (bundle emitted to a temp dir; cross-sim no-op when sims absent). Default-off / DUT byte-identical.`
+  Goal: `The reproducer-bundle emitter: a HuntRequest.bundle_root: Option<PathBuf>; on each finding, write <bundle_root>/<run_id>/ with repro.sv (regenerated via generate_dut_artifact, or the minimized config's SV), knobs.json (the effective/minimized Config), introspection.json (the IntrospectionDocument), tool-logs/ (or a note that repro.sh regenerates them), hunt-verdict.json (the HuntFailure), and a one-command repro.sh. HuntFailure gains a bundle ref (path + the anvil:// resource URIs). Cargo-portable proofs (bundle emitted to a temp dir; files present + repro.sh regenerates the .sv). Default-off / DUT byte-identical.`
   Acceptance: `pending (set when picked)`
   Verification: `pending`
   Commit: `pending`
@@ -127,12 +143,13 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2b.2` | `pending` | Fold cross-sim mismatch detection (`diff_sim::run_agreement`) into `hunt::run` + add the reproducer-bundle emitter (the directory). Completes the `.2b` engine. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2b.2b` | `pending` | The reproducer-bundle emitter (write `<bundle_root>/<run_id>/` per finding). Completes the `.2b` engine. |
 | 2 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable). |
 | 3 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
 | 4 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
 | — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
-| — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection); 5 cargo-portable proofs; snapshots 6/6. |
+| — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection) + the seed-threading fix; cargo-portable proofs; snapshots 6/6. |
+| — | `BUG-HUNT-ORCHESTRATION.2b.2a` | `done` | Folded cross-sim mismatch detection into `hunt::run` (`diff_sim::run_agreement`) + extracted the shared `downstream::generate_dut_artifact`; snapshots 6/6. |
 
 ## Decisions
 
@@ -181,6 +198,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2a` | `cargo check/test/clippy/fmt green; lib 502→505, tool_matrix 73→71+ignored, tests/diff_sim.rs 2 pass/2 gated, snapshots 6/6 byte-identical; run_agreement extracted; tool_matrix_report.json schema unchanged` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` | `cargo check/clippy/fmt green; cargo test --lib hunt:: 5/5; full cargo test green incl. snapshots 6/6 byte-identical (hunt default-off, no generate/emit path)` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `seed-threading bug fixed (Generator seeds from cfg.seed; sweep now stamps seed into a per-iteration seed_config) + new proof seed_config_threads_the_swept_seed; cargo check/clippy/fmt green; cargo test --lib hunt:: 6/6; full cargo test green incl. snapshots 6/6` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2a` | `downstream::generate_dut_artifact extracted (validate byte-identical, downstream 20/0); HuntRequest.diff_sim + HuntFailure.diff_sim + cross_sim_mismatch fold; proof diff_sim_on_clean_artifact_no_ops_without_simulators; cargo check/clippy/fmt green; cargo test --lib hunt:: 7/7; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
 
 ## Commit Log
 
@@ -191,6 +209,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION.2a` | `BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement` | Pure byte-identical refactor; `src/diff_sim/` now owns `run_agreement` + `DiffSimReport` + the SV-text testbench; `tool_matrix` wraps it. First impl leaf of `.2`. |
 | `BUG-HUNT-ORCHESTRATION.2b.1` | `BUG-HUNT-ORCHESTRATION.2b.1 — src/hunt/ library core (hunt::run loop + types, reject/warning detection)` | New `src/hunt/mod.rs` + `pub mod hunt`; composes `downstream::validate`/`minimize`; SCHEMA-DERIVED `HuntReport`; 5 cargo-portable proofs; default-off / DUT byte-identical. Cross-sim + bundle = `.2b.2`. |
 | `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `BUG-HUNT-ORCHESTRATION.2b.1 — fix: thread the swept seed into the per-iteration config` | Correctness fix: the generator seeds from `cfg.seed`, so the sweep must stamp `seed` into each iteration's config (`seed_config`), not just the `validate` `seed` arg; + the `seed_config_threads_the_swept_seed` proof. Found while grounding `.2b.2`. |
+| `BUG-HUNT-ORCHESTRATION.2b.2a` | `BUG-HUNT-ORCHESTRATION.2b.2a — fold cross-sim mismatch detection into hunt::run + extract downstream::generate_dut_artifact` | Cross-sim fold (`HuntRequest.diff_sim` → `run_agreement` on clean artifacts → `cross_sim_mismatch` finding) + the shared `generate_dut_artifact` helper (validate byte-identical). Default-off / DUT byte-identical. Bundle emitter = `.2b.2b`. |
 
 ## Changelog
 
@@ -210,3 +229,12 @@ this lane composes them into one bug-hunt orchestrator.
   `HuntRequest`/`HuntReport`/`HuntFailure`/`HuntMinimized`/`HuntSummary`)
   composing `downstream::validate`/`minimize`; 5 cargo-portable proofs;
   default-off / DUT byte-identical (snapshots 6/6). Frontier advanced to `.2b.2`.
+- `2026-06-17`: `.2b.1` seed-threading fix (the sweep must stamp `seed` into the
+  per-iteration config; `seed_config` + proof).
+- `2026-06-17`: pre-split `.2b.2` into `.2b.2a` (cross-sim fold + the shared
+  `generate_dut_artifact` extract) + `.2b.2b` (reproducer-bundle emitter).
+  `.2b.2a` done — `HuntRequest.diff_sim` runs `diff_sim::run_agreement` on each
+  validate-clean artifact (a mismatch is a `cross_sim_mismatch` finding carrying
+  the `DiffSimReport`); extracted `downstream::generate_dut_artifact` (validate
+  byte-identical); proof that diff-sim is a no-op without simulators. Default-off
+  / DUT byte-identical (snapshots 6/6). Frontier advanced to `.2b.2b`.
