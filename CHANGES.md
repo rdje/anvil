@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10a — multi-gate-cone `function automatic` impl design-detail
+
+**Landed as:** this commit (previous: `46a377e`). **Design-detail leaf —
+docs-only, no source change; DUT byte-identical (no source touched).** Grounds
+decision `0016` in the real emitter + cone-walk and resolves its five open
+questions, ahead of the `.10b` implementation. Splits `.10` → `.10a` (done) +
+`.10b` (impl pending); frontier → `.10b`.
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** — a design-detail entry grounding decision `0016` in
+  a fresh read of `src/ir/function_emit.rs` (`gate_qualifies` — the single-gate
+  predicate to fork), `src/introspect/analyze.rs` (`build_cone`/`visit` — the
+  post-order fan-in walk + the support-leaf boundary classification),
+  `src/emit/sv.rs` (`render_gate_function_decl`/`_body`/`_call` — the single-gate
+  rendering to extend to a multi-statement body + the gate-assign
+  inline-suppression), `src/gen/mod.rs` (the `soft_union → function_emit →
+  generate_loop → task_emit` roll chain), and `src/config.rs` (the `*_emit_prob`
+  knob list). Resolves all five open questions:
+  1. **Knob + selection** — new `Config::cone_function_emit_prob` (default `0.0`,
+     config-file-only), **separate** from `function_emit_prob`; selection walks
+     root candidates and rolls `gen_bool(p)` per qualifying cone (admissible op,
+     not sibling-marked, `>= 1` absorbed interior gate), reserving absorbed
+     interiors so a later root cannot re-absorb them.
+  2. **Admissibility + fanout** — absorb a reached `Gate` as a function-local iff
+     it is admissible (non-structured, non-`Slice`), not sibling-marked/reserved,
+     and **single-use within the cone**; otherwise it is a boundary **param**
+     (keeps its inline `assign`). Structural leaves are params; `Constant` folds
+     inline as a literal; the root is the return. Guarantees `-Wall` clean.
+  3. **Topo-order + naming** — post-order DFS gives dependency order; one
+     `logic <w> <wire>;` local per absorbed interior gate (reuse the module wire
+     name), assigns in topo order, then `<root>__cf = <root-expr>;`; body maps
+     each operand `NodeId` → param `aI` (ascending-`NodeId` boundary order) /
+     local wire name / literal.
+  4. **Pass order + mutual exclusion** — run `annotate_cone_function_gates` last
+     (after `task_emit`), guarded on `prob > 0.0`; sibling-marked gates are never
+     a root and never absorbed; IR `Module.cone_function_gates: BTreeMap<NodeId,
+     Vec<NodeId>>` (root → topo-ordered absorbed interior ids); the emitter
+     renders `render_cone_function_decl` + the call and suppresses every absorbed
+     interior gate's inline assign.
+  5. **Metric + gate** — `Metrics::num_emitted_cone_functions` ⇒ schema
+     `1.10 → 1.11`; `tool_matrix --cone-function-gate` + `ConeFunctionSweep` +
+     `ModuleReport.emitted_cone_function` (`__cf(`) + `saw_cone_function_emit`,
+     templated on `--function-emit-gate`, full Verilator + both Yosys + Icarus.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — `.10a` recorded `done` (with
+  the resolved-questions Result); `.10b` promoted to the frontier; metadata
+  header, Current Frontier, Verification Log, Commit Log, and Changelog updated.
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row updated (`.10a`
+  done, current frontier → `.10b`).
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` ✅; `knowledge-map` gen + check ✅
+  (43 facts / 351 keys, unchanged — no new card; `0016` already carries
+  `answers:`); `mdbook build book` ✅. No source touched ⇒
+  `cargo check/clippy/fmt/test` unaffected (the `.8b` bank: `cargo test --lib`
+  493 + snapshots 6/6 byte-identical).
+
+**Impact**
+
+- No code change. DUT byte-identical (no source touched). De-risks the `.10b`
+  implementation by pinning every design choice against real code. Nothing
+  retired.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.9 — pick the fifth structured surface (the multi-gate-cone `function automatic`) + decision 0016
 
-**Landed as:** this commit (previous: `afb5718`). **Design/decision leaf —
+**Landed as:** `46a377e` (previous: `afb5718`). **Design/decision leaf —
 docs-only, no source change; DUT byte-identical (no source touched).** Opens the
 **fifth** structured-emission surface at a no-active-frontier boundary,
 autonomously selected per `feedback_pick_and_roll_at_no_frontier`.

@@ -5,6 +5,126 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — multi-gate-cone `function automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.10a`
+
+Grounds decision `0016` in the real emitter + cone-walk and resolves the five
+open questions it deferred to `.10a`. Read this session: `src/ir/function_emit.rs`
+(`gate_qualifies` + `annotate_function_emit_gates` — the single-gate predicate to
+fork), `src/introspect/analyze.rs` (`build_cone` + `visit` at ~`729`/`769` — the
+post-order fan-in walk with the support-leaf boundary rules), `src/emit/sv.rs`
+(`render_gate_function_decl`/`render_gate_function_body`/`render_gate_function_call`
+at ~`1293`–`1399`, the function-decl section at ~`371`, the gate-assign-loop
+inline-suppression at ~`440`–`500`), `src/gen/mod.rs` (the
+`soft_union → function_emit → generate_loop → task_emit` call-site roll chain at
+~`91`–`125` and the design-level mirror at ~`293`–`327`), `src/config.rs` (the
+`*_emit_prob` knob defaults + validation + `dump-config` list). **No source change
+in this leaf.**
+
+The fifth surface deepens the first (decision `0012`): the single-gate function
+takes one gate's **direct operands** as positional params `a0..a{n-1}` and a
+one-line body; the cone function takes the cone's **support leaves** as params and
+a **multi-statement body** (one function-local per absorbed interior gate, topo
+order) returning the root. The cone-walk's boundary rules are exactly
+`analyze::visit`'s (PrimaryInput / Constant / FlopQ / MemRead / FsmOut /
+InstanceOutput stop), extended with three emitter-surface boundaries (below).
+
+**Resolved open questions.**
+
+1. **Knob + selection shape.** New `Config::cone_function_emit_prob` (default
+   `0.0`, config-file-only, `#[serde(default)]`, `0.0..=1.0` validation, in
+   `dump-config`), **separate** from `function_emit_prob` (decision `0016`: the
+   single-gate surface stays byte-identical). Selection = **walk candidate roots,
+   roll per qualifying cone**: a new `src/ir/cone_function_emit.rs`
+   `annotate_cone_function_gates(m, rng, prob)` scans gates in node order; a gate
+   is a **root candidate** iff it is an admissible op (the `function_emit`
+   `gate_qualifies` set — non-structured, non-`Slice`, `>= 1` operand), is **not**
+   already marked by any sibling projection (`function_emit_gates` /
+   `generate_loop_gates` / `task_emit_gates` / `soft_union_slice_gates`), and its
+   cone (below) has **`>= 1` absorbed interior gate** (so the body is genuinely
+   multi-statement; a zero-interior cone is just the single-gate surface and is
+   left to `function_emit`). For each candidate in order, `rng.gen_bool(p)` decides
+   selection; on success the cone is recorded and its absorbed interior gates are
+   reserved so a later root cannot also absorb them (first-come, deterministic by
+   node order). Mirrors `annotate_function_emit_gates`' collect-then-mark shape;
+   `param_env.is_some()` modules are skipped (the Phase-5 parameterized scope-out,
+   as in the sibling passes).
+
+2. **Interior-node admissibility + fanout handling.** A purpose-built post-order
+   walk from the root (mirroring `analyze::visit`'s structure, **not** calling it —
+   that fn is private and tailored to the `SupportCone` doc shape; coupling the
+   emitter annotation to the introspection doc is undesirable). A reached
+   `Node::Gate g` is **absorbed as an interior local** iff *all* hold: (a) `g` is
+   an admissible op (non-structured, non-`Slice`); (b) `g` is **not** sibling-marked
+   or already reserved by another cone; (c) `g` is **single-use within the cone** —
+   every consumer of `g` in the module is inside this cone (not a module-output
+   drive, not a flop `D`, not a node outside the cone). Otherwise `g` is a **cone
+   boundary** and becomes a **parameter** (its module wire is passed in), keeping
+   its own inline `assign` outside the function. Structural leaves
+   (PrimaryInput / FlopQ / InstanceOutput) are boundary **params**; `Constant` is
+   **folded inline as a literal in the body** (not a param — it is a leaf-but-not-a-
+   support-source per `visit`, and folding avoids an unused-width param). The root
+   itself is always absorbed (it is the return). This guarantees every function-body
+   node renders as a blocking assign over params/earlier-locals/literals and is
+   robustly `-Wall` clean (no `UNUSEDSIGNAL`: every param is used; multi-use gates
+   stay external).
+
+3. **Topo-order + local naming.** The post-order DFS yields absorbed interior
+   gates in dependency order (children before parents) — emit one
+   `logic <width> <wire>;` decl per absorbed interior gate (reusing the gate's
+   existing **module wire name**, e.g. `and_3`, as the function-local name: unique
+   within the module ⇒ unique within the function; params are `a0..a{k-1}` so no
+   clash), then the assignments in that order, then `<root>__cf = <root-expr>;`.
+   Body rendering = a cone variant of `render_gate_function_body` that maps each
+   operand `NodeId` → its **in-function name**: a boundary leaf → its param `aI`
+   (deterministic param order = ascending `NodeId` of the boundary set; a distinct
+   boundary `NodeId` ⇒ exactly one param, unlike the single-gate positional
+   duplication), an absorbed interior gate → its local wire name, a `Constant` →
+   its literal. Return type + param widths via `param_width_decl_w` (as in
+   `render_gate_function_decl`).
+
+4. **Pass ordering + mutual exclusion.** Run `annotate_cone_function_gates`
+   **last** in both call-site chains (after `task_emit`), guarded on
+   `cfg.cone_function_emit_prob > 0.0` so the default draws nothing ⇒ byte-identical
+   stream. Running last means the four sibling marks are visible: a sibling-marked
+   gate is never a cone root and is never absorbed (it stays a boundary param). The
+   reserved-interior set prevents two cones from claiming the same gate. IR change:
+   `Module.cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>` (root → topo-ordered
+   absorbed interior gate ids; the params + literals are derived at emit time from
+   the interior gates' operands), `BTreeMap` for deterministic emit order. The
+   emitter (`to_sv_with_modules`): in the function-decl section, for each
+   `(root, interior)` render `render_cone_function_decl` (the multi-statement body)
+   + at the gate-assign loop, **suppress the inline assign of every absorbed
+   interior gate** (they live only inside the function) and **replace the root's
+   assign RHS with the `<root>__cf(<param refs>)` call** — the existing
+   `function_emit_gate`/`generate_loop_gate`/`task_emit_gate` suppression pattern,
+   extended to the cone's interior set.
+
+5. **Metric + gate.** `Metrics::num_emitted_cone_functions = m.cone_function_gates.len()`
+   (`#[serde(default)]`), surfaced in introspection `module_metrics` ⇒
+   `SCHEMA_VERSION` `1.10 → 1.11` (the metric bumps; the `.10b.1` knob rides the
+   version, the `function_emit`/`generate_loop`/`task_emit` precedent). New
+   `tool_matrix --cone-function-gate` + `ScenarioSet::ConeFunctionSweep` +
+   `build_cone_function_sweep_scenarios`/`cone_function_focus_config` (one comb-only
+   `cone_function_emit_prob=1.0` DUT × the three construction strategies) +
+   `ModuleReport.emitted_cone_function` (SV-text detection of `__cf(`) +
+   `saw_cone_function_emit` + `MatrixReport.cone_function_gate` + early-return gap
+   arm + proofs, templated on `--function-emit-gate`. Full Verilator + both Yosys +
+   Icarus plan (a synthesizable function is accepted by every tool).
+
+**`.10b` impl shape.** New `src/ir/cone_function_emit.rs` (+ `src/ir/mod.rs`
+registration) with the walk + `annotate_cone_function_gates`; `Config`
++`cone_function_emit_prob`; `Module.cone_function_gates`; the `src/emit/sv.rs`
+`render_cone_function_decl` + call + interior-suppression; lib proofs (cone mark
+with `>= 1` interior; multi-statement emit shape with locals; single-use-only
+absorption / multi-use stays a param; sibling-marked excluded; the single-gate
+`function_emit` surface unchanged; identity/node-count untouched; an emit/sim
+faithfulness check); the metric + schema `1.10 → 1.11`; the `--cone-function-gate`
+proof; book/USER_GUIDE/KM. Default-off / DUT byte-identical (snapshots untouched).
+Pre-split `.10b.1` (live surface) / `.10b.2` (metric + gate) / `.10b.3` (user docs)
+if warranted, the `.6b`/`.4b` precedent.
+
+---
+
 ## 2026-06-17 — Structured emission — picking the fifth surface (the multi-gate-cone `function automatic`) — `STRUCTURED-EMISSION-EXPANSION.9` (decision `0016`)
 
 Design/decision leaf, **no source change**. At a no-active-frontier boundary
