@@ -1,9 +1,73 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017
+
+**Landed as:** this commit (previous: `6125ea5`). **Docs/workflow-only
+registration — no `src/` touched; DUT byte-identical.** By owner directive
+(`2026-06-17`), task-tree-tracks the six "make ANVIL more usable" ideas plus a
+capability-breadth lane, and records the binding cross-cutting **API-first
+mandate**: everything meaningful in ANVIL must be MCP-accessible, controllable,
+steerable, and queryable; deep semantic introspection first-class. Mirrors the
+`CAPABILITY-LANE-OWNERSHIP` registration precedent (ownership before work).
+
+**What changed (why)**
+
+- **`docs/decisions/0017-api-first-everything-mcp-accessible.md`** (new) — the
+  API-first mandate ADR (KM `answers:` front-matter; extends `0004`/`0005`/`0011`
+  + `feedback_api_for_agents_not_humans`). Defines the **API-completeness gate**:
+  a feature is not `done` until its controls are MCP-settable, its actions
+  MCP-invocable, and its queryable facts exposed SCHEMA-DERIVED via
+  `--introspect`/`analyze` (the no-shadow-simulator ceiling unchanged). `+ INDEX
+  row`.
+- **Seven new lane trees** in `docs/tasks/` — `BUG-HUNT-ORCHESTRATION` (turnkey
+  MCP-driven fuzz→minimize→reproducer loop), `ACCEPTANCE-DIVERGENCE-HUNTING`
+  (tool-A-accepts/tool-B-rejects finder), `DOWNSTREAM-ADAPTER-EXPANSION` (generic
+  adapter interface + slang/sv2v/Surelog-UHDM/commercial columns),
+  `KNOB-ERGONOMICS-AND-PRESETS` (CLI flags + `--profile` presets + full API knob
+  steerability + queryable knob catalog/preset registry), `CI-PACKAGING-DISTRIBUTION`
+  (prebuilt binaries + a drop-in GitHub Action), `COVERAGE-STEERED-GENERATION`
+  (construction-time, rules-first coverage steering with API target + readout),
+  `CAPABILITY-BREADTH-EXPANSION` (more SV-2017/2023 up-opts + Mealy FSM outputs).
+  Each carries the decision-`0017` API-completeness gate in its Acceptance
+  Criteria and a design-first `.1` ADR frontier (no code before the ADR).
+- **`docs/tasks/USABILITY-LANE-OWNERSHIP.md`** (new) — the registration tree;
+  `.1` (this leaf) registers the seven lanes + decision `0017`, status `done`.
+- **`docs/TASK_TREE.md`** — 8 new Active-Task-Trees rows (the 7 lanes + the
+  ownership tree).
+- **`ROADMAP.md`** — new §"Owner-directed usability + capability lanes
+  (2026-06-17)" stating the mandate + the seven lanes; **`MEMORY.md`** refreshed.
+
+**Validation**
+
+- Docs/workflow only — no `src/` touched ⇒ `cargo check/clippy/fmt/test`
+  unaffected; the code state is exactly the green `.10b.3` state (lib 502 /
+  tool_matrix 73 / book_examples 3/3 / snapshots 6/6 byte-identical; schema
+  `1.11`). `bash scripts/check_memory_architecture.sh` OK;
+  `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` OK
+  (new `0017` decision card folded in).
+
+**Impact**
+
+- Seven owner-directed lanes are now task-tree-owned and ready for design-first
+  PNT; decision `0017` binds them (and the existing `SEMANTIC-INTROSPECTION-EXPANSION`
+  + `AGENT-MCP-EXPANSION` lanes) to the API-first mandate. No code change; DUT
+  byte-identical. Nothing retired.
+
+**Files touched:** `docs/decisions/0017-api-first-everything-mcp-accessible.md`
+(new), `docs/decisions/INDEX.md`, `docs/tasks/USABILITY-LANE-OWNERSHIP.md` (new),
+`docs/tasks/BUG-HUNT-ORCHESTRATION.md` (new),
+`docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md` (new),
+`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md` (new),
+`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md` (new),
+`docs/tasks/CI-PACKAGING-DISTRIBUTION.md` (new),
+`docs/tasks/COVERAGE-STEERED-GENERATION.md` (new),
+`docs/tasks/CAPABILITY-BREADTH-EXPANSION.md` (new), `docs/TASK_TREE.md`,
+`ROADMAP.md`, `KNOWLEDGE_MAP.md`, `MEMORY.md`, `CHANGES.md`.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.3 — multi-gate-cone `function automatic` user docs (fifth surface end-to-end)
 
-**Landed as:** this commit (previous: `015a09b`). **User-facing docs closeout
+**Landed as:** `6125ea5` (previous: `015a09b`). **User-facing docs closeout
 (docs-only / DUT byte-identical).** Closes `.10b.3` / `.10b` / `.10` — the fifth
 structured surface (the multi-gate-cone `function automatic`, decision `0016`) is
 delivered end-to-end. The lane returns to no current frontier (future surfaces —

@@ -2393,6 +2393,53 @@ execution order is `2 → 3 → 1`:
   downstream-clean across Verilator + both Yosys + Icarus). `.3`
   (whole-module sequential equivalence) is the named future leaf.
 
+## Owner-directed usability + capability lanes (2026-06-17)
+
+On `2026-06-17` the owner directed seven new lanes — six "make ANVIL more
+usable" lanes and one capability-breadth lane — and a binding cross-cutting
+**API-first mandate**. All are registered as task trees (before any
+implementation) via `USABILITY-LANE-OWNERSHIP.1`, tracked in
+`docs/TASK_TREE.md`. None reopens a closed phase; each is open-ended
+capability/usability work that lands as task-tree leaves, design-first.
+
+**The API-first mandate** — decision
+[`0017`](docs/decisions/0017-api-first-everything-mcp-accessible.md): every
+meaningful ANVIL feature must be fully **MCP-accessible, controllable, steerable,
+and queryable**; deep semantic introspection is first-class. It is a standing
+**API-completeness gate** on every lane (a feature is not `done` until its
+controls are MCP-settable, its actions MCP-invocable, and its queryable facts
+exposed SCHEMA-DERIVED via `--introspect`/`analyze`). The `SCHEMA-DERIVED` /
+structure-first / no-shadow-simulator ceiling (decision `0004`, steering gap 4)
+is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
+cross-cutting homes for this deepening.
+
+The seven lanes (north-star-ordered; all `active` with a design-first `.1` ADR
+frontier, no code yet):
+
+1. `BUG-HUNT-ORCHESTRATION` — a turnkey, MCP-driven fuzz → detect → auto-minimize
+   → reproducer-bundle loop (`anvil hunt` + an `hunt` MCP tool) composing the
+   existing `tool_matrix` / `downstream` / `diff-sim` / introspect surfaces. The
+   single biggest usability multiplier — ANVIL as a direct bug-finder.
+2. `ACCEPTANCE-DIVERGENCE-HUNTING` — a "tool A accepts / tool B rejects" (and
+   version-vs-version) divergence finder + report, complementing `--diff-sim`.
+3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
+   new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).
+4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
+   MCP knob steerability + an API-queryable knob catalog & preset registry.
+5. `CI-PACKAGING-DISTRIBUTION` — prebuilt binaries + a drop-in GitHub Action for
+   continuous downstream fuzzing, driven through the same API.
+6. `COVERAGE-STEERED-GENERATION` — construction-time coverage-feedback steering
+   (rules-first, never generate-then-filter; byte-stable per steering-config)
+   with an API-settable target + API-queryable achieved coverage.
+7. `CAPABILITY-BREADTH-EXPANSION` — more SV-2017/2023 up-opts (enum/typedef,
+   packed multidim arrays, more 2023 constructs as proven up-opts continuing the
+   `union soft` pattern) + Mealy FSM outputs (extending the Phase-6 Moore-only
+   `Fsm`), each default-off / proven / API-selectable.
+
+Nothing is retired; the default `anvil` build and `--artifact dut` stay
+byte-identical. Recommended first lane: `BUG-HUNT-ORCHESTRATION` (with
+`KNOB-ERGONOMICS-AND-PRESETS` + `DOWNSTREAM-ADAPTER-EXPANSION` feeding it).
+
 ## Non-goals
 
 - Testbenches, assertions, coverage — `anvil` generates DUT code only.
