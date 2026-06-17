@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold + `.2c.2` `tool_matrix` column done; `.2c` closed; frontier `.2d` — the MCP `divergence` tool + CLI shim)
+- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold + `.2c.2` `tool_matrix` column + `.2d` MCP tool + CLI shim done; `.2c` closed; frontier `.2e` — the tool-version-vs-version axis)
 - Owner: repo-local workflow
 
 ## Goal
@@ -111,11 +111,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2d`
-  Status: `pending`
+  Status: `done`
   Goal: `The MCP divergence controlled tool wired into src/mcp dispatcher: input schema (lane/seed/seeds/config/tools/yosys_mode), DivergenceReport result, divergent-run_id cache population (so anvil://artifact/<run_id>/{sv,introspection} resolve), a top-level divergence audit record; the anvil CLI shim; book/src/agent-mcp.md tool list/table; proofs (decision-0017 API-completeness gate met).`
   Acceptance: `A controlled divergence tool in tools_list + tools_call shimming divergence::run; DivergenceReport returned as JSON; each divergent run_id cached; a top-level divergence audit record; CLI shim (a --divergence flag); book agent-mcp updated; no introspection schema bump unless a DivergenceReport projection is served as a resource; cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. (1) src/mcp/mod.rs: a controlled divergence tool — run_divergence(seed,cfg,args), a single-(seed,config) shim over divergence::run with the same input shape as validate (tools + yosys_mode; refined from the ADR's seeds sketch because divergence::run is single-seed and the sweep is the hunt axis), inheriting validate's allow-list/OS-temp-sandbox/RAM-guard/audit by composing through it. Returns the DivergenceReport; caches the artifact's content-addressed run_id (only when report.diverged) so anvil://artifact/<run_id>/{sv,introspection} resolve (the MCP-native reproducer; agent supplies no path); appends a top-level divergence audit record. Added a divergence_schema + the tool entry in tools_list + the "divergence" dispatch arm. ALSO flipped the .2c.1 placeholder divergence:false in run_hunt to parse_bool_arg(args,"divergence",false)? (the hunt-axis over MCP) + a hunt_schema divergence arg. (2) src/main.rs: the anvil hunt --divergence CLI flag, flipping build_hunt_request's .2c.1 placeholder divergence:false to args.divergence (the CLI a shim over hunt::run). (3) book/src/agent-mcp.md: the tool list, the tool table (a divergence row + the hunt row's divergence axis), the controlled-tool prose (three→four), the audit-trail line. No introspection schema bump (no new resource type — the divergent run_id reuses the existing sv/introspection artifact resources; stays 1.11). +4 MCP proofs (no-tools round-trip + audit; allow-list rejection; tools_list/schema presence; hunt divergence-arg accept/reject) + the CLI full-args/defaults parse proofs. Default-off / DUT byte-identical.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK (all under scripts/ram_guard.sh --threshold 90). cargo test --lib mcp::tests 55/0 (incl. 4 new proofs); full cargo test --lib 535/0 (2 ignored; 531→535); cargo test --bin anvil 12/0; tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs 3/3; mdbook build book clean. Real-tool CLI sanity (anvil hunt --seed 1 --seeds 4 --tools verilator,yosys --divergence; Verilator 5.046 + Yosys 0.64): n_clean=4, n_failures=0 — the all-agree steady state, proving the flag drives the loop end-to-end.`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2d commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2e`
   Status: `pending`
@@ -135,11 +136,10 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool (shimming `divergence::run`, caching each divergent `run_id`, a top-level audit record) + the `anvil` CLI `--divergence` shim (decision `0017` API-completeness gate). |
-| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis (`DivergenceOptions.tool_specs` + `ToolInvocation.version` + `version_mismatch`). |
-| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
+| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis: `DivergenceOptions.tool_specs` carrying `(AcceptanceTool kind, binary, label)` (kind stays allow-listed, binary is a caller-supplied path/PATH shim) + a `ToolInvocation` observed-`version` capture (parsed from `--version`) + the `version_mismatch` classification. Caller supplies binaries/labels; ANVIL never manages installs. |
+| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done 2026-06-17` + `.2c.2` (the `tool_matrix --divergence` column) `done 2026-06-17` — `ModuleReport`/`DesignReport.divergence` via the same `classify_report` over the tools the matrix already ran, the opportunistic `saw_acceptance_divergence` fact, the `classify_diff_sim_axis` subset reuse; matrix-bin 75/0, lib 531/0, snapshots 6/6 + book_examples, real-tool smoke clean; **`.2c` closed**. Frontier `.2d` (the MCP `divergence` tool + CLI shim).)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done` + `.2c.2` (the `tool_matrix --divergence` column) `done`; **`.2c` closed**. `.2d` (the MCP `divergence` controlled tool + the `hunt` `divergence` axis + the `anvil hunt --divergence` CLI shim) `done 2026-06-17` — the decision-`0017` API-completeness surface; +4 MCP proofs, lib 535/0, snapshots 6/6 + book_examples, mdbook clean, real-tool CLI sanity clean. Frontier `.2e` (the tool-version-vs-version axis).)
 
 ## Decisions
 
@@ -195,6 +195,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `divergence::classify_report extracted (run refactored, byte-identical); hunt::run gains HuntRequest.divergence + HuntFailure.divergence — a finding where some tool accepted while another rejected/warned is classified acceptance_divergence (no minimize, like cross_sim); mcp/main set divergence:false (arg-wiring=.2d); +2 proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 8/8 + hunt:: 12/12 + full lib 531/0; snapshots 6/6 + book_examples 3/3` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `tool_matrix --divergence column: ModuleReport/DesignReport.divergence via the shared classify_report over a ValidateReport assembled from the tools the matrix already ran (no extra spawn, no tool-clean precondition); .divergence-subset sentinel reusing select_diff_sim_subset/classify_diff_sim_axis (membership factored to scenario_in_named_subset); opportunistic saw_acceptance_divergence fact (never a gate, compute_coverage_gaps untouched); +4 cargo-portable proofs; cargo check/clippy/fmt green; cargo test --bin tool_matrix 75/0 + full lib 531/0; snapshots 6/6 + book_examples 3/3; real-tool smoke /tmp/anvil-divergence-col-smoke 17/0 (divergence_enabled, subset=2 axes, diverged=false, saw_acceptance_divergence=false)` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `both children (.2c.1 hunt fold + .2c.2 matrix column) done ⇒ .2c closed; one shared detector reused by two surfaces, no drift` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `controlled MCP divergence tool (run_divergence, single-(seed,cfg) shim over divergence::run, caches divergent run_id + audit record) + the hunt divergence-axis arg (flipped .2c.1 placeholder) + the anvil hunt --divergence CLI flag; book/src/agent-mcp.md tool list/table; no introspection schema bump (no new resource type); +4 MCP proofs + CLI parse proofs; cargo check/clippy/fmt green; cargo test --lib mcp::tests 55/0 + full lib 535/0 + bin anvil 12/0; snapshots 6/6 + book_examples 3/3; mdbook clean; real-tool CLI sanity anvil hunt --divergence n_clean=4 n_failures=0` | `done` |
 
 ## Commit Log
 
@@ -206,6 +207,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport, reusing validate + the shared classifier)` | New `src/divergence/mod.rs` + `pub mod divergence`. `divergence::run` reuses the one `downstream::validate` orchestration + the shared `tool_verdict`, classifies disagreement (`accept_reject`/`accept_warn`/`warn_reject`, deterministic). 7 cargo-portable proofs; lib 529/0; snapshots 6/6. No CLI/MCP/version axis yet. Default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run (classify_report + HuntRequest.divergence)` | `divergence::classify_report` (the pure projection of an already-run `ValidateReport`) + `hunt::run`'s `HuntRequest.divergence`/`HuntFailure.divergence`: a finding where one tool accepted what another rejected/warned is classified `acceptance_divergence` (no minimize). MCP/CLI set `divergence:false` (arg-wiring=`.2d`). lib 531/0; snapshots 6/6 + book_examples. Default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the tool_matrix --divergence column (ModuleReport/DesignReport.divergence via the shared classify_report)` | The second surface: `tool_matrix --divergence` + `ModuleReport`/`DesignReport.divergence: Option<DivergenceReport>` populated by `unit_divergence` — the same `divergence::classify_report` over the tools the matrix already ran (a pure projection; no extra spawn / no tool-clean precondition). `.divergence-subset` sentinel reuses `select_diff_sim_subset`/`classify_diff_sim_axis` (membership factored to `scenario_in_named_subset`). Opportunistic `saw_acceptance_divergence` fact, never a gate. +4 proofs; matrix-bin 75/0, lib 531/0; snapshots 6/6 + book_examples; real-tool smoke clean. Closes `.2c`. Default-off / DUT byte-identical. |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `ACCEPTANCE-DIVERGENCE-HUNTING.2d — the MCP divergence tool + CLI shim (run_divergence + the hunt divergence axis + anvil hunt --divergence)` | The third surface (decision `0017` API-completeness): a controlled MCP `divergence` tool (`run_divergence`, a single-`(seed,cfg)` shim over `divergence::run`, caching the divergent `run_id` + an audit record) added to `tools_list`/dispatch; the `hunt` tool's `divergence` axis arg (flipped the `.2c.1` placeholder); the `anvil hunt --divergence` CLI shim. `book/src/agent-mcp.md` tool list/table updated. No introspection schema bump. +4 MCP proofs + CLI parse proofs; lib 535/0, mcp 55/0, bin anvil 12/0; snapshots 6/6 + book_examples 3/3; mdbook clean; real-tool CLI sanity clean. Default-off / DUT byte-identical. |
 
 ## Changelog
 
@@ -291,3 +293,29 @@ query — building on the existing hardened `src/downstream/` adapters and the
   `saw_acceptance_divergence=false` — the all-agree steady state. Default-off / DUT
   byte-identical. `.2c` closed; frontier advanced to `.2d` (the MCP `divergence` tool +
   CLI shim). README/USER_GUIDE/book/KM closeout is `.2f`.
+- `2026-06-17`: `.2d` done — the MCP `divergence` controlled tool + CLI shim (the
+  third surface of the one-shared-detector design; decision `0017` API-completeness).
+  `src/mcp/mod.rs`: `run_divergence(seed,cfg,args)` — a single-`(seed,config)` shim
+  over `divergence::run` with the same input shape as `validate` (`tools` +
+  `yosys_mode`; refined from the ADR's `seeds` sketch because `divergence::run` is
+  single-seed and the sweep is the `hunt` axis), inheriting the
+  allow-list/sandbox/RAM-guard/audit by composing through `validate`. Returns the
+  `DivergenceReport`; caches the artifact's content-addressed `run_id` (only when
+  `diverged`) so `anvil://artifact/<run_id>/{sv,introspection}` resolve; appends a
+  top-level `divergence` audit record. Added a `divergence_schema` + the tool in
+  `tools_list` + the dispatch arm. ALSO flipped the `.2c.1` placeholder
+  `divergence:false` in `run_hunt` to a real `divergence:bool` arg (the hunt-axis over
+  MCP) + a `hunt_schema` arg. `src/main.rs`: the `anvil hunt --divergence` CLI flag
+  (flipped `build_hunt_request`'s `.2c.1` placeholder to `args.divergence`).
+  `book/src/agent-mcp.md`: the tool list, the tool table (a `divergence` row + the
+  `hunt` row's divergence axis), the controlled-tool prose (three→four), the
+  audit-trail line. No introspection schema bump (no new resource type — the divergent
+  `run_id` reuses the existing `sv`/`introspection` artifact resources; stays `1.11`).
+  +4 MCP proofs (no-tools round-trip + audit; allow-list rejection; tools_list/schema
+  presence; `hunt` divergence-arg accept/reject) + the CLI full-args/defaults parse
+  proofs. `cargo test --lib mcp::tests` 55/0; full `cargo test --lib` 535/0 (531→535);
+  `cargo test --bin anvil` 12/0; snapshots 6/6 byte-identical + book_examples 3/3;
+  `mdbook build book` clean; clippy/fmt green. Real-tool CLI sanity (`anvil hunt
+  --seed 1 --seeds 4 --tools verilator,yosys --divergence`): `n_clean=4 n_failures=0`
+  (steady state). Default-off / DUT byte-identical. Frontier advanced to `.2e` (the
+  tool-version-vs-version axis). USER_GUIDE/README/KM closeout is `.2f`.

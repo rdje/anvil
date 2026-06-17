@@ -620,9 +620,13 @@ src/
 │                     **already ran** (a pure projection — no extra tool spawn, so
 │                     no tool-clean precondition, unlike `--diff-sim`), gated by the
 │                     shared per-axis subset, lighting the opportunistic
-│                     `saw_acceptance_divergence` fact (never a coverage gate). The
-│                     MCP `divergence` tool + CLI (`.2d`) and the tool-version axis
-│                     (`.2e`) come next. Default `anvil` build / DUT byte-identical.
+│                     `saw_acceptance_divergence` fact (never a coverage gate).
+│                     `.2d` wires the third surface: a controlled MCP `divergence`
+│                     tool (`mcp::run_divergence`, a single-`(seed,cfg)` shim over
+│                     `run`, caching the divergent `run_id` + an audit record) + the
+│                     `hunt` `divergence` axis arg + the `anvil hunt --divergence`
+│                     CLI shim (decision `0017`). The tool-version axis (`.2e`) comes
+│                     next. Default `anvil` build / DUT byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:
@@ -915,6 +919,16 @@ src/
 │                     params + summary + per-finding tool/detection. No
 │                     introspection schema bump (the `HuntReport` is a tool
 │                     result, not part of the introspection document).
+│                     `ACCEPTANCE-DIVERGENCE-HUNTING.2d` adds the controlled
+│                     `divergence` tool (`run_divergence`): a single-`(seed,cfg)`
+│                     shim over `divergence::run` (same `tools`/`yosys_mode` input
+│                     as `validate`), returning the `DivergenceReport`, caching the
+│                     divergent `run_id` (only when `diverged`) so
+│                     `anvil://artifact/<run_id>/{sv,introspection}` resolve, + a
+│                     top-level `divergence` audit record. It also flips the
+│                     `.2c.1` placeholder `divergence:false` in `run_hunt` to a
+│                     real `divergence:bool` arg (the hunt-axis over MCP). No
+│                     introspection schema bump (no new resource type).
 │   └── http.rs      (`AGENT-MCP-EXPANSION.4b`). The optional hand-rolled
 │                     HTTP/1.1 POST transport beside stdio, re-exported as
 │                     `mcp::serve_http` + `mcp::resolve_http_addr`. Pure framing

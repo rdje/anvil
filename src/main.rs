@@ -541,6 +541,13 @@ struct HuntCommand {
     #[arg(long)]
     diff_sim: bool,
 
+    /// Also classify acceptance divergence on each finding: when the selected
+    /// tools disagree on legality (one accepts while another warns/rejects), the
+    /// finding is reported as `detection=acceptance_divergence` with the
+    /// per-tool verdicts. Not minimized (the disagreement can't survive shrinking).
+    #[arg(long)]
+    divergence: bool,
+
     /// Write a self-contained reproducer bundle directory per finding under DIR
     /// (the human-CLI convenience). Omit to report findings without on-disk
     /// bundles — the MCP `hunt` tool always omits it and serves artifacts from
@@ -829,9 +836,9 @@ fn build_hunt_request(args: &HuntCommand) -> anyhow::Result<anvil::hunt::HuntReq
         minimize: !args.no_minimize,
         max_oracle_calls: args.budget,
         diff_sim: args.diff_sim,
-        // The `--divergence` CLI flag is wired in `ACCEPTANCE-DIVERGENCE-HUNTING.2d`;
-        // default-off here keeps this shim byte-identical until then.
-        divergence: false,
+        // `ACCEPTANCE-DIVERGENCE-HUNTING.2d` — the acceptance-divergence axis
+        // (default-off ⇒ this shim stays byte-identical unless `--divergence`).
+        divergence: args.divergence,
         bundle_root: args.out.clone(),
     })
 }
@@ -1082,6 +1089,7 @@ mod tests {
             "--budget",
             "10",
             "--diff-sim",
+            "--divergence",
             "--out",
             "/tmp/anvil-hunt",
         ]);
@@ -1098,6 +1106,7 @@ mod tests {
         assert!(h.no_minimize);
         assert_eq!(h.budget, 10);
         assert!(h.diff_sim);
+        assert!(h.divergence);
         assert_eq!(h.out, Some(PathBuf::from("/tmp/anvil-hunt")));
     }
 
@@ -1116,6 +1125,7 @@ mod tests {
         assert!(!h.no_minimize);
         assert_eq!(h.budget, 200);
         assert!(!h.diff_sim);
+        assert!(!h.divergence);
         assert!(h.out.is_none());
     }
 
@@ -1139,6 +1149,7 @@ mod tests {
             no_minimize: true,
             budget: 12,
             diff_sim: true,
+            divergence: true,
             out: Some(PathBuf::from("/tmp/anvil-hunt-out")),
         };
         let req = build_hunt_request(&args).expect("build request");
@@ -1150,6 +1161,7 @@ mod tests {
         assert!(!req.minimize); // --no-minimize
         assert_eq!(req.max_oracle_calls, 12);
         assert!(req.diff_sim);
+        assert!(req.divergence); // --divergence
         assert_eq!(req.bundle_root, Some(PathBuf::from("/tmp/anvil-hunt-out")));
     }
 

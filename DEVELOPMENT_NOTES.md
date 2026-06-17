@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the MCP tool + CLI shim — `ACCEPTANCE-DIVERGENCE-HUNTING.2d`
+
+The third (and last non-version) surface. Design choices worth recording:
+
+- **The MCP `divergence` tool is single-`(seed, config)` (mirrors `validate`),
+  NOT a sweep (like `hunt`).** The ADR sketched a `seeds` arg, but `divergence::run`
+  is single-seed and the `.2d` acceptance says "shimming `divergence::run`" /
+  "`DivergenceReport` returned" (singular). So the standalone tool runs one artifact
+  and returns one report; the multi-seed sweep is the `hunt` tool's `divergence`
+  axis. This avoids duplicating the sweep loop and keeps a clean split: `divergence`
+  = "did these tools disagree on *this* artifact?", `hunt --divergence` = "sweep N
+  seeds for a disagreement". Documented in the tool's schema comment.
+- **Cache the run_id only when it diverged.** `validate`/`hunt` cache findings;
+  the all-agree steady state is not a finding, so `run_divergence` caches the
+  artifact (`introspect_dut_artifact(seed, cfg)` → the content address) only when
+  `report.diverged`, mirroring `cache_hunt_failures`'s find-then-cache shape. The
+  agent then reads `anvil://artifact/<run_id>/{sv,introspection}` for the divergent
+  reproducer — the MCP-native mechanism (no filesystem path from the agent,
+  decision `0004`).
+- **Two `.2c.1` placeholders flipped, not rewritten.** `.2c.1` deliberately wired
+  `divergence: false` in both `mcp::run_hunt` and `main::build_hunt_request` with a
+  "`.2d` will wire the arg" comment. `.2d` flips them to
+  `parse_bool_arg(args, "divergence", false)?` and `args.divergence` respectively —
+  default-off, so any caller that omits the arg/flag stays byte-identical. This is
+  the decision-`0017` completeness step: the action was reachable internally; now
+  it is MCP-invocable (`divergence` tool + `hunt` axis) and CLI-invocable
+  (`anvil hunt --divergence`), with the CLI a thin shim.
+- **No introspection schema bump.** The tree allowed a bump only "if a
+  `DivergenceReport` projection is served as a resource". It is not — the divergent
+  `run_id` reuses the existing `sv`/`introspection` artifact resources — so the
+  schema stays `1.11`.
+
 ## 2026-06-17 — Acceptance-divergence hunting — the `tool_matrix` column — `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
 
 The second of the one-detector-two-surfaces pair. Two design choices worth recording:

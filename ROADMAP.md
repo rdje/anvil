@@ -2422,8 +2422,10 @@ and its first code leaves are **done** — `.2a` (the shared
 `HuntRequest.divergence` → an `acceptance_divergence` finding via the extracted
 `classify_report`), and `.2c.2` (the `tool_matrix --divergence` column reusing
 `classify_report` over the tools the matrix already ran + the opportunistic
-`saw_acceptance_divergence` fact — closing `.2c`); frontier now `.2d` (the MCP
-`divergence` controlled tool + the `anvil` CLI shim). The
+`saw_acceptance_divergence` fact — closing `.2c`), and `.2d` (the controlled MCP
+`divergence` tool + the `hunt` `divergence` axis + the `anvil hunt --divergence`
+CLI shim — the decision-`0017` API-completeness surface); frontier now `.2e` (the
+tool-version-vs-version axis). The
 other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
@@ -2463,8 +2465,13 @@ other five remain `active` with a design-first `.1` ADR frontier:
    `classify_report` over the per-unit invocations the matrix already ran — a pure
    projection, no extra spawn and no tool-clean precondition — gated by the shared
    per-axis subset, lighting the opportunistic `saw_acceptance_divergence` fact,
-   never a coverage gate; closes `.2c`); frontier `.2d` (the MCP `divergence`
-   controlled tool + the `anvil` CLI shim, decision `0017`). Default
+   never a coverage gate; closes `.2c`) **+ `.2d` done** (`2026-06-17`, the
+   decision-`0017` API-completeness surface: a controlled MCP `divergence` tool
+   (`run_divergence`, a single-`(seed,cfg)` shim over `divergence::run`, caching the
+   divergent `run_id` + an audit record) + the `hunt` tool's `divergence` axis arg +
+   the `anvil hunt --divergence` CLI shim; +4 MCP proofs, lib 535/0, snapshots 6/6 +
+   book_examples, real-tool CLI sanity clean); frontier `.2e` (the
+   tool-version-vs-version axis). Default
    `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).

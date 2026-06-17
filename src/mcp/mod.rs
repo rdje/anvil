@@ -30,6 +30,7 @@
 //! audit-logged to the `anvil://audit/log` resource.
 
 use crate::config::Config;
+use crate::divergence::{self, DivergenceOptions};
 use crate::downstream::{self, AcceptanceTool, MinimizeOptions, ValidateOptions, YosysMode};
 use crate::hunt::{self, HuntReport, HuntRequest};
 use crate::introspect;
@@ -258,6 +259,34 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        // divergence (`ACCEPTANCE-DIVERGENCE-HUNTING.2d`): same input shape as
+        // `validate` — it runs the *same* tools on the *same* single
+        // `(seed, config)` artifact, then classifies whether they disagreed.
+        // (To sweep many seeds for divergences, use `hunt` with divergence=true.)
+        let divergence_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "RNG seed (deterministic output)." },
+                "config": { "type": "object",
+                            "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
+                "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog"] },
+                    "description": "Vetted downstream tools to compare (default: verilator + yosys). \
+                                    >= 2 labelled tools must run for a divergence to be possible \
+                                    (yosys_mode=both alone yields two labels). A fixed allow-list."
+                },
+                "yosys_mode": {
+                    "type": "string",
+                    "enum": ["without-abc", "with-abc", "both"],
+                    "description": "Yosys synthesis mode when yosys is selected (default without-abc). \
+                                    `both` contributes two labelled verdicts, so a without-abc-vs- \
+                                    with-abc disagreement is itself a divergence."
+                }
+            },
+            "additionalProperties": false
+        });
         let minimize_schema = json!({
             "type": "object",
             "properties": {
@@ -375,6 +404,15 @@ impl McpServer {
                     "description": "Also run the cross-simulator agreement check (iverilog vs verilator) \
                                     on each downstream-clean artifact; a post-reset trace disagreement is \
                                     a finding (default false). Friendly no-op when a simulator is absent."
+                },
+                "divergence": {
+                    "type": "boolean",
+                    "description": "Also classify acceptance divergence on each finding (default false): \
+                                    when the selected tools disagree on legality (one accepts while \
+                                    another warns/rejects), the finding is refined to \
+                                    detection=acceptance_divergence and carries the DivergenceReport. \
+                                    Not minimized — the validate oracle can't preserve a cross-tool \
+                                    disagreement."
                 }
             },
             "additionalProperties": false
@@ -464,6 +502,19 @@ impl McpServer {
                                     introspection} resolve for the reproducer; sandboxed + audit-logged; \
                                     no arbitrary shell.",
                     "inputSchema": hunt_schema,
+                },
+                {
+                    "name": "divergence",
+                    "description": "Acceptance-divergence detector: generate the (seed, config) DUT \
+                                    artifact, run the selected vetted tools on it, and classify whether \
+                                    they DISAGREE on its legality (one accepts while another warns/rejects \
+                                    — on legal-by-construction RTL, a real downstream-tool bug). Returns a \
+                                    DivergenceReport (per-tool accept/warn/reject verdicts + the classified \
+                                    divergences). The complement of diff_sim's cross-simulator trace axis. \
+                                    Each divergent run_id is cached so anvil://artifact/<run_id>/{sv, \
+                                    introspection} resolve; sandboxed + audit-logged; no arbitrary shell. \
+                                    (Sweep many seeds via hunt with divergence=true.)",
+                    "inputSchema": divergence_schema,
                 },
             ]
         })
@@ -569,6 +620,10 @@ impl McpServer {
                 Err(e) => ok(id, tool_error(&e)),
             },
             "hunt" => match self.run_hunt(seed, &cfg, &args) {
+                Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            },
+            "divergence" => match self.run_divergence(seed, &cfg, &args) {
                 Ok(text) => ok(id, tool_text(&text)),
                 Err(e) => ok(id, tool_error(&e)),
             },
@@ -691,10 +746,10 @@ impl McpServer {
             minimize: parse_bool_arg(args, "minimize", true)?,
             max_oracle_calls: parse_max_oracle_calls(args)?,
             diff_sim: parse_bool_arg(args, "diff_sim", false)?,
-            // Acceptance-divergence classification wiring is
-            // `ACCEPTANCE-DIVERGENCE-HUNTING.2d` (the MCP `divergence` arg);
-            // default-off here keeps this call byte-identical until then.
-            divergence: false,
+            // Acceptance-divergence axis (`ACCEPTANCE-DIVERGENCE-HUNTING.2d`):
+            // when set, a finding whose tools disagree is refined to
+            // `detection=acceptance_divergence` (default-off ⇒ byte-identical).
+            divergence: parse_bool_arg(args, "divergence", false)?,
             // The MCP path never writes an on-disk bundle (decision `0004`: the
             // agent supplies no filesystem path); reproducer artifacts are served
             // from the cache as `anvil://…` resources instead.
@@ -758,6 +813,54 @@ impl McpServer {
                 }
             }
         }
+    }
+
+    /// The controlled `divergence` tool (`ACCEPTANCE-DIVERGENCE-HUNTING.2d`): the
+    /// acceptance-divergence detector. Generate the `(seed, cfg)` DUT artifact into
+    /// a sandboxed temp dir, run the selected vetted tools on it, and classify
+    /// whether they **disagree** on its legality (one accepts while another
+    /// warns/rejects — on legal-by-construction RTL, a real downstream-tool bug).
+    /// A thin shim over [`divergence::run`] (decision `0019`); it adds no detector
+    /// of its own and composes the *same* hardened `downstream::validate`
+    /// orchestration, so it inherits `validate`'s allow-list / OS-temp sandbox /
+    /// RAM-guard discipline (decision `0004`). When the artifact diverged, its
+    /// content-addressed `run_id` is cached so
+    /// `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer
+    /// (the MCP-native artifact mechanism — the agent supplies no filesystem path).
+    /// The reproducible call is audit-logged.
+    fn run_divergence(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
+        let opts = DivergenceOptions {
+            validate: ValidateOptions {
+                tools: parse_validate_tools(args)?,
+                yosys_mode: parse_yosys_mode_arg(args)?,
+                ..ValidateOptions::default()
+            },
+        };
+        let report = divergence::run(seed, cfg, &opts).map_err(|e| e.to_string())?;
+
+        // Cache the divergent artifact's run_id (its content address) so the agent
+        // can read anvil://artifact/<run_id>/{sv,introspection} for the reproducer.
+        // Only when it diverged — the all-agree steady state is not a finding.
+        if report.diverged {
+            self.cache_artifact(&downstream::introspect_dut_artifact(seed, cfg));
+        }
+
+        // Audit-log the reproducible call: the run_id, the seed, the per-tool
+        // verdicts, and the classified divergences (for triage).
+        self.audit.push(json!({
+            "tool": "divergence",
+            "run_id": report.run_id,
+            "seed": seed,
+            "lane": report.lane,
+            "kind": report.kind,
+            "top": report.top,
+            "diverged": report.diverged,
+            "verdicts": serde_json::to_value(&report.verdicts).unwrap_or(Value::Null),
+            "divergences": serde_json::to_value(&report.divergences).unwrap_or(Value::Null),
+            "declined": report.declined,
+        }));
+
+        serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
     }
 
     /// The pure `analyze` tool (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`):
@@ -1713,7 +1816,8 @@ mod tests {
                 "minimize",
                 "coverage_gaps",
                 "analyze",
-                "hunt"
+                "hunt",
+                "divergence"
             ]
         );
     }
@@ -2549,6 +2653,108 @@ mod tests {
         assert_eq!(entries[0]["base_seed"], 7);
         assert_eq!(entries[0]["seeds"], 3);
         assert_eq!(entries[0]["n_failures"], 0);
+    }
+
+    // ===============================================================
+    // ACCEPTANCE-DIVERGENCE-HUNTING.2d — the MCP `divergence` controlled
+    // tool + the `hunt` divergence axis. `tools: []` exercises the
+    // generate+sandbox path with no external tool present (portable); the
+    // real-tool e2e gate is `.2f`.
+    // ===============================================================
+
+    /// `tools: []` runs the generate+sandbox path with no tool spawned, so the
+    /// `divergence` tool round-trips a `DivergenceReport` with no verdicts and
+    /// `diverged=false` (the all-agree steady state), recorded as one top-level
+    /// `divergence` audit entry — no external tool needed (portable).
+    #[test]
+    fn divergence_tool_no_tools_round_trips_and_audits() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 60, "divergence", json!({ "seed": 7, "tools": [] }));
+        assert_eq!(resp["result"]["isError"], false);
+        let report: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(report["lane"], "dut");
+        assert_eq!(report["kind"], "module");
+        assert_eq!(report["diverged"], false);
+        assert_eq!(report["verdicts"].as_array().unwrap().len(), 0);
+        assert!(report["divergences"].as_array().unwrap().is_empty());
+
+        // The call is recorded as one top-level `divergence` audit entry with the
+        // reproducible run_id.
+        let log = s
+            .handle(&req(
+                61,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let entries = entries.as_array().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["tool"], "divergence");
+        assert_eq!(entries[0]["run_id"], report["run_id"]);
+        assert_eq!(entries[0]["seed"], 7);
+        assert_eq!(entries[0]["diverged"], false);
+    }
+
+    /// The `divergence` tool inherits the fixed tool allow-list: an unknown tool
+    /// name is a clean tool error and is not audit-logged (it never ran).
+    #[test]
+    fn divergence_tool_rejects_unknown_tool_name() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 62, "divergence", json!({ "tools": ["bash"] }));
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown tool"));
+        let log = s
+            .handle(&req(
+                63,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert!(entries.as_array().unwrap().is_empty());
+    }
+
+    /// `divergence` is exposed in `tools/list` with the documented input schema
+    /// (the decision-`0017` API-completeness gate: the action is MCP-invocable).
+    #[test]
+    fn divergence_tool_is_listed_with_its_schema() {
+        let mut s = McpServer::new();
+        let resp = s.handle(&req(64, "tools/list", json!({}))).unwrap();
+        let tool = resp["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == "divergence")
+            .expect("divergence tool listed");
+        let props = &tool["inputSchema"]["properties"];
+        assert!(props.get("seed").is_some());
+        assert!(props.get("tools").is_some());
+        assert!(props.get("yosys_mode").is_some());
+    }
+
+    /// The `hunt` tool accepts the new `divergence` axis arg (a bool); a
+    /// non-boolean value is rejected cleanly (the `diff_sim` precedent).
+    #[test]
+    fn hunt_tool_accepts_divergence_axis_flag() {
+        let mut s = McpServer::new();
+        let ok = call(
+            &mut s,
+            65,
+            "hunt",
+            json!({ "seed": 7, "seeds": 1, "tools": [], "divergence": true }),
+        );
+        assert_eq!(ok["result"]["isError"], false);
+        let bad = call(
+            &mut s,
+            66,
+            "hunt",
+            json!({ "tools": [], "divergence": "yes" }),
+        );
+        assert_eq!(bad["result"]["isError"], true);
+        assert!(tool_text_of(&bad).contains("divergence"));
     }
 
     /// The `hunt` tool inherits the fixed tool allow-list: an unknown tool name

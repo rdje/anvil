@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2d — the MCP divergence tool + CLI shim
+
+**Landed as:** this commit (previous: `2fa2cc3`). **Default-off / DUT
+byte-identical** (`tests/snapshots.rs` 6/6 + `book_examples` 3/3 unchanged; the
+new MCP tool + CLI flag are opt-in and emit no RTL). The third surface of the
+one-shared-detector design (decision `0019`): after the `hunt` axis (`.2c.1`) and
+the `tool_matrix` column (`.2c.2`), this exposes the detector over the agent API
+(decision `0017`: every action MCP-invocable + the CLI a shim).
+
+**What changed (why)**
+
+- **`src/mcp/mod.rs`** — the controlled `divergence` MCP tool + the `hunt`
+  divergence axis:
+  - `run_divergence(seed, cfg, args)` — a thin single-`(seed, config)` shim over
+    `divergence::run` (same input shape as `validate`: `tools` + `yosys_mode`),
+    inheriting `validate`'s allow-list / OS-temp sandbox / RAM-guard / audit
+    discipline by composing through it. Returns the `DivergenceReport`; when the
+    artifact **diverged** it caches the artifact's content-addressed `run_id` so
+    `anvil://artifact/<run_id>/{sv,introspection}` resolve (the MCP-native
+    reproducer; the agent supplies no filesystem path). Appends a top-level
+    `divergence` audit record (run_id/seed/verdicts/divergences/declined).
+  - `divergence` is added to `tools_list` (with its input schema) and to the
+    `tools_call` dispatch.
+  - The existing `hunt` tool gains a `divergence: bool` arg — flipping the
+    `.2c.1` placeholder `divergence: false` to `parse_bool_arg(args,
+    "divergence", false)?` — so the hunt-axis is also MCP-driveable (sweep many
+    seeds for divergences).
+  - +4 MCP proofs (the no-tools round-trip + audit, the allow-list rejection,
+    the tools_list/schema presence, the hunt `divergence` flag accept/reject).
+- **`src/main.rs`** — the `anvil hunt --divergence` CLI flag, flipping the
+  `.2c.1` placeholder `divergence: false` in `build_hunt_request` to
+  `args.divergence`. The CLI is a shim over the same `hunt::run` (decision
+  `0017`). The full-args and defaults parse proofs assert the new flag.
+- **`book/src/agent-mcp.md`** — the tool list, the tool table (a `divergence`
+  row + the `hunt` row's new divergence axis), the controlled-tool prose (three →
+  four), and the audit-trail resource line.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK;
+  `cargo fmt --all --check` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --lib mcp::tests` **55/0** (incl. the 4 new proofs); full
+  `cargo test --lib` **535/0** (2 ignored; 531 → 535); `cargo test --bin anvil`
+  **12/0**; `tests/snapshots.rs` **6/6 byte-identical**; `tests/book_examples.rs`
+  **3/3**; `mdbook build book` clean.
+- Real-tool CLI sanity (`anvil hunt --seed 1 --seeds 4 --tools verilator,yosys
+  --divergence`, Verilator 5.046 + Yosys 0.64): 4 seeds, `n_clean=4`,
+  `n_failures=0` — the all-agree steady state (no divergence on
+  valid-by-construction RTL), proving the flag drives the loop end-to-end.
+
+**Impact**
+
+- The acceptance-divergence detector is now reachable over MCP (a controlled
+  `divergence` tool + the `hunt` `divergence` axis) and from the CLI (`anvil hunt
+  --divergence`) — the decision-`0017` API-completeness gate met. No introspection
+  schema bump (no new resource type; the divergent run_id reuses the existing
+  `sv`/`introspection` artifact resources). Default-off / DUT byte-identical.
+  Version axis (`.2e`) + the real-tool e2e gate & USER_GUIDE/README/KM closeout
+  (`.2f`) remain.
+
+**Files touched:** `src/mcp/mod.rs`, `src/main.rs`, `book/src/agent-mcp.md`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the tool_matrix --divergence column
 
-**Landed as:** this commit (previous: this `.2c.1` commit). **Default-off / DUT
+**Landed as:** `2fa2cc3` (previous: `7142fd7`). **Default-off / DUT
 byte-identical** (`tests/snapshots.rs` 6/6 + `book_examples` 3/3 unchanged; the
 column is opt-in and emits no RTL). The second of the one-detector-two-surfaces
 pair — `.2c.1` was the `hunt::run` fold; this is the `tool_matrix` column.

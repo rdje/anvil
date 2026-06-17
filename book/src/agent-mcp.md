@@ -144,7 +144,7 @@ curl -s -X POST http://127.0.0.1:8765/ \
 ### Tools
 
 ```
-generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize · hunt
+generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize · hunt · divergence
 ```
 
 | Tool | Pure? | What it does |
@@ -156,15 +156,17 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
 | `minimize` | controlled | Delta-debug a failing `(seed, config)` to a smaller reproducer, using `validate` as the failure oracle. |
-| `hunt` | controlled | The **turnkey loop**: fuzz a deterministic seed sweep (`seed` .. `seed + seeds`), run the vetted tools on each artifact, detect any reject/warning (and, with `diff_sim`, a cross-simulator trace mismatch), auto-`minimize` each failure, and return a structured `HuntReport` (per-seed `verdicts` + `failures` + `summary`). A thin shim over `validate`/`minimize` — no detector or minimizer of its own. Each failing `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer. Also available as the `anvil hunt` CLI subcommand (the same `hunt::run` over the command line, where `--out` drops an on-disk reproducer bundle per finding instead — see the User Guide). |
+| `hunt` | controlled | The **turnkey loop**: fuzz a deterministic seed sweep (`seed` .. `seed + seeds`), run the vetted tools on each artifact, detect any reject/warning (and, with `diff_sim`, a cross-simulator trace mismatch; and, with `divergence`, a cross-*tool* acceptance disagreement), auto-`minimize` each failure, and return a structured `HuntReport` (per-seed `verdicts` + `failures` + `summary`). A thin shim over `validate`/`minimize` — no detector or minimizer of its own. Each failing `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer. Also available as the `anvil hunt` CLI subcommand (the same `hunt::run` over the command line, where `--out` drops an on-disk reproducer bundle per finding instead — see the User Guide). |
+| `divergence` | controlled | **Acceptance-divergence detector**: generate the `(seed, config)` artifact, run the selected vetted tools on it, and classify whether they **disagree** on its legality — one accepts while another warns or rejects. On legal-by-construction RTL every such disagreement is a real downstream-tool bug. Returns a `DivergenceReport` (per-tool `accept`/`warn`/`reject` verdicts + the classified `divergences`, e.g. `accept_reject`). The complement of `diff_sim`'s cross-*simulator* **trace** axis — this is the cross-*tool* **acceptance** axis. `yosys_mode = both` contributes two labelled verdicts, so a without-abc-vs-with-abc disagreement is itself a divergence. Each divergent `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve. A single-`(seed, config)` shim over the same detector the `hunt` `divergence` axis uses — to sweep many seeds, call `hunt` with `divergence: true`. |
 
 The five **pure** tools are read-only: no generation side effects, no shell, no
 external tools. (`coverage_gaps` may read a report file you point it at, but it
 *runs* nothing — it relays the gap list `tool_matrix` already computed, so the
 two can never drift; `analyze` only traverses the IR the generator already
-produced — relations, never a behavioural simulation.) The three *controlled*
-tools (`validate`, `minimize`, and the `hunt` loop that composes them) run real
-downstream tools, but only through ANVIL's existing hardened invocations:
+produced — relations, never a behavioural simulation.) The four *controlled*
+tools (`validate`, `minimize`, the `hunt` loop that composes them, and the
+`divergence` detector) run real downstream tools, but only through ANVIL's
+existing hardened invocations:
 
 - a **fixed allow-list** of tool names (`verilator`, `yosys`, `iverilog`) — an
   unknown name is a clean error, never a spawn;
@@ -186,7 +188,7 @@ session:
 ```
 anvil://catalog/knobs          the default Config (the knob taxonomy)
 anvil://catalog/lanes          the artifact lanes (dut / microdesign / frontend)
-anvil://audit/log              the append-only validate/minimize/hunt audit trail
+anvil://audit/log              the append-only validate/minimize/hunt/divergence audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
