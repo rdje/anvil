@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.2b — reproducer-bundle emitter (write `<bundle_root>/<run_id>/` per finding) + introspect_dut_artifact
+
+**Landed as:** this commit (previous: `a5458ef`). **Default-off / DUT
+byte-identical.** Second-half of the pre-split `.2b.2`: the bug-hunt loop gains
+the on-disk **reproducer bundle**, completing the `src/hunt/` engine (`.2b` /
+`.2b.2` close).
+
+**What changed (why)**
+
+- **`src/downstream/mod.rs`** — added `pub fn introspect_dut_artifact(seed, cfg)
+  -> IntrospectionDocument`, the **introspection sibling** of
+  `generate_dut_artifact`: the same `module`-vs-`design` dispatch, projecting
+  through the *pure* `introspect::module_document` / `design_document` (which
+  re-project an already-generated `Module`/`Design` and run no tool). The bundle
+  emitter builds `introspection.json` from this one home rather than copying the
+  dispatch branch a fourth time (the `.2b.2a` full-factorization precedent).
+- **`src/hunt/mod.rs`** — `HuntRequest.bundle_root: Option<PathBuf>` (caller-set,
+  never agent-supplied — decision `0004`) + `HuntFailure.bundle:
+  Option<HuntBundle>` (skip_serializing_if) + the `HuntBundle { path, sv,
+  introspection, manifest? }` ref carrying the directory path and the `anvil://`
+  resource URIs. New `write_bundle(...)` writes, per finding,
+  `<bundle_root>/<run_id>/`: `repro.sv` (via `generate_dut_artifact`),
+  `knobs.json` (the effective/minimized `Config`), `introspection.json` (via
+  `introspect_dut_artifact`), `hunt-verdict.json` (the `HuntFailure`, with the
+  self-referential `bundle` ref omitted), `tool-logs/NOTE.txt` (the sandbox logs
+  are ephemeral; the note says `repro.sh` regenerates them), and an executable
+  one-command `repro.sh` (regenerate the `.sv` from `anvil --seed N --config
+  knobs.json`, then replay the failing tool's `argv` with the dead sandbox SV
+  path substituted to `repro.sv`; POSIX single-quoted via `shell_quote`).
+  `hunt::run` emits a bundle at **both** finding sites (reject/warning and
+  `cross_sim_mismatch`); it **prefers the minimized reproducer** when `minimize`
+  confirmed a smaller still-failing config (its `minimized_config` →
+  `repro.sv`/`knobs.json`, its report → `repro.sh`, named by the minimized
+  `run_id`), else the originally-detected `(cfg, report)`. A `cross_sim_mismatch`
+  finding has no rejecting tool, so `repro.sh` step 2 points the filer at the
+  recorded `diff_sim` excerpt.
+- **Proofs** — 4 new cargo-portable `hunt::` proofs (7 → 11):
+  `shell_quote_wraps_and_escapes`,
+  `write_bundle_emits_a_self_contained_reproducer_directory` (a *synthetic*
+  failing `ValidateReport` exercises the emitter with **no real tool**: all files
+  present, `repro.sv` byte-identical to `generate_dut_artifact`,
+  `knobs.json`/`introspection.json` round-trip, `repro.sh` substitutes the
+  sandbox path and replays `'verilator' '--lint-only' 'repro.sv'`,
+  `hunt-verdict.json` omits the self-ref `bundle`),
+  `repro_script_handles_a_cross_sim_finding_with_no_failing_tool`, and
+  `bundle_root_writes_nothing_on_a_clean_sweep` (a clean sweep never creates the
+  bundle root); the serde round-trip updated for the new `bundle` field (stays
+  absent in the wire form when `None`).
+- **`CODEBASE_ANALYSIS.md`** — `downstream/` (the `introspect_dut_artifact`
+  sibling) + `hunt/` (the bundle emitter) entries. **`DEVELOPMENT_NOTES.md`** — a
+  `.2b.2b` entry (the sibling-not-fourth-copy factoring; the sandbox-path
+  substitution; ephemeral-logs note; minimized-preferred bundle; the omitted
+  self-ref). **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** + **`docs/TASK_TREE.md`**
+  — `.2b.2b` done; `.2b.2`/`.2b` closed; frontier → `.2c`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --lib hunt::` 11/11 +
+  `downstream::` 20/0 (2 ignored); full `cargo test` green incl.
+  **`tests/snapshots.rs` 6/6 byte-identical** (`bundle_root` defaults `None` ⇒ no
+  on-disk bundle ⇒ no generate/emit path touched; the new `downstream` helper is
+  additive and `validate` is unchanged).
+
+**Impact**
+
+- No user-visible / CLI / MCP surface yet (library core). The `src/hunt/` engine
+  is now complete: fuzz → detect (reject / warning / cross-sim mismatch) →
+  minimize → **self-contained reproducer bundle**. The MCP `hunt` tool (`.2c`)
+  populates the failing-run artifact cache + the `anvil hunt` CLI (`.2d`) shim
+  over `hunt::run`; the user-facing book/USER_GUIDE/README/KM closeout is `.2e`.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.2a — fold cross-sim mismatch detection into hunt::run + extract downstream::generate_dut_artifact
 
-**Landed as:** this commit (previous: `5ca0006`). **Default-off / DUT
+**Landed as:** `a5458ef` (previous: `5ca0006`). **Default-off / DUT
 byte-identical.** First-half of the pre-split `.2b.2` (`.2b.2a` cross-sim fold +
 `.2b.2b` bundle emitter): the hunt loop gains the optional cross-simulator
 agreement axis (`diff_sim::run_agreement`, available since `.2a`), and the shared

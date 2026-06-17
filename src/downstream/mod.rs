@@ -578,6 +578,33 @@ pub fn generate_dut_artifact(cfg: &Config) -> (String, String, String) {
     }
 }
 
+/// Build the introspection document for the DUT artifact for `(seed, cfg)`,
+/// dispatching `module` vs `design` exactly like [`generate_dut_artifact`].
+///
+/// The **introspection analogue** of [`generate_dut_artifact`]: the single
+/// shared home for "(seed, cfg) →
+/// [`IntrospectionDocument`](crate::introspect::IntrospectionDocument)" with the
+/// DUT design-vs-module dispatch, so the bug-hunt reproducer-bundle emitter
+/// (`anvil::hunt`, `BUG-HUNT-ORCHESTRATION.2b.2b`) re-projects construction
+/// truth without re-copying the branch a fourth time (`generate_dut_artifact`'s
+/// full-factorization precedent). Pure: the document builders
+/// ([`module_document`](crate::introspect::module_document) /
+/// [`design_document`](crate::introspect::design_document)) only re-project an
+/// already-generated `Module`/`Design` — they run no tool and emit no RTL.
+pub fn introspect_dut_artifact(
+    seed: u64,
+    cfg: &Config,
+) -> crate::introspect::IntrospectionDocument {
+    let mut generator = Generator::new(cfg.clone());
+    if cfg.effective_hierarchy_depth_range().is_some() {
+        let design = generator.generate_design();
+        crate::introspect::design_document(seed, cfg, &design)
+    } else {
+        let module = generator.generate_module();
+        crate::introspect::module_document(seed, cfg, &module)
+    }
+}
+
 pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
     let run_id = content_run_id("dut", seed, cfg);
 

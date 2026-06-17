@@ -616,7 +616,12 @@ src/
 │                     design-vs-module dispatch `validate` used inline) so the
 │                     bug-hunt loop regenerates exactly what `validate` accepted
 │                     without copying the branch; `validate` now calls it
-│                     (byte-identical).
+│                     (byte-identical). `.2b.2b` adds its introspection
+│                     analogue `introspect_dut_artifact(seed, cfg) ->
+│                     IntrospectionDocument` (same dispatch, projecting through
+│                     the pure `introspect::module_document`/`design_document`)
+│                     so the reproducer-bundle emitter builds construction-truth
+│                     from the one home, not a fourth copy of the branch.
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`
@@ -637,9 +642,22 @@ src/
 │                     re-checked via `diff_sim::run_agreement` (regenerating the SV
 │                     through the shared `downstream::generate_dut_artifact`), and a
 │                     trace disagreement is a `cross_sim_mismatch` finding (not
-│                     minimized — the `validate` oracle can't reproduce it). The
-│                     reproducer-bundle emitter is `.2b.2b`; the MCP `hunt` tool
-│                     (`.2c`) + the `anvil hunt` CLI (`.2d`) shim over `run`.
+│                     minimized — the `validate` oracle can't reproduce it).
+│                     `.2b.2b` adds the **reproducer-bundle emitter**: a
+│                     `HuntRequest.bundle_root: Option<PathBuf>` (caller-set,
+│                     never agent-supplied — decision `0004`) makes each finding
+│                     write a self-contained directory `<bundle_root>/<run_id>/`
+│                     (`repro.sv` via `generate_dut_artifact`, `knobs.json` =
+│                     the effective/minimized `Config`, `introspection.json` via
+│                     `introspect_dut_artifact`, `hunt-verdict.json` = the
+│                     `HuntFailure`, `tool-logs/NOTE.txt`, and a one-command
+│                     `repro.sh` that regenerates the `.sv` then replays the
+│                     failing tool's `argv` with the ephemeral sandbox path
+│                     substituted to `repro.sv`); `HuntFailure.bundle:
+│                     Option<HuntBundle>` carries the path + `anvil://` resource
+│                     URIs. Prefers the minimized reproducer when minimize
+│                     confirmed a smaller still-failing config. The MCP `hunt`
+│                     tool (`.2c`) + the `anvil hunt` CLI (`.2d`) shim over `run`.
 │                     Default-off / DUT byte-identical (no generate/emit path).
 ├── introspect/      Agent-introspection emission surface
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned

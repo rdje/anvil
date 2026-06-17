@@ -33,11 +33,12 @@
 use crate::config::Config;
 use crate::diff_sim::{run_agreement, DiffSimReport};
 use crate::downstream::{
-    generate_dut_artifact, minimize, validate, KnobReduction, MinimizeOptions, MinimizeReport,
-    ToolInvocation, ValidateOptions,
+    generate_dut_artifact, introspect_dut_artifact, minimize, validate, KnobReduction,
+    MinimizeOptions, MinimizeReport, ToolInvocation, ValidateOptions, ValidateReport,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 /// Baked input-vector count for the optional cross-simulator agreement check
 /// (matches `tool_matrix`'s `--diff-sim` column).
@@ -74,6 +75,15 @@ pub struct HuntRequest {
     /// `detection == "cross_sim_mismatch"`. Friendly no-op when either
     /// simulator is absent. Default-off behaviour is `false`.
     pub diff_sim: bool,
+    /// When set, emit a self-contained **reproducer bundle** directory
+    /// `<bundle_root>/<run_id>/` per finding (`repro.sv`, `knobs.json`,
+    /// `introspection.json`, `tool-logs/`, `hunt-verdict.json`, and a
+    /// one-command `repro.sh`), and attach a [`HuntBundle`] ref to the
+    /// [`HuntFailure`]. `None` ⇒ no on-disk bundle (the default in-memory
+    /// hunt). **Caller-set, never agent-supplied** (decision `0004`): the MCP
+    /// shim fixes this to a sandboxed per-run scope; the `anvil hunt` CLI
+    /// human may direct it via `--out`.
+    pub bundle_root: Option<PathBuf>,
 }
 
 /// The per-seed outcome line: clean, declined (memory guard), or a failure
@@ -161,6 +171,34 @@ pub struct HuntFailure {
     /// finding (carries `ran` / `success` / `n_samples` / `mismatch_excerpt`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff_sim: Option<DiffSimReport>,
+    /// The on-disk reproducer bundle, present iff [`HuntRequest::bundle_root`]
+    /// was set (and the bundle wrote). Absent for the default in-memory hunt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<HuntBundle>,
+}
+
+/// A reference to an emitted **reproducer bundle** directory
+/// (`BUG-HUNT-ORCHESTRATION.2b.2b`). The bundle itself is the directory
+/// `<bundle_root>/<run_id>/` (see [`HuntRequest::bundle_root`]); this carries
+/// its filesystem path plus the `anvil://…` resource URIs an agent fetches the
+/// parts through (the MCP artifact-resource scheme — `BUG-HUNT-ORCHESTRATION.2c`
+/// populates the cache so those reads resolve). The `run_id` in every URI is the
+/// content address of the artifact the bundle reproduces (the minimized
+/// reproducer's when minimize shrank it, else the originally-detected one).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HuntBundle {
+    /// The bundle directory `<bundle_root>/<run_id>/`.
+    pub path: String,
+    /// `anvil://artifact/<run_id>/sv` — the emitted reproducer SystemVerilog.
+    pub sv: String,
+    /// `anvil://artifact/<run_id>/introspection` — the construction-truth
+    /// `IntrospectionDocument`.
+    pub introspection: String,
+    /// `anvil://artifact/<run_id>/manifest` — the expected-facts manifest, for
+    /// the non-DUT lanes only. Absent for the DUT lane (which has no manifest,
+    /// matching the introspect contract); the hunt is DUT-only today.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<String>,
 }
 
 /// Aggregate counts over the sweep (`n_seeds == n_clean + n_failures +
@@ -245,6 +283,179 @@ fn cross_sim_mismatch(req: &HuntRequest, cfg: &Config, run_id: &str) -> Option<D
     }
 }
 
+/// What `tool-logs/NOTE.txt` says: ANVIL's `validate` runs each tool in an
+/// ephemeral per-run sandbox that is removed after the run, so the raw stdout/
+/// stderr streams cannot be copied post-hoc; the captured failing line lives in
+/// `hunt-verdict.json`, and `repro.sh` regenerates the full output on demand.
+const TOOL_LOGS_NOTE: &str = "\
+The downstream tool's captured stdout/stderr logs are not copied into this
+bundle: ANVIL's `validate` runs each tool in an ephemeral per-run sandbox that
+is removed after the run, so the streams no longer exist by the time the bundle
+is written. The first failing line is recorded in `hunt-verdict.json`
+(`first_error`, and `diff_sim.mismatch_excerpt` for a cross-simulator finding).
+Run `./repro.sh` to regenerate the exact artifact and re-emit the tool's full
+output.
+";
+
+/// POSIX single-quote one shell token so an embedded path or Yosys `-p` script
+/// survives verbatim through `repro.sh` (handles spaces, `;`, and `"`; an
+/// embedded `'` becomes `'\''`). The vetted tool argv has no single quotes
+/// today, but quoting unconditionally keeps the script robust.
+fn shell_quote(tok: &str) -> String {
+    format!("'{}'", tok.replace('\'', "'\\''"))
+}
+
+/// Mark `repro.sh` executable on Unix (best-effort; a failure is harmless —
+/// `bash repro.sh` still works). A no-op on non-Unix hosts.
+fn mark_executable(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            let _ = std::fs::set_permissions(path, perms);
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+    }
+}
+
+/// Render the one-command `repro.sh`: regenerate the exact `.sv` from the
+/// recorded `(seed, knobs.json)` (byte-identical by ANVIL's reproducibility
+/// contract), then re-run the tool that failed against the regenerated
+/// `repro.sv`.
+///
+/// The failing tool's captured `argv` references the now-deleted sandbox SV
+/// path; we substitute that exact path string with `repro.sv` (a plain
+/// substring replace, which also rewrites the path embedded in a Yosys `-p`
+/// script — temp paths need no double-quote escaping, so they appear verbatim).
+/// A `cross_sim_mismatch` finding has no rejecting tool, so step 2 points the
+/// filer at the recorded `diff_sim` excerpt instead.
+fn repro_script(seed: u64, repro_validate: &ValidateReport, detection: &str) -> String {
+    let mut s = String::new();
+    s.push_str("#!/usr/bin/env bash\n");
+    s.push_str(&format!(
+        "# ANVIL hunt reproducer — run_id {}\n",
+        repro_validate.run_id
+    ));
+    s.push_str(&format!("#   seed:      {seed}\n"));
+    s.push_str(&format!("#   detection: {detection}\n"));
+    s.push_str("# Step 1 regenerates the exact artifact (byte-identical by ANVIL's\n");
+    s.push_str("# reproducibility contract); step 2 re-runs the downstream tool that\n");
+    s.push_str("# failed. Requires `anvil` and the downstream tool on PATH.\n");
+    s.push_str("set -euo pipefail\n");
+    s.push_str("cd \"$(dirname \"$0\")\"\n\n");
+    s.push_str("# 1. Regenerate the reproducer RTL from the recorded (seed, knobs).\n");
+    s.push_str(&format!(
+        "anvil --seed {seed} --config knobs.json > repro.sv\n\n"
+    ));
+    s.push_str("# 2. Re-run the failing tool against repro.sv.\n");
+
+    let sandbox_sv = Path::new(&repro_validate.sandbox)
+        .join(format!("{}.sv", repro_validate.top))
+        .display()
+        .to_string();
+    match first_failing_tool(&repro_validate.tools) {
+        Some(t) => {
+            let cmd = t
+                .argv
+                .iter()
+                .map(|tok| shell_quote(&tok.replace(&sandbox_sv, "repro.sv")))
+                .collect::<Vec<_>>()
+                .join(" ");
+            s.push_str(&cmd);
+            s.push('\n');
+        }
+        None => {
+            // A cross_sim_mismatch on a validate-clean artifact: no tool
+            // rejected it, so there is nothing to replay. The trace
+            // disagreement is in hunt-verdict.json (diff_sim).
+            s.push_str(
+                "echo 'cross-simulator mismatch — see hunt-verdict.json (diff_sim) for the excerpt;'\n",
+            );
+            s.push_str(
+                "echo 'reproduce by simulating repro.sv under iverilog + verilator (ANVIL --diff-sim).'\n",
+            );
+        }
+    }
+    s
+}
+
+/// Write the self-contained reproducer bundle directory
+/// `<bundle_root>/<run_id>/` for one finding and return its [`HuntBundle`] ref.
+///
+/// `repro_cfg` is the artifact the bundle reproduces (the minimized reproducer's
+/// config when minimize shrank it, else the originally-detected one);
+/// `repro_validate` is the matching [`ValidateReport`] (its `run_id` names the
+/// directory and its failing tool drives `repro.sh`); `verdict` is the finding
+/// written to `hunt-verdict.json` (its `bundle` field is `None` at write time —
+/// the ref would point back at this very directory). Pure composition over
+/// [`generate_dut_artifact`] (the `.sv`) and [`introspect_dut_artifact`] (the
+/// document); runs no tool. Returns `Err` only on a genuine filesystem failure.
+fn write_bundle(
+    bundle_root: &Path,
+    seed: u64,
+    repro_cfg: &Config,
+    repro_validate: &ValidateReport,
+    verdict: &HuntFailure,
+) -> Result<HuntBundle> {
+    let run_id = &repro_validate.run_id;
+    let dir = bundle_root.join(run_id);
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("create bundle dir {}", dir.display()))?;
+
+    // repro.sv — the exact artifact `validate` ran (same `generate_dut_artifact`
+    // path, deterministic from `repro_cfg`).
+    let (_kind, _top, sv) = generate_dut_artifact(repro_cfg);
+    let sv_path = dir.join("repro.sv");
+    std::fs::write(&sv_path, &sv).with_context(|| format!("write {}", sv_path.display()))?;
+
+    // knobs.json — the (minimized) effective Config: the exact (seed, knobs).
+    let knobs = serde_json::to_string_pretty(repro_cfg)?;
+    let knobs_path = dir.join("knobs.json");
+    std::fs::write(&knobs_path, format!("{knobs}\n"))
+        .with_context(|| format!("write {}", knobs_path.display()))?;
+
+    // introspection.json — construction truth (IntrospectionDocument).
+    let doc = introspect_dut_artifact(seed, repro_cfg);
+    let doc_path = dir.join("introspection.json");
+    std::fs::write(&doc_path, format!("{}\n", doc.to_json_pretty()?))
+        .with_context(|| format!("write {}", doc_path.display()))?;
+
+    // hunt-verdict.json — the finding facts (the `bundle` ref is omitted; it
+    // would point back here).
+    let verdict_json = serde_json::to_string_pretty(verdict)?;
+    let verdict_path = dir.join("hunt-verdict.json");
+    std::fs::write(&verdict_path, format!("{verdict_json}\n"))
+        .with_context(|| format!("write {}", verdict_path.display()))?;
+
+    // tool-logs/ — a note (the sandbox logs are ephemeral; repro.sh re-emits).
+    let logs_dir = dir.join("tool-logs");
+    std::fs::create_dir_all(&logs_dir).with_context(|| format!("create {}", logs_dir.display()))?;
+    let note_path = logs_dir.join("NOTE.txt");
+    std::fs::write(&note_path, TOOL_LOGS_NOTE)
+        .with_context(|| format!("write {}", note_path.display()))?;
+
+    // repro.sh — one-command regenerate + re-run.
+    let script_path = dir.join("repro.sh");
+    std::fs::write(
+        &script_path,
+        repro_script(seed, repro_validate, &verdict.detection),
+    )
+    .with_context(|| format!("write {}", script_path.display()))?;
+    mark_executable(&script_path);
+
+    Ok(HuntBundle {
+        path: dir.display().to_string(),
+        sv: format!("anvil://artifact/{run_id}/sv"),
+        introspection: format!("anvil://artifact/{run_id}/introspection"),
+        manifest: None,
+    })
+}
+
 /// Run the bug-hunt loop: fuzz a deterministic seed sweep, detect any
 /// reject/warning, auto-minimize each failure (when requested), and return a
 /// structured [`HuntReport`].
@@ -295,9 +506,9 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                         ok: false,
                         declined: None,
                     });
-                    failures.push(HuntFailure {
+                    let mut failure = HuntFailure {
                         seed,
-                        run_id,
+                        run_id: run_id.clone(),
                         failing_tool: "diff-sim".to_string(),
                         failing_argv: Vec::new(),
                         first_error: ds.mismatch_excerpt.clone(),
@@ -306,7 +517,14 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                         // trace disagreement, so cross-sim findings aren't shrunk.
                         minimized: None,
                         diff_sim: Some(ds),
-                    });
+                        bundle: None,
+                    };
+                    // The bundle reproduces the validate-clean artifact (no
+                    // rejecting tool — `repro.sh` points at the diff_sim excerpt).
+                    if let Some(root) = &req.bundle_root {
+                        failure.bundle = Some(write_bundle(root, seed, &cfg, &report, &failure)?);
+                    }
+                    failures.push(failure);
                     continue;
                 }
             }
@@ -341,27 +559,42 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                 None => (String::new(), Vec::new(), None, "reject".to_string()),
             };
 
-        let minimized = if req.minimize {
+        let mut failure = HuntFailure {
+            seed,
+            run_id: run_id.clone(),
+            failing_tool,
+            failing_argv,
+            first_error,
+            detection,
+            minimized: None,
+            diff_sim: None,
+            bundle: None,
+        };
+
+        // The bundle reproduces the minimized artifact when minimize confirmed a
+        // smaller still-failing reproducer; otherwise the originally-detected one.
+        let mut bundled_minimized = false;
+        if req.minimize {
             let mopts = MinimizeOptions {
                 validate: req.validate.clone(),
                 max_oracle_calls: req.max_oracle_calls,
             };
             let m = minimize(seed, &cfg, &mopts)?;
-            Some(HuntMinimized::from_report(&m, &run_id))
-        } else {
-            None
-        };
+            failure.minimized = Some(HuntMinimized::from_report(&m, &run_id));
+            if let (Some(root), true, Some(fv)) =
+                (&req.bundle_root, m.reproduced_initial, &m.final_validation)
+            {
+                failure.bundle = Some(write_bundle(root, seed, &m.minimized_config, fv, &failure)?);
+                bundled_minimized = true;
+            }
+        }
+        if let (Some(root), false) = (&req.bundle_root, bundled_minimized) {
+            // No minimize, or it did not produce a confirmed smaller reproducer:
+            // bundle the originally-detected `(cfg, report)`.
+            failure.bundle = Some(write_bundle(root, seed, &cfg, &report, &failure)?);
+        }
 
-        failures.push(HuntFailure {
-            seed,
-            run_id,
-            failing_tool,
-            failing_argv,
-            first_error,
-            detection,
-            minimized,
-            diff_sim: None,
-        });
+        failures.push(failure);
     }
 
     let summary = HuntSummary {
@@ -430,6 +663,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            bundle_root: None,
         };
         let report = run(&req).expect("hunt run");
         assert_eq!(report.lane, "dut");
@@ -464,6 +698,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            bundle_root: None,
         };
         assert_eq!(seed_config(&req, 100).seed, 100);
         assert_eq!(seed_config(&req, 103).seed, 103);
@@ -491,6 +726,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            bundle_root: None,
         };
         let a = run(&mk()).expect("hunt run a");
         let b = run(&mk()).expect("hunt run b");
@@ -545,6 +781,7 @@ mod tests {
                 detection: "warning".to_string(),
                 minimized: None,
                 diff_sim: None,
+                bundle: None,
             }],
             summary: HuntSummary {
                 n_seeds: 1,
@@ -559,11 +796,12 @@ mod tests {
         assert_eq!(back.failures.len(), 1);
         assert_eq!(back.failures[0].detection, "warning");
         assert_eq!(back.summary.n_failures, 1);
-        // `declined`/`first_error`/`minimized`/`diff_sim` use skip_serializing_if,
-        // so an absent `declined`/`diff_sim` stays absent (no `null`) in the wire
-        // form.
+        // `declined`/`first_error`/`minimized`/`diff_sim`/`bundle` use
+        // skip_serializing_if, so an absent `declined`/`diff_sim`/`bundle` stays
+        // absent (no `null`) in the wire form.
         assert!(!json.contains("\"declined\""));
         assert!(!json.contains("\"diff_sim\""));
+        assert!(!json.contains("\"bundle\""));
     }
 
     /// With `diff_sim` on but no simulators present, the cross-sim check is a
@@ -585,11 +823,187 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: true,
+            bundle_root: None,
         };
         let report = run(&req).expect("hunt run");
         assert!(report.failures.is_empty());
         assert!(report.verdicts.iter().all(|v| v.ok));
         assert_eq!(report.summary.n_clean, 2);
         assert_eq!(report.summary.n_failures, 0);
+    }
+
+    /// `shell_quote` single-quotes a token and escapes an embedded single quote.
+    #[test]
+    fn shell_quote_wraps_and_escapes() {
+        assert_eq!(shell_quote("repro.sv"), "'repro.sv'");
+        assert_eq!(shell_quote("a b;c"), "'a b;c'");
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
+
+    /// A synthetic failing `(seed, cfg, ValidateReport)` exercises the bundle
+    /// emitter end-to-end **without any real downstream tool**: it writes the
+    /// directory, every file is present, the regenerated `repro.sv` is the real
+    /// artifact, `knobs.json`/`introspection.json`/`hunt-verdict.json` round-trip,
+    /// `repro.sh` regenerates + replays the failing tool against `repro.sv` (the
+    /// ephemeral sandbox path substituted out), and the `HuntBundle` ref carries
+    /// the `anvil://` resource URIs. Cargo-portable.
+    #[test]
+    fn write_bundle_emits_a_self_contained_reproducer_directory() {
+        let seed = 1u64;
+        let cfg = Config::default();
+        let (kind, top, _sv) = generate_dut_artifact(&cfg);
+        assert_eq!(kind, "module"); // default config is a combinational leaf
+        let run_id = crate::introspect::content_run_id("dut", seed, &cfg);
+        // A plausible (now-deleted) sandbox SV path the captured argv references.
+        let sandbox = std::env::temp_dir()
+            .join(format!("anvil-validate-{run_id}"))
+            .display()
+            .to_string();
+        let sv_in_sandbox = format!("{sandbox}/{top}.sv");
+        let failing = ToolInvocation {
+            tool: "verilator".to_string(),
+            argv: vec![
+                "verilator".to_string(),
+                "--lint-only".to_string(),
+                sv_in_sandbox.clone(),
+            ],
+            success: false,
+            exit_code: Some(0),
+            stdout_log: None,
+            stderr_log: None,
+            error: Some("%Warning-WIDTH: trunc".to_string()),
+        };
+        let report = ValidateReport {
+            run_id: run_id.clone(),
+            lane: "dut".to_string(),
+            kind: "module".to_string(),
+            top: top.clone(),
+            sandbox,
+            tools: vec![failing.clone()],
+            ok: false,
+            declined: None,
+        };
+        let failure = HuntFailure {
+            seed,
+            run_id: run_id.clone(),
+            failing_tool: "verilator".to_string(),
+            failing_argv: failing.argv.clone(),
+            first_error: failing.error.clone(),
+            detection: "warning".to_string(),
+            minimized: None,
+            diff_sim: None,
+            bundle: None,
+        };
+
+        let root = std::env::temp_dir().join("anvil-hunt-bundle-emit-test");
+        let _ = std::fs::remove_dir_all(&root);
+        let bundle = write_bundle(&root, seed, &cfg, &report, &failure).expect("write bundle");
+
+        // The ref points at <root>/<run_id> with the anvil:// resource URIs.
+        let dir = root.join(&run_id);
+        assert_eq!(bundle.path, dir.display().to_string());
+        assert_eq!(bundle.sv, format!("anvil://artifact/{run_id}/sv"));
+        assert_eq!(
+            bundle.introspection,
+            format!("anvil://artifact/{run_id}/introspection")
+        );
+        assert!(bundle.manifest.is_none()); // DUT has no manifest
+
+        // Every documented bundle file exists.
+        for rel in [
+            "repro.sv",
+            "knobs.json",
+            "introspection.json",
+            "hunt-verdict.json",
+            "repro.sh",
+            "tool-logs/NOTE.txt",
+        ] {
+            assert!(dir.join(rel).exists(), "missing bundle file `{rel}`");
+        }
+
+        // repro.sv is the real regenerated artifact (deterministic from cfg):
+        // byte-identical to `generate_dut_artifact` and a well-formed module.
+        let repro_sv = std::fs::read_to_string(dir.join("repro.sv")).unwrap();
+        assert_eq!(repro_sv, generate_dut_artifact(&cfg).2);
+        assert!(repro_sv.contains(&format!("module {top}")));
+        assert!(repro_sv.contains("endmodule"));
+
+        // knobs.json round-trips to the exact effective Config.
+        let knobs: Config =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("knobs.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            serde_json::to_value(&knobs).unwrap(),
+            serde_json::to_value(&cfg).unwrap()
+        );
+
+        // introspection.json round-trips and echoes the request.
+        let doc: crate::introspect::IntrospectionDocument =
+            serde_json::from_str(&std::fs::read_to_string(dir.join("introspection.json")).unwrap())
+                .unwrap();
+        assert_eq!(doc.request.seed, seed);
+        assert_eq!(doc.request.run_id, run_id);
+
+        // hunt-verdict.json is the finding, with the self-referential `bundle`
+        // ref omitted (skip_serializing_if) — it would point back here.
+        let verdict_text = std::fs::read_to_string(dir.join("hunt-verdict.json")).unwrap();
+        assert!(!verdict_text.contains("\"bundle\""));
+        let verdict: HuntFailure = serde_json::from_str(&verdict_text).unwrap();
+        assert_eq!(verdict.detection, "warning");
+        assert_eq!(verdict.failing_tool, "verilator");
+
+        // repro.sh regenerates then replays the failing tool against repro.sv,
+        // with the ephemeral sandbox path substituted away.
+        let script = std::fs::read_to_string(dir.join("repro.sh")).unwrap();
+        assert!(script.contains("anvil --seed 1 --config knobs.json > repro.sv"));
+        assert!(script.contains("'verilator' '--lint-only' 'repro.sv'"));
+        assert!(!script.contains(&sv_in_sandbox)); // the dead sandbox path is gone
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A `cross_sim_mismatch` finding has no rejecting tool, so `repro.sh` step 2
+    /// points the filer at the recorded `diff_sim` excerpt instead of replaying a
+    /// command. The regenerate line is still present.
+    #[test]
+    fn repro_script_handles_a_cross_sim_finding_with_no_failing_tool() {
+        let clean = ValidateReport {
+            run_id: "deadbeef".to_string(),
+            lane: "dut".to_string(),
+            kind: "module".to_string(),
+            top: "mod_x".to_string(),
+            sandbox: "/tmp/anvil-validate-deadbeef".to_string(),
+            tools: vec![], // validate-clean: no rejecting tool to replay
+            ok: true,
+            declined: None,
+        };
+        let script = repro_script(9, &clean, "cross_sim_mismatch");
+        assert!(script.contains("anvil --seed 9 --config knobs.json > repro.sv"));
+        assert!(script.contains("cross-simulator mismatch"));
+        assert!(script.contains("hunt-verdict.json"));
+    }
+
+    /// With `bundle_root` set but no tools selected, the sweep is all-clean, so
+    /// no finding fires and **no bundle directory is written** — `bundle_root`
+    /// never perturbs a clean run. Cargo-portable.
+    #[test]
+    fn bundle_root_writes_nothing_on_a_clean_sweep() {
+        let root = std::env::temp_dir().join("anvil-hunt-bundle-clean-test");
+        let _ = std::fs::remove_dir_all(&root);
+        let req = HuntRequest {
+            base_seed: 70,
+            seeds: 2,
+            config: Config::default(),
+            validate: test_validate_opts("bundle-clean"),
+            minimize: false,
+            max_oracle_calls: 50,
+            diff_sim: false,
+            bundle_root: Some(root.clone()),
+        };
+        let report = run(&req).expect("hunt run");
+        assert!(report.failures.is_empty());
+        assert!(report.failures.iter().all(|f| f.bundle.is_none()));
+        // No finding ⇒ the bundle root was never created.
+        assert!(!root.exists());
     }
 }

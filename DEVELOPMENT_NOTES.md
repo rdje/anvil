@@ -5,6 +5,62 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — reproducer-bundle emitter — `BUG-HUNT-ORCHESTRATION.2b.2b`
+
+The second-half slice of `.2b.2`: on each finding, `hunt::run` (when
+`HuntRequest.bundle_root` is set) writes a self-contained, one-command-
+reproducible **directory** `<bundle_root>/<run_id>/`. Design choices and
+gotchas worth keeping:
+
+- **`introspect_dut_artifact` as a sibling of `generate_dut_artifact`, not a
+  fourth copy of the dispatch.** The bundle needs both the emitted SV
+  (`repro.sv`) *and* the construction-truth `IntrospectionDocument`
+  (`introspection.json`). `generate_dut_artifact` already owns the
+  module-vs-design dispatch for the SV (extracted at `.2b.2a` precisely so the
+  branch is not copied per caller). Rather than re-copy that `if
+  effective_hierarchy_depth_range().is_some()` branch a fourth time inside
+  `hunt`, I added its introspection analogue beside it in `downstream` —
+  `introspect_dut_artifact(seed, cfg) -> IntrospectionDocument` — projecting
+  through the **pure** `introspect::module_document`/`design_document` (which
+  only re-project an already-generated `Module`/`Design`, never generate). The
+  hunt bundle emitter therefore copies no dispatch; both projections live in
+  one home, available to a future `mcp`/`main` convergence.
+- **`repro.sh` substitutes the dead sandbox SV path, it does not replay it
+  verbatim.** `validate` runs each tool in an ephemeral per-run sandbox it then
+  removes, so the captured `ToolInvocation.argv` references a path that no
+  longer exists. `repro.sh` step 1 regenerates the artifact as `repro.sv` in the
+  bundle dir; step 2 replays the failing tool's `argv` with every occurrence of
+  the sandbox SV path (`<sandbox>/<top>.sv`) plain-substring-replaced by
+  `repro.sv`. That single replace also rewrites the path embedded inside a Yosys
+  `-p` script, because a temp path needs no double-quote escaping and so appears
+  verbatim in the script string. Each token is POSIX single-quoted
+  (`shell_quote`) so a `;`/space/`"` in the Yosys script survives.
+- **Tool logs are not copied — a NOTE explains why.** The sandbox (and its
+  `<stem>.<tool>.<stream>.log` sidecars) is gone by the time the bundle is
+  written, so `tool-logs/` carries a `NOTE.txt`: the first failing line is in
+  `hunt-verdict.json` (`first_error` / `diff_sim.mismatch_excerpt`), and
+  `./repro.sh` regenerates the full output. This is the leaf goal's explicit
+  "or a note that repro.sh regenerates them" escape hatch — honest, not a
+  silent omission.
+- **The bundle prefers the minimized reproducer.** When `minimize` confirmed a
+  smaller still-failing config (`reproduced_initial && final_validation`), the
+  bundle reproduces *that* (its `minimized_config` → `repro.sv`/`knobs.json`,
+  its report → `repro.sh`), and the directory is named by the minimized
+  `run_id`. Otherwise it bundles the originally-detected `(cfg, report)`. A
+  `cross_sim_mismatch` finding has no rejecting tool, so `repro.sh` step 2
+  points the filer at the recorded `diff_sim` excerpt instead of a command.
+- **`hunt-verdict.json` omits the self-referential `bundle` ref.** The on-disk
+  verdict is serialized while `HuntFailure.bundle` is still `None` (the ref is
+  attached to the in-memory failure only after the directory is written), so
+  the file does not point back at the directory that contains it.
+- **Default-off / DUT byte-identical.** `bundle_root` defaults to `None`; with
+  it unset, `hunt::run` writes nothing new and the generator/emitter are
+  untouched (`tests/snapshots.rs` 6/6). The whole emitter is pure composition
+  over `generate_dut_artifact` + `introspect_dut_artifact`; it runs no tool, so
+  the four new proofs are cargo-portable (the bundle emitter is unit-tested
+  directly with a synthetic failing `ValidateReport`, since a real finding
+  needs a real tool).
+
 ## 2026-06-17 — Bug-hunt orchestration — cross-sim fold + shared generate helper — `BUG-HUNT-ORCHESTRATION.2b.2a`
 
 The second-half-first slice of `.2b.2` (pre-split into `.2b.2a` cross-sim fold +
