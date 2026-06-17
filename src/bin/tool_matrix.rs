@@ -10703,6 +10703,7 @@ mod tests {
                 stdout_log: None,
                 stderr_log: None,
                 error: None,
+                version: None,
             }),
             yosys: vec![
                 ToolInvocation {
@@ -10713,6 +10714,7 @@ mod tests {
                     stdout_log: None,
                     stderr_log: None,
                     error: None,
+                    version: None,
                 },
                 ToolInvocation {
                     tool: "yosys-with-abc".to_string(),
@@ -10722,6 +10724,7 @@ mod tests {
                     stdout_log: None,
                     stderr_log: Some("stderr.log".to_string()),
                     error: Some("ABC: Warning: example".to_string()),
+                    version: None,
                 },
             ],
             iverilog_compile: Some(ToolInvocation {
@@ -10732,6 +10735,7 @@ mod tests {
                 stdout_log: None,
                 stderr_log: None,
                 error: None,
+                version: None,
             }),
             diff_sim: None,
             divergence: None,
@@ -11439,6 +11443,7 @@ mod tests {
             } else {
                 Some(format!("{tool}: not clean"))
             },
+            version: None,
         }
     }
 

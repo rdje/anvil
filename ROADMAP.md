@@ -2422,10 +2422,15 @@ and its first code leaves are **done** — `.2a` (the shared
 `HuntRequest.divergence` → an `acceptance_divergence` finding via the extracted
 `classify_report`), and `.2c.2` (the `tool_matrix --divergence` column reusing
 `classify_report` over the tools the matrix already ran + the opportunistic
-`saw_acceptance_divergence` fact — closing `.2c`), and `.2d` (the controlled MCP
+`saw_acceptance_divergence` fact — closing `.2c`), `.2d` (the controlled MCP
 `divergence` tool + the `hunt` `divergence` axis + the `anvil hunt --divergence`
-CLI shim — the decision-`0017` API-completeness surface); frontier now `.2e` (the
-tool-version-vs-version axis). The
+CLI shim — the decision-`0017` API-completeness surface), and `.2e` (the
+tool-version-vs-version axis as a library surface: `DivergenceOptions.tool_specs`
++ `ToolInvocation.version` + `downstream::{ToolSpec, tool_version,
+prepare_dut_sandbox, validate_tool_specs}` + `divergence::classify_version_mismatch`,
+composing the one hardened orchestration with no forked invocation set); frontier
+now `.2f` (the real-tool e2e gate + book/USER_GUIDE/README/KM closeout + the
+version-axis surfacing decision — closes the tree). The
 other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
@@ -2470,8 +2475,22 @@ other five remain `active` with a design-first `.1` ADR frontier:
    (`run_divergence`, a single-`(seed,cfg)` shim over `divergence::run`, caching the
    divergent `run_id` + an audit record) + the `hunt` tool's `divergence` axis arg +
    the `anvil hunt --divergence` CLI shim; +4 MCP proofs, lib 535/0, snapshots 6/6 +
-   book_examples, real-tool CLI sanity clean); frontier `.2e` (the
-   tool-version-vs-version axis). Default
+   book_examples, real-tool CLI sanity clean) **+ `.2e` done** (`2026-06-17`, the
+   tool-version-vs-version axis as a **library surface** composing the one hardened
+   orchestration — no forked invocation set: `downstream::ToolInvocation.version`
+   (serde-absent on default paths ⇒ byte-identical reports/checkpoints),
+   `tool_version` (best-effort `--version`, axis-only), `ToolSpec {kind
+   allow-listed, binary caller-supplied, label}`, the extracted shared
+   `DutSandbox`/`prepare_dut_sandbox` (`validate` refactored onto it,
+   byte-identical), `validate_tool_specs` (reuses `prepare_dut_sandbox` + the
+   vetted `run_*` + `MemGuard`; one relabeled+version-stamped invocation per spec;
+   single Yosys mode for the axis) + `divergence::{DivergenceOptions.tool_specs,
+   ToolDecision.version, classify_version_mismatch (a distinct relation over the
+   same `tool_verdict`, not a second classifier)}`; +8 proofs, lib 543/0, snapshots
+   6/6, real-tool `validate`-refactor regression clean; library-only — MCP/CLI
+   surfacing of the caller-supplied-binary axis is the `.2f` decision); frontier
+   `.2f` (the real-tool e2e gate + book/USER_GUIDE/README/KM closeout — closes the
+   tree). Default
    `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).

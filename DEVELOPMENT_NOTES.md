@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the tool-version-vs-version axis — `ACCEPTANCE-DIVERGENCE-HUNTING.2e`
+
+The version axis (one tool **kind**, two **versions/binaries**). Design choices
+worth recording:
+
+- **The version axis reuses the run_* primitives, NOT a forked invocation set.**
+  The `run_verilator`/`run_yosys`/`run_iverilog_compile` primitives already take a
+  caller-supplied `bin: &str` — the fixed-binary allow-list is enforced one layer
+  up, in `ValidateOptions` via `AcceptanceTool::binary()`. So the version axis runs
+  the *same* vetted command lines (the part that must never drift —
+  `feedback_full_factorization`) with a caller-supplied binary for an allow-listed
+  *kind*. `ToolSpec` carries `(kind: AcceptanceTool, binary, label)`: the kind keeps
+  the argv + warning-detection allow-list honest; the binary is the version shim;
+  the label distinguishes the two versions' rows. ANVIL never manages installs.
+- **Extracted `prepare_dut_sandbox` so `validate` and the version axis share one
+  sandbox lifecycle.** The divergence module's docstring disclaims a "second sandbox
+  loop". The version axis genuinely cannot go through `validate` (which runs each
+  `AcceptanceTool` once with its *fixed* binary — injecting caller-supplied binaries
+  there would weaken the contract `minimize` + the MCP `validate` tool depend on).
+  So the generate→mkdir→write lifecycle was factored into
+  `prepare_dut_sandbox(seed, cfg, root, prefix)` + `DutSandbox`, and BOTH `validate`
+  (`prefix="anvil-validate"`) and `validate_tool_specs` (`prefix="anvil-divergence"`)
+  call it. `validate` is byte-identical after the refactor (same `run_id`, same dir
+  name, same `ValidateReport`) — proven by snapshots 6/6 + the real-tool
+  `anvil hunt --divergence` regression (`n_clean=4 n_failures=0`).
+- **`classify_version_mismatch` is a distinct RELATION, not a second classifier.**
+  The accept/warn/reject verdict still comes only from the one
+  `downstream::tool_verdict`. `classify_divergences` (cross-tool) asks "do *different
+  tools* disagree on acceptance?"; `classify_version_mismatch` (version axis) asks
+  "do *versions of one kind* disagree?". Same verdict, different grouping — so it is
+  not a forked classifier. Factored `assemble_report(report, classify)` so both
+  report-builders share one projection and differ only by the classifier passed.
+- **One invocation per spec; Yosys uses a single mode for the axis.** The version
+  axis compares N specs as N verdicts, so each spec must contribute exactly one
+  invocation. Yosys `Both` would yield two per binary (without-abc + with-abc),
+  conflating an intra-binary mode difference with a cross-version difference — so the
+  axis collapses `Both`→`WithoutAbc` (the stable baseline). Comparing the two Yosys
+  modes is already the *cross-tool* axis (`--yosys-mode both` on `validate`); it is
+  not the version axis's job.
+- **`ToolInvocation.version` is `#[serde(default, skip_serializing_if)]` and
+  captured only on the axis.** Adding a field to `ToolInvocation` (a stable wire
+  contract embedded in banked `tool_matrix` reports + `--resume` checkpoints) is
+  safe only if it is absent when unset: skip-serializing-`None` keeps every existing
+  report byte-identical and `#[serde(default)]` lets pre-`.2e` checkpoints
+  deserialize. Capturing `--version` only on the opt-in axis (never in `run_tool`)
+  means the default paths spawn no extra process — byte-identical behaviour, not
+  just byte-identical output.
+- **The axis is library-only at `.2e` (rejected: wiring it through MCP/CLI now).**
+  Decision `0017` (API-first) wants every capability MCP-invocable — but exposing a
+  *caller-supplied binary path* for an allow-listed kind is a materially different
+  trust surface from the fixed-binary `validate`/`divergence` tools (an agent could
+  name any path on disk). The `.2e` acceptance scopes to the library core +
+  classifier + cargo proofs; the MCP/CLI exposure (with whatever allow-list/guard it
+  needs) is deferred to `.2f`'s closeout decision. Recorded so it is not lost.
+
 ## 2026-06-17 — Acceptance-divergence hunting — the MCP tool + CLI shim — `ACCEPTANCE-DIVERGENCE-HUNTING.2d`
 
 The third (and last non-version) surface. Design choices worth recording:

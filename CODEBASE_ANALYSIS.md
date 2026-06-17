@@ -625,8 +625,20 @@ src/
 │                     tool (`mcp::run_divergence`, a single-`(seed,cfg)` shim over
 │                     `run`, caching the divergent `run_id` + an audit record) + the
 │                     `hunt` `divergence` axis arg + the `anvil hunt --divergence`
-│                     CLI shim (decision `0017`). The tool-version axis (`.2e`) comes
-│                     next. Default `anvil` build / DUT byte-identical.
+│                     CLI shim (decision `0017`). `.2e` adds the tool-version-vs-
+│                     version axis: `DivergenceOptions.tool_specs: Vec<ToolSpec>`
+│                     (empty ⇒ the same-version path via `validate`, byte-identical;
+│                     non-empty ⇒ the version axis via
+│                     `downstream::validate_tool_specs`), `ToolDecision.version`
+│                     (projected from `ToolInvocation.version`, absent-when-`None`),
+│                     and `classify_version_mismatch` — a single `version_mismatch`
+│                     when same-kind verdicts disagree (a distinct *relation* over
+│                     the same `tool_verdict`, not a second classifier). `run`
+│                     dispatches on `tool_specs`; `assemble_report` is the shared
+│                     projection behind `classify_report` (cross-tool) and
+│                     `classify_report_versions` (version axis). Library-only at
+│                     `.2e` (MCP/CLI surfacing is `.2f`). Default `anvil` build / DUT
+│                     byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:
@@ -684,6 +696,22 @@ src/
 │                     the pure `introspect::module_document`/`design_document`)
 │                     so the reproducer-bundle emitter builds construction-truth
 │                     from the one home, not a fourth copy of the branch.
+│                     `ACCEPTANCE-DIVERGENCE-HUNTING.2e` adds the version-axis
+│                     primitives: `ToolInvocation.version: Option<String>`
+│                     (`#[serde(default, skip_serializing_if)]` ⇒ absent on every
+│                     default path, so banked reports + `--resume` checkpoints stay
+│                     byte-identical); `tool_version(binary)` (best-effort
+│                     `<binary> --version`, axis-only); `ToolSpec { kind:
+│                     AcceptanceTool, binary, label }` (kind allow-listed, binary
+│                     caller-supplied); the extracted shared `DutSandbox` +
+│                     `prepare_dut_sandbox(seed,cfg,root,prefix)` generate→sandbox→
+│                     write lifecycle (`validate` refactored onto it at
+│                     `prefix="anvil-validate"`, byte-identical); and
+│                     `validate_tool_specs(seed,cfg,specs,opts) -> ValidateReport`
+│                     — the version-axis sibling of `validate` reusing
+│                     `prepare_dut_sandbox` + the vetted `run_*` primitives +
+│                     `MemGuard`, one relabeled+version-stamped invocation per spec
+│                     (Yosys single-mode for the axis: `Both`→`WithoutAbc`).
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`

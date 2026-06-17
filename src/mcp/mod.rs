@@ -835,6 +835,11 @@ impl McpServer {
                 yosys_mode: parse_yosys_mode_arg(args)?,
                 ..ValidateOptions::default()
             },
+            // The MCP `divergence` tool drives the multi-tool same-version axis;
+            // the tool-version-vs-version specs (`.2e`) are a library surface, not
+            // yet exposed over MCP (a caller-supplied-binary surface needs its own
+            // allow-list decision — recorded for `.2f`/follow-up).
+            tool_specs: vec![],
         };
         let report = divergence::run(seed, cfg, &opts).map_err(|e| e.to_string())?;
 

@@ -688,6 +688,7 @@ mod tests {
             exit_code,
             stdout_log: None,
             stderr_log: None,
+            version: None,
             error: if success {
                 None
             } else {
@@ -949,6 +950,7 @@ mod tests {
             stdout_log: None,
             stderr_log: None,
             error: Some("%Warning-WIDTH: trunc".to_string()),
+            version: None,
         };
         let report = ValidateReport {
             run_id: run_id.clone(),

@@ -84,6 +84,16 @@ pub struct ToolInvocation {
     pub stdout_log: Option<String>,
     pub stderr_log: Option<String>,
     pub error: Option<String>,
+    /// The tool's observed version string (`<binary> --version`, first non-empty
+    /// line), captured **only** by the tool-version-vs-version divergence axis
+    /// (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`, via [`tool_version`] +
+    /// [`validate_tool_specs`]). `None` on every default path — the fixed-binary
+    /// `run_*` invocations never run `--version`, so their serialized wire shape
+    /// (banked `tool_matrix` reports and `--resume` checkpoints) stays
+    /// byte-for-byte unchanged: `#[serde(default, skip_serializing_if)]` keeps the
+    /// field off the wire when `None` and lets pre-`.2e` checkpoints deserialize.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 /// A per-tool **acceptance verdict** — the trinary the downstream tools actually
@@ -395,6 +405,9 @@ pub fn run_tool(
                 stdout_log,
                 stderr_log,
                 error: warning,
+                // Version is captured only on the opt-in version-vs-version axis
+                // (`validate_tool_specs`); the default path stays byte-identical.
+                version: None,
             })
         }
         Err(err) => Ok(ToolInvocation {
@@ -405,8 +418,31 @@ pub fn run_tool(
             stdout_log: None,
             stderr_log: None,
             error: Some(err.to_string()),
+            version: None,
         }),
     }
+}
+
+/// Best-effort capture of a tool binary's observed version string by running
+/// `<binary> --version` and returning its first non-empty line (stdout, falling
+/// back to stderr — Icarus prints its banner there). Returns `None` if the spawn
+/// fails or yields no text.
+///
+/// Used **only** by the tool-version-vs-version divergence axis
+/// (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`, [`validate_tool_specs`]); the default
+/// fixed-binary acceptance paths never call it, so they spawn no extra process and
+/// their [`ToolInvocation`] wire shape stays byte-identical. Version capture is a
+/// label for the report, never a gate — a missing version never blocks a run.
+pub fn tool_version(binary: &str) -> Option<String> {
+    let output = Command::new(binary).arg("--version").output().ok()?;
+    let first_non_empty = |text: &str| -> Option<String> {
+        text.lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+    };
+    first_non_empty(String::from_utf8_lossy(&output.stdout).as_ref())
+        .or_else(|| first_non_empty(String::from_utf8_lossy(&output.stderr).as_ref()))
 }
 
 /// The first warning line a tool emitted, per-tool. A warning is a *failure*
@@ -522,6 +558,25 @@ impl AcceptanceTool {
             Self::Iverilog => "iverilog",
         }
     }
+}
+
+/// One caller-supplied tool spec for the tool-version-vs-version divergence axis
+/// (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`, [`validate_tool_specs`]). The **kind**
+/// stays allow-listed ([`AcceptanceTool`] — it decides the vetted argv + the
+/// warning-as-failure detection, so ANVIL still never runs an off-list tool), but
+/// the **binary** is a caller-supplied path or PATH name, so two *versions* of one
+/// tool kind can be run side by side and compared. ANVIL never manages installs:
+/// the caller supplies the binaries and the distinguishing labels (e.g.
+/// `verilator-5.046` vs `verilator-4.228`).
+#[derive(Debug, Clone)]
+pub struct ToolSpec {
+    /// The allow-listed tool kind (decides the argv and warning detection).
+    pub kind: AcceptanceTool,
+    /// The caller-supplied binary path or PATH name for this version.
+    pub binary: String,
+    /// The label recorded as the [`ToolInvocation::tool`] of this version's run,
+    /// so two versions appear as distinct, comparable report rows.
+    pub label: String,
 }
 
 /// How `validate` should run. The agent controls *which vetted tools* run and
@@ -646,22 +701,65 @@ pub fn introspect_dut_artifact(
     }
 }
 
-pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
-    let run_id = content_run_id("dut", seed, cfg);
+/// A generated DUT artifact materialized in a fresh per-run sandbox directory,
+/// ready for downstream-tool invocations. The single home of the
+/// generate → mkdir → write-`<top>.sv` lifecycle, shared by [`validate`] and the
+/// tool-version-vs-version axis [`validate_tool_specs`] so the sandbox plumbing is
+/// never forked (full-factorization).
+pub struct DutSandbox {
+    /// Content-addressed `(seed, knobs)` id (the same one generate/introspect use).
+    pub run_id: String,
+    /// `"design"` (a hierarchy range) or `"module"` (a leaf).
+    pub kind: String,
+    /// The artifact's top name (the `.sv` stem).
+    pub top: String,
+    /// The fresh per-run sandbox directory.
+    pub dir: PathBuf,
+    /// The written `<top>.sv` inside [`dir`](Self::dir).
+    pub sv_path: PathBuf,
+}
 
+impl DutSandbox {
+    /// Whether this artifact is a multi-file design (vs a single leaf module).
+    pub fn is_design(&self) -> bool {
+        self.kind == "design"
+    }
+}
+
+/// Generate the DUT for `(seed, cfg)` deterministically into a fresh
+/// `<root>/<prefix>-<run_id>` directory and write `<top>.sv` into it. The shared
+/// generate → sandbox lifecycle behind [`validate`] (`prefix = "anvil-validate"`)
+/// and [`validate_tool_specs`] (`prefix = "anvil-divergence"`). The caller fixes
+/// `root` — never the agent (decision `0004`).
+pub fn prepare_dut_sandbox(
+    seed: u64,
+    cfg: &Config,
+    root: &Path,
+    prefix: &str,
+) -> Result<DutSandbox> {
+    let run_id = content_run_id("dut", seed, cfg);
     // Generate deterministically. Mirrors the CLI / MCP single-artifact
     // dispatch: a hierarchy range ⇒ a design, else a leaf module.
     let (kind, top, sv) = generate_dut_artifact(cfg);
-
-    // Fresh per-run sandbox directory under the caller-fixed root.
-    let sandbox = opts.sandbox_root.join(format!("anvil-validate-{run_id}"));
-    std::fs::create_dir_all(&sandbox)
-        .with_context(|| format!("create sandbox {}", sandbox.display()))?;
-    let sv_path = sandbox.join(format!("{top}.sv"));
+    let dir = root.join(format!("{prefix}-{run_id}"));
+    std::fs::create_dir_all(&dir).with_context(|| format!("create sandbox {}", dir.display()))?;
+    let sv_path = dir.join(format!("{top}.sv"));
     std::fs::write(&sv_path, &sv).with_context(|| format!("write {}", sv_path.display()))?;
+    Ok(DutSandbox {
+        run_id,
+        kind,
+        top,
+        dir,
+        sv_path,
+    })
+}
+
+pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<ValidateReport> {
+    // Fresh per-run sandbox under the caller-fixed root (shared lifecycle).
+    let sb = prepare_dut_sandbox(seed, cfg, &opts.sandbox_root, "anvil-validate")?;
 
     let guard = MemGuard::from_limits(opts.mem_limits);
-    let is_design = kind == "design";
+    let is_design = sb.is_design();
     let mut tools = Vec::new();
     let mut declined = None;
 
@@ -675,13 +773,13 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
                 tools.push(if is_design {
                     run_verilator_design(
                         tool.binary(),
-                        &sandbox,
-                        std::slice::from_ref(&sv_path),
-                        &top,
+                        &sb.dir,
+                        std::slice::from_ref(&sb.sv_path),
+                        &sb.top,
                         None,
                     )?
                 } else {
-                    run_verilator(tool.binary(), &sandbox, &sv_path, &top, None)?
+                    run_verilator(tool.binary(), &sb.dir, &sb.sv_path, &sb.top, None)?
                 });
             }
             AcceptanceTool::Yosys => {
@@ -689,12 +787,18 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
                     run_yosys_design(
                         opts.yosys_mode,
                         tool.binary(),
-                        &sandbox,
-                        std::slice::from_ref(&sv_path),
-                        &top,
+                        &sb.dir,
+                        std::slice::from_ref(&sb.sv_path),
+                        &sb.top,
                     )?
                 } else {
-                    run_yosys(opts.yosys_mode, tool.binary(), &sandbox, &sv_path, &top)?
+                    run_yosys(
+                        opts.yosys_mode,
+                        tool.binary(),
+                        &sb.dir,
+                        &sb.sv_path,
+                        &sb.top,
+                    )?
                 };
                 tools.extend(invs);
             }
@@ -702,33 +806,160 @@ pub fn validate(seed: u64, cfg: &Config, opts: &ValidateOptions) -> Result<Valid
                 tools.push(if is_design {
                     run_iverilog_compile_design(
                         tool.binary(),
-                        &sandbox,
-                        std::slice::from_ref(&sv_path),
-                        &top,
+                        &sb.dir,
+                        std::slice::from_ref(&sb.sv_path),
+                        &sb.top,
                     )?
                 } else {
-                    run_iverilog_compile(tool.binary(), &sandbox, &sv_path, &top)?
+                    run_iverilog_compile(tool.binary(), &sb.dir, &sb.sv_path, &sb.top)?
                 });
             }
         }
     }
 
     let ok = declined.is_none() && tools.iter().all(|t| t.success);
-    let sandbox_str = sandbox.display().to_string();
+    let sandbox_str = sb.dir.display().to_string();
     if !opts.keep_sandbox {
-        let _ = std::fs::remove_dir_all(&sandbox);
+        let _ = std::fs::remove_dir_all(&sb.dir);
     }
 
     Ok(ValidateReport {
-        run_id,
+        run_id: sb.run_id,
         lane: "dut".to_string(),
-        kind,
-        top,
+        kind: sb.kind,
+        top: sb.top,
         sandbox: sandbox_str,
         tools,
         ok,
         declined,
     })
+}
+
+/// Run a set of caller-supplied [`ToolSpec`]s over the DUT for `(seed, cfg)` in
+/// one shared sandbox — the **tool-version-vs-version** orchestration
+/// (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`). The sibling of [`validate`]: it reuses
+/// the *same* hardened [`prepare_dut_sandbox`] lifecycle, the *same* vetted
+/// `run_*` invocation primitives, and the *same* [`MemGuard`] decline-to-spawn
+/// discipline — only two things differ per spec, so there is no second invocation
+/// set: each run is **relabeled** to its spec's [`ToolSpec::label`] (so two
+/// versions of one kind are distinct, comparable rows) and **stamped** with its
+/// observed [`tool_version`]. The allow-list still holds — [`ToolSpec::kind`] is
+/// an [`AcceptanceTool`] — while [`ToolSpec::binary`] is the caller-supplied
+/// version shim. Each spec contributes exactly one [`ToolInvocation`]
+/// (`opts.tools` is unused here; Yosys uses a single mode — comparing the two
+/// Yosys modes is the cross-tool axis, not the version axis — so `Both` collapses
+/// to the `without-abc` baseline). Returns the same [`ValidateReport`] shape;
+/// classification into a `version_mismatch` is the caller's
+/// ([`crate::divergence`]'s) job.
+pub fn validate_tool_specs(
+    seed: u64,
+    cfg: &Config,
+    specs: &[ToolSpec],
+    opts: &ValidateOptions,
+) -> Result<ValidateReport> {
+    let sb = prepare_dut_sandbox(seed, cfg, &opts.sandbox_root, "anvil-divergence")?;
+
+    let guard = MemGuard::from_limits(opts.mem_limits);
+    let is_design = sb.is_design();
+    let mut tools = Vec::new();
+    let mut declined = None;
+
+    for spec in specs {
+        if let Some(reason) = guard.check() {
+            declined = Some(decline_message(&reason));
+            break;
+        }
+        let mut inv = run_tool_spec(spec, opts.yosys_mode, &sb, is_design)?;
+        // Relabel so two versions of one kind are distinct rows, and stamp the
+        // observed version (best-effort; never a gate).
+        inv.tool = spec.label.clone();
+        inv.version = tool_version(&spec.binary);
+        tools.push(inv);
+    }
+
+    let ok = declined.is_none() && tools.iter().all(|t| t.success);
+    let sandbox_str = sb.dir.display().to_string();
+    if !opts.keep_sandbox {
+        let _ = std::fs::remove_dir_all(&sb.dir);
+    }
+
+    Ok(ValidateReport {
+        run_id: sb.run_id,
+        lane: "dut".to_string(),
+        kind: sb.kind,
+        top: sb.top,
+        sandbox: sandbox_str,
+        tools,
+        ok,
+        declined,
+    })
+}
+
+/// Run one [`ToolSpec`] (caller-supplied binary, allow-listed kind) over the
+/// sandboxed DUT, producing exactly one [`ToolInvocation`] via the vetted `run_*`
+/// primitives. Yosys runs in a single mode for the version axis (`Both` →
+/// `WithoutAbc`); a single mode yields exactly one invocation, so the defensive
+/// fallback is unreachable in practice.
+fn run_tool_spec(
+    spec: &ToolSpec,
+    yosys_mode: YosysMode,
+    sb: &DutSandbox,
+    is_design: bool,
+) -> Result<ToolInvocation> {
+    match spec.kind {
+        AcceptanceTool::Verilator => {
+            if is_design {
+                run_verilator_design(
+                    &spec.binary,
+                    &sb.dir,
+                    std::slice::from_ref(&sb.sv_path),
+                    &sb.top,
+                    None,
+                )
+            } else {
+                run_verilator(&spec.binary, &sb.dir, &sb.sv_path, &sb.top, None)
+            }
+        }
+        AcceptanceTool::Iverilog => {
+            if is_design {
+                run_iverilog_compile_design(
+                    &spec.binary,
+                    &sb.dir,
+                    std::slice::from_ref(&sb.sv_path),
+                    &sb.top,
+                )
+            } else {
+                run_iverilog_compile(&spec.binary, &sb.dir, &sb.sv_path, &sb.top)
+            }
+        }
+        AcceptanceTool::Yosys => {
+            let single = match yosys_mode {
+                YosysMode::WithAbc => YosysMode::WithAbc,
+                YosysMode::WithoutAbc | YosysMode::Both => YosysMode::WithoutAbc,
+            };
+            let invs = if is_design {
+                run_yosys_design(
+                    single,
+                    &spec.binary,
+                    &sb.dir,
+                    std::slice::from_ref(&sb.sv_path),
+                    &sb.top,
+                )?
+            } else {
+                run_yosys(single, &spec.binary, &sb.dir, &sb.sv_path, &sb.top)?
+            };
+            Ok(invs.into_iter().next().unwrap_or_else(|| ToolInvocation {
+                tool: "yosys".to_string(),
+                argv: vec![spec.binary.clone()],
+                success: false,
+                exit_code: None,
+                stdout_log: None,
+                stderr_log: None,
+                error: Some("yosys produced no invocation".to_string()),
+                version: None,
+            }))
+        }
+    }
 }
 
 fn decline_message(reason: &AbortReason) -> String {
@@ -1342,6 +1573,7 @@ mod tests {
             } else {
                 Some("%Warning-WIDTH: ...".to_string())
             },
+            version: None,
         }
     }
 
@@ -1526,6 +1758,61 @@ mod tests {
         assert_eq!(AcceptanceTool::Verilator.binary(), "verilator");
         assert_eq!(AcceptanceTool::Yosys.binary(), "yosys");
         assert_eq!(AcceptanceTool::Iverilog.binary(), "iverilog");
+    }
+
+    /// The version axis (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`) keeps the kind
+    /// allow-listed while accepting a caller-supplied binary. `tool_version` of a
+    /// binary that does not exist is a clean `None` (best-effort; never a panic),
+    /// so a missing version never blocks a divergence run.
+    #[test]
+    fn tool_version_of_missing_binary_is_none() {
+        assert_eq!(
+            tool_version("definitely-not-a-real-tool-binary-anvil-2e"),
+            None
+        );
+    }
+
+    /// `validate_tool_specs` runs each caller-supplied `(kind, binary, label)`
+    /// spec as exactly one relabeled invocation in a shared sandbox. With two
+    /// nonexistent binaries for the same allow-listed kind, both invocations fail
+    /// to spawn (so both are unsuccessful and carry no version), the run is not
+    /// `ok`, and — crucially for the version axis — the report carries **two**
+    /// distinctly-labelled rows. Portable: no real tool is required.
+    #[test]
+    fn validate_tool_specs_runs_relabeled_per_spec_in_one_sandbox() {
+        let cfg = Config {
+            seed: 9,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            tools: vec![], // ignored on this path — the specs drive the run
+            sandbox_root: test_root("specs"),
+            ..Default::default()
+        };
+        let specs = vec![
+            ToolSpec {
+                kind: AcceptanceTool::Verilator,
+                binary: "anvil-missing-verilator-vA".to_string(),
+                label: "verilator-vA".to_string(),
+            },
+            ToolSpec {
+                kind: AcceptanceTool::Verilator,
+                binary: "anvil-missing-verilator-vB".to_string(),
+                label: "verilator-vB".to_string(),
+            },
+        ];
+        let report = validate_tool_specs(9, &cfg, &specs, &opts).unwrap();
+        assert_eq!(report.run_id, content_run_id("dut", 9, &cfg));
+        assert_eq!(report.tools.len(), 2);
+        assert_eq!(report.tools[0].tool, "verilator-vA");
+        assert_eq!(report.tools[1].tool, "verilator-vB");
+        // Missing binaries can't spawn ⇒ no success, no captured version.
+        assert!(report.tools.iter().all(|t| !t.success));
+        assert!(report.tools.iter().all(|t| t.version.is_none()));
+        assert!(!report.ok);
+        assert!(report.declined.is_none());
+        // Default keep_sandbox = false ⇒ the shared sandbox is removed.
+        assert!(!Path::new(&report.sandbox).exists());
     }
 
     #[test]

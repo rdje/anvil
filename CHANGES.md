@@ -1,9 +1,95 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2e — the tool-version-vs-version axis
+
+**Landed as:** this commit (previous: `4d17fc2`). **Default-off / DUT
+byte-identical** (`tests/snapshots.rs` 6/6 unchanged; the new field is serde-absent
+on every default path, so banked `tool_matrix` reports + `--resume` checkpoints are
+byte-for-byte unchanged and the `validate` refactor is byte-equivalent). The
+**version axis** of decision `0019`: alongside the cross-tool accept/warn/reject
+divergence (`.2a`–`.2d`), this detects where two **versions of one tool kind**
+disagree — one version accepts what another warns/rejects. Delivered as a **library
+surface** that composes the *one* hardened orchestration (no forked invocation set);
+CLI/MCP surfacing of the caller-supplied-binary axis + the real-tool e2e gate + docs
+are `.2f`.
+
+**What changed (why)**
+
+- **`src/downstream/mod.rs`** — the version-axis primitives (kind stays
+  allow-listed; the binary is the caller-supplied version shim):
+  - `ToolInvocation.version: Option<String>` — the observed `--version`, with
+    `#[serde(default, skip_serializing_if = "Option::is_none")]` so it is **absent
+    on the wire on every default path** (the fixed-binary `run_*` invocations never
+    capture it) ⇒ banked matrix reports + `--resume` checkpoints stay byte-identical
+    and pre-`.2e` checkpoints still deserialize.
+  - `tool_version(binary)` — a best-effort `<binary> --version` capture (first
+    non-empty line, stdout then stderr; `None` on spawn failure). Called **only** by
+    the version axis, so the default fixed-binary paths spawn no extra process. A
+    label for the report, never a gate.
+  - `ToolSpec { kind: AcceptanceTool, binary: String, label: String }` — the
+    **kind** is allow-listed (decides the vetted argv + warning detection, so ANVIL
+    still never runs an off-list tool); the **binary** is the caller-supplied
+    path/PATH shim; the **label** distinguishes the two versions' report rows.
+  - Extracted the shared `DutSandbox` + `prepare_dut_sandbox(seed, cfg, root,
+    prefix)` generate→sandbox→write lifecycle, and refactored `validate` onto it at
+    `prefix = "anvil-validate"` — **byte-identical** (same `run_id`, same dir name,
+    same `ValidateReport`; verified by the real-tool regression below).
+  - `validate_tool_specs(seed, cfg, specs, opts)` — the version-axis sibling of
+    `validate`: reuses `prepare_dut_sandbox` + the vetted `run_*` primitives +
+    `MemGuard`, producing exactly **one** invocation per spec (relabeled to
+    `spec.label` + stamped with `tool_version`). Yosys uses a single mode for the
+    axis (`Both`→`WithoutAbc`; comparing the two Yosys modes is the *cross-tool*
+    axis, not the version axis). `opts.tools` is unused on this path.
+  - +2 proofs: `tool_version` of a missing binary ⇒ `None`; `validate_tool_specs`
+    runs one relabeled invocation per spec in one shared sandbox.
+- **`src/divergence/mod.rs`** — the version-axis surface + classifier:
+  - `DivergenceOptions.tool_specs: Vec<ToolSpec>` — **empty** (the default) ⇒ the
+    multi-tool same-version path via `validate` (byte-identical to `.2b`/`.2c`/`.2d`);
+    **non-empty** ⇒ the version axis via `validate_tool_specs`.
+  - `ToolDecision.version: Option<String>` — projected by `to_decision`,
+    absent-when-`None` (so prior reports stay byte-identical).
+  - `classify_version_mismatch` — a single `version_mismatch` (naming the
+    disagreeing version labels, sorted+deduped) when same-kind verdicts are **not
+    all equal**. A **different relation** over the **same** `tool_verdict` — not a
+    second verdict classifier (`feedback_full_factorization`).
+  - Factored `assemble_report` so `classify_report` (cross-tool) and
+    `classify_report_versions` (version axis) share one projection; `run` dispatches
+    on `tool_specs`.
+  - +6 proofs: the synthetic accept/reject + accept/warn `version_mismatch` headline
+    proofs, all-agree, fewer-than-two-versions, version-carry-through-and-off-the-wire,
+    and a portable `run`-via-`tool_specs` end-to-end (two missing binaries ⇒ both
+    reject ⇒ agree ⇒ no false divergence, but two distinctly-labelled rows).
+- **`src/mcp/mod.rs`** — the `DivergenceOptions` literal gets `tool_specs: vec![]`.
+  The axis is **library-only** at `.2e`: a caller-supplied-binary surface over
+  MCP/CLI is a distinct trust boundary from the fixed-binary `validate` tool and
+  needs its own decision (recorded for `.2f`). The MCP `divergence` tool keeps the
+  same-version path — byte-identical.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --lib` 543/0 (2 ignored; 535→543, +8); `tests/snapshots.rs` 6/6
+  byte-identical; `cargo test --bin tool_matrix` 75/0 (1 ignored); `cargo test --bin
+  anvil` 12/0.
+- Real-tool regression of the `validate` refactor (`anvil hunt --seed 1 --seeds 4
+  --tools verilator,yosys --divergence`; Verilator 5.046 + Yosys 0.64):
+  `n_clean=4 n_failures=0` — byte-equivalent to the `.2d` all-agree steady state.
+
+**Impact**
+
+- New default-off library capability (the version axis). No CLI/MCP surface change,
+  no introspection schema bump (stays `1.11`), no user-visible behaviour change ⇒
+  README/USER_GUIDE/book unchanged (the closeout is `.2f`). DUT byte-identical.
+
+**Files touched:** `src/downstream/mod.rs`, `src/divergence/mod.rs`,
+`src/mcp/mod.rs`, `docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2d — the MCP divergence tool + CLI shim
 
-**Landed as:** this commit (previous: `2fa2cc3`). **Default-off / DUT
+**Landed as:** `4d17fc2` (previous: `2fa2cc3`). **Default-off / DUT
 byte-identical** (`tests/snapshots.rs` 6/6 + `book_examples` 3/3 unchanged; the
 new MCP tool + CLI flag are opt-in and emit no RTL). The third surface of the
 one-shared-detector design (decision `0019`): after the `hunt` axis (`.2c.1`) and
