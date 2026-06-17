@@ -214,6 +214,39 @@ pub fn run_iverilog_compile_design(
     Ok(invocation)
 }
 
+/// Run `sv2v <sv>` transpile (SystemVerilog → Verilog-2005) on a single emitted
+/// module as a pure **accept/reject** acceptance check
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2b.1`, decision `0020`). A clean exit means
+/// sv2v parsed + elaborated + transpiled the module; a non-zero exit (or a
+/// warning) is a finding. sv2v writes the transpiled Verilog to stdout, which
+/// [`run_tool`] captures into a log only when the run is not clean — this is an
+/// acceptance gate, never a behavioural oracle (decision `0004`): ANVIL does not
+/// treat the transpiled Verilog as golden semantics.
+pub fn run_sv2v(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
+    run_tool(
+        "sv2v",
+        bin,
+        vec![sv_path.display().to_string()],
+        out_dir,
+        stem,
+    )
+}
+
+/// Run `sv2v --top=<top> <files...>` transpile on a multi-file design as an
+/// accept/reject acceptance check. `--top=<top>` pins the elaboration root,
+/// mirroring the `-top` / `--top-module` / `-s <top>` pins the other design
+/// adapters use.
+pub fn run_sv2v_design(
+    bin: &str,
+    out_dir: &Path,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Result<ToolInvocation> {
+    let mut argv = vec![format!("--top={top}")];
+    argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
+    run_tool("sv2v", bin, argv, out_dir, top)
+}
+
 /// Build the `iverilog -g2012 -o <stem>.iverilog.vvp <sv>` argv for a single
 /// module and return it with the output `.vvp` path.
 pub fn iverilog_module_argv(out_dir: &Path, sv_path: &Path, stem: &str) -> (Vec<String>, PathBuf) {
@@ -470,6 +503,16 @@ pub fn first_tool_warning(tool_name: &str, stdout: &str, stderr: &str) -> Option
             .map(str::trim_start)
             .find(|line| line.to_ascii_lowercase().contains("warning:"))
             .map(ToOwned::to_owned),
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` — sv2v transpile warnings are a
+        // finding (the RTL must transpile cleanly). Matched case-insensitively on
+        // `warning:`, like iverilog; sv2v's transpiled Verilog on stdout uses
+        // generated identifiers that never contain the `warning:` token.
+        "sv2v" => stdout
+            .lines()
+            .chain(stderr.lines())
+            .map(str::trim_start)
+            .find(|line| line.to_ascii_lowercase().contains("warning:"))
+            .map(ToOwned::to_owned),
         _ => None,
     }
 }
@@ -536,6 +579,11 @@ pub enum AcceptanceTool {
     Verilator,
     Yosys,
     Iverilog,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` — the first *new* adapter beyond the
+    /// three originals (decision `0020`): an `sv2v` SystemVerilog→Verilog-2005
+    /// transpile accept/reject column. Still on the fixed allow-list (a vetted,
+    /// fixed binary name — not agent-supplied).
+    Sv2v,
 }
 
 impl AcceptanceTool {
@@ -546,6 +594,7 @@ impl AcceptanceTool {
             "verilator" => Some(Self::Verilator),
             "yosys" => Some(Self::Yosys),
             "iverilog" => Some(Self::Iverilog),
+            "sv2v" => Some(Self::Sv2v),
             _ => None,
         }
     }
@@ -556,6 +605,7 @@ impl AcceptanceTool {
             Self::Verilator => "verilator",
             Self::Yosys => "yosys",
             Self::Iverilog => "iverilog",
+            Self::Sv2v => "sv2v",
         }
     }
 
@@ -571,6 +621,7 @@ impl AcceptanceTool {
             Self::Verilator => &VERILATOR_ADAPTER,
             Self::Yosys => &YOSYS_ADAPTER,
             Self::Iverilog => &ICARUS_ADAPTER,
+            Self::Sv2v => &SV2V_ADAPTER,
         }
     }
 }
@@ -663,6 +714,11 @@ struct VerilatorAdapter;
 struct YosysAdapter;
 /// The Icarus Verilog `-g2012` compile/elaborate acceptance adapter.
 struct IcarusAdapter;
+/// The sv2v SystemVerilog→Verilog-2005 transpile accept/reject adapter
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2b.1`) — the first adapter beyond the three
+/// originals. A pure accept/reject column with no fact hook (`supports_facts`
+/// stays `false`); the richer JSON-AST path lands with `slang` (`.2c`).
+struct Sv2vAdapter;
 
 impl Adapter for VerilatorAdapter {
     fn id(&self) -> &'static str {
@@ -723,22 +779,50 @@ impl Adapter for IcarusAdapter {
     }
 }
 
+impl Adapter for Sv2vAdapter {
+    fn id(&self) -> &'static str {
+        "sv2v"
+    }
+    fn binary(&self) -> &'static str {
+        "sv2v"
+    }
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>> {
+        let inv = match cx.target {
+            AdapterTarget::Module { sv_path, stem } => {
+                run_sv2v(cx.binary, cx.out_dir, sv_path, stem)?
+            }
+            AdapterTarget::Design { sv_paths, top } => {
+                run_sv2v_design(cx.binary, cx.out_dir, sv_paths, top)?
+            }
+        };
+        Ok(vec![inv])
+    }
+}
+
 static VERILATOR_ADAPTER: VerilatorAdapter = VerilatorAdapter;
 static YOSYS_ADAPTER: YosysAdapter = YosysAdapter;
 static ICARUS_ADAPTER: IcarusAdapter = IcarusAdapter;
+static SV2V_ADAPTER: Sv2vAdapter = Sv2vAdapter;
 
 /// The closed registry table. Adding a tool means adding one entry here. The
 /// `Adapter: Sync` supertrait makes `&dyn Adapter` `Sync`, so this array is a
-/// valid `static`. The order is the canonical adapter-catalog display order.
-static ADAPTER_REGISTRY: [&dyn Adapter; 3] = [&VERILATOR_ADAPTER, &YOSYS_ADAPTER, &ICARUS_ADAPTER];
+/// valid `static`. The order is the canonical adapter-catalog display order:
+/// the three originals (`verilator`/`yosys`/`iverilog`) then the first new
+/// adapter (`sv2v`, `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`).
+static ADAPTER_REGISTRY: [&dyn Adapter; 4] = [
+    &VERILATOR_ADAPTER,
+    &YOSYS_ADAPTER,
+    &ICARUS_ADAPTER,
+    &SV2V_ADAPTER,
+];
 
 /// The **closed, compile-time** registry of vetted downstream adapters
 /// (`DOWNSTREAM-ADAPTER-EXPANSION`, decision `0020`). Adding a tool means adding
 /// one entry to [`ADAPTER_REGISTRY`] — never a runtime plugin or an
 /// agent-supplied command, so the decision-`0004` fixed-allow-list holds. Today
-/// it holds exactly the three built-ins (`verilator`, `yosys`, `iverilog`), each
-/// delegating to its existing vetted `run_*` primitive so reports stay
-/// byte-identical.
+/// it holds the three originals (`verilator`, `yosys`, `iverilog`) plus the first
+/// new adapter `sv2v` (`DOWNSTREAM-ADAPTER-EXPANSION.2b.1`), each delegating to
+/// its vetted `run_*` primitive so the originals' reports stay byte-identical.
 pub fn adapters() -> &'static [&'static dyn Adapter] {
     &ADAPTER_REGISTRY
 }
@@ -1904,6 +1988,12 @@ mod tests {
         assert!(first_tool_warning("yosys-without-abc", "Warning: foo", "").is_some());
         assert!(first_tool_warning("yosys-with-abc", "x.v:1: Warning: bar", "").is_some());
         assert!(first_tool_warning("yosys-without-abc", "Number of cells: 3", "").is_none());
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` — sv2v matches `warning:`
+        // case-insensitively across stdout + stderr; clean transpile output (the
+        // emitted Verilog on stdout) has none.
+        assert!(first_tool_warning("sv2v", "", "sv2v: Warning: implicit wire `x'").is_some());
+        assert!(first_tool_warning("sv2v", "WARNING: noisy", "").is_some());
+        assert!(first_tool_warning("sv2v", "module m; endmodule", "").is_none());
     }
 
     #[test]
@@ -1943,6 +2033,12 @@ mod tests {
             AcceptanceTool::from_name("iverilog"),
             Some(AcceptanceTool::Iverilog)
         );
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` — the first new adapter is on the
+        // same fixed allow-list (a vetted, fixed binary name; not agent-supplied).
+        assert_eq!(
+            AcceptanceTool::from_name("sv2v"),
+            Some(AcceptanceTool::Sv2v)
+        );
         // Anything off the allow-list is rejected — never a spawn.
         assert_eq!(AcceptanceTool::from_name("rm -rf /"), None);
         assert_eq!(AcceptanceTool::from_name("bash"), None);
@@ -1951,19 +2047,20 @@ mod tests {
         assert_eq!(AcceptanceTool::Verilator.binary(), "verilator");
         assert_eq!(AcceptanceTool::Yosys.binary(), "yosys");
         assert_eq!(AcceptanceTool::Iverilog.binary(), "iverilog");
+        assert_eq!(AcceptanceTool::Sv2v.binary(), "sv2v");
     }
 
-    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` — the closed adapter registry holds
-    /// exactly the three built-ins, in canonical display order, each with the
-    /// `id` (selector token) and fixed `binary` matching the `AcceptanceTool`
-    /// allow-list. The registry is the pluggable home; the enum stays the
-    /// canonical built-in identity (not retired).
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` + `.2b.1` — the closed adapter registry
+    /// holds the three originals then the first new adapter (`sv2v`), in canonical
+    /// display order, each with the `id` (selector token) and fixed `binary`
+    /// matching the `AcceptanceTool` allow-list. The registry is the pluggable
+    /// home; the enum stays the canonical built-in identity (not retired).
     #[test]
-    fn adapter_registry_holds_the_three_builtins() {
+    fn adapter_registry_lists_the_originals_then_sv2v() {
         let ids: Vec<&str> = adapters().iter().map(|a| a.id()).collect();
-        assert_eq!(ids, vec!["verilator", "yosys", "iverilog"]);
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v"]);
         let bins: Vec<&str> = adapters().iter().map(|a| a.binary()).collect();
-        assert_eq!(bins, vec!["verilator", "yosys", "iverilog"]);
+        assert_eq!(bins, vec!["verilator", "yosys", "iverilog", "sv2v"]);
         // Every registry `id` is a name `from_name` accepts (one allow-list).
         for id in ids {
             assert!(
@@ -1971,6 +2068,23 @@ mod tests {
                 "registry id {id} must be an allow-listed tool name"
             );
         }
+        // sv2v is a pure accept/reject column — no fact hook yet (slang lands it at .2c).
+        let sv2v = adapters().iter().find(|a| a.id() == "sv2v").unwrap();
+        assert!(!sv2v.supports_facts());
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` + `.2b.1` — the adapter catalog projects
+    /// every registered adapter (now four) in display order with its fixed binary
+    /// and fact capability, so an agent discovers `sv2v` over the API. `present` is
+    /// a live PATH probe (host-dependent), so it is not asserted here.
+    #[test]
+    fn adapter_catalog_projects_every_registered_adapter() {
+        let catalog = adapter_catalog();
+        let ids: Vec<&str> = catalog.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v"]);
+        let sv2v = catalog.iter().find(|a| a.id == "sv2v").unwrap();
+        assert_eq!(sv2v.binary, "sv2v");
+        assert!(!sv2v.supports_facts);
     }
 
     /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` — `AcceptanceTool::adapter()` maps each
@@ -1983,6 +2097,7 @@ mod tests {
             AcceptanceTool::Verilator,
             AcceptanceTool::Yosys,
             AcceptanceTool::Iverilog,
+            AcceptanceTool::Sv2v,
         ] {
             let adapter = tool.adapter();
             assert_eq!(adapter.binary(), tool.binary());
@@ -2051,15 +2166,16 @@ mod tests {
         assert!(!Path::new(&report.sandbox).exists());
     }
 
-    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` — `validate_tool_specs` dispatches each
-    /// caller-supplied spec through the closed adapter registry
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` + `.2b.1` — `validate_tool_specs`
+    /// dispatches each caller-supplied spec through the closed adapter registry
     /// (`spec.kind.adapter().run(&cx)`), byte-identical to the prior hard-coded
-    /// `match spec.kind`: every kind — Verilator, Yosys, **and** Iverilog —
-    /// contributes exactly one relabeled row, and the Yosys version axis collapses
-    /// `Both` to a single `without-abc` invocation (not the two rows
+    /// `match spec.kind`: every kind — Verilator, Yosys, Iverilog, **and** the new
+    /// `sv2v` — contributes exactly one relabeled row, and the Yosys version axis
+    /// collapses `Both` to a single `without-abc` invocation (not the two rows
     /// `YosysAdapter::run` would emit for `Both`), so the row count stays
-    /// one-per-spec. Portable: missing binaries can't spawn, so no real tool is
-    /// required.
+    /// one-per-spec. This also proves the new `sv2v` kind is wired end-to-end
+    /// (`from_name` → `adapter()` → `run_tool`). Portable: missing binaries can't
+    /// spawn, so no real tool is required.
     #[test]
     fn validate_tool_specs_routes_each_kind_through_its_adapter_single_row() {
         let cfg = Config {
@@ -2089,12 +2205,21 @@ mod tests {
                 binary: "anvil-missing-iverilog".to_string(),
                 label: "iverilog-v".to_string(),
             },
+            ToolSpec {
+                kind: AcceptanceTool::Sv2v,
+                binary: "anvil-missing-sv2v".to_string(),
+                label: "sv2v-v".to_string(),
+            },
         ];
         let report = validate_tool_specs(13, &cfg, &specs, &opts).unwrap();
-        // Exactly one relabeled row per spec — including Yosys under `Both`.
-        assert_eq!(report.tools.len(), 3);
+        // Exactly one relabeled row per spec — including Yosys under `Both` and the
+        // new sv2v kind.
+        assert_eq!(report.tools.len(), 4);
         let labels: Vec<&str> = report.tools.iter().map(|t| t.tool.as_str()).collect();
-        assert_eq!(labels, vec!["verilator-v", "yosys-v", "iverilog-v"]);
+        assert_eq!(
+            labels,
+            vec!["verilator-v", "yosys-v", "iverilog-v", "sv2v-v"]
+        );
         // Missing binaries can't spawn ⇒ no success, no captured version.
         assert!(report.tools.iter().all(|t| !t.success));
         assert!(report.tools.iter().all(|t| t.version.is_none()));

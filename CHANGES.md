@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2b.1 — the `sv2v` downstream adapter + MCP selectability/discoverability (decision 0020)
+
+**Landed as:** this commit (previous: `9980cee`). **Code change — `src/downstream/mod.rs`
++ `src/mcp/mod.rs` + book; additive / DUT byte-identical** (`tests/snapshots.rs` 6/6
+untouched; no generator change; no introspection `SCHEMA_VERSION` bump). The first new
+downstream adapter beyond the three originals (leaf `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`;
+`.2b` was pre-split into `.2b.1` [this slice] / `.2b.2` [the `tool_matrix` column + the
+real-tool gate + the CLI-surface docs]).
+
+**What changed (why)**
+
+Decision `0020` made the downstream surface a closed `Adapter` registry; `.2a` re-expressed
+the three originals through it and routed every caller through it. This slice lands the
+**first new adapter, `sv2v`** — an independent SystemVerilog front-end (Haskell), so it is
+parser-distinct from Verilator/Yosys/Icarus and multiplies the bug surface across the
+`hunt` / `divergence` / `validate` detectors for free (decision `0019` compounding).
+
+- **`src/downstream/mod.rs`** — `AcceptanceTool::Sv2v` (still on the fixed allow-list:
+  `from_name("sv2v")` / `binary() == "sv2v"` / `adapter() == &SV2V_ADAPTER`);
+  `run_sv2v(bin, …)` (`sv2v <file>`) and `run_sv2v_design(bin, …)`
+  (`sv2v --top=<top> <files…>`) — a pure **accept/reject transpile** check (a clean exit
+  transpiles; a non-zero exit or a warning is a finding), no fact hook, never a behavioural
+  oracle (the transpiled Verilog is discarded; decision `0004`); an `Sv2vAdapter`
+  (`supports_facts == false`); a 4th `ADAPTER_REGISTRY` entry; and a `first_tool_warning`
+  `"sv2v"` arm (case-insensitive `warning:`, like iverilog).
+- **`src/mcp/mod.rs`** — `"sv2v"` added to the four `tools`-enum schemas (validate /
+  divergence / minimize / hunt), the `validate` tool description, and the
+  `parse_validate_tools` allow-list error, so an agent can both **select** `sv2v` in a
+  `tools` array and see it in the schema (decision `0017` API-completeness). The
+  `anvil://catalog/adapters` resource already projects the registry, so it now lists four
+  adapters automatically (`present == false` until `sv2v` is installed — the
+  `tools_present()` friendly-no-op precedent).
+- **CLI (falls out, no new code).** `AcceptanceTool` derives `clap::ValueEnum`, so the
+  new `Sv2v` variant also makes `anvil hunt --tools sv2v` (and the `--divergence` CLI)
+  accept `sv2v` automatically — clap derives the token `sv2v`, matching the MCP
+  `from_name` token (verified: `--tools` now lists `[verilator, yosys, iverilog, sv2v]`).
+- **Book** — `book/src/agent-mcp.md` (the fixed-allow-list + the `validate` row),
+  `book/src/api-tools.md` (the `tools` enum + the controlled-tools allow-list), and
+  `book/src/api-resources-prompts.md` (the adapter-catalog row) now list `sv2v` and note
+  it is absent-by-default (a friendly no-op until installed).
+
+No `tool_matrix` column and no real-tool gate yet — those are the byte-identical-sensitive
+`.2b.2`. `sv2v` is absent on this host, so the real-tool path is a friendly no-op; the
+wiring is proven structurally + portably.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` **549/0** (+2 net-new proofs:
+`adapter_catalog_projects_every_registered_adapter`,
+`parse_validate_tools_accepts_sv2v_and_rejects_unknown`; the registry / warning-detection /
+adapter-map / allow-list / catalog-resource / `validate_tool_specs`-per-kind proofs were
+extended from three to four adapters); `tests/snapshots.rs` **6/6** byte-identical (no
+generator change); `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all
+--check` clean; `mdbook build book` clean; `check_memory_architecture.sh` + KM gen/check
+green. Heavy steps RAM-guarded (decision `0003`).
+
+**Impact**
+
+`sv2v` is now a selectable + discoverable downstream adapter over the MCP/config API
+(`validate` / `divergence` / `hunt` / `minimize` `tools` arrays + the adapter catalog) and
+the `anvil hunt --tools` CLI. Additive / DUT byte-identical: no generator change, no new
+`tool_matrix` column, no report-shape change yet. Default behaviour (no `sv2v` in a `tools`
+list) is unchanged. Frontier advances to `.2b.2` (the `tool_matrix` `--sv2v` column + the
+`#[ignore]` real-tool gate + the remaining CLI-surface docs).
+
+**Files touched**
+
+`src/downstream/mod.rs`, `src/mcp/mod.rs`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`book/src/api-resources-prompts.md`, `README.md`, `USER_GUIDE.md`,
+`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`, `docs/TASK_TREE.md`, `CODEBASE_ANALYSIS.md`,
+`CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`.
+
 ## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2a.3 — route `validate_tool_specs` + the `tool_matrix` columns through the adapter registry (decision 0020)
 
-**Landed as:** this commit (previous: `f1388af`). **Code change — `src/downstream/mod.rs`
+**Landed as:** `9980cee` (previous: `f1388af`). **Code change — `src/downstream/mod.rs`
 + `src/bin/tool_matrix.rs`; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6
 untouched; no introspection `SCHEMA_VERSION` bump). Completes `DOWNSTREAM-ADAPTER-EXPANSION.2a`
 (leaf `.2a.3`).

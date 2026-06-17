@@ -746,6 +746,18 @@ src/
 │                     `adapters()` with a live `tool_version()` PATH probe for
 │                     `present`, served as the `anvil://catalog/adapters` MCP resource
 │                     (decision `0017` discoverability).
+│                     `.2b.1` lands the **first new adapter, `sv2v`**: a 4th
+│                     `AcceptanceTool` variant (`from_name`/`binary` `"sv2v"`) +
+│                     `run_sv2v`/`run_sv2v_design` primitives (`sv2v <file>` module;
+│                     `sv2v --top=<top> <files…>` design; transpile accept/reject, no
+│                     fact hook) + an `Sv2vAdapter` + a 4th `ADAPTER_REGISTRY` entry +
+│                     a `first_tool_warning` `"sv2v"` arm. So `sv2v` is selectable via
+│                     the `tools` arg (`validate`/`divergence`/`hunt`/`minimize`) and
+│                     discoverable in `adapter_catalog()` — the `mcp` `tools` schema
+│                     enums + the `parse_validate_tools` allow-list error are updated
+│                     to four. No `tool_matrix` column yet (that is `.2b.2`); `sv2v` is
+│                     absent on most hosts ⇒ a friendly no-op. Default-off / DUT
+│                     byte-identical.
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`

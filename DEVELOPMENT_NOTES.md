@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — The `sv2v` adapter — argv + warning rule chosen against an absent tool — `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
+
+`.2b.1` lands the first new downstream adapter, `sv2v`. `sv2v` is **absent** on this
+host (and most), so the argv + warning rule are chosen from sv2v's documented CLI, not
+verified against a live binary — the decision-`0020` "structural + `#[ignore]` real-tool
+gate, upgraded to a banked proof once installed" cadence. Three choices worth recording:
+
+- **argv shape.** Module = `sv2v <file>` (sv2v reads the one emitted leaf module and
+  transpiles it to stdout; exit code is the accept/reject signal). Design =
+  `sv2v --top=<top> <files…>` — `--top=<top>` pins the elaboration root, mirroring the
+  `-top` / `--top-module` / `-s <top>` pins the other design adapters use. The transpiled
+  Verilog goes to sv2v's stdout and is **discarded** (`run_tool` keeps it only in a log on
+  failure): this is an acceptance gate, **not** a behavioural oracle (decision `0004`) —
+  ANVIL never treats the transpiled output as golden semantics (that is the orthogonal
+  `--diff-sim` axis's job).
+- **warning rule.** sv2v's exact warning prefix is unverified locally, so `first_tool_warning`
+  matches `warning:` case-insensitively across stdout+stderr (the iverilog rule). This is
+  safe against false positives: the only sv2v stdout is transpiled Verilog over ANVIL's
+  generated identifiers (`add_0`, `mux_0`, …), which never contain the `warning:` token.
+  If a real sv2v emits a different prefix, the `#[ignore]` gate (`.2b.2`) surfaces it.
+- **accept/reject only — no fact hook.** `sv2v` is the *minimal* adapter shape on purpose
+  (`supports_facts == false`): it exercises the whole trait end-to-end without the richer
+  `extract_facts` JSON-AST path, which lands with `slang` (`.2c`). Keeping the first new
+  adapter minimal is the decision-`0019` "reject/warning first, fold the richer axis in
+  later" cadence.
+
+`.2b.1` deliberately stops at the downstream adapter + the MCP `tools`/catalog surface
+(selectable + discoverable immediately, additive / byte-identical). The byte-identical-
+sensitive `tool_matrix` column (a new `--sv2v` flag + `ModuleReport`/`DesignReport.sv2v`
+field + checkpoint/resume guard + tally) and the real-tool gate are `.2b.2`, mirroring the
+`.2a` split that isolated byte-identical-sensitive work.
+
 ## 2026-06-18 — Routing the matrix columns through the adapter registry — fixed columns, per-column dispatch — `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
 
 `.2a.3` routed the last two downstream callers (`validate_tool_specs`/`run_tool_spec`

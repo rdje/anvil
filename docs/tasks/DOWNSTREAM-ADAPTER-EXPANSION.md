@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-18` (`.2a.3` done — `validate_tool_specs` + the `tool_matrix` columns routed through the adapter registry; `.2a` complete; frontier `.2b`)
+- Last updated: `2026-06-18` (`.2b.1` done — sv2v downstream adapter + MCP selectability/discoverability; frontier `.2b.2` [tool_matrix column + real-tool gate + docs])
 - Owner: repo-local workflow
 
 ## Goal
@@ -92,8 +92,21 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b`
+  Status: `active`
+  Goal: `The first new adapter, sv2v, as an accept/reject transpile column: registered descriptor + tools-selectable + queryable verdict in ValidateReport/DivergenceReport/the matrix column; friendly absent-tool no-op + an #[ignore] real-tool gate; book/USER_GUIDE/README/KM card. Pre-split (mirroring .2a) into the additive downstream+MCP surface (.2b.1) and the byte-identical-sensitive tool_matrix column + the real-tool gate + docs (.2b.2), so each sub-slice commits independently.`
+  Children: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`, `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
+
+- ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
+  Status: `done`
+  Goal: `The sv2v downstream adapter + its MCP selectability/discoverability (additive; default-off / DUT byte-identical). src/downstream/mod.rs: an Sv2v variant on AcceptanceTool (from_name("sv2v")/binary()="sv2v"/adapter()), run_sv2v + run_sv2v_design primitives (sv2v <file> module; --top=<top> + files design; transpile accept/reject, no fact hook), an Sv2vAdapter (id/binary "sv2v"; run dispatches Module/Design; supports_facts=false), a 4th ADAPTER_REGISTRY entry, and a first_tool_warning "sv2v" arm (case-insensitive warning: like iverilog). src/mcp/mod.rs: add "sv2v" to the four tools-enum schemas + the parse_validate_tools error message + the controlled-tools description, so sv2v is selectable + discoverable over the API (decision 0017). NO tool_matrix column yet (that is .2b.2).`
+  Acceptance: `sv2v is selectable via the tools arg of validate/divergence/hunt (AcceptanceTool::from_name) and appears in adapters()/adapter_catalog() (the anvil://catalog/adapters resource gains a 4th entry, present=false locally since sv2v is absent — the friendly no-op). Lib proofs: registry holds the 4 builtins with expected ids/binaries; from_name("sv2v")==Some(Sv2v) + binary()=="sv2v"; AcceptanceTool::Sv2v.adapter() round-trips; sv2v warning detection; a portable validate run selecting sv2v with a missing binary fails to spawn cleanly (no panic, not ok). The existing mcp/lib tests asserting the 3-tool list are updated to 4. Gate: cargo check --all-targets; cargo test --lib (incl. mcp::tests); snapshots 6/6 byte-identical (no generator change); clippy -D warnings; fmt --check; mdbook build clean; default-off / DUT byte-identical.`
+  Result: `Landed the sv2v downstream adapter + its MCP selectability/discoverability, additive / DUT byte-identical. src/downstream/mod.rs: AcceptanceTool::Sv2v (from_name("sv2v")/binary()="sv2v"/adapter()=&SV2V_ADAPTER) + run_sv2v (sv2v <file>) + run_sv2v_design (sv2v --top=<top> <files…>) transpile-accept/reject primitives (no fact hook) + an Sv2vAdapter (supports_facts=false) + a 4th ADAPTER_REGISTRY entry + a first_tool_warning "sv2v" arm (case-insensitive warning:, like iverilog). src/mcp/mod.rs: "sv2v" added to the four tools-enum schemas (validate/divergence/minimize/hunt) + the validate description + the parse_validate_tools allow-list error. So sv2v is selectable via the tools arg and appears in adapters()/adapter_catalog() (anvil://catalog/adapters now 4 entries; present=false locally since sv2v is absent — the friendly no-op). Book synced (agent-mcp.md fixed-allow-list + validate row; api-tools.md tools enum + controlled-tools allow-list; api-resources-prompts.md catalog row). +2 net-new lib proofs (adapter_catalog_projects_every_registered_adapter; mcp parse_validate_tools_accepts_sv2v_and_rejects_unknown) + extended the registry/warning/adapter-map/allow-list/catalog-resource/validate_tool_specs-per-kind proofs to 4 adapters. No tool_matrix column (.2b.2). Default-off / DUT byte-identical (snapshots 6/6, no generator change).`
+  Verification: `cargo check --all-targets clean; cargo test --lib 549/0 (+2 net: adapter_catalog_projects_every_registered_adapter, parse_validate_tools_accepts_sv2v_and_rejects_unknown; existing registry/warning/routing/catalog-resource proofs extended to 4 adapters); snapshots 6/6 byte-identical (no generator change); clippy --all-targets -D warnings clean; fmt --all --check clean; mdbook build clean; check_memory_architecture + KM gen/check green. Heavy steps RAM-guarded (decision 0003).`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`
+
+- ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
   Status: `pending`
-  Goal: `The first new adapter, sv2v, as an accept/reject transpile column: registered descriptor + tools-selectable + queryable verdict in ValidateReport/DivergenceReport/the matrix column; friendly absent-tool no-op + an #[ignore] real-tool gate; book/USER_GUIDE/README/KM card.`
+  Goal: `The tool_matrix sv2v acceptance column (byte-identical-sensitive) mirroring the --iverilog-compile precedent: a --sv2v opt-in flag + sv2v_bin + ModuleReport/DesignReport.sv2v: Option<ToolInvocation> (serde skip_serializing_if) routed through the registry, checkpoint fields + --resume guard, per-tool tally + an opportunistic saw_sv2v_* coverage fact (never a required gate), the friendly absent-tool no-op; an #[ignore] real-tool gate (tests/sv2v_e2e.rs, the hunt_e2e/divergence_e2e precedent) for when sv2v is installed; book (agent-mcp.md / api-resources-prompts.md / synthesizability.md downstream surface) + USER_GUIDE + README CLI surface + a KM card. Default-off ⇒ banked reports + --resume + snapshots 6/6 byte-identical.`
   Acceptance: `pending (refine at pick)`
   Verification: `pending`
   Commit: `pending`
@@ -109,8 +122,12 @@ with its results queryable over MCP. Builds on the hardened
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). Now a near-one-line registry add: `.2a.3` routed every downstream caller (`validate`, `validate_tool_specs`, the `tool_matrix` columns) through the registry. |
+| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `pending` | `sv2v` `tool_matrix` column (byte-identical-sensitive, mirrors `--iverilog-compile`) + the `#[ignore]` real-tool gate + book/USER_GUIDE/README/KM. |
 | 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+
+Done: `.2b.1` — the `sv2v` downstream adapter (4th `AcceptanceTool` / `run_sv2v` /
+`Sv2vAdapter` / registry entry) + MCP selectability (`tools` enums) +
+discoverability (`adapter_catalog()` now 4 entries), additive / DUT byte-identical.
 
 Done: `.1` (design ADR, decision `0020`); `.2a.1` (the closed `Adapter` registry
 core + `validate` routed through it, byte-identical); `.2a.2` (the
@@ -169,6 +186,7 @@ registry, byte-identical — `.2a` complete).
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `cargo check --all-targets clean; cargo test --lib 545/0 (+2 registry proofs); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil 12/0; clippy -D warnings clean; fmt --check clean; DUT byte-identical (umbrella + snapshots); RAM-guarded` | `done` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `cargo test --lib 546/0 (+1 catalog proof); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt --check clean; mdbook build clean; book_examples 3/3; no introspection SCHEMA_VERSION bump; DUT byte-identical; RAM-guarded` | `done` |
 | `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `cargo check --all-targets clean; cargo test --lib 547/0 (+1: validate_tool_specs_routes_each_kind_through_its_adapter_single_row); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil+pipeline+divergence_e2e exit 0; clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green; DUT byte-identical; RAM-guarded` | `done` |
+| `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` | `cargo check --all-targets clean; cargo test --lib 549/0 (+2 net: adapter_catalog_projects_every_registered_adapter, parse_validate_tools_accepts_sv2v_and_rejects_unknown; registry/warning/routing/catalog proofs extended to 4 adapters); snapshots 6/6 byte-identical (no generator change); clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green; DUT byte-identical; RAM-guarded` | `done` |
 
 ## Commit Log
 
@@ -179,6 +197,7 @@ registry, byte-identical — `.2a` complete).
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in src/downstream` | The registry core + `validate` routed through it, byte-identical. `.2a` split into `.2a.1`/`.2a.2`/`.2a.3`; frontier advances to `.2a.2`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — anvil://catalog/adapters discoverability resource` | The SCHEMA-DERIVED adapter catalog over MCP (decision `0017`); `Adapter::supports_facts` + `AdapterInfo`/`adapter_catalog()`. Frontier advances to `.2a.3`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3 — route validate_tool_specs + tool_matrix columns through the adapter registry` | The last two downstream callers (`validate_tool_specs` via `run_tool_spec`; the `tool_matrix` `run_module_tools`/`run_design_tools` columns) routed through the registry, byte-identical; six now-unused `run_*` imports dropped from `tool_matrix.rs`. `.2a` complete; frontier advances to `.2b` (sv2v). |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.1 — sv2v downstream adapter + MCP selectability/discoverability` | The first new adapter: `AcceptanceTool::Sv2v` + `run_sv2v`/`run_sv2v_design` + `Sv2vAdapter` + a 4th registry entry + a `first_tool_warning` arm; `mcp` `tools` enums + `parse_validate_tools` allow-list updated to 4; book synced. Additive / DUT byte-identical (no `tool_matrix` column — that is `.2b.2`). `.2b` split into `.2b.1`/`.2b.2`; frontier advances to `.2b.2`. |
 
 ## Changelog
 
@@ -217,3 +236,18 @@ registry, byte-identical — `.2a` complete).
   line. Gate green (lib 547/0 +1 routing proof, snapshots 6/6, tool_matrix 75/0,
   anvil+pipeline+divergence_e2e exit 0, clippy/fmt, mdbook, check_memory_architecture +
   KM). Frontier advanced to `.2b`.
+- `2026-06-18`: `.2b` pre-split into `.2b.1` (downstream sv2v adapter + MCP
+  selectability/discoverability) / `.2b.2` (the byte-identical-sensitive `tool_matrix`
+  column + the `#[ignore]` real-tool gate + book/USER_GUIDE/README/KM), mirroring the
+  `.2a` split. **`.2b.1` done** — `src/downstream/mod.rs` gains the first new adapter,
+  `sv2v`: `AcceptanceTool::Sv2v` (`from_name`/`binary` `"sv2v"`/`adapter()`) +
+  `run_sv2v` (`sv2v <file>`) + `run_sv2v_design` (`sv2v --top=<top> <files…>`) transpile
+  accept/reject primitives (no fact hook) + an `Sv2vAdapter` (`supports_facts=false`) +
+  a 4th `ADAPTER_REGISTRY` entry + a `first_tool_warning` `"sv2v"` arm; `src/mcp/mod.rs`
+  adds `"sv2v"` to the four `tools` enum schemas + the `validate` description + the
+  `parse_validate_tools` allow-list error, so `sv2v` is selectable via the `tools` arg
+  and discoverable in `adapter_catalog()` (`anvil://catalog/adapters` now 4 entries,
+  `present=false` locally since `sv2v` is absent — the friendly no-op). Book synced
+  (`agent-mcp.md` / `api-tools.md` / `api-resources-prompts.md`). Additive / DUT
+  byte-identical (snapshots 6/6, no generator change). Gate green (lib 549/0 +2 net
+  proofs, clippy/fmt, mdbook, KM). Frontier advanced to `.2b.2`.

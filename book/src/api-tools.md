@@ -34,9 +34,12 @@ Common argument types used throughout:
 - **`seed`** — `integer ≥ 0`, the deterministic RNG seed.
 - **`config`** — `object`, a full effective `Config` exactly as
   [`dump_config`](#dump_config) emits it. Omit for defaults. (DUT lane only.)
-- **`tools`** — `array` of `"verilator" | "yosys" | "iverilog"`. A **fixed
-  allow-list** — no arbitrary commands or binary paths. Default `["verilator",
-  "yosys"]`.
+- **`tools`** — `array` of `"verilator" | "yosys" | "iverilog" | "sv2v"`. A
+  **fixed allow-list** — no arbitrary commands or binary paths. Default
+  `["verilator", "yosys"]`. (`sv2v` is an `sv2v` SystemVerilog→Verilog-2005
+  transpile accept/reject column; absent on most hosts today, so selecting it is
+  a friendly no-op until `sv2v` is installed — check the
+  [`anvil://catalog/adapters`](./api-resources-prompts.md) `present` field.)
 - **`yosys_mode`** — `"without-abc" | "with-abc" | "both"`, default
   `"without-abc"`. `both` runs Yosys twice (two labelled invocations).
 
@@ -182,7 +185,7 @@ pass/fail counts.
 ## Controlled tools
 
 All four run real downstream tools through the **fixed allow-list**
-(`verilator` / `yosys` / `iverilog`), generate into a **sandboxed** per-run temp
+(`verilator` / `yosys` / `iverilog` / `sv2v`), generate into a **sandboxed** per-run temp
 dir (the agent never supplies a path), let the **RAM guard** decline to start
 more work under memory pressure, expose **no arbitrary shell**, and **audit-log**
 every call to `anvil://audit/log`. On ANVIL's valid-by-construction RTL the

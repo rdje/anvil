@@ -1785,7 +1785,7 @@ anvil hunt --seeds 16 --tools verilator,yosys --divergence
 | `--seed N` | `0` | Base seed; the sweep fuzzes `N .. N+seeds`. |
 | `--seeds K` | `16` | Number of consecutive seeds to fuzz (≥ 1). |
 | `--config <path>` | defaults | A full `Config` JSON (as `--dump-config` emits) — the knob profile every seed is generated under. |
-| `--tools <list>` | `verilator,yosys` | Comma-separated vetted tools (`verilator` / `yosys` / `iverilog`). A fixed allow-list. |
+| `--tools <list>` | `verilator,yosys` | Comma-separated vetted tools (`verilator` / `yosys` / `iverilog` / `sv2v`). A fixed allow-list. (`sv2v` is a SystemVerilog→Verilog-2005 transpile accept/reject column; absent on most hosts ⇒ a friendly no-op until installed.) |
 | `--yosys-mode <m>` | `without-abc` | Yosys mode when `yosys` runs (`without-abc` / `with-abc` / `both`). |
 | `--no-minimize` | (minimize on) | Report failures as-found instead of shrinking them. |
 | `--budget N` | `200` | Per-failure ceiling on minimize `validate` evaluations. |
@@ -1797,7 +1797,7 @@ Because ANVIL output is valid by construction, a clean sweep (`n_failures = 0`)
 is the **expected** result — a finding is a candidate **downstream-tool** bug
 (file it with the seed + knobs), never an ANVIL bug. The whole sweep is
 reproducible from its arguments (seeded, no wall-clock); every tool runs through
-the hardened `verilator`/`yosys`/`iverilog` allow-list in an auto-removed
+the hardened `verilator`/`yosys`/`iverilog`/`sv2v` allow-list in an auto-removed
 sandbox. Omit `--out` and findings are reported in the JSON without on-disk
 bundles (the MCP `hunt` tool always omits the bundle and serves each reproducer
 as an `anvil://artifact/<run_id>/…` resource instead).
@@ -1862,8 +1862,9 @@ It exposes three MCP primitives:
   of a recorded `tool_matrix_report.json` (inline `report` or `report_path`) so
   the agent can target *unexercised* surfaces — read-only, no recompute, no
   spawn. The controlled tools run only ANVIL's vetted downstream invocations
-  (`verilator` / `yosys` / `iverilog`, a fixed allow-list), in a sandboxed temp
-  dir, RAM-guarded, with no arbitrary shell and an audit log of every call.
+  (`verilator` / `yosys` / `iverilog` / `sv2v`, a fixed allow-list), in a
+  sandboxed temp dir, RAM-guarded, with no arbitrary shell and an audit log of
+  every call.
   `minimize` shrinks the input `(seed, knobs)` (seed held fixed); it never
   mutates or repairs RTL.
 - **Resources** — `anvil://catalog/knobs`, `anvil://catalog/lanes`,
